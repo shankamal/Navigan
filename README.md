@@ -47,12 +47,18 @@ Python 3.12 and a disposable PostgreSQL 16 database are required for the full su
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
+export ADMIN_DATABASE_URL='postgresql://USER:PASSWORD@localhost:5432/postgres'
+psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -v database_name=navigan_test -f database/bootstrap/create_database.sql
 export MIGRATION_DATABASE_URL='postgresql://USER:PASSWORD@localhost:5432/navigan_test'
 python scripts/migrate.py
 export DATABASE_URL="$MIGRATION_DATABASE_URL"
 pytest -q
 python scripts/generate_openapi.py
 ```
+
+**Create the database before running migrations.** For Aurora installation and recovery from
+`database "navigan" does not exist`, follow [deployment guide section 2](docs/deployment.md#2-create-the-database-then-apply-migrations-and-roles).
+The connection strings above are local examples; replace USER/PASSWORD with your test login.
 
 `pytest -q` without `DATABASE_URL` runs unit tests and explicitly skips database tests.
 The GitHub Actions workflow starts PostgreSQL and runs both suites. Never point tests at production.
