@@ -16,11 +16,13 @@ endpoint policies and database security groups to the service roles/security gro
 
 ## 2. Apply SQL migrations and roles
 
-From an authorized network location, use the migration-owner login, not the Lambda credentials:
+From an authorized network location, set `ADMIN_DATABASE_URL` to an administrator connection to the existing
+`postgres` database. Use the migration-owner login for `MIGRATION_DATABASE_URL`, not the Lambda credentials:
 
 ```bash
 pip install -e '.[dev]'
 export MIGRATION_DATABASE_URL='postgresql://MIGRATION_USER:PASSWORD@CLUSTER_WRITER:5432/navigan?sslmode=verify-full&sslrootcert=/path/global-bundle.pem'
+psql "$ADMIN_DATABASE_URL" -v database_name=navigan -f database/bootstrap/create_database.sql
 python scripts/migrate.py
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/bootstrap/roles.sql
 ```
