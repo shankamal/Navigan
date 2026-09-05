@@ -167,6 +167,54 @@ Configure your OIDC provider with issuer/audience, an API access scope (default 
 controlled role/customer claims documented in architecture.md. Never allow users to edit platform_scope,
 customer_create, roles or customer_ids in self-service profiles.
 
+### 4.1 Prepare Docker on the Amazon Linux build host
+
+If `sam build --use-container` reports:
+
+```text
+Error: Running AWS SAM projects locally requires a container runtime. Do you have Docker or Finch installed and running?
+```
+
+SAM cannot find or connect to a working container runtime. A Python virtual environment does not
+install or start Docker. Check the operating system first:
+
+```bash
+cat /etc/os-release
+uname -m
+```
+
+For **Amazon Linux 2023**, install Docker:
+
+```bash
+sudo yum install -y docker
+```
+
+For **Amazon Linux 2**, use its Docker package source instead:
+
+```bash
+sudo amazon-linux-extras install docker -y
+```
+
+Then start Docker, enable it after reboot, and verify that the daemon is accessible:
+
+```bash
+sudo systemctl enable --now docker
+docker --version
+docker info
+```
+
+The reported shell is running as `root`, so Docker group membership changes are unnecessary.
+For a non-root `ec2-user` account, an administrator can run
+`sudo usermod -aG docker ec2-user`; sign out and reconnect before running `docker info`.
+Docker group membership grants root-level privileges; limit it to trusted build users.
+
+Proceed only after `docker info` succeeds. Run the build from the Navigan repository root.
+The template targets `python3.12` and `x86_64`; prefer an x86_64 build host. An ARM/Graviton host
+needs working x86_64 emulation or a separate x86_64 builder. The container supplies the Python 3.12
+build environment even if the active host virtual environment uses another Python version.
+
+### 4.2 Validate, build and deploy
+
 ```bash
 sam validate --lint --template infrastructure/template.yaml
 sam build --use-container --template infrastructure/template.yaml
@@ -184,6 +232,25 @@ are external prerequisites so future modules share the established platform foun
 The default endpoint includes the stage `/v1` followed by `/api/v1/customers`. For a custom domain, map the
 stage according to your API naming standard. CORS is not enabled by default; configure explicit allowed
 frontend origins when a UI is introduced. Do not create a Function URL. Do not grant users direct Lambda invocation.
+
+### 4.3 Troubleshoot container builds
+
+| Symptom | Action |
+|---|---|
+| `docker: command not found` | Install Docker using section 4.1 for your Amazon Linux release. |
+| `Cannot connect to the Docker daemon` | Run `sudo systemctl status docker --no-pager`, then `sudo systemctl start docker`. If startup fails, inspect `sudo journalctl -u docker -n 50 --no-pager`. |
+| Permission denied on the Docker socket | Use the approved build account and the group setup in section 4.1; reconnect before retrying. Do not make the socket world-writable. |
+| `docker info` succeeds but SAM still reports no runtime | Run both commands as the same user in the same shell. Check `docker context show` and `printenv DOCKER_HOST DOCKER_CONTEXT` for an unintended remote endpoint; remove stale overrides only if the local daemon is intended. Retry with `sam build --debug --use-container --template infrastructure/template.yaml`. |
+| Build image download or dependency download fails | The build host needs outbound HTTPS and DNS access to the SAM build image registry (`public.ecr.aws`) and dependency sources such as PyPI, through your approved internet/NAT/proxy path. |
+| `exec format error` | Verify the host architecture and x86_64 container support; use an x86_64 builder for the current template. |
+
+Keep `--use-container` for the documented build so psycopg binary dependencies match Lambda's
+Python 3.12/Linux/x86_64 environment. Removing it requires a compatible local Python 3.12 toolchain
+and dependency build environment; a Python 3.14 virtual environment alone is not sufficient.
+Building prepares artifacts; only the subsequent deploy step creates or updates AWS resources.
+
+References: [AWS SAM Docker installation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-docker.html)
+and [AWS SAM container builds](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-sam-cli-build.html).
 
 ## 5. Smoke test and operations
 
