@@ -103,3 +103,18 @@ same Idempotency-Key.
 
 At-rest retention must cover customer contacts AND idempotency response records. Keep database access tightly
 restricted and define lawful retention/erasure separately. Do not add arbitrary secrets to free-text fields.
+
+## Explicit API Gateway routes
+
+The Customer Management Lambda has 18 explicitly configured method/path integrations in
+`infrastructure/template.yaml`, matching `docs/openapi.json`. Every route has the EnterpriseJwt
+authorizer and configured OAuth access scope, with payload format 2.0 and a 29-second integration timeout.
+Unsupported paths/methods are rejected by API Gateway before reaching Lambda. Existing module RBAC and
+customer scope checks still apply inside Lambda.
+
+After deployment, the stack outputs `ApiId`, `ApiBaseUrl` and `ApiUrl` (Customer Management collection).
+Use the gateway console or `aws apigatewayv2 get-routes --api-id <ApiId>` to inspect the deployed routes.
+New modules should add explicit HttpApi events referencing the shared `Api` resource and retain authorizer
+and scope configuration. The route-contract test prevents missing or extra Customer Management routes.
+
+[AWS SAM HttpApi event reference](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-httpapi.html)

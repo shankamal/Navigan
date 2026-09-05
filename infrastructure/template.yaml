@@ -89,20 +89,222 @@ Resources:
               Action: kms:Decrypt
               Resource: !Ref SecretsKmsKeyArn
       Events:
-        CustomerRoot:
+        CreateCustomer:
           Type: HttpApi
           Properties:
             ApiId: !Ref Api
             Path: /api/v1/customers
-            Method: ANY
+            Method: POST
             PayloadFormatVersion: '2.0'
-        CustomerRoutes:
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ListCustomers:
           Type: HttpApi
           Properties:
             ApiId: !Ref Api
-            Path: /api/v1/customers/{proxy+}
-            Method: ANY
+            Path: /api/v1/customers
+            Method: GET
             PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        GetCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}
+            Method: GET
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        UpdateCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}
+            Method: PUT
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        GetCustomerProviders:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/cloud-providers
+            Method: GET
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ReplaceCustomerProviders:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/cloud-providers
+            Method: PUT
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        SubmitCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/submit
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ResubmitCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/resubmit
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ReviewStartCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/review/start
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ApproveCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/approve
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        RejectCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/reject
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ActivateCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/activate
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        SuspendCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/suspend
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        ReactivateCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/reactivate
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        DeactivateCustomer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/deactivate
+            Method: POST
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        GetStatusHistory:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/status-history
+            Method: GET
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        GetAuditLog:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/audit-log
+            Method: GET
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
+        GetReviews:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/customers/{customerId}/reviews
+            Method: GET
+            PayloadFormatVersion: '2.0'
+            TimeoutInMillis: 29000
+            Auth:
+              Authorizer: EnterpriseJwt
+              AuthorizationScopes:
+                - !Ref JwtScope
   CustomerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -227,6 +429,12 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
 Outputs:
+  ApiId:
+    Description: API Gateway HTTP API identifier
+    Value: !Ref Api
+  ApiBaseUrl:
+    Description: Base URL for all v1 modules
+    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1/api/v1
   ApiUrl:
     Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1/api/v1/customers
   EventBusName:
