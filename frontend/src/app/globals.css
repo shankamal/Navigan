@@ -1530,3 +1530,30 @@ summary {
     scroll-behavior: auto !important;
   }
 }
+
+.login-form {
+  display: grid;
+  gap: 16px;
+}
+.login-form h2 {
+  margin: 0;
+}
+.login-fields {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.login-fields .field {
+  width: 100%;
+}
+.totp-setup {
+  padding: 12px;
+  background: #f5f7f5;
+  border: 1px solid #d4d9d4;
+  border-radius: 6px;
+}
+.totp-setup code {
+  display: block;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

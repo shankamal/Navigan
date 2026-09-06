@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Navigan custom login token enrichment for an existing Cognito user pool
+Parameters:
+  UserPoolId:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+_[A-Za-z0-9]+'
+  AppClientId:
+    Type: String
+    AllowedPattern: '[a-z0-9]+'
+    Description: Public SRP app client without a secret
+  ApiScope:
+    Type: String
+    Default: navigan/api
+    AllowedPattern: '[A-Za-z0-9._/-]+'
+    Description: Must match the API Gateway route authorization scope
+Resources:
+  TokenRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt TokenLogs.Arn
+  TokenLogs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-tokens'
+      RetentionInDays: 30
+  TokenFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-tokens'
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt TokenRole.Arn
+      Timeout: 5
+      MemorySize: 128
+      Environment:
+        Variables:
+          APP_CLIENT_ID: !Ref AppClientId
+          API_SCOPE: !Ref ApiScope
+      Code:
+        ZipFile: |
+          import os
+          import re
+
+          def handler(event, context):
+              # Never use clientMetadata or user-writable attributes for authorization.
+              if event.get("callerContext", {}).get("clientId") != os.environ["APP_CLIENT_ID"]:
+                  return event
+              if str(event.get("version")) not in {"2", "3"}:
+                  raise ValueError("Configure the pre-token-generation trigger as V2_0")
+              groups = event.get("request", {}).get("groupConfiguration", {}).get("groupsToOverride") or []
+              groups = {g for g in groups if isinstance(g, str)}
+              role_groups = {
+                  "NAVIGAN_CLOUD_ENGINEER": "CLOUD_ENGINEER",
+                  "NAVIGAN_PLATFORM_ARCHITECT": "PLATFORM_ARCHITECT",
+              }
+              roles = sorted(role for group, role in role_groups.items() if group in groups)
+              customers = sorted(g.removeprefix("NAVIGAN_CUSTOMER_") for g in groups
+                                 if re.fullmatch(r"NAVIGAN_CUSTOMER_CUS-[A-Za-z0-9-]+", g))
+              claims = {
+                  "roles": roles,
+                  "customer_ids": customers if roles else [],
+                  "platform_scope": bool(roles) and "NAVIGAN_PLATFORM_SCOPE" in groups,
+                  "customer_create": "CLOUD_ENGINEER" in roles and "NAVIGAN_CUSTOMER_CREATOR" in groups,
+              }
+              # A new login/refresh reflects current administrator-managed group membership.
+              access = {
+                  "claimsToAddOrOverride": claims,
+                  "scopesToAdd": [os.environ["API_SCOPE"]] if roles else [],
+                  "scopesToSuppress": [] if roles else [os.environ["API_SCOPE"]],
+              }
+              event.setdefault("response", {})["claimsAndScopeOverrideDetails"] = {
+                  "accessTokenGeneration": access
+              }
+              return event
+  TokenInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TokenFunction
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
+Outputs:
+  PreTokenGenerationArn:
+    Value: !GetAtt TokenFunction.Arn
+    Description: Attach to the existing user pool as pre-token-generation V2_0 (access token customization)
+  AppClientId:
+    Value: !Ref AppClientId
+  ApiScope:
+    Value: !Ref ApiScope

@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   accessToken,
   authConfigured,
-  authManager,
+  clearSession,
 } from "@/shared/auth/session";
 export class ApiError extends Error {
   constructor(
@@ -81,8 +81,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const normalized = normalizeApiError(error);
-    if (normalized.status === 401 && authConfigured)
-      await authManager().removeUser();
+    if (normalized.status === 401 && authConfigured) await clearSession();
     // Metadata only: never log tokens, customer bodies, contacts or raw Axios errors.
     console.error("Navigan API request failed", {
       status: normalized.status,

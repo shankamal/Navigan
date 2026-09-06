@@ -1,7 +1,8 @@
 # Navigan frontend
 
+> **Authentication update:** Navigan now uses a custom SRP login form. Follow [custom login setup](custom-login.md) for the public app client, token trigger and group permissions.
 The frontend is a Next.js App Router application in `frontend/`. It uses React, strict TypeScript,
-Tailwind CSS, TanStack Query (React Query), Axios, Zod, and `oidc-client-ts`.
+Tailwind CSS, TanStack Query (React Query), Axios, Zod, and AWS Amplify Auth.
 Only Customer Management is implemented. Environment, Cluster, and Application Management have
 explicit planned-module pages; they do not simulate provisioning or call unimplemented APIs.
 
@@ -32,7 +33,7 @@ npm start
 ```
 
 Serve the application through HTTPS in production. Public environment variables are embedded at build
-time; rebuild after changing the Cognito app client, issuer, scopes, or public application URL.
+time; rebuild after changing the Cognito app client, user pool, or public application URL.
 The Next.js server must be able to reach API Gateway over HTTPS. This is a server-rendered deployment,
 not an S3-only static export: the same-origin API route requires a running Next.js server.
 No AWS resources are provisioned by these commands.
@@ -45,9 +46,7 @@ No AWS resources are provisioned by these commands.
 | `NAVIGAN_API_BASE_PATH` | Server-only stage plus resource prefix: `/v1/api/v1`, matching the repository SAM template. |
 | `NEXT_PUBLIC_OIDC_AUTHORITY` | `https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz`. |
 | `NEXT_PUBLIC_OIDC_CLIENT_ID` | Required Cognito public app client ID; no client secret. |
-| `NEXT_PUBLIC_OIDC_SCOPE` | `openid profile email navigan/api`; the API access scope must match gateway configuration. |
 | `NEXT_PUBLIC_APP_URL` | Browser application origin, e.g. `http://localhost:3000`; blank uses the current browser origin. |
-| `NEXT_PUBLIC_COGNITO_DOMAIN` | Optional HTTPS Cognito managed-login domain for full provider logout. |
 | `NEXT_PUBLIC_CORPORATE_LOGO_URL` | Optional path to an approved corporate logo under `public/`. |
 
 The default upstream collection URL is
@@ -59,29 +58,11 @@ in this frontend. The frontend talks only to the API.
 
 ## Cognito setup
 
-1. Use a public app client without a client secret. Enable authorization code flow and PKCE-compatible
-   browser sign-in. Configure a Cognito managed-login domain for the user pool.
-2. Register the exact callback URL `http://localhost:3000/auth/callback` for local development and
-   `https://YOUR_FRONTEND_HOST/auth/callback` for production. Register corresponding `/login` sign-out URLs.
-3. Enable `openid`, `profile`, `email`, and the configured custom resource-server scope `navigan/api`
-   on the app client. Update the scope environment setting if the gateway uses another scope.
-4. Ensure the gateway audience accepts this app client ID and the issuer matches the user pool.
-5. Provision access-token claims used by the existing Lambda authorization implementation:
-   `roles`, `customer_ids`, `platform_scope`, and `customer_create`. Use administrator-controlled
-   provisioning/token customization. Standard `cognito:groups` alone is not the `roles` claim expected
-   by the backend. Supported roles are `CLOUD_ENGINEER`, `PLATFORM_ARCHITECT`, and `SERVICE`.
-6. Set the frontend environment settings and restart/rebuild. Sign in as separately scoped engineer
-   and architect users to exercise the maker/reviewer flow.
-
-Sign-in uses `oidc-client-ts` authorization code flow with PKCE and OAuth state validation. The library
-stores per-tab session state/tokens in `sessionStorage`; no access token is placed in localStorage,
-URLs, logs or source code. Refresh tokens, when returned by Cognito, are used by the library for renewal.
-A failed renewal or API 401 clears the local session and query cache. Access-token claims control UI
-visibility only; the gateway and Lambda remain the security authority. Signed-in users cannot select
-or override roles in the frontend. Identity changes clear cached customer data.
-
-With `NEXT_PUBLIC_COGNITO_DOMAIN`, Sign out also redirects to the Cognito logout endpoint. Without it,
-sign-out clears the local application session; the Cognito browser session may remain active.
+Follow [custom login setup](custom-login.md): create a public SRP app client, deploy and attach the
+V2 pre-token-generation Lambda, assign Cognito groups, and configure the gateway audience.
+The frontend uses Amplify Auth for SRP, MFA, password recovery and token refresh. Tokens live in
+per-tab sessionStorage. No passwords or tokens are written to logs. Identity changes/sign-out clear
+cached customer data. API Gateway and Lambda remain the authorization authority.
 
 ## Feature-based structure
 

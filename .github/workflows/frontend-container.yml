@@ -1,9 +1,9 @@
 name: Frontend container and Fargate templates
 on:
   push:
-    paths: ['frontend/**', 'infrastructure/frontend/**', 'scripts/frontend/**', '.github/workflows/frontend-container.yml']
+    paths: ['frontend/**', 'infrastructure/frontend/**', 'infrastructure/auth/**', 'scripts/frontend/**', '.github/workflows/frontend-container.yml']
   pull_request:
-    paths: ['frontend/**', 'infrastructure/frontend/**', 'scripts/frontend/**', '.github/workflows/frontend-container.yml']
+    paths: ['frontend/**', 'infrastructure/frontend/**', 'infrastructure/auth/**', 'scripts/frontend/**', '.github/workflows/frontend-container.yml']
 permissions:
   contents: read
 jobs:
@@ -15,8 +15,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install cfn-lint
-      - run: cfn-lint infrastructure/frontend/ecr.yaml infrastructure/frontend/service.yaml
-      - run: bash -n scripts/frontend/common.sh scripts/frontend/build-and-push.sh scripts/frontend/deploy.sh
+      - run: cfn-lint infrastructure/frontend/ecr.yaml infrastructure/frontend/service.yaml infrastructure/auth/template.yaml
+      - run: for script in scripts/frontend/*.sh; do bash -n "$script"; done
       - uses: docker/setup-buildx-action@v3
       - name: Build frontend image
         run: |

@@ -1,5 +1,6 @@
 # Host the Navigan frontend on ECS Fargate
 
+> **Authentication update:** Navigan now uses a custom SRP login form. Follow [custom login setup](custom-login.md) for the public app client, token trigger and group permissions.
 This deployment is independent of the backend SAM parent and its Customer Management stack.
 It creates two CloudFormation stacks: a retained ECR repository, and the frontend ECS/ALB service.
 The existing API Gateway, Cognito user pool, Aurora and RDS Proxy remain external dependencies.
@@ -30,9 +31,9 @@ The existing API Gateway, Cognito user pool, Aurora and RDS Proxy remain externa
   VPC endpoints for ECR API/DKR, S3 and Logs can replace those particular NAT paths, but you must still
   provide connectivity to the configured public API endpoint. VPC DNS resolution must work.
 - A production frontend hostname, such as your own `navigan.company.com`, and an **issued ACM
-  certificate in the ECS/ALB region** that covers it. The service requires HTTPS for Cognito/PKCE.
-- A configured Cognito public app client; no client secret. Register the exact production URLs:
-  `https://YOUR_HOST/auth/callback` and the sign-out URL `https://YOUR_HOST/login`.
+  certificate in the ECS/ALB region** that covers it. The service requires HTTPS for secure browser authentication.
+- A configured Cognito public SRP app client without a secret, a V2 token trigger and assigned user groups;
+  follow [custom login setup](custom-login.md).
 - Optional Route 53 public hosted-zone ID for automatic DNS alias creation. Otherwise create the
   DNS alias/CNAME to the ALB DNS output yourself before using the frontend hostname.
 
@@ -54,7 +55,7 @@ cp scripts/frontend/config.env.example scripts/frontend/config.env
 ```
 
 Edit `config.env` with your actual client ID, HTTPS application origin, subnets, VPC and certificate ARN.
-Set `NEXT_PUBLIC_COGNITO_DOMAIN` to the actual managed-login domain, or empty for application-only logout.
+Set the public app client ID for SRP sign-in and attach the token trigger described in `docs/custom-login.md`.
 Set `HOSTED_ZONE_ID` if the stack should create the DNS alias. Set `AWS_PROFILE` only when using a named
 profile; otherwise the standard credential chain applies. Then load the file:
 
@@ -85,7 +86,7 @@ Builds include the working tree; commit/review changes before release and record
 ECR scanning runs after push; review scan results under your release process.
 
 **Build-time vs runtime configuration:** `NEXT_PUBLIC_*` settings are compiled into browser assets.
-Changing the app URL, Cognito client, issuer or scope requires a new image. Setting these only on the
+Changing the app URL, Cognito client or user pool requires a new image. Setting these only on the
 ECS task will not change the existing image. `NAVIGAN_API_ORIGIN` and `NAVIGAN_API_BASE_PATH` are server-only
 runtime variables, injected by CloudFormation, so changing them only needs a service-stack update.
 Use the same public config when building and deploying a release.
@@ -148,7 +149,7 @@ are deleted. Resource deletion/retirement is a separate action, not part of thes
 | ECR tag already exists | Choose a new tag; immutable tags cannot be overwritten. |
 | Task cannot pull image / initialize logs | Private subnet NAT or VPC endpoints, outbound HTTPS, execution role, ECR region/repository. |
 | ALB targets unhealthy | Container logs, port 3000, `/healthz`, ALB-to-task SG rule and available memory. |
-| TLS or Cognito redirect error | Issued ACM cert, DNS, exact callback/logout URLs, and build-time `NEXT_PUBLIC_APP_URL`. |
+| TLS or sign-in error | Issued ACM cert, DNS, public app client without a secret, enabled SRP flow and token trigger; see `docs/custom-login.md`. |
 | Sign-in succeeded but API requests fail | JWT scopes/custom claims and runtime gateway stage/base path; see `docs/frontend.md`. |
 | CFN rollback / stable old image | Inspect CloudFormation/ECS events; fix the cause and deploy a new release. |
 

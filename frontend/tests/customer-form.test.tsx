@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/shared/auth/session", () => ({
   accessToken: vi.fn(),
   authConfigured: false,
-  authManager: vi.fn(),
+  clearSession: vi.fn(),
 }));
 function wrap(component: React.ReactNode) {
   return render(

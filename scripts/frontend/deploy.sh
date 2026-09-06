@@ -33,4 +33,4 @@ TASK_DEFINITION="$(aws "${AWS_ARGS[@]}" ecs describe-services --cluster "$CLUSTE
 DEPLOYED_IMAGE="$(aws "${AWS_ARGS[@]}" ecs describe-task-definition --task-definition "$TASK_DEFINITION" --query 'taskDefinition.containerDefinitions[?name==`frontend`].image | [0]' --output text)"
 [[ "$DEPLOYED_IMAGE" == "$IMAGE_URI" ]] || { printf 'Service is stable but is not running the requested image (possible rollback).\n' >&2; exit 1; }
 aws "${AWS_ARGS[@]}" cloudformation describe-stacks --stack-name "$FRONTEND_STACK_NAME" --query 'Stacks[0].Outputs' --output table
-printf '\nRegister %s/auth/callback and %s/login with Cognito.\n' "$NEXT_PUBLIC_APP_URL" "$NEXT_PUBLIC_APP_URL"
+printf '\nOpen %s/login. Configure the public SRP app client and V2 token trigger as documented in docs/custom-login.md.\n' "$NEXT_PUBLIC_APP_URL"

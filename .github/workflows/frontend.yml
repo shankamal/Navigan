@@ -14,6 +14,8 @@ jobs:
         working-directory: frontend
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_OIDC_CLIENT_ID: 'ci-public-client'
+      NEXT_PUBLIC_APP_URL: 'https://navigan.click'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,3 +28,19 @@ jobs:
       - run: npm test
       - run: npm run format:check
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Verify custom login in a browser
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3101 > /tmp/navigan-frontend.log 2>&1 &
+          FRONTEND_PID=$!
+          trap 'kill "$FRONTEND_PID" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3101/healthz; then break; fi
+            sleep 1
+          done
+          node scripts/check-login.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: custom-login-screenshots
+          path: frontend/test-results/

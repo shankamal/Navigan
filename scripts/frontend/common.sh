@@ -30,9 +30,6 @@ validate_public_config() {
     printf 'NEXT_PUBLIC_APP_URL must be your production HTTPS origin without a path or trailing slash.\n' >&2
     exit 1
   fi
-  if [[ -n "${NEXT_PUBLIC_COGNITO_DOMAIN:-}" && ( "$NEXT_PUBLIC_COGNITO_DOMAIN" == *REPLACE* || ! "$NEXT_PUBLIC_COGNITO_DOMAIN" =~ ^https:// ) ]]; then
-    printf 'Set NEXT_PUBLIC_COGNITO_DOMAIN to your HTTPS domain, or leave it empty.\n' >&2; exit 1
-  fi
   if [[ ! "$NEXT_PUBLIC_OIDC_AUTHORITY" =~ ^https:// ]]; then
     printf 'NEXT_PUBLIC_OIDC_AUTHORITY must use HTTPS.\n' >&2; exit 1
   fi

@@ -19,7 +19,7 @@ IMAGE_TAG="${IMAGE_TAG:-$(git -C "$NAVIGAN_ROOT" rev-parse --short HEAD)-$(date 
 [[ "$IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || { printf 'Invalid IMAGE_TAG.\n' >&2; exit 1; }
 aws "${AWS_ARGS[@]}" ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY" >&2
 BUILD_ARGS=()
-for name in NEXT_PUBLIC_OIDC_AUTHORITY NEXT_PUBLIC_OIDC_CLIENT_ID NEXT_PUBLIC_APP_URL NEXT_PUBLIC_OIDC_SCOPE NEXT_PUBLIC_COGNITO_DOMAIN NEXT_PUBLIC_CORPORATE_LOGO_URL; do
+for name in NEXT_PUBLIC_OIDC_AUTHORITY NEXT_PUBLIC_OIDC_CLIENT_ID NEXT_PUBLIC_APP_URL NEXT_PUBLIC_CORPORATE_LOGO_URL; do
   if [[ -v "$name" ]]; then BUILD_ARGS+=(--build-arg "$name=${!name}"); fi
 done
 docker buildx build --platform linux/amd64 --load --pull \
