@@ -1557,3 +1557,24 @@ summary {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* The custom form supplies its own spacing; do not inherit redirect-button margins. */
+.signin-card .login-fields .button,
+.login-fields .field {
+  margin: 0;
+}
+.login-form h2:focus {
+  outline: none;
+}
+.skip-link:not(:focus) {
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+}
+@media (max-width: 600px) {
+  .signin-layout .signin-card {
+    order: -1;
+  }
+}

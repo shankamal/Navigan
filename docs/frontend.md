@@ -46,7 +46,7 @@ No AWS resources are provisioned by these commands.
 | `NAVIGAN_API_BASE_PATH` | Server-only stage plus resource prefix: `/v1/api/v1`, matching the repository SAM template. |
 | `NEXT_PUBLIC_OIDC_AUTHORITY` | `https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz`. |
 | `NEXT_PUBLIC_OIDC_CLIENT_ID` | Required Cognito public app client ID; no client secret. |
-| `NEXT_PUBLIC_APP_URL` | Browser application origin, e.g. `http://localhost:3000`; blank uses the current browser origin. |
+| `NEXT_PUBLIC_APP_URL` | Deployment origin, e.g. `https://navigan.click`; used by the ECS deployment scripts for the hostname. |
 | `NEXT_PUBLIC_CORPORATE_LOGO_URL` | Optional path to an approved corporate logo under `public/`. |
 
 The default upstream collection URL is
