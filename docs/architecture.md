@@ -79,3 +79,13 @@ until an explicit change-control workflow is specified and implemented.
 
 - [Lambda with RDS](https://docs.aws.amazon.com/lambda/latest/dg/services-rds.html): RDS Proxy connection pooling.
 - [HTTP API JWT authorizers](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html): verified claims passed to integrations.
+
+## Infrastructure ownership
+
+The parent SAM template composes two nested CloudFormation stacks: `SharedPlatform` owns the shared
+HTTP API, JWT authorizer, stage/logs and domain event bus; `CustomerManagement` owns its API Lambda,
+18 native API Gateway V2 routes, invoke permissions, outbox worker, notifications, IAM roles and alarms.
+Shared resource IDs flow through parent parameters, so modules do not depend on each other's resources.
+Updates are orchestrated through the parent. Follow the deployment guide when adding module stacks or
+migrating an existing deployment. The current outbox worker is customer-specific despite its shared
+code location; future outbox producers need source-aware publishing or filtering before rollout.

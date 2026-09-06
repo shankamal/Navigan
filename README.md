@@ -11,8 +11,10 @@ src/navigan/
     customer_management/   # Lambda controller, DTOs, workflow, service, SQL repository
   shared/                  # Verified identity, errors, database connections, outbox worker
 src/requirements.txt       # Lambda package dependencies
-infrastructure/            # AWS SAM deployment template
-database/                 # See actualdatabase/ directory below
+samconfig.toml             # SAM build/deploy defaults; guided environment configuration
+infrastructure/template.yaml  # Parent stack orchestration
+infrastructure/shared/     # Shared API Gateway and EventBridge stack
+infrastructure/modules/customer-management/  # Separate Customer Management CFN stack
 database/migrations/      # Forward-only PostgreSQL DDL and provider master seed
 database/bootstrap/       # Least-privilege database group roles
 scripts/                   # Migration runner and OpenAPI generation
@@ -77,3 +79,18 @@ The infrastructure template references an existing Aurora PostgreSQL cluster/RDS
 OIDC provider, Secrets Manager secrets and a certificate layer. It does not deploy an Aurora cluster
 or create cloud accounts automatically. Notification delivery is a separate consumer integration;
 the module publishes review/decision events to an encrypted SQS queue.
+
+## Modular infrastructure deployment
+
+Customer Management runs in its own nested CloudFormation stack, alongside the shared platform stack.
+The parent template coordinates their parameters and dependencies. From the repository root:
+
+```bash
+sam build --config-file "$PWD/samconfig.toml"
+sam deploy --guided --config-file "$PWD/samconfig.toml"
+```
+
+The first deployment collects your AWS region, identity, database and network settings. Later deployments
+can omit `--guided` after saving those values. Docker is required for the configured container build.
+See the [deployment guide](docs/deployment.md#modular-stacks-and-samconfigtoml) for stack ownership,
+parameter definitions, adding modules and migration from an already deployed monolithic stack.

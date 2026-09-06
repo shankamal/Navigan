@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Navigan shared HTTP API, JWT authorizer, stage, access logs and domain event bus
+Parameters:
+  JwtIssuer:
+    Type: String
+  JwtAudience:
+    Type: String
+Resources:
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name:
+        Fn::Sub: ${AWS::StackName}-api
+      ProtocolType: HTTP
+  EnterpriseJwt:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId:
+        Ref: Api
+      Name: EnterpriseJwt
+      AuthorizerType: JWT
+      IdentitySource:
+      - $request.header.Authorization
+      JwtConfiguration:
+        Issuer:
+          Ref: JwtIssuer
+        Audience:
+        - Ref: JwtAudience
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId:
+        Ref: Api
+      StageName: v1
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 100
+        ThrottlingRateLimit: 50
+      AccessLogSettings:
+        DestinationArn:
+          Fn::GetAtt: ApiLogs.Arn
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLatency":"$context.responseLatency"}'
+  DomainEvents:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name:
+        Fn::Sub: ${AWS::StackName}-domain-events
+Outputs:
+  ApiId:
+    Value:
+      Ref: Api
+  AuthorizerId:
+    Value:
+      Ref: EnterpriseJwt
+  ApiBaseUrl:
+    Value:
+      Fn::Sub: https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1
+  EventBusName:
+    Value:
+      Ref: DomainEvents
+  EventBusArn:
+    Value:
+      Fn::GetAtt:
+      - DomainEvents
+      - Arn

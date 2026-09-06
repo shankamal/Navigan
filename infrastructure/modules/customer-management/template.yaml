@@ -1,0 +1,593 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Navigan Customer Management: Lambda APIs, routes, outbox publisher, notifications and alarms'
+Parameters:
+  JwtScope:
+    Type: String
+    Default: navigan/api
+  DatabaseName:
+    Type: String
+    Default: navigan
+  DatabaseProxyHost:
+    Type: String
+  ApiDatabaseSecretArn:
+    Type: String
+  EventsDatabaseSecretArn:
+    Type: String
+  SecretsKmsKeyArn:
+    Type: String
+    Description: KMS key encrypting the two database Secrets Manager secrets
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  LambdaSecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  RdsCaLayerArn:
+    Type: String
+    Description: Layer containing the official RDS CA bundle at /opt/certs/global-bundle.pem
+  OutboxScheduleEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Description: Set false during migration until the previous publisher has been stopped.
+  ApiId:
+    Type: String
+  AuthorizerId:
+    Type: String
+  EventBusName:
+    Type: String
+  EventBusArn:
+    Type: String
+Conditions:
+  PublishOutbox:
+    Fn::Equals:
+    - Ref: OutboxScheduleEnabled
+    - 'true'
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures:
+    - x86_64
+    Timeout: 30
+    MemorySize: 256
+    CodeUri: ../../../src/
+    Layers:
+    - Ref: RdsCaLayerArn
+    VpcConfig:
+      SubnetIds:
+        Ref: PrivateSubnetIds
+      SecurityGroupIds:
+        Ref: LambdaSecurityGroupIds
+    Environment:
+      Variables:
+        DB_PROXY_HOST:
+          Ref: DatabaseProxyHost
+        DB_NAME:
+          Ref: DatabaseName
+        DB_CA_BUNDLE: /opt/certs/global-bundle.pem
+Resources:
+  CustomerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: navigan.modules.customer_management.handler.lambda_handler
+      ReservedConcurrentExecutions: 20
+      Environment:
+        Variables:
+          DB_SECRET_ARN:
+            Ref: ApiDatabaseSecretArn
+      Policies:
+      - AWSLambdaVPCAccessExecutionRole
+      - Statement:
+        - Effect: Allow
+          Action: secretsmanager:GetSecretValue
+          Resource:
+            Ref: ApiDatabaseSecretArn
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource:
+            Ref: SecretsKmsKeyArn
+  CustomerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${CustomerFunction}
+      RetentionInDays: 30
+  OutboxPublisher:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: navigan.shared.outbox.lambda_handler
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          EVENTS_DB_SECRET_ARN:
+            Ref: EventsDatabaseSecretArn
+          EVENT_BUS_NAME:
+            Ref: EventBusName
+      Policies:
+      - AWSLambdaVPCAccessExecutionRole
+      - Statement:
+        - Effect: Allow
+          Action: secretsmanager:GetSecretValue
+          Resource:
+            Ref: EventsDatabaseSecretArn
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource:
+            Ref: SecretsKmsKeyArn
+        - Effect: Allow
+          Action: events:PutEvents
+          Resource:
+            Ref: EventBusArn
+      Events:
+        Poll:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Enabled:
+              Fn::If:
+              - PublishOutbox
+              - true
+              - false
+  PublisherLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${OutboxPublisher}
+      RetentionInDays: 30
+  NotificationDeadLetters:
+    Type: AWS::SQS::Queue
+    Properties:
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+  NotificationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      SqsManagedSseEnabled: true
+      VisibilityTimeout: 120
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt: NotificationDeadLetters.Arn
+        maxReceiveCount: 5
+  NotificationRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName:
+        Ref: EventBusName
+      EventPattern:
+        source:
+        - navigan.customer-management
+        detail-type:
+        - CustomerSubmitted
+        - CustomerApproved
+        - CustomerRejected
+      Targets:
+      - Id: Notifications
+        Arn:
+          Fn::GetAtt: NotificationQueue.Arn
+        DeadLetterConfig:
+          Arn:
+            Fn::GetAtt: NotificationDeadLetters.Arn
+  NotificationQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+      - Ref: NotificationQueue
+      - Ref: NotificationDeadLetters
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: events.amazonaws.com
+          Action: sqs:SendMessage
+          Resource:
+          - Fn::GetAtt: NotificationQueue.Arn
+          - Fn::GetAtt: NotificationDeadLetters.Arn
+          Condition:
+            ArnEquals:
+              aws:SourceArn:
+                Fn::GetAtt: NotificationRule.Arn
+  ApiErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: Navigan/CustomerManagement
+      MetricName: customer_api_errors_total
+      Dimensions:
+      - Name: Module
+        Value: CustomerManagement
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  PublisherErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+      - Name: FunctionName
+        Value:
+          Ref: OutboxPublisher
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  OutboxAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: Navigan/Events
+      MetricName: OutboxOldestAge
+      Dimensions:
+      - Name: Module
+        Value: CustomerManagement
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  CustomerIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ApiId
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri:
+        Fn::GetAtt:
+        - CustomerFunction
+        - Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 29000
+  CustomerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: CustomerFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount:
+        Ref: AWS::AccountId
+      SourceArn:
+        Fn::Sub: arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/customers*
+  CreateCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ListCustomersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  GetCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers/{customerId}
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  UpdateCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: PUT /api/v1/customers/{customerId}
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  GetCustomerProvidersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers/{customerId}/cloud-providers
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ReplaceCustomerProvidersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: PUT /api/v1/customers/{customerId}/cloud-providers
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  SubmitCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/submit
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ResubmitCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/resubmit
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ReviewStartCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/review/start
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ApproveCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/approve
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  RejectCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/reject
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ActivateCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/activate
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  SuspendCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/suspend
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ReactivateCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/reactivate
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  DeactivateCustomerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/customers/{customerId}/deactivate
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  GetStatusHistoryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers/{customerId}/status-history
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  GetAuditLogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers/{customerId}/audit-log
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  GetReviewsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers/{customerId}/reviews
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+Outputs:
+  CustomerFunctionArn:
+    Value:
+      Fn::GetAtt:
+      - CustomerFunction
+      - Arn
+  OutboxPublisherFunctionName:
+    Value:
+      Ref: OutboxPublisher
+  NotificationQueueUrl:
+    Value:
+      Ref: NotificationQueue

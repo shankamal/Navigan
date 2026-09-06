@@ -5,6 +5,19 @@ on:
 permissions:
   contents: read
 jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    env:
+      AWS_DEFAULT_REGION: ap-south-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      SAM_CLI_TELEMETRY: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/setup-sam@v2
+      - run: sam validate --config-file "$PWD/samconfig.toml"
+      - run: sam validate --lint --template infrastructure/shared/template.yaml
+      - run: sam validate --lint --template infrastructure/modules/customer-management/template.yaml
+      - run: sam build --config-file "$PWD/samconfig.toml"
   test:
     runs-on: ubuntu-latest
     services:

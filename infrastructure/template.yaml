@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Navigan modular API foundation and Customer Management module
+Description: 'Navigan parent stack: shared platform and separate module CloudFormation stacks'
 Parameters:
   JwtIssuer:
     Type: String
@@ -28,416 +28,100 @@ Parameters:
   RdsCaLayerArn:
     Type: String
     Description: Layer containing the official RDS CA bundle at /opt/certs/global-bundle.pem
-Globals:
-  Function:
-    Runtime: python3.12
-    Architectures: [x86_64]
-    Timeout: 30
-    MemorySize: 256
-    CodeUri: ../src/
-    Layers:
-      - !Ref RdsCaLayerArn
-    VpcConfig:
-      SubnetIds: !Ref PrivateSubnetIds
-      SecurityGroupIds: !Ref LambdaSecurityGroupIds
-    Environment:
-      Variables:
-        DB_PROXY_HOST: !Ref DatabaseProxyHost
-        DB_NAME: !Ref DatabaseName
-        DB_CA_BUNDLE: /opt/certs/global-bundle.pem
+  OutboxScheduleEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Description: Set false during migration until the previous publisher has been stopped.
 Resources:
-  Api:
-    Type: AWS::Serverless::HttpApi
+  SharedPlatform:
+    Type: AWS::Serverless::Application
     Properties:
-      StageName: v1
-      Auth:
-        DefaultAuthorizer: EnterpriseJwt
-        Authorizers:
-          EnterpriseJwt:
-            IdentitySource: '$request.header.Authorization'
-            AuthorizationScopes:
-              - !Ref JwtScope
-            JwtConfiguration:
-              issuer: !Ref JwtIssuer
-              audience:
-                - !Ref JwtAudience
-      DefaultRouteSettings:
-        ThrottlingBurstLimit: 100
-        ThrottlingRateLimit: 50
-      AccessLogSettings:
-        DestinationArn: !GetAtt ApiLogs.Arn
-        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLatency":"$context.responseLatency"}'
-  ApiLogs:
-    Type: AWS::Logs::LogGroup
+      Location: shared/template.yaml
+      Parameters:
+        JwtIssuer:
+          Ref: JwtIssuer
+        JwtAudience:
+          Ref: JwtAudience
+  CustomerManagement:
+    Type: AWS::Serverless::Application
     Properties:
-      RetentionInDays: 30
-  CustomerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: navigan.modules.customer_management.handler.lambda_handler
-      ReservedConcurrentExecutions: 20
-      Environment:
-        Variables:
-          DB_SECRET_ARN: !Ref ApiDatabaseSecretArn
-      Policies:
-        - AWSLambdaVPCAccessExecutionRole
-        - Statement:
-            - Effect: Allow
-              Action: secretsmanager:GetSecretValue
-              Resource: !Ref ApiDatabaseSecretArn
-            - Effect: Allow
-              Action: kms:Decrypt
-              Resource: !Ref SecretsKmsKeyArn
-      Events:
-        CreateCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ListCustomers:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers
-            Method: GET
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        GetCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}
-            Method: GET
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        UpdateCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}
-            Method: PUT
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        GetCustomerProviders:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/cloud-providers
-            Method: GET
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ReplaceCustomerProviders:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/cloud-providers
-            Method: PUT
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        SubmitCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/submit
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ResubmitCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/resubmit
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ReviewStartCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/review/start
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ApproveCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/approve
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        RejectCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/reject
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ActivateCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/activate
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        SuspendCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/suspend
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        ReactivateCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/reactivate
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        DeactivateCustomer:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/deactivate
-            Method: POST
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        GetStatusHistory:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/status-history
-            Method: GET
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        GetAuditLog:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/audit-log
-            Method: GET
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-        GetReviews:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref Api
-            Path: /api/v1/customers/{customerId}/reviews
-            Method: GET
-            PayloadFormatVersion: '2.0'
-            TimeoutInMillis: 29000
-            Auth:
-              Authorizer: EnterpriseJwt
-              AuthorizationScopes:
-                - !Ref JwtScope
-  CustomerLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${CustomerFunction}
-      RetentionInDays: 30
-  DomainEvents:
-    Type: AWS::Events::EventBus
-    Properties:
-      Name: !Sub ${AWS::StackName}-domain-events
-  OutboxPublisher:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: navigan.shared.outbox.lambda_handler
-      ReservedConcurrentExecutions: 1
-      Environment:
-        Variables:
-          EVENTS_DB_SECRET_ARN: !Ref EventsDatabaseSecretArn
-          EVENT_BUS_NAME: !Ref DomainEvents
-      Policies:
-        - AWSLambdaVPCAccessExecutionRole
-        - Statement:
-            - Effect: Allow
-              Action: secretsmanager:GetSecretValue
-              Resource: !Ref EventsDatabaseSecretArn
-            - Effect: Allow
-              Action: kms:Decrypt
-              Resource: !Ref SecretsKmsKeyArn
-            - Effect: Allow
-              Action: events:PutEvents
-              Resource: !GetAtt DomainEvents.Arn
-      Events:
-        Poll:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 minute)
-            Enabled: true
-  PublisherLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${OutboxPublisher}
-      RetentionInDays: 30
-  NotificationDeadLetters:
-    Type: AWS::SQS::Queue
-    Properties:
-      SqsManagedSseEnabled: true
-      MessageRetentionPeriod: 1209600
-  NotificationQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      SqsManagedSseEnabled: true
-      VisibilityTimeout: 120
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt NotificationDeadLetters.Arn
-        maxReceiveCount: 5
-  NotificationRule:
-    Type: AWS::Events::Rule
-    Properties:
-      EventBusName: !Ref DomainEvents
-      EventPattern:
-        source: [navigan.customer-management]
-        detail-type: [CustomerSubmitted, CustomerApproved, CustomerRejected]
-      Targets:
-        - Id: Notifications
-          Arn: !GetAtt NotificationQueue.Arn
-          DeadLetterConfig:
-            Arn: !GetAtt NotificationDeadLetters.Arn
-  NotificationQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues: [!Ref NotificationQueue, !Ref NotificationDeadLetters]
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sqs:SendMessage
-            Resource: [!GetAtt NotificationQueue.Arn, !GetAtt NotificationDeadLetters.Arn]
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt NotificationRule.Arn
-  ApiErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Namespace: Navigan/CustomerManagement
-      MetricName: customer_api_errors_total
-      Dimensions:
-        - Name: Module
-          Value: CustomerManagement
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 5
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-  PublisherErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Namespace: AWS/Lambda
-      MetricName: Errors
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref OutboxPublisher
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-  OutboxAgeAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Namespace: Navigan/Events
-      MetricName: OutboxOldestAge
-      Dimensions:
-        - Name: Module
-          Value: CustomerManagement
-      Statistic: Maximum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 300
-      ComparisonOperator: GreaterThanThreshold
-      TreatMissingData: notBreaching
+      Location: modules/customer-management/template.yaml
+      Parameters:
+        JwtScope:
+          Ref: JwtScope
+        DatabaseName:
+          Ref: DatabaseName
+        DatabaseProxyHost:
+          Ref: DatabaseProxyHost
+        ApiDatabaseSecretArn:
+          Ref: ApiDatabaseSecretArn
+        EventsDatabaseSecretArn:
+          Ref: EventsDatabaseSecretArn
+        SecretsKmsKeyArn:
+          Ref: SecretsKmsKeyArn
+        PrivateSubnetIds:
+          Fn::Join:
+          - ','
+          - Ref: PrivateSubnetIds
+        LambdaSecurityGroupIds:
+          Fn::Join:
+          - ','
+          - Ref: LambdaSecurityGroupIds
+        RdsCaLayerArn:
+          Ref: RdsCaLayerArn
+        OutboxScheduleEnabled:
+          Ref: OutboxScheduleEnabled
+        ApiId:
+          Fn::GetAtt:
+          - SharedPlatform
+          - Outputs.ApiId
+        AuthorizerId:
+          Fn::GetAtt:
+          - SharedPlatform
+          - Outputs.AuthorizerId
+        EventBusName:
+          Fn::GetAtt:
+          - SharedPlatform
+          - Outputs.EventBusName
+        EventBusArn:
+          Fn::GetAtt:
+          - SharedPlatform
+          - Outputs.EventBusArn
 Outputs:
   ApiId:
-    Description: API Gateway HTTP API identifier
-    Value: !Ref Api
+    Value:
+      Fn::GetAtt:
+      - SharedPlatform
+      - Outputs.ApiId
   ApiBaseUrl:
-    Description: Base URL for all v1 modules
-    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1/api/v1
-  ApiUrl:
-    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1/api/v1/customers
+    Value:
+      Fn::GetAtt:
+      - SharedPlatform
+      - Outputs.ApiBaseUrl
   EventBusName:
-    Value: !Ref DomainEvents
+    Value:
+      Fn::GetAtt:
+      - SharedPlatform
+      - Outputs.EventBusName
+  ApiUrl:
+    Value:
+      Fn::Sub: ${SharedPlatform.Outputs.ApiBaseUrl}/customers
   NotificationQueueUrl:
-    Value: !Ref NotificationQueue
+    Value:
+      Fn::GetAtt:
+      - CustomerManagement
+      - Outputs.NotificationQueueUrl
+  SharedPlatformStackId:
+    Value:
+      Ref: SharedPlatform
+  CustomerManagementStackId:
+    Value:
+      Ref: CustomerManagement
+  OutboxPublisherFunctionName:
+    Value:
+      Fn::GetAtt:
+      - CustomerManagement
+      - Outputs.OutboxPublisherFunctionName
