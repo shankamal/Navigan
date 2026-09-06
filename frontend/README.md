@@ -18,3 +18,5 @@ npm run check
 
 The UI uses the real API through a Next.js server proxy; there is no production mock data.
 Environment, Cluster, and Application Management are planned-module placeholders.
+
+For production container hosting, see [ECS Fargate deployment](../docs/frontend-ecs.md).

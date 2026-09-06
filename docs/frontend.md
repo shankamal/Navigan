@@ -182,3 +182,9 @@ editing, submission, independent review, approval/activation, suspension/reactiv
 against a non-production customer. Verify 401/403 behavior, tenant isolation and stale-version recovery
 with two sessions. Browser visual/accessibility review and authenticated live smoke testing remain
 deployment validation steps.
+
+## ECS Fargate hosting
+
+For Docker image creation, ECR publishing, and a separate HTTPS ECS Fargate stack, follow
+[the ECS deployment guide](frontend-ecs.md). It includes build-time Cognito configuration,
+private subnet prerequisites, deployment scripts and digest-based rollback.
