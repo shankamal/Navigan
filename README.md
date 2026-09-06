@@ -94,3 +94,10 @@ The first deployment collects your AWS region, identity, database and network se
 can omit `--guided` after saving those values. Docker is required for the configured container build.
 See the [deployment guide](docs/deployment.md#modular-stacks-and-samconfigtoml) for stack ownership,
 parameter definitions, adding modules and migration from an already deployed monolithic stack.
+
+## Frontend
+
+The modular Next.js frontend is in `frontend/`. Customer Management includes the directory, details,
+create/edit forms, provider management and approval workflow. Environment, Cluster and Application
+Management have isolated placeholders. See [frontend setup and architecture](docs/frontend.md) for
+Cognito configuration, API integration, startup commands and validation.
