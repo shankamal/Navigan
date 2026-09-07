@@ -7,4 +7,4 @@ async function handler(
 ) {
   return forwardRequest(request, (await context.params).path);
 }
-export { handler as GET, handler as POST, handler as PUT };
+export { handler as GET, handler as POST, handler as PUT, handler as PATCH };

@@ -1,0 +1,4456 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Navigan Environment Management",
+    "version": "1.1.0",
+    "description": "Provider-specific infrastructure baselines, governance and immutable version history. No cloud provisioning."
+  },
+  "servers": [
+    {
+      "url": "https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com/v1"
+    }
+  ],
+  "paths": {
+    "/api/v1/environments": {
+      "post": {
+        "operationId": "postEnvironment",
+        "summary": "Create environment",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnvironment"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getEnvironment",
+        "summary": "List environments",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "customerName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cloudProvider",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kubernetesDistribution",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environmentName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environmentType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBy",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}": {
+      "get": {
+        "operationId": "getEnvironmentEnvironmentid",
+        "summary": "GET /{environmentId}",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putEnvironmentEnvironmentid",
+        "summary": "PUT /{environmentId}",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEnvironment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/metadata": {
+      "get": {
+        "operationId": "getEnvironmentMetadata",
+        "summary": "GET /metadata",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/configuration-schemas/{distribution}/{schemaVersion}": {
+      "get": {
+        "operationId": "getEnvironmentConfigurationSchemasDistributionSchemaversion",
+        "summary": "GET /configuration-schemas/{distribution}/{schemaVersion}",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "distribution",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "schemaVersion",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/status": {
+      "patch": {
+        "operationId": "patchEnvironmentEnvironmentidStatus",
+        "summary": "PATCH /{environmentId}/status",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/submit": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidSubmit",
+        "summary": "POST /{environmentId}/submit",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/resubmit": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidResubmit",
+        "summary": "POST /{environmentId}/resubmit",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/review": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidReview",
+        "summary": "POST /{environmentId}/review",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/approve": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidApprove",
+        "summary": "POST /{environmentId}/approve",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/reject": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidReject",
+        "summary": "POST /{environmentId}/reject",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/activate": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidActivate",
+        "summary": "POST /{environmentId}/activate",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/suspend": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidSuspend",
+        "summary": "POST /{environmentId}/suspend",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/reactivate": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidReactivate",
+        "summary": "POST /{environmentId}/reactivate",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/deactivate": {
+      "post": {
+        "operationId": "postEnvironmentEnvironmentidDeactivate",
+        "summary": "POST /{environmentId}/deactivate",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional when body.version is supplied; both must agree."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/versions": {
+      "get": {
+        "operationId": "getEnvironmentEnvironmentidVersions",
+        "summary": "GET /{environmentId}/versions",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/versions/{version}": {
+      "get": {
+        "operationId": "getEnvironmentEnvironmentidVersionsVersion",
+        "summary": "GET /{environmentId}/versions/{version}",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/status-history": {
+      "get": {
+        "operationId": "getEnvironmentEnvironmentidStatusHistory",
+        "summary": "GET /{environmentId}/status-history",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/reviews": {
+      "get": {
+        "operationId": "getEnvironmentEnvironmentidReviews",
+        "summary": "GET /{environmentId}/reviews",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/environments/{environmentId}/audit-log": {
+      "get": {
+        "operationId": "getEnvironmentEnvironmentidAuditLog",
+        "summary": "GET /{environmentId}/audit-log",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateEnvironment": {
+        "additionalProperties": false,
+        "properties": {
+          "customerId": {
+            "maxLength": 50,
+            "pattern": "^CUS-[A-Za-z0-9-]+$",
+            "title": "Customerid",
+            "type": "string"
+          },
+          "cloudProvider": {
+            "enum": [
+              "AWS",
+              "AZURE",
+              "GCP",
+              "OCI"
+            ],
+            "title": "Cloudprovider",
+            "type": "string"
+          },
+          "kubernetesDistribution": {
+            "enum": [
+              "EKS",
+              "AKS",
+              "GKE",
+              "OKE"
+            ],
+            "title": "Kubernetesdistribution",
+            "type": "string"
+          },
+          "environmentName": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Environmentname",
+            "type": "string"
+          },
+          "environmentType": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Environmenttype",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Description",
+            "type": "string"
+          },
+          "configurationSchemaVersion": {
+            "default": "1.0",
+            "title": "Configurationschemaversion",
+            "type": "string"
+          },
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          }
+        },
+        "required": [
+          "customerId",
+          "cloudProvider",
+          "kubernetesDistribution",
+          "environmentName",
+          "environmentType"
+        ],
+        "title": "CreateEnvironment",
+        "type": "object"
+      },
+      "UpdateEnvironment": {
+        "additionalProperties": false,
+        "properties": {
+          "environmentName": {
+            "anyOf": [
+              {
+                "maxLength": 150,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Environmentname"
+          },
+          "environmentType": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Environmenttype"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "configurationSchemaVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Configurationschemaversion"
+          },
+          "configuration": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Configuration"
+          },
+          "version": {
+            "exclusiveMinimum": 0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "changeReason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Changereason"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "UpdateEnvironment",
+        "type": "object"
+      },
+      "Action": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "exclusiveMinimum": 0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reasoncode"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Comments"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "SUSPENDED",
+                  "ACTIVE",
+                  "DEACTIVATED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "Action",
+        "type": "object"
+      },
+      "EKSConfiguration": {
+        "type": "object",
+        "title": "AWS / EKS infrastructure baseline",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "title": "Schema version",
+            "const": "1.0"
+          },
+          "account": {
+            "type": "object",
+            "title": "AWS account",
+            "properties": {
+              "accountId": {
+                "type": "string",
+                "title": "Account ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^\\d{12}$"
+              },
+              "accountName": {
+                "type": "string",
+                "title": "Account name",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "partition": {
+                "type": "string",
+                "enum": [
+                  "aws",
+                  "aws-us-gov",
+                  "aws-cn"
+                ],
+                "title": "Partition"
+              }
+            },
+            "required": [
+              "accountId"
+            ],
+            "additionalProperties": false
+          },
+          "network": {
+            "type": "object",
+            "title": "AWS network",
+            "properties": {
+              "vpc": {
+                "type": "object",
+                "title": "VPC",
+                "properties": {
+                  "vpcId": {
+                    "type": "string",
+                    "title": "VPC ID",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "pattern": "^vpc-[a-f0-9]+$"
+                  }
+                },
+                "required": [
+                  "vpcId"
+                ],
+                "additionalProperties": true
+              },
+              "clusterSubnets": {
+                "type": "array",
+                "title": "Cluster subnets",
+                "items": {
+                  "type": "object",
+                  "title": "Approved subnet",
+                  "properties": {
+                    "subnetId": {
+                      "type": "string",
+                      "title": "Subnet ID",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "pattern": "^subnet-[a-f0-9]+$"
+                    },
+                    "availabilityZone": {
+                      "type": "string",
+                      "title": "Availability zone",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "name": {
+                      "type": "string",
+                      "title": "Name",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "cidrBlock": {
+                      "type": "string",
+                      "title": "CIDR",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "PRIVATE",
+                        "PUBLIC"
+                      ],
+                      "title": "Subnet type"
+                    }
+                  },
+                  "required": [
+                    "subnetId",
+                    "availabilityZone"
+                  ],
+                  "additionalProperties": true
+                },
+                "minItems": 2,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              "nodeSubnets": {
+                "type": "array",
+                "title": "Node subnets",
+                "items": {
+                  "type": "object",
+                  "title": "Approved subnet",
+                  "properties": {
+                    "subnetId": {
+                      "type": "string",
+                      "title": "Subnet ID",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "pattern": "^subnet-[a-f0-9]+$"
+                    },
+                    "availabilityZone": {
+                      "type": "string",
+                      "title": "Availability zone",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "name": {
+                      "type": "string",
+                      "title": "Name",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "cidrBlock": {
+                      "type": "string",
+                      "title": "CIDR",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "PRIVATE",
+                        "PUBLIC"
+                      ],
+                      "title": "Subnet type"
+                    }
+                  },
+                  "required": [
+                    "subnetId",
+                    "availabilityZone"
+                  ],
+                  "additionalProperties": true
+                },
+                "minItems": 2,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "vpc",
+              "clusterSubnets",
+              "nodeSubnets"
+            ],
+            "additionalProperties": true
+          },
+          "security": {
+            "type": "object",
+            "title": "Security groups",
+            "properties": {
+              "clusterSecurityGroups": {
+                "type": "array",
+                "title": "Cluster security groups",
+                "items": {
+                  "type": "object",
+                  "title": "Security group",
+                  "properties": {
+                    "securityGroupId": {
+                      "type": "string",
+                      "title": "Security group ID",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "pattern": "^sg-[a-f0-9]+$"
+                    }
+                  },
+                  "required": [
+                    "securityGroupId"
+                  ],
+                  "additionalProperties": true
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              "nodeSecurityGroups": {
+                "type": "array",
+                "title": "Node security groups",
+                "items": {
+                  "type": "object",
+                  "title": "Security group",
+                  "properties": {
+                    "securityGroupId": {
+                      "type": "string",
+                      "title": "Security group ID",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "pattern": "^sg-[a-f0-9]+$"
+                    }
+                  },
+                  "required": [
+                    "securityGroupId"
+                  ],
+                  "additionalProperties": true
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "clusterSecurityGroups",
+              "nodeSecurityGroups"
+            ],
+            "additionalProperties": true
+          },
+          "iam": {
+            "type": "object",
+            "title": "Approved IAM roles",
+            "properties": {
+              "clusterRole": {
+                "type": "object",
+                "title": "Cluster role",
+                "properties": {
+                  "roleArn": {
+                    "type": "string",
+                    "title": "Role ARN",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/.+$"
+                  }
+                },
+                "required": [
+                  "roleArn"
+                ],
+                "additionalProperties": true
+              },
+              "nodeRole": {
+                "type": "object",
+                "title": "Node role",
+                "properties": {
+                  "roleArn": {
+                    "type": "string",
+                    "title": "Role ARN",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/.+$"
+                  }
+                },
+                "required": [
+                  "roleArn"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "clusterRole",
+              "nodeRole"
+            ],
+            "additionalProperties": true
+          },
+          "encryption": {
+            "type": "object",
+            "title": "Encryption",
+            "properties": {
+              "nodeVolumeKmsKey": {
+                "type": "object",
+                "title": "Node volume key",
+                "properties": {
+                  "keyArn": {
+                    "type": "string",
+                    "title": "KMS key ARN",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "pattern": "^arn:aws[a-z-]*:kms:[a-z0-9-]+:\\d{12}:key/.+$"
+                  }
+                },
+                "required": [
+                  "keyArn"
+                ],
+                "additionalProperties": true
+              },
+              "clusterSecretsKmsKey": {
+                "type": "object",
+                "title": "Secrets key",
+                "properties": {
+                  "keyArn": {
+                    "type": "string",
+                    "title": "KMS key ARN",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  }
+                },
+                "required": [
+                  "keyArn"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "nodeVolumeKmsKey"
+            ],
+            "additionalProperties": true
+          },
+          "location": {
+            "type": "object",
+            "title": "Location",
+            "properties": {
+              "region": {
+                "type": "string",
+                "title": "Region / location",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "region"
+            ],
+            "additionalProperties": false
+          },
+          "connectivity": {
+            "type": "object",
+            "title": "Connectivity",
+            "properties": {
+              "egressMode": {
+                "type": "string",
+                "title": "Approved egress",
+                "enum": [
+                  "NAT",
+                  "PRIVATE_ENDPOINTS",
+                  "PROXY"
+                ]
+              },
+              "notes": {
+                "type": "string",
+                "title": "Connectivity notes",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "egressMode"
+            ],
+            "additionalProperties": false
+          },
+          "tags": {
+            "type": "object",
+            "title": "Baseline tags",
+            "properties": {
+              "Owner": {
+                "type": "string",
+                "title": "Owner",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "CostCenter": {
+                "type": "string",
+                "title": "Cost center",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "Environment": {
+                "type": "string",
+                "title": "Environment",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "Owner",
+              "CostCenter",
+              "Environment"
+            ],
+            "additionalProperties": true
+          },
+          "dns": {
+            "type": "object",
+            "title": "DNS",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "proxy": {
+            "type": "object",
+            "title": "Proxy references",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "extensions": {
+            "type": "object",
+            "title": "Additional configuration (no secrets)",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "security",
+          "iam",
+          "encryption",
+          "location",
+          "connectivity",
+          "tags"
+        ],
+        "additionalProperties": true,
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:navigan:environment:eks:1.0",
+        "x-distribution": "EKS",
+        "x-provider": "AWS",
+        "x-version": "1.0"
+      },
+      "AKSConfiguration": {
+        "type": "object",
+        "title": "AZURE / AKS infrastructure baseline",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "title": "Schema version",
+            "const": "1.0"
+          },
+          "account": {
+            "type": "object",
+            "title": "Azure subscription",
+            "properties": {
+              "tenantId": {
+                "type": "string",
+                "title": "Tenant ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^[a-fA-F0-9-]{36}$"
+              },
+              "subscriptionId": {
+                "type": "string",
+                "title": "Subscription ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^[a-fA-F0-9-]{36}$"
+              },
+              "resourceGroup": {
+                "type": "string",
+                "title": "Resource group",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "tenantId",
+              "subscriptionId",
+              "resourceGroup"
+            ],
+            "additionalProperties": false
+          },
+          "network": {
+            "type": "object",
+            "title": "Azure network",
+            "properties": {
+              "vnetResourceId": {
+                "type": "string",
+                "title": "VNet resource ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+              },
+              "nodeSubnetResourceIds": {
+                "type": "array",
+                "title": "Approved node subnet IDs",
+                "items": {
+                  "type": "string",
+                  "title": "Subnet resource ID",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              "apiServerSubnetResourceId": {
+                "type": "string",
+                "title": "API server subnet ID (optional)",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+              }
+            },
+            "required": [
+              "vnetResourceId",
+              "nodeSubnetResourceIds"
+            ],
+            "additionalProperties": true
+          },
+          "identity": {
+            "type": "object",
+            "title": "Managed identities",
+            "properties": {
+              "controlPlaneIdentityResourceId": {
+                "type": "string",
+                "title": "Control-plane identity resource ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+              },
+              "kubeletIdentityResourceId": {
+                "type": "string",
+                "title": "Kubelet identity resource ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+              }
+            },
+            "required": [
+              "controlPlaneIdentityResourceId",
+              "kubeletIdentityResourceId"
+            ],
+            "additionalProperties": false
+          },
+          "security": {
+            "type": "object",
+            "title": "Network security",
+            "properties": {
+              "networkSecurityGroupResourceIds": {
+                "type": "array",
+                "title": "Approved network security groups",
+                "items": {
+                  "type": "string",
+                  "title": "NSG resource ID",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "networkSecurityGroupResourceIds"
+            ],
+            "additionalProperties": true
+          },
+          "encryption": {
+            "type": "object",
+            "title": "Encryption",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "title": "Encryption mode",
+                "enum": [
+                  "PROVIDER_MANAGED",
+                  "CUSTOMER_MANAGED"
+                ]
+              },
+              "diskEncryptionSetResourceId": {
+                "type": "string",
+                "title": "Disk encryption set (customer-managed)",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+              },
+              "keyVaultKeyId": {
+                "type": "string",
+                "title": "Key Vault key reference",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "CUSTOMER_MANAGED"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "diskEncryptionSetResourceId"
+                  ]
+                }
+              }
+            ]
+          },
+          "location": {
+            "type": "object",
+            "title": "Location",
+            "properties": {
+              "region": {
+                "type": "string",
+                "title": "Region / location",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "region"
+            ],
+            "additionalProperties": false
+          },
+          "connectivity": {
+            "type": "object",
+            "title": "Connectivity",
+            "properties": {
+              "egressMode": {
+                "type": "string",
+                "title": "Approved egress",
+                "enum": [
+                  "NAT",
+                  "PRIVATE_ENDPOINTS",
+                  "PROXY"
+                ]
+              },
+              "notes": {
+                "type": "string",
+                "title": "Connectivity notes",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "egressMode"
+            ],
+            "additionalProperties": false
+          },
+          "tags": {
+            "type": "object",
+            "title": "Baseline tags",
+            "properties": {
+              "Owner": {
+                "type": "string",
+                "title": "Owner",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "CostCenter": {
+                "type": "string",
+                "title": "Cost center",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "Environment": {
+                "type": "string",
+                "title": "Environment",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "Owner",
+              "CostCenter",
+              "Environment"
+            ],
+            "additionalProperties": true
+          },
+          "dns": {
+            "type": "object",
+            "title": "DNS",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "proxy": {
+            "type": "object",
+            "title": "Proxy references",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "extensions": {
+            "type": "object",
+            "title": "Additional configuration (no secrets)",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "identity",
+          "security",
+          "encryption",
+          "location",
+          "connectivity",
+          "tags"
+        ],
+        "additionalProperties": true,
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:navigan:environment:aks:1.0",
+        "x-distribution": "AKS",
+        "x-provider": "AZURE",
+        "x-version": "1.0"
+      },
+      "GKEConfiguration": {
+        "type": "object",
+        "title": "GCP / GKE infrastructure baseline",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "title": "Schema version",
+            "const": "1.0"
+          },
+          "account": {
+            "type": "object",
+            "title": "Google Cloud project",
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "title": "Project ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+              },
+              "hostProjectId": {
+                "type": "string",
+                "title": "Shared VPC host project (optional)",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "projectId"
+            ],
+            "additionalProperties": false
+          },
+          "network": {
+            "type": "object",
+            "title": "Google Cloud network",
+            "properties": {
+              "networkResourceName": {
+                "type": "string",
+                "title": "Network resource name",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^projects/[^/]+/global/networks/[^/]+$"
+              },
+              "subnetworkResourceName": {
+                "type": "string",
+                "title": "Subnetwork resource name",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^projects/[^/]+/regions/[^/]+/subnetworks/[^/]+$"
+              },
+              "podSecondaryRangeNames": {
+                "type": "array",
+                "title": "Approved pod secondary ranges",
+                "items": {
+                  "type": "string",
+                  "title": "Resource reference",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              "serviceSecondaryRangeNames": {
+                "type": "array",
+                "title": "Approved service secondary ranges",
+                "items": {
+                  "type": "string",
+                  "title": "Resource reference",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "networkResourceName",
+              "subnetworkResourceName",
+              "podSecondaryRangeNames",
+              "serviceSecondaryRangeNames"
+            ],
+            "additionalProperties": true
+          },
+          "identity": {
+            "type": "object",
+            "title": "Service accounts",
+            "properties": {
+              "nodeServiceAccountEmail": {
+                "type": "string",
+                "title": "Node service account",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^[^@]+@[^@]+\\.iam\\.gserviceaccount\\.com$"
+              }
+            },
+            "required": [
+              "nodeServiceAccountEmail"
+            ],
+            "additionalProperties": false
+          },
+          "security": {
+            "type": "object",
+            "title": "Firewall baseline",
+            "properties": {
+              "firewallPolicyReferences": {
+                "type": "array",
+                "title": "Approved firewall policy references",
+                "items": {
+                  "type": "string",
+                  "title": "Resource reference",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "firewallPolicyReferences"
+            ],
+            "additionalProperties": true
+          },
+          "encryption": {
+            "type": "object",
+            "title": "Encryption",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "title": "Encryption mode",
+                "enum": [
+                  "PROVIDER_MANAGED",
+                  "CUSTOMER_MANAGED"
+                ]
+              },
+              "kmsKeyResourceName": {
+                "type": "string",
+                "title": "Cloud KMS key reference",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^projects/[^/]+/locations/[^/]+/keyRings/[^/]+/cryptoKeys/[^/]+$"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "CUSTOMER_MANAGED"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "kmsKeyResourceName"
+                  ]
+                }
+              }
+            ]
+          },
+          "location": {
+            "type": "object",
+            "title": "Location",
+            "properties": {
+              "region": {
+                "type": "string",
+                "title": "Region / location",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "region"
+            ],
+            "additionalProperties": false
+          },
+          "connectivity": {
+            "type": "object",
+            "title": "Connectivity",
+            "properties": {
+              "egressMode": {
+                "type": "string",
+                "title": "Approved egress",
+                "enum": [
+                  "NAT",
+                  "PRIVATE_ENDPOINTS",
+                  "PROXY"
+                ]
+              },
+              "notes": {
+                "type": "string",
+                "title": "Connectivity notes",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "egressMode"
+            ],
+            "additionalProperties": false
+          },
+          "tags": {
+            "type": "object",
+            "title": "Baseline tags",
+            "properties": {
+              "Owner": {
+                "type": "string",
+                "title": "Owner",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "CostCenter": {
+                "type": "string",
+                "title": "Cost center",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "Environment": {
+                "type": "string",
+                "title": "Environment",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "Owner",
+              "CostCenter",
+              "Environment"
+            ],
+            "additionalProperties": true
+          },
+          "dns": {
+            "type": "object",
+            "title": "DNS",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "proxy": {
+            "type": "object",
+            "title": "Proxy references",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "extensions": {
+            "type": "object",
+            "title": "Additional configuration (no secrets)",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "identity",
+          "security",
+          "encryption",
+          "location",
+          "connectivity",
+          "tags"
+        ],
+        "additionalProperties": true,
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:navigan:environment:gke:1.0",
+        "x-distribution": "GKE",
+        "x-provider": "GCP",
+        "x-version": "1.0"
+      },
+      "OKEConfiguration": {
+        "type": "object",
+        "title": "OCI / OKE infrastructure baseline",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "title": "Schema version",
+            "const": "1.0"
+          },
+          "account": {
+            "type": "object",
+            "title": "OCI tenancy",
+            "properties": {
+              "tenancyOcid": {
+                "type": "string",
+                "title": "Tenancy OCID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^ocid1\\.tenancy\\.[A-Za-z0-9._-]+$"
+              },
+              "compartmentOcid": {
+                "type": "string",
+                "title": "Compartment OCID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^ocid1\\.compartment\\.[A-Za-z0-9._-]+$"
+              }
+            },
+            "required": [
+              "tenancyOcid",
+              "compartmentOcid"
+            ],
+            "additionalProperties": false
+          },
+          "network": {
+            "type": "object",
+            "title": "OCI network",
+            "properties": {
+              "vcnOcid": {
+                "type": "string",
+                "title": "VCN OCID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^ocid1\\.vcn\\.[A-Za-z0-9._-]+$"
+              },
+              "apiEndpointSubnetOcid": {
+                "type": "string",
+                "title": "API endpoint subnet OCID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^ocid1\\.subnet\\.[A-Za-z0-9._-]+$"
+              },
+              "nodeSubnetOcids": {
+                "type": "array",
+                "title": "Approved node subnets",
+                "items": {
+                  "type": "string",
+                  "title": "Subnet OCID",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^ocid1\\.subnet\\.[A-Za-z0-9._-]+$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              "loadBalancerSubnetOcids": {
+                "type": "array",
+                "title": "Load balancer subnets",
+                "items": {
+                  "type": "string",
+                  "title": "Subnet OCID",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^ocid1\\.subnet\\.[A-Za-z0-9._-]+$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "vcnOcid",
+              "apiEndpointSubnetOcid",
+              "nodeSubnetOcids"
+            ],
+            "additionalProperties": true
+          },
+          "identity": {
+            "type": "object",
+            "title": "OCI IAM baseline",
+            "properties": {
+              "policyOcids": {
+                "type": "array",
+                "title": "Approved IAM policies",
+                "items": {
+                  "type": "string",
+                  "title": "Policy OCID",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^ocid1\\.policy\\.[A-Za-z0-9._-]+$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "policyOcids"
+            ],
+            "additionalProperties": false
+          },
+          "security": {
+            "type": "object",
+            "title": "Network security groups",
+            "properties": {
+              "networkSecurityGroupOcids": {
+                "type": "array",
+                "title": "Approved NSGs",
+                "items": {
+                  "type": "string",
+                  "title": "NSG OCID",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^ocid1\\.networksecuritygroup\\.[A-Za-z0-9._-]+$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "networkSecurityGroupOcids"
+            ],
+            "additionalProperties": true
+          },
+          "encryption": {
+            "type": "object",
+            "title": "Encryption",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "title": "Encryption mode",
+                "enum": [
+                  "PROVIDER_MANAGED",
+                  "CUSTOMER_MANAGED"
+                ]
+              },
+              "kmsKeyOcid": {
+                "type": "string",
+                "title": "Vault key OCID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^ocid1\\.key\\.[A-Za-z0-9._-]+$"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "CUSTOMER_MANAGED"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "kmsKeyOcid"
+                  ]
+                }
+              }
+            ]
+          },
+          "location": {
+            "type": "object",
+            "title": "Location",
+            "properties": {
+              "region": {
+                "type": "string",
+                "title": "Region / location",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "region"
+            ],
+            "additionalProperties": false
+          },
+          "connectivity": {
+            "type": "object",
+            "title": "Connectivity",
+            "properties": {
+              "egressMode": {
+                "type": "string",
+                "title": "Approved egress",
+                "enum": [
+                  "NAT",
+                  "PRIVATE_ENDPOINTS",
+                  "PROXY"
+                ]
+              },
+              "notes": {
+                "type": "string",
+                "title": "Connectivity notes",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "egressMode"
+            ],
+            "additionalProperties": false
+          },
+          "tags": {
+            "type": "object",
+            "title": "Baseline tags",
+            "properties": {
+              "Owner": {
+                "type": "string",
+                "title": "Owner",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "CostCenter": {
+                "type": "string",
+                "title": "Cost center",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "Environment": {
+                "type": "string",
+                "title": "Environment",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "Owner",
+              "CostCenter",
+              "Environment"
+            ],
+            "additionalProperties": true
+          },
+          "dns": {
+            "type": "object",
+            "title": "DNS",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "proxy": {
+            "type": "object",
+            "title": "Proxy references",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "extensions": {
+            "type": "object",
+            "title": "Additional configuration (no secrets)",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "identity",
+          "security",
+          "encryption",
+          "location",
+          "connectivity",
+          "tags"
+        ],
+        "additionalProperties": true,
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:navigan:environment:oke:1.0",
+        "x-distribution": "OKE",
+        "x-provider": "OCI",
+        "x-version": "1.0"
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "details",
+              "correlationId"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object"
+              },
+              "correlationId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Environment": {
+        "type": "object",
+        "required": [
+          "environmentId",
+          "customerId",
+          "customerName",
+          "cloudProvider",
+          "kubernetesDistribution",
+          "environmentName",
+          "environmentType",
+          "status",
+          "version",
+          "configuration",
+          "configurationSchemaVersion",
+          "createdAt",
+          "createdBy",
+          "workflow"
+        ],
+        "properties": {
+          "customerId": {
+            "maxLength": 50,
+            "pattern": "^CUS-[A-Za-z0-9-]+$",
+            "title": "Customerid",
+            "type": "string"
+          },
+          "cloudProvider": {
+            "enum": [
+              "AWS",
+              "AZURE",
+              "GCP",
+              "OCI"
+            ],
+            "title": "Cloudprovider",
+            "type": "string"
+          },
+          "kubernetesDistribution": {
+            "enum": [
+              "EKS",
+              "AKS",
+              "GKE",
+              "OKE"
+            ],
+            "title": "Kubernetesdistribution",
+            "type": "string"
+          },
+          "environmentName": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Environmentname",
+            "type": "string"
+          },
+          "environmentType": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Environmenttype",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Description",
+            "type": "string"
+          },
+          "configurationSchemaVersion": {
+            "default": "1.0",
+            "title": "Configurationschemaversion",
+            "type": "string"
+          },
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "UNDER_REVIEW",
+              "APPROVED",
+              "REJECTED",
+              "ACTIVE",
+              "SUSPENDED",
+              "DEACTIVATED"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "approvedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workflow": {
+            "type": "object"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Page": {
+        "type": "object",
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "required": [
+              "page",
+              "pageSize",
+              "totalElements",
+              "totalPages"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pageSize": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalElements": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Cognito": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://YOUR_COGNITO_DOMAIN/oauth2/authorize",
+            "tokenUrl": "https://YOUR_COGNITO_DOMAIN/oauth2/token",
+            "scopes": {
+              "navigan/api": "Platform API access"
+            }
+          }
+        }
+      }
+    }
+  }
+}

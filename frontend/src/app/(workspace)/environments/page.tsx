@@ -1,5 +1,4 @@
-import { EnvironmentManagementPlaceholder } from "@/modules/environment-management";
-export const metadata = { title: "Environment Management" };
+import { EnvironmentList } from "@/modules/environment-management/components/environment-list";
 export default function Page() {
-  return <EnvironmentManagementPlaceholder />;
+  return <EnvironmentList />;
 }

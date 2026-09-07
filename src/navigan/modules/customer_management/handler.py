@@ -218,6 +218,8 @@ def lambda_handler(event, context):
         state = getattr(error, "sqlstate", None)
         if state == "23505":
             mapped = ApiError(409, "DUPLICATE_CUSTOMER", "A conflicting customer record already exists.")
+        elif state == "23503":
+            mapped = ApiError(409, "DEPENDENCY_EXISTS", "A related environment references this customer/provider association.")
         elif state in {"40001", "40P01", "55P03"}:
             mapped = ApiError(
                 409, "CONCURRENT_UPDATE", "Concurrent operation detected. Retry with the latest version."

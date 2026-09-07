@@ -385,3 +385,8 @@ and [nested application deployment](https://docs.aws.amazon.com/serverless-appli
 See [Lambda troubleshooting](lambda-troubleshooting.md) for deploying phase logs,
 locating the CustomerFunction log group, and diagnosing Secrets Manager, database
 and API Gateway timeouts.
+
+## Environment Management
+
+See [Environment Management deployment](environment-management.md) for migration 002,
+role grants, the new nested stack, frontend rollout and diagnostics.

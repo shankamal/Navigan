@@ -19,3 +19,11 @@ GRANT INSERT ON platform.event_outbox TO navigan_api;
 GRANT USAGE ON SCHEMA platform TO navigan_events;
 GRANT SELECT ON platform.event_outbox TO navigan_events;
 GRANT UPDATE(published_at,attempts,last_error) ON platform.event_outbox TO navigan_events;
+-- Environment Management uses the same restricted application login and existing secret.
+GRANT USAGE ON SCHEMA environment_management TO navigan_api;
+GRANT SELECT ON environment_management.environment_types TO navigan_api;
+GRANT SELECT,INSERT,UPDATE ON environment_management.environments TO navigan_api;
+GRANT SELECT,INSERT ON environment_management.environment_versions,
+ environment_management.environment_status_history, environment_management.environment_reviews,
+ environment_management.environment_audit_log TO navigan_api;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA environment_management TO navigan_api;

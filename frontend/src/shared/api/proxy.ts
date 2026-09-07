@@ -10,6 +10,27 @@ const actions = [
   "deactivate",
 ];
 export function isAllowedRoute(method: string, path: string[]): boolean {
+  if (path[0] === "environments") {
+    if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (path.length === 2 && path[1] === "metadata") return method === "GET";
+    if (path.length === 4 && path[1] === "configuration-schemas")
+      return (
+        method === "GET" &&
+        ["EKS", "AKS", "GKE", "OKE"].includes(path[2]) &&
+        path[3] === "1.0"
+      );
+    if (!/^ENV-[A-Za-z0-9-]+$/.test(path[1])) return false;
+    if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 4 && path[2] === "versions")
+      return method === "GET" && /^[1-9][0-9]*$/.test(path[3]);
+    if (path.length !== 3) return false;
+    if (path[2] === "status") return method === "PATCH";
+    if (
+      ["versions", "status-history", "reviews", "audit-log"].includes(path[2])
+    )
+      return method === "GET";
+    return method === "POST" && [...actions, "review"].includes(path[2]);
+  }
   if (path[0] !== "customers") return false;
   if (path.length === 1) return ["GET", "POST"].includes(method);
   if (!/^CUS-[A-Za-z0-9-]+$/.test(path[1])) return false;
@@ -157,7 +178,7 @@ export async function forwardRequest(
     return fail(
       502,
       "UPSTREAM_UNAVAILABLE",
-      "Unable to reach the Customer Management API.",
+      "Unable to reach the platform API.",
     );
   }
 }

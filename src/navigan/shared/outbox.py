@@ -63,7 +63,7 @@ def lambda_handler(event, context):
             return {"published": 0}
         entries = [
             {
-                "Source": "navigan.customer-management",
+                "Source": "navigan.environment-management" if r["event_type"].startswith("Environment") else "navigan.customer-management",
                 "DetailType": r["event_type"],
                 "Detail": json.dumps(r["payload"]),
                 "EventBusName": os.environ["EVENT_BUS_NAME"],

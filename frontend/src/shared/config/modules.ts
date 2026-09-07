@@ -14,7 +14,7 @@ export const platformModules = [
     shortTitle: "Environments",
     href: "/environments",
     icon: Layers3,
-    available: false,
+    available: true,
   },
   {
     id: "clusters",

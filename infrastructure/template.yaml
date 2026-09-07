@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'Navigan parent stack: shared platform and separate module CloudFormation stacks'
+Description: 'Navigan parent stack: shared platform and separate module CloudFormation
+  stacks'
 Parameters:
   JwtIssuer:
     Type: String
@@ -34,7 +35,8 @@ Parameters:
     AllowedValues:
     - 'true'
     - 'false'
-    Description: Set false during migration until the previous publisher has been stopped.
+    Description: Set false during migration until the previous publisher has been
+      stopped.
 Resources:
   SharedPlatform:
     Type: AWS::Serverless::Application
@@ -50,35 +52,35 @@ Resources:
     Properties:
       Location: modules/customer-management/template.yaml
       Parameters:
-        JwtScope:
+        JwtScope: &id001
           Ref: JwtScope
-        DatabaseName:
+        DatabaseName: &id002
           Ref: DatabaseName
-        DatabaseProxyHost:
+        DatabaseProxyHost: &id003
           Ref: DatabaseProxyHost
-        ApiDatabaseSecretArn:
+        ApiDatabaseSecretArn: &id004
           Ref: ApiDatabaseSecretArn
         EventsDatabaseSecretArn:
           Ref: EventsDatabaseSecretArn
-        SecretsKmsKeyArn:
+        SecretsKmsKeyArn: &id005
           Ref: SecretsKmsKeyArn
-        PrivateSubnetIds:
+        PrivateSubnetIds: &id006
           Fn::Join:
           - ','
           - Ref: PrivateSubnetIds
-        LambdaSecurityGroupIds:
+        LambdaSecurityGroupIds: &id007
           Fn::Join:
           - ','
           - Ref: LambdaSecurityGroupIds
-        RdsCaLayerArn:
+        RdsCaLayerArn: &id008
           Ref: RdsCaLayerArn
         OutboxScheduleEnabled:
           Ref: OutboxScheduleEnabled
-        ApiId:
+        ApiId: &id009
           Fn::GetAtt:
           - SharedPlatform
           - Outputs.ApiId
-        AuthorizerId:
+        AuthorizerId: &id010
           Fn::GetAtt:
           - SharedPlatform
           - Outputs.AuthorizerId
@@ -90,6 +92,21 @@ Resources:
           Fn::GetAtt:
           - SharedPlatform
           - Outputs.EventBusArn
+  EnvironmentManagement:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/environment-management/template.yaml
+      Parameters:
+        JwtScope: *id001
+        DatabaseName: *id002
+        DatabaseProxyHost: *id003
+        ApiDatabaseSecretArn: *id004
+        SecretsKmsKeyArn: *id005
+        PrivateSubnetIds: *id006
+        LambdaSecurityGroupIds: *id007
+        RdsCaLayerArn: *id008
+        ApiId: *id009
+        AuthorizerId: *id010
 Outputs:
   ApiId:
     Value:
@@ -125,3 +142,11 @@ Outputs:
       Fn::GetAtt:
       - CustomerManagement
       - Outputs.OutboxPublisherFunctionName
+  EnvironmentManagementStackId:
+    Value:
+      Ref: EnvironmentManagement
+  EnvironmentFunctionName:
+    Value:
+      Fn::GetAtt:
+      - EnvironmentManagement
+      - Outputs.FunctionName

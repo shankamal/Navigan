@@ -46,7 +46,7 @@ export function normalizeApiError(error: unknown): ApiError {
         : status === 403
           ? "You do not have permission for this action."
           : status === 404
-            ? "This customer is unavailable or outside your access scope."
+            ? "This record is unavailable or outside your access scope."
             : status === 429
               ? "Too many requests. Wait a moment and try again."
               : status >= 500

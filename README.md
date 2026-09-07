@@ -101,3 +101,9 @@ The modular Next.js frontend is in `frontend/`. Customer Management includes the
 create/edit forms, provider management and approval workflow. Environment, Cluster and Application
 Management have isolated placeholders. See [frontend setup and architecture](docs/frontend.md) for
 Cognito configuration, API integration, startup commands and validation.
+
+## Environment Management
+
+Provider-aware EKS, AKS, GKE and OCI/OKE infrastructure baselines, governed approval
+and immutable versions are implemented. See [deployment and module guide](docs/environment-management.md)
+and [Environment OpenAPI](docs/environment-openapi.json).

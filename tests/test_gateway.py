@@ -46,7 +46,7 @@ def test_gateway_exposes_every_documented_operation_with_authentication():
 
 def test_parent_passes_all_required_child_parameters_and_outputs():
     parent, shared, module = templates()
-    assert set(parent['Resources']) == {'SharedPlatform', 'CustomerManagement'}
+    assert set(parent['Resources']) == {'SharedPlatform', 'CustomerManagement', 'EnvironmentManagement'}
     for name, child in [('SharedPlatform', shared), ('CustomerManagement', module)]:
         app = parent['Resources'][name]
         assert app['Type'] == 'AWS::Serverless::Application'
