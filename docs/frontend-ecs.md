@@ -159,3 +159,33 @@ settings. It does not push to ECR or deploy AWS resources. Real deployment requi
 References: [Next.js standalone output](https://nextjs.org/docs/pages/api-reference/config/next-config-js/output),
 [AWS Fargate networking](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-task-networking.html),
 and [CloudFormation ECS service](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ecs-service.html).
+
+## Customer routes return ROUTE_NOT_FOUND
+
+The browser URL `/api/platform/customers` is the Next.js proxy route. With the repository defaults,
+it forwards to `https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com/v1/api/v1/customers`.
+The first `/v1` is the API Gateway stage; `/api/v1/customers` is the resource route.
+
+The Customer Management handler now removes the named stage from the incoming HTTP API
+`rawPath` before route matching, idempotency lookup and business metrics. It also accepts
+already-unprefixed paths and the `$default` stage.
+
+Deploy this Python handler fix through the existing backend SAM stack. Before deploying, review
+your local SAM environment's saved parameters: `JwtIssuer`, `JwtAudience`, `JwtScope` and the
+database/network settings must match your current deployment. Do not overwrite them with old
+example values from the repository. Use the same SAM environment and stack as your existing backend.
+
+```bash
+git pull --ff-only origin main
+sam build --config-file "$PWD/samconfig.toml"
+sam deploy --guided --config-file "$PWD/samconfig.toml"
+```
+
+The guided deployment lets you confirm the existing stack and current parameters before applying
+the change. This update includes the Customer Management Lambda; it is not an auth-stack update.
+No frontend image rebuild is needed when the upstream settings are already correct.
+
+Keep `NAVIGAN_API_BASE_PATH=/v1/api/v1` for the existing named `v1` stage. If your deployed gateway
+uses `$default`, its base path would instead be `/api/v1`. Check the actual stage before changing it.
+A plain API Gateway `{"message":"Not Found"}` response can indicate an upstream stage/route mismatch;
+a structured `ROUTE_NOT_FOUND` response indicates the request reached the backend router.

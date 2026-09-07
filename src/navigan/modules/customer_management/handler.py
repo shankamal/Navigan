@@ -82,9 +82,20 @@ def response(status, body, correlation, replay=False):
     return {"statusCode": status, "headers": headers, "body": json.dumps(body, default=str)}
 
 
+def resource_path(event):
+    """Remove only the named API Gateway stage, leaving the resource path intact."""
+    path = event.get("rawPath", "")
+    stage = event.get("requestContext", {}).get("stage")
+    if isinstance(stage, str) and stage and stage != "$default":
+        prefix = "/" + stage
+        if path == prefix + BASE or path.startswith(prefix + BASE + "/"):
+            return path[len(prefix):]
+    return path
+
+
 def execute(event, principal, correlation, tx=transaction):
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
-    path = event.get("rawPath", "")
+    path = resource_path(event)
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
     match = re.fullmatch(
         re.escape(BASE)
@@ -215,7 +226,7 @@ def lambda_handler(event, context):
         returned = json.loads(result["body"])
         customer_id = returned.get("customerId")
         if result["headers"].get("Idempotency-Replayed") != "true":
-            path = event.get("rawPath", "")
+            path = resource_path(event)
             method = event.get("requestContext", {}).get("http", {}).get("method")
             metric = None
             if method == "POST":
