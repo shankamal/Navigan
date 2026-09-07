@@ -7,7 +7,7 @@ There is no redirect to Managed Login and no OAuth callback/token exchange in th
 
 ## Configure the existing user pool
 
-1. In `ap-south-1_GtWAW9Owz`, create a **public app client without a client secret**.
+1. In `ap-south-1_PD9mv4fkd`, create a **public app client without a client secret**.
    Enable **ALLOW_USER_SRP_AUTH** and **ALLOW_REFRESH_TOKEN_AUTH** under authentication flows.
    Enable user-existence error prevention. Do not enable client credentials for browser sign-in.
 2. Use your existing password policy, recovery contacts and MFA settings. Users need a verified recovery
@@ -20,7 +20,8 @@ There is no redirect to Managed Login and no OAuth callback/token exchange in th
    and `NEXT_PUBLIC_COGNITO_DOMAIN` no longer control Navigan authentication.
 
 Changing the page does not make a confidential client usable in the browser. Use the new client ID,
-never a client secret. Existing users remain in the same user pool.
+never a client secret. Creating an app client in the same pool preserves its users. If you switch pools,
+users and their group assignments must exist in the selected pool.
 
 ## Preserve API authorization
 
@@ -34,18 +35,33 @@ Access-token customization requires a compatible Cognito plan (Essentials or Plu
 and a **V2_0** pre-token-generation trigger. Check the pool plan before enabling it; AWS pricing may change.
 Do not remove API Gateway scope checks to work around a missing scope.
 
-From the repository root, after setting the new client ID:
+Before deploying, edit `scripts/frontend/config.env` and explicitly set all three matching values:
+
+```bash
+export COGNITO_USER_POOL_ID='ap-south-1_PD9mv4fkd'
+export NEXT_PUBLIC_OIDC_AUTHORITY='https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd'
+export NEXT_PUBLIC_OIDC_CLIENT_ID='REPLACE_WITH_PUBLIC_CLIENT_ID_FROM_THIS_POOL'
+```
+
+`COGNITO_USER_POOL_ID` selects the pool allowed to invoke the token Lambda.
+`NEXT_PUBLIC_OIDC_AUTHORITY` selects the frontend's authentication pool, and the client ID must
+belong to that same pool. If `COGNITO_USER_POOL_ID` is omitted, the deployment script still defaults
+to the **old pool, `ap-south-1_GtWAW9Owz`**. Set it explicitly for the current pool.
+Pulling updated code does not update your ignored local `config.env`; add these lines manually
+and preserve your existing VPC, subnet and ECS values.
+
+From the repository root, reload the edited configuration and deploy:
 
 ```bash
 source scripts/frontend/config.env
 bash scripts/frontend/deploy-auth.sh
 ```
 
-Optional variables: `AUTH_STACK_NAME` (default `navigan-auth`), `COGNITO_USER_POOL_ID`
-(default the existing pool), and `NAVIGAN_API_SCOPE` (default `navigan/api`). The scope must match the
+Optional variables: `AUTH_STACK_NAME` (default `navigan-auth`) and `NAVIGAN_API_SCOPE`
+(default `navigan/api`). The scope must match the
 actual API Gateway route requirement. The existing backend template defaults to `navigan/api`.
 
-In Cognito, open **Extensions → Lambda triggers**, add the output Lambda as **Pre token generation**,
+In Cognito, select pool **`ap-south-1_PD9mv4fkd`**, open **Extensions → Lambda triggers**, add the output Lambda as **Pre token generation**,
 and select the event version that customizes access tokens (**V2_0**). If a pre-token trigger is
 already attached, review and merge the logic with it before changing the association: a pool has one
 pre-token-generation trigger and replacing it can affect other applications. The script intentionally
@@ -53,7 +69,9 @@ leaves that association to the administrator and does not reset any user-pool se
 
 Update the existing API Gateway JWT authorizer audience to accept the **new app client ID**. Preserve
 other clients that are still in use, and persist this change in the backend deployment parameters
-(`JwtAudience`) so the next SAM deployment does not overwrite it.
+(`JwtAudience`) so the next SAM deployment does not overwrite it. When switching pools, also update
+the authorizer issuer and backend `JwtIssuer` parameter to the new `NEXT_PUBLIC_OIDC_AUTHORITY`.
+Rebuild and redeploy the frontend after changing its authority or client ID, then sign in again.
 
 ### Administrator-managed group mapping
 
@@ -82,7 +100,8 @@ issued/refreshed token; choose an access-token lifetime appropriate for your rev
 Edit `scripts/frontend/config.env` without overwriting your VPC and ECS settings:
 
 ```bash
-export NEXT_PUBLIC_OIDC_AUTHORITY='https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz'
+export COGNITO_USER_POOL_ID='ap-south-1_PD9mv4fkd'
+export NEXT_PUBLIC_OIDC_AUTHORITY='https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd'
 export NEXT_PUBLIC_OIDC_CLIENT_ID='REPLACE_WITH_NEW_PUBLIC_CLIENT_ID'
 export NEXT_PUBLIC_APP_URL='https://navigan.click'
 ```
