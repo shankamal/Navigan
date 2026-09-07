@@ -379,3 +379,9 @@ module filtering; do not copy this publisher unchanged into each module.
 
 [AWS SAM configuration](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html)
 and [nested application deployment](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-using-nested-applications.html)
+
+## Lambda timeout and initialization diagnostics
+
+See [Lambda troubleshooting](lambda-troubleshooting.md) for deploying phase logs,
+locating the CustomerFunction log group, and diagnosing Secrets Manager, database
+and API Gateway timeouts.

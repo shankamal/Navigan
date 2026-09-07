@@ -57,8 +57,27 @@ Resources:
           import json
           import os
           import re
+          import logging
+          import time
+
+          logger = logging.getLogger(__name__)
+          logger.setLevel(logging.INFO)
 
           def handler(event, context):
+              started = time.monotonic()
+              fields = {"requestId": getattr(context, "aws_request_id", None), "stage": "token_generation"}
+              logger.info(json.dumps({**fields, "status": "started"}))
+              try:
+                  result = generate_tokens(event, context)
+              except Exception as error:
+                  logger.error(json.dumps({**fields, "status": "failed", "errorType": type(error).__name__}))
+                  raise
+              logger.info(json.dumps({**fields, "status": "completed",
+                  "elapsedMs": round((time.monotonic()-started)*1000, 2),
+                  "clientMatched": event.get("callerContext", {}).get("clientId") == os.environ.get("APP_CLIENT_ID")}))
+              return result
+
+          def generate_tokens(event, context):
               # Never use clientMetadata or user-writable attributes for authorization.
               if event.get("callerContext", {}).get("clientId") != os.environ["APP_CLIENT_ID"]:
                   return event

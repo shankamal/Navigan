@@ -7,6 +7,9 @@ import logging
 import re
 import time
 import uuid
+from navigan.shared.diagnostics import emit, phase, invocation
+
+emit("module_import", "started")
 from pydantic import ValidationError
 from navigan.shared.auth import Principal
 from navigan.shared.database import transaction
@@ -19,6 +22,7 @@ from .workflow import STATUSES, TRANSITIONS
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 BASE = "/api/v1/customers"
+emit("module_import", "completed")
 
 
 def parse_query(params):
@@ -185,6 +189,7 @@ def execute(event, principal, correlation, tx=transaction):
         return response(status, result, correlation)
 
 
+@invocation
 def lambda_handler(event, context):
     started = time.monotonic()
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
@@ -193,8 +198,10 @@ def lambda_handler(event, context):
         correlation = str(uuid.uuid4())
     principal = None
     try:
-        principal = Principal.from_event(event)
-        result = execute(event, principal, correlation)
+        with phase("identity_validation", correlationId=correlation):
+            principal = Principal.from_event(event)
+        with phase("customer_operation", correlationId=correlation):
+            result = execute(event, principal, correlation)
     except ApiError as error:
         result = response(error.status, error.payload(correlation), correlation)
     except ValidationError as error:

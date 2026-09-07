@@ -4,13 +4,21 @@ import json
 import os
 import logging
 import time
+from .diagnostics import emit, phase, invocation
+
+emit("outbox_module_import", "started")
 from .database import transaction
+emit("outbox_module_import", "completed")
 
 
+@invocation
 def lambda_handler(event, context):
-    import boto3
-
-    client = boto3.client("events")
+    with phase("eventbridge_client"):
+        import boto3
+        from botocore.config import Config
+        client = boto3.client("events", config=Config(
+            connect_timeout=3, read_timeout=3,
+            retries={"mode": "standard", "total_max_attempts": 1}))
     published = 0
     failed = 0
     # Batch is <=10 (EventBridge PutEvents limit). Failed rows remain pending.
@@ -62,7 +70,9 @@ def lambda_handler(event, context):
             }
             for r in rows
         ]
-        result = client.put_events(Entries=entries)
+        with phase("eventbridge_publish", batchSize=len(entries)):
+            result = client.put_events(Entries=entries)
+        emit("eventbridge_result", "completed", failedCount=result.get("FailedEntryCount", 0))
         for row, outcome in zip(rows, result["Entries"], strict=True):
             if "EventId" in outcome:
                 db.execute(
@@ -77,4 +87,5 @@ def lambda_handler(event, context):
                     [outcome.get("ErrorCode", "PublishFailed")[:100], row["event_id"]],
                 )
         metrics()
+    emit("outbox_result", "completed", published=published, failed=failed)
     return {"published": published, "failed": failed}

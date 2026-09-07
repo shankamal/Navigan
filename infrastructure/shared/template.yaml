@@ -43,7 +43,7 @@ Resources:
       AccessLogSettings:
         DestinationArn:
           Fn::GetAtt: ApiLogs.Arn
-        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLatency":"$context.responseLatency"}'
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLatency":"$context.responseLatency","integrationErrorMessage":"$context.integrationErrorMessage","integrationLatency":"$context.integration.latency"}'
   DomainEvents:
     Type: AWS::Events::EventBus
     Properties:
