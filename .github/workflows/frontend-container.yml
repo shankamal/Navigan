@@ -1,0 +1,42 @@
+name: Frontend container and Fargate templates
+on:
+  push:
+    paths: ['frontend/**', 'infrastructure/frontend/**', 'infrastructure/auth/**', 'scripts/frontend/**', '.github/workflows/frontend-container.yml']
+  pull_request:
+    paths: ['frontend/**', 'infrastructure/frontend/**', 'infrastructure/auth/**', 'scripts/frontend/**', '.github/workflows/frontend-container.yml']
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install cfn-lint
+      - run: cfn-lint infrastructure/frontend/ecr.yaml infrastructure/frontend/service.yaml infrastructure/auth/template.yaml
+      - run: for script in scripts/frontend/*.sh; do bash -n "$script"; done
+      - uses: docker/setup-buildx-action@v3
+      - name: Build frontend image
+        run: |
+          docker buildx build --load --platform linux/amd64 --tag navigan-frontend:ci \
+            --build-arg NEXT_PUBLIC_OIDC_AUTHORITY=https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz \
+            --build-arg NEXT_PUBLIC_OIDC_CLIENT_ID=ci-public-client \
+            --build-arg NEXT_PUBLIC_APP_URL=https://navigan-ci.example.com \
+            frontend
+      - name: Test container startup, health and page routing
+        run: |
+          docker run --detach --name frontend-ci --publish 127.0.0.1:3000:3000 navigan-frontend:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/healthz; then break; fi
+            sleep 2
+          done
+          curl --fail --show-error http://127.0.0.1:3000/healthz
+          curl --fail --silent --output /dev/null http://127.0.0.1:3000/login
+          test "$(docker exec frontend-ci id -u)" = 1000
+      - name: Container logs and cleanup
+        if: always()
+        run: |
+          docker logs frontend-ci || true
+          docker rm --force frontend-ci || true

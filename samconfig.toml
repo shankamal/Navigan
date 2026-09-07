@@ -1,0 +1,31 @@
+# Run from the repository root. Use an absolute --config-file path because
+# SAM resolves relative config paths against the selected template directory.
+# First deploy: sam deploy --guided --config-file "$PWD/samconfig.toml"
+# Guided deploy saves your region and actual parameter values here.
+# Never put passwords, access keys or JWT tokens in this file.
+version = 0.1
+
+[default.validate.parameters]
+template_file = "infrastructure/template.yaml"
+lint = true
+
+[default.build.parameters]
+template_file = "infrastructure/template.yaml"
+use_container = true
+parallel = true
+
+[default.deploy.parameters]
+template_file = ".aws-sam/build/template.yaml"
+stack_name = "navigan-custmanagement-cfnstk"
+resolve_s3 = true
+s3_prefix = "navigan-custmanagement-cfnstk"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+confirm_changeset = true
+fail_on_empty_changeset = false
+parameter_overrides = "JwtIssuer=\"https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd\" JwtAudience=\"aa7v5laqu1mkqamt7ao51u7ms\" JwtScope=\"navigan/api\" DatabaseName=\"navigan\" DatabaseProxyHost=\"aws-infra-platform-db.cluster-cf26iwkqybx2.ap-south-1.rds.amazonaws.com\" ApiDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" EventsDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" SecretsKmsKeyArn=\"arn:aws:kms:ap-south-1:905418045935:key/a3b0a51f-f486-476a-b012-15fe194d1cd6\" PrivateSubnetIds=\"subnet-02166f72dc73ac058, subnet-0672975fa0c30f801, subnet-0f4e519be766a574b\" LambdaSecurityGroupIds=\"sg-052d8fa60c0819f78\" RdsCaLayerArn=\"arn:aws:lambda:ap-south-1:905418045935:layer:navigan-rds-ca:1\" OutboxScheduleEnabled=\"true\""
+# Region and account-specific parameters are intentionally collected by
+# --guided instead of guessing your AWS account, Cognito or networking values.
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-south-1"

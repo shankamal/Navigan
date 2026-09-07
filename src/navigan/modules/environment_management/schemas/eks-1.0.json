@@ -1,0 +1,429 @@
+{
+  "type": "object",
+  "title": "AWS / EKS infrastructure baseline",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "title": "Schema version",
+      "const": "1.0"
+    },
+    "account": {
+      "type": "object",
+      "title": "AWS account",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "title": "Account ID",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^\\d{12}$"
+        },
+        "accountName": {
+          "type": "string",
+          "title": "Account name",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "partition": {
+          "type": "string",
+          "enum": [
+            "aws",
+            "aws-us-gov",
+            "aws-cn"
+          ],
+          "title": "Partition"
+        }
+      },
+      "required": [
+        "accountId"
+      ],
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "title": "AWS network",
+      "properties": {
+        "vpc": {
+          "type": "object",
+          "title": "VPC",
+          "properties": {
+            "vpcId": {
+              "type": "string",
+              "title": "VPC ID",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^vpc-[a-f0-9]+$"
+            }
+          },
+          "required": [
+            "vpcId"
+          ],
+          "additionalProperties": true
+        },
+        "clusterSubnets": {
+          "type": "array",
+          "title": "Cluster subnets",
+          "items": {
+            "type": "object",
+            "title": "Approved subnet",
+            "properties": {
+              "subnetId": {
+                "type": "string",
+                "title": "Subnet ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^subnet-[a-f0-9]+$"
+              },
+              "availabilityZone": {
+                "type": "string",
+                "title": "Availability zone",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "title": "Name",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "cidrBlock": {
+                "type": "string",
+                "title": "CIDR",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "PRIVATE",
+                  "PUBLIC"
+                ],
+                "title": "Subnet type"
+              }
+            },
+            "required": [
+              "subnetId",
+              "availabilityZone"
+            ],
+            "additionalProperties": true
+          },
+          "minItems": 2,
+          "maxItems": 100,
+          "uniqueItems": true
+        },
+        "nodeSubnets": {
+          "type": "array",
+          "title": "Node subnets",
+          "items": {
+            "type": "object",
+            "title": "Approved subnet",
+            "properties": {
+              "subnetId": {
+                "type": "string",
+                "title": "Subnet ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^subnet-[a-f0-9]+$"
+              },
+              "availabilityZone": {
+                "type": "string",
+                "title": "Availability zone",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "name": {
+                "type": "string",
+                "title": "Name",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "cidrBlock": {
+                "type": "string",
+                "title": "CIDR",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "PRIVATE",
+                  "PUBLIC"
+                ],
+                "title": "Subnet type"
+              }
+            },
+            "required": [
+              "subnetId",
+              "availabilityZone"
+            ],
+            "additionalProperties": true
+          },
+          "minItems": 2,
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "vpc",
+        "clusterSubnets",
+        "nodeSubnets"
+      ],
+      "additionalProperties": true
+    },
+    "security": {
+      "type": "object",
+      "title": "Security groups",
+      "properties": {
+        "clusterSecurityGroups": {
+          "type": "array",
+          "title": "Cluster security groups",
+          "items": {
+            "type": "object",
+            "title": "Security group",
+            "properties": {
+              "securityGroupId": {
+                "type": "string",
+                "title": "Security group ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^sg-[a-f0-9]+$"
+              }
+            },
+            "required": [
+              "securityGroupId"
+            ],
+            "additionalProperties": true
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true
+        },
+        "nodeSecurityGroups": {
+          "type": "array",
+          "title": "Node security groups",
+          "items": {
+            "type": "object",
+            "title": "Security group",
+            "properties": {
+              "securityGroupId": {
+                "type": "string",
+                "title": "Security group ID",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^sg-[a-f0-9]+$"
+              }
+            },
+            "required": [
+              "securityGroupId"
+            ],
+            "additionalProperties": true
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "clusterSecurityGroups",
+        "nodeSecurityGroups"
+      ],
+      "additionalProperties": true
+    },
+    "iam": {
+      "type": "object",
+      "title": "Approved IAM roles",
+      "properties": {
+        "clusterRole": {
+          "type": "object",
+          "title": "Cluster role",
+          "properties": {
+            "roleArn": {
+              "type": "string",
+              "title": "Role ARN",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/.+$"
+            }
+          },
+          "required": [
+            "roleArn"
+          ],
+          "additionalProperties": true
+        },
+        "nodeRole": {
+          "type": "object",
+          "title": "Node role",
+          "properties": {
+            "roleArn": {
+              "type": "string",
+              "title": "Role ARN",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/.+$"
+            }
+          },
+          "required": [
+            "roleArn"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "clusterRole",
+        "nodeRole"
+      ],
+      "additionalProperties": true
+    },
+    "encryption": {
+      "type": "object",
+      "title": "Encryption",
+      "properties": {
+        "nodeVolumeKmsKey": {
+          "type": "object",
+          "title": "Node volume key",
+          "properties": {
+            "keyArn": {
+              "type": "string",
+              "title": "KMS key ARN",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^arn:aws[a-z-]*:kms:[a-z0-9-]+:\\d{12}:key/.+$"
+            }
+          },
+          "required": [
+            "keyArn"
+          ],
+          "additionalProperties": true
+        },
+        "clusterSecretsKmsKey": {
+          "type": "object",
+          "title": "Secrets key",
+          "properties": {
+            "keyArn": {
+              "type": "string",
+              "title": "KMS key ARN",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "keyArn"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "nodeVolumeKmsKey"
+      ],
+      "additionalProperties": true
+    },
+    "location": {
+      "type": "object",
+      "title": "Location",
+      "properties": {
+        "region": {
+          "type": "string",
+          "title": "Region / location",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "additionalProperties": false
+    },
+    "connectivity": {
+      "type": "object",
+      "title": "Connectivity",
+      "properties": {
+        "egressMode": {
+          "type": "string",
+          "title": "Approved egress",
+          "enum": [
+            "NAT",
+            "PRIVATE_ENDPOINTS",
+            "PROXY"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "title": "Connectivity notes",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "egressMode"
+      ],
+      "additionalProperties": false
+    },
+    "tags": {
+      "type": "object",
+      "title": "Baseline tags",
+      "properties": {
+        "Owner": {
+          "type": "string",
+          "title": "Owner",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "CostCenter": {
+          "type": "string",
+          "title": "Cost center",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "Environment": {
+          "type": "string",
+          "title": "Environment",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "Owner",
+        "CostCenter",
+        "Environment"
+      ],
+      "additionalProperties": true
+    },
+    "dns": {
+      "type": "object",
+      "title": "DNS",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    },
+    "proxy": {
+      "type": "object",
+      "title": "Proxy references",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    },
+    "extensions": {
+      "type": "object",
+      "title": "Additional configuration (no secrets)",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "account",
+    "network",
+    "security",
+    "iam",
+    "encryption",
+    "location",
+    "connectivity",
+    "tags"
+  ],
+  "additionalProperties": true,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:navigan:environment:eks:1.0",
+  "x-distribution": "EKS",
+  "x-provider": "AWS",
+  "x-version": "1.0"
+}

@@ -1,0 +1,289 @@
+{
+  "type": "object",
+  "title": "AZURE / AKS infrastructure baseline",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "title": "Schema version",
+      "const": "1.0"
+    },
+    "account": {
+      "type": "object",
+      "title": "Azure subscription",
+      "properties": {
+        "tenantId": {
+          "type": "string",
+          "title": "Tenant ID",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[a-fA-F0-9-]{36}$"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "title": "Subscription ID",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[a-fA-F0-9-]{36}$"
+        },
+        "resourceGroup": {
+          "type": "string",
+          "title": "Resource group",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "tenantId",
+        "subscriptionId",
+        "resourceGroup"
+      ],
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "title": "Azure network",
+      "properties": {
+        "vnetResourceId": {
+          "type": "string",
+          "title": "VNet resource ID",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+        },
+        "nodeSubnetResourceIds": {
+          "type": "array",
+          "title": "Approved node subnet IDs",
+          "items": {
+            "type": "string",
+            "title": "Subnet resource ID",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true
+        },
+        "apiServerSubnetResourceId": {
+          "type": "string",
+          "title": "API server subnet ID (optional)",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+        }
+      },
+      "required": [
+        "vnetResourceId",
+        "nodeSubnetResourceIds"
+      ],
+      "additionalProperties": true
+    },
+    "identity": {
+      "type": "object",
+      "title": "Managed identities",
+      "properties": {
+        "controlPlaneIdentityResourceId": {
+          "type": "string",
+          "title": "Control-plane identity resource ID",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+        },
+        "kubeletIdentityResourceId": {
+          "type": "string",
+          "title": "Kubelet identity resource ID",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+        }
+      },
+      "required": [
+        "controlPlaneIdentityResourceId",
+        "kubeletIdentityResourceId"
+      ],
+      "additionalProperties": false
+    },
+    "security": {
+      "type": "object",
+      "title": "Network security",
+      "properties": {
+        "networkSecurityGroupResourceIds": {
+          "type": "array",
+          "title": "Approved network security groups",
+          "items": {
+            "type": "string",
+            "title": "NSG resource ID",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "networkSecurityGroupResourceIds"
+      ],
+      "additionalProperties": true
+    },
+    "encryption": {
+      "type": "object",
+      "title": "Encryption",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "title": "Encryption mode",
+          "enum": [
+            "PROVIDER_MANAGED",
+            "CUSTOMER_MANAGED"
+          ]
+        },
+        "diskEncryptionSetResourceId": {
+          "type": "string",
+          "title": "Disk encryption set (customer-managed)",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[^/]+/.+$"
+        },
+        "keyVaultKeyId": {
+          "type": "string",
+          "title": "Key Vault key reference",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "CUSTOMER_MANAGED"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "diskEncryptionSetResourceId"
+            ]
+          }
+        }
+      ]
+    },
+    "location": {
+      "type": "object",
+      "title": "Location",
+      "properties": {
+        "region": {
+          "type": "string",
+          "title": "Region / location",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "additionalProperties": false
+    },
+    "connectivity": {
+      "type": "object",
+      "title": "Connectivity",
+      "properties": {
+        "egressMode": {
+          "type": "string",
+          "title": "Approved egress",
+          "enum": [
+            "NAT",
+            "PRIVATE_ENDPOINTS",
+            "PROXY"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "title": "Connectivity notes",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "egressMode"
+      ],
+      "additionalProperties": false
+    },
+    "tags": {
+      "type": "object",
+      "title": "Baseline tags",
+      "properties": {
+        "Owner": {
+          "type": "string",
+          "title": "Owner",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "CostCenter": {
+          "type": "string",
+          "title": "Cost center",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "Environment": {
+          "type": "string",
+          "title": "Environment",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "Owner",
+        "CostCenter",
+        "Environment"
+      ],
+      "additionalProperties": true
+    },
+    "dns": {
+      "type": "object",
+      "title": "DNS",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    },
+    "proxy": {
+      "type": "object",
+      "title": "Proxy references",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    },
+    "extensions": {
+      "type": "object",
+      "title": "Additional configuration (no secrets)",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "account",
+    "network",
+    "identity",
+    "security",
+    "encryption",
+    "location",
+    "connectivity",
+    "tags"
+  ],
+  "additionalProperties": true,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:navigan:environment:aks:1.0",
+  "x-distribution": "AKS",
+  "x-provider": "AZURE",
+  "x-version": "1.0"
+}
