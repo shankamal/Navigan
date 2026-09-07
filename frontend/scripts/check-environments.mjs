@@ -31,14 +31,14 @@ try{
  await page.goto(base+'/environments');await page.getByRole('link',{name:'Production EKS',exact:true}).waitFor();
  await page.screenshot({path:'test-results/environments-desktop.png',fullPage:true});
  await page.getByRole('link',{name:'Create environment',exact:true}).click();
- await page.getByLabel('Customer *',{exact:true}).selectOption('CUS-demo');
+ await page.getByLabel(/^Customer/).selectOption('CUS-demo');
  for(const [provider,label] of Object.entries({AWS:'Account ID',AZURE:'Tenant ID',GCP:'Project ID',OCI:'Tenancy OCID'})){
-  await page.getByLabel('Kubernetes distribution *').selectOption(provider);
+  await page.getByLabel(/^Kubernetes distribution/).selectOption(provider);
   await page.getByLabel(new RegExp(label)).waitFor();
   assert.equal(await page.getByLabel(new RegExp(label)).count(),1);
  }
  await page.screenshot({path:'test-results/environment-oke-form.png',fullPage:true});
- await page.getByLabel('Environment name *',{exact:true}).fill('OCI Sandbox');await page.getByLabel('Environment type *',{exact:true}).selectOption('DEV');
+ await page.getByLabel(/^Environment name/).fill('OCI Sandbox');await page.getByLabel(/^Environment type/).selectOption('DEV');
  await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('heading',{name:'OCI Sandbox',exact:true}).waitFor();
  await page.screenshot({path:'test-results/environment-details.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});await page.goto(base+'/environments');await page.getByRole('link',{name:'Production EKS',exact:true}).waitFor();
@@ -46,4 +46,8 @@ try{
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
  assert.deepEqual(errors,[]);
  console.log('Environment list, four dynamic forms, draft creation and mobile layout passed.');
+}catch(error){
+ await page.screenshot({path:'test-results/environment-failure.png',fullPage:true});
+ console.error('Browser fixture page:',await page.locator('body').innerText());
+ throw error;
 }finally{await browser.close();}

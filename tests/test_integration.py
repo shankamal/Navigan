@@ -359,7 +359,13 @@ def test_outbox_partial_failure_and_publisher_role(monkeypatch):
             assert all("contacts" not in json.loads(e["Detail"]) for e in Entries)
             return {"Entries": [{"EventId": "ok"}, {"ErrorCode": "InternalFailure"}], "FailedEntryCount": 1}
 
-    monkeypatch.setattr(boto3, "client", lambda service: Events())
+    def events_client(service, *, config):
+        assert service == "events"
+        assert config.connect_timeout == config.read_timeout == 3
+        assert config.retries["total_max_attempts"] == 1
+        return Events()
+
+    monkeypatch.setattr(boto3, "client", events_client)
     monkeypatch.setenv("EVENT_BUS_NAME", "test")
     assert outbox.lambda_handler({}, None) == {"published": 1, "failed": 1}
     with psycopg.connect(os.environ["DATABASE_URL"]) as db:
