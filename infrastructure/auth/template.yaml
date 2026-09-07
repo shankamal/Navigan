@@ -54,6 +54,7 @@ Resources:
           API_SCOPE: !Ref ApiScope
       Code:
         ZipFile: |
+          import json
           import os
           import re
 
@@ -72,9 +73,10 @@ Resources:
               roles = sorted(role for group, role in role_groups.items() if group in groups)
               customers = sorted(g.removeprefix("NAVIGAN_CUSTOMER_") for g in groups
                                  if re.fullmatch(r"NAVIGAN_CUSTOMER_CUS-[A-Za-z0-9-]+", g))
+              # Use JSON strings for list claims across the HTTP API JWT claim text boundary.
               claims = {
-                  "roles": roles,
-                  "customer_ids": customers if roles else [],
+                  "roles": json.dumps(roles),
+                  "customer_ids": json.dumps(customers if roles else []),
                   "platform_scope": bool(roles) and "NAVIGAN_PLATFORM_SCOPE" in groups,
                   "customer_create": "CLOUD_ENGINEER" in roles and "NAVIGAN_CUSTOMER_CREATOR" in groups,
               }

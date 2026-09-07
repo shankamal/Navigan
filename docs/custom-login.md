@@ -146,3 +146,29 @@ requires your new client ID, trigger association and test user; repository CI ca
 References: [Cognito SDK authentication](https://docs.aws.amazon.com/cognito/latest/developerguide/authentication.html),
 [Access token customization](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-pre-token-generation.html),
 [Amplify sign-in](https://docs.amplify.aws/react/build-a-backend/auth/connect-your-frontend/sign-in/).
+
+## Saving a customer returns INVALID_IDENTITY
+
+The backend rejects malformed `roles` or `customer_ids` list claims before saving any customer data.
+The token Lambda now emits these two claims as **JSON-encoded strings**, which both the existing
+frontend and backend can parse. This avoids relying on API Gateway's conversion of array claims to text.
+For example, a decoded token contains `"roles": "[\"CLOUD_ENGINEER\"]"` and `"customer_ids": "[]"`.
+The `cognito:groups` claim remains managed by Cognito.
+
+To apply the fix, update the **currently active** authentication stack (do not delete it):
+
+```bash
+git pull --ff-only origin main
+source scripts/frontend/config.env
+# Use the stack attached to Cognito. If you recreated it as navigan-auth-v2:
+export AUTH_STACK_NAME='navigan-auth-v2'
+bash scripts/frontend/deploy-auth.sh
+```
+
+Confirm Cognito's V2 pre-token-generation trigger references the function from that stack
+(`navigan-auth-v2-tokens` in this example). Sign out and sign in again; previously issued tokens
+still contain the old encoding. This fix requires no Customer Management Lambda, API Gateway or
+frontend redeployment. Preserve your existing `NAVIGAN_API_SCOPE` value matching the gateway.
+
+If saving still fails with a fresh token, inspect only the `roles` and `customer_ids` claim values
+as received in the verified Lambda authorizer context; do not log or share the full token or event.
