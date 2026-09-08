@@ -149,6 +149,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         description="Save an incomplete draft now. Fields marked * are required before submission."
       />
       <form
+        className="environment-form"
         onSubmit={(e) => {
           e.preventDefault();
           mutation.mutate();
