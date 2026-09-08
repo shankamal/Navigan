@@ -1764,3 +1764,100 @@ summary {
     min-height: 44px;
   }
 }
+
+/* Layouts follow available space, including browser zoom and split windows. */
+.content-column {
+  container-type: inline-size;
+}
+main,
+.breadcrumb,
+.app-footer {
+  width: 100%;
+  max-width: 1800px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 3vw, 48px);
+}
+.page-heading h1 {
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  overflow-wrap: anywhere;
+}
+.field,
+.panel,
+.form-grid > *,
+.environment-identity-grid > * {
+  min-width: 0;
+}
+.environment-form .environment-identity-grid,
+.environment-form .form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+.environment-filter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.environment-summary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+.table-scroll {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+.app-footer,
+.form-actions,
+.list-footer {
+  flex-wrap: wrap;
+}
+@container (max-width: 850px) {
+  .form-layout,
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+@media (min-width: 721px) and (max-width: 1024px) {
+  .mobile-menu {
+    display: inline-flex;
+    color: white;
+  }
+  .sidebar {
+    display: none;
+  }
+  .sidebar.expanded {
+    display: flex;
+    position: fixed;
+    top: 72px;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    width: min(290px, 85vw);
+    overflow-y: auto;
+    box-shadow: 20px 0 50px #0002;
+  }
+}
+@media (max-width: 480px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  .heading-actions,
+  .form-actions,
+  .environment-actions {
+    width: 100%;
+  }
+  .heading-actions .button,
+  .form-actions .button,
+  .environment-actions .button {
+    flex: 1 1 auto;
+    white-space: normal;
+  }
+  .field > input,
+  .field > select,
+  .field > textarea {
+    font-size: 1rem;
+  }
+  .signin-card {
+    padding: 20px;
+  }
+}
