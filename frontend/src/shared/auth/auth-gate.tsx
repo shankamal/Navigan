@@ -13,13 +13,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <div className="signin-message">
         <p className="eyebrow">NAVIGAN WORKSPACE</p>
         <h1>
-          Your customers.
+          Accelerate Kubernetes adoption.
           <br />
-          One connected platform.
+          Empower application teams.
         </h1>
         <p>
-          Manage customer onboarding and approvals across your multi-cloud
-          Kubernetes platform.
+          Navigan enables self-service Kubernetes provisioning with consistent
+          standards and governance. By abstracting infrastructure complexity, it
+          empowers application teams to onboard seamlessly and accelerate
+          migration to Kubernetes—with greater autonomy and less reliance on
+          cloud teams.
         </p>
         <div className="signin-capabilities">
           <span>Customer identity</span>
