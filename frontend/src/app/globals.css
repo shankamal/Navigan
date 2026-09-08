@@ -1669,3 +1669,98 @@ summary {
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact create/edit forms; retain comfortable controls and mobile targets. */
+.form-layout {
+  gap: 20px;
+}
+.form-layout .form-main {
+  gap: 16px;
+}
+.form-layout .form-section,
+.environment-form .panel-padding {
+  padding: 18px;
+}
+.form-layout .section-heading {
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.form-layout .section-number {
+  width: 30px;
+  height: 30px;
+}
+.form-layout .field,
+.environment-form .field {
+  margin-bottom: 12px;
+}
+.form-layout .field > input,
+.form-layout .field > select,
+.form-layout .field > textarea,
+.environment-form .field > input,
+.environment-form .field > select,
+.environment-form .field > textarea {
+  min-height: 40px;
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+.form-layout .field-hint,
+.environment-form .field-hint {
+  margin-top: 4px;
+}
+.form-layout .contact-form {
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.form-layout .contact-empty {
+  padding: 4px 0 12px;
+}
+.form-layout .form-aside {
+  padding: 16px;
+}
+.environment-form .environment-identity-grid,
+.environment-form .form-grid {
+  gap: 12px 16px;
+  align-items: start;
+}
+.environment-form .environment-identity-grid .field,
+.environment-form .form-grid > .field {
+  margin-bottom: 0;
+}
+.environment-form .environment-fieldset {
+  margin: 0 0 16px;
+}
+.environment-form .environment-fieldset > legend {
+  margin-bottom: 8px;
+}
+.environment-form .environment-config .environment-fieldset {
+  padding-top: 10px;
+  margin-bottom: 0;
+}
+.environment-form .environment-config > .environment-fieldset {
+  margin-top: 12px;
+}
+.environment-form .form-grid > fieldset {
+  grid-column: auto;
+}
+.environment-form .form-grid .form-grid > fieldset {
+  grid-column: 1 / -1;
+}
+.environment-form .environment-array-item {
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.environment-form .environment-actions {
+  margin: 16px 0;
+}
+@media (max-width: 760px) {
+  .form-layout .form-section,
+  .environment-form .panel-padding {
+    padding: 14px;
+  }
+  .form-layout .field > input,
+  .form-layout .field > select,
+  .environment-form .field > input,
+  .environment-form .field > select {
+    min-height: 44px;
+  }
+}
