@@ -32,7 +32,9 @@ export function EnvironmentList() {
         title="Environments"
         description="Create and approve reusable infrastructure baselines across your clouds."
         action={
-          identity?.roles.includes("CLOUD_ENGINEER") && (
+          identity?.roles.some((role) =>
+            ["CLOUD_ENGINEER", "PLATFORM_ARCHITECT"].includes(role),
+          ) && (
             <Link className="button button-primary" href="/environments/new">
               <Plus size={18} />
               Create environment

@@ -13,6 +13,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (path.length === 2 && path[1] === "metadata") return method === "GET";
+    if (path.length === 3 && path[1] === "discover" && path[2] === "aws")
+      return method === "POST";
     if (path.length === 4 && path[1] === "configuration-schemas")
       return (
         method === "GET" &&

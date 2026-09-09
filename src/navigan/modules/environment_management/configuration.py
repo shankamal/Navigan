@@ -80,7 +80,10 @@ def validate(configuration, distribution, version, submitting=False):
         # Do not include jsonschema's message: it can echo submitted data.
         errors.append({"field": path, "message": f"Check {error.validator} constraint."})
     if submitting and distribution == "EKS":
+        account_id = configuration.get("account", {}).get("accountId", "")
+        region = configuration.get("location", {}).get("region", "")
         network = configuration.get("network", {})
+        vpc_id = network.get("vpc", {}).get("vpcId") if isinstance(network, dict) else None
         for key in ["clusterSubnets", "nodeSubnets"]:
             subnets = network.get(key, []) if isinstance(network, dict) else []
             if isinstance(subnets, list):
@@ -97,6 +100,47 @@ def validate(configuration, distribution, version, submitting=False):
                             "message": "Use distinct subnets across at least two availability zones.",
                         }
                     )
+                mismatched_vpcs = {
+                    s.get("vpcId")
+                    for s in subnets
+                    if isinstance(s, dict) and s.get("vpcId") and s.get("vpcId") != vpc_id
+                }
+                if mismatched_vpcs:
+                    errors.append(
+                        {
+                            "field": "configuration.network." + key,
+                            "message": "Every selected subnet must belong to the selected VPC.",
+                        }
+                    )
+        for key in ["clusterSecurityGroups", "nodeSecurityGroups"]:
+            groups = configuration.get("security", {}).get(key, [])
+            if any(
+                isinstance(group, dict) and group.get("vpcId") and group.get("vpcId") != vpc_id
+                for group in groups
+            ):
+                errors.append(
+                    {
+                        "field": "configuration.security." + key,
+                        "message": "Every selected security group must belong to the selected VPC.",
+                    }
+                )
+        for key in ["clusterRole", "nodeRole"]:
+            role_arn = configuration.get("iam", {}).get(key, {}).get("roleArn", "")
+            if role_arn and f"::{account_id}:role/" not in role_arn:
+                errors.append(
+                    {
+                        "field": "configuration.iam." + key + ".roleArn",
+                        "message": "The IAM role must belong to the selected AWS account.",
+                    }
+                )
+        key_arn = configuration.get("encryption", {}).get("nodeVolumeKmsKey", {}).get("keyArn", "")
+        if key_arn and (f":kms:{region}:{account_id}:key/" not in key_arn):
+            errors.append(
+                {
+                    "field": "configuration.encryption.nodeVolumeKmsKey.keyArn",
+                    "message": "The KMS key must belong to the selected account and region.",
+                }
+            )
     if errors:
         raise ApiError(
             422,

@@ -1861,3 +1861,294 @@ main,
     padding: 20px;
   }
 }
+
+/* AWS Environment discovery: preserve the Navigan shell while adding a dense architect workspace. */
+.environment-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 4px 0 20px;
+  padding: 0;
+  list-style: none;
+}
+.environment-stepper li {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.environment-stepper li::before {
+  position: absolute;
+  top: 15px;
+  right: 50%;
+  left: -50%;
+  height: 1px;
+  background: #ccd5cf;
+  content: "";
+}
+.environment-stepper li:first-child::before {
+  display: none;
+}
+.environment-stepper li span {
+  z-index: 1;
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border: 1px solid #cbd5cf;
+  border-radius: 50%;
+  background: #eef2ef;
+  color: #435049;
+  font-weight: 700;
+}
+.environment-stepper li.active {
+  color: var(--text);
+}
+.environment-stepper li.active span {
+  border-color: var(--green);
+  background: var(--green);
+  color: #10210a;
+}
+.environment-stepper li.active::before {
+  background: #83b25e;
+}
+.aws-discovery-panel {
+  margin-top: 16px;
+  border-top: 3px solid var(--green);
+}
+.environment-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.environment-section-heading .muted {
+  max-width: 780px;
+  margin-top: 5px;
+}
+.security-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 7px 10px;
+  border: 1px solid #cfe0c2;
+  border-radius: 999px;
+  background: #f3f8ef;
+  color: #3f6628;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.discovery-connection-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.discovery-wide-field {
+  grid-column: 1 / -1;
+}
+.discovery-connection-grid small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.discovery-actions {
+  align-items: center;
+  margin-bottom: 0 !important;
+}
+.discovery-results {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+.notice-success {
+  border-color: #cae0b9;
+  background: #eef8e9;
+  color: #253b1e;
+}
+.discovery-success {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.discovery-success > svg,
+.readiness-pass {
+  color: #4d8c20;
+}
+.discovery-success p {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+}
+.discovery-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.discovery-summary-grid article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fafcf9;
+}
+.discovery-summary-grid article > svg {
+  grid-row: 1 / 3;
+  color: #56852f;
+}
+.discovery-summary-grid article > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.discovery-summary-grid article > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8125rem;
+}
+.discovery-summary-grid article.needs-review {
+  border-color: #e7cf9d;
+  background: #fff9ec;
+}
+.discovery-summary-grid article.needs-review > svg,
+.readiness-warning {
+  color: #a66b00;
+}
+.discovery-selection {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #d9e2d4;
+  border-radius: 7px;
+  background: #fbfdf9;
+}
+.discovery-selection h3 {
+  margin-top: 2px;
+  font-size: 1rem;
+}
+.discovery-options {
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+}
+.discovery-options legend {
+  margin-bottom: 9px;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.discovery-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.discovery-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: white;
+  cursor: pointer;
+}
+.discovery-option.selected {
+  border-color: #86ad69;
+  background: #f1f8ec;
+}
+.discovery-option input {
+  margin-top: 3px;
+  accent-color: var(--green);
+}
+.discovery-option span {
+  display: grid;
+  min-width: 0;
+}
+.discovery-option strong,
+.discovery-option small {
+  overflow-wrap: anywhere;
+}
+.discovery-option small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+.discovery-resource-table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.discovery-resource-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(100px, 0.45fr) minmax(
+      220px,
+      1.6fr
+    );
+  gap: 14px;
+  align-items: center;
+  min-height: 43px;
+  padding: 8px 13px;
+  border-top: 1px solid #e7ece8;
+  font-size: 0.8125rem;
+}
+.discovery-resource-row:first-child {
+  border-top: 0;
+}
+.discovery-resource-head {
+  background: #eef2ef;
+  color: #39453d;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.discovery-resource-row .readiness-pass,
+.discovery-resource-row .readiness-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+@container (max-width: 900px) {
+  .discovery-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .environment-stepper li strong {
+    max-width: 74px;
+    text-align: center;
+  }
+  .environment-section-heading {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .discovery-connection-grid {
+    grid-template-columns: 1fr;
+  }
+  .discovery-wide-field {
+    grid-column: auto;
+  }
+  .discovery-option-grid {
+    grid-template-columns: 1fr;
+  }
+  .discovery-success {
+    grid-template-columns: auto 1fr;
+  }
+  .discovery-success .metadata {
+    grid-column: 2;
+  }
+  .discovery-resource-table {
+    overflow-x: auto;
+  }
+  .discovery-resource-row {
+    min-width: 620px;
+  }
+}
+@media (max-width: 480px) {
+  .discovery-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

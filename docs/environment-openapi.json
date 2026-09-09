@@ -778,6 +778,112 @@
         }
       }
     },
+    "/api/v1/environments/discover/aws": {
+      "post": {
+        "operationId": "postEnvironmentDiscoverAws",
+        "summary": "POST /discover/aws",
+        "security": [
+          {
+            "Cognito": [
+              "navigan/api"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuration validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure with correlation ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AwsDiscoveryRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/environments/{environmentId}/status": {
       "patch": {
         "operationId": "patchEnvironmentEnvironmentidStatus",
@@ -2955,6 +3061,53 @@
           "version"
         ],
         "title": "Action",
+        "type": "object"
+      },
+      "AwsDiscoveryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "customerId": {
+            "maxLength": 50,
+            "pattern": "^CUS-[A-Za-z0-9-]+$",
+            "title": "Customerid",
+            "type": "string"
+          },
+          "accountId": {
+            "pattern": "^[0-9]{12}$",
+            "title": "Accountid",
+            "type": "string"
+          },
+          "roleArn": {
+            "maxLength": 2048,
+            "pattern": "^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*NaviganDiscoveryRole$",
+            "title": "Rolearn",
+            "type": "string"
+          },
+          "externalId": {
+            "maxLength": 1224,
+            "minLength": 2,
+            "pattern": "^[A-Za-z0-9+=,.@:/_-]+$",
+            "title": "Externalid",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Regions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "customerId",
+          "accountId",
+          "roleArn",
+          "externalId",
+          "regions"
+        ],
+        "title": "AwsDiscoveryRequest",
         "type": "object"
       },
       "EKSConfiguration": {

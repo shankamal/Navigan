@@ -6,11 +6,12 @@ export function allowedActions(
 ): Action[] {
   const engineer = identity?.roles.includes("CLOUD_ENGINEER");
   const architect = identity?.roles.includes("PLATFORM_ARCHITECT");
+  const author = engineer || architect;
   switch (environment.status) {
     case "DRAFT":
-      return engineer ? ["submit"] : [];
+      return author ? ["submit"] : [];
     case "REJECTED":
-      return engineer ? ["resubmit"] : [];
+      return author ? ["resubmit"] : [];
     case "SUBMITTED":
       return architect ? ["review"] : [];
     case "UNDER_REVIEW":

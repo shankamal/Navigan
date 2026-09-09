@@ -14,9 +14,10 @@ from navigan.shared.auth import Principal
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 from .configuration import DISTRIBUTIONS, schema
-from .models import CreateEnvironment, UpdateEnvironment, Action
+from .models import CreateEnvironment, UpdateEnvironment, Action, AwsDiscoveryRequest
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
+from .discovery import discover_aws
 
 emit("environment_module_import", "completed")
 BASE = "/api/v1/environments"
@@ -129,6 +130,16 @@ def execute(event, principal, correlation, tx=transaction):
             },
             correlation,
         )
+    if method == "POST" and parts == ["discover", "aws"]:
+        headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+        if not headers.get("content-type", "").lower().startswith("application/json"):
+            raise ApiError(400, "INVALID_CONTENT_TYPE", "Use application/json.")
+        body = AwsDiscoveryRequest.model_validate(body_json(event)).model_dump()
+        principal.require("PLATFORM_ARCHITECT")
+        with tx() as db:
+            Repository(db, principal).validate_parent(body["customerId"], "AWS", active=True)
+        with phase("environment_aws_discovery"):
+            return response(200, discover_aws(body), correlation)
     identifier = parts[0] if parts else None
     if identifier and not re.fullmatch(r"ENV-[A-Za-z0-9-]{1,46}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
@@ -195,15 +206,19 @@ def execute(event, principal, correlation, tx=transaction):
             repo.get(identifier)
         else:
             repo.customers.get(body["customerId"])
-        principal.require(
-            "CLOUD_ENGINEER"
-            if not identifier
-            else TRANSITIONS[action][2]
-            if action in TRANSITIONS
-            else "CLOUD_ENGINEER"
-            if "PLATFORM_ARCHITECT" not in principal.roles
-            else "PLATFORM_ARCHITECT"
-        )
+        if not identifier:
+            if not principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
+                principal.require("CLOUD_ENGINEER")
+        else:
+            required_role = TRANSITIONS[action][2] if action in TRANSITIONS else None
+            if required_role == "ENVIRONMENT_AUTHOR":
+                if not principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
+                    principal.require("CLOUD_ENGINEER")
+            else:
+                principal.require(
+                    required_role
+                    or ("PLATFORM_ARCHITECT" if "PLATFORM_ARCHITECT" in principal.roles else "CLOUD_ENGINEER")
+                )
         operation = method + " " + path
         fingerprint = hashlib.sha256(
             json.dumps(body, sort_keys=True, separators=(",", ":")).encode()

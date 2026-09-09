@@ -67,6 +67,10 @@ Resources:
           Effect: Allow
           Resource:
             Ref: SecretsKmsKeyArn
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:iam::*:role/NaviganDiscoveryRole
       ReservedConcurrentExecutions: 20
     Type: AWS::Serverless::Function
   EnvironmentLogs:
@@ -197,6 +201,24 @@ Resources:
       ApiId:
         Ref: ApiId
       RouteKey: GET /api/v1/environments/configuration-schemas/{distribution}/{schemaVersion}
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  DiscoverAwsEnvironmentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/discover/aws
       Target:
         Fn::Join:
         - /

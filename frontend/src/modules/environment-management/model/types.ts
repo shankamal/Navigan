@@ -80,6 +80,88 @@ export interface EnvironmentInput {
   configurationSchemaVersion: string;
   configuration: Record<string, JsonValue>;
 }
+export interface AwsDiscoveryInput {
+  customerId: string;
+  accountId: string;
+  roleArn: string;
+  externalId: string;
+  regions: string[];
+}
+const discoveredRegionSchema = z.object({
+  region: z.string(),
+  availabilityZones: z.array(z.object({ name: z.string(), state: z.string() })),
+  vpcs: z.array(
+    z.object({
+      vpcId: z.string(),
+      name: z.string(),
+      cidrBlock: z.string().nullable().optional(),
+      isDefault: z.boolean(),
+    }),
+  ),
+  subnets: z.array(
+    z.object({
+      subnetId: z.string(),
+      name: z.string(),
+      vpcId: z.string(),
+      availabilityZone: z.string(),
+      cidrBlock: z.string().nullable().optional(),
+      availableIpAddressCount: z.number(),
+      mapPublicIpOnLaunch: z.boolean(),
+      routeTableId: z.string(),
+      type: z.enum(["PRIVATE", "PUBLIC"]),
+      egressTarget: z.string(),
+    }),
+  ),
+  securityGroups: z.array(
+    z.object({
+      securityGroupId: z.string(),
+      name: z.string(),
+      description: z.string(),
+      vpcId: z.string().nullable().optional(),
+    }),
+  ),
+  vpcEndpoints: z.array(
+    z.object({ vpcEndpointId: z.string(), serviceName: z.string() }),
+  ),
+  natGateways: z.array(
+    z.object({
+      natGatewayId: z.string(),
+      vpcId: z.string(),
+      subnetId: z.string(),
+      state: z.string(),
+    }),
+  ),
+  kmsKeys: z.array(z.object({ aliasName: z.string(), keyArn: z.string() })),
+  eksClusters: z.array(z.object({ name: z.string() })),
+  ecrRepositories: z.array(
+    z.object({
+      repositoryName: z.string(),
+      repositoryArn: z.string(),
+      imageTagMutability: z.string(),
+    }),
+  ),
+  serviceQuotas: z.array(
+    z.object({
+      serviceCode: z.string(),
+      quotaCode: z.string(),
+      quotaName: z.string(),
+      value: z.number(),
+      adjustable: z.boolean(),
+    }),
+  ),
+  ebsEncryptionByDefault: z.boolean(),
+});
+export const awsDiscoverySchema = z.object({
+  cloudProvider: z.literal("AWS"),
+  kubernetesDistribution: z.literal("EKS"),
+  account: z.object({ accountId: z.string(), principalArn: z.string() }),
+  roleArn: z.string(),
+  regions: z.array(discoveredRegionSchema),
+  iamRoles: z.array(z.object({ roleName: z.string(), roleArn: z.string() })),
+  counts: z.record(z.string(), z.number()),
+  fetchedAt: z.string(),
+});
+export type AwsDiscovery = z.infer<typeof awsDiscoverySchema>;
 export interface Filters {
   page: number;
   pageSize: number;

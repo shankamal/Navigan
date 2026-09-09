@@ -10,6 +10,8 @@ from navigan.shared.errors import ApiError
 from navigan.modules.environment_management.configuration import schema, validate
 from navigan.modules.environment_management.handler import resource_path, query_params, lambda_handler
 from navigan.modules.environment_management.service import Service, TRANSITIONS
+from navigan.modules.environment_management.models import AwsDiscoveryRequest
+from navigan.modules.environment_management.discovery import _route_profile, _subnet_routes
 
 
 def example(distribution):
@@ -47,6 +49,7 @@ def example(distribution):
 
     config = fill(schema(distribution, "1.0"))
     if distribution == "EKS":
+        config["location"]["region"] = "ap-south-1"
         for key in ["clusterSubnets", "nodeSubnets"]:
             config["network"][key] = [
                 {"subnetId": "subnet-123abc", "availabilityZone": "ap-south-1a"},
@@ -99,6 +102,41 @@ def test_eks_az_rule_and_distribution_schema():
         schema("../../etc", "1.0")
 
 
+def test_eks_rejects_cross_vpc_account_and_region_references():
+    config = example("EKS")
+    config["network"]["clusterSubnets"][0]["vpcId"] = "vpc-other"
+    config["security"]["clusterSecurityGroups"][0]["vpcId"] = "vpc-other"
+    config["iam"]["clusterRole"]["roleArn"] = "arn:aws:iam::210987654321:role/cluster"
+    config["encryption"]["nodeVolumeKmsKey"]["keyArn"] = "arn:aws:kms:us-east-1:123456789012:key/abc"
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.network.clusterSubnets" in fields
+    assert "configuration.security.clusterSecurityGroups" in fields
+    assert "configuration.iam.clusterRole.roleArn" in fields
+    assert "configuration.encryption.nodeVolumeKmsKey.keyArn" in fields
+
+
+def test_route_table_classification_uses_effective_default_route():
+    tables = [
+        {
+            "RouteTableId": "rtb-main",
+            "VpcId": "vpc-1",
+            "Associations": [{"Main": True}],
+            "Routes": [{"DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": "nat-1"}],
+        },
+        {
+            "RouteTableId": "rtb-public",
+            "VpcId": "vpc-1",
+            "Associations": [{"SubnetId": "subnet-public"}],
+            "Routes": [{"DestinationCidrBlock": "0.0.0.0/0", "GatewayId": "igw-1"}],
+        },
+    ]
+    explicit, main = _subnet_routes(tables)
+    assert _route_profile(main["vpc-1"]) == ("PRIVATE", "nat-1")
+    assert _route_profile(explicit["subnet-public"]) == ("PUBLIC", "igw-1")
+
+
 @pytest.mark.parametrize(
     "stage,path,expected",
     [
@@ -146,6 +184,36 @@ def test_stale_version_not_saved():
     repo.save.assert_not_called()
 
 
+def test_aws_discovery_request_requires_matching_fixed_role_and_distinct_regions():
+    valid = {
+        "customerId": "CUS-test",
+        "accountId": "123456789012",
+        "roleArn": "arn:aws:iam::123456789012:role/NaviganDiscoveryRole",
+        "externalId": "navigan-test-123",
+        "regions": ["ap-south-1"],
+    }
+    assert AwsDiscoveryRequest.model_validate(valid).accountId == "123456789012"
+    with pytest.raises(Exception):
+        AwsDiscoveryRequest.model_validate({**valid, "accountId": "210987654321"})
+    with pytest.raises(Exception):
+        AwsDiscoveryRequest.model_validate({**valid, "regions": ["ap-south-1", "ap-south-1"]})
+
+
+def test_environment_review_must_be_independent():
+    repo = MagicMock()
+    repo.principal = Principal("maker", frozenset({"PLATFORM_ARCHITECT"}), frozenset(), True)
+    repo.get.return_value = {
+        "version": 1,
+        "status": "SUBMITTED",
+        "created_by": "maker",
+        "workflow": {"submitted": {"by": "maker"}},
+    }
+    with pytest.raises(ApiError) as error:
+        Service(repo, "test").change("ENV-test", "review", {"version": 1})
+    assert error.value.code == "INDEPENDENT_REVIEW_REQUIRED"
+    repo.save.assert_not_called()
+
+
 def test_unauthenticated_metadata():
     result = lambda_handler(
         {"rawPath": "/api/v1/environments/metadata", "requestContext": {"http": {"method": "GET"}}},
@@ -161,11 +229,19 @@ def test_gateway_routes_and_scopes():
     routes = [
         r["Properties"] for r in template["Resources"].values() if r["Type"] == "AWS::ApiGatewayV2::Route"
     ]
-    assert len(routes) == 21
+    assert len(routes) == 22
     assert all(
         r["AuthorizationType"] == "JWT" and r["AuthorizationScopes"] == [{"Ref": "JwtScope"}] for r in routes
     )
     assert (
         template["Resources"]["EnvironmentFunction"]["Properties"]["Handler"]
         == "navigan.modules.environment_management.handler.lambda_handler"
+    )
+    policies = template["Resources"]["EnvironmentFunction"]["Properties"]["Policies"]
+    assert any(
+        statement.get("Action") == "sts:AssumeRole"
+        and statement["Resource"]["Fn::Sub"].endswith(":role/NaviganDiscoveryRole")
+        for policy in policies
+        if isinstance(policy, dict)
+        for statement in policy.get("Statement", [])
     )

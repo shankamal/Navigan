@@ -28,6 +28,7 @@ import {
   ConfigurationFields,
   cleanConfiguration,
 } from "./configuration-fields";
+import { AwsDiscoveryPanel } from "./aws-discovery-panel";
 export function EnvironmentEditor({ id }: { id?: string }) {
   const query = useEnvironment(id || "");
   if (id && query.isPending) return <Loading label="Loading environment…" />;
@@ -68,6 +69,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         },
   );
   const [search, setSearch] = useState("");
+  const [hasDiscovery, setHasDiscovery] = useState(false);
   const [customerPage, setCustomerPage] = useState(0);
   const customers = useQuery({
     queryKey: ["environment-customers", search, customerPage],
@@ -123,8 +125,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     },
   });
   const canEdit = identity?.roles.some(
-    (r) =>
-      r === "CLOUD_ENGINEER" || (environment && r === "PLATFORM_ARCHITECT"),
+    (r) => r === "CLOUD_ENGINEER" || r === "PLATFORM_ARCHITECT",
   );
   if (
     !canEdit ||
@@ -145,9 +146,33 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     <>
       <PageHeading
         eyebrow="Environment Management"
-        title={environment ? "Edit environment" : "Create environment"}
+        title={
+          environment
+            ? "Edit environment"
+            : input.cloudProvider === "AWS"
+              ? "Create AWS environment profile"
+              : "Create environment profile"
+        }
         description="Save an incomplete draft now. Fields marked * are required before submission."
       />
+      {!environment && (
+        <ol
+          className="environment-stepper"
+          aria-label="Environment profile creation progress"
+        >
+          {["Connection", "Discovery", "Resource selection", "Review"].map(
+            (label, index) => (
+              <li
+                key={label}
+                className={index <= (hasDiscovery ? 2 : 0) ? "active" : ""}
+              >
+                <span>{index + 1}</span>
+                <strong>{label}</strong>
+              </li>
+            ),
+          )}
+        </ol>
+      )}
       <form
         className="environment-form"
         onSubmit={(e) => {
@@ -206,7 +231,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                   </option>
                 ) : (
                   customers.data?.items
-                    .filter((c) => c.status !== "DEACTIVATED")
+                    .filter((c) => c.status === "ACTIVE")
                     .map((c) => (
                       <option key={c.customerId} value={c.customerId}>
                         {c.name} · {c.status}
@@ -304,6 +329,20 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
             onRetry={() => metadata.refetch()}
           />
         )}
+        {!environment &&
+          input.cloudProvider === "AWS" &&
+          identity?.roles.includes("PLATFORM_ARCHITECT") && (
+            <AwsDiscoveryPanel
+              customerId={input.customerId}
+              environmentType={input.environmentType}
+              owner={identity.displayName}
+              disabled={mutation.isPending}
+              onApply={(configuration) => {
+                setHasDiscovery(true);
+                change("configuration", configuration);
+              }}
+            />
+          )}
         <section
           className="panel panel-padding environment-config"
           key={`${input.customerId}-${input.kubernetesDistribution}`}

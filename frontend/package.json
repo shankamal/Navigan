@@ -6,12 +6,13 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm test && npm run build",
+    "preview:environment": "node scripts/preview-environment-profile.mjs",
     "format": "prettier --write src tests *.ts *.mjs *.json",
     "format:check": "prettier --check src tests *.ts *.mjs *.json"
   },

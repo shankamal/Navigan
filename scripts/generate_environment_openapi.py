@@ -1,15 +1,21 @@
 """Generate the Environment module contract independently from Customer Management."""
 
 import json
+import re
 from pathlib import Path
-from navigan.modules.environment_management.models import CreateEnvironment, UpdateEnvironment, Action
+from navigan.modules.environment_management.models import (
+    Action,
+    AwsDiscoveryRequest,
+    CreateEnvironment,
+    UpdateEnvironment,
+)
 from navigan.modules.environment_management.service import TRANSITIONS
 from navigan.modules.environment_management.configuration import schema
 
 root = Path(__file__).resolve().parents[1]
 components = {
     m.__name__: m.model_json_schema(ref_template="#/components/schemas/{model}")
-    for m in [CreateEnvironment, UpdateEnvironment, Action]
+    for m in [CreateEnvironment, UpdateEnvironment, Action, AwsDiscoveryRequest]
 }
 for dist in ["EKS", "AKS", "GKE", "OKE"]:
     components[dist + "Configuration"] = schema(dist, "1.0")
@@ -95,6 +101,7 @@ operations = [
     ("put", "/{environmentId}", "UpdateEnvironment"),
     ("get", "/metadata", None),
     ("get", "/configuration-schemas/{distribution}/{schemaVersion}", None),
+    ("post", "/discover/aws", "AwsDiscoveryRequest"),
     ("patch", "/{environmentId}/status", "Action"),
 ]
 operations += [("post", "/{environmentId}/" + a, "Action") for a in TRANSITIONS]
@@ -102,15 +109,13 @@ operations += [
     ("get", "/{environmentId}/" + a, None)
     for a in ["versions", "versions/{version}", "status-history", "reviews", "audit-log"]
 ]
-import re
-
 for method, suffix, model in operations:
     path = "/api/v1/environments" + suffix
     params = [
         {"name": name, "in": "path", "required": True, "schema": {"type": "string"}}
         for name in re.findall(r"{(\w+)}", path)
     ]
-    if model:
+    if model and model != "AwsDiscoveryRequest":
         params += [
             {
                 "name": "Idempotency-Key",
@@ -167,7 +172,9 @@ for method, suffix, model in operations:
     success = "201" if model == "CreateEnvironment" else "200"
     output = (
         {"$ref": "#/components/schemas/Environment"}
-        if model or suffix == "/{environmentId}" or suffix.endswith("/{version}")
+        if (model and model != "AwsDiscoveryRequest")
+        or suffix == "/{environmentId}"
+        or suffix.endswith("/{version}")
         else {"$ref": "#/components/schemas/Page"}
         if not suffix or suffix.endswith(("versions", "status-history", "reviews", "audit-log"))
         else {"type": "object"}

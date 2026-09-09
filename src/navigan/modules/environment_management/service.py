@@ -7,8 +7,8 @@ from .configuration import DISTRIBUTIONS, validate
 from .repository import serialize
 
 TRANSITIONS = {
-    "submit": ({"DRAFT", "REJECTED"}, "SUBMITTED", "CLOUD_ENGINEER"),
-    "resubmit": ({"REJECTED"}, "SUBMITTED", "CLOUD_ENGINEER"),
+    "submit": ({"DRAFT", "REJECTED"}, "SUBMITTED", "ENVIRONMENT_AUTHOR"),
+    "resubmit": ({"REJECTED"}, "SUBMITTED", "ENVIRONMENT_AUTHOR"),
     "review": ({"SUBMITTED"}, "UNDER_REVIEW", "PLATFORM_ARCHITECT"),
     "approve": ({"UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
     "reject": ({"UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
@@ -37,10 +37,11 @@ class Service:
         self.repo, self.principal, self.correlation = repo, repo.principal, correlation
 
     def create(self, body):
-        self.principal.require("CLOUD_ENGINEER")
+        if not self.principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
+            self.principal.require("CLOUD_ENGINEER")
         if DISTRIBUTIONS[body["cloudProvider"]] != body["kubernetesDistribution"]:
             raise ApiError(422, "INVALID_DISTRIBUTION", "Distribution must match the cloud provider.")
-        self.repo.validate_parent(body["customerId"], body["cloudProvider"])
+        self.repo.validate_parent(body["customerId"], body["cloudProvider"], active=True)
         self.repo.validate_type(body["environmentType"])
         with phase("environment_configuration_validation"):
             validate(
@@ -99,13 +100,27 @@ class Service:
             )
         else:
             states, target, role = TRANSITIONS[action]
-            self.principal.require(role)
+            if role == "ENVIRONMENT_AUTHOR":
+                if not self.principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
+                    self.principal.require("CLOUD_ENGINEER")
+            else:
+                self.principal.require(role)
             if row["status"] not in states:
                 raise ApiError(
                     409, "INVALID_STATUS_TRANSITION", "Action is not allowed in the current status."
                 )
             if action in {"reject", "suspend", "deactivate"} and not body.get("reason"):
                 raise ApiError(422, "REASON_REQUIRED", "Provide a reason for this action.")
+            submitted_by = row.get("workflow", {}).get("submitted", {}).get("by")
+            if action in {"review", "approve", "reject"} and self.principal.user_id in {
+                row.get("created_by"),
+                submitted_by,
+            }:
+                raise ApiError(
+                    403,
+                    "INDEPENDENT_REVIEW_REQUIRED",
+                    "The creator or submitter cannot review or decide this environment.",
+                )
             if action in {"submit", "resubmit", "approve", "activate", "reactivate"}:
                 self.repo.validate_parent(row["customer_id"], row["provider_code"], active=True)
                 with phase("environment_submission_validation"):

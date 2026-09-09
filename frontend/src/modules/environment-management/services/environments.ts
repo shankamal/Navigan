@@ -15,6 +15,8 @@ import {
   type ActionInput,
   type HistoryKind,
   type ConfigurationSchema,
+  type AwsDiscoveryInput,
+  awsDiscoverySchema,
 } from "../model/types";
 const base = "/environments";
 export const environments = {
@@ -42,6 +44,11 @@ export const environments = {
         `${base}/configuration-schemas/${distribution}/${version}`,
       )
     ).data,
+  discoverAws: async (input: AwsDiscoveryInput) =>
+    parseResponse(
+      awsDiscoverySchema,
+      (await apiClient.post(`${base}/discover/aws`, input)).data,
+    ),
   create: async (input: EnvironmentInput, options: WriteOptions) =>
     parseResponse(
       environmentSchema,

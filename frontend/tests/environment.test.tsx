@@ -14,7 +14,7 @@ import type {
 } from "@/modules/environment-management/model/types";
 import type { Identity } from "@/shared/auth/claims";
 describe("Environment module", () => {
-  it("allows all 21 documented routes with exact methods", () => {
+  it("allows all documented routes with exact methods", () => {
     const contract = JSON.parse(
       readFileSync(
         resolve(process.cwd(), "../docs/environment-openapi.json"),
@@ -34,7 +34,7 @@ describe("Environment module", () => {
         expect(isAllowedRoute(method.toUpperCase(), parts)).toBe(true);
         count++;
       }
-    expect(count).toBe(21);
+    expect(count).toBe(22);
     expect(isAllowedRoute("DELETE", ["environments", "ENV-test"])).toBe(false);
     expect(
       isAllowedRoute("POST", ["environments", "ENV-test", "versions"]),
