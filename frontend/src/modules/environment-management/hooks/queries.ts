@@ -1,11 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 import { environments } from "../services/environments";
 import type { Filters } from "../model/types";
+
 export const useEnvironments = (filters: Filters) =>
   useQuery({
     queryKey: ["environments", filters],
     queryFn: () => environments.list(filters),
   });
+
+export const useEnvironmentCount = (status?: string) =>
+  useQuery({
+    queryKey: ["environment-count", status || "ALL"],
+    queryFn: async () =>
+      (
+        await environments.list({
+          page: 0,
+          pageSize: 1,
+          sort: "createdAt,desc",
+          status,
+        })
+      ).pagination.totalElements,
+  });
+
 export const useEnvironment = (id: string) =>
   useQuery({
     queryKey: ["environment", id],

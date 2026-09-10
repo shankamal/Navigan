@@ -29,6 +29,25 @@ import {
   cleanConfiguration,
 } from "./configuration-fields";
 import { AwsDiscoveryPanel } from "./aws-discovery-panel";
+
+function configurationCostCenter(
+  configuration: EnvironmentInput["configuration"],
+) {
+  const tags = configuration.tags;
+  if (!tags || typeof tags !== "object" || Array.isArray(tags)) return "";
+  return typeof tags.CostCenter === "string" ? tags.CostCenter : "";
+}
+
+export function activeCustomerParams(search: string, page: number) {
+  return {
+    search,
+    status: "ACTIVE" as const,
+    page,
+    pageSize: 50,
+    sort: "name,asc" as const,
+  };
+}
+
 export function EnvironmentEditor({ id }: { id?: string }) {
   const query = useEnvironment(id || "");
   if (id && query.isPending) return <Loading label="Loading environment…" />;
@@ -68,6 +87,9 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
           configuration: {},
         },
   );
+  const [costCenter, setCostCenter] = useState(
+    environment ? configurationCostCenter(environment.configuration) : "",
+  );
   const [search, setSearch] = useState("");
   const [hasDiscovery, setHasDiscovery] = useState(false);
   const [customerPage, setCustomerPage] = useState(0);
@@ -78,12 +100,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         customerListSchema,
         (
           await apiClient.get("/customers", {
-            params: {
-              search,
-              page: customerPage,
-              pageSize: 50,
-              sort: "name,asc",
-            },
+            params: activeCustomerParams(search, customerPage),
           })
         ).data,
       ),
@@ -142,6 +159,25 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     key: K,
     value: EnvironmentInput[K],
   ) => setInput((v) => ({ ...v, [key]: value }));
+  const changeCostCenter = (value: string) => {
+    setCostCenter(value);
+    setInput((current) => {
+      const existingTags = current.configuration.tags;
+      const tags =
+        existingTags &&
+        typeof existingTags === "object" &&
+        !Array.isArray(existingTags)
+          ? existingTags
+          : {};
+      return {
+        ...current,
+        configuration: {
+          ...current.configuration,
+          tags: { ...tags, CostCenter: value },
+        },
+      };
+    });
+  };
   return (
     <>
       <PageHeading
@@ -230,9 +266,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                     {environment.customerName}
                   </option>
                 ) : (
-                  customers.data?.items
-                    .filter((c) => c.status === "ACTIVE")
-                    .map((c) => (
+                  customers.data?.items.map((c) => (
                       <option key={c.customerId} value={c.customerId}>
                         {c.name} · {c.status}
                       </option>
@@ -312,6 +346,17 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               </select>
             </label>
             <label className="field">
+              Cost center *
+              <input
+                required
+                maxLength={1024}
+                value={costCenter}
+                onChange={(e) => changeCostCenter(e.target.value)}
+                placeholder="Enter approved billing or project code"
+              />
+              <small>Required governance tag for provisioning.</small>
+            </label>
+            <label className="field">
               Description
               <textarea
                 rows={3}
@@ -336,6 +381,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               customerId={input.customerId}
               environmentType={input.environmentType}
               owner={identity.displayName}
+              costCenter={costCenter}
               disabled={mutation.isPending}
               onApply={(configuration) => {
                 setHasDiscovery(true);
@@ -343,42 +389,58 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               }}
             />
           )}
-        <section
-          className="panel panel-padding environment-config"
-          key={`${input.customerId}-${input.kubernetesDistribution}`}
-        >
-          <h2>{input.kubernetesDistribution} infrastructure configuration</h2>
-          <p className="muted">
-            Approved infrastructure references only. Keep cluster versions, node
-            sizing and credentials outside this baseline.
-          </p>
-          {schema.isPending ? (
-            <Loading label="Loading configuration fields…" />
-          ) : schema.error ? (
-            <ErrorNotice
-              error={schema.error}
-              onRetry={() => schema.refetch()}
-            />
-          ) : (
-            schema.data && (
-              <fieldset
-                disabled={mutation.isPending}
-                className="environment-fieldset"
-              >
-                <ConfigurationFields
-                  schema={schema.data}
-                  value={input.configuration}
-                  onChange={(value) =>
-                    change(
-                      "configuration",
-                      value as EnvironmentInput["configuration"],
-                    )
-                  }
-                />
-              </fieldset>
-            )
-          )}
-        </section>
+        {!environment && input.cloudProvider === "AWS" ? (
+          <section className="panel panel-padding environment-config-summary">
+            <h2>EKS environment profile baseline</h2>
+            <p className="muted">
+              {hasDiscovery
+                ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
+                : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
+            </p>
+            <span
+              className={hasDiscovery ? "security-chip" : "security-chip needs-review"}
+            >
+              {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
+            </span>
+          </section>
+        ) : (
+          <section
+            className="panel panel-padding environment-config"
+            key={`${input.customerId}-${input.kubernetesDistribution}`}
+          >
+            <h2>{input.kubernetesDistribution} infrastructure configuration</h2>
+            <p className="muted">
+              Approved infrastructure references only. Keep cluster versions,
+              node sizing and credentials outside this baseline.
+            </p>
+            {schema.isPending ? (
+              <Loading label="Loading configuration fields…" />
+            ) : schema.error ? (
+              <ErrorNotice
+                error={schema.error}
+                onRetry={() => schema.refetch()}
+              />
+            ) : (
+              schema.data && (
+                <fieldset
+                  disabled={mutation.isPending}
+                  className="environment-fieldset"
+                >
+                  <ConfigurationFields
+                    schema={schema.data}
+                    value={input.configuration}
+                    onChange={(value) =>
+                      change(
+                        "configuration",
+                        value as EnvironmentInput["configuration"],
+                      )
+                    }
+                  />
+                </fieldset>
+              )
+            )}
+          </section>
+        )}
         {mutation.error && <ErrorNotice error={mutation.error} />}{" "}
         {mutation.error instanceof ApiError &&
           Array.isArray(mutation.error.details?.fields) && (

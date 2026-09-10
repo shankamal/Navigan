@@ -2,11 +2,24 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, LogOut, Menu, ShieldCheck, X } from "lucide-react";
+import {
+  ChevronRight,
+  LogOut,
+  Menu,
+  PlusCircle,
+  Settings2,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { platformModules } from "@/shared/config/modules";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { signOut } from "@/shared/auth/session";
 import { Button } from "./ui";
+
+const environmentChildren = [
+  { href: "/clusters/new", label: "New Container Env", icon: PlusCircle },
+  { href: "/clusters", label: "Environment Admin", icon: Settings2 },
+] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -58,21 +71,49 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div>
             <p className="nav-section">WORKSPACE</p>
             <nav aria-label="Platform modules">
-              {platformModules.map((item) => (
-                <Link
-                  href={item.href}
-                  key={item.id}
-                  className={`nav-item ${pathname.startsWith(item.href) ? "selected" : ""}`}
-                  aria-current={
-                    pathname.startsWith(item.href) ? "page" : undefined
-                  }
-                  onClick={() => setExpanded(false)}
-                >
-                  <item.icon size={20} aria-hidden="true" />
-                  <span>{item.shortTitle}</span>
-                  {!item.available && <span className="soon">Soon</span>}
-                </Link>
-              ))}
+              {platformModules
+                .filter((item) => item.id !== "clusters")
+                .map((item) => {
+                  const selected =
+                    pathname.startsWith(item.href) ||
+                    (item.id === "environments" && pathname.startsWith("/clusters"));
+                  return (
+                    <div className="nav-group" key={item.id}>
+                      <Link
+                        href={item.href}
+                        className={`nav-item ${selected ? "selected" : ""}`}
+                        aria-current={pathname.startsWith(item.href) ? "page" : undefined}
+                        onClick={() => setExpanded(false)}
+                      >
+                        <item.icon size={20} aria-hidden="true" />
+                        <span>{item.shortTitle}</span>
+                        {!item.available && <span className="soon">Soon</span>}
+                      </Link>
+                      {item.id === "environments" && (
+                        <div className="nav-submenu" aria-label="Environment tools">
+                          {environmentChildren.map((child) => {
+                            const childSelected =
+                              child.href === "/clusters"
+                                ? pathname === child.href
+                                : pathname.startsWith(child.href);
+                            return (
+                              <Link
+                                key={child.href}
+                                href={child.href}
+                                className={`nav-subitem ${childSelected ? "selected" : ""}`}
+                                aria-current={childSelected ? "page" : undefined}
+                                onClick={() => setExpanded(false)}
+                              >
+                                <child.icon size={16} aria-hidden="true" />
+                                <span>{child.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </nav>
           </div>
           <div className="sidebar-footer">
@@ -105,7 +146,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="breadcrumb">
             <span>Workspace</span>
             <ChevronRight size={14} />
-            <span>{current?.shortTitle ?? "Access"}</span>
+            <span>{pathname.startsWith("/clusters") ? "Environments" : current?.shortTitle ?? "Access"}</span>
+            {pathname.startsWith("/clusters") && (
+              <>
+                <ChevronRight size={14} />
+                <span>{pathname.startsWith("/clusters/new") ? "New Container Env" : "Environment Admin"}</span>
+              </>
+            )}
             {pathname.includes("/customers/") && (
               <>
                 <ChevronRight size={14} />

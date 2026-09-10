@@ -1,5 +1,7 @@
-import { ClusterManagementPlaceholder } from "@/modules/cluster-management";
-export const metadata = { title: "Cluster Management" };
+import { ClusterAdminPage } from "@/modules/cluster-management";
+
+export const metadata = { title: "Cluster Admin" };
+
 export default function Page() {
-  return <ClusterManagementPlaceholder />;
+  return <ClusterAdminPage />;
 }
