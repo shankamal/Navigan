@@ -233,6 +233,41 @@ describe("Environment module", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add node subnets" }));
     expect(change).toHaveBeenCalledWith([""]);
   });
+  it("renders the cluster platform defaults and provisioning sections from the actual EKS schema", () => {
+    const schema = JSON.parse(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          "../src/navigan/modules/environment_management/schemas/eks-1.0.json",
+        ),
+        "utf8",
+      ),
+    ) as ConfigurationSchema;
+    render(
+      <ConfigurationFields schema={schema} value={{}} onChange={vi.fn()} />,
+    );
+    expect(screen.getByLabelText(/Kubernetes version/)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Provisioning role ARN/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/External ID secret ARN/),
+    ).toBeInTheDocument();
+  });
+  it("renders integer schema fields as numeric inputs and emits numbers, not strings", () => {
+    const change = vi.fn();
+    render(
+      <ConfigurationFields
+        schema={{ type: "integer", title: "Minimum size", minimum: 0, maximum: 1000 }}
+        value={0}
+        onChange={change}
+      />,
+    );
+    const input = screen.getByLabelText(/Minimum size/) as HTMLInputElement;
+    expect(input.type).toBe("number");
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(change).toHaveBeenCalledWith(3);
+  });
   it("restricts approval affordances to architects", () => {
     const env = { status: "UNDER_REVIEW" } as Environment;
     expect(

@@ -2,6 +2,7 @@ import copy
 import uuid
 from datetime import datetime, timezone
 from navigan.shared.errors import ApiError
+from .models import EksConfiguration, Provisioning
 from .repository import serialize
 from .provisioning import Provisioner
 
@@ -21,22 +22,35 @@ class Service:
 
     def create(self, body):
         self.principal.require("CLOUD_ENGINEER")
-        environment, _ = self.repo.active_environment_snapshot(
+        environment, snapshot = self.repo.active_environment_snapshot(
             body["environmentId"], body.get("environmentApprovedVersion")
         )
         approved = environment["approved_version"]
+        env_configuration = (snapshot or {}).get("configuration") or {}
+        cluster_block = env_configuration.get("cluster")
+        provisioning_block = env_configuration.get("provisioning")
+        if not cluster_block or not provisioning_block:
+            raise ApiError(
+                422,
+                "ENVIRONMENT_MISSING_CLUSTER_CONFIG",
+                "The approved environment snapshot has no cluster/provisioning configuration. "
+                "Update the environment's cluster and provisioning settings and get it "
+                "re-approved before creating a Cluster Setup request.",
+            )
+        configuration = EksConfiguration.model_validate(cluster_block).model_dump()
+        provisioning = Provisioning.model_validate(provisioning_block)
         now = datetime.now(timezone.utc)
         row = {
             "cluster_id": "CLU-" + uuid.uuid4().hex,
             "customer_id": environment["customer_id"],
             "environment_id": environment["environment_id"],
             "environment_approved_version": approved,
-            "platform": body["platform"],
+            "platform": "EKS",
             "cluster_name": body["clusterName"],
-            "configuration": body["configuration"],
-            "provisioning_role_arn": body["provisioningRoleArn"],
-            "external_id_secret_arn": body["externalIdSecretArn"],
-            "terraform_module_version": body["terraformModuleVersion"],
+            "configuration": configuration,
+            "provisioning_role_arn": provisioning.roleArn,
+            "external_id_secret_arn": provisioning.externalIdSecretArn,
+            "terraform_module_version": "1.0.0",
             "terraform_state_key": (
                 f"customers/{environment['customer_id']}/environments/"
                 f"{environment['environment_id']}/clusters/{body['clusterName']}/terraform.tfstate"
@@ -60,13 +74,8 @@ class Service:
             self.principal.require("CLOUD_ENGINEER")
             if row["status"] not in {"DRAFT", "REJECTED"}:
                 raise ApiError(409, "INVALID_STATUS_TRANSITION", "Only draft or rejected requests can be edited.")
-            for api, column in {
-                "configuration": "configuration",
-                "provisioningRoleArn": "provisioning_role_arn",
-                "externalIdSecretArn": "external_id_secret_arn",
-            }.items():
-                if body.get(api) is not None:
-                    row[column] = body[api]
+            if body.get("clusterName") is not None:
+                row["cluster_name"] = body["clusterName"]
         elif action in TRANSITIONS:
             states, target, role = TRANSITIONS[action]
             self.principal.require(role)

@@ -174,6 +174,18 @@ export function ConfigurationFields({
           checked={value === true}
           onChange={(e) => onChange(e.target.checked)}
         />
+      ) : schema.type === "integer" || schema.type === "number" ? (
+        <input
+          id={id}
+          type="number"
+          step={schema.type === "integer" ? 1 : "any"}
+          min={schema.minimum}
+          max={schema.maximum}
+          value={typeof value === "number" ? value : ""}
+          onChange={(e) =>
+            onChange(e.target.value === "" ? "" : Number(e.target.value))
+          }
+        />
       ) : (
         <input
           id={id}

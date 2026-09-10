@@ -32,18 +32,11 @@ export const clusterListSchema = z.object({
 export interface ClusterInput {
   environmentId: string;
   environmentApprovedVersion: number;
-  platform: "EKS";
   clusterName: string;
-  provisioningRoleArn: string;
-  externalIdSecretArn: string;
-  terraformModuleVersion: string;
-  configuration: {
-    kubernetesVersion: string;
-    endpointAccess: "PRIVATE" | "PUBLIC_AND_PRIVATE";
-    nodeGroups: Array<{
-      name: string; instanceTypes: string[]; capacityType: "ON_DEMAND" | "SPOT";
-      desiredSize: number; minSize: number; maxSize: number; diskSizeGiB: number;
-    }>;
-    tags: Record<string, string>;
-  };
+}
+export interface ClusterFilters {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  search?: string;
 }

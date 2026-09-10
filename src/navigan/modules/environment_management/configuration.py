@@ -141,6 +141,39 @@ def validate(configuration, distribution, version, submitting=False):
                     "message": "The KMS key must belong to the selected account and region.",
                 }
             )
+        node_groups = configuration.get("cluster", {}).get("nodeGroups", [])
+        if isinstance(node_groups, list):
+            names = [g.get("name") for g in node_groups if isinstance(g, dict)]
+            if len(set(names)) != len(names):
+                errors.append(
+                    {
+                        "field": "configuration.cluster.nodeGroups",
+                        "message": "Node group names must be unique.",
+                    }
+                )
+            for index, group in enumerate(node_groups):
+                if not isinstance(group, dict):
+                    continue
+                min_size, desired, max_size = (
+                    group.get("minSize"),
+                    group.get("desiredSize"),
+                    group.get("maxSize"),
+                )
+                if None not in (min_size, desired, max_size) and not (min_size <= desired <= max_size):
+                    errors.append(
+                        {
+                            "field": f"configuration.cluster.nodeGroups.{index}",
+                            "message": "Node group size must satisfy min <= desired <= max.",
+                        }
+                    )
+        provisioning_role_arn = configuration.get("provisioning", {}).get("roleArn", "")
+        if provisioning_role_arn and f"::{account_id}:role/" not in provisioning_role_arn:
+            errors.append(
+                {
+                    "field": "configuration.provisioning.roleArn",
+                    "message": "The provisioning role must belong to the selected AWS account.",
+                }
+            )
     if errors:
         raise ApiError(
             422,

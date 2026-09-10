@@ -15,6 +15,11 @@ export interface ConfigurationSchema {
   const?: string;
   additionalProperties?: boolean;
   minItems?: number;
+  maxItems?: number;
+  uniqueItems?: boolean;
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
 }
 export const distributions = {
   AWS: "EKS",

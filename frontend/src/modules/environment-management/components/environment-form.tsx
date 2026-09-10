@@ -29,6 +29,7 @@ import {
   cleanConfiguration,
 } from "./configuration-fields";
 import { AwsDiscoveryPanel } from "./aws-discovery-panel";
+import { ProvisioningFields } from "./provisioning-fields";
 
 function configurationCostCenter(
   configuration: EnvironmentInput["configuration"],
@@ -390,19 +391,28 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
             />
           )}
         {!environment && input.cloudProvider === "AWS" ? (
-          <section className="panel panel-padding environment-config-summary">
-            <h2>EKS environment profile baseline</h2>
-            <p className="muted">
-              {hasDiscovery
-                ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
-                : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
-            </p>
-            <span
-              className={hasDiscovery ? "security-chip" : "security-chip needs-review"}
-            >
-              {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
-            </span>
-          </section>
+          <>
+            <section className="panel panel-padding environment-config-summary">
+              <h2>EKS environment profile baseline</h2>
+              <p className="muted">
+                {hasDiscovery
+                  ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
+                  : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
+              </p>
+              <span
+                className={hasDiscovery ? "security-chip" : "security-chip needs-review"}
+              >
+                {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
+              </span>
+            </section>
+            {hasDiscovery && schema.data && (
+              <ProvisioningFields
+                schema={schema.data}
+                configuration={input.configuration}
+                onChange={(value) => change("configuration", value)}
+              />
+            )}
+          </>
         ) : (
           <section
             className="panel panel-padding environment-config"

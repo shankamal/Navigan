@@ -24,6 +24,8 @@ def example(distribution):
             return {k: fill(v) for k, v in node["properties"].items() if k in node.get("required", [])}
         if node["type"] == "array":
             return [fill(node["items"]) for _ in range(node.get("minItems", 1))]
+        if node["type"] in ("integer", "number"):
+            return node.get("minimum", 0)
         pattern = node.get("pattern", "")
         mappings = {
             "Account ID": "123456789012",
@@ -38,6 +40,11 @@ def example(distribution):
             "Security group ID": "sg-123abc",
             "Role ARN": "arn:aws:iam::123456789012:role/example",
             "KMS key ARN": "arn:aws:kms:ap-south-1:123456789012:key/abc",
+            "Kubernetes version": "1.33",
+            "Provisioning role ARN": "arn:aws:iam::123456789012:role/NaviganProvisioningRole",
+            "External ID secret ARN": (
+                "arn:aws:secretsmanager:ap-south-1:123456789012:secret:navigan/provisioning/example"
+            ),
         }
         if node.get("title") in mappings:
             return mappings[node["title"]]
@@ -115,6 +122,42 @@ def test_eks_rejects_cross_vpc_account_and_region_references():
     assert "configuration.security.clusterSecurityGroups" in fields
     assert "configuration.iam.clusterRole.roleArn" in fields
     assert "configuration.encryption.nodeVolumeKmsKey.keyArn" in fields
+
+
+def test_eks_node_group_size_must_satisfy_min_desired_max():
+    config = example("EKS")
+    config["cluster"]["nodeGroups"][0]["desiredSize"] = 999
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.cluster.nodeGroups.0" in fields
+
+
+def test_eks_node_group_names_must_be_unique():
+    config = example("EKS")
+    config["cluster"]["nodeGroups"].append(copy.deepcopy(config["cluster"]["nodeGroups"][0]))
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.cluster.nodeGroups" in fields
+
+
+def test_eks_provisioning_role_must_belong_to_account():
+    config = example("EKS")
+    config["provisioning"]["roleArn"] = "arn:aws:iam::210987654321:role/NaviganProvisioningRole"
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.provisioning.roleArn" in fields
+
+
+def test_eks_cluster_and_provisioning_required_only_when_submitting():
+    config = example("EKS")
+    del config["cluster"]
+    del config["provisioning"]
+    validate(config, "EKS", "1.0")
+    with pytest.raises(ApiError):
+        validate(config, "EKS", "1.0", True)
 
 
 def test_route_table_classification_uses_effective_default_route():

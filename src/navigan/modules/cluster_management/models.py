@@ -29,15 +29,8 @@ class EksConfiguration(Model):
     tags: dict[str, str] = Field(default_factory=dict)
 
 
-class CreateCluster(Model):
-    environmentId: str = Field(pattern=r"^ENV-[A-Za-z0-9-]+$", max_length=50)
-    environmentApprovedVersion: int | None = Field(default=None, gt=0)
-    platform: Literal["EKS"]
-    clusterName: str = Field(
-        min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
-    )
-    configuration: EksConfiguration
-    provisioningRoleArn: str = Field(
+class Provisioning(Model):
+    roleArn: str = Field(
         pattern=r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*NaviganProvisioningRole$",
         max_length=2048,
     )
@@ -45,20 +38,19 @@ class CreateCluster(Model):
         pattern=r"^arn:(aws|aws-us-gov|aws-cn):secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$",
         max_length=2048,
     )
-    terraformModuleVersion: str = Field(default="1.0.0", pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$")
+
+
+class CreateCluster(Model):
+    environmentId: str = Field(pattern=r"^ENV-[A-Za-z0-9-]+$", max_length=50)
+    environmentApprovedVersion: int | None = Field(default=None, gt=0)
+    clusterName: str = Field(
+        min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    )
 
 
 class UpdateCluster(Model):
-    configuration: EksConfiguration | None = None
-    provisioningRoleArn: str | None = Field(
-        default=None,
-        pattern=r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*NaviganProvisioningRole$",
-        max_length=2048,
-    )
-    externalIdSecretArn: str | None = Field(
-        default=None,
-        pattern=r"^arn:(aws|aws-us-gov|aws-cn):secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$",
-        max_length=2048,
+    clusterName: str | None = Field(
+        default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
     )
     version: int = Field(gt=0)
     changeReason: str | None = Field(default=None, max_length=2000)

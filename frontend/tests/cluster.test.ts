@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clusterSchema } from "@/modules/cluster-management/model";
+import { clusterSchema, type ClusterInput } from "@/modules/cluster-management/model";
 import { isAllowedRoute } from "@/shared/api/proxy";
 
 describe("Cluster API contract", () => {
@@ -23,5 +23,16 @@ describe("Cluster API contract", () => {
     expect(isAllowedRoute("POST", ["clusters"])).toBe(true);
     expect(isAllowedRoute("POST", ["clusters", "CLU-demo", "approve"])).toBe(true);
     expect(isAllowedRoute("POST", ["clusters", "CLU-demo", "apply"])).toBe(true);
+  });
+
+  it("no longer carries technical cluster fields in the create payload", () => {
+    const body: ClusterInput = {
+      environmentId: "ENV-demo",
+      environmentApprovedVersion: 3,
+      clusterName: "demo",
+    };
+    expect(Object.keys(body).sort()).toEqual(
+      ["clusterName", "environmentApprovedVersion", "environmentId"].sort(),
+    );
   });
 });
