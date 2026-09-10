@@ -37,6 +37,9 @@ Parameters:
     - 'false'
     Description: Set false during migration until the previous publisher has been
       stopped.
+  TerraformRunnerImageUri:
+    Type: String
+    Description: Immutable ECR image URI for the Navigan Terraform runner
 Resources:
   SharedPlatform:
     Type: AWS::Serverless::Application
@@ -107,6 +110,23 @@ Resources:
         RdsCaLayerArn: *id008
         ApiId: *id009
         AuthorizerId: *id010
+  ClusterManagement:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/cluster-management/template.yaml
+      Parameters:
+        JwtScope: *id001
+        DatabaseName: *id002
+        DatabaseProxyHost: *id003
+        ApiDatabaseSecretArn: *id004
+        SecretsKmsKeyArn: *id005
+        PrivateSubnetIds: *id006
+        LambdaSecurityGroupIds: *id007
+        RdsCaLayerArn: *id008
+        ApiId: *id009
+        AuthorizerId: *id010
+        TerraformRunnerImageUri:
+          Ref: TerraformRunnerImageUri
 Outputs:
   ApiId:
     Value:
@@ -150,3 +170,31 @@ Outputs:
       Fn::GetAtt:
       - EnvironmentManagement
       - Outputs.FunctionName
+  ClusterManagementStackId:
+    Value:
+      Ref: ClusterManagement
+  ClusterFunctionName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.FunctionName
+  TerraformProjectName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformProjectName
+  TerraformArtifactBucket:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformArtifactBucket
+  TerraformStateKmsKeyArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformStateKmsKeyArn
+  TerraformExecutionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformExecutionRoleArn

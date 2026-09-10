@@ -214,6 +214,15 @@ def test_environment_review_must_be_independent():
     repo.save.assert_not_called()
 
 
+def test_platform_architect_cannot_author_environment_request():
+    repo = MagicMock()
+    repo.principal = Principal("architect", frozenset({"PLATFORM_ARCHITECT"}), frozenset(), True)
+    with pytest.raises(ApiError) as error:
+        Service(repo, "test").create({})
+    assert error.value.status == 403
+    repo.insert.assert_not_called()
+
+
 def test_unauthenticated_metadata():
     result = lambda_handler(
         {"rawPath": "/api/v1/environments/metadata", "requestContext": {"http": {"method": "GET"}}},

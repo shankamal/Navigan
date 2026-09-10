@@ -135,7 +135,7 @@ def execute(event, principal, correlation, tx=transaction):
         if not headers.get("content-type", "").lower().startswith("application/json"):
             raise ApiError(400, "INVALID_CONTENT_TYPE", "Use application/json.")
         body = AwsDiscoveryRequest.model_validate(body_json(event)).model_dump()
-        principal.require("PLATFORM_ARCHITECT")
+        principal.require("CLOUD_ENGINEER")
         with tx() as db:
             Repository(db, principal).validate_parent(body["customerId"], "AWS", active=True)
         with phase("environment_aws_discovery"):
@@ -207,18 +207,13 @@ def execute(event, principal, correlation, tx=transaction):
         else:
             repo.customers.get(body["customerId"])
         if not identifier:
-            if not principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
-                principal.require("CLOUD_ENGINEER")
+            principal.require("CLOUD_ENGINEER")
         else:
             required_role = TRANSITIONS[action][2] if action in TRANSITIONS else None
             if required_role == "ENVIRONMENT_AUTHOR":
-                if not principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
-                    principal.require("CLOUD_ENGINEER")
+                principal.require("CLOUD_ENGINEER")
             else:
-                principal.require(
-                    required_role
-                    or ("PLATFORM_ARCHITECT" if "PLATFORM_ARCHITECT" in principal.roles else "CLOUD_ENGINEER")
-                )
+                principal.require(required_role or "CLOUD_ENGINEER")
         operation = method + " " + path
         fingerprint = hashlib.sha256(
             json.dumps(body, sort_keys=True, separators=(",", ":")).encode()

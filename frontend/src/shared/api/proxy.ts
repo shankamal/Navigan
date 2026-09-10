@@ -10,6 +10,16 @@ const actions = [
   "deactivate",
 ];
 export function isAllowedRoute(method: string, path: string[]): boolean {
+  if (path[0] === "clusters") {
+    if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (!/^CLU-[A-Za-z0-9-]+$/.test(path[1])) return false;
+    if (path.length === 2) return ["GET", "PUT"].includes(method);
+    return (
+      path.length === 3 &&
+      method === "POST" &&
+      ["submit", "review", "approve", "reject", "plan", "apply"].includes(path[2])
+    );
+  }
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (path.length === 2 && path[1] === "metadata") return method === "GET";

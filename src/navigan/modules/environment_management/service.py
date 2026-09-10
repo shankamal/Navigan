@@ -37,8 +37,7 @@ class Service:
         self.repo, self.principal, self.correlation = repo, repo.principal, correlation
 
     def create(self, body):
-        if not self.principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
-            self.principal.require("CLOUD_ENGINEER")
+        self.principal.require("CLOUD_ENGINEER")
         if DISTRIBUTIONS[body["cloudProvider"]] != body["kubernetesDistribution"]:
             raise ApiError(422, "INVALID_DISTRIBUTION", "Distribution must match the cloud provider.")
         self.repo.validate_parent(body["customerId"], body["cloudProvider"], active=True)
@@ -78,8 +77,7 @@ class Service:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest environment before saving.")
         old = copy.deepcopy(row)
         if action == "update":
-            if not self.principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
-                self.principal.require("CLOUD_ENGINEER")
+            self.principal.require("CLOUD_ENGINEER")
             if row["status"] not in {"DRAFT", "REJECTED"}:
                 raise ApiError(
                     409, "INVALID_STATUS_TRANSITION", "Only draft or rejected environments can be edited."
@@ -101,8 +99,7 @@ class Service:
         else:
             states, target, role = TRANSITIONS[action]
             if role == "ENVIRONMENT_AUTHOR":
-                if not self.principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
-                    self.principal.require("CLOUD_ENGINEER")
+                self.principal.require("CLOUD_ENGINEER")
             else:
                 self.principal.require(role)
             if row["status"] not in states:

@@ -27,3 +27,9 @@ GRANT SELECT,INSERT ON environment_management.environment_versions,
  environment_management.environment_status_history, environment_management.environment_reviews,
  environment_management.environment_audit_log TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA environment_management TO navigan_api;
+-- Cluster Management keeps request, Terraform execution and audit state in its own schema.
+GRANT USAGE ON SCHEMA cluster_management TO navigan_api;
+GRANT SELECT,INSERT,UPDATE ON cluster_management.clusters TO navigan_api;
+GRANT SELECT,INSERT ON cluster_management.cluster_versions,
+ cluster_management.cluster_status_history,cluster_management.cluster_audit_log TO navigan_api;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA cluster_management TO navigan_api;
