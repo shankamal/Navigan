@@ -109,7 +109,7 @@ def execute(event, principal, correlation):
             return result
         service = Service(repo, correlation)
         value = service.create(body) if not identifier else service.change(identifier, action or "update", body)
-        status = 201 if not identifier else 202 if action in {"plan", "apply"} else 200
+        status = 201 if not identifier else 202 if action in {"approve", "plan", "apply"} else 200
         customer_repo.idempotency_put(operation, key, fingerprint, {"status": status, "body": value})
         return response(status, value, correlation)
 

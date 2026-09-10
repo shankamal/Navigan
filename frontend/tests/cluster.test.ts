@@ -18,4 +18,10 @@ describe("Cluster API contract", () => {
       createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z",
     })).toThrow();
   });
+
+  it("keeps platform setup behind the API proxy", () => {
+    expect(isAllowedRoute("POST", ["clusters"])).toBe(true);
+    expect(isAllowedRoute("POST", ["clusters", "CLU-demo", "approve"])).toBe(true);
+    expect(isAllowedRoute("POST", ["clusters", "CLU-demo", "apply"])).toBe(true);
+  });
 });

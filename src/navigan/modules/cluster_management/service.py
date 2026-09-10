@@ -88,9 +88,24 @@ class Service:
                 "by": self.principal.user_id, "at": datetime.now(timezone.utc).isoformat(),
                 "reason": body.get("reason"), "comments": body.get("comments"),
             }
+            # Approval is the immutable hand-off to Terraform planning.  Applying
+            # infrastructure remains a separate architect action after the exact
+            # plan artifact and SHA-256 digest have been reviewed.
+            if action == "approve":
+                _, snapshot = self.repo.active_environment_snapshot(
+                    row["environment_id"], row["environment_approved_version"]
+                )
+                build_id, prefix = (self.provisioner or Provisioner()).start(
+                    "plan", row, snapshot
+                )
+                row["provider_execution_id"] = build_id
+                row["execution_artifact_prefix"] = prefix
+                row["plan_artifact_key"] = prefix + "/terraform.tfplan"
+                row["plan_sha256"] = None
+                row["status"] = "PLAN_RUNNING"
         elif action in {"plan", "apply"}:
             self.principal.require("PLATFORM_ARCHITECT")
-            expected = {"APPROVED", "FAILED"} if action == "plan" else {"PLAN_READY"}
+            expected = {"FAILED"} if action == "plan" else {"PLAN_READY"}
             if row["status"] not in expected:
                 raise ApiError(409, "INVALID_STATUS_TRANSITION", f"{action} is not allowed in the current status.")
             _, snapshot = self.repo.active_environment_snapshot(

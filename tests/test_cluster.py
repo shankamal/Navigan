@@ -101,6 +101,25 @@ def test_apply_uses_only_the_saved_plan():
     provisioner.start.assert_called_once()
 
 
+def test_approval_automatically_starts_terraform_plan():
+    value = row("UNDER_REVIEW")
+    value["created_by"] = "engineer"
+    value["workflow"] = {"submitted": {"by": "engineer"}}
+    repo = repository("PLATFORM_ARCHITECT", value, "architect")
+    provisioner = MagicMock()
+    provisioner.start.return_value = ("build-plan", "executions/plan")
+
+    updated = Service(repo, "correlation", provisioner).change(
+        "CLU-test", "approve", {"version": 1, "comments": "approved"}
+    )
+
+    assert updated["status"] == "PLAN_RUNNING"
+    assert updated["planArtifactKey"] == "executions/plan/terraform.tfplan"
+    provisioner.start.assert_called_once_with(
+        "plan", value, {"configuration": {"location": {"region": "ap-south-1"}}}
+    )
+
+
 def test_node_group_and_role_validation():
     with pytest.raises(ValidationError):
         NodeGroup.model_validate({

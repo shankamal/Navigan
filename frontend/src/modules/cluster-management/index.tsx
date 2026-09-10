@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Check, CloudCog, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { ErrorNotice, Loading, PageHeading, formatDate } from "@/shared/components/ui";
 import { environments } from "@/modules/environment-management/services/environments";
@@ -42,6 +42,15 @@ const defaults: ClusterInput = {
   },
 };
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
+
+function textValue(value: unknown, fallback = "Not configured") {
+  return typeof value === "string" && value ? value : fallback;
+}
+
 export function NewClusterPage() {
   const router = useRouter();
   const [value, setValue] = useState(defaults);
@@ -53,6 +62,19 @@ export function NewClusterPage() {
       status: "ACTIVE", cloudProvider: "AWS"}),
     staleTime: 60000,
   });
+  const selectedEnvironment = useQuery({
+    queryKey: ["cluster-platform-environment", value.environmentId],
+    queryFn: () => environments.get(value.environmentId),
+    enabled: Boolean(value.environmentId),
+    staleTime: 60000,
+  });
+  const baseline = objectValue(selectedEnvironment.data?.configuration);
+  const account = objectValue(baseline.account);
+  const location = objectValue(baseline.location);
+  const network = objectValue(baseline.network);
+  const vpc = objectValue(network.vpc);
+  const clusterSubnets = Array.isArray(network.clusterSubnets) ? network.clusterSubnets : [];
+  const nodeSubnets = Array.isArray(network.nodeSubnets) ? network.nodeSubnets : [];
   const group = value.configuration.nodeGroups[0];
   const setGroup = (change: Partial<typeof group>) => setValue((current) => ({
     ...current, configuration: {...current.configuration,
@@ -66,12 +88,24 @@ export function NewClusterPage() {
     } catch (caught) { setError(caught); } finally { setSaving(false); }
   };
   return <>
-    <PageHeading eyebrow="CONTAINER PROVISIONING" title="New AWS EKS cluster request"
-      description="Pin an ACTIVE environment and define workload-specific cluster sizing."/>
+    <PageHeading eyebrow="CONTAINER PROVISIONING" title="Cluster Platform Setup Request"
+      description="Select an approved environment profile, define EKS capacity, and submit it through maker-checker approval."/>
+    <ol className="cluster-request-steps" aria-label="Cluster provisioning workflow">
+      {[
+        "Select environment", "Configure platform", "Submit and approve", "Terraform plan and apply",
+      ].map((label, index) => <li key={label}>
+        <span>{index + 1}</span>{label}
+      </li>)}
+    </ol>
     {envs.error && <ErrorNotice error={envs.error} onRetry={() => envs.refetch()}/>}
     {error && <ErrorNotice error={error}/>}
-    <form className="panel panel-padding" onSubmit={submit}><div className="form-grid">
-      <label className="field">Active environment *
+    <form className="panel panel-padding" onSubmit={submit}>
+      <div className="section-heading"><div><span className="eyebrow">APPROVED BASELINE</span>
+        <h2>Select the environment profile</h2>
+        <p>Only ACTIVE AWS/EKS profiles are available. The approved version is pinned permanently to this request.</p>
+      </div><ShieldCheck aria-hidden="true"/></div>
+      <div className="form-grid">
+      <label className="field field-span">Active environment *
         <select required value={value.environmentId} onChange={(event) => {
           const env = envs.data?.items.find((item) => item.environmentId === event.target.value);
           setValue((current) => ({...current, environmentId: event.target.value,
@@ -82,6 +116,27 @@ export function NewClusterPage() {
           </option>)}
         </select>
       </label>
+      {value.environmentId && <div className="cluster-baseline-card field-span">
+        {selectedEnvironment.isPending ? <Loading label="Loading approved environment baseline…"/> :
+          selectedEnvironment.error ? <ErrorNotice error={selectedEnvironment.error}
+            onRetry={() => selectedEnvironment.refetch()}/> : <>
+            <div className="cluster-baseline-title"><Check size={18}/>
+              <strong>{selectedEnvironment.data?.environmentName}</strong>
+              <span>Approved v{value.environmentApprovedVersion}</span>
+            </div>
+            <dl className="cluster-baseline-grid">
+              <div><dt>AWS account</dt><dd>{textValue(account.accountId)}</dd></div>
+              <div><dt>Region</dt><dd>{textValue(location.region)}</dd></div>
+              <div><dt>VPC</dt><dd>{textValue(vpc.vpcId)}</dd></div>
+              <div><dt>Approved subnets</dt><dd>{clusterSubnets.length} cluster · {nodeSubnets.length} node</dd></div>
+            </dl>
+            <p className="metadata">Terraform uses this immutable approved snapshot—not the current editable environment record.</p>
+          </>}
+      </div>}
+      <div className="section-heading field-span cluster-config-heading"><div>
+        <span className="eyebrow">EKS CONFIGURATION</span><h2>Define the cluster platform</h2>
+        <p>These settings are workload-specific; network, IAM, security groups, and KMS come from the approved profile.</p>
+      </div><CloudCog aria-hidden="true"/></div>
       <label className="field">EKS cluster name *<input required value={value.clusterName}
         onChange={(event) => setValue({...value, clusterName: event.target.value})}/></label>
       <label className="field">Kubernetes version *<input required value={value.configuration.kubernetesVersion}
@@ -115,8 +170,8 @@ export function NewClusterPage() {
         onChange={(event) => setValue({...value, externalIdSecretArn: event.target.value})}/></label>
     </div><div className="form-actions">
       <Link className="button button-secondary" href="/clusters">Cancel</Link>
-      <button className="button button-primary" disabled={saving || !value.environmentApprovedVersion}>
-        {saving ? "Saving…" : "Save cluster request"}
+      <button className="button button-primary" disabled={saving || !value.environmentApprovedVersion || selectedEnvironment.isPending}>
+        {saving ? "Saving…" : "Save setup request draft"}
       </button>
     </div></form>
   </>;
@@ -136,7 +191,7 @@ export function ClusterRequestPage({id}: {id: string}) {
     engineer && ["DRAFT","REJECTED"].includes(row.status) ? ["submit"] :
     architect && row.status === "SUBMITTED" ? ["review"] :
     architect && row.status === "UNDER_REVIEW" ? ["approve","reject"] :
-    architect && ["APPROVED","FAILED"].includes(row.status) ? ["plan"] :
+    architect && row.status === "FAILED" ? ["plan"] :
     architect && row.status === "PLAN_READY" ? ["apply"] : [];
   const act = async (action: typeof actions[number]) => {
     if (action === "apply" && !window.confirm(
@@ -168,7 +223,7 @@ export function ClusterRequestPage({id}: {id: string}) {
         <button key={action} disabled={busy} className="button button-primary"
           onClick={() => void act(action)}>
           {action === "plan" ? "Generate Terraform plan" :
-            action === "apply" ? "Approve and apply plan" :
+            action === "apply" ? "Apply approved Terraform plan" :
             action.replace(/^./, (letter) => letter.toUpperCase())}
         </button>)}
       </div>

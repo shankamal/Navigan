@@ -17,8 +17,8 @@ import { signOut } from "@/shared/auth/session";
 import { Button } from "./ui";
 
 const environmentChildren = [
-  { href: "/clusters/new", label: "New Container Env", icon: PlusCircle },
-  { href: "/clusters", label: "Environment Admin", icon: Settings2 },
+  { href: "/clusters/new", label: "Platform Setup Request", icon: PlusCircle },
+  { href: "/clusters", label: "Cluster Platform Admin", icon: Settings2 },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -150,7 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {pathname.startsWith("/clusters") && (
               <>
                 <ChevronRight size={14} />
-                <span>{pathname.startsWith("/clusters/new") ? "New Container Env" : "Environment Admin"}</span>
+                <span>{pathname.startsWith("/clusters/new") ? "Platform Setup Request" : "Cluster Platform Admin"}</span>
               </>
             )}
             {pathname.includes("/customers/") && (
