@@ -5,26 +5,15 @@ import pytest
 from navigan.shared.auth import Principal
 from navigan.shared.errors import ApiError
 from navigan.modules.cluster_management.service import Service
+from navigan.modules.cluster_management.repository import Repository
 
 
 def request():
     return {
         "environmentId": "ENV-test",
         "environmentApprovedVersion": 7,
+        "blueprintName": "default",
         "clusterName": "navigan-dev-01",
-    }
-
-
-def cluster_configuration():
-    return {
-        "kubernetesVersion": "1.33",
-        "endpointAccess": "PRIVATE",
-        "nodeGroups": [{
-            "name": "general", "instanceTypes": ["m6i.large"],
-            "capacityType": "ON_DEMAND", "desiredSize": 2,
-            "minSize": 2, "maxSize": 4, "diskSizeGiB": 50,
-        }],
-        "tags": {"CostCenter": "CC-100"},
     }
 
 
@@ -38,11 +27,25 @@ def provisioning_configuration():
     }
 
 
+def blueprint_configuration(name="default"):
+    return {
+        "name": name,
+        "kubernetesVersion": "1.33",
+        "endpointAccess": "PRIVATE",
+        "nodeGroups": [{
+            "name": "general", "instanceTypes": ["m6i.large", "m6a.large"],
+            "capacityType": "ON_DEMAND", "desiredSize": 2,
+            "minSize": 2, "maxSize": 4, "diskSizeGiB": 50,
+        }],
+        "tags": {"CostCenter": "CC-100"},
+        "provisioning": provisioning_configuration(),
+    }
+
+
 def environment_snapshot(missing_cluster=False):
     configuration = {"location": {"region": "ap-south-1"}}
     if not missing_cluster:
-        configuration["cluster"] = cluster_configuration()
-        configuration["provisioning"] = provisioning_configuration()
+        configuration["clusters"] = [blueprint_configuration()]
     return {"configuration": configuration}
 
 
@@ -51,7 +54,14 @@ def row(status="DRAFT", user="engineer"):
         "cluster_id": "CLU-test", "customer_id": "CUS-test",
         "environment_id": "ENV-test", "environment_approved_version": 7,
         "platform": "EKS", "cluster_name": "navigan-dev-01",
-        "configuration": cluster_configuration(),
+        "description": "Blue-green migration cluster for checkout service.",
+        "configuration": {
+            "blueprintName": "default",
+            "kubernetesVersion": "1.33",
+            "endpointAccess": "PRIVATE",
+            "nodeGroups": blueprint_configuration()["nodeGroups"],
+            "tags": {"CostCenter": "CC-100"},
+        },
         "provisioning_role_arn": provisioning_configuration()["roleArn"],
         "external_id_secret_arn": provisioning_configuration()["externalIdSecretArn"],
         "terraform_module_version": "1.0.0", "terraform_state_key": "state/key",
@@ -83,12 +93,44 @@ def test_create_pins_active_environment_approved_version():
     repo.save.assert_called_once()
 
 
-def test_create_extracts_configuration_and_provisioning_from_snapshot():
+def test_active_approved_baseline_remains_usable_during_revision():
+    db = MagicMock()
+    db.execute.return_value.fetchone.side_effect = [
+        {
+            "environment_id": "ENV-test",
+            "customer_id": "CUS-test",
+            "customer_status": "ACTIVE",
+            "status": "DRAFT",
+            "approved_status": "ACTIVE",
+            "approved_version": 7,
+        },
+        {"snapshot": environment_snapshot()},
+    ]
+    principal = Principal("engineer", frozenset({"CLOUD_ENGINEER"}), frozenset(), True)
+    environment, snapshot = Repository(db, principal).active_environment_snapshot("ENV-test", 7)
+    assert environment["approved_version"] == 7
+    assert snapshot == environment_snapshot()
+
+
+def test_create_extracts_configuration_and_provisioning_from_blueprint():
     repo = repository("CLOUD_ENGINEER")
     created = Service(repo, "correlation", MagicMock()).create(request())
     assert created["configuration"]["kubernetesVersion"] == "1.33"
+    assert created["configuration"]["blueprintName"] == "default"
     assert created["provisioningRoleArn"].endswith("NaviganProvisioningRole")
     assert created["externalIdSecretArn"] == provisioning_configuration()["externalIdSecretArn"]
+
+
+def test_create_captures_optional_description():
+    repo = repository("CLOUD_ENGINEER")
+    created = Service(repo, "correlation", MagicMock()).create(
+        {**request(), "description": "Blue-green migration cluster."}
+    )
+    assert created["description"] == "Blue-green migration cluster."
+
+    repo_without = repository("CLOUD_ENGINEER")
+    created_without = Service(repo_without, "correlation", MagicMock()).create(request())
+    assert created_without["description"] is None
 
 
 def test_create_fails_when_environment_snapshot_has_no_cluster_config():
@@ -97,6 +139,16 @@ def test_create_fails_when_environment_snapshot_has_no_cluster_config():
         Service(repo, "correlation", MagicMock()).create(request())
     assert error.value.status == 422
     assert error.value.code == "ENVIRONMENT_MISSING_CLUSTER_CONFIG"
+
+
+def test_create_fails_when_blueprint_name_not_found():
+    repo = repository("CLOUD_ENGINEER")
+    with pytest.raises(ApiError) as error:
+        Service(repo, "correlation", MagicMock()).create(
+            {**request(), "blueprintName": "does-not-exist"}
+        )
+    assert error.value.status == 422
+    assert error.value.code == "CLUSTER_BLUEPRINT_NOT_FOUND"
 
 
 def test_architect_cannot_author_cluster_request():
@@ -119,6 +171,7 @@ def test_apply_uses_only_the_saved_plan():
     value = row("PLAN_READY")
     value["plan_artifact_key"] = "executions/plan/terraform.tfplan"
     value["plan_sha256"] = "a" * 64
+    value["workflow"]["certification"] = {"status": "PASSED"}
     repo = repository("PLATFORM_ARCHITECT", value, "architect")
     provisioner = MagicMock()
     provisioner.start.return_value = ("build-id", "executions/apply")
@@ -127,6 +180,20 @@ def test_apply_uses_only_the_saved_plan():
     )
     assert updated["status"] == "APPLYING"
     provisioner.start.assert_called_once()
+
+
+def test_apply_rejects_uncertified_plan():
+    value = row("PLAN_READY")
+    value["plan_artifact_key"] = "executions/plan/terraform.tfplan"
+    value["plan_sha256"] = "a" * 64
+    repo = repository("PLATFORM_ARCHITECT", value, "architect")
+
+    with pytest.raises(ApiError) as error:
+        Service(repo, "correlation", MagicMock()).change(
+            "CLU-test", "apply", {"version": 1, "comments": "approved"}
+        )
+
+    assert error.value.code == "PLAN_NOT_CERTIFIED"
 
 
 def test_approval_automatically_starts_terraform_plan():
@@ -148,10 +215,27 @@ def test_approval_automatically_starts_terraform_plan():
     )
 
 
+def test_approval_can_start_directly_from_submitted():
+    value = row("SUBMITTED")
+    value["created_by"] = "engineer"
+    value["workflow"] = {"submitted": {"by": "engineer"}}
+    repo = repository("PLATFORM_ARCHITECT", value, "architect")
+    provisioner = MagicMock()
+    provisioner.start.return_value = ("build-plan", "executions/plan")
+
+    updated = Service(repo, "correlation", provisioner).change(
+        "CLU-test", "approve", {"version": 1, "comments": "approved"}
+    )
+
+    assert updated["status"] == "PLAN_RUNNING"
+
+
 def test_update_can_only_rename_the_cluster():
     repo = repository("CLOUD_ENGINEER")
     updated = Service(repo, "correlation", MagicMock()).change(
-        "CLU-test", "update", {"version": 1, "clusterName": "navigan-dev-02"}
+        "CLU-test", "update",
+        {"version": 1, "clusterName": "navigan-dev-02", "description": "Updated context."},
     )
     assert updated["clusterName"] == "navigan-dev-02"
+    assert updated["description"] == "Updated context."
     assert updated["configuration"]["kubernetesVersion"] == "1.33"

@@ -1,5 +1,6 @@
 """Trusted EventBridge callback for CodeBuild Terraform execution state."""
 import json
+import logging
 import os
 from datetime import datetime, timezone
 import boto3
@@ -7,14 +8,24 @@ from navigan.shared.database import transaction
 from navigan.modules.customer_management.repository import json_text
 
 s3 = boto3.client("s3")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+def normalize_build_id(value):
+    """Convert the EventBridge CodeBuild ARN to the ID returned by StartBuild."""
+    marker = ":build/"
+    return value.split(marker, 1)[1] if marker in value else value
 
 
 def lambda_handler(event, context):
     detail = event.get("detail") or {}
-    build_id = detail.get("build-id")
+    raw_build_id = detail.get("build-id")
     build_status = detail.get("build-status")
-    if not build_id or not build_status:
+    if not raw_build_id or not build_status:
+        logger.info("Ignoring CodeBuild event without build ID or status.")
         return {"ignored": True}
+    build_id = normalize_build_id(raw_build_id)
     with transaction() as db:
         row = db.execute(
             "SELECT * FROM cluster_management.clusters "
@@ -22,10 +33,18 @@ def lambda_handler(event, context):
             [build_id],
         ).fetchone()
         if not row:
-            return {"ignored": True}
+            logger.info(
+                "Ignoring unregistered CodeBuild execution.",
+                extra={"buildId": build_id, "rawBuildId": raw_build_id},
+            )
+            return {"ignored": True, "reason": "execution_not_registered"}
         previous = row["status"]
         if previous not in {"PLAN_RUNNING", "APPLYING"}:
-            return {"ignored": True}
+            logger.info(
+                "Ignoring completion for a request that is no longer running.",
+                extra={"buildId": build_id, "clusterId": row["cluster_id"], "status": previous},
+            )
+            return {"ignored": True, "reason": "request_not_running"}
         result = {}
         if build_status == "SUCCEEDED":
             try:
@@ -51,6 +70,9 @@ def lambda_handler(event, context):
         }
         if previous == "PLAN_RUNNING" and success:
             workflow["planSummary"] = result.get("planSummary", {})
+            workflow["validation"] = result.get("validation", {})
+            workflow["securityScan"] = result.get("securityScan", {})
+            workflow["certification"] = result.get("certification", {})
         db.execute(
             "UPDATE cluster_management.clusters SET status=%s,version=%s,plan_sha256=%s,"
             "outputs=%s::jsonb,workflow=%s::jsonb,updated_by=%s,updated_at=%s "

@@ -2,6 +2,7 @@ import { apiClient, parseResponse, writeHeaders } from "@/shared/api/client";
 import {
   clusterListSchema,
   clusterSchema,
+  executionLogsSchema,
   type ClusterFilters,
   type ClusterInput,
 } from "./model";
@@ -19,6 +20,11 @@ export const clusters = {
     ),
   get: async (id: string) =>
     parseResponse(clusterSchema, (await apiClient.get(base + "/" + id)).data),
+  executionLogs: async (id: string) =>
+    parseResponse(
+      executionLogsSchema,
+      (await apiClient.get(base + "/" + id + "/execution-logs")).data,
+    ),
   create: async (input: ClusterInput) =>
     parseResponse(clusterSchema, (
       await apiClient.post(base, input, { headers: writeHeaders({ key: crypto.randomUUID() }) })

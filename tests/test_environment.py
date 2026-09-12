@@ -12,6 +12,7 @@ from navigan.modules.environment_management.handler import resource_path, query_
 from navigan.modules.environment_management.service import Service, TRANSITIONS
 from navigan.modules.environment_management.models import AwsDiscoveryRequest
 from navigan.modules.environment_management.discovery import _route_profile, _subnet_routes
+from navigan.modules.environment_management.readiness import assess_eks_blueprints
 
 
 def example(distribution):
@@ -126,35 +127,83 @@ def test_eks_rejects_cross_vpc_account_and_region_references():
 
 def test_eks_node_group_size_must_satisfy_min_desired_max():
     config = example("EKS")
-    config["cluster"]["nodeGroups"][0]["desiredSize"] = 999
+    config["clusters"][0]["nodeGroups"][0]["desiredSize"] = 999
     with pytest.raises(ApiError) as error:
         validate(config, "EKS", "1.0", True)
     fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.cluster.nodeGroups.0" in fields
+    assert "configuration.clusters.0.nodeGroups.0" in fields
 
 
 def test_eks_node_group_names_must_be_unique():
     config = example("EKS")
-    config["cluster"]["nodeGroups"].append(copy.deepcopy(config["cluster"]["nodeGroups"][0]))
+    config["clusters"][0]["nodeGroups"].append(
+        copy.deepcopy(config["clusters"][0]["nodeGroups"][0])
+    )
     with pytest.raises(ApiError) as error:
         validate(config, "EKS", "1.0", True)
     fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.cluster.nodeGroups" in fields
+    assert "configuration.clusters.0.nodeGroups" in fields
+
+
+def test_eks_cluster_blueprint_names_must_be_unique():
+    config = example("EKS")
+    config["clusters"].append(copy.deepcopy(config["clusters"][0]))
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.clusters" in fields
 
 
 def test_eks_provisioning_role_must_belong_to_account():
     config = example("EKS")
-    config["provisioning"]["roleArn"] = "arn:aws:iam::210987654321:role/NaviganProvisioningRole"
+    config["clusters"][0]["provisioning"]["roleArn"] = (
+        "arn:aws:iam::210987654321:role/NaviganProvisioningRole"
+    )
     with pytest.raises(ApiError) as error:
         validate(config, "EKS", "1.0", True)
     fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.provisioning.roleArn" in fields
+    assert "configuration.clusters.0.provisioning.roleArn" in fields
 
 
-def test_eks_cluster_and_provisioning_required_only_when_submitting():
+def test_eks_draft_allows_a_blank_blueprint_name_being_typed():
     config = example("EKS")
-    del config["cluster"]
-    del config["provisioning"]
+    config["clusters"][0]["name"] = ""
+    config["clusters"][0]["nodeGroups"][0]["name"] = ""
+    config["clusters"][0]["kubernetesVersion"] = ""
+    config["clusters"][0]["provisioning"]["roleArn"] = ""
+    config["clusters"][0]["provisioning"]["externalIdSecretArn"] = ""
+    validate(config, "EKS", "1.0")
+
+
+def test_eks_draft_allows_duplicate_blank_entries_while_still_typing():
+    config = example("EKS")
+    config["clusters"][0]["nodeGroups"][0]["instanceTypes"] = ["", ""]
+    config["clusters"].append(copy.deepcopy(config["clusters"][0]))
+    validate(config, "EKS", "1.0")
+    with pytest.raises(ApiError):
+        validate(config, "EKS", "1.0", True)
+
+
+def test_eks_submission_rejects_malformed_blueprint_fields():
+    config = example("EKS")
+    config["clusters"][0]["name"] = "Not Valid!"
+    config["clusters"][0]["kubernetesVersion"] = "1.33.0"
+    config["clusters"][0]["nodeGroups"][0]["name"] = "Not Valid!"
+    config["clusters"][0]["provisioning"]["roleArn"] = "not-an-arn"
+    config["clusters"][0]["provisioning"]["externalIdSecretArn"] = "not-an-arn"
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.clusters.0.name" in fields
+    assert "configuration.clusters.0.kubernetesVersion" in fields
+    assert "configuration.clusters.0.nodeGroups.0.name" in fields
+    assert "configuration.clusters.0.provisioning.roleArn" in fields
+    assert "configuration.clusters.0.provisioning.externalIdSecretArn" in fields
+
+
+def test_eks_clusters_required_only_when_submitting():
+    config = example("EKS")
+    del config["clusters"]
     validate(config, "EKS", "1.0")
     with pytest.raises(ApiError):
         validate(config, "EKS", "1.0", True)
@@ -266,6 +315,29 @@ def test_platform_architect_cannot_author_environment_request():
     repo.insert.assert_not_called()
 
 
+def test_revision_keeps_active_baseline_until_new_revision_is_activated():
+    repo = MagicMock()
+    repo.principal = Principal("engineer", frozenset({"CLOUD_ENGINEER"}), frozenset(), True)
+    repo.get.return_value = {
+        "environment_id": "ENV-test",
+        "customer_id": "CUS-test",
+        "provider_code": "AWS",
+        "kubernetes_distribution": "EKS",
+        "version": 8,
+        "status": "ACTIVE",
+        "approved_status": "ACTIVE",
+        "approved_version": 7,
+        "pending_approved_version": None,
+        "created_by": "engineer",
+        "workflow": {},
+    }
+    revised = Service(repo, "test").change("ENV-test", "revise", {"version": 8})
+    assert revised["status"] == "DRAFT"
+    assert revised["approvedStatus"] == "ACTIVE"
+    assert revised["approvedVersion"] == 7
+    assert revised["pendingApprovedVersion"] is None
+
+
 def test_unauthenticated_metadata():
     result = lambda_handler(
         {"rawPath": "/api/v1/environments/metadata", "requestContext": {"http": {"method": "GET"}}},
@@ -281,7 +353,7 @@ def test_gateway_routes_and_scopes():
     routes = [
         r["Properties"] for r in template["Resources"].values() if r["Type"] == "AWS::ApiGatewayV2::Route"
     ]
-    assert len(routes) == 22
+    assert len(routes) == 29
     assert all(
         r["AuthorizationType"] == "JWT" and r["AuthorizationScopes"] == [{"Ref": "JwtScope"}] for r in routes
     )
@@ -297,3 +369,21 @@ def test_gateway_routes_and_scopes():
         if isinstance(policy, dict)
         for statement in policy.get("Statement", [])
     )
+
+
+def test_blueprint_readiness_reports_missing_bootstrap_without_exposing_secrets():
+    class Secrets:
+        def get_secret_value(self, **_):
+            raise RuntimeError("missing-sensitive-value")
+
+    class Boto:
+        @staticmethod
+        def client(name, **_):
+            assert name == "secretsmanager"
+            return Secrets()
+
+    report = assess_eks_blueprints(example("EKS"), Boto())
+    assert report["status"] == "FAILED"
+    assert report["blockingCount"] == 1
+    assert report["findings"][0]["code"] == "PROVISIONING_SECRET_NOT_FOUND"
+    assert "missing-sensitive-value" not in json.dumps(report)

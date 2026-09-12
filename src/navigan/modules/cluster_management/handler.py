@@ -2,8 +2,12 @@
 import base64
 import hashlib
 import json
+import logging
+import os
 import re
+import traceback
 import uuid
+import boto3
 from pydantic import ValidationError
 from navigan.shared.auth import Principal
 from navigan.shared.database import transaction
@@ -14,6 +18,12 @@ from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
 
 BASE = "/api/v1/clusters"
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+SECRET_VALUE = re.compile(
+    r"(?i)(external[_ -]?id|secret|string|token|password)\s*[:=]\s*\S+"
+)
 
 
 def response(status, body, correlation):
@@ -59,6 +69,38 @@ def query_of(event):
     return {**raw, "page": page, "pageSize": size}
 
 
+def execution_logs(row):
+    build_id = row.get("provider_execution_id")
+    if not build_id:
+        return {"status": row["status"], "events": [], "complete": True}
+    project, _, stream = build_id.partition(":")
+    if not project or not stream:
+        return {"status": row["status"], "events": [], "complete": True}
+    result = boto3.client("logs").get_log_events(
+        logGroupName=f"/aws/codebuild/{project}",
+        logStreamName=stream,
+        startFromHead=False,
+        limit=200,
+    )
+    events = []
+    for event in result.get("events", []):
+        message = ANSI_ESCAPE.sub("", str(event.get("message", ""))).strip()
+        message = SECRET_VALUE.sub(r"\1=[REDACTED]", message)
+        if message:
+            events.append(
+                {
+                    "timestamp": int(event.get("timestamp", 0)),
+                    "message": message[:4000],
+                }
+            )
+    return {
+        "status": row["status"],
+        "executionId": build_id,
+        "events": events[-200:],
+        "complete": row["status"] not in {"PLAN_RUNNING", "APPLYING"},
+    }
+
+
 def execute(event, principal, correlation):
     method = event.get("requestContext", {}).get("http", {}).get("method")
     path = path_of(event)
@@ -69,7 +111,7 @@ def execute(event, principal, correlation):
     if identifier and not re.fullmatch(r"CLU-[A-Za-z0-9-]{1,46}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     action = parts[1] if len(parts) == 2 else ""
-    read = method == "GET" and len(parts) <= 1
+    read = method == "GET" and (len(parts) <= 1 or (len(parts) == 2 and action == "execution-logs"))
     write = (
         (method == "POST" and (not parts or action in {*TRANSITIONS, "plan", "apply"}))
         or (method == "PUT" and len(parts) == 1)
@@ -95,7 +137,11 @@ def execute(event, principal, correlation):
     with transaction() as db:
         repo = Repository(db, principal)
         if read:
-            value = repo.list(query_of(event)) if not identifier else serialize(repo.get(identifier))
+            if not identifier:
+                value = repo.list(query_of(event))
+            else:
+                row = repo.get(identifier)
+                value = execution_logs(row) if action == "execution-logs" else serialize(row)
             return response(200, value, correlation)
         operation = method + " " + path
         fingerprint = hashlib.sha256(
@@ -124,6 +170,19 @@ def lambda_handler(event, context):
     except (ValidationError, ValueError, json.JSONDecodeError, UnicodeError):
         error = ApiError(400, "VALIDATION_ERROR", "Check the request fields.")
         return response(error.status, error.payload(correlation), correlation)
-    except Exception:
+    except Exception as error:
+        logger.error(json.dumps({
+            "correlationId": correlation,
+            "errorType": type(error).__name__,
+            "sqlState": getattr(error, "sqlstate", None),
+            "locations": [
+                {
+                    "file": frame.filename.rsplit("/", 1)[-1],
+                    "line": frame.lineno,
+                    "function": frame.name,
+                }
+                for frame in traceback.extract_tb(error.__traceback__)
+            ][-8:],
+        }))
         error = ApiError(500, "INTERNAL_ERROR", "An unexpected error occurred.")
         return response(error.status, error.payload(correlation), correlation)

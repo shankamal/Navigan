@@ -48,6 +48,9 @@ Parameters:
     Type: String
   AuthorizerId:
     Type: String
+  BlueprintAdvisorModelId:
+    Type: String
+    Default: ''
 Resources:
   EnvironmentFunction:
     Properties:
@@ -55,6 +58,8 @@ Resources:
         Variables:
           DB_SECRET_ARN:
             Ref: ApiDatabaseSecretArn
+          BLUEPRINT_ADVISOR_MODEL_ID:
+            Ref: BlueprintAdvisorModelId
       Handler: navigan.modules.environment_management.handler.lambda_handler
       Policies:
       - AWSLambdaVPCAccessExecutionRole
@@ -67,10 +72,23 @@ Resources:
           Effect: Allow
           Resource:
             Ref: SecretsKmsKeyArn
-        - Action: sts:AssumeRole
+        - Action: secretsmanager:ListSecrets
+          Effect: Allow
+          Resource: '*'
+        - Action: secretsmanager:GetSecretValue
           Effect: Allow
           Resource:
-            Fn::Sub: arn:${AWS::Partition}:iam::*:role/NaviganDiscoveryRole
+            Fn::Sub: arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/provisioning/*
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Resource:
+          - Fn::Sub: arn:${AWS::Partition}:iam::*:role/NaviganDiscoveryRole
+          - Fn::Sub: arn:${AWS::Partition}:iam::*:role/NaviganProvisioningRole
+        - Action: bedrock:InvokeModel
+          Effect: Allow
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:bedrock:*::foundation-model/*
       ReservedConcurrentExecutions: 20
     Type: AWS::Serverless::Function
   EnvironmentLogs:
@@ -103,6 +121,114 @@ Resources:
       SourceArn:
         Fn::Sub: arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/environments*
     Type: AWS::Lambda::Permission
+  BlueprintReadinessRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/blueprint-readiness
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  CreateBootstrapRemediationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/bootstrap-remediations
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ListBootstrapRemediationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/environments/bootstrap-remediations
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  GetBootstrapRemediationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/environments/bootstrap-remediations/{requestId}
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ApproveBootstrapRemediationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/bootstrap-remediations/{requestId}/approve
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  RejectBootstrapRemediationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/bootstrap-remediations/{requestId}/reject
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
   CreateEnvironmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn:
@@ -345,6 +471,24 @@ Resources:
       ApiId:
         Ref: ApiId
       RouteKey: POST /api/v1/environments/{environmentId}/submit
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
+  ReviseEnvironmentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/{environmentId}/revise
       Target:
         Fn::Join:
         - /

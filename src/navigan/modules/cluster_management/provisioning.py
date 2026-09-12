@@ -22,6 +22,7 @@ class Provisioner:
             "schemaVersion": "1.0",
             "mode": mode,
             "executionId": execution_id,
+            "customerId": cluster["customer_id"],
             "clusterId": cluster["cluster_id"],
             "environmentId": cluster["environment_id"],
             "environmentApprovedVersion": cluster["environment_approved_version"],

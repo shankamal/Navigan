@@ -22,13 +22,6 @@ class NodeGroup(Model):
         return self
 
 
-class EksConfiguration(Model):
-    kubernetesVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
-    endpointAccess: Literal["PRIVATE", "PUBLIC_AND_PRIVATE"] = "PRIVATE"
-    nodeGroups: list[NodeGroup] = Field(min_length=1, max_length=20)
-    tags: dict[str, str] = Field(default_factory=dict)
-
-
 class Provisioning(Model):
     roleArn: str = Field(
         pattern=r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*NaviganProvisioningRole$",
@@ -40,18 +33,30 @@ class Provisioning(Model):
     )
 
 
+class ClusterBlueprint(Model):
+    name: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+    kubernetesVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
+    endpointAccess: Literal["PRIVATE", "PUBLIC_AND_PRIVATE"] = "PRIVATE"
+    nodeGroups: list[NodeGroup] = Field(min_length=1, max_length=20)
+    tags: dict[str, str] = Field(default_factory=dict)
+    provisioning: Provisioning
+
+
 class CreateCluster(Model):
     environmentId: str = Field(pattern=r"^ENV-[A-Za-z0-9-]+$", max_length=50)
     environmentApprovedVersion: int | None = Field(default=None, gt=0)
+    blueprintName: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
     clusterName: str = Field(
         min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
     )
+    description: str | None = Field(default=None, max_length=4000)
 
 
 class UpdateCluster(Model):
     clusterName: str | None = Field(
         default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
     )
+    description: str | None = Field(default=None, max_length=4000)
     version: int = Field(gt=0)
     changeReason: str | None = Field(default=None, max_length=2000)
 

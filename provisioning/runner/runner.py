@@ -21,6 +21,39 @@ def run(*args):
     subprocess.run(args, cwd=work, check=True)
 
 
+def run_json(*args):
+    return json.loads(subprocess.check_output(args, cwd=work))
+
+
+def security_scan(plan, request):
+    findings = []
+    configuration = request["configuration"]
+    if configuration.get("endpointAccess") != "PRIVATE":
+        findings.append({
+            "severity": "HIGH",
+            "rule": "EKS_PRIVATE_ENDPOINT",
+            "message": "The Kubernetes API endpoint must use private-only access.",
+        })
+    destructive = []
+    for resource in plan.get("resource_changes", []):
+        actions = resource.get("change", {}).get("actions", [])
+        if "delete" in actions:
+            destructive.append(resource.get("address", "unknown"))
+    if destructive:
+        findings.append({
+            "severity": "HIGH",
+            "rule": "NO_DESTRUCTIVE_CHANGES",
+            "message": "The plan contains destructive resource changes.",
+            "resources": destructive[:25],
+        })
+    return {
+        "engine": "Navigan Terraform policy checks",
+        "status": "PASSED" if not findings else "FAILED",
+        "blockingFindings": len(findings),
+        "findings": findings,
+    }
+
+
 def put_result(value):
     s3.put_object(
         Bucket=bucket,
@@ -32,10 +65,27 @@ def put_result(value):
     )
 
 
+def normalize_request_identity(request):
+    """Support pre-upgrade requests while preserving tenant-bound execution."""
+    artifact_prefix = request.get("artifactPrefix") or prefix
+    parts = artifact_prefix.split("/")
+    if len(parts) != 4 or parts[0] != "executions":
+        raise ValueError("Execution artifact prefix is invalid.")
+    prefix_customer_id, prefix_cluster_id = parts[1], parts[2]
+    customer_id = request.get("customerId") or prefix_customer_id
+    cluster_id = request.get("clusterId") or prefix_cluster_id
+    if customer_id != prefix_customer_id or cluster_id != prefix_cluster_id:
+        raise ValueError("Request identity does not match its immutable artifact prefix.")
+    request["customerId"] = customer_id
+    request["clusterId"] = cluster_id
+
+
 def assumed_clients(request, baseline, external_id):
+    customer_suffix = request["customerId"][-20:]
+    cluster_suffix = request["clusterId"][-20:]
     credentials = boto3.client("sts").assume_role(
         RoleArn=request["provisioningRoleArn"],
-        RoleSessionName="NaviganPreflight-" + request["clusterId"][-20:],
+        RoleSessionName=f"Navigan-{customer_suffix}-{cluster_suffix}"[:64],
         ExternalId=external_id,
         DurationSeconds=3600,
     )["Credentials"]
@@ -87,6 +137,7 @@ def preflight(request, baseline, external_id):
 
 try:
     request = json.loads(s3.get_object(Bucket=bucket, Key=input_key)["Body"].read())
+    normalize_request_identity(request)
     if request["platform"] != "EKS":
         raise ValueError("Only EKS is supported by this runner image.")
     packaged_version = pathlib.Path("/app/module-version").read_text().strip()
@@ -97,14 +148,14 @@ try:
         (work / item.name).write_bytes(item.read_bytes())
     state = request["state"]
     (work / "backend.hcl").write_text(
-        "\\n".join([
+        "\n".join([
             f'bucket = "{state["bucket"]}"',
             f'key = "{state["key"]}"',
             f'region = "{state["region"]}"',
             f'kms_key_id = "{state["kmsKeyArn"]}"',
             "encrypt = true",
             "use_lockfile = true",
-        ]) + "\\n"
+        ]) + "\n"
     )
     baseline = request["environment"]["configuration"]
     external_id = secrets.get_secret_value(SecretId=request["externalIdSecretArn"])["SecretString"]
@@ -139,17 +190,36 @@ try:
     }
     (work / "terraform.tfvars.json").write_text(json.dumps(variables))
     run("terraform", "init", "-input=false", "-backend-config=backend.hcl")
+    run("terraform", "fmt", "-check", "-recursive")
+    validation = run_json("terraform", "validate", "-json")
+    if not validation.get("valid"):
+        put_result({
+            "success": False,
+            "mode": mode,
+            "errorCode": "TerraformValidationFailed",
+            "validation": validation,
+        })
+        raise ValueError("Terraform configuration validation failed.")
     if mode == "plan":
         run("terraform", "plan", "-input=false", "-out=terraform.tfplan")
         plan = (work / "terraform.tfplan").read_bytes()
         digest = hashlib.sha256(plan).hexdigest()
-        shown = json.loads(subprocess.check_output(
-            ["terraform", "show", "-json", "terraform.tfplan"], cwd=work
-        ))
+        shown = run_json("terraform", "show", "-json", "terraform.tfplan")
         actions = {}
         for change in shown.get("resource_changes", []):
             label = "/".join(change.get("change", {}).get("actions", [])) or "no-op"
             actions[label] = actions.get(label, 0) + 1
+        scan = security_scan(shown, request)
+        certification = {
+            "status": (
+                "PASSED"
+                if validation.get("valid") and scan["status"] == "PASSED"
+                else "FAILED"
+            ),
+            "terraformValidated": bool(validation.get("valid")),
+            "securityChecksPassed": scan["status"] == "PASSED",
+            "planSha256": digest,
+        }
         s3.put_object(
             Bucket=bucket, Key=prefix + "/terraform.tfplan", Body=plan,
             ServerSideEncryption="aws:kms",
@@ -159,6 +229,13 @@ try:
         put_result({
             "success": True, "mode": mode, "planSha256": digest,
             "planSummary": {"actions": actions, "resourceCount": sum(actions.values())},
+            "validation": {
+                "valid": bool(validation.get("valid")),
+                "errorCount": validation.get("error_count", 0),
+                "warningCount": validation.get("warning_count", 0),
+            },
+            "securityScan": scan,
+            "certification": certification,
         })
     elif mode == "apply":
         plan_key = request.get("approvedPlanArtifactKey")

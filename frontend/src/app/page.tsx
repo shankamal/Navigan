@@ -1,7 +1,4 @@
-import { DashboardPage } from "@/modules/dashboard";
-
-export const metadata = { title: "Navigan · Overview" };
-
+import { redirect } from "next/navigation";
 export default function Home() {
-  return <DashboardPage />;
+  redirect("/customers");
 }

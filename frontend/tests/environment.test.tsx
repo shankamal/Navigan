@@ -92,7 +92,11 @@ describe("Environment module", () => {
           },
         ],
         kmsKeys: [
-          { aliasName: "alias/eks", keyArn: "arn:aws:kms:key/eks" },
+          {
+            aliasName: "alias/eks",
+            keyArn: "arn:aws:kms:key/eks",
+            eligibility: "READY",
+          },
         ],
         eksClusters: [],
         ecrRepositories: [],
@@ -101,8 +105,24 @@ describe("Environment module", () => {
       },
     ],
     iamRoles: [
-      { roleName: "NaviganEKSClusterRole", roleArn: "arn:cluster" },
-      { roleName: "NaviganEKSNodeRole", roleArn: "arn:node" },
+      {
+        roleName: "NaviganEKSClusterRole",
+        roleArn: "arn:cluster",
+        roleType: "CLUSTER",
+        eligibility: "READY",
+      },
+      {
+        roleName: "NaviganEKSNodeRole",
+        roleArn: "arn:node",
+        roleType: "NODE",
+        eligibility: "READY",
+      },
+    ],
+    provisioningRoles: [
+      { roleName: "NaviganProvisioningRole", roleArn: "arn:provisioning" },
+    ],
+    provisioningSecrets: [
+      { name: "navigan/provisioning/CUS-test", arn: "arn:secret" },
     ],
     counts: {},
     fetchedAt: "2026-09-09T12:00:00Z",
@@ -171,6 +191,16 @@ describe("Environment module", () => {
         count++;
       }
     expect(count).toBe(22);
+    expect(
+      isAllowedRoute("POST", ["environments", "blueprint-readiness"]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("GET", [
+        "clusters",
+        "CLU-test",
+        "execution-logs",
+      ]),
+    ).toBe(true);
     expect(isAllowedRoute("DELETE", ["environments", "ENV-test"])).toBe(false);
     expect(
       isAllowedRoute("POST", ["environments", "ENV-test", "versions"]),
@@ -217,6 +247,36 @@ describe("Environment module", () => {
       }),
     ).toEqual({ extensions: { feature: false } });
   });
+  it("removes duplicate instance types before environment writes", () => {
+    expect(
+      cleanConfiguration({
+        clusters: [
+          {
+            nodeGroups: [
+              {
+                instanceTypes: [
+                  "m6i.large",
+                  "",
+                  "m6i.large",
+                  "m6i.xlarge",
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual({
+      clusters: [
+        {
+          nodeGroups: [
+            {
+              instanceTypes: ["m6i.large", "m6i.xlarge"],
+            },
+          ],
+        },
+      ],
+    });
+  });
   it("adds approved subnet entries", () => {
     const change = vi.fn();
     render(
@@ -233,7 +293,7 @@ describe("Environment module", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add node subnets" }));
     expect(change).toHaveBeenCalledWith([""]);
   });
-  it("renders the cluster platform defaults and provisioning sections from the actual EKS schema", () => {
+  it("renders cluster blueprint fields, including provisioning, from the actual EKS schema", () => {
     const schema = JSON.parse(
       readFileSync(
         resolve(
@@ -244,7 +304,11 @@ describe("Environment module", () => {
       ),
     ) as ConfigurationSchema;
     render(
-      <ConfigurationFields schema={schema} value={{}} onChange={vi.fn()} />,
+      <ConfigurationFields
+        schema={schema}
+        value={{ clusters: [{}] }}
+        onChange={vi.fn()}
+      />,
     );
     expect(screen.getByLabelText(/Kubernetes version/)).toBeInTheDocument();
     expect(
@@ -273,6 +337,12 @@ describe("Environment module", () => {
     expect(
       allowedActions(env, { roles: ["CLOUD_ENGINEER"] } as Identity),
     ).toEqual([]);
+    expect(
+      allowedActions(env, { roles: ["PLATFORM_ARCHITECT"] } as Identity),
+    ).toEqual(["approve", "reject"]);
+  });
+  it("lets an architect decide a submitted environment without a separate start-review click", () => {
+    const env = { status: "SUBMITTED" } as Environment;
     expect(
       allowedActions(env, { roles: ["PLATFORM_ARCHITECT"] } as Identity),
     ).toEqual(["approve", "reject"]);

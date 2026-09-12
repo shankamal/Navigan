@@ -12,3 +12,10 @@ build/
 dist/
 coverage.xml
 .coverage
+terraform/bootstrap/aws-provisioning-role/terraform.tfvars
+terraform/bootstrap/aws-provisioning-role/*.tfstate*
+terraform/bootstrap/aws-provisioning-role/*.tfplan
+.claude/
+.codex-bootstrap-package/
+frontend/.next-stale-*/
+frontend/.standalone-runtime*/

@@ -5,13 +5,15 @@ from navigan.shared.errors import ApiError
 from navigan.shared.diagnostics import phase
 from .configuration import DISTRIBUTIONS, validate
 from .repository import serialize
+from .readiness import require_ready
 
 TRANSITIONS = {
+    "revise": ({"ACTIVE"}, "DRAFT", "ENVIRONMENT_AUTHOR"),
     "submit": ({"DRAFT", "REJECTED"}, "SUBMITTED", "ENVIRONMENT_AUTHOR"),
     "resubmit": ({"REJECTED"}, "SUBMITTED", "ENVIRONMENT_AUTHOR"),
     "review": ({"SUBMITTED"}, "UNDER_REVIEW", "PLATFORM_ARCHITECT"),
-    "approve": ({"UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
-    "reject": ({"UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
+    "approve": ({"SUBMITTED", "UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
+    "reject": ({"SUBMITTED", "UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
     "activate": ({"APPROVED"}, "ACTIVE", "PLATFORM_ARCHITECT"),
     "suspend": ({"ACTIVE"}, "SUSPENDED", "PLATFORM_ARCHITECT"),
     "reactivate": ({"SUSPENDED"}, "ACTIVE", "PLATFORM_ARCHITECT"),
@@ -20,6 +22,7 @@ TRANSITIONS = {
 EVENTS = {
     "create": "EnvironmentCreated",
     "update": "EnvironmentUpdated",
+    "revise": "EnvironmentRevisionStarted",
     "submit": "EnvironmentSubmitted",
     "resubmit": "EnvironmentResubmitted",
     "review": "EnvironmentReviewStarted",
@@ -60,6 +63,8 @@ class Service:
             "status": "DRAFT",
             "version": 1,
             "approved_version": None,
+            "pending_approved_version": None,
+            "approved_status": None,
             "created_by": self.principal.user_id,
             "created_at": now,
             "updated_by": self.principal.user_id,
@@ -127,8 +132,20 @@ class Service:
                         row["configuration_schema_version"],
                         submitting=True,
                     )
+                if action in {"submit", "resubmit", "approve"} and row["kubernetes_distribution"] == "EKS":
+                    with phase("environment_blueprint_readiness_gate"):
+                        readiness = require_ready(row["configuration"])
+                    row["workflow"]["blueprintReadiness"] = {
+                        "by": self.principal.user_id,
+                        "at": datetime.now(timezone.utc).isoformat(),
+                        "status": readiness["status"],
+                        "score": readiness["score"],
+                        "blockingCount": readiness["blockingCount"],
+                        "warningCount": readiness["warningCount"],
+                    }
             row["status"] = target
             field = {
+                "revise": "revisionStarted",
                 "submit": "submitted",
                 "resubmit": "submitted",
                 "review": "reviewStarted",
@@ -147,7 +164,24 @@ class Service:
                 "comments": body.get("comments"),
             }
             if action == "approve":
-                row["approved_version"] = row["version"] + 1
+                row["pending_approved_version"] = row["version"] + 1
+            elif action == "activate":
+                pending = row.get("pending_approved_version")
+                if not pending:
+                    raise ApiError(
+                        409,
+                        "APPROVED_VERSION_MISSING",
+                        "Approve this revision before activating it.",
+                    )
+                row["approved_version"] = pending
+                row["pending_approved_version"] = None
+                row["approved_status"] = "ACTIVE"
+            elif action == "suspend":
+                row["approved_status"] = "SUSPENDED"
+            elif action == "reactivate":
+                row["approved_status"] = "ACTIVE"
+            elif action == "deactivate":
+                row["approved_status"] = "DEACTIVATED"
         row["version"] += 1
         row["updated_by"], row["updated_at"] = self.principal.user_id, datetime.now(timezone.utc)
         self.repo.save(row)

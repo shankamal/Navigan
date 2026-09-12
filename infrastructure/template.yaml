@@ -40,6 +40,10 @@ Parameters:
   TerraformRunnerImageUri:
     Type: String
     Description: Immutable ECR image URI for the Navigan Terraform runner
+  BlueprintAdvisorModelId:
+    Type: String
+    Default: ''
+    Description: Optional Amazon Bedrock model or inference-profile ID for sanitized blueprint advice
 Resources:
   SharedPlatform:
     Type: AWS::Serverless::Application
@@ -110,6 +114,8 @@ Resources:
         RdsCaLayerArn: *id008
         ApiId: *id009
         AuthorizerId: *id010
+        BlueprintAdvisorModelId:
+          Ref: BlueprintAdvisorModelId
   ClusterManagement:
     Type: AWS::Serverless::Application
     Properties:

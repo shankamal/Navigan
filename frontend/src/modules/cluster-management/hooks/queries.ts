@@ -6,6 +6,7 @@ export const useClusters = (filters: ClusterFilters) =>
   useQuery({
     queryKey: ["clusters", filters],
     queryFn: () => clusters.list(filters),
+    retry: false,
   });
 
 export const useClusterCount = (status?: string) =>
@@ -14,6 +15,7 @@ export const useClusterCount = (status?: string) =>
     queryFn: async () =>
       (await clusters.list({ page: 0, pageSize: 1, status })).pagination
         .totalElements,
+    retry: false,
   });
 
 export const useCluster = (id: string) =>
@@ -21,4 +23,5 @@ export const useCluster = (id: string) =>
     queryKey: ["cluster", id],
     queryFn: () => clusters.get(id),
     enabled: !!id,
+    retry: false,
   });

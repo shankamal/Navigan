@@ -29,10 +29,16 @@ describe("Cluster API contract", () => {
     const body: ClusterInput = {
       environmentId: "ENV-demo",
       environmentApprovedVersion: 3,
+      blueprintName: "default",
       clusterName: "demo",
     };
     expect(Object.keys(body).sort()).toEqual(
-      ["clusterName", "environmentApprovedVersion", "environmentId"].sort(),
+      [
+        "blueprintName",
+        "clusterName",
+        "environmentApprovedVersion",
+        "environmentId",
+      ].sort(),
     );
   });
 });

@@ -104,6 +104,9 @@ Resources:
             - Effect: Allow
               Action: codebuild:StartBuild
               Resource: !GetAtt TerraformProject.Arn
+            - Effect: Allow
+              Action: logs:GetLogEvents
+              Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${TerraformProject}:log-stream:*'
   StatusFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -238,6 +241,16 @@ Resources:
     Properties:
       ApiId: !Ref ApiId
       RouteKey: GET /api/v1/clusters/{clusterId}
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  ExecutionLogsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/execution-logs
       Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId

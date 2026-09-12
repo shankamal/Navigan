@@ -14,10 +14,20 @@ from navigan.shared.auth import Principal
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 from .configuration import DISTRIBUTIONS, schema
-from .models import CreateEnvironment, UpdateEnvironment, Action, AwsDiscoveryRequest
+from .models import (
+    CreateEnvironment,
+    UpdateEnvironment,
+    Action,
+    AwsDiscoveryRequest,
+    BlueprintReadinessRequest,
+    CreateBootstrapRemediation,
+    BootstrapRemediationDecision,
+)
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
 from .discovery import discover_aws
+from .readiness import assess_eks_blueprints
+from .remediation import BootstrapRemediationService
 
 emit("environment_module_import", "completed")
 BASE = "/api/v1/environments"
@@ -60,6 +70,7 @@ def query_params(params):
         "environmentName",
         "environmentType",
         "status",
+        "approvedStatus",
         "region",
         "createdBy",
         "createdFrom",
@@ -85,6 +96,33 @@ def query_params(params):
         f"{f},{d}" for f in ["environmentName", "createdAt", "updatedAt", "status"] for d in ["asc", "desc"]
     }:
         raise ApiError(400, "INVALID_QUERY", "Unsupported sort.")
+    return query
+
+
+def remediation_query_params(params):
+    query = dict(params or {})
+    allowed = {"page", "pageSize", "status", "customerId", "search"}
+    if set(query) - allowed or any(not isinstance(v, str) or len(v) > 200 for v in query.values()):
+        raise ApiError(400, "INVALID_QUERY", "Unknown or invalid query parameter.")
+    try:
+        query["page"] = int(query.get("page", "0"))
+        query["pageSize"] = int(query.get("pageSize", "20"))
+        if not 0 <= query["page"] <= 1000000 or not 1 <= query["pageSize"] <= 100:
+            raise ValueError()
+    except ValueError:
+        raise ApiError(400, "INVALID_QUERY", "Check pagination values.") from None
+    statuses = {
+        "REQUESTED",
+        "APPROVED",
+        "REJECTED",
+        "PLAN_RUNNING",
+        "PLAN_READY",
+        "APPLY_RUNNING",
+        "COMPLETED",
+        "FAILED",
+    }
+    if query.get("status") and query["status"] not in statuses:
+        raise ApiError(400, "INVALID_QUERY", "Unsupported remediation status.")
     return query
 
 
@@ -140,6 +178,75 @@ def execute(event, principal, correlation, tx=transaction):
             Repository(db, principal).validate_parent(body["customerId"], "AWS", active=True)
         with phase("environment_aws_discovery"):
             return response(200, discover_aws(body), correlation)
+    if method == "POST" and parts == ["blueprint-readiness"]:
+        headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+        if not headers.get("content-type", "").lower().startswith("application/json"):
+            raise ApiError(400, "INVALID_CONTENT_TYPE", "Use application/json.")
+        body = BlueprintReadinessRequest.model_validate(body_json(event))
+        principal.require("CLOUD_ENGINEER")
+        if body.kubernetesDistribution != "EKS":
+            raise ApiError(422, "READINESS_UNSUPPORTED", "Blueprint readiness currently supports EKS.")
+        with phase("environment_blueprint_readiness"):
+            return response(200, assess_eks_blueprints(body.configuration), correlation)
+    if parts and parts[0] == "bootstrap-remediations":
+        headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+        request_id = parts[1] if len(parts) > 1 else None
+        decision = parts[2] if len(parts) > 2 else None
+        if request_id and not re.fullmatch(r"BRQ-[A-Fa-f0-9]{32}", request_id):
+            raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+        if (
+            (method == "POST" and not request_id and len(parts) == 1)
+            or (method == "POST" and request_id and decision in {"approve", "reject"} and len(parts) == 3)
+        ):
+            if not headers.get("content-type", "").lower().startswith("application/json"):
+                raise ApiError(400, "INVALID_CONTENT_TYPE", "Use application/json.")
+            key = headers.get("idempotency-key")
+            if not key or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", key):
+                raise ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "Provide an Idempotency-Key.")
+            raw = body_json(event)
+            model = CreateBootstrapRemediation if not request_id else BootstrapRemediationDecision
+            body = model.model_validate(raw).model_dump(exclude_none=True)
+            operation = method + " " + path
+            fingerprint = hashlib.sha256(
+                json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            with tx() as db:
+                repo = Repository(db, principal)
+                replay = repo.customers.idempotency_get(operation, key, fingerprint)
+                if replay:
+                    result = response(replay["status"], replay["body"], correlation)
+                    result["headers"]["Idempotency-Replayed"] = "true"
+                    return result
+                service = BootstrapRemediationService(repo, correlation)
+                value = (
+                    service.create(body)
+                    if not request_id
+                    else service.decide(request_id, decision, body)
+                )
+                status = 201 if not request_id else 200
+                repo.customers.idempotency_put(
+                    operation, key, fingerprint, {"status": status, "body": value}
+                )
+                return response(status, value, correlation)
+        if method == "GET" and not request_id and len(parts) == 1:
+            with tx() as db:
+                db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                return response(
+                    200,
+                    BootstrapRemediationService(Repository(db, principal), correlation).list(
+                        remediation_query_params(event.get("queryStringParameters"))
+                    ),
+                    correlation,
+                )
+        if method == "GET" and request_id and len(parts) == 2:
+            with tx() as db:
+                db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                return response(
+                    200,
+                    BootstrapRemediationService(Repository(db, principal), correlation).get(request_id),
+                    correlation,
+                )
+        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     identifier = parts[0] if parts else None
     if identifier and not re.fullmatch(r"ENV-[A-Za-z0-9-]{1,46}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")

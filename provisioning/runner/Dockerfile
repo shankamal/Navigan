@@ -5,5 +5,6 @@ COPY provisioning/runner/requirements.txt /tmp/requirements.txt
 RUN /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 COPY provisioning/runner/runner.py /app/runner.py
 COPY terraform/modules/aws-eks /app/modules/aws-eks
+RUN terraform fmt -recursive /app/modules/aws-eks
 RUN printf '%s' "$MODULE_VERSION" > /app/module-version
 ENTRYPOINT ["/opt/venv/bin/python", "/app/runner.py"]

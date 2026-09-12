@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { environments } from "../services/environments";
-import type { Filters } from "../model/types";
+import type { BootstrapRemediationFilters, Filters } from "../model/types";
 
 export const useEnvironments = (filters: Filters) =>
   useQuery({
@@ -33,6 +33,19 @@ export const useMetadata = () =>
     queryKey: ["environment-metadata"],
     queryFn: environments.metadata,
     staleTime: 300000,
+  });
+export const useBootstrapRemediations = (
+  filters: BootstrapRemediationFilters,
+) =>
+  useQuery({
+    queryKey: ["bootstrap-remediations", filters],
+    queryFn: () => environments.listBootstrapRemediations(filters),
+  });
+export const useBootstrapRemediation = (requestId: string) =>
+  useQuery({
+    queryKey: ["bootstrap-remediation", requestId],
+    queryFn: () => environments.getBootstrapRemediation(requestId),
+    enabled: Boolean(requestId),
   });
 export const useConfigurationSchema = (distribution: string, version = "1.0") =>
   useQuery({

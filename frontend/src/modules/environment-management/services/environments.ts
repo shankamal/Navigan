@@ -17,6 +17,12 @@ import {
   type ConfigurationSchema,
   type AwsDiscoveryInput,
   awsDiscoverySchema,
+  blueprintReadinessSchema,
+  bootstrapRemediationSchema,
+  bootstrapRemediationListSchema,
+  type BootstrapRemediationInput,
+  type BootstrapRemediationFilters,
+  type BootstrapRemediationDecisionInput,
 } from "../model/types";
 const base = "/environments";
 export const environments = {
@@ -48,6 +54,61 @@ export const environments = {
     parseResponse(
       awsDiscoverySchema,
       (await apiClient.post(`${base}/discover/aws`, input)).data,
+    ),
+  validateBlueprints: async (
+    kubernetesDistribution: string,
+    configuration: EnvironmentInput["configuration"],
+  ) =>
+    parseResponse(
+      blueprintReadinessSchema,
+      (
+        await apiClient.post(`${base}/blueprint-readiness`, {
+          kubernetesDistribution,
+          configuration,
+        })
+      ).data,
+    ),
+  requestBootstrapRemediation: async (
+    input: BootstrapRemediationInput,
+    options: WriteOptions,
+  ) =>
+    parseResponse(
+      bootstrapRemediationSchema,
+      (
+        await apiClient.post(`${base}/bootstrap-remediations`, input, {
+          headers: writeHeaders(options),
+        })
+      ).data,
+    ),
+  listBootstrapRemediations: async (filters: BootstrapRemediationFilters) =>
+    parseResponse(
+      bootstrapRemediationListSchema,
+      (
+        await apiClient.get(`${base}/bootstrap-remediations`, {
+          params: filters,
+        })
+      ).data,
+    ),
+  getBootstrapRemediation: async (requestId: string) =>
+    parseResponse(
+      bootstrapRemediationSchema,
+      (await apiClient.get(`${base}/bootstrap-remediations/${requestId}`)).data,
+    ),
+  decideBootstrapRemediation: async (
+    requestId: string,
+    decision: "approve" | "reject",
+    input: BootstrapRemediationDecisionInput,
+    options: WriteOptions,
+  ) =>
+    parseResponse(
+      bootstrapRemediationSchema,
+      (
+        await apiClient.post(
+          `${base}/bootstrap-remediations/${requestId}/${decision}`,
+          input,
+          { headers: writeHeaders(options) },
+        )
+      ).data,
     ),
   create: async (input: EnvironmentInput, options: WriteOptions) =>
     parseResponse(

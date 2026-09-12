@@ -1,8 +1,13 @@
 # Run from the repository root. Use an absolute --config-file path because
 # SAM resolves relative config paths against the selected template directory.
-# First deploy: sam deploy --guided --config-file "$PWD/samconfig.toml"
-# Guided deploy saves your region and actual parameter values here.
 # Never put passwords, access keys or JWT tokens in this file.
+#
+# Two named environments: `dev` (navigan-ashok-dev, database navigan_dev) and
+# `prod` (navigan-custmanagement-cfnstk, database navigan, backs navigan.click).
+# The bare/default config (no --config-env flag) is DELIBERATELY an alias for
+# `dev` so an accidental `sam build && sam deploy` with no flag can never land
+# on production. Deploying to production always requires the explicit
+# `--config-env prod` flag on both build and deploy.
 version = 0.1
 
 [default.validate.parameters]
@@ -16,16 +21,60 @@ parallel = true
 
 [default.deploy.parameters]
 template_file = ".aws-sam/build/template.yaml"
+stack_name = "navigan-ashok-dev"
+resolve_s3 = true
+s3_prefix = "navigan-ashok-dev"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+confirm_changeset = true
+fail_on_empty_changeset = false
+parameter_overrides = "JwtIssuer=\"https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd\" JwtAudience=\"aa7v5laqu1mkqamt7ao51u7ms\" JwtScope=\"navigan/api\" DatabaseName=\"navigan_dev\" DatabaseProxyHost=\"aws-infra-platform-db.cluster-cf26iwkqybx2.ap-south-1.rds.amazonaws.com\" ApiDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" EventsDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" SecretsKmsKeyArn=\"arn:aws:kms:ap-south-1:905418045935:key/a3b0a51f-f486-476a-b012-15fe194d1cd6\" PrivateSubnetIds=\"subnet-0e6e6dccaa57702bb,subnet-0e0acccb47569d030,subnet-08e8d4757da5b3f02\" LambdaSecurityGroupIds=\"sg-052d8fa60c0819f78\" RdsCaLayerArn=\"arn:aws:lambda:ap-south-1:905418045935:layer:navigan-rds-ca:1\" OutboxScheduleEnabled=\"false\" TerraformRunnerImageUri=\"905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan-terraform-runner@sha256:db16c4d56747b39a8493d1d976227e1189129f697fb9d1834be0fa1a3d741f9f\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-south-1"
+
+[dev.validate.parameters]
+template_file = "infrastructure/template.yaml"
+lint = true
+
+[dev.build.parameters]
+template_file = "infrastructure/template.yaml"
+use_container = true
+parallel = true
+
+[dev.deploy.parameters]
+template_file = ".aws-sam/build/template.yaml"
+stack_name = "navigan-ashok-dev"
+resolve_s3 = true
+s3_prefix = "navigan-ashok-dev"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+confirm_changeset = true
+fail_on_empty_changeset = false
+parameter_overrides = "JwtIssuer=\"https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd\" JwtAudience=\"aa7v5laqu1mkqamt7ao51u7ms\" JwtScope=\"navigan/api\" DatabaseName=\"navigan_dev\" DatabaseProxyHost=\"aws-infra-platform-db.cluster-cf26iwkqybx2.ap-south-1.rds.amazonaws.com\" ApiDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" EventsDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" SecretsKmsKeyArn=\"arn:aws:kms:ap-south-1:905418045935:key/a3b0a51f-f486-476a-b012-15fe194d1cd6\" PrivateSubnetIds=\"subnet-0e6e6dccaa57702bb,subnet-0e0acccb47569d030,subnet-08e8d4757da5b3f02\" LambdaSecurityGroupIds=\"sg-052d8fa60c0819f78\" RdsCaLayerArn=\"arn:aws:lambda:ap-south-1:905418045935:layer:navigan-rds-ca:1\" OutboxScheduleEnabled=\"false\" TerraformRunnerImageUri=\"905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan-terraform-runner@sha256:db16c4d56747b39a8493d1d976227e1189129f697fb9d1834be0fa1a3d741f9f\""
+image_repositories = []
+
+[dev.global.parameters]
+region = "ap-south-1"
+
+[prod.validate.parameters]
+template_file = "infrastructure/template.yaml"
+lint = true
+
+[prod.build.parameters]
+template_file = "infrastructure/template.yaml"
+use_container = true
+parallel = true
+
+[prod.deploy.parameters]
+template_file = ".aws-sam/build/template.yaml"
 stack_name = "navigan-custmanagement-cfnstk"
 resolve_s3 = true
 s3_prefix = "navigan-custmanagement-cfnstk"
 capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
 confirm_changeset = true
 fail_on_empty_changeset = false
-parameter_overrides = "JwtIssuer=\"https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd\" JwtAudience=\"aa7v5laqu1mkqamt7ao51u7ms\" JwtScope=\"navigan/api\" DatabaseName=\"navigan\" DatabaseProxyHost=\"aws-infra-platform-db.cluster-cf26iwkqybx2.ap-south-1.rds.amazonaws.com\" ApiDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" EventsDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" SecretsKmsKeyArn=\"arn:aws:kms:ap-south-1:905418045935:key/a3b0a51f-f486-476a-b012-15fe194d1cd6\" PrivateSubnetIds=\"subnet-02166f72dc73ac058, subnet-0672975fa0c30f801, subnet-0f4e519be766a574b\" LambdaSecurityGroupIds=\"sg-052d8fa60c0819f78\" RdsCaLayerArn=\"arn:aws:lambda:ap-south-1:905418045935:layer:navigan-rds-ca:1\" OutboxScheduleEnabled=\"true\""
-# Region and account-specific parameters are intentionally collected by
-# --guided instead of guessing your AWS account, Cognito or networking values.
+parameter_overrides = "JwtIssuer=\"https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd\" JwtAudience=\"aa7v5laqu1mkqamt7ao51u7ms\" JwtScope=\"navigan/api\" DatabaseName=\"navigan\" DatabaseProxyHost=\"aws-infra-platform-db.cluster-cf26iwkqybx2.ap-south-1.rds.amazonaws.com\" ApiDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" EventsDatabaseSecretArn=\"arn:aws:secretsmanager:ap-south-1:905418045935:secret:infraplatformsecret-X7iP4z\" SecretsKmsKeyArn=\"arn:aws:kms:ap-south-1:905418045935:key/a3b0a51f-f486-476a-b012-15fe194d1cd6\" PrivateSubnetIds=\"subnet-02166f72dc73ac058,subnet-0672975fa0c30f801,subnet-0f4e519be766a574b\" LambdaSecurityGroupIds=\"sg-052d8fa60c0819f78\" RdsCaLayerArn=\"arn:aws:lambda:ap-south-1:905418045935:layer:navigan-rds-ca:1\" OutboxScheduleEnabled=\"true\" TerraformRunnerImageUri=\"905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan-terraform-runner@sha256:8481de5b41774309ff542fa2ffb0c3f490373cac5ef40b1fe0ed9ea2c5e8481f\""
 image_repositories = []
 
-[default.global.parameters]
+[prod.global.parameters]
 region = "ap-south-1"

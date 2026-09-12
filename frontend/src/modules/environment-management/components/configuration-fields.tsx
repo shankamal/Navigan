@@ -3,8 +3,8 @@ import { useId, useState } from "react";
 import { Button } from "@/shared/components/ui";
 import type { ConfigurationSchema, JsonValue } from "../model/types";
 export function cleanConfiguration(value: JsonValue): JsonValue {
-  if (Array.isArray(value))
-    return value
+  if (Array.isArray(value)) {
+    const cleaned = value
       .map(cleanConfiguration)
       .filter(
         (v) =>
@@ -12,6 +12,15 @@ export function cleanConfiguration(value: JsonValue): JsonValue {
           v !== null &&
           (typeof v !== "object" || Object.keys(v).length > 0),
       );
+    const seenScalars = new Set<string>();
+    return cleaned.filter((item) => {
+      if (typeof item === "object") return true;
+      const key = `${typeof item}:${String(item)}`;
+      if (seenScalars.has(key)) return false;
+      seenScalars.add(key);
+      return true;
+    });
+  }
   if (value && typeof value === "object")
     return Object.fromEntries(
       Object.entries(value)

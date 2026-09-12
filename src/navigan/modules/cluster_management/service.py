@@ -2,7 +2,7 @@ import copy
 import uuid
 from datetime import datetime, timezone
 from navigan.shared.errors import ApiError
-from .models import EksConfiguration, Provisioning
+from .models import ClusterBlueprint
 from .repository import serialize
 from .provisioning import Provisioner
 
@@ -10,8 +10,8 @@ from .provisioning import Provisioner
 TRANSITIONS = {
     "submit": ({"DRAFT", "REJECTED"}, "SUBMITTED", "CLOUD_ENGINEER"),
     "review": ({"SUBMITTED"}, "UNDER_REVIEW", "PLATFORM_ARCHITECT"),
-    "approve": ({"UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
-    "reject": ({"UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
+    "approve": ({"SUBMITTED", "UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
+    "reject": ({"SUBMITTED", "UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
 }
 
 
@@ -27,18 +27,28 @@ class Service:
         )
         approved = environment["approved_version"]
         env_configuration = (snapshot or {}).get("configuration") or {}
-        cluster_block = env_configuration.get("cluster")
-        provisioning_block = env_configuration.get("provisioning")
-        if not cluster_block or not provisioning_block:
+        blueprints = env_configuration.get("clusters") or []
+        if not blueprints:
             raise ApiError(
                 422,
                 "ENVIRONMENT_MISSING_CLUSTER_CONFIG",
-                "The approved environment snapshot has no cluster/provisioning configuration. "
-                "Update the environment's cluster and provisioning settings and get it "
+                "The approved environment snapshot has no cluster blueprints. "
+                "Add a cluster blueprint to the environment and get it "
                 "re-approved before creating a Cluster Setup request.",
             )
-        configuration = EksConfiguration.model_validate(cluster_block).model_dump()
-        provisioning = Provisioning.model_validate(provisioning_block)
+        blueprint_block = next(
+            (b for b in blueprints if isinstance(b, dict) and b.get("name") == body.get("blueprintName")),
+            None,
+        )
+        if blueprint_block is None:
+            raise ApiError(
+                422,
+                "CLUSTER_BLUEPRINT_NOT_FOUND",
+                "The requested cluster blueprint is not defined on the approved environment snapshot.",
+            )
+        blueprint = ClusterBlueprint.model_validate(blueprint_block)
+        configuration = blueprint.model_dump(exclude={"provisioning", "name"})
+        configuration["blueprintName"] = blueprint.name
         now = datetime.now(timezone.utc)
         row = {
             "cluster_id": "CLU-" + uuid.uuid4().hex,
@@ -47,9 +57,10 @@ class Service:
             "environment_approved_version": approved,
             "platform": "EKS",
             "cluster_name": body["clusterName"],
+            "description": body.get("description"),
             "configuration": configuration,
-            "provisioning_role_arn": provisioning.roleArn,
-            "external_id_secret_arn": provisioning.externalIdSecretArn,
+            "provisioning_role_arn": blueprint.provisioning.roleArn,
+            "external_id_secret_arn": blueprint.provisioning.externalIdSecretArn,
             "terraform_module_version": "1.0.0",
             "terraform_state_key": (
                 f"customers/{environment['customer_id']}/environments/"
@@ -76,6 +87,8 @@ class Service:
                 raise ApiError(409, "INVALID_STATUS_TRANSITION", "Only draft or rejected requests can be edited.")
             if body.get("clusterName") is not None:
                 row["cluster_name"] = body["clusterName"]
+            if body.get("description") is not None:
+                row["description"] = body["description"]
         elif action in TRANSITIONS:
             states, target, role = TRANSITIONS[action]
             self.principal.require(role)
@@ -114,9 +127,17 @@ class Service:
                 row["status"] = "PLAN_RUNNING"
         elif action in {"plan", "apply"}:
             self.principal.require("PLATFORM_ARCHITECT")
-            expected = {"FAILED"} if action == "plan" else {"PLAN_READY"}
+            expected = {"FAILED", "PLAN_READY"} if action == "plan" else {"PLAN_READY"}
             if row["status"] not in expected:
                 raise ApiError(409, "INVALID_STATUS_TRANSITION", f"{action} is not allowed in the current status.")
+            if action == "apply":
+                certification = row.get("workflow", {}).get("certification", {})
+                if certification.get("status") != "PASSED":
+                    raise ApiError(
+                        409,
+                        "PLAN_NOT_CERTIFIED",
+                        "Terraform validation and security checks must pass before apply.",
+                    )
             _, snapshot = self.repo.active_environment_snapshot(
                 row["environment_id"], row["environment_approved_version"]
             )

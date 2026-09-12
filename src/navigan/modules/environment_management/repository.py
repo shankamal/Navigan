@@ -163,6 +163,7 @@ class Repository:
             "kubernetesDistribution": "e.kubernetes_distribution",
             "environmentType": "e.environment_type",
             "status": "e.status",
+            "approvedStatus": "e.approved_status",
             "createdBy": "e.created_by",
             "region": "e.configuration #>> '{location,region}'",
         }
@@ -196,7 +197,7 @@ class Repository:
             "status": "e.status",
         }[field]
         rows = self.db.execute(
-            "SELECT e.environment_id,e.customer_id,c.name AS customer_name,e.provider_code,e.kubernetes_distribution,e.environment_name,e.environment_type,e.status,e.version,e.approved_version,e.created_at,e.updated_at"
+            "SELECT e.environment_id,e.customer_id,c.name AS customer_name,e.provider_code,e.kubernetes_distribution,e.environment_name,e.environment_type,e.status,e.version,e.approved_version,e.pending_approved_version,e.approved_status,e.created_at,e.updated_at"
             + base
             + f" ORDER BY {column} {direction},e.environment_id LIMIT %s OFFSET %s",
             [*params, query["pageSize"], query["page"] * query["pageSize"]],

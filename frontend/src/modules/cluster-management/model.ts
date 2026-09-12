@@ -9,6 +9,7 @@ export const clusterSchema = z.object({
   environmentApprovedVersion: z.number(),
   platform: z.literal("EKS"),
   clusterName: z.string(),
+  description: z.string().nullable().optional(),
   configuration: z.record(z.string(), z.unknown()).optional(),
   provisioningRoleArn: z.string().optional(),
   externalIdSecretArn: z.string().optional(),
@@ -29,10 +30,23 @@ export const clusterListSchema = z.object({
     page: z.number(), pageSize: z.number(), totalElements: z.number(), totalPages: z.number(),
   }),
 });
+export const executionLogsSchema = z.object({
+  status: z.string(),
+  executionId: z.string().optional(),
+  complete: z.boolean(),
+  events: z.array(
+    z.object({
+      timestamp: z.number(),
+      message: z.string(),
+    }),
+  ),
+});
 export interface ClusterInput {
   environmentId: string;
   environmentApprovedVersion: number;
+  blueprintName: string;
   clusterName: string;
+  description?: string;
 }
 export interface ClusterFilters {
   page?: number;
@@ -40,3 +54,4 @@ export interface ClusterFilters {
   status?: string;
   search?: string;
 }
+export type ExecutionLogs = z.infer<typeof executionLogsSchema>;

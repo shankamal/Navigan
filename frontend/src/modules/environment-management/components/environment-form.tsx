@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, CloudCog, GitBranch, Save, ShieldCheck } from "lucide-react";
 import { apiClient, ApiError, parseResponse } from "@/shared/api/client";
 import { listSchema as customerListSchema } from "@/modules/customer-management/model/types";
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -20,6 +21,7 @@ import {
 import { environments } from "../services/environments";
 import {
   distributions,
+  type AwsDiscovery,
   type Environment,
   type EnvironmentInput,
   type Provider,
@@ -30,6 +32,7 @@ import {
 } from "./configuration-fields";
 import { AwsDiscoveryPanel } from "./aws-discovery-panel";
 import { ProvisioningFields } from "./provisioning-fields";
+import { BlueprintReadinessPanel } from "./blueprint-readiness";
 
 function configurationCostCenter(
   configuration: EnvironmentInput["configuration"],
@@ -92,7 +95,10 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     environment ? configurationCostCenter(environment.configuration) : "",
   );
   const [search, setSearch] = useState("");
-  const [hasDiscovery, setHasDiscovery] = useState(false);
+  const [hasDiscovery, setHasDiscovery] = useState(
+    Boolean(environment && Object.keys(environment.configuration).length),
+  );
+  const [discovery, setDiscovery] = useState<AwsDiscovery>();
   const [customerPage, setCustomerPage] = useState(0);
   const customers = useQuery({
     queryKey: ["environment-customers", search, customerPage],
@@ -142,13 +148,18 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
       router.push(`/environments/${value.environmentId}`);
     },
   });
-  const canEdit = identity?.roles.some(
-    (r) => r === "CLOUD_ENGINEER" || r === "PLATFORM_ARCHITECT",
-  );
-  if (
-    !canEdit ||
-    (environment && !["DRAFT", "REJECTED"].includes(environment.status))
-  )
+  const canEdit = identity?.roles.some((r) => r === "CLOUD_ENGINEER");
+  if (!canEdit)
+    return (
+      <ErrorNotice
+        error={
+          new Error(
+            "Only a Cloud Engineer can create or edit an environment. Platform Architects review and approve submitted requests.",
+          )
+        }
+      />
+    );
+  if (environment && !["DRAFT", "REJECTED"].includes(environment.status))
     return (
       <ErrorNotice
         error={
@@ -181,35 +192,67 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
   };
   return (
     <>
+      <Link className="back-link" href="/environments">
+        <ArrowLeft size={16} />
+        Back to environments
+      </Link>
       <PageHeading
         eyebrow="Environment Management"
         title={
           environment
-            ? "Edit environment"
+            ? `Edit ${environment.environmentName} revision`
             : input.cloudProvider === "AWS"
               ? "Create AWS environment profile"
               : "Create environment profile"
         }
-        description="Save an incomplete draft now. Fields marked * are required before submission."
+        description={
+          environment
+            ? "Update this draft revision using the same guided discovery and blueprint workflow as environment creation."
+            : "Save an incomplete draft now. Fields marked * are required before submission."
+        }
       />
-      {!environment && (
-        <ol
-          className="environment-stepper"
-          aria-label="Environment profile creation progress"
-        >
-          {["Connection", "Discovery", "Resource selection", "Review"].map(
-            (label, index) => (
-              <li
-                key={label}
-                className={index <= (hasDiscovery ? 2 : 0) ? "active" : ""}
-              >
-                <span>{index + 1}</span>
-                <strong>{label}</strong>
-              </li>
-            ),
-          )}
-        </ol>
+      {environment && (
+        <section className="revision-context-banner" aria-label="Revision context">
+          <span className="revision-context-icon">
+            <GitBranch size={20} aria-hidden="true" />
+          </span>
+          <div>
+            <strong>Editing draft revision v{environment.version}</strong>
+            <p>
+              Approved baseline v{environment.approvedVersion} remains{" "}
+              {environment.approvedStatus?.toLowerCase() || "unchanged"} until
+              this revision is reviewed and activated.
+            </p>
+          </div>
+          <span className="security-chip">
+            <ShieldCheck size={15} aria-hidden="true" />
+            Active baseline protected
+          </span>
+        </section>
       )}
+      <ol
+        className="environment-stepper"
+        aria-label={
+          environment
+            ? "Environment revision progress"
+            : "Environment profile creation progress"
+        }
+      >
+        {["Connection", "Discovery", "Resource selection", "Review"].map(
+          (label, index) => (
+            <li
+              key={label}
+              className={index <= (hasDiscovery ? 2 : 0) ? "active" : ""}
+              aria-current={
+                index === (hasDiscovery ? 2 : 0) ? "step" : undefined
+              }
+            >
+              <span>{index + 1}</span>
+              <strong>{label}</strong>
+            </li>
+          ),
+        )}
+      </ol>
       <form
         className="environment-form"
         onSubmit={(e) => {
@@ -221,7 +264,19 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
           disabled={mutation.isPending}
           className="panel panel-padding environment-fieldset"
         >
-          <legend>Environment identity</legend>
+          <legend className="sr-only">Environment identity</legend>
+          <div className="section-heading environment-form-heading">
+            <span className="section-number">
+              <CloudCog size={17} aria-hidden="true" />
+            </span>
+            <div>
+              <h2>Environment identity</h2>
+              <p className="muted">
+                Choose the customer, platform, ownership and billing context
+                before discovering cloud resources.
+              </p>
+            </div>
+          </div>
           <div className="environment-identity-grid">
             {!environment && (
               <label className="field">
@@ -268,10 +323,10 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                   </option>
                 ) : (
                   customers.data?.items.map((c) => (
-                      <option key={c.customerId} value={c.customerId}>
-                        {c.name} · {c.status}
-                      </option>
-                    ))
+                    <option key={c.customerId} value={c.customerId}>
+                      {c.name} · {c.status}
+                    </option>
+                  ))
                 )}
               </select>
             </label>
@@ -375,9 +430,8 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
             onRetry={() => metadata.refetch()}
           />
         )}
-        {!environment &&
-          input.cloudProvider === "AWS" &&
-          identity?.roles.includes("PLATFORM_ARCHITECT") && (
+        {input.cloudProvider === "AWS" &&
+          identity?.roles.includes("CLOUD_ENGINEER") && (
             <AwsDiscoveryPanel
               customerId={input.customerId}
               environmentType={input.environmentType}
@@ -386,11 +440,18 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               disabled={mutation.isPending}
               onApply={(configuration) => {
                 setHasDiscovery(true);
-                change("configuration", configuration);
+                setInput((current) => ({
+                  ...current,
+                  configuration: {
+                    ...current.configuration,
+                    ...configuration,
+                  },
+                }));
               }}
+              onDiscovered={setDiscovery}
             />
           )}
-        {!environment && input.cloudProvider === "AWS" ? (
+        {input.cloudProvider === "AWS" ? (
           <>
             <section className="panel panel-padding environment-config-summary">
               <h2>EKS environment profile baseline</h2>
@@ -400,17 +461,26 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                   : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
               </p>
               <span
-                className={hasDiscovery ? "security-chip" : "security-chip needs-review"}
+                className={
+                  hasDiscovery ? "security-chip" : "security-chip needs-review"
+                }
               >
                 {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
               </span>
             </section>
             {hasDiscovery && schema.data && (
-              <ProvisioningFields
-                schema={schema.data}
-                configuration={input.configuration}
-                onChange={(value) => change("configuration", value)}
-              />
+              <>
+                <ProvisioningFields
+                  schema={schema.data}
+                  configuration={input.configuration}
+                  discovery={discovery}
+                  onChange={(value) => change("configuration", value)}
+                />
+                <BlueprintReadinessPanel
+                  distribution={input.kubernetesDistribution}
+                  configuration={input.configuration}
+                />
+              </>
             )}
           </>
         ) : (
@@ -467,28 +537,44 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               ))}
             </ul>
           )}
-        <div className="environment-actions">
-          <Link
-            className="button button-secondary"
-            href={
-              environment
-                ? `/environments/${environment.environmentId}`
-                : "/environments"
-            }
-          >
-            Cancel
-          </Link>
-          <Button
-            disabled={
-              mutation.isPending ||
-              !schema.data ||
-              !metadata.data ||
-              !input.customerId ||
-              !providers.length
-            }
-          >
-            {mutation.isPending ? "Saving…" : "Save draft"}
-          </Button>
+        <div className="environment-actions environment-save-bar">
+          <div>
+            <strong>
+              {environment ? "Save revision draft" : "Save environment draft"}
+            </strong>
+            <p className="muted">
+              Drafts can be completed later and are not available for cluster
+              setup until reviewed, approved and activated.
+            </p>
+          </div>
+          <div className="environment-save-buttons">
+            <Link
+              className="button button-secondary"
+              href={
+                environment
+                  ? `/environments/${environment.environmentId}`
+                  : "/environments"
+              }
+            >
+              Cancel
+            </Link>
+            <Button
+              disabled={
+                mutation.isPending ||
+                !schema.data ||
+                !metadata.data ||
+                !input.customerId ||
+                !providers.length
+              }
+            >
+              <Save size={17} aria-hidden="true" />
+              {mutation.isPending
+                ? "Saving…"
+                : environment
+                  ? "Save revision"
+                  : "Save draft"}
+            </Button>
+          </div>
         </div>
       </form>
     </>

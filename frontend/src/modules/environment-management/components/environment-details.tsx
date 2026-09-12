@@ -2,6 +2,16 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Check,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  MessageSquareText,
+  Pencil,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { ApiError } from "@/shared/api/client";
 import {
@@ -17,6 +27,29 @@ import { useEnvironment } from "../hooks/queries";
 import { allowedActions, labels } from "../model/policy";
 import { environments } from "../services/environments";
 import type { Action, HistoryKind } from "../model/types";
+import type { BlueprintReadiness } from "../model/types";
+import { BlueprintReadinessPanel } from "./blueprint-readiness";
+
+const lifecycle = [
+  { status: "DRAFT", label: "Draft" },
+  { status: "SUBMITTED", label: "Submitted" },
+  { status: "APPROVED", label: "Approved" },
+  { status: "ACTIVE", label: "Active" },
+] as const;
+
+const actionGuidance: Partial<Record<Action, string>> = {
+  revise:
+    "Start a new editable draft while the current approved baseline remains available for cluster setup.",
+  submit: "Send this environment profile to a platform architect.",
+  resubmit: "Send the revised profile back to a platform architect.",
+  approve: "Confirm that the profile satisfies the platform requirements.",
+  reject: "Return the profile with a clear reason for the author.",
+  activate: "Make this approved profile available for cluster setup.",
+  suspend: "Temporarily prevent new cluster setup from using this profile.",
+  reactivate: "Make this profile available for cluster setup again.",
+  deactivate: "Retire this profile from future cluster setup.",
+};
+
 export function EnvironmentDetails({ id }: { id: string }) {
   const query = useEnvironment(id);
   const { identity } = useAuth();
@@ -29,6 +62,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
   );
   const [page, setPage] = useState(0);
   const [version, setVersion] = useState<number | null>(null);
+  const [readiness, setReadiness] = useState<BlueprintReadiness | null>(null);
   const attempt = useRef<{ body: string; key: string } | null>(null);
   const records = useQuery({
     queryKey: ["environment-records", id, tab, page, query.data?.version],
@@ -69,12 +103,18 @@ export function EnvironmentDetails({ id }: { id: string }) {
   const env = query.data!;
   const editable =
     ["DRAFT", "REJECTED"].includes(env.status) &&
-    identity?.roles.some(
-      (r) => r === "CLOUD_ENGINEER" || r === "PLATFORM_ARCHITECT",
-    );
+    identity?.roles.includes("CLOUD_ENGINEER");
+  const actions = allowedActions(env, identity);
+  const lifecycleStatus =
+    env.status === "UNDER_REVIEW" ? "SUBMITTED" : env.status;
+  const lifecycleIndex = lifecycle.findIndex(
+    (step) => step.status === lifecycleStatus,
+  );
   return (
     <>
-      <Link href="/environments">← All environments</Link>
+      <Link className="back-link" href="/environments">
+        ← All environments
+      </Link>
       <PageHeading
         eyebrow={`${env.cloudProvider} / ${env.kubernetesDistribution}`}
         title={env.environmentName}
@@ -84,28 +124,68 @@ export function EnvironmentDetails({ id }: { id: string }) {
         action={
           editable && (
             <Link
-              className="button button-secondary"
+              className="button button-primary"
               href={`/environments/${id}/edit`}
             >
-              Edit environment
+              <Pencil size={16} aria-hidden="true" />
+              Edit draft revision
             </Link>
           )
         }
       />
-      <section className="panel panel-padding">
-        <div className="environment-summary">
+      {["DRAFT", "REJECTED"].includes(env.status) &&
+        env.kubernetesDistribution === "EKS" && (
+          <BlueprintReadinessPanel
+            distribution={env.kubernetesDistribution}
+            configuration={env.configuration}
+            onResult={setReadiness}
+          />
+        )}
+      <section className="panel environment-command-center">
+        <header className="environment-command-header">
+          <div>
+            <span className={`status-badge status-${env.status.toLowerCase()}`}>
+              {env.status.replaceAll("_", " ")}
+            </span>
+            <h2>Environment lifecycle</h2>
+            <p className="muted">
+              Review the approved infrastructure baseline and complete the next
+              governance action.
+            </p>
+          </div>
+          <ShieldCheck size={26} aria-hidden="true" />
+        </header>
+        <ol className="lifecycle-track" aria-label="Environment lifecycle">
+          {lifecycle.map((step, index) => {
+            const complete = lifecycleIndex > index;
+            const current = lifecycleIndex === index;
+            return (
+              <li
+                className={`${complete ? "complete" : ""} ${current ? "current" : ""}`}
+                aria-current={current ? "step" : undefined}
+                key={step.status}
+              >
+                <span className="lifecycle-marker" aria-hidden="true">
+                  {complete ? (
+                    <Check size={15} />
+                  ) : current ? (
+                    <Clock3 size={15} />
+                  ) : (
+                    <Circle size={12} />
+                  )}
+                </span>
+                <strong>{step.label}</strong>
+              </li>
+            );
+          })}
+        </ol>
+        <div className="environment-overview-grid">
           <div>
             <span className="muted">Customer</span>
             <p>
               <Link href={`/customers/${env.customerId}`}>
                 {env.customerName}
               </Link>
-            </p>
-          </div>
-          <div>
-            <span className="muted">Status</span>
-            <p>
-              <strong>{env.status.replaceAll("_", " ")}</strong>
             </p>
           </div>
           <div>
@@ -129,40 +209,170 @@ export function EnvironmentDetails({ id }: { id: string }) {
               )}
             </p>
           </div>
+          <div>
+            <span className="muted">Baseline availability</span>
+            <p>{env.approvedStatus || "Not active yet"}</p>
+          </div>
+          <div>
+            <span className="muted">Last updated</span>
+            <p>{formatDateTime(env.updatedAt || env.createdAt)}</p>
+          </div>
         </div>
-        <div className="environment-actions">
-          {allowedActions(env, identity).map((a) => (
-            <Button
-              key={a}
-              variant={
-                ["reject", "suspend", "deactivate"].includes(a)
-                  ? "danger"
-                  : "primary"
-              }
-              onClick={() => {
-                setAction(a);
-                setReason("");
-                setComments("");
-                mutation.reset();
-              }}
-            >
-              {labels[a]}
-            </Button>
-          ))}
-        </div>
-        {env.status !== "ACTIVE" && (
-          <p className="muted">
-            New cluster provisioning requires an ACTIVE environment and an
-            active parent customer.
-          </p>
+        {!!actions.length && (
+          <div className="environment-decision-bar">
+            <div>
+              <strong>Next action</strong>
+              <p className="muted">
+                Actions remain fully audited and follow the existing permission
+                rules.
+              </p>
+            </div>
+            <div className="environment-actions">
+              {actions.map((a) => (
+                <Button
+                  key={a}
+                  variant={
+                    ["reject", "suspend", "deactivate"].includes(a)
+                      ? "danger"
+                      : action === a
+                        ? "primary"
+                        : "secondary"
+                  }
+                  aria-pressed={action === a}
+                  onClick={() => {
+                    setAction(action === a ? null : a);
+                    setReason("");
+                    setComments("");
+                    mutation.reset();
+                  }}
+                >
+                  {a === "approve" && <CheckCircle2 size={17} />}
+                  {a === "reject" && <XCircle size={17} />}
+                  {labels[a]}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+        {actions.some((item) => ["submit", "resubmit"].includes(item)) &&
+          readiness?.status !== "PASSED" && (
+            <div className="environment-availability-note">
+              <ShieldCheck size={18} aria-hidden="true" />
+              <p>
+                Validate the blueprint here for a preview. Submission always
+                runs a fresh authoritative readiness check and will stop if any
+                blocking issue remains.
+              </p>
+            </div>
+          )}
+        {env.approvedVersion &&
+          env.approvedStatus === "ACTIVE" &&
+          env.status !== "ACTIVE" && (
+            <div className="environment-availability-note">
+              <ShieldCheck size={18} aria-hidden="true" />
+              <p>
+                Approved baseline version {env.approvedVersion} remains active
+                while revision version {env.version} completes review.
+              </p>
+            </div>
+          )}
+        {action && (
+          <form
+            className="environment-decision-panel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              mutation.mutate();
+            }}
+          >
+            <div className="environment-decision-copy">
+              <span className="decision-icon" aria-hidden="true">
+                <MessageSquareText size={19} />
+              </span>
+              <div>
+                <h3>{labels[action]}</h3>
+                <p>{actionGuidance[action]}</p>
+              </div>
+            </div>
+            {["reject", "suspend", "deactivate"].includes(action) && (
+              <label className="field">
+                Reason *
+                <textarea
+                  required
+                  maxLength={2000}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Explain what must change or why this action is required."
+                />
+              </label>
+            )}
+            <label className="field">
+              Review comments <span className="optional-label">Optional</span>
+              <textarea
+                maxLength={4000}
+                value={comments}
+                onChange={(event) => setComments(event.target.value)}
+                placeholder="Add context for the audit history and other reviewers."
+              />
+            </label>
+            {mutation.error && <ErrorNotice error={mutation.error} />}
+            {mutation.error instanceof ApiError &&
+              Array.isArray(mutation.error.details?.fields) && (
+                <ul className="field-error-list">
+                  {(
+                    mutation.error.details.fields as {
+                      field?: string;
+                      message?: string;
+                    }[]
+                  ).map((field, index) => (
+                    <li key={index}>
+                      {field.field}: {field.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            <div className="decision-actions">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={() => setAction(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={
+                  ["reject", "suspend", "deactivate"].includes(action)
+                    ? "danger"
+                    : "primary"
+                }
+                disabled={mutation.isPending}
+              >
+                {mutation.isPending
+                  ? "Applying…"
+                  : `Confirm ${labels[action].toLowerCase()}`}
+              </Button>
+            </div>
+          </form>
+        )}
+        {env.approvedStatus !== "ACTIVE" && (
+          <div className="environment-availability-note">
+            <Clock3 size={18} aria-hidden="true" />
+            <p>
+              New cluster provisioning requires an active environment and an
+              active parent customer.
+            </p>
+          </div>
         )}
       </section>
       {Object.entries(env.workflow).map(
         ([key, value]) =>
           (value.reason || value.comments) && (
-            <div className="panel panel-padding" key={key}>
+            <div
+              className="panel panel-padding environment-workflow-note"
+              key={key}
+            >
               <strong>
-                {key} · {formatDateTime(value.at)}
+                {key.replaceAll("_", " ")} · {formatDateTime(value.at)}
               </strong>
               {value.reason && <p>{value.reason}</p>}
               {value.comments && <p>{value.comments}</p>}
@@ -183,7 +393,8 @@ export function EnvironmentDetails({ id }: { id: string }) {
         ).map((t) => (
           <Button
             key={t}
-            variant={tab === t ? "primary" : "secondary"}
+            variant="ghost"
+            className={tab === t ? "selected" : ""}
             aria-pressed={tab === t}
             onClick={() => {
               setTab(t as typeof tab);
@@ -259,62 +470,6 @@ export function EnvironmentDetails({ id }: { id: string }) {
             <Pagination {...records.data.pagination} onChange={setPage} />
           </section>
         )
-      )}
-      {action && (
-        <Modal
-          title={labels[action]}
-          busy={mutation.isPending}
-          onClose={() => setAction(null)}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              mutation.mutate();
-            }}
-          >
-            <p>
-              Apply this action to {env.environmentName}, version {env.version}?
-            </p>
-            {["reject", "suspend", "deactivate"].includes(action) && (
-              <label className="field">
-                Reason *
-                <textarea
-                  required
-                  maxLength={2000}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
-              </label>
-            )}
-            <label className="field">
-              Comments
-              <textarea
-                maxLength={4000}
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-              />
-            </label>
-            {mutation.error && <ErrorNotice error={mutation.error} />}{" "}
-            {mutation.error instanceof ApiError &&
-              Array.isArray(mutation.error.details?.fields) && (
-                <ul>
-                  {(
-                    mutation.error.details.fields as {
-                      field?: string;
-                      message?: string;
-                    }[]
-                  ).map((f, i) => (
-                    <li key={i}>
-                      {f.field}: {f.message}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            <Button disabled={mutation.isPending}>
-              {mutation.isPending ? "Applying…" : labels[action]}
-            </Button>
-          </form>
-        </Modal>
       )}
       {version !== null && (
         <Modal

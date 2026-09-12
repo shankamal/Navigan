@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CloudCog,
+  Download,
   KeyRound,
   LockKeyhole,
   Network,
@@ -90,14 +91,12 @@ export function defaultAwsBaselineSelection(
   const groups = region.securityGroups.filter((item) => item.vpcId === vpcId);
   const clusterRole =
     discovery.iamRoles.find((item) =>
-      item.roleName.toLowerCase().includes("cluster"),
-    ) || discovery.iamRoles[0];
+      item.roleType === "CLUSTER" && item.eligibility === "READY",
+    );
   const nodeRole =
     discovery.iamRoles.find((item) =>
-      item.roleName.toLowerCase().includes("node"),
-    ) ||
-    discovery.iamRoles[1] ||
-    discovery.iamRoles[0];
+      item.roleType === "NODE" && item.eligibility === "READY",
+    );
   const hasNat = region.natGateways.some(
     (item) => item.vpcId === vpcId && item.state === "available",
   );
@@ -116,7 +115,9 @@ export function defaultAwsBaselineSelection(
         : [],
     clusterRoleArn: clusterRole?.roleArn || "",
     nodeRoleArn: nodeRole?.roleArn || "",
-    kmsKeyArn: region.kmsKeys[0]?.keyArn || "",
+    kmsKeyArn:
+      region.kmsKeys.find((item) => item.eligibility === "READY")?.keyArn ||
+      "",
     egressMode: hasNat
       ? "NAT"
       : region.vpcEndpoints.length >= 3
@@ -150,6 +151,22 @@ export function validateAwsBaselineSelection(
       (item) => item.securityGroupId === id && item.vpcId === selection.vpcId,
     ),
   );
+  const clusterRoleReady = discovery.iamRoles.some(
+    (item) =>
+      item.roleArn === selection.clusterRoleArn &&
+      item.roleType === "CLUSTER" &&
+      item.eligibility === "READY",
+  );
+  const nodeRoleReady = discovery.iamRoles.some(
+    (item) =>
+      item.roleArn === selection.nodeRoleArn &&
+      item.roleType === "NODE" &&
+      item.eligibility === "READY",
+  );
+  const kmsReady = region.kmsKeys.some(
+    (item) =>
+      item.keyArn === selection.kmsKeyArn && item.eligibility === "READY",
+  );
   const checks: ReadinessCheck[] = [
     {
       id: "vpc",
@@ -169,11 +186,11 @@ export function validateAwsBaselineSelection(
     {
       id: "roles",
       label: "EKS IAM roles",
-      passed: Boolean(selection.clusterRoleArn && selection.nodeRoleArn),
+      passed: clusterRoleReady && nodeRoleReady,
       details:
-        selection.clusterRoleArn && selection.nodeRoleArn
-          ? "Cluster and node roles selected"
-          : "Select both cluster and node roles",
+        clusterRoleReady && nodeRoleReady
+          ? "Verified cluster and node roles selected"
+          : "Select verified EKS cluster and node roles",
     },
     {
       id: "security-groups",
@@ -188,10 +205,10 @@ export function validateAwsBaselineSelection(
     {
       id: "kms",
       label: "Node-volume encryption",
-      passed: Boolean(selection.kmsKeyArn),
-      details: selection.kmsKeyArn
-        ? "Customer-managed KMS key selected"
-        : "Select a customer-managed KMS key",
+      passed: kmsReady,
+      details: kmsReady
+        ? "Verified customer-managed encryption key selected"
+        : "Select a verified symmetric encryption key",
     },
     {
       id: "egress",
@@ -455,6 +472,7 @@ export function AwsDiscoveryPanel({
   costCenter,
   disabled,
   onApply,
+  onDiscovered,
 }: {
   customerId: string;
   environmentType: string;
@@ -462,6 +480,7 @@ export function AwsDiscoveryPanel({
   costCenter: string;
   disabled: boolean;
   onApply: (configuration: Record<string, JsonValue>) => void;
+  onDiscovered?: (discovery: AwsDiscovery) => void;
 }) {
   const [input, setInput] = useState<AwsDiscoveryInput>({
     customerId,
@@ -473,15 +492,82 @@ export function AwsDiscoveryPanel({
   const [result, setResult] = useState<AwsDiscovery>();
   const [selection, setSelection] = useState<AwsBaselineSelection>();
   const [applied, setApplied] = useState(false);
+  const [setupChoice, setSetupChoice] = useState<"MANUAL" | "PLATFORM">(
+    "MANUAL",
+  );
+  const [automaticSetupConfirmed, setAutomaticSetupConfirmed] =
+    useState(false);
   const mutation = useMutation({
     mutationFn: () => environments.discoverAws({ ...input, customerId }),
     onSuccess: (value) => {
       setResult(value);
       setSelection(defaultAwsBaselineSelection(value));
       setApplied(false);
+      onDiscovered?.(value);
     },
   });
   const region = result?.regions[0];
+  const readyClusterRoles =
+    result?.iamRoles.filter(
+      (item) =>
+        item.roleType === "CLUSTER" && item.eligibility === "READY",
+    ) ?? [];
+  const readyNodeRoles =
+    result?.iamRoles.filter(
+      (item) => item.roleType === "NODE" && item.eligibility === "READY",
+    ) ?? [];
+  const readyKmsKeys =
+    region?.kmsKeys.filter((item) => item.eligibility === "READY") ?? [];
+  const accountSetupRequired =
+    Boolean(result) &&
+    (!readyClusterRoles.length ||
+      !readyNodeRoles.length ||
+      !readyKmsKeys.length ||
+      !(result?.provisioningRoles.length ?? 0) ||
+      !(result?.provisioningSecrets.length ?? 0));
+  const missingResources = [
+    ...(!readyClusterRoles.length ? ["EKS_CLUSTER_ROLE"] : []),
+    ...(!readyNodeRoles.length ? ["EKS_NODE_ROLE"] : []),
+    ...(!readyKmsKeys.length ? ["KMS_KEY"] : []),
+    ...(!(result?.provisioningRoles.length ?? 0)
+      ? ["PROVISIONING_ROLE"]
+      : []),
+    ...(!(result?.provisioningSecrets.length ?? 0)
+      ? ["EXTERNAL_ID_SECRET"]
+      : []),
+    ...(!(region?.kubernetesVersions?.length ?? 0)
+      ? ["KUBERNETES_VERSIONS"]
+      : []),
+  ];
+  const requestedActions = [
+    ...(!readyClusterRoles.length ? ["CREATE_EKS_CLUSTER_ROLE"] : []),
+    ...(!readyNodeRoles.length ? ["CREATE_EKS_NODE_ROLE"] : []),
+    ...(!readyKmsKeys.length ? ["CREATE_KMS_KEY"] : []),
+    ...(!(result?.provisioningRoles.length ?? 0)
+      ? ["CREATE_PROVISIONING_ROLE"]
+      : []),
+    ...(!(result?.provisioningSecrets.length ?? 0)
+      ? ["REGISTER_EXTERNAL_ID_SECRET"]
+      : []),
+    ...(!(region?.kubernetesVersions?.length ?? 0)
+      ? ["REPAIR_DISCOVERY_PERMISSIONS"]
+      : []),
+  ];
+  const remediationMutation = useMutation({
+    mutationFn: () =>
+      environments.requestBootstrapRemediation(
+        {
+          customerId,
+          accountId: input.accountId,
+          region: input.regions[0],
+          discoveryRoleArn: input.roleArn,
+          missingResources,
+          requestedActions,
+          confirmed: true,
+        },
+        { key: crypto.randomUUID() },
+      ),
+  });
   const readiness = useMemo(
     () =>
       result && selection
@@ -613,6 +699,58 @@ export function AwsDiscoveryPanel({
         </Button>
         <span className="muted">Discovery makes no changes in AWS.</span>
       </div>
+      {(mutation.isPending || remediationMutation.isPending) && (
+        <section className="environment-operation" aria-live="polite">
+          <header>
+            <span className="operation-spinner" aria-hidden="true" />
+            <div>
+              <strong>
+                {mutation.isPending
+                  ? "Reading the customer AWS account"
+                  : "Preparing the governed remediation request"}
+              </strong>
+              <p>
+                This screen updates automatically. You can continue watching the
+                checks below.
+              </p>
+            </div>
+          </header>
+          <div className="environment-operation-steps">
+            {(
+              mutation.isPending
+                ? [
+                    "Assume tenant discovery role",
+                    "Read network and IAM inventory",
+                    "Check encryption and regional capacity",
+                    "Prepare eligible resource list",
+                  ]
+                : [
+                    "Validate requested resources",
+                    "Create immutable bootstrap plan",
+                    "Record approval request",
+                  ]
+            ).map((label, index) => (
+              <div className={index === 0 ? "active" : ""} key={label}>
+                <span aria-hidden="true" />
+                <p>
+                  <strong>{label}</strong>
+                  <small>{index === 0 ? "In progress" : "Queued"}</small>
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="environment-operation-log" role="log">
+            <p>
+              <time>{new Date().toLocaleTimeString()}</time>
+              <span>
+                {mutation.isPending
+                  ? "Secure discovery request accepted. Waiting for AWS inventory."
+                  : "Remediation request accepted. Preparing review evidence."}
+              </span>
+            </p>
+          </div>
+        </section>
+      )}
       {mutation.error && (
         <ErrorNotice error={mutation.error} onRetry={() => mutation.mutate()} />
       )}
@@ -689,6 +827,7 @@ export function AwsDiscoveryPanel({
                     <option key={item.vpcId} value={item.vpcId}>{item.name || item.vpcId} · {item.vpcId} · {item.cidrBlock}</option>
                   ))}
                 </select>
+                {!region.vpcs.length && <div className="resource-remediation"><strong>No VPC is available</strong><span>Create a VPC in the selected region, including DNS support and DNS hostnames, then run Fetch details again.</span></div>}
               </label>
               <ChoiceList
                 legend="Approved private subnets *"
@@ -701,6 +840,7 @@ export function AwsDiscoveryPanel({
                 selected={selection.subnetIds}
                 onChange={(subnetIds) => select({ subnetIds })}
               />
+              {privateSubnetsForVpc(result, selection.vpcId).length < 2 && <div className="resource-remediation"><strong>At least two private subnets are required</strong><span>Create private subnets in two different availability zones in the selected VPC. Ensure their route tables do not route directly to an internet gateway, then run Fetch details again.</span></div>}
             </div>
             <div className="baseline-group">
               <div className="baseline-group-heading">
@@ -710,21 +850,36 @@ export function AwsDiscoveryPanel({
               <div className="baseline-field-grid">
                 <label className="field">EKS cluster role *
                   <select value={selection.clusterRoleArn} onChange={(event) => select({ clusterRoleArn: event.target.value })}>
-                    <option value="">Select a cluster role</option>
-                    {result.iamRoles.map((item) => <option key={item.roleArn} value={item.roleArn}>{item.roleName}</option>)}
+                    <option value="">{readyClusterRoles.length ? "Select a verified cluster role" : "No eligible cluster role discovered"}</option>
+                    {readyClusterRoles.map((item) => (
+                      <option key={item.roleArn} value={item.roleArn}>
+                        ● Ready · {item.roleName}
+                      </option>
+                    ))}
                   </select>
+                  {!readyClusterRoles.length && <div className="resource-remediation"><strong>Create or make a cluster role verifiable</strong><span>Create a role trusted by eks.amazonaws.com with AmazonEKSClusterPolicy. Grant NaviganDiscoveryRole iam:GetRole and iam:ListAttachedRolePolicies, then run Fetch details again.</span></div>}
                 </label>
                 <label className="field">EKS node role *
                   <select value={selection.nodeRoleArn} onChange={(event) => select({ nodeRoleArn: event.target.value })}>
-                    <option value="">Select a node role</option>
-                    {result.iamRoles.map((item) => <option key={item.roleArn} value={item.roleArn}>{item.roleName}</option>)}
+                    <option value="">{readyNodeRoles.length ? "Select a verified node role" : "No eligible node role discovered"}</option>
+                    {readyNodeRoles.map((item) => (
+                      <option key={item.roleArn} value={item.roleArn}>
+                        ● Ready · {item.roleName}
+                      </option>
+                    ))}
                   </select>
+                  {!readyNodeRoles.length && <div className="resource-remediation"><strong>Create or make a node role verifiable</strong><span>Create a role trusted by ec2.amazonaws.com with AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryPullOnly and AmazonEKS_CNI_Policy. Do not attach AdministratorAccess. Grant discovery permission and run Fetch details again.</span></div>}
                 </label>
                 <label className="field">Node-volume KMS key *
                   <select value={selection.kmsKeyArn} onChange={(event) => select({ kmsKeyArn: event.target.value })}>
-                    <option value="">Select a customer-managed key</option>
-                    {region.kmsKeys.map((item) => <option key={item.keyArn} value={item.keyArn}>{item.aliasName || item.keyArn}</option>)}
+                    <option value="">{readyKmsKeys.length ? "Select a verified customer-managed key" : "No eligible encryption key discovered"}</option>
+                    {readyKmsKeys.map((item) => (
+                      <option key={item.keyArn} value={item.keyArn}>
+                        ● Ready · {item.aliasName || item.keyArn}
+                      </option>
+                    ))}
                   </select>
+                  {!readyKmsKeys.length && <div className="resource-remediation"><strong>Create or make an encryption key verifiable</strong><span>Create an enabled customer-managed symmetric ENCRYPT_DECRYPT KMS key in this region. Grant NaviganDiscoveryRole kms:ListAliases and kms:DescribeKey, then run Fetch details again.</span></div>}
                 </label>
               </div>
             </div>
@@ -749,6 +904,7 @@ export function AwsDiscoveryPanel({
                   onChange={(nodeSecurityGroupIds) => select({ nodeSecurityGroupIds })}
                 />
               </div>
+              {!region.securityGroups.some((item) => item.vpcId === selection.vpcId) && <div className="resource-remediation"><strong>No security groups are available in this VPC</strong><span>Create dedicated EKS control-plane and worker-node security groups, then run Fetch details again.</span></div>}
             </div>
             <div className="baseline-group">
               <div className="baseline-group-heading">
@@ -761,8 +917,164 @@ export function AwsDiscoveryPanel({
                   {availableEgress.nat && <option value="NAT">NAT gateway</option>}
                   {availableEgress.endpoints && <option value="PRIVATE_ENDPOINTS">VPC endpoints</option>}
                 </select>
+                {!availableEgress.nat && !availableEgress.endpoints && <div className="resource-remediation"><strong>No private egress path is ready</strong><span>Add a working NAT gateway or the required private VPC endpoints for EKS, ECR, S3, STS and supporting services, then run Fetch details again.</span></div>}
               </label>
             </div>
+            {accountSetupRequired && (
+              <div className="account-setup-panel" id="resource-remediation">
+                <div className="account-setup-heading">
+                  <div>
+                    <p className="eyebrow">RESOURCE REMEDIATION</p>
+                    <h4>Resolve missing cluster prerequisites</h4>
+                    <p>
+                      No AWS resources will be created from this discovery
+                      screen. Select the controlled setup path you want to use.
+                    </p>
+                  </div>
+                  <span className="security-chip">
+                    <ShieldCheck size={15} />
+                    Confirmation required
+                  </span>
+                </div>
+                <div className="account-setup-options">
+                  <label
+                    className={
+                      setupChoice === "MANUAL"
+                        ? "account-setup-option selected"
+                        : "account-setup-option"
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="account-setup-choice"
+                      checked={setupChoice === "MANUAL"}
+                      onChange={() => {
+                        setSetupChoice("MANUAL");
+                        setAutomaticSetupConfirmed(false);
+                      }}
+                    />
+                    <span>
+                      <strong>Customer-managed setup</strong>
+                      <small>Recommended default</small>
+                      <p>
+                        A customer administrator reviews and applies the
+                        Navigan Terraform bootstrap in their AWS account.
+                      </p>
+                    </span>
+                  </label>
+                  <label
+                    className={
+                      setupChoice === "PLATFORM"
+                        ? "account-setup-option selected"
+                        : "account-setup-option"
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="account-setup-choice"
+                      checked={setupChoice === "PLATFORM"}
+                      onChange={() => setSetupChoice("PLATFORM")}
+                    />
+                    <span>
+                      <strong>Platform-assisted setup</strong>
+                      <small>Optional governed workflow</small>
+                      <p>
+                        Requires customer bootstrap authorization, an immutable
+                        Terraform plan and independent Platform Architect
+                        approval.
+                      </p>
+                    </span>
+                  </label>
+                </div>
+                {setupChoice === "MANUAL" ? (
+                  <div className="account-setup-next-step">
+                    <strong>
+                      AWS administrator procedure · Bootstrap v1.1.3
+                    </strong>
+                    <p>
+                      Intended tenant: customer <code>{customerId}</code>
+                      {input.accountId
+                        ? <> · AWS account <code>{input.accountId}</code></>
+                        : null}
+                      . The administrator must stop if AWS STS reports a
+                      different account.
+                    </p>
+                    <ol className="account-setup-checklist">
+                      <li><span>1</span><div><strong>Download and verify the tenant</strong><p>Use bootstrap v1.1.3. Authenticate with the customer administrator profile and run <code>aws sts get-caller-identity</code> before Terraform.</p></div></li>
+                      <li><span>2</span><div><strong>Create a unique provisioning External ID</strong><p>Do not reuse the discovery External ID or a value belonging to another customer. Keep it out of chat, logs and tickets.</p></div></li>
+                      <li><span>3</span><div><strong>Validate and review a saved plan</strong><p>The trust must contain only the exact Terraform execution and Environment Lambda validation roles, protected by the unique External ID. Run Terraform init, format check, validation and plan; reject unexpected deletion or replacement.</p></div></li>
+                      <li><span>4</span><div><strong>Apply and complete the secure handoff</strong><p>The AWS administrator applies the exact saved plan. The Navigan operator then registers the raw External ID under <code>navigan/provisioning/{customerId}/external-id</code> through an approved secret exchange—not email, chat or tickets.</p></div></li>
+                      <li><span>5</span><div><strong>Refresh and save the revision</strong><p>Fetch AWS inventory again, select every green eligible resource, apply the verified baseline and save the revision.</p></div></li>
+                    </ol>
+                    <a
+                      className="button button-secondary account-setup-download"
+                      href="/downloads/navigan-aws-customer-bootstrap-v1.1.3.zip"
+                      download
+                    >
+                      <Download size={16} aria-hidden="true" />
+                      Download bootstrap v1.1.3
+                    </a>
+                    <small>
+                      Includes Terraform and a Windows CMD administrator
+                      runbook. Downloading does not change AWS.
+                    </small>
+                  </div>
+                ) : (
+                  <div className="account-setup-confirmation">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={automaticSetupConfirmed}
+                        onChange={(event) =>
+                          setAutomaticSetupConfirmed(event.target.checked)
+                        }
+                      />
+                      <span>
+                        I confirm that I am requesting a reviewed Terraform
+                        plan—not immediate AWS changes—for this customer
+                        account and region.
+                      </span>
+                    </label>
+                    <p>
+                      {automaticSetupConfirmed
+                        ? "Request intent confirmed. Platform Architect approval and a certified plan are still required before apply."
+                        : "Confirm the request intent to continue when the platform bootstrap workflow is connected."}
+                    </p>
+                    {remediationMutation.data ? (
+                      <div className="account-setup-requested">
+                        <CheckCircle2 size={18} aria-hidden="true" />
+                        <span>
+                          <strong>Setup request submitted</strong>
+                          Request {remediationMutation.data.requestId} is
+                          awaiting independent Platform Architect approval.
+                        </span>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={
+                          !automaticSetupConfirmed ||
+                          remediationMutation.isPending ||
+                          !missingResources.length
+                        }
+                        onClick={() => remediationMutation.mutate()}
+                      >
+                        <ShieldCheck size={17} aria-hidden="true" />
+                        {remediationMutation.isPending
+                          ? "Submitting request…"
+                          : "Submit for Platform Architect approval"}
+                      </Button>
+                    )}
+                    {remediationMutation.error && (
+                      <ErrorNotice
+                        error={remediationMutation.error}
+                        onRetry={() => remediationMutation.mutate()}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="baseline-review">
               <div>
                 <h4>Provisioning readiness</h4>
@@ -782,6 +1094,8 @@ export function AwsDiscoveryPanel({
                   {applied ? "Reapply selected baseline" : "Apply selected baseline"}
                 </Button>
               </div>
+              {readiness.ready && !applied && <p className="baseline-next-instruction">All checks passed. Apply the selected baseline, then use <strong>Save revision</strong> at the bottom of the page.</p>}
+              {applied && <p className="baseline-next-instruction success">The verified baseline is attached to this draft. Continue to the bottom of the page and select <strong>Save revision</strong>.</p>}
             </div>
           </section>
           <details className="discovery-inventory-details">

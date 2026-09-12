@@ -9,6 +9,7 @@ import {
   Menu,
   Rocket,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -93,7 +94,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                       </Link>
                       {item.id === "environments" && (
                         <div className="nav-submenu" aria-label="Environment tools">
-                          {environmentChildren.map((child) => {
+                          {[
+                            ...environmentChildren,
+                            ...(identity?.roles.includes("PLATFORM_ARCHITECT")
+                              ? [
+                                  {
+                                    href: "/environments/remediations",
+                                    label: "Bootstrap Approvals",
+                                    icon: ShieldAlert,
+                                  },
+                                ]
+                              : []),
+                          ].map((child) => {
                             const childSelected =
                               child.href === "/clusters"
                                 ? pathname === child.href
@@ -148,13 +160,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="breadcrumb">
             <span>Workspace</span>
             <ChevronRight size={14} />
-            <span>
-              {pathname === "/"
-                ? "Overview"
-                : pathname.startsWith("/clusters")
-                  ? "Environments"
-                  : current?.shortTitle ?? "Access"}
-            </span>
+            <span>{pathname.startsWith("/clusters") ? "Environments" : current?.shortTitle ?? "Access"}</span>
             {pathname.startsWith("/clusters") && (
               <>
                 <ChevronRight size={14} />

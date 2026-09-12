@@ -1,4 +1,5 @@
 const actions = [
+  "revise",
   "submit",
   "resubmit",
   "review/start",
@@ -14,6 +15,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^CLU-[A-Za-z0-9-]+$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 3 && path[2] === "execution-logs")
+      return method === "GET";
     return (
       path.length === 3 &&
       method === "POST" &&
@@ -23,7 +26,24 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (path.length === 2 && path[1] === "metadata") return method === "GET";
+    if (path.length === 2 && path[1] === "bootstrap-remediations")
+      return ["GET", "POST"].includes(method);
+    if (
+      path.length === 3 &&
+      path[1] === "bootstrap-remediations" &&
+      /^BRQ-[A-Fa-f0-9]{32}$/.test(path[2])
+    )
+      return method === "GET";
+    if (
+      path.length === 4 &&
+      path[1] === "bootstrap-remediations" &&
+      /^BRQ-[A-Fa-f0-9]{32}$/.test(path[2]) &&
+      ["approve", "reject"].includes(path[3])
+    )
+      return method === "POST";
     if (path.length === 3 && path[1] === "discover" && path[2] === "aws")
+      return method === "POST";
+    if (path.length === 2 && path[1] === "blueprint-readiness")
       return method === "POST";
     if (path.length === 4 && path[1] === "configuration-schemas")
       return (

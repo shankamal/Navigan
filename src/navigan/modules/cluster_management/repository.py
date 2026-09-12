@@ -44,7 +44,8 @@ class Repository:
         ).fetchone()
         if not row:
             raise ApiError(404, "ENVIRONMENT_NOT_FOUND", "Environment profile not found.")
-        if row["status"] != "ACTIVE" or row["customer_status"] != "ACTIVE":
+        approved_status = row.get("approved_status") or row["status"]
+        if approved_status != "ACTIVE" or row["customer_status"] != "ACTIVE":
             raise ApiError(409, "ENVIRONMENT_NOT_ACTIVE", "Environment and customer must both be ACTIVE.")
         approved = row["approved_version"]
         if not approved or (requested_version is not None and requested_version != approved):
@@ -119,7 +120,9 @@ class Repository:
             "JOIN environment_management.environments e USING(environment_id) WHERE "
             + " AND ".join(conditions)
         )
-        count = self.db.execute("SELECT count(*) AS n" + base, params).fetchone()["n"]
+        count = int(
+            self.db.execute("SELECT count(*) AS n" + base, params).fetchone()["n"]
+        )
         rows = self.db.execute(
             "SELECT k.cluster_id,k.customer_id,c.name AS customer_name,k.environment_id,"
             "e.environment_name,k.environment_approved_version,k.platform,k.cluster_name,"
@@ -130,7 +133,9 @@ class Repository:
         return {
             "items": [serialize(row) for row in rows],
             "pagination": {
-                "page": query["page"], "pageSize": query["pageSize"], "totalElements": count,
-                "totalPages": math.ceil(count / query["pageSize"]),
+                "page": int(query["page"]),
+                "pageSize": int(query["pageSize"]),
+                "totalElements": count,
+                "totalPages": math.ceil(count / int(query["pageSize"])),
             },
         }
