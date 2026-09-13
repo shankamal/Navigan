@@ -22,7 +22,7 @@ BUILD_ARGS=()
 for name in NEXT_PUBLIC_OIDC_AUTHORITY NEXT_PUBLIC_OIDC_CLIENT_ID NEXT_PUBLIC_APP_URL NEXT_PUBLIC_CORPORATE_LOGO_URL; do
   if [[ -v "$name" ]]; then BUILD_ARGS+=(--build-arg "$name=${!name}"); fi
 done
-docker buildx build --platform linux/amd64 --load --pull \
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false --load --pull \
   --file "$NAVIGAN_ROOT/frontend/Dockerfile" --tag "$REPOSITORY_URI:$IMAGE_TAG" \
   "${BUILD_ARGS[@]}" "$NAVIGAN_ROOT/frontend" >&2
 docker push "$REPOSITORY_URI:$IMAGE_TAG" >&2
