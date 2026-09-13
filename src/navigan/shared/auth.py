@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from .errors import ApiError
 
-ROLES = {"CLOUD_ENGINEER", "PLATFORM_ARCHITECT", "SERVICE"}
+ROLES = {"CLOUD_ENGINEER", "PLATFORM_ARCHITECT", "PLATFORM_ADMINISTRATOR", "SERVICE"}
 
 
 def claim_list(value):
@@ -41,7 +41,9 @@ class Principal:
             raise ApiError(403, "FORBIDDEN", "No supported platform role.")
         # Both claims are provisioned only by the trusted identity administrator.
         platform = str(claims.get("platform_scope", "false")).lower() == "true"
-        if platform and not roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
+        if platform and not roles.intersection(
+            {"CLOUD_ENGINEER", "PLATFORM_ARCHITECT", "PLATFORM_ADMINISTRATOR"}
+        ):
             raise ApiError(403, "FORBIDDEN", "Service identities cannot have platform-wide access.")
         return cls(
             sub,

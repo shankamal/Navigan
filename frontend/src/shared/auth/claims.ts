@@ -1,4 +1,8 @@
-export type PlatformRole = "CLOUD_ENGINEER" | "PLATFORM_ARCHITECT" | "SERVICE";
+export type PlatformRole =
+  | "CLOUD_ENGINEER"
+  | "PLATFORM_ARCHITECT"
+  | "PLATFORM_ADMINISTRATOR"
+  | "SERVICE";
 export interface Identity {
   subject: string;
   displayName: string;
@@ -23,7 +27,12 @@ function strings(value: unknown): string[] {
 // Display/action affordances only. API Gateway verifies JWTs and Lambda enforces all authorization.
 export function identityFromClaims(claims: Record<string, unknown>): Identity {
   const roles = strings(claims.roles).filter((role): role is PlatformRole =>
-    ["CLOUD_ENGINEER", "PLATFORM_ARCHITECT", "SERVICE"].includes(role),
+    [
+      "CLOUD_ENGINEER",
+      "PLATFORM_ARCHITECT",
+      "PLATFORM_ADMINISTRATOR",
+      "SERVICE",
+    ].includes(role),
   );
   const subject = typeof claims.sub === "string" ? claims.sub : "";
   return {

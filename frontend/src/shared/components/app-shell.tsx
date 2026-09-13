@@ -1,9 +1,10 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChevronRight,
+  ChevronDown,
   FolderPlus,
   LogOut,
   Menu,
@@ -15,14 +16,105 @@ import {
 } from "lucide-react";
 import { platformModules } from "@/shared/config/modules";
 import { useAuth } from "@/shared/auth/auth-provider";
+import {
+  hasPermission,
+  type PlatformPermission,
+} from "@/shared/auth/permissions";
 import { signOut } from "@/shared/auth/session";
 import { Button } from "./ui";
 
-const environmentChildren = [
-  { href: "/environments/new", label: "Create Environment", icon: FolderPlus },
-  { href: "/clusters/new", label: "New Cluster Setup", icon: Rocket },
-  { href: "/clusters", label: "Cluster Platform Admin", icon: Settings2 },
+const environmentChildren: ReadonlyArray<{
+  href: string;
+  label: string;
+  icon: typeof FolderPlus;
+  permission: PlatformPermission;
+}> = [
+  {
+    href: "/environments/new",
+    label: "Create Environment",
+    icon: FolderPlus,
+    permission: "environment.request.create",
+  },
+  {
+    href: "/clusters/new",
+    label: "New Cluster Setup",
+    icon: Rocket,
+    permission: "cluster.request.create",
+  },
+  {
+    href: "/clusters",
+    label: "Cluster Reviews",
+    icon: Settings2,
+    permission: "request.review",
+  },
+  {
+    href: "/environments/remediations",
+    label: "Bootstrap Approvals",
+    icon: ShieldAlert,
+    permission: "remediation.review",
+  },
 ] as const;
+
+const modulePermissions: Record<string, PlatformPermission> = {
+  dashboard: "dashboard.read",
+  customers: "customer.read",
+  environments: "environment.read",
+  clusters: "cluster.read",
+  applications: "platform.configure",
+};
+
+function AccountMenu() {
+  const { identity } = useAuth();
+  const [open, setOpen] = useState(false);
+  const menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (!menu.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  if (!identity) return null;
+  return (
+    <div className="account-menu" ref={menu}>
+      <button
+        type="button"
+        className="account-trigger"
+        aria-label={`Open account menu for ${identity.displayName}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="avatar" aria-hidden="true">
+          {identity.displayName.slice(0, 2).toUpperCase()}
+        </span>
+        <ChevronDown size={15} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="account-popover" role="menu">
+          <div className="account-identity">
+            <strong>{identity.displayName}</strong>
+            <span>
+              {identity.roles
+                .filter((role) => role !== "SERVICE")
+                .map((role) => role.replaceAll("_", " ").toLowerCase())
+                .join(" · ") || "No platform role"}
+            </span>
+          </div>
+          <button
+            type="button"
+            role="menuitem"
+            className="account-action"
+            onClick={() => void signOut()}
+          >
+            <LogOut size={16} />
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -48,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {expanded ? <X /> : <Menu />}
         </Button>
-        <Link href="/customers" className="brand" aria-label="Navigan home">
+        <Link href="/dashboard" className="brand" aria-label="Navigan home">
           {logo && (
             <img src={logo} alt="Corporate logo" className="corporate-logo" />
           )}
@@ -59,11 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="topbar-account">
           <ShieldCheck size={18} aria-hidden="true" />
           <span>{identity ? "Enterprise workspace" : "Secure access"}</span>
-          {identity && (
-            <span className="avatar" aria-label={identity.displayName}>
-              {identity.displayName.slice(0, 2).toUpperCase()}
-            </span>
-          )}
+          <AccountMenu />
         </div>
       </header>
       <div className="shell-body">
@@ -75,7 +163,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="nav-section">WORKSPACE</p>
             <nav aria-label="Platform modules">
               {platformModules
-                .filter((item) => item.id !== "clusters")
+                .filter(
+                  (item) =>
+                    item.id !== "clusters" &&
+                    hasPermission(identity, modulePermissions[item.id]),
+                )
                 .map((item) => {
                   const selected =
                     pathname.startsWith(item.href) ||
@@ -94,18 +186,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                       </Link>
                       {item.id === "environments" && (
                         <div className="nav-submenu" aria-label="Environment tools">
-                          {[
-                            ...environmentChildren,
-                            ...(identity?.roles.includes("PLATFORM_ARCHITECT")
-                              ? [
-                                  {
-                                    href: "/environments/remediations",
-                                    label: "Bootstrap Approvals",
-                                    icon: ShieldAlert,
-                                  },
-                                ]
-                              : []),
-                          ].map((child) => {
+                          {environmentChildren
+                            .filter((child) =>
+                              hasPermission(identity, child.permission),
+                            )
+                            .map((child) => {
                             const childSelected =
                               child.href === "/clusters"
                                 ? pathname === child.href
@@ -122,7 +207,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 <span>{child.label}</span>
                               </Link>
                             );
-                          })}
+                            })}
                         </div>
                       )}
                     </div>
@@ -140,20 +225,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <p>AWS · Azure · GCP · OCI</p>
               </div>
             </div>
-            {identity && (
-              <div className="profile">
-                <p>{identity.displayName}</p>
-                <span>
-                  {identity.roles
-                    .map((role) => role.replaceAll("_", " ").toLowerCase())
-                    .join(" · ") || "No platform role"}
-                </span>
-                <Button variant="ghost" onClick={() => void signOut()}>
-                  <LogOut size={16} />
-                  Sign out
-                </Button>
-              </div>
-            )}
           </div>
         </aside>
         <div className="content-column">

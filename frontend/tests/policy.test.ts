@@ -11,7 +11,8 @@ import {
   listSchema,
 } from "@/modules/customer-management/model/types";
 import { identityFromClaims } from "@/shared/auth/claims";
-import { customer, engineer, architect } from "./fixtures";
+import { hasPermission } from "@/shared/auth/permissions";
+import { customer, engineer, architect, administrator } from "./fixtures";
 describe("Customer lifecycle affordances", () => {
   it("matches all permitted lifecycle transitions", () => {
     expect(allowedActions(engineer, customer).map((x) => x.action)).toEqual([
@@ -90,6 +91,27 @@ describe("Customer lifecycle affordances", () => {
       identityFromClaims({ roles: "CLOUD_ENGINEER UNKNOWN" }).roles,
     ).toEqual(["CLOUD_ENGINEER"]);
     expect(identityFromClaims({ roles: "[invalid" }).roles).toEqual([]);
+  });
+  it("recognizes administrators without granting requester or reviewer actions", () => {
+    expect(
+      identityFromClaims({
+        sub: "admin",
+        roles: '["PLATFORM_ADMINISTRATOR"]',
+        platform_scope: "true",
+      }).roles,
+    ).toEqual(["PLATFORM_ADMINISTRATOR"]);
+    expect(hasPermission(administrator, "dashboard.read")).toBe(true);
+    expect(hasPermission(administrator, "user.manage")).toBe(true);
+    expect(
+      hasPermission(administrator, "environment.request.create"),
+    ).toBe(false);
+    expect(hasPermission(administrator, "request.approve")).toBe(false);
+  });
+  it("separates engineer creation from architect review permissions", () => {
+    expect(hasPermission(engineer, "environment.request.create")).toBe(true);
+    expect(hasPermission(engineer, "request.review")).toBe(false);
+    expect(hasPermission(architect, "environment.request.create")).toBe(false);
+    expect(hasPermission(architect, "request.review")).toBe(true);
   });
 });
 describe("API validation", () => {

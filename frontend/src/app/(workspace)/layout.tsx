@@ -6,8 +6,8 @@ export default function WorkspaceLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AppShell>
-      <AuthGate>{children}</AuthGate>
-    </AppShell>
+    <AuthGate>
+      <AppShell>{children}</AppShell>
+    </AuthGate>
   );
 }

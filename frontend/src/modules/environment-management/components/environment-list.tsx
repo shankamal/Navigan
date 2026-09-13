@@ -17,6 +17,7 @@ import {
   formatDate,
 } from "@/shared/components/ui";
 import { useAuth } from "@/shared/auth/auth-provider";
+import { hasPermission } from "@/shared/auth/permissions";
 import { statuses } from "@/modules/customer-management/model/types";
 import {
   useEnvironmentCount,
@@ -76,9 +77,7 @@ export function EnvironmentList() {
         title="Environment Dashboard"
         description="Track reusable infrastructure profiles and create container environments across your clouds."
         action={
-          identity?.roles.some((role) =>
-            ["CLOUD_ENGINEER", "PLATFORM_ARCHITECT"].includes(role),
-          ) && (
+          hasPermission(identity, "environment.request.create") && (
             <Link className="button button-primary" href="/environments/new">
               <Plus size={18} />
               New Environment

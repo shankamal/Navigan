@@ -15,6 +15,13 @@ export const architect: Identity = {
   roles: ["PLATFORM_ARCHITECT"],
   canCreate: false,
 };
+export const administrator: Identity = {
+  ...engineer,
+  subject: "administrator-1",
+  displayName: "Platform Administrator",
+  roles: ["PLATFORM_ADMINISTRATOR"],
+  canCreate: false,
+};
 export const customer: Customer = {
   customerId: "CUS-test-123",
   onboardingRequestId: "ONB-test-123",
