@@ -1,10 +1,13 @@
 node_modules
 .next
+.next-stale-*
+.standalone-runtime*
 .git
 .env
 .env.*
 !.env.example
 coverage
 *.tsbuildinfo
+*.log
 tests
 README.md
