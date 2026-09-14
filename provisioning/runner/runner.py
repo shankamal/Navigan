@@ -4,6 +4,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import time
 import boto3
 from botocore.config import Config
 
@@ -271,11 +272,28 @@ try:
                 scalingConfig=scaling,
             )
             update_id = response["update"]["id"]
-            clients["eks"].get_waiter("nodegroup_active").wait(
-                clusterName=request["clusterName"],
-                nodegroupName=group["name"],
-                WaiterConfig={"Delay": 30, "MaxAttempts": 120},
-            )
+            for _ in range(120):
+                update = clients["eks"].describe_update(
+                    name=request["clusterName"],
+                    nodegroupName=group["name"],
+                    updateId=update_id,
+                )["update"]
+                if update["status"] == "Successful":
+                    break
+                if update["status"] in {"Failed", "Cancelled"}:
+                    errors = ", ".join(
+                        item.get("errorCode", "UnknownError")
+                        for item in update.get("errors", [])
+                    )
+                    raise RuntimeError(
+                        f"EKS node group {mode} update {update['status']}: "
+                        f"{errors or 'No error code returned'}"
+                    )
+                time.sleep(30)
+            else:
+                raise TimeoutError(
+                    f"EKS node group {mode} update did not finish within 60 minutes."
+                )
             updates.append({"nodeGroup": group["name"], "updateId": update_id})
         put_result({"success": True, "mode": mode, "nodeGroupUpdates": updates})
     elif mode == "delete":

@@ -9,6 +9,7 @@ import traceback
 import uuid
 import boto3
 from pydantic import ValidationError
+from navigan.shared.access import AccessEvaluator, AccessRepository
 from navigan.shared.auth import Principal
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
@@ -73,9 +74,27 @@ def execution_logs(row):
     build_id = row.get("provider_execution_id")
     if not build_id:
         return {"status": row["status"], "events": [], "complete": True}
+    workflow = row.get("workflow") or {}
+    execution = workflow.get("currentExecution") or workflow.get("lastExecution") or {}
+    operation = execution.get("mode")
+    if not operation and row.get("execution_artifact_prefix"):
+        try:
+            body = boto3.client("s3").get_object(
+                Bucket=os.environ["TERRAFORM_ARTIFACT_BUCKET"],
+                Key=row["execution_artifact_prefix"] + "/input.json",
+            )["Body"].read()
+            operation = json.loads(body).get("mode")
+        except Exception:
+            logger.info(
+                "Execution operation metadata is unavailable.",
+                extra={"clusterId": row["cluster_id"], "buildId": build_id},
+            )
     project, _, stream = build_id.partition(":")
     if not project or not stream:
-        return {"status": row["status"], "events": [], "complete": True}
+        return {
+            "status": row["status"], "operation": operation,
+            "events": [], "complete": True,
+        }
     result = boto3.client("logs").get_log_events(
         logGroupName=f"/aws/codebuild/{project}",
         logStreamName=stream,
@@ -95,7 +114,9 @@ def execution_logs(row):
             )
     return {
         "status": row["status"],
+        "operation": operation,
         "executionId": build_id,
+        "errorCode": (workflow.get("lastExecution") or {}).get("errorCode"),
         "events": events[-200:],
         "complete": row["status"] not in {
             "PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"
@@ -140,12 +161,17 @@ def execute(event, principal, correlation):
             raise ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "Provide an Idempotency-Key.")
     with transaction() as db:
         repo = Repository(db, principal)
+        access = AccessEvaluator(AccessRepository(db)).evaluate(principal)
         if read:
             if not identifier:
-                value = repo.list(query_of(event))
+                value = repo.list(query_of(event), access)
             else:
                 row = repo.get(identifier)
-                value = execution_logs(row) if action == "execution-logs" else serialize(row)
+                value = (
+                    execution_logs(row)
+                    if action == "execution-logs"
+                    else serialize(row, access)
+                )
             return response(200, value, correlation)
         operation = method + " " + path
         fingerprint = hashlib.sha256(

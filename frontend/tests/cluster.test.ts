@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { clusterSchema, type ClusterInput } from "@/modules/cluster-management/model";
+import {
+  clusterSchema,
+  executionLogsSchema,
+  type ClusterInput,
+} from "@/modules/cluster-management/model";
 import { isAllowedRoute } from "@/shared/api/proxy";
 
 describe("Cluster API contract", () => {
@@ -20,6 +24,46 @@ describe("Cluster API contract", () => {
       platform: "EKS", clusterName: "demo", status: "DRAFT", version: 1,
       createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z",
     })).toThrow();
+  });
+
+  it("accepts backend-provided cluster action capabilities", () => {
+    const value = clusterSchema.parse({
+      clusterId: "CLU-demo",
+      customerId: "CUS-demo",
+      environmentId: "ENV-demo",
+      environmentApprovedVersion: 3,
+      platform: "EKS",
+      clusterName: "demo",
+      status: "ACTIVE",
+      version: 2,
+      createdAt: "2026-09-14T00:00:00Z",
+      updatedAt: "2026-09-14T00:00:00Z",
+      allowedActions: [
+        {
+          code: "STOP",
+          label: "Stop",
+          enabled: true,
+          destructive: false,
+          confirmation: "Stop this cluster?",
+        },
+      ],
+    });
+
+    expect(value.allowedActions[0]?.code).toBe("STOP");
+  });
+
+  it("identifies lifecycle execution logs separately from provisioning", () => {
+    const value = executionLogsSchema.parse({
+      status: "FAILED",
+      operation: "stop",
+      executionId: "project:build-id",
+      errorCode: "ResourceInUseException",
+      complete: true,
+      events: [],
+    });
+
+    expect(value.operation).toBe("stop");
+    expect(value.errorCode).toBe("ResourceInUseException");
   });
 
   it("keeps platform setup behind the API proxy", () => {

@@ -409,6 +409,203 @@ The global sidebar must not list individual customers, environments or clusters.
 
 Each contextual tab must also have a privilege requirement. Tabs without effective access are hidden.
 
+## Core capability program: platform engineering and secure cluster access
+
+Status: architecture inspected and implementation plan prepared on 14 September
+2026. Implementation has not started.
+
+### Current architecture findings
+
+| Area | Current behaviour | Required evolution |
+|---|---|---|
+| Navigation | Sidebar renders multiple privilege-filtered routes inside Customer, Environment and Cluster groups | Give Cloud Engineers one top-level entry for each management module and move permitted tasks into module pages |
+| Identity | Cognito group membership is converted into role, customer-scope and platform-scope token claims | Add `PLATFORM_ENGINEER`; keep claims as a migration input while database assignments become authoritative |
+| Authorization | Database-backed privileges, ALLOW/DENY effects and SELF/CUSTOMER/PLATFORM/RESOURCE scopes exist, with a legacy claim adapter | Route every API through the central evaluator and remove scattered `principal.require(role)` checks |
+| Query scoping | Customer, Environment and Cluster repositories reuse a common customer-scope SQL clause | Make scope predicates consume effective database scopes and verify Environment/Cluster ownership centrally |
+| User administration | Schema supports users, roles, assignments and scopes; only `/access/me` is implemented | Add managed user, role and scope APIs and forms before removing the legacy adapter |
+| Cluster lifecycle | Versioned requests, state transitions, idempotency keys, Terraform execution and audit history exist | Add a centralized capability resolver and explicit operation records/locking |
+| EKS access | Terraform creates EKS with `API_AND_CONFIG_MAP`; no external human OIDC association or RBAC reconciliation exists | Add external OIDC association, EKS access controls and Kubernetes RBAC reconciliation |
+| WebKubectl | No complete user-scoped browser terminal contract was identified | Design a short-lived, server-brokered session before exposing this action |
+
+Amazon EKS external OIDC user authentication is distinct from the EKS workload
+OIDC issuer used by service accounts. IAM authentication must remain enabled for
+nodes and platform automation. The implementation will associate the platform
+identity provider for human Kubernetes API authentication and bind stable group
+claims to least-privilege Kubernetes RBAC.
+
+### Target role and scope model
+
+Role names remain editable templates; authorization decisions use privileges and
+scopes rather than role-name conditionals.
+
+| Role template | Required scope | Intended access |
+|---|---|---|
+| PLATFORM_ENGINEER | PLATFORM | Global infrastructure visibility and approved platform-wide Environment, Cluster and operations management |
+| CLOUD_ENGINEER | One or more CUSTOMER scopes, optionally SELF | Only explicitly assigned customers and their owned Environments and Clusters |
+| PLATFORM_ARCHITECT | CUSTOMER or PLATFORM as assigned | Independent review, approval and governance |
+| PLATFORM_ADMINISTRATOR | PLATFORM | Identity, role, privilege, scope and platform configuration administration |
+
+Security invariants:
+
+1. `PLATFORM_ENGINEER` assignments must include an active PLATFORM scope.
+2. `CLOUD_ENGINEER` must not receive implicit platform scope from UI state,
+   request parameters or mutable user attributes.
+3. Every Environment and Cluster authorization resolves its owning customer
+   before permitting access.
+4. Explicit DENY overrides every role-derived ALLOW.
+5. Server-side privilege and scope checks are mandatory even when a menu or
+   action is hidden.
+
+### Cloud Engineer sidebar target
+
+The simplified presentation applies to Cloud Engineers. Existing routes remain
+available as module-local pages and actions when authorized.
+
+| Top-level item | Landing route | Module-local capabilities |
+|---|---|---|
+| Customer Management | `/customers` | Directory, details, create/edit and owned requests |
+| Environment Management | `/environments` | Directory, create/edit, discovery, revisions and owned requests |
+| Cluster Management | `/clusters` | Directory, new request, request progress and permitted lifecycle actions |
+
+Review, approval, operations and access-administration navigation remains
+privilege-driven for Platform Architects, Platform Engineers and Platform
+Administrators. The frontend should consume a backend navigation profile or
+effective capabilities rather than infer global access from a role label.
+
+### Status-aware cluster action contract
+
+Add `allowedActions` to Cluster list/detail responses. Each entry should include
+an action code, availability, disabled reason, confirmation requirement and
+current operation identifier where applicable.
+
+| Cluster state | Candidate actions before privilege filtering |
+|---|---|
+| READY or RUNNING | DASHBOARD, WEB_KUBECTL, MANAGE |
+| ACTIVE | DASHBOARD, WEB_KUBECTL, MANAGE |
+| FAILED | MANAGE, EDIT, RETRY_PROVISIONING, DELETE |
+| REQUESTED or PENDING | VIEW_DETAILS, EDIT_REQUEST, CANCEL_REQUEST |
+| DRAFT, SUBMITTED or UNDER_REVIEW | VIEW_DETAILS plus workflow-valid edit/cancel actions |
+| PROVISIONING or APPLYING | VIEW_PROGRESS, VIEW_LOGS, CANCEL_PROVISIONING when supported |
+| UPDATING, STARTING or STOPPING | VIEW_PROGRESS, VIEW_LOGS, MANAGE when safe |
+| DELETING | VIEW_PROGRESS |
+| STOPPED | START, MANAGE, EDIT, DELETE |
+| UNKNOWN or disconnected | VIEW_DETAILS, REFRESH_STATUS, TROUBLESHOOT |
+
+The backend resolver combines lifecycle state, effective privileges, customer
+scope, active operation state, provider capabilities and integration readiness.
+The UI three-dot menu renders this contract without duplicating authorization
+rules. Destructive operations require confirmation, idempotency and audit
+events. Concurrent provisioning, retry, update and deletion operations must be
+rejected server-side.
+
+### Incremental implementation plan
+
+| Phase | Workstream | Deliverable | Status |
+|---|---|---|---|
+| PE.1 | Data model | Migration adds the `PLATFORM_ENGINEER` system role, grants, required-scope validation and cluster identity-integration/operation metadata | Platform Engineer role on hold; operation metadata remains planned |
+| PE.2 | Authorization | Extend token parsing and the legacy adapter, but make database effective access authoritative for migrated users | Planned |
+| PE.3 | Authorization | Replace Customer, Environment, Cluster and remediation role checks with privilege plus scope policies | Planned |
+| PE.4 | Query security | Centralize customer ownership predicates and enforce child-resource ownership on every read and mutation | Planned |
+| PE.5 | Access administration | Add user, role, assignment, scope and effective-access APIs with immutable audit events | Planned |
+| PE.6 | Frontend navigation | Implement the three-item Cloud Engineer sidebar while preserving routes and permission guards | Implemented locally; UI validation pending |
+| PE.7 | Frontend access | Add Platform Engineer handling, route denial states and user-management forms | Platform Engineer role on hold |
+| PE.8 | Cluster capabilities | Add a centralized backend action resolver and `allowedActions` API contract | Implemented locally; backend deployment pending |
+| PE.9 | Cluster UI | Add accessible three-dot menus, disabled reasons, confirmations, progress, errors and empty/loading states | Initial list action menu implemented locally; UI validation pending |
+| PE.10 | Operation safety | Add active-operation locking, retry/cancel rules, structured logs and action audit events | Planned |
+| PE.11 | OIDC configuration | Store validated issuer, audience, stable username/group claims, prefixes and required claims without storing tokens | Planned |
+| PE.12 | New-cluster provisioning | Associate the external EKS OIDC identity provider and wait for ACTIVE status idempotently | Planned |
+| PE.13 | Kubernetes RBAC | Generate and apply versioned least-privilege Role/ClusterRole and binding templates | Planned |
+| PE.14 | Identity verification | Verify OIDC authentication and authorized/denied Kubernetes API operations before marking integration READY | Planned |
+| PE.15 | Existing clusters | Add discovery and reconciliation that preserves unrelated RBAC and reports recreation requirements | Planned |
+| PE.16 | WebKubectl | Implement a short-lived, user-specific, scope-checked session broker with expiry, revocation and audit logging | Planned |
+| PE.17 | Migration | Backfill assignments/scopes, compare legacy and dynamic decisions, then remove unsafe legacy fallbacks | Planned |
+| PE.18 | Validation | Run unit, integration, Terraform, security and Dev end-to-end tests before Production promotion | Planned |
+
+### Data and API additions
+
+Proposed persistent additions:
+
+- Seeded `PLATFORM_ENGINEER` role and privilege assignments.
+- Constraint or service policy requiring PLATFORM scope for Platform Engineer.
+- Cluster identity-integration status, provider configuration fingerprint,
+  reconciliation version, last verification and failure details.
+- Cluster operation record with type, status, idempotency key, execution ID,
+  initiator, timestamps and sanitized error metadata.
+- WebKubectl session metadata only; credentials and tokens must not be stored.
+
+Proposed contracts:
+
+- Extend `GET /api/v1/access/me` with a server-selected navigation profile.
+- Add managed access-administration endpoints described in the technical design.
+- Extend Cluster list/detail records with `allowedActions` and active operation.
+- Add endpoints for retry, cancellation, refresh/reconcile identity integration
+  and WebKubectl session creation.
+- Keep state-changing endpoints idempotent and version protected.
+
+### OIDC, RBAC and WebKubectl security decisions
+
+1. Use the immutable identity-provider subject as the Kubernetes username claim,
+   or another explicitly verified immutable claim.
+2. Use stable identity-provider group identifiers with a Navigan-specific
+   prefix; do not authorize mutable display names.
+3. Do not grant `cluster-admin` by default. Create a reviewed Navigan Platform
+   Engineer ClusterRole with only required operations.
+4. Use namespace or constrained cluster roles for customer Cloud Engineers.
+5. Keep IAM/EKS access required for nodes and automation; external OIDC is an
+   additional human authentication path.
+6. Never return administrative kubeconfigs, service-account tokens or customer
+   provisioning credentials to the browser.
+7. WebKubectl sessions are short-lived, user-bound, cluster-bound,
+   customer-scope checked and fully audited.
+8. Reconciliation is additive and idempotent. Unrelated existing RBAC objects
+   are preserved.
+
+### Infrastructure assumptions and limitations
+
+- The central identity provider must expose a publicly reachable OIDC discovery
+  endpoint and suitable ID-token claims for EKS.
+- A dedicated Kubernetes audience/client ID may be required; the existing web
+  application client should not automatically be reused.
+- Private-only EKS endpoints require the reconciliation and WebKubectl runtime
+  to execute inside connected customer networking.
+- EKS keeps IAM authentication enabled because worker nodes and platform
+  automation require it.
+- Provider-specific identity integration for AKS, GKE, OKE and non-managed
+  Kubernetes requires separate adapters; this phase implements EKS first.
+- Cancel support depends on the underlying provider operation. Unsupported
+  cancellation is returned as a disabled action with a reason.
+
+### Required validation matrix
+
+| Test area | Required coverage |
+|---|---|
+| Role and scope | Platform Engineer global access; Cloud Engineer assigned-customer access; explicit cross-customer denial |
+| Navigation | Simplified Cloud Engineer sidebar; privilege-aware navigation for other roles; direct-route denial |
+| API authorization | Unauthorized reads and actions rejected server-side; forged customer IDs and role claims fail closed |
+| Cluster capabilities | Every supported lifecycle state, privilege combination, active-operation conflict and disabled reason |
+| Operations | Idempotent retries, duplicate prevention, cancellation support and failure recovery |
+| Audit | Capability-sensitive actions, destructive confirmations, identity reconciliation and WebKubectl sessions |
+| OIDC | Issuer, audience, claims, prefixes, required claims, TLS/discovery and provider-state validation |
+| Kubernetes RBAC | Deterministic manifest generation, least privilege, customer isolation and stable group mapping |
+| Reconciliation | First apply, no-op repeat, drift repair, preservation of unrelated RBAC and partial failure |
+| WebKubectl | Scope enforcement, short expiry, revocation, no kubeconfig exposure and session audit |
+| Regression | Existing Customer, Environment, Cluster request, approval, provisioning and lifecycle workflows |
+
+### Delivery gates
+
+1. Approve the Platform Engineer privilege template and Kubernetes permission
+   boundary.
+2. Confirm the identity provider issuer, dedicated audience/client ID and stable
+   group claim.
+3. Confirm private-cluster network reachability for reconciliation and
+   WebKubectl.
+4. Implement and validate database/authorization changes before navigation or
+   action-menu rollout.
+5. Validate OIDC and RBAC on a disposable Dev cluster before reconciling an
+   existing cluster.
+6. Promote to Production only after authorization comparison, rollback and
+   credential-exposure reviews pass.
+
 ## Implementation boundary for the next phase
 
 The next technical phase should replace current static role checks with a central effective-authorization contract. Before coding begins, the following decisions require approval:

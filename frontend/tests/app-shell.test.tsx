@@ -25,17 +25,60 @@ describe("Application shell permissions", () => {
     signOut.mockReset();
   });
 
-  it("shows requester tools to a Cloud Engineer", () => {
+  it("shows one top-level management entry per domain to a Cloud Engineer", () => {
     render(<AppShell>Content</AppShell>);
-    expect(screen.getByText("Create Environment")).toBeInTheDocument();
-    expect(screen.getByText("New Cluster Request")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Customer Management" }),
+    ).toHaveAttribute("href", "/customers");
+    expect(
+      screen.getByRole("link", { name: "Environment Management" }),
+    ).toHaveAttribute("href", "/environments");
+    expect(
+      screen.getByRole("link", { name: "Cluster Management" }),
+    ).toHaveAttribute("href", "/clusters");
+    expect(screen.queryByText("Customer Directory")).not.toBeInTheDocument();
+    expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
+    expect(screen.queryByText("New Cluster Request")).not.toBeInTheDocument();
     expect(screen.queryByText("Cluster Reviews")).not.toBeInTheDocument();
     expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+  });
+
+  it("keeps the owning management module selected on a nested engineer route", () => {
+    pathname = "/environments/new";
+    render(<AppShell>Content</AppShell>);
+
+    expect(
+      screen.getByRole("link", { name: "Environment Management" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: "Customer Management" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      screen.getByRole("link", { name: "Cluster Management" }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("shows review tools and hides create tools for a Platform Architect", () => {
     identity = architect;
     render(<AppShell>Content</AppShell>);
+    expect(
+      screen.getByRole("link", { name: "Customer Directory" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Environment Directory" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Cluster Directory" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Customer Management" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Environment Management" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Cluster Management" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("New Cluster Setup")).not.toBeInTheDocument();
     expect(screen.getByText("Cluster Reviews")).toBeInTheDocument();

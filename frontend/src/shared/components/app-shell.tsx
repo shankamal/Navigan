@@ -127,6 +127,47 @@ const navigationGroups: ReadonlyArray<{
   },
 ];
 
+const cloudEngineerNavigationGroups: ReadonlyArray<{
+  label: string;
+  items: readonly NavigationItem[];
+}> = [
+  {
+    label: "Workspace",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Platform Dashboard",
+        icon: Gauge,
+        permission: "dashboard.platform.view",
+      },
+      {
+        href: "/customers",
+        label: "Customer Management",
+        icon: Building2,
+        permission: "customer.view",
+      },
+      {
+        href: "/environments",
+        label: "Environment Management",
+        icon: Layers3,
+        permission: "environment.view",
+      },
+      {
+        href: "/clusters",
+        label: "Cluster Management",
+        icon: Network,
+        permission: "cluster.view",
+      },
+    ],
+  },
+];
+
+function isCloudEngineerOnly(identity: ReturnType<typeof useAuth>["identity"]) {
+  const humanRoles =
+    identity?.roles.filter((role) => role !== "SERVICE") ?? [];
+  return humanRoles.length === 1 && humanRoles[0] === "CLOUD_ENGINEER";
+}
+
 function AccountMenu() {
   const { identity } = useAuth();
   const [open, setOpen] = useState(false);
@@ -184,7 +225,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
-  const current = navigationGroups
+  const activeNavigationGroups = isCloudEngineerOnly(identity)
+    ? cloudEngineerNavigationGroups
+    : navigationGroups;
+  const current = activeNavigationGroups
     .flatMap((group) => group.items)
     .filter((item) => hasPermission(identity, item.permission))
     .toSorted((left, right) => right.href.length - left.href.length)
@@ -231,7 +275,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <div>
             <nav aria-label="Platform modules">
-              {navigationGroups.map((group) => {
+              {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
                   hasPermission(identity, item.permission),
                 );

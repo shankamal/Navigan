@@ -99,7 +99,7 @@ Resources:
               Action: [s3:GetObject,s3:PutObject]
               Resource: !Sub '${TerraformArtifacts.Arn}/*'
             - Effect: Allow
-              Action: kms:GenerateDataKey
+              Action: [kms:GenerateDataKey, kms:Decrypt]
               Resource: !GetAtt TerraformStateKey.Arn
             - Effect: Allow
               Action: codebuild:StartBuild

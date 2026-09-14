@@ -75,10 +75,13 @@ def lambda_handler(event, context):
             else row["outputs"]
         )
         workflow = dict(row["workflow"])
+        current_execution = workflow.get("currentExecution", {})
         workflow["lastExecution"] = {
+            "mode": current_execution.get("mode"),
             "buildId": build_id, "status": build_status, "completedAt": now.isoformat(),
             "errorCode": result.get("errorCode") if not success else None,
         }
+        workflow.pop("currentExecution", None)
         if previous == "PLAN_RUNNING" and success:
             workflow["planSummary"] = result.get("planSummary", {})
             workflow["validation"] = result.get("validation", {})

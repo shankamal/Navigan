@@ -147,6 +147,12 @@ class Service:
             build_id, prefix = (self.provisioner or Provisioner()).start(action, row, snapshot)
             row["provider_execution_id"] = build_id
             row["execution_artifact_prefix"] = prefix
+            row["workflow"]["currentExecution"] = {
+                "mode": action,
+                "buildId": build_id,
+                "startedBy": self.principal.user_id,
+                "startedAt": datetime.now(timezone.utc).isoformat(),
+            }
             row["status"] = {
                 "plan": "PLAN_RUNNING",
                 "apply": "APPLYING",

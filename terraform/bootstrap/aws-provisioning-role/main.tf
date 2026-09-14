@@ -241,7 +241,8 @@ data "aws_iam_policy_document" "provisioning" {
       "eks:CreateCluster", "eks:DescribeCluster", "eks:UpdateClusterConfig",
       "eks:UpdateClusterVersion", "eks:DeleteCluster", "eks:TagResource", "eks:UntagResource",
       "eks:CreateNodegroup", "eks:DescribeNodegroup", "eks:UpdateNodegroupConfig",
-      "eks:UpdateNodegroupVersion", "eks:DeleteNodegroup", "eks:ListTagsForResource",
+      "eks:UpdateNodegroupVersion", "eks:DescribeUpdate", "eks:DeleteNodegroup",
+      "eks:ListTagsForResource",
     ]
     resources = ["*"]
   }

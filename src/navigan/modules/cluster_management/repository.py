@@ -1,6 +1,7 @@
 import math
 from navigan.shared.errors import ApiError
 from navigan.modules.customer_management.repository import scope_clause, json_text
+from .capabilities import resolve_cluster_actions
 
 
 def camel(key):
@@ -8,11 +9,14 @@ def camel(key):
     return first + "".join(part.title() for part in rest)
 
 
-def serialize(row):
-    return {
+def serialize(row, access=None):
+    result = {
         camel(key): value.isoformat() if hasattr(value, "isoformat") else value
         for key, value in row.items()
     }
+    if access is not None:
+        result["allowedActions"] = resolve_cluster_actions(row, access)
+    return result
 
 
 class Repository:
@@ -98,7 +102,7 @@ class Repository:
              json_text(serialize(old)) if old else None, json_text(snapshot)],
         )
 
-    def list(self, query):
+    def list(self, query, access=None):
         scope, params = scope_clause(self.principal)
         conditions = [scope]
         for key, column in {
@@ -131,7 +135,7 @@ class Repository:
             [*params, query["pageSize"], query["page"] * query["pageSize"]],
         ).fetchall()
         return {
-            "items": [serialize(row) for row in rows],
+            "items": [serialize(row, access) for row in rows],
             "pagination": {
                 "page": int(query["page"]),
                 "pageSize": int(query["pageSize"]),

@@ -276,6 +276,84 @@ h3 {
   background: #f1f5ef;
   color: #243b15;
 }
+.cluster-actions-cell {
+  width: 54px;
+  overflow: visible;
+  text-align: right;
+}
+.cluster-action-menu {
+  position: relative;
+  display: inline-block;
+}
+.cluster-action-trigger {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #536052;
+}
+.cluster-action-trigger:hover,
+.cluster-action-trigger:focus-visible,
+.cluster-action-trigger[aria-expanded="true"] {
+  background: #eef5e5;
+  color: #243b15;
+}
+.cluster-action-popover {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #d8e0da;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgb(20 32 25 / 16%);
+  text-align: left;
+}
+.cluster-action-item {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  border: 0;
+  border-bottom: 1px solid #edf1ee;
+  padding: 10px 13px;
+  background: #fff;
+  color: #334039;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+.cluster-action-item:last-child {
+  border-bottom: 0;
+}
+.cluster-action-item:hover,
+.cluster-action-item:focus-visible {
+  background: #f1f5ef;
+}
+.cluster-action-item.danger {
+  color: #a12727;
+}
+.cluster-action-item:disabled {
+  cursor: not-allowed;
+  color: #89938d;
+}
+.cluster-action-item small {
+  color: #89938d;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+.cluster-action-empty {
+  padding: 14px;
+  color: #6d7871;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
 .public-shell {
   min-height: 100vh;
   background:

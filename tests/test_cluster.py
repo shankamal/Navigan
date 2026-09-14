@@ -219,6 +219,8 @@ def test_cluster_capacity_lifecycle_actions(action, initial, target):
         "CLU-test", action, {"version": 1, "comments": "approved operation"}
     )
     assert updated["status"] == target
+    assert updated["workflow"]["currentExecution"]["mode"] == action
+    assert updated["workflow"]["currentExecution"]["buildId"] == "build-id"
     provisioner.start.assert_called_once()
 
 

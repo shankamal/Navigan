@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const clusterActionSchema = z.object({
+  code: z.string(),
+  label: z.string(),
+  enabled: z.boolean(),
+  disabledReason: z.string().nullable().optional(),
+  destructive: z.boolean(),
+  confirmation: z.string().nullable().optional(),
+});
+
 export const clusterSchema = z.object({
   clusterId: z.string(),
   customerId: z.string(),
@@ -21,6 +30,7 @@ export const clusterSchema = z.object({
   providerExecutionId: z.string().nullable().optional(),
   outputs: z.record(z.string(), z.unknown()).optional(),
   workflow: z.record(z.string(), z.unknown()).optional(),
+  allowedActions: z.array(clusterActionSchema).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -32,7 +42,9 @@ export const clusterListSchema = z.object({
 });
 export const executionLogsSchema = z.object({
   status: z.string(),
+  operation: z.string().nullable().optional(),
   executionId: z.string().optional(),
+  errorCode: z.string().nullable().optional(),
   complete: z.boolean(),
   events: z.array(
     z.object({
@@ -70,3 +82,5 @@ export interface ClusterFilters {
   search?: string;
 }
 export type ExecutionLogs = z.infer<typeof executionLogsSchema>;
+export type Cluster = z.infer<typeof clusterSchema>;
+export type ClusterAction = z.infer<typeof clusterActionSchema>;

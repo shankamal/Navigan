@@ -1,11 +1,19 @@
 "use client";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   CloudCog,
+  EllipsisVertical,
   Network,
   Plus,
   Search,
@@ -28,6 +36,8 @@ import { customersService } from "@/modules/customer-management/services/custome
 import { useClusterCount, useClusters } from "./hooks/queries";
 import { clusters } from "./service";
 import type {
+  Cluster,
+  ClusterAction,
   ClusterFilters,
   ClusterInput,
   ClusterNodeGroupInput,
@@ -120,19 +130,174 @@ const statusLabels: Record<string, string> = {
   PLAN_READY: "Plan ready",
   APPLYING: "Applying",
   ACTIVE: "Active",
-  STOPPING: "Stopping",
-  STOPPED: "Stopped",
-  STARTING: "Starting",
+  STOPPING: "Scaling workers to zero",
+  STOPPED: "Worker capacity stopped",
+  STARTING: "Restoring worker capacity",
   DELETING: "Deleting",
   DELETED: "Deleted",
   FAILED: "Failed",
   REJECTED: "Rejected",
 };
 
+function clusterStatusLabel(status: string): string {
+  return statusLabels[status] || status.replaceAll("_", " ");
+}
+
 type ClusterAdminMode = "directory" | "reviews" | "operations";
 
 interface ClusterAdminPageProps {
   mode?: ClusterAdminMode;
+}
+
+const directOperations: Partial<
+  Record<ClusterAction["code"], "stop" | "start" | "delete">
+> = {
+  STOP: "stop",
+  START: "start",
+  DELETE: "delete",
+};
+
+function ClusterActionMenu({
+  cluster,
+  busy,
+  onAction,
+}: {
+  cluster: Cluster;
+  busy: boolean;
+  onAction: (cluster: Cluster, action: ClusterAction) => void;
+}) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<CSSProperties>();
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        !trigger.current?.contains(target) &&
+        !popup.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", () => setOpen(false), { once: true });
+    window.addEventListener("scroll", () => setOpen(false), {
+      capture: true,
+      once: true,
+    });
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const rect = trigger.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 260;
+    const estimatedHeight = Math.min(
+      360,
+      Math.max(56, cluster.allowedActions.length * 58),
+    );
+    const opensAbove =
+      rect.bottom + estimatedHeight + 12 > window.innerHeight &&
+      rect.top > estimatedHeight;
+    setPosition({
+      left: Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12)),
+      top: opensAbove
+        ? Math.max(12, rect.top - estimatedHeight - 4)
+        : rect.bottom + 4,
+      width,
+    });
+    setOpen(true);
+  };
+  const items =
+    cluster.allowedActions.length > 0 ? (
+      cluster.allowedActions.map((action) => {
+        const operation = directOperations[action.code];
+        if (!operation && action.enabled) {
+          return (
+            <Link
+              key={action.code}
+              href={`/clusters/${cluster.clusterId}`}
+              role="menuitem"
+              className="cluster-action-item"
+              onClick={() => setOpen(false)}
+            >
+              {action.label}
+            </Link>
+          );
+        }
+        return (
+          <button
+            key={action.code}
+            type="button"
+            role="menuitem"
+            className={`cluster-action-item ${
+              action.destructive ? "danger" : ""
+            }`}
+            disabled={!action.enabled || busy}
+            title={action.disabledReason || undefined}
+            onClick={() => {
+              setOpen(false);
+              onAction(cluster, action);
+            }}
+          >
+            <span>{action.label}</span>
+            {!action.enabled && action.disabledReason && (
+              <small>{action.disabledReason}</small>
+            )}
+          </button>
+        );
+      })
+    ) : (
+      <div className="cluster-action-empty" role="status">
+        Actions are unavailable until the Dev backend capability update is
+        deployed.
+      </div>
+    );
+  return (
+    <div className="cluster-action-menu">
+      <button
+        ref={trigger}
+        type="button"
+        className="cluster-action-trigger"
+        aria-label={`Actions for ${cluster.clusterName}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`Actions for ${cluster.clusterName}`}
+        onClick={toggle}
+      >
+        <EllipsisVertical size={20} aria-hidden="true" />
+      </button>
+      {open &&
+        position &&
+        createPortal(
+          <div
+            ref={popup}
+            className="cluster-action-popover"
+            role="menu"
+            aria-label={`Actions for ${cluster.clusterName}`}
+            style={position}
+          >
+            {items}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
 }
 
 const initialStatusByMode: Record<ClusterAdminMode, string | undefined> = {
@@ -145,6 +310,31 @@ export function ClusterAdminPage({
   mode = "directory",
 }: ClusterAdminPageProps = {}) {
   const { identity } = useAuth();
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<unknown>();
+  const operation = useMutation({
+    mutationFn: async ({
+      cluster,
+      action,
+      reason,
+    }: {
+      cluster: Cluster;
+      action: "stop" | "start" | "delete";
+      reason: string;
+    }) =>
+      clusters.action(
+        cluster.clusterId,
+        action,
+        cluster.version,
+        reason,
+      ),
+    onSuccess: async () => {
+      setActionError(undefined);
+      await queryClient.invalidateQueries({ queryKey: ["clusters"] });
+      await queryClient.invalidateQueries({ queryKey: ["cluster-count"] });
+    },
+    onError: setActionError,
+  });
   const [filters, setFilters] = useState<ClusterFilters>({
     page: 0,
     pageSize: 20,
@@ -207,6 +397,24 @@ export function ClusterAdminPage({
   };
   const filter = (values: Partial<ClusterFilters>) =>
     setFilters((old) => ({ ...old, ...values, page: 0 }));
+  const runAction = (cluster: Cluster, action: ClusterAction) => {
+    const operationCode = directOperations[action.code];
+    if (!operationCode || !action.enabled) return;
+    const reason =
+      operationCode === "delete"
+        ? window.prompt(
+            "Provide the required reason for deleting this cluster:",
+          )?.trim()
+        : action.label;
+    if (!reason) return;
+    if (action.confirmation && !window.confirm(action.confirmation)) return;
+    setActionError(undefined);
+    operation.mutate({
+      cluster,
+      action: operationCode,
+      reason,
+    });
+  };
   return (
     <>
       <PageHeading
@@ -234,6 +442,7 @@ export function ClusterAdminPage({
           )
         }
       />
+      {actionError && <ErrorNotice error={actionError} />}
       <div className="metrics-grid">
         {metrics.map((metric) => (
           <div className="metric" key={metric.label}>
@@ -345,6 +554,9 @@ export function ClusterAdminPage({
                     <th>Customer</th>
                     <th>Status</th>
                     <th>Updated</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -368,10 +580,21 @@ export function ClusterAdminPage({
                             "status-badge status-" + row.status.toLowerCase()
                           }
                         >
-                          {row.status.replaceAll("_", " ")}
+                          {clusterStatusLabel(row.status)}
                         </span>
                       </td>
                       <td>{formatDate(row.updatedAt)}</td>
+                      <td className="cluster-actions-cell">
+                        <ClusterActionMenu
+                          cluster={row}
+                          busy={
+                            operation.isPending &&
+                            operation.variables?.cluster.clusterId ===
+                              row.clusterId
+                          }
+                          onAction={runAction}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1037,6 +1260,77 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const configuration = objectValue(row.configuration);
   const nodeGroups = arrayValue(configuration.nodeGroups);
   const workflow = objectValue(row.workflow);
+  const executionOperation =
+    logs.data?.operation ||
+    textValue(objectValue(workflow.currentExecution).mode, "") ||
+    textValue(objectValue(workflow.lastExecution).mode, "");
+  const executionCopy: Record<
+    string,
+    { eyebrow: string; title: string; description: string; steps: string[] }
+  > = {
+    plan: {
+      eyebrow: "TERRAFORM PLANNING",
+      title: "Plan progress",
+      description: "Validation, security checks and Terraform planning for this request.",
+      steps: ["Request approved", "Configuration validated", "Plan certified"],
+    },
+    apply: {
+      eyebrow: "CLUSTER PROVISIONING",
+      title: "Provisioning progress",
+      description: "Terraform and AWS progress for this cluster provisioning operation.",
+      steps: ["Plan certified", "Infrastructure applying", "Cluster active"],
+    },
+    stop: {
+      eyebrow: "CLUSTER LIFECYCLE",
+      title: "Stop operation",
+      description: "AWS progress for scaling the cluster worker capacity to zero.",
+      steps: [
+        "Stop requested",
+        "Node groups scaling down",
+        "Worker capacity scaled to zero",
+      ],
+    },
+    start: {
+      eyebrow: "CLUSTER LIFECYCLE",
+      title: "Start operation",
+      description: "AWS progress for restoring the approved worker capacity.",
+      steps: ["Start requested", "Node groups scaling up", "Cluster active"],
+    },
+    delete: {
+      eyebrow: "CLUSTER LIFECYCLE",
+      title: "Delete operation",
+      description: "Terraform and AWS progress for decommissioning this cluster.",
+      steps: ["Deletion requested", "Infrastructure destroying", "Cluster deleted"],
+    },
+  };
+  const executionPresentation =
+    executionCopy[executionOperation] || executionCopy.apply;
+  const executionTargetStatus: Record<string, string> = {
+    plan: "PLAN_READY",
+    apply: "ACTIVE",
+    stop: "STOPPED",
+    start: "ACTIVE",
+    delete: "DELETED",
+  };
+  const executionReachedTarget =
+    Boolean(executionOperation) &&
+    row.status === executionTargetStatus[executionOperation];
+  const executionFailed =
+    logs.data?.complete &&
+    (Boolean(logs.data.errorCode) ||
+      textValue(objectValue(workflow.lastExecution).status, "") !==
+        "SUCCEEDED") &&
+    !executionReachedTarget;
+  const historicalExecution =
+    Boolean(logs.data?.complete) &&
+    Boolean(executionOperation) &&
+    !executionReachedTarget;
+  const showExecutionPanel =
+    Boolean(row.providerExecutionId) &&
+    (!historicalExecution || row.status === "FAILED");
+  const executionTitle = historicalExecution
+    ? `Previous ${executionPresentation.title.toLowerCase()}`
+    : executionPresentation.title;
   const validation = objectValue(workflow.validation);
   const securityScan = objectValue(workflow.securityScan);
   const certification = objectValue(workflow.certification);
@@ -1122,7 +1416,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
   return (
     <>
       <PageHeading
-        eyebrow="CONTAINER PROVISIONING"
+        eyebrow="CLUSTER MANAGEMENT"
         title={row.clusterName}
         description={
           row.platform +
@@ -1139,7 +1433,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
           <section className="panel panel-padding cluster-review-hero">
             <div className="cluster-review-status">
               <span className={"status-badge status-" + row.status.toLowerCase()}>
-                {row.status.replaceAll("_", " ")}
+                {clusterStatusLabel(row.status)}
               </span>
               <span>Request version {row.version}</span>
             </div>
@@ -1336,14 +1630,16 @@ export function ClusterRequestPage({ id }: { id: string }) {
               )}
             </section>
           )}
-          {row.providerExecutionId && (
+          {showExecutionPanel && (
             <section className="panel panel-padding execution-console">
               <header>
                 <div>
-                  <span className="eyebrow">LIVE EXECUTION</span>
-                  <h2>Provisioning progress</h2>
+                  <span className="eyebrow">{executionPresentation.eyebrow}</span>
+                  <h2>{executionTitle}</h2>
                   <p className="muted">
-                    Sanitized Terraform and AWS progress from this request only.
+                    {historicalExecution
+                      ? `Historical execution record. The cluster's current lifecycle state is ${clusterStatusLabel(row.status)}.`
+                      : executionPresentation.description}
                   </p>
                 </div>
                 <span className={`execution-state ${logs.data?.complete ? "complete" : "running"}`}>
@@ -1352,17 +1648,33 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 </span>
               </header>
               <div className="execution-progress" aria-label="Execution progress">
-                {[
-                  ["Request approved", true],
-                  ["Plan certified", Boolean(row.planSha256)],
-                  ["Infrastructure applied", row.status === "ACTIVE"],
-                ].map(([label, complete]) => (
-                  <div className={complete ? "complete" : ""} key={String(label)}>
+                {executionPresentation.steps.map((label, index) => (
+                  <div
+                    className={
+                      index === 0 ||
+                      (index === 1 &&
+                        (!logs.data?.complete || executionReachedTarget)) ||
+                      (index === 2 && executionReachedTarget)
+                        ? "complete"
+                        : ""
+                    }
+                    key={label}
+                  >
                     <span aria-hidden="true" />
                     <strong>{label}</strong>
                   </div>
                 ))}
               </div>
+              {executionFailed && (
+                <div className="error-notice" role="alert">
+                  <strong>{executionPresentation.title} failed.</strong>
+                  <span>
+                    {logs.data?.errorCode
+                      ? ` AWS reported ${logs.data.errorCode}. Review the latest execution events below.`
+                      : " Review the latest execution events below for the failure reason."}
+                  </span>
+                </div>
+              )}
               <div className="execution-log" role="log" aria-live="polite">
                 {logs.isPending && <p>Connecting to the execution log…</p>}
                 {logs.error && <p>Live log is temporarily unavailable.</p>}
