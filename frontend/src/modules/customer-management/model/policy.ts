@@ -1,5 +1,6 @@
 import type { Identity } from "@/shared/auth/claims";
 import type { Customer, CustomerStatus, WorkflowAction } from "./types";
+import { hasPermission } from "@/shared/auth/permissions";
 export const statusLabels: Record<CustomerStatus, string> = {
   DRAFT: "Draft",
   SUBMITTED: "Submitted",
@@ -18,10 +19,10 @@ export const cloudProviders = [
   { code: "OCI", name: "Oracle Cloud Infrastructure", shortName: "OCI" },
 ];
 export const canCreate = (identity: Identity | null) =>
-  Boolean(identity?.roles.includes("CLOUD_ENGINEER") && identity.canCreate);
+  hasPermission(identity, "customer.create");
 export const canEdit = (identity: Identity | null, customer: Customer) =>
   Boolean(
-    identity?.roles.includes("CLOUD_ENGINEER") &&
+    hasPermission(identity, "customer.edit") &&
     ["DRAFT", "REJECTED"].includes(customer.status),
   );
 export function allowedActions(
@@ -30,7 +31,7 @@ export function allowedActions(
 ): WorkflowAction[] {
   if (!identity) return [];
   if (
-    identity.roles.includes("CLOUD_ENGINEER") &&
+    hasPermission(identity, "customer.submit") &&
     ["DRAFT", "REJECTED"].includes(customer.status)
   )
     return [
@@ -42,7 +43,8 @@ export function allowedActions(
             : "Submit for review",
       },
     ];
-  if (!identity.roles.includes("PLATFORM_ARCHITECT")) return [];
+  const canReview = hasPermission(identity, "customer.review");
+  const canApprove = hasPermission(identity, "customer.approve");
   if (
     ["SUBMITTED", "UNDER_REVIEW"].includes(customer.status) &&
     [customer.createdBy, customer.submittedBy].includes(identity.subject)
@@ -50,9 +52,12 @@ export function allowedActions(
     return [];
   switch (customer.status) {
     case "SUBMITTED":
-      return [{ action: "review/start", label: "Start review" }];
+      return canReview
+        ? [{ action: "review/start", label: "Start review" }]
+        : [];
     case "UNDER_REVIEW":
-      return [
+      return canApprove
+        ? [
         { action: "approve", label: "Approve customer" },
         {
           action: "reject",
@@ -60,26 +65,39 @@ export function allowedActions(
           destructive: true,
           reasonRequired: true,
         },
-      ];
+          ]
+        : [];
     case "APPROVED":
-      return [{ action: "activate", label: "Activate customer" }];
+      return hasPermission(identity, "customer.activate")
+        ? [{ action: "activate", label: "Activate customer" }]
+        : [];
     case "ACTIVE":
       return [
+        ...(hasPermission(identity, "customer.suspend")
+          ? [
         {
-          action: "suspend",
+          action: "suspend" as const,
           label: "Suspend customer",
           destructive: true,
           reasonRequired: true,
         },
+            ]
+          : []),
+        ...(hasPermission(identity, "customer.deactivate")
+          ? [
         {
-          action: "deactivate",
+          action: "deactivate" as const,
           label: "Deactivate customer",
           destructive: true,
           reasonRequired: true,
         },
+            ]
+          : []),
       ];
     case "SUSPENDED":
-      return [{ action: "reactivate", label: "Reactivate customer" }];
+      return hasPermission(identity, "customer.suspend")
+        ? [{ action: "reactivate", label: "Reactivate customer" }]
+        : [];
     default:
       return [];
   }

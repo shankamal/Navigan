@@ -96,7 +96,10 @@ def assumed_clients(request, baseline, external_id):
         "aws_session_token": credentials["SessionToken"],
         "config": Config(retries={"mode": "standard", "max_attempts": 8}),
     }
-    return {name: boto3.client(name, **options) for name in ("sts", "ec2", "iam", "kms")}
+    return {
+        name: boto3.client(name, **options)
+        for name in ("sts", "ec2", "iam", "kms", "eks")
+    }
 
 
 def preflight(request, baseline, external_id):
@@ -249,6 +252,35 @@ try:
         run("terraform", "apply", "-input=false", "-auto-approve", "terraform.tfplan")
         raw = subprocess.check_output(["terraform", "output", "-json"], cwd=work)
         put_result({"success": True, "mode": mode, "outputs": json.loads(raw)})
+    elif mode in {"stop", "start"}:
+        clients = assumed_clients(request, baseline, external_id)
+        updates = []
+        for group in request["configuration"]["nodeGroups"]:
+            scaling = (
+                {"minSize": 0, "desiredSize": 0, "maxSize": group["maxSize"]}
+                if mode == "stop"
+                else {
+                    "minSize": group["minSize"],
+                    "desiredSize": group["desiredSize"],
+                    "maxSize": group["maxSize"],
+                }
+            )
+            response = clients["eks"].update_nodegroup_config(
+                clusterName=request["clusterName"],
+                nodegroupName=group["name"],
+                scalingConfig=scaling,
+            )
+            update_id = response["update"]["id"]
+            clients["eks"].get_waiter("nodegroup_active").wait(
+                clusterName=request["clusterName"],
+                nodegroupName=group["name"],
+                WaiterConfig={"Delay": 30, "MaxAttempts": 120},
+            )
+            updates.append({"nodeGroup": group["name"], "updateId": update_id})
+        put_result({"success": True, "mode": mode, "nodeGroupUpdates": updates})
+    elif mode == "delete":
+        run("terraform", "destroy", "-input=false", "-auto-approve")
+        put_result({"success": True, "mode": mode})
     else:
         raise ValueError("Unsupported execution mode.")
 except Exception as error:

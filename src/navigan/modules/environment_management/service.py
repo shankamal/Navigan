@@ -5,7 +5,6 @@ from navigan.shared.errors import ApiError
 from navigan.shared.diagnostics import phase
 from .configuration import DISTRIBUTIONS, validate
 from .repository import serialize
-from .readiness import require_ready
 
 TRANSITIONS = {
     "revise": ({"ACTIVE"}, "DRAFT", "ENVIRONMENT_AUTHOR"),
@@ -132,17 +131,6 @@ class Service:
                         row["configuration_schema_version"],
                         submitting=True,
                     )
-                if action in {"submit", "resubmit", "approve"} and row["kubernetes_distribution"] == "EKS":
-                    with phase("environment_blueprint_readiness_gate"):
-                        readiness = require_ready(row["configuration"])
-                    row["workflow"]["blueprintReadiness"] = {
-                        "by": self.principal.user_id,
-                        "at": datetime.now(timezone.utc).isoformat(),
-                        "status": readiness["status"],
-                        "score": readiness["score"],
-                        "blockingCount": readiness["blockingCount"],
-                        "warningCount": readiness["warningCount"],
-                    }
             row["status"] = target
             field = {
                 "revise": "revisionStarted",

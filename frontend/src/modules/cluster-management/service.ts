@@ -31,14 +31,27 @@ export const clusters = {
     ).data),
   action: async (
     id: string,
-    action: "submit" | "review" | "approve" | "reject" | "plan" | "apply",
+    action:
+      | "submit"
+      | "review"
+      | "approve"
+      | "reject"
+      | "plan"
+      | "apply"
+      | "stop"
+      | "start"
+      | "delete",
     version: number,
     comments = "",
   ) =>
     parseResponse(clusterSchema, (
       await apiClient.post(
         base + "/" + id + "/" + action,
-        { version, comments, ...(action === "reject" ? { reason: comments } : {}) },
+        {
+          version,
+          comments,
+          ...(["reject", "delete"].includes(action) ? { reason: comments } : {}),
+        },
         { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
       )
     ).data),

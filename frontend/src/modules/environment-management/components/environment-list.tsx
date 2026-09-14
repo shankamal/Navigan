@@ -25,59 +25,110 @@ import {
   useMetadata,
 } from "../hooks/queries";
 import type { Filters } from "../model/types";
-export function EnvironmentList() {
+
+interface EnvironmentListProps {
+  mode?: "directory" | "reviews";
+}
+
+export function EnvironmentList({
+  mode = "directory",
+}: EnvironmentListProps = {}) {
   const { identity } = useAuth();
   const [filters, setFilters] = useState<Filters>({
     page: 0,
     pageSize: 20,
     sort: "createdAt,desc",
+    status: mode === "reviews" ? "SUBMITTED" : undefined,
   });
   const query = useEnvironments(filters);
   const metadata = useMetadata();
-  const total = useEnvironmentCount();
-  const active = useEnvironmentCount("ACTIVE");
+  const total = useEnvironmentCount(undefined, mode === "directory");
+  const active = useEnvironmentCount("ACTIVE", mode === "directory");
   const submitted = useEnvironmentCount("SUBMITTED");
   const review = useEnvironmentCount("UNDER_REVIEW");
-  const draft = useEnvironmentCount("DRAFT");
-  const metrics = [
-    {
-      label: "Total environments",
-      value: total.data,
-      icon: Layers3,
-      note: "Reusable infrastructure profiles",
-    },
-    {
-      label: "Active",
-      value: active.data,
-      icon: CheckCircle2,
-      note: "Approved for cluster requests",
-    },
-    {
-      label: "Awaiting approval",
-      value:
-        submitted.data !== undefined && review.data !== undefined
-          ? submitted.data + review.data
-          : undefined,
-      icon: ClipboardList,
-      note: "Submitted and under review",
-    },
-    {
-      label: "Drafts",
-      value: draft.data,
-      icon: FilePenLine,
-      note: "Environment profiles in progress",
-    },
-  ];
+  const draft = useEnvironmentCount("DRAFT", mode === "directory");
+  const approved = useEnvironmentCount("APPROVED", mode === "reviews");
+  const rejected = useEnvironmentCount("REJECTED", mode === "reviews");
+  const metrics =
+    mode === "reviews"
+      ? [
+          {
+            label: "Submitted",
+            value: submitted.data,
+            icon: ClipboardList,
+            note: "Waiting for a reviewer",
+          },
+          {
+            label: "Under review",
+            value: review.data,
+            icon: FilePenLine,
+            note: "Review currently in progress",
+          },
+          {
+            label: "Approved",
+            value: approved.data,
+            icon: CheckCircle2,
+            note: "Approved environment revisions",
+          },
+          {
+            label: "Rejected",
+            value: rejected.data,
+            icon: Layers3,
+            note: "Returned for revision",
+          },
+        ]
+      : [
+          {
+            label: "Total environments",
+            value: total.data,
+            icon: Layers3,
+            note: "Reusable infrastructure profiles",
+          },
+          {
+            label: "Active",
+            value: active.data,
+            icon: CheckCircle2,
+            note: "Approved for cluster requests",
+          },
+          {
+            label: "Awaiting approval",
+            value:
+              submitted.data !== undefined && review.data !== undefined
+                ? submitted.data + review.data
+                : undefined,
+            icon: ClipboardList,
+            note: "Submitted and under review",
+          },
+          {
+            label: "Drafts",
+            value: draft.data,
+            icon: FilePenLine,
+            note: "Environment profiles in progress",
+          },
+        ];
+  const availableStatuses =
+    mode === "reviews"
+      ? statuses.filter((status) =>
+          ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(status),
+        )
+      : statuses;
   const set = (key: string, value: string) =>
     setFilters((f) => ({ ...f, page: 0, [key]: value || undefined }));
   return (
     <>
       <PageHeading
         eyebrow="ENVIRONMENT MANAGEMENT"
-        title="Environment Dashboard"
-        description="Track reusable infrastructure profiles and create container environments across your clouds."
+        title={
+          mode === "reviews" ? "Environment Reviews" : "Environment Dashboard"
+        }
+        description={
+          mode === "reviews"
+            ? "Review submitted environment profiles and move approved requests through the governed lifecycle."
+            : "Track reusable infrastructure profiles and create container environments across your clouds."
+        }
         action={
-          hasPermission(identity, "environment.request.create") && (
+          mode === "directory" &&
+          hasPermission(identity, "environment.create") && (
             <Link className="button button-primary" href="/environments/new">
               <Plus size={18} />
               New Environment
@@ -100,10 +151,15 @@ export function EnvironmentList() {
       <section className="panel panel-padding environment-list-filters">
         <div className="environment-section-heading">
           <div>
-            <h2>Environment profiles</h2>
+            <h2>
+              {mode === "reviews"
+                ? "Environment review queue"
+                : "Environment profiles"}
+            </h2>
             <p className="muted">
-              Search and manage environment baselines across every lifecycle
-              status.
+              {mode === "reviews"
+                ? "Submitted requests are shown first. Change the status filter to inspect requests already under review."
+                : "Search and manage environment baselines across every lifecycle status."}
             </p>
           </div>
         </div>
@@ -134,8 +190,8 @@ export function EnvironmentList() {
               value={filters.status || ""}
               onChange={(e) => set("status", e.target.value)}
             >
-              <option value="">All statuses</option>
-              {statuses.map((v) => (
+              {mode === "directory" && <option value="">All statuses</option>}
+              {availableStatuses.map((v) => (
                 <option key={v}>{v}</option>
               ))}
             </select>
@@ -179,8 +235,17 @@ export function EnvironmentList() {
       ) : query.error ? (
         <ErrorNotice error={query.error} onRetry={() => query.refetch()} />
       ) : query.data && !query.data.items.length ? (
-        <EmptyState icon={<Layers3 />} title="No environments found">
-          Create your first environment or adjust the filters.
+        <EmptyState
+          icon={<Layers3 />}
+          title={
+            mode === "reviews"
+              ? "No environment requests in this review state"
+              : "No environments found"
+          }
+        >
+          {mode === "reviews"
+            ? "Choose another review status or return when new requests are submitted."
+            : "Create your first environment or adjust the filters."}
         </EmptyState>
       ) : (
         query.data && (

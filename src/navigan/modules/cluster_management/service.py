@@ -2,7 +2,6 @@ import copy
 import uuid
 from datetime import datetime, timezone
 from navigan.shared.errors import ApiError
-from .models import ClusterBlueprint
 from .repository import serialize
 from .provisioning import Provisioner
 
@@ -26,29 +25,25 @@ class Service:
             body["environmentId"], body.get("environmentApprovedVersion")
         )
         approved = environment["approved_version"]
-        env_configuration = (snapshot or {}).get("configuration") or {}
-        blueprints = env_configuration.get("clusters") or []
-        if not blueprints:
+        account_id = str(((snapshot or {}).get("configuration") or {}).get("account", {}).get("accountId", ""))
+        if f"::{account_id}:role/" not in body["provisioningRoleArn"]:
             raise ApiError(
                 422,
-                "ENVIRONMENT_MISSING_CLUSTER_CONFIG",
-                "The approved environment snapshot has no cluster blueprints. "
-                "Add a cluster blueprint to the environment and get it "
-                "re-approved before creating a Cluster Setup request.",
+                "PROVISIONING_ROLE_ACCOUNT_MISMATCH",
+                "The provisioning role must belong to the approved environment AWS account.",
             )
-        blueprint_block = next(
-            (b for b in blueprints if isinstance(b, dict) and b.get("name") == body.get("blueprintName")),
-            None,
-        )
-        if blueprint_block is None:
+        if f":{account_id}:secret:" not in body["externalIdSecretArn"]:
             raise ApiError(
                 422,
-                "CLUSTER_BLUEPRINT_NOT_FOUND",
-                "The requested cluster blueprint is not defined on the approved environment snapshot.",
+                "PROVISIONING_SECRET_ACCOUNT_MISMATCH",
+                "The provisioning secret must belong to the approved environment AWS account.",
             )
-        blueprint = ClusterBlueprint.model_validate(blueprint_block)
-        configuration = blueprint.model_dump(exclude={"provisioning", "name"})
-        configuration["blueprintName"] = blueprint.name
+        configuration = {
+            "kubernetesVersion": body["kubernetesVersion"],
+            "endpointAccess": body["endpointAccess"],
+            "nodeGroups": body["nodeGroups"],
+            "tags": body.get("tags", {}),
+        }
         now = datetime.now(timezone.utc)
         row = {
             "cluster_id": "CLU-" + uuid.uuid4().hex,
@@ -59,8 +54,8 @@ class Service:
             "cluster_name": body["clusterName"],
             "description": body.get("description"),
             "configuration": configuration,
-            "provisioning_role_arn": blueprint.provisioning.roleArn,
-            "external_id_secret_arn": blueprint.provisioning.externalIdSecretArn,
+            "provisioning_role_arn": body["provisioningRoleArn"],
+            "external_id_secret_arn": body["externalIdSecretArn"],
             "terraform_module_version": "1.0.0",
             "terraform_state_key": (
                 f"customers/{environment['customer_id']}/environments/"
@@ -125,11 +120,19 @@ class Service:
                 row["plan_artifact_key"] = prefix + "/terraform.tfplan"
                 row["plan_sha256"] = None
                 row["status"] = "PLAN_RUNNING"
-        elif action in {"plan", "apply"}:
+        elif action in {"plan", "apply", "stop", "start", "delete"}:
             self.principal.require("PLATFORM_ARCHITECT")
-            expected = {"FAILED", "PLAN_READY"} if action == "plan" else {"PLAN_READY"}
+            expected = {
+                "plan": {"FAILED", "PLAN_READY"},
+                "apply": {"PLAN_READY"},
+                "stop": {"ACTIVE"},
+                "start": {"STOPPED"},
+                "delete": {"ACTIVE", "STOPPED", "FAILED"},
+            }[action]
             if row["status"] not in expected:
                 raise ApiError(409, "INVALID_STATUS_TRANSITION", f"{action} is not allowed in the current status.")
+            if action == "delete" and not body.get("reason"):
+                raise ApiError(422, "REASON_REQUIRED", "Provide a deletion reason.")
             if action == "apply":
                 certification = row.get("workflow", {}).get("certification", {})
                 if certification.get("status") != "PASSED":
@@ -144,7 +147,13 @@ class Service:
             build_id, prefix = (self.provisioner or Provisioner()).start(action, row, snapshot)
             row["provider_execution_id"] = build_id
             row["execution_artifact_prefix"] = prefix
-            row["status"] = "PLAN_RUNNING" if action == "plan" else "APPLYING"
+            row["status"] = {
+                "plan": "PLAN_RUNNING",
+                "apply": "APPLYING",
+                "stop": "STOPPING",
+                "start": "STARTING",
+                "delete": "DELETING",
+            }[action]
             if action == "plan":
                 row["plan_artifact_key"] = prefix + "/terraform.tfplan"
                 row["plan_sha256"] = None

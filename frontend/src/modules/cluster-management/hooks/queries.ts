@@ -9,13 +9,14 @@ export const useClusters = (filters: ClusterFilters) =>
     retry: false,
   });
 
-export const useClusterCount = (status?: string) =>
+export const useClusterCount = (status?: string, enabled = true) =>
   useQuery({
     queryKey: ["cluster-count", status || "ALL"],
     queryFn: async () =>
       (await clusters.list({ page: 0, pageSize: 1, status })).pagination
         .totalElements,
     retry: false,
+    enabled,
   });
 
 export const useCluster = (id: string) =>

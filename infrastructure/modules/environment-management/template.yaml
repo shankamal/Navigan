@@ -229,6 +229,24 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
+  VerifyBootstrapRemediationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: POST /api/v1/environments/bootstrap-remediations/{requestId}/verify
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
   CreateEnvironmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn:

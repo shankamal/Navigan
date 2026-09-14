@@ -12,8 +12,13 @@ def request():
     return {
         "environmentId": "ENV-test",
         "environmentApprovedVersion": 7,
-        "blueprintName": "default",
         "clusterName": "navigan-dev-01",
+        "kubernetesVersion": "1.33",
+        "endpointAccess": "PRIVATE",
+        "nodeGroups": blueprint_configuration()["nodeGroups"],
+        "tags": {"CostCenter": "CC-100"},
+        "provisioningRoleArn": provisioning_configuration()["roleArn"],
+        "externalIdSecretArn": provisioning_configuration()["externalIdSecretArn"],
     }
 
 
@@ -43,7 +48,10 @@ def blueprint_configuration(name="default"):
 
 
 def environment_snapshot(missing_cluster=False):
-    configuration = {"location": {"region": "ap-south-1"}}
+    configuration = {
+        "account": {"accountId": "123456789012"},
+        "location": {"region": "ap-south-1"},
+    }
     if not missing_cluster:
         configuration["clusters"] = [blueprint_configuration()]
     return {"configuration": configuration}
@@ -112,11 +120,11 @@ def test_active_approved_baseline_remains_usable_during_revision():
     assert snapshot == environment_snapshot()
 
 
-def test_create_extracts_configuration_and_provisioning_from_blueprint():
+def test_create_owns_configuration_and_provisioning_on_cluster_request():
     repo = repository("CLOUD_ENGINEER")
     created = Service(repo, "correlation", MagicMock()).create(request())
     assert created["configuration"]["kubernetesVersion"] == "1.33"
-    assert created["configuration"]["blueprintName"] == "default"
+    assert "blueprintName" not in created["configuration"]
     assert created["provisioningRoleArn"].endswith("NaviganProvisioningRole")
     assert created["externalIdSecretArn"] == provisioning_configuration()["externalIdSecretArn"]
 
@@ -133,22 +141,24 @@ def test_create_captures_optional_description():
     assert created_without["description"] is None
 
 
-def test_create_fails_when_environment_snapshot_has_no_cluster_config():
+def test_create_does_not_require_environment_cluster_blueprint():
     repo = repository("CLOUD_ENGINEER", missing_cluster=True)
-    with pytest.raises(ApiError) as error:
-        Service(repo, "correlation", MagicMock()).create(request())
-    assert error.value.status == 422
-    assert error.value.code == "ENVIRONMENT_MISSING_CLUSTER_CONFIG"
+    created = Service(repo, "correlation", MagicMock()).create(request())
+    assert created["configuration"]["kubernetesVersion"] == "1.33"
 
 
-def test_create_fails_when_blueprint_name_not_found():
+def test_create_rejects_provisioning_role_from_another_account():
     repo = repository("CLOUD_ENGINEER")
     with pytest.raises(ApiError) as error:
         Service(repo, "correlation", MagicMock()).create(
-            {**request(), "blueprintName": "does-not-exist"}
+            {
+                **request(),
+                "provisioningRoleArn":
+                    "arn:aws:iam::999999999999:role/NaviganProvisioningRole",
+            }
         )
     assert error.value.status == 422
-    assert error.value.code == "CLUSTER_BLUEPRINT_NOT_FOUND"
+    assert error.value.code == "PROVISIONING_ROLE_ACCOUNT_MISMATCH"
 
 
 def test_architect_cannot_author_cluster_request():
@@ -194,6 +204,39 @@ def test_apply_rejects_uncertified_plan():
         )
 
     assert error.value.code == "PLAN_NOT_CERTIFIED"
+
+
+@pytest.mark.parametrize(
+    ("action", "initial", "target"),
+    [("stop", "ACTIVE", "STOPPING"), ("start", "STOPPED", "STARTING")],
+)
+def test_cluster_capacity_lifecycle_actions(action, initial, target):
+    value = row(initial)
+    repo = repository("PLATFORM_ARCHITECT", value, "architect")
+    provisioner = MagicMock()
+    provisioner.start.return_value = ("build-id", f"executions/{action}")
+    updated = Service(repo, "correlation", provisioner).change(
+        "CLU-test", action, {"version": 1, "comments": "approved operation"}
+    )
+    assert updated["status"] == target
+    provisioner.start.assert_called_once()
+
+
+def test_delete_requires_reason_and_uses_recorded_state():
+    value = row("ACTIVE")
+    repo = repository("PLATFORM_ARCHITECT", value, "architect")
+    with pytest.raises(ApiError) as error:
+        Service(repo, "correlation", MagicMock()).change(
+            "CLU-test", "delete", {"version": 1}
+        )
+    assert error.value.code == "REASON_REQUIRED"
+
+    provisioner = MagicMock()
+    provisioner.start.return_value = ("build-id", "executions/delete")
+    updated = Service(repo, "correlation", provisioner).change(
+        "CLU-test", "delete", {"version": 1, "reason": "Obsolete test cluster"}
+    )
+    assert updated["status"] == "DELETING"
 
 
 def test_approval_automatically_starts_terraform_plan():

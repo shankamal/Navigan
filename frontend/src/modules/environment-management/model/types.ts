@@ -243,6 +243,7 @@ export const bootstrapRemediationSchema = z.object({
   discoveryRoleArn: z.string(),
   missingResources: z.array(z.string()),
   requestedActions: z.array(z.string()),
+  desiredResources: z.record(z.string(), z.string()).default({}),
   status: z.enum([
     "REQUESTED",
     "APPROVED",
@@ -260,6 +261,14 @@ export const bootstrapRemediationSchema = z.object({
   decidedBy: z.string().nullable().optional(),
   decidedAt: z.string().nullable().optional(),
   decisionReason: z.string().nullable().optional(),
+  verificationDetails: z
+    .object({
+      found: z.record(z.string(), z.string()).default({}),
+      missing: z.array(z.string()).default([]),
+    })
+    .default({ found: {}, missing: [] }),
+  verifiedBy: z.string().nullable().optional(),
+  verifiedAt: z.string().nullable().optional(),
   version: z.number().int().positive(),
   correlationId: z.string(),
 });
@@ -275,6 +284,7 @@ export interface BootstrapRemediationInput {
   discoveryRoleArn: string;
   missingResources: string[];
   requestedActions: string[];
+  desiredResources: Record<string, string>;
   confirmed: true;
 }
 export interface BootstrapRemediationFilters {
@@ -287,6 +297,10 @@ export interface BootstrapRemediationFilters {
 export interface BootstrapRemediationDecisionInput {
   version: number;
   reason?: string;
+}
+export interface BootstrapRemediationVerificationInput {
+  version: number;
+  externalId: string;
 }
 export interface Filters {
   page: number;

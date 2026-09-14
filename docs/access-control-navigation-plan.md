@@ -4,6 +4,9 @@
 
 | Item | Status |
 |---|---|
+| Priority 0: separate environment baseline from cluster configuration | Approved for implementation |
+| Priority 0: cluster start, stop and governed deletion | Approved for implementation |
+| Priority 0: governed resource fulfilment and end-to-end cluster readiness | Approved for implementation |
 | Requirements baseline | Approved |
 | Privilege catalogue | Draft for approval |
 | Scope model | Draft for approval |
@@ -11,6 +14,61 @@
 | Clustered sidebar | Draft for approval |
 | Application implementation | Not started |
 | Dashboard development | On hold |
+
+## Priority 0: environment and cluster responsibility separation
+
+This change takes precedence over the remaining dashboard and access-management
+UI work.
+
+| Phase | Requirement | Target ownership | Status |
+|---|---|---|---|
+| P0.1 | Remove cluster blueprints from Environment creation and revision | Environment retains customer, account, region, network, security, IAM, encryption, connectivity and baseline tags | Implemented locally |
+| P0.2 | Move cluster name, Kubernetes version and API endpoint access | Cluster request | Implemented locally |
+| P0.3 | Move node groups, instance types, capacity type, scaling and storage | Cluster request | Implemented locally |
+| P0.4 | Move provisioning role, external-ID secret and cluster tags | Cluster request, validated against the selected active Environment | Implemented locally |
+| P0.5 | Preserve the approved Environment version as the immutable infrastructure baseline used by planning and apply | Cluster request reference | Implemented locally |
+| P0.6 | Add Stop and Start lifecycle actions | Cluster Operations; Stop scales managed worker groups to zero while the EKS control plane remains active | Implemented locally; backend integration test pending |
+| P0.7 | Add governed Delete action | Cluster Operations; explicit confirmation, authorization, audit history and asynchronous Terraform destroy | Implemented locally; backend integration test pending |
+| P0.8 | Identify and remove the obsolete test cluster | AWS Dev account only, after exact cluster identity and state ownership are verified | Awaiting target verification |
+
+### Safety and lifecycle rules
+
+1. Environment approval must not approve Kubernetes versions, endpoint modes,
+   worker sizing or cluster credentials.
+2. Cluster configuration is versioned and independently reviewed before plan
+   and apply.
+3. Stop means scaling managed worker capacity to zero. It does not stop or
+   remove the managed EKS control plane.
+4. Start restores the last approved node-group minimum and desired capacities.
+5. Delete is asynchronous and must use the cluster's recorded Terraform state;
+   it must not directly delete an unverified AWS cluster.
+6. Production lifecycle actions remain unavailable until they have passed Dev
+   validation and explicit promotion approval.
+
+## Priority 0: governed resource fulfilment and cluster readiness
+
+This workflow is the prerequisite path between AWS discovery and an approvable
+Environment baseline.
+
+| Phase | Requirement | Status |
+|---|---|---|
+| RF.1 | Let the requester use an eligible discovered resource or request a dedicated managed resource | In progress |
+| RF.2 | Capture validated user-specified names without accepting executable code or IAM policy documents | In progress |
+| RF.3 | Persist requested specifications in the remediation request, history and architect review | In progress |
+| RF.4 | Generate immutable, versioned Terraform input and a downloadable administrator package | Planned |
+| RF.5 | Require independent plan approval before customer-account changes | Existing foundation; extension planned |
+| RF.6 | Monitor execution, rerun discovery and verify every created resource is eligible | Planned |
+| RF.7 | Attach only verified resources to the Environment revision | Planned |
+| RF.8 | Permit Environment submission only when its complete baseline is verified | Planned |
+| RF.9 | Provision the Cluster from the active Environment baseline and independently approved cluster specification | In progress |
+| RF.10 | Mark a cluster ACTIVE only after control-plane, node-group and Kubernetes node readiness checks pass | Planned |
+
+End-to-end state flow:
+
+`DISCOVERED → RESOURCE_REQUESTED → PLAN_READY → APPROVED → EXECUTING → REDISCOVERING → BASELINE_VERIFIED → ENVIRONMENT_ACTIVE → CLUSTER_PLANNED → CLUSTER_APPLYING → HEALTH_VERIFYING → ACTIVE`
+
+Failed verification must result in `REMEDIATION_REQUIRED` or `FAILED`; it must
+never result in an incorrectly ACTIVE environment or cluster.
 
 ## Design principles
 

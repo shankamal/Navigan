@@ -97,7 +97,9 @@ def execution_logs(row):
         "status": row["status"],
         "executionId": build_id,
         "events": events[-200:],
-        "complete": row["status"] not in {"PLAN_RUNNING", "APPLYING"},
+        "complete": row["status"] not in {
+            "PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"
+        },
     }
 
 
@@ -113,7 +115,9 @@ def execute(event, principal, correlation):
     action = parts[1] if len(parts) == 2 else ""
     read = method == "GET" and (len(parts) <= 1 or (len(parts) == 2 and action == "execution-logs"))
     write = (
-        (method == "POST" and (not parts or action in {*TRANSITIONS, "plan", "apply"}))
+        (method == "POST" and (
+            not parts or action in {*TRANSITIONS, "plan", "apply", "stop", "start", "delete"}
+        ))
         or (method == "PUT" and len(parts) == 1)
     )
     if not read and not write:
@@ -155,7 +159,9 @@ def execute(event, principal, correlation):
             return result
         service = Service(repo, correlation)
         value = service.create(body) if not identifier else service.change(identifier, action or "update", body)
-        status = 201 if not identifier else 202 if action in {"approve", "plan", "apply"} else 200
+        status = 201 if not identifier else 202 if action in {
+            "approve", "plan", "apply", "stop", "start", "delete"
+        } else 200
         customer_repo.idempotency_put(operation, key, fingerprint, {"status": status, "body": value})
         return response(status, value, correlation)
 

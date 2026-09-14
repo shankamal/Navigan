@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Navigan dynamic access-management API
+Parameters:
+  JwtScope:
+    Type: String
+    Default: navigan/api
+  DatabaseName:
+    Type: String
+    Default: navigan
+  DatabaseProxyHost:
+    Type: String
+  ApiDatabaseSecretArn:
+    Type: String
+  SecretsKmsKeyArn:
+    Type: String
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  LambdaSecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  RdsCaLayerArn:
+    Type: String
+  ApiId:
+    Type: String
+  AuthorizerId:
+    Type: String
+Resources:
+  AccessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: navigan.modules.access_management.handler.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      Timeout: 15
+      MemorySize: 256
+      ReservedConcurrentExecutions: 10
+      CodeUri: ../../../src/
+      Layers:
+        - Ref: RdsCaLayerArn
+      VpcConfig:
+        SubnetIds:
+          Ref: PrivateSubnetIds
+        SecurityGroupIds:
+          Ref: LambdaSecurityGroupIds
+      Environment:
+        Variables:
+          DB_PROXY_HOST:
+            Ref: DatabaseProxyHost
+          DB_NAME:
+            Ref: DatabaseName
+          DB_SECRET_ARN:
+            Ref: ApiDatabaseSecretArn
+          DB_CA_BUNDLE: /opt/certs/global-bundle.pem
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource:
+                Ref: ApiDatabaseSecretArn
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource:
+                Ref: SecretsKmsKeyArn
+  AccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AccessFunction}
+      RetentionInDays: 30
+  AccessIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ApiId
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri:
+        Fn::GetAtt: [AccessFunction, Arn]
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 14000
+  AccessInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: AccessFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount:
+        Ref: AWS::AccountId
+      SourceArn:
+        Fn::Sub: arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/access/me
+  GetCurrentAccessRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: AccessInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/access/me
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - Ref: AccessIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+        - Ref: JwtScope
+Outputs:
+  FunctionName:
+    Value:
+      Ref: AccessFunction

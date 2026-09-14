@@ -23,6 +23,7 @@ import {
   type BootstrapRemediationInput,
   type BootstrapRemediationFilters,
   type BootstrapRemediationDecisionInput,
+  type BootstrapRemediationVerificationInput,
 } from "../model/types";
 const base = "/environments";
 export const environments = {
@@ -105,6 +106,21 @@ export const environments = {
       (
         await apiClient.post(
           `${base}/bootstrap-remediations/${requestId}/${decision}`,
+          input,
+          { headers: writeHeaders(options) },
+        )
+      ).data,
+    ),
+  verifyBootstrapRemediation: async (
+    requestId: string,
+    input: BootstrapRemediationVerificationInput,
+    options: WriteOptions,
+  ) =>
+    parseResponse(
+      bootstrapRemediationSchema,
+      (
+        await apiClient.post(
+          `${base}/bootstrap-remediations/${requestId}/verify`,
           input,
           { headers: writeHeaders(options) },
         )

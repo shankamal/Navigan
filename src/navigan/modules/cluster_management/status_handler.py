@@ -39,7 +39,7 @@ def lambda_handler(event, context):
             )
             return {"ignored": True, "reason": "execution_not_registered"}
         previous = row["status"]
-        if previous not in {"PLAN_RUNNING", "APPLYING"}:
+        if previous not in {"PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"}:
             logger.info(
                 "Ignoring completion for a request that is no longer running.",
                 extra={"buildId": build_id, "clusterId": row["cluster_id"], "status": previous},
@@ -56,13 +56,24 @@ def lambda_handler(event, context):
             except Exception:
                 build_status = "RESULT_UNAVAILABLE"
         success = build_status == "SUCCEEDED" and result.get("success") is True
-        target = "PLAN_READY" if success and previous == "PLAN_RUNNING" else (
-            "ACTIVE" if success and previous == "APPLYING" else "FAILED"
-        )
+        successful_targets = {
+            "PLAN_RUNNING": "PLAN_READY",
+            "APPLYING": "ACTIVE",
+            "STOPPING": "STOPPED",
+            "STARTING": "ACTIVE",
+            "DELETING": "DELETED",
+        }
+        target = successful_targets[previous] if success else "FAILED"
         version = row["version"] + 1
         now = datetime.now(timezone.utc)
         plan_sha = result.get("planSha256") if previous == "PLAN_RUNNING" and success else row["plan_sha256"]
-        outputs = result.get("outputs", {}) if previous == "APPLYING" and success else row["outputs"]
+        outputs = (
+            {}
+            if previous == "DELETING" and success
+            else result.get("outputs", {})
+            if previous in {"APPLYING", "STARTING"} and success
+            else row["outputs"]
+        )
         workflow = dict(row["workflow"])
         workflow["lastExecution"] = {
             "buildId": build_id, "status": build_status, "completedAt": now.isoformat(),

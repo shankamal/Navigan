@@ -325,6 +325,36 @@ Resources:
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
       AuthorizationScopes: [!Ref JwtScope]
+  StopRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/stop
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  StartRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/start
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  DeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/delete
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
 Outputs:
   FunctionName: {Value: !Ref ClusterFunction}
   TerraformProjectName: {Value: !Ref TerraformProject}

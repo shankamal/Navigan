@@ -45,10 +45,21 @@ class ClusterBlueprint(Model):
 class CreateCluster(Model):
     environmentId: str = Field(pattern=r"^ENV-[A-Za-z0-9-]+$", max_length=50)
     environmentApprovedVersion: int | None = Field(default=None, gt=0)
-    blueprintName: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
     clusterName: str = Field(
         min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
     )
+    kubernetesVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
+    endpointAccess: Literal["PRIVATE", "PUBLIC_AND_PRIVATE"] = "PRIVATE"
+    nodeGroups: list[NodeGroup] = Field(min_length=1, max_length=20)
+    provisioningRoleArn: str = Field(
+        pattern=r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*NaviganProvisioningRole$",
+        max_length=2048,
+    )
+    externalIdSecretArn: str = Field(
+        pattern=r"^arn:(aws|aws-us-gov|aws-cn):secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$",
+        max_length=2048,
+    )
+    tags: dict[str, str] = Field(default_factory=dict)
     description: str | None = Field(default=None, max_length=4000)
 
 

@@ -3915,8 +3915,46 @@ select:focus {
   color: #708077;
 }
 
+.clustered-nav-group {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.clustered-nav-group:last-child {
+  margin-bottom: 0;
+}
+
+.clustered-nav-group .nav-section {
+  margin: 0;
+  padding: 0 13px 6px;
+  overflow: hidden;
+  color: #708077;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .nav-item {
   color: #536159;
+}
+
+.clustered-nav-group .nav-item {
+  min-height: 43px;
+  margin-bottom: 0;
+  padding: 9px 13px;
+  border-radius: 8px;
+}
+
+.clustered-nav-group .nav-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-item:hover {

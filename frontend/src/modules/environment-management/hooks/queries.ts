@@ -8,7 +8,7 @@ export const useEnvironments = (filters: Filters) =>
     queryFn: () => environments.list(filters),
   });
 
-export const useEnvironmentCount = (status?: string) =>
+export const useEnvironmentCount = (status?: string, enabled = true) =>
   useQuery({
     queryKey: ["environment-count", status || "ALL"],
     queryFn: async () =>
@@ -20,6 +20,7 @@ export const useEnvironmentCount = (status?: string) =>
           status,
         })
       ).pagination.totalElements,
+    enabled,
   });
 
 export const useEnvironment = (id: string) =>
@@ -47,10 +48,14 @@ export const useBootstrapRemediation = (requestId: string) =>
     queryFn: () => environments.getBootstrapRemediation(requestId),
     enabled: Boolean(requestId),
   });
-export const useConfigurationSchema = (distribution: string, version = "1.0") =>
+export const useConfigurationSchema = (
+  distribution: string,
+  version = "1.0",
+  enabled = true,
+) =>
   useQuery({
     queryKey: ["environment-schema", distribution, version],
     queryFn: () => environments.schema(distribution, version),
-    enabled: !!distribution,
+    enabled: enabled && !!distribution,
     staleTime: 300000,
   });

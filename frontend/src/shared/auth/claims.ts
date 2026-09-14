@@ -10,6 +10,9 @@ export interface Identity {
   customerIds: string[];
   platformScope: boolean;
   canCreate: boolean;
+  privileges?: string[];
+  authorizationRevision?: number;
+  authorizationSource?: "DYNAMIC" | "LEGACY_CLAIMS";
 }
 function strings(value: unknown): string[] {
   if (Array.isArray(value))

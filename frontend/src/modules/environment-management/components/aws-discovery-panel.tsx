@@ -42,6 +42,84 @@ interface ReadinessCheck {
   details: string;
 }
 
+type ManagedResourceType =
+  | "EKS_CLUSTER_ROLE"
+  | "EKS_NODE_ROLE"
+  | "KMS_KEY"
+  | "PROVISIONING_ROLE"
+  | "EXTERNAL_ID_SECRET";
+
+type ResourceStrategy = "EXISTING" | "DEDICATED";
+
+const managedResourceDefinitions: Array<{
+  type: ManagedResourceType;
+  label: string;
+  action: string;
+  placeholder: string;
+}> = [
+  {
+    type: "EKS_CLUSTER_ROLE",
+    label: "Dedicated EKS cluster role",
+    action: "CREATE_EKS_CLUSTER_ROLE",
+    placeholder: "NaviganEKSClusterRole-dev",
+  },
+  {
+    type: "EKS_NODE_ROLE",
+    label: "Dedicated EKS node role",
+    action: "CREATE_EKS_NODE_ROLE",
+    placeholder: "NaviganEKSNodeRole-dev",
+  },
+  {
+    type: "KMS_KEY",
+    label: "Dedicated KMS alias",
+    action: "CREATE_KMS_KEY",
+    placeholder: "alias/navigan-dev-eks",
+  },
+  {
+    type: "PROVISIONING_ROLE",
+    label: "Navigan provisioning role",
+    action: "CREATE_PROVISIONING_ROLE",
+    placeholder: "NaviganProvisioningRole",
+  },
+  {
+    type: "EXTERNAL_ID_SECRET",
+    label: "Provisioning secret name",
+    action: "REGISTER_EXTERNAL_ID_SECRET",
+    placeholder: "navigan/provisioning/customer-dev/external-id",
+  },
+];
+
+function dedicatedResourceDefaults(customerId: string) {
+  const suffix = customerId
+    .replace(/^CUS-/i, "")
+    .replace(/[^A-Za-z0-9-]/g, "-")
+    .slice(0, 24);
+  return {
+    EKS_CLUSTER_ROLE: `NaviganEksClusterRole-${suffix}`,
+    EKS_NODE_ROLE: `NaviganEksNodeRole-${suffix}`,
+    KMS_KEY: `alias/navigan-${suffix.toLowerCase()}-eks`,
+    PROVISIONING_ROLE: "NaviganProvisioningRole",
+    EXTERNAL_ID_SECRET: `navigan/provisioning/${customerId}/external-id`,
+  } satisfies Record<ManagedResourceType, string>;
+}
+
+export function requestedResourceVariables(
+  desiredResources: Partial<Record<ManagedResourceType, string>>,
+) {
+  return {
+    create_eks_cluster_role: Boolean(desiredResources.EKS_CLUSTER_ROLE),
+    eks_cluster_role_name:
+      desiredResources.EKS_CLUSTER_ROLE || "NaviganEksClusterRole",
+    create_eks_node_role: Boolean(desiredResources.EKS_NODE_ROLE),
+    eks_node_role_name:
+      desiredResources.EKS_NODE_ROLE || "NaviganEksNodeRole",
+    create_eks_kms_key: Boolean(desiredResources.KMS_KEY),
+    recommended_kms_alias:
+      desiredResources.KMS_KEY || "alias/navigan-eks",
+    confirm_create_recommended_resources: false,
+  };
+}
+
 function privateSubnetsForVpc(discovery: AwsDiscovery, vpcId: string) {
   return discovery.regions[0].subnets.filter(
     (item) => item.vpcId === vpcId && item.type === "PRIVATE",
@@ -236,7 +314,7 @@ export function validateAwsBaselineSelection(
   };
 }
 
-function baselineFrom(
+export function baselineFrom(
   discovery: AwsDiscovery,
   selection: AwsBaselineSelection,
   environmentType: string,
@@ -306,7 +384,7 @@ function baselineFrom(
             : [],
       },
       provisioningContract: {
-        contractVersion: "1.0",
+        contractVersion: "2.0",
         platform: "EKS",
         clusterRequestOwns: [
           "kubernetesVersion",
@@ -323,8 +401,17 @@ function baselineFrom(
           "encryption",
           "connectivity",
         ],
-        discoveredQuotaLimits: region.serviceQuotas,
+        discoveredQuotaLimits: region.serviceQuotas.map((quota) => ({
+          quotaCode: quota.quotaCode,
+          value: quota.value,
+        })),
         ebsEncryptionByDefault: region.ebsEncryptionByDefault,
+        kubernetesVersions: region.kubernetesVersions ?? [],
+        instanceTypes: (region.instanceTypes ?? []).map(
+          (instance) => instance.instanceType,
+        ),
+        provisioningRoles: discovery.provisioningRoles,
+        provisioningSecrets: discovery.provisioningSecrets,
       },
     },
   } as Record<string, JsonValue>;
@@ -492,16 +579,44 @@ export function AwsDiscoveryPanel({
   const [result, setResult] = useState<AwsDiscovery>();
   const [selection, setSelection] = useState<AwsBaselineSelection>();
   const [applied, setApplied] = useState(false);
+  const [resourceStrategy, setResourceStrategy] =
+    useState<ResourceStrategy>("EXISTING");
   const [setupChoice, setSetupChoice] = useState<"MANUAL" | "PLATFORM">(
     "MANUAL",
   );
   const [automaticSetupConfirmed, setAutomaticSetupConfirmed] =
     useState(false);
+  const [desiredResources, setDesiredResources] = useState<
+    Partial<Record<ManagedResourceType, string>>
+  >({});
   const mutation = useMutation({
     mutationFn: () => environments.discoverAws({ ...input, customerId }),
     onSuccess: (value) => {
       setResult(value);
-      setSelection(defaultAwsBaselineSelection(value));
+      const next = defaultAwsBaselineSelection(value);
+      if (resourceStrategy === "DEDICATED") {
+        next.clusterRoleArn =
+          value.iamRoles.find(
+            (item) =>
+              item.roleName === desiredResources.EKS_CLUSTER_ROLE &&
+              item.roleType === "CLUSTER" &&
+              item.eligibility === "READY",
+          )?.roleArn || "";
+        next.nodeRoleArn =
+          value.iamRoles.find(
+            (item) =>
+              item.roleName === desiredResources.EKS_NODE_ROLE &&
+              item.roleType === "NODE" &&
+              item.eligibility === "READY",
+          )?.roleArn || "";
+        next.kmsKeyArn =
+          value.regions[0]?.kmsKeys.find(
+            (item) =>
+              item.aliasName === desiredResources.KMS_KEY &&
+              item.eligibility === "READY",
+          )?.keyArn || "";
+      }
+      setSelection(next);
       setApplied(false);
       onDiscovered?.(value);
     },
@@ -525,7 +640,7 @@ export function AwsDiscoveryPanel({
       !readyKmsKeys.length ||
       !(result?.provisioningRoles.length ?? 0) ||
       !(result?.provisioningSecrets.length ?? 0));
-  const missingResources = [
+  const discoveredMissingResources = [
     ...(!readyClusterRoles.length ? ["EKS_CLUSTER_ROLE"] : []),
     ...(!readyNodeRoles.length ? ["EKS_NODE_ROLE"] : []),
     ...(!readyKmsKeys.length ? ["KMS_KEY"] : []),
@@ -539,20 +654,67 @@ export function AwsDiscoveryPanel({
       ? ["KUBERNETES_VERSIONS"]
       : []),
   ];
-  const requestedActions = [
-    ...(!readyClusterRoles.length ? ["CREATE_EKS_CLUSTER_ROLE"] : []),
-    ...(!readyNodeRoles.length ? ["CREATE_EKS_NODE_ROLE"] : []),
-    ...(!readyKmsKeys.length ? ["CREATE_KMS_KEY"] : []),
-    ...(!(result?.provisioningRoles.length ?? 0)
-      ? ["CREATE_PROVISIONING_ROLE"]
-      : []),
-    ...(!(result?.provisioningSecrets.length ?? 0)
-      ? ["REGISTER_EXTERNAL_ID_SECRET"]
-      : []),
-    ...(!(region?.kubernetesVersions?.length ?? 0)
-      ? ["REPAIR_DISCOVERY_PERMISSIONS"]
-      : []),
+  const generatedDefaults = dedicatedResourceDefaults(customerId);
+  const bootstrapResourceNames =
+    resourceStrategy === "DEDICATED"
+      ? desiredResources
+      : Object.fromEntries(
+          discoveredMissingResources
+            .filter(
+              (resource): resource is ManagedResourceType =>
+                resource in generatedDefaults,
+            )
+            .map((resource) => [resource, generatedDefaults[resource]]),
+        );
+  const namedResourceTypes = managedResourceDefinitions
+    .filter(({ type }) => Boolean(desiredResources[type]?.trim()))
+    .map(({ type }) => type);
+  const desiredResourceReady = (type: ManagedResourceType) => {
+    const name = desiredResources[type];
+    if (!name || !result) return false;
+    if (type === "EKS_CLUSTER_ROLE")
+      return result.iamRoles.some(
+        (item) =>
+          item.roleName === name &&
+          item.roleType === "CLUSTER" &&
+          item.eligibility === "READY",
+      );
+    if (type === "EKS_NODE_ROLE")
+      return result.iamRoles.some(
+        (item) =>
+          item.roleName === name &&
+          item.roleType === "NODE" &&
+          item.eligibility === "READY",
+      );
+    if (type === "KMS_KEY")
+      return result.regions.some((item) =>
+        item.kmsKeys.some(
+          (key) => key.aliasName === name && key.eligibility === "READY",
+        ),
+      );
+    if (type === "PROVISIONING_ROLE")
+      return result.provisioningRoles.some((item) => item.roleName === name);
+    return result.provisioningSecrets.some((item) => item.name === name);
+  };
+  const outstandingNamedResourceTypes = namedResourceTypes.filter(
+    (type) => !desiredResourceReady(type),
+  );
+  const missingResources = [
+    ...new Set([
+      ...discoveredMissingResources,
+      ...outstandingNamedResourceTypes,
+    ]),
   ];
+  const actionByResource = Object.fromEntries(
+    managedResourceDefinitions.map(({ type, action }) => [type, action]),
+  );
+  const requestedActions = missingResources.map(
+    (resource) =>
+      actionByResource[resource] ||
+      (resource === "KUBERNETES_VERSIONS"
+        ? "REPAIR_DISCOVERY_PERMISSIONS"
+        : "CREATE_RESOURCE"),
+  );
   const remediationMutation = useMutation({
     mutationFn: () =>
       environments.requestBootstrapRemediation(
@@ -563,17 +725,48 @@ export function AwsDiscoveryPanel({
           discoveryRoleArn: input.roleArn,
           missingResources,
           requestedActions,
+          desiredResources: Object.fromEntries(
+            Object.entries(bootstrapResourceNames)
+              .map(([key, value]) => [key, value?.trim()])
+              .filter(
+                (entry): entry is [string, string] =>
+                  Boolean(entry[1]) && missingResources.includes(entry[0]),
+              ),
+          ),
           confirmed: true,
         },
         { key: crypto.randomUUID() },
       ),
   });
   const readiness = useMemo(
-    () =>
-      result && selection
-        ? validateAwsBaselineSelection(result, selection, costCenter)
-        : undefined,
-    [result, selection, costCenter],
+    () => {
+      if (!result || !selection) return undefined;
+      const baseline = validateAwsBaselineSelection(
+        result,
+        selection,
+        costCenter,
+      );
+      const fulfilment: ReadinessCheck = {
+        id: "resource-fulfilment",
+        label: "Dedicated resource fulfilment",
+        passed: outstandingNamedResourceTypes.length === 0,
+        details:
+          namedResourceTypes.length === 0
+            ? "No outstanding named-resource requests"
+            : outstandingNamedResourceTypes.length === 0
+              ? "Every requested dedicated resource was verified by rediscovery"
+              : `${outstandingNamedResourceTypes.length} requested resource${outstandingNamedResourceTypes.length === 1 ? "" : "s"} must be created and verified by rediscovery`,
+      };
+      const checks = [...baseline.checks, fulfilment];
+      return { checks, ready: checks.every((item) => item.passed) };
+    },
+    [
+      result,
+      selection,
+      costCenter,
+      namedResourceTypes.length,
+      outstandingNamedResourceTypes.length,
+    ],
   );
   const count = result
     ? Object.values(result.counts).reduce((sum, value) => sum + value, 0)
@@ -592,6 +785,30 @@ export function AwsDiscoveryPanel({
       baselineFrom(result, selection, environmentType, owner, costCenter),
     );
     setApplied(true);
+  };
+  const chooseResourceStrategy = (strategy: ResourceStrategy) => {
+    setResourceStrategy(strategy);
+    setDesiredResources(
+      strategy === "DEDICATED" ? dedicatedResourceDefaults(customerId) : {},
+    );
+    setAutomaticSetupConfirmed(false);
+    setApplied(false);
+  };
+  const downloadRequestedVariables = () => {
+    const documentBody = {
+      region: input.regions[0],
+      customer_id: customerId,
+      ...requestedResourceVariables(bootstrapResourceNames),
+    };
+    const blob = new Blob([JSON.stringify(documentBody, null, 2) + "\n"], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `navigan-${customerId || "customer"}-resource-request.auto.tfvars.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
   const availableEgress = region && selection
     ? {
@@ -673,6 +890,120 @@ export function AwsDiscoveryPanel({
           <small>Sent only to AWS STS and never stored by Navigan</small>
         </label>
       </div>
+      <div className="account-setup-panel resource-strategy-panel">
+        <div className="account-setup-heading">
+          <div>
+            <p className="eyebrow">RESOURCE STRATEGY</p>
+            <h3>How should this environment obtain its AWS prerequisites?</h3>
+            <p>
+              Choose one strategy for this environment. The selection can be
+              changed until the environment baseline is saved.
+            </p>
+          </div>
+          <span className="security-chip">
+            <ShieldCheck size={15} />
+            Governed workflow
+          </span>
+        </div>
+        <div className="account-setup-options">
+          <label
+            className={
+              resourceStrategy === "EXISTING"
+                ? "account-setup-option selected"
+                : "account-setup-option"
+            }
+          >
+            <input
+              type="radio"
+              name="resource-strategy"
+              checked={resourceStrategy === "EXISTING"}
+              onChange={() => chooseResourceStrategy("EXISTING")}
+            />
+            <span>
+              <strong>Fetch existing eligible resources</strong>
+              <small>Default · fastest path</small>
+              <p>
+                Discover the customer account and select eligible VPC, subnet,
+                security, IAM and encryption resources. A bootstrap package is
+                offered for anything required but missing.
+              </p>
+            </span>
+          </label>
+          <label
+            className={
+              resourceStrategy === "DEDICATED"
+                ? "account-setup-option selected"
+                : "account-setup-option"
+            }
+          >
+            <input
+              type="radio"
+              name="resource-strategy"
+              checked={resourceStrategy === "DEDICATED"}
+              onChange={() => chooseResourceStrategy("DEDICATED")}
+            />
+            <span>
+              <strong>Dedicated resource request</strong>
+              <small>Customer-specific prerequisites</small>
+              <p>
+                Request newly named IAM, encryption and provisioning resources
+                for this customer instead of reusing eligible shared
+                prerequisites. Existing network inventory remains read-only.
+              </p>
+            </span>
+          </label>
+        </div>
+        {resourceStrategy === "DEDICATED" && (
+          <div className="account-setup-next-step">
+            <div>
+              <strong>Dedicated resource names</strong>
+              <p>
+                Review the generated names or replace them with names compliant
+                with the customer&apos;s AWS naming standard. Every field is
+                required and becomes immutable approval evidence.
+              </p>
+            </div>
+            <div className="baseline-field-grid">
+              {managedResourceDefinitions.map((resource) => (
+                <label className="field" key={resource.type}>
+                  {resource.label} *
+                  <input
+                    required
+                    maxLength={128}
+                    pattern="[A-Za-z0-9/_+=.@-]+"
+                    value={desiredResources[resource.type] || ""}
+                    readOnly={resource.type === "PROVISIONING_ROLE"}
+                    placeholder={resource.placeholder}
+                    onChange={(event) =>
+                      setDesiredResources((current) => ({
+                        ...current,
+                        [resource.type]: event.target.value,
+                      }))
+                    }
+                  />
+                  {resource.type === "PROVISIONING_ROLE" && (
+                    <small>
+                      Standardized because cluster automation expects this
+                      trusted role name.
+                    </small>
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="notice">
+              <ShieldCheck size={20} aria-hidden="true" />
+              <div>
+                <strong>Safe generation boundary</strong>
+                <p>
+                  Navigan generates reviewed Terraform variables and bootstrap
+                  code. Users cannot supply scripts, policies, credentials or
+                  executable content.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
       <div className="environment-actions discovery-actions">
         <Button
           type="button"
@@ -682,7 +1013,9 @@ export function AwsDiscoveryPanel({
             !customerId ||
             !input.accountId ||
             !input.roleArn ||
-            !input.externalId
+            !input.externalId ||
+            (resourceStrategy === "DEDICATED" &&
+              namedResourceTypes.length !== managedResourceDefinitions.length)
           }
           onClick={() => mutation.mutate()}
         >
@@ -695,7 +1028,9 @@ export function AwsDiscoveryPanel({
             ? "Fetching AWS resources…"
             : result
               ? "Refresh inventory"
-              : "Fetch AWS inventory"}
+              : resourceStrategy === "DEDICATED"
+                ? "Fetch details and validate names"
+                : "Fetch AWS inventory"}
         </Button>
         <span className="muted">Discovery makes no changes in AWS.</span>
       </div>
@@ -920,15 +1255,16 @@ export function AwsDiscoveryPanel({
                 {!availableEgress.nat && !availableEgress.endpoints && <div className="resource-remediation"><strong>No private egress path is ready</strong><span>Add a working NAT gateway or the required private VPC endpoints for EKS, ECR, S3, STS and supporting services, then run Fetch details again.</span></div>}
               </label>
             </div>
-            {accountSetupRequired && (
+            {(accountSetupRequired || namedResourceTypes.length > 0) && (
               <div className="account-setup-panel" id="resource-remediation">
                 <div className="account-setup-heading">
                   <div>
                     <p className="eyebrow">RESOURCE REMEDIATION</p>
-                    <h4>Resolve missing cluster prerequisites</h4>
+                    <h4>Fulfil baseline resource requirements</h4>
                     <p>
-                      No AWS resources will be created from this discovery
-                      screen. Select the controlled setup path you want to use.
+                      {resourceStrategy === "DEDICATED"
+                        ? "Generate the approved customer-specific prerequisites, then rediscover their exact names before saving the baseline."
+                        : "Create only the prerequisites missing from the eligible inventory, then fetch the account details again."}
                     </p>
                   </div>
                   <span className="security-chip">
@@ -989,7 +1325,7 @@ export function AwsDiscoveryPanel({
                 {setupChoice === "MANUAL" ? (
                   <div className="account-setup-next-step">
                     <strong>
-                      AWS administrator procedure · Bootstrap v1.1.3
+                      AWS administrator procedure · Bootstrap v1.1.4
                     </strong>
                     <p>
                       Intended tenant: customer <code>{customerId}</code>
@@ -1000,7 +1336,7 @@ export function AwsDiscoveryPanel({
                       different account.
                     </p>
                     <ol className="account-setup-checklist">
-                      <li><span>1</span><div><strong>Download and verify the tenant</strong><p>Use bootstrap v1.1.3. Authenticate with the customer administrator profile and run <code>aws sts get-caller-identity</code> before Terraform.</p></div></li>
+                      <li><span>1</span><div><strong>Download and verify the tenant</strong><p>Use bootstrap v1.1.4. Authenticate with the customer administrator profile and run <code>aws sts get-caller-identity</code> before Terraform.</p></div></li>
                       <li><span>2</span><div><strong>Create a unique provisioning External ID</strong><p>Do not reuse the discovery External ID or a value belonging to another customer. Keep it out of chat, logs and tickets.</p></div></li>
                       <li><span>3</span><div><strong>Validate and review a saved plan</strong><p>The trust must contain only the exact Terraform execution and Environment Lambda validation roles, protected by the unique External ID. Run Terraform init, format check, validation and plan; reject unexpected deletion or replacement.</p></div></li>
                       <li><span>4</span><div><strong>Apply and complete the secure handoff</strong><p>The AWS administrator applies the exact saved plan. The Navigan operator then registers the raw External ID under <code>navigan/provisioning/{customerId}/external-id</code> through an approved secret exchange—not email, chat or tickets.</p></div></li>
@@ -1008,15 +1344,27 @@ export function AwsDiscoveryPanel({
                     </ol>
                     <a
                       className="button button-secondary account-setup-download"
-                      href="/downloads/navigan-aws-customer-bootstrap-v1.1.3.zip"
+                      href="/downloads/navigan-aws-customer-bootstrap-v1.1.4.zip"
                       download
                     >
                       <Download size={16} aria-hidden="true" />
-                      Download bootstrap v1.1.3
+                      Download bootstrap v1.1.4
                     </a>
+                    {missingResources.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={downloadRequestedVariables}
+                      >
+                        <Download size={16} aria-hidden="true" />
+                        Download requested names
+                      </Button>
+                    )}
                     <small>
                       Includes Terraform and a Windows CMD administrator
-                      runbook. Downloading does not change AWS.
+                      runbook. The optional request file contains no password,
+                      External ID or credentials. Downloading does not change
+                      AWS.
                     </small>
                   </div>
                 ) : (
@@ -1047,6 +1395,9 @@ export function AwsDiscoveryPanel({
                           <strong>Setup request submitted</strong>
                           Request {remediationMutation.data.requestId} is
                           awaiting independent Platform Architect approval.
+                          After execution, refresh the AWS inventory, select the
+                          newly verified resources and clear the corresponding
+                          dedicated-resource requests.
                         </span>
                       </div>
                     ) : (
@@ -1094,8 +1445,8 @@ export function AwsDiscoveryPanel({
                   {applied ? "Reapply selected baseline" : "Apply selected baseline"}
                 </Button>
               </div>
-              {readiness.ready && !applied && <p className="baseline-next-instruction">All checks passed. Apply the selected baseline, then use <strong>Save revision</strong> at the bottom of the page.</p>}
-              {applied && <p className="baseline-next-instruction success">The verified baseline is attached to this draft. Continue to the bottom of the page and select <strong>Save revision</strong>.</p>}
+              {readiness.ready && !applied && <p className="baseline-next-instruction">All checks passed. Apply the selected baseline, then choose <strong>Save as Draft</strong> or <strong>Review and Submit</strong> at the bottom of the page.</p>}
+              {applied && <p className="baseline-next-instruction success">The verified baseline is attached. Continue to the bottom of the page and choose <strong>Save as Draft</strong> or <strong>Review and Submit</strong>.</p>}
             </div>
           </section>
           <details className="discovery-inventory-details">

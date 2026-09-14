@@ -133,6 +133,21 @@ Resources:
         AuthorizerId: *id010
         TerraformRunnerImageUri:
           Ref: TerraformRunnerImageUri
+  AccessManagement:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/access-management/template.yaml
+      Parameters:
+        JwtScope: *id001
+        DatabaseName: *id002
+        DatabaseProxyHost: *id003
+        ApiDatabaseSecretArn: *id004
+        SecretsKmsKeyArn: *id005
+        PrivateSubnetIds: *id006
+        LambdaSecurityGroupIds: *id007
+        RdsCaLayerArn: *id008
+        ApiId: *id009
+        AuthorizerId: *id010
 Outputs:
   ApiId:
     Value:
@@ -183,6 +198,14 @@ Outputs:
     Value:
       Fn::GetAtt:
       - ClusterManagement
+      - Outputs.FunctionName
+  AccessManagementStackId:
+    Value:
+      Ref: AccessManagement
+  AccessFunctionName:
+    Value:
+      Fn::GetAtt:
+      - AccessManagement
       - Outputs.FunctionName
   TerraformProjectName:
     Value:

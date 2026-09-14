@@ -8,6 +8,7 @@ const valueAfter = (name, fallback) => {
 };
 
 const port = valueAfter("--port", "3000");
+const bundlerArgs = args.includes("--webpack") ? ["--webpack"] : [];
 const nextEntry = fileURLToPath(
   new URL("../node_modules/next/dist/bin/next", import.meta.url),
 );
@@ -16,7 +17,7 @@ const child = spawn(
   [
     nextEntry,
     "dev",
-    "--webpack",
+    ...bundlerArgs,
     "-H",
     valueAfter("--host", "0.0.0.0"),
     "-p",

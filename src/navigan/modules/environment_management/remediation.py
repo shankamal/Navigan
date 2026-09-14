@@ -18,6 +18,20 @@ class BootstrapRemediationService:
         self.principal.require("CLOUD_ENGINEER")
         self.repo.validate_parent(body["customerId"], "AWS", active=True)
         now = datetime.now(timezone.utc)
+        existing = self.db.execute(
+            "SELECT request_id FROM environment_management.bootstrap_remediation_requests "
+            "WHERE customer_id=%s AND account_id=%s AND region=%s "
+            "AND status IN ('REQUESTED','APPROVED','PLAN_RUNNING','PLAN_READY','APPLY_RUNNING') "
+            "FOR UPDATE",
+            [body["customerId"], body["accountId"], body["region"]],
+        ).fetchone()
+        if existing:
+            raise ApiError(
+                409,
+                "REMEDIATION_ALREADY_OPEN",
+                "An unresolved bootstrap remediation request already exists for this customer account and region.",
+                {"requestId": existing["request_id"]},
+            )
         row = {
             "request_id": "BRQ-" + uuid.uuid4().hex,
             "customer_id": body["customerId"],
@@ -26,6 +40,10 @@ class BootstrapRemediationService:
             "discovery_role_arn": body["discoveryRoleArn"],
             "missing_resources": body["missingResources"],
             "requested_actions": body["requestedActions"],
+            "desired_resources": body.get("desiredResources", {}),
+            "verification_details": {},
+            "verified_by": None,
+            "verified_at": None,
             "status": "REQUESTED",
             "confirmed_by": self.principal.user_id,
             "confirmed_at": now,
@@ -38,14 +56,26 @@ class BootstrapRemediationService:
             "correlation_id": self.correlation,
         }
         columns = list(row)
-        json_columns = {"missing_resources", "requested_actions"}
+        json_columns = {
+            "missing_resources",
+            "requested_actions",
+            "desired_resources",
+            "verification_details",
+        }
         values = [json.dumps(value) if key in json_columns else value for key, value in row.items()]
         slots = ["%s::jsonb" if key in json_columns else "%s" for key in columns]
         self.db.execute(
             f"INSERT INTO environment_management.bootstrap_remediation_requests ({','.join(columns)}) VALUES ({','.join(slots)})",
             values,
         )
-        self._history(row["request_id"], "REQUESTED", {"confirmed": True})
+        self._history(
+            row["request_id"],
+            "REQUESTED",
+            {
+                "confirmed": True,
+                "desiredResources": body.get("desiredResources", {}),
+            },
+        )
         return self.get(row["request_id"])
 
     def get(self, request_id, lock=False):
@@ -120,6 +150,108 @@ class BootstrapRemediationService:
         )
         self._history(request_id, target, {"reason": body.get("reason")})
         return self.get(request_id)
+
+    def verify(self, request_id, body, discovery):
+        self.principal.require("CLOUD_ENGINEER")
+        row = self.get(request_id, lock=True)
+        if row["version"] != body["version"]:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest remediation request.")
+        if row["status"] not in {"APPROVED", "PLAN_READY", "APPLY_RUNNING"}:
+            raise ApiError(
+                409,
+                "INVALID_STATUS_TRANSITION",
+                "The remediation request must be approved before verification.",
+            )
+        if row["requestedBy"] != self.principal.user_id and not self.principal.platform_scope:
+            raise ApiError(
+                403,
+                "FORBIDDEN",
+                "Only the requester or a platform-scoped Cloud Engineer may verify this request.",
+            )
+
+        found, missing = self._verification_result(row, discovery)
+        now = datetime.now(timezone.utc)
+        details = {"found": found, "missing": missing}
+        target = "COMPLETED" if not missing else "FAILED"
+        self.db.execute(
+            "UPDATE environment_management.bootstrap_remediation_requests "
+            "SET status=%s,verification_details=%s::jsonb,verified_by=%s,verified_at=%s,"
+            "decision_reason=CASE WHEN %s='FAILED' THEN %s ELSE decision_reason END,"
+            "version=version+1 WHERE request_id=%s",
+            [
+                target,
+                json.dumps(details),
+                self.principal.user_id,
+                now,
+                target,
+                "Rediscovery did not find every approved prerequisite.",
+                request_id,
+            ],
+        )
+        self._history(request_id, target, details)
+        return self.get(request_id)
+
+    @staticmethod
+    def _verification_result(row, discovery):
+        desired = row.get("desiredResources") or {}
+        found = {}
+        missing = []
+        roles = {
+            item.get("roleName"): item
+            for item in discovery.get("iamRoles", [])
+            if item.get("eligibility") == "READY"
+        }
+        provisioning_roles = {
+            item.get("roleName"): item for item in discovery.get("provisioningRoles", [])
+        }
+        secrets = {
+            item.get("name"): item for item in discovery.get("provisioningSecrets", [])
+        }
+        kms_aliases = {
+            item.get("aliasName"): item
+            for region in discovery.get("regions", [])
+            for item in region.get("kmsKeys", [])
+            if item.get("eligibility") == "READY"
+        }
+        inventories = {
+            "EKS_CLUSTER_ROLE": {
+                name: item for name, item in roles.items() if item.get("roleType") == "CLUSTER"
+            },
+            "EKS_NODE_ROLE": {
+                name: item for name, item in roles.items() if item.get("roleType") == "NODE"
+            },
+            "PROVISIONING_ROLE": provisioning_roles,
+            "EXTERNAL_ID_SECRET": secrets,
+            "KMS_KEY": kms_aliases,
+        }
+        for resource, name in desired.items():
+            if inventories.get(resource, {}).get(name):
+                found[resource] = name
+            else:
+                missing.append(resource)
+
+        default_checks = {
+            "EKS_CLUSTER_ROLE": any(
+                item.get("roleType") == "CLUSTER" for item in roles.values()
+            ),
+            "EKS_NODE_ROLE": any(
+                item.get("roleType") == "NODE" for item in roles.values()
+            ),
+            "KMS_KEY": bool(kms_aliases),
+            "PROVISIONING_ROLE": bool(provisioning_roles),
+            "EXTERNAL_ID_SECRET": bool(secrets),
+            "KUBERNETES_VERSIONS": any(
+                region.get("kubernetesVersions") for region in discovery.get("regions", [])
+            ),
+        }
+        for resource in row.get("missingResources") or []:
+            if resource in desired:
+                continue
+            if default_checks.get(resource):
+                found[resource] = "discovered"
+            elif resource not in missing:
+                missing.append(resource)
+        return found, sorted(missing)
 
     def _history(self, request_id, status, details):
         self.db.execute(

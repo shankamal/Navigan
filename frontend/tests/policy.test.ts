@@ -100,18 +100,29 @@ describe("Customer lifecycle affordances", () => {
         platform_scope: "true",
       }).roles,
     ).toEqual(["PLATFORM_ADMINISTRATOR"]);
-    expect(hasPermission(administrator, "dashboard.read")).toBe(true);
+    expect(
+      hasPermission(administrator, "dashboard.platform.view"),
+    ).toBe(true);
     expect(hasPermission(administrator, "user.manage")).toBe(true);
     expect(
-      hasPermission(administrator, "environment.request.create"),
+      hasPermission(administrator, "environment.create"),
     ).toBe(false);
-    expect(hasPermission(administrator, "request.approve")).toBe(false);
+    expect(hasPermission(administrator, "environment.approve")).toBe(false);
   });
   it("separates engineer creation from architect review permissions", () => {
-    expect(hasPermission(engineer, "environment.request.create")).toBe(true);
-    expect(hasPermission(engineer, "request.review")).toBe(false);
-    expect(hasPermission(architect, "environment.request.create")).toBe(false);
-    expect(hasPermission(architect, "request.review")).toBe(true);
+    expect(hasPermission(engineer, "environment.create")).toBe(true);
+    expect(hasPermission(engineer, "environment.review")).toBe(false);
+    expect(hasPermission(architect, "environment.create")).toBe(false);
+    expect(hasPermission(architect, "environment.review")).toBe(true);
+  });
+  it("uses dynamic privileges instead of role names when available", () => {
+    const customReviewer = {
+      ...engineer,
+      roles: [],
+      privileges: ["customer.view", "customer.review"],
+    };
+    expect(hasPermission(customReviewer, "customer.review")).toBe(true);
+    expect(hasPermission(customReviewer, "customer.create")).toBe(false);
   });
 });
 describe("API validation", () => {

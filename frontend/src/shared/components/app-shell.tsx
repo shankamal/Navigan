@@ -3,18 +3,23 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Building2,
   ChevronRight,
   ChevronDown,
+  ClipboardCheck,
+  FileClock,
   FolderPlus,
+  Gauge,
+  Layers3,
   LogOut,
   Menu,
+  Network,
   Rocket,
   Settings2,
   ShieldAlert,
   ShieldCheck,
   X,
 } from "lucide-react";
-import { platformModules } from "@/shared/config/modules";
 import { useAuth } from "@/shared/auth/auth-provider";
 import {
   hasPermission,
@@ -23,45 +28,104 @@ import {
 import { signOut } from "@/shared/auth/session";
 import { Button } from "./ui";
 
-const environmentChildren: ReadonlyArray<{
+interface NavigationItem {
   href: string;
   label: string;
   icon: typeof FolderPlus;
   permission: PlatformPermission;
+}
+
+const navigationGroups: ReadonlyArray<{
+  label: string;
+  items: readonly NavigationItem[];
 }> = [
   {
-    href: "/environments/new",
-    label: "Create Environment",
-    icon: FolderPlus,
-    permission: "environment.request.create",
+    label: "Overview",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Platform Dashboard",
+        icon: Gauge,
+        permission: "dashboard.platform.view",
+      },
+    ],
   },
   {
-    href: "/clusters/new",
-    label: "New Cluster Setup",
-    icon: Rocket,
-    permission: "cluster.request.create",
+    label: "Customer Management",
+    items: [
+      {
+        href: "/customers",
+        label: "Customer Directory",
+        icon: Building2,
+        permission: "customer.view",
+      },
+      {
+        href: "/customers/new",
+        label: "Create Customer",
+        icon: FolderPlus,
+        permission: "customer.create",
+      },
+    ],
   },
   {
-    href: "/clusters",
-    label: "Cluster Reviews",
-    icon: Settings2,
-    permission: "request.review",
+    label: "Environment Management",
+    items: [
+      {
+        href: "/environments",
+        label: "Environment Directory",
+        icon: Layers3,
+        permission: "environment.view",
+      },
+      {
+        href: "/environments/new",
+        label: "Create Environment",
+        icon: FolderPlus,
+        permission: "environment.create",
+      },
+      {
+        href: "/environments/reviews",
+        label: "Environment Reviews",
+        icon: ClipboardCheck,
+        permission: "environment.review",
+      },
+      {
+        href: "/environments/remediations",
+        label: "Bootstrap Approvals",
+        icon: ShieldAlert,
+        permission: "remediation.review",
+      },
+    ],
   },
   {
-    href: "/environments/remediations",
-    label: "Bootstrap Approvals",
-    icon: ShieldAlert,
-    permission: "remediation.review",
+    label: "Cluster Management",
+    items: [
+      {
+        href: "/clusters",
+        label: "Cluster Directory",
+        icon: Network,
+        permission: "cluster.view",
+      },
+      {
+        href: "/clusters/new",
+        label: "New Cluster Request",
+        icon: Rocket,
+        permission: "cluster.create",
+      },
+      {
+        href: "/clusters/reviews",
+        label: "Cluster Reviews",
+        icon: Settings2,
+        permission: "cluster.review",
+      },
+      {
+        href: "/clusters/operations",
+        label: "Cluster Operations",
+        icon: FileClock,
+        permission: "cluster.plan",
+      },
+    ],
   },
-] as const;
-
-const modulePermissions: Record<string, PlatformPermission> = {
-  dashboard: "dashboard.read",
-  customers: "customer.read",
-  environments: "environment.read",
-  clusters: "cluster.read",
-  applications: "platform.configure",
-};
+];
 
 function AccountMenu() {
   const { identity } = useAuth();
@@ -120,9 +184,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
-  const current = platformModules.find((item) =>
-    pathname.startsWith(item.href),
-  );
+  const current = navigationGroups
+    .flatMap((group) => group.items)
+    .filter((item) => hasPermission(identity, item.permission))
+    .toSorted((left, right) => right.href.length - left.href.length)
+    .find(
+      (item) =>
+        pathname === item.href ||
+        (item.href !== "/" && pathname.startsWith(item.href + "/")),
+    );
   const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
   return (
     <div className="app-shell">
@@ -160,59 +230,33 @@ export function AppShell({ children }: { children: ReactNode }) {
           className={`sidebar ${expanded ? "expanded" : ""}`}
         >
           <div>
-            <p className="nav-section">WORKSPACE</p>
             <nav aria-label="Platform modules">
-              {platformModules
-                .filter(
-                  (item) =>
-                    item.id !== "clusters" &&
-                    hasPermission(identity, modulePermissions[item.id]),
-                )
-                .map((item) => {
-                  const selected =
-                    pathname.startsWith(item.href) ||
-                    (item.id === "environments" && pathname.startsWith("/clusters"));
-                  return (
-                    <div className="nav-group" key={item.id}>
-                      <Link
-                        href={item.href}
-                        className={`nav-item ${selected ? "selected" : ""}`}
-                        aria-current={pathname.startsWith(item.href) ? "page" : undefined}
-                        onClick={() => setExpanded(false)}
-                      >
-                        <item.icon size={20} aria-hidden="true" />
-                        <span>{item.shortTitle}</span>
-                        {!item.available && <span className="soon">Soon</span>}
-                      </Link>
-                      {item.id === "environments" && (
-                        <div className="nav-submenu" aria-label="Environment tools">
-                          {environmentChildren
-                            .filter((child) =>
-                              hasPermission(identity, child.permission),
-                            )
-                            .map((child) => {
-                            const childSelected =
-                              child.href === "/clusters"
-                                ? pathname === child.href
-                                : pathname.startsWith(child.href);
-                            return (
-                              <Link
-                                key={child.href}
-                                href={child.href}
-                                className={`nav-subitem ${childSelected ? "selected" : ""}`}
-                                aria-current={childSelected ? "page" : undefined}
-                                onClick={() => setExpanded(false)}
-                              >
-                                <child.icon size={16} aria-hidden="true" />
-                                <span>{child.label}</span>
-                              </Link>
-                            );
-                            })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {navigationGroups.map((group) => {
+                const items = group.items.filter((item) =>
+                  hasPermission(identity, item.permission),
+                );
+                if (!items.length) return null;
+                return (
+                  <div className="clustered-nav-group" key={group.label}>
+                    <p className="nav-section">{group.label}</p>
+                    {items.map((item) => {
+                      const selected = current === item;
+                      return (
+                        <Link
+                          key={`${group.label}-${item.label}`}
+                          href={item.href}
+                          className={`nav-item ${selected ? "selected" : ""}`}
+                          aria-current={selected ? "page" : undefined}
+                          onClick={() => setExpanded(false)}
+                        >
+                          <item.icon size={19} aria-hidden="true" />
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </nav>
           </div>
           <div className="sidebar-footer">
@@ -231,11 +275,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="breadcrumb">
             <span>Workspace</span>
             <ChevronRight size={14} />
-            <span>{pathname.startsWith("/clusters") ? "Environments" : current?.shortTitle ?? "Access"}</span>
-            {pathname.startsWith("/clusters") && (
+            <span>{current?.label ?? "Access"}</span>
+            {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
               <>
                 <ChevronRight size={14} />
-                <span>{pathname.startsWith("/clusters/new") ? "New Cluster Setup" : "Cluster Platform Admin"}</span>
+                <span>Cluster request details</span>
               </>
             )}
             {pathname.includes("/customers/") && (

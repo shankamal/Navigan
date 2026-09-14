@@ -22,6 +22,7 @@ from .models import (
     BlueprintReadinessRequest,
     CreateBootstrapRemediation,
     BootstrapRemediationDecision,
+    VerifyBootstrapRemediation,
 )
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
@@ -196,7 +197,12 @@ def execute(event, principal, correlation, tx=transaction):
             raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
         if (
             (method == "POST" and not request_id and len(parts) == 1)
-            or (method == "POST" and request_id and decision in {"approve", "reject"} and len(parts) == 3)
+            or (
+                method == "POST"
+                and request_id
+                and decision in {"approve", "reject", "verify"}
+                and len(parts) == 3
+            )
         ):
             if not headers.get("content-type", "").lower().startswith("application/json"):
                 raise ApiError(400, "INVALID_CONTENT_TYPE", "Use application/json.")
@@ -204,7 +210,13 @@ def execute(event, principal, correlation, tx=transaction):
             if not key or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", key):
                 raise ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "Provide an Idempotency-Key.")
             raw = body_json(event)
-            model = CreateBootstrapRemediation if not request_id else BootstrapRemediationDecision
+            model = (
+                CreateBootstrapRemediation
+                if not request_id
+                else VerifyBootstrapRemediation
+                if decision == "verify"
+                else BootstrapRemediationDecision
+            )
             body = model.model_validate(raw).model_dump(exclude_none=True)
             operation = method + " " + path
             fingerprint = hashlib.sha256(
@@ -218,11 +230,22 @@ def execute(event, principal, correlation, tx=transaction):
                     result["headers"]["Idempotency-Replayed"] = "true"
                     return result
                 service = BootstrapRemediationService(repo, correlation)
-                value = (
-                    service.create(body)
-                    if not request_id
-                    else service.decide(request_id, decision, body)
-                )
+                if not request_id:
+                    value = service.create(body)
+                elif decision == "verify":
+                    current = service.get(request_id)
+                    discovery = discover_aws(
+                        {
+                            "customerId": current["customerId"],
+                            "accountId": current["accountId"],
+                            "roleArn": current["discoveryRoleArn"],
+                            "externalId": body["externalId"],
+                            "regions": [current["region"]],
+                        }
+                    )
+                    value = service.verify(request_id, body, discovery)
+                else:
+                    value = service.decide(request_id, decision, body)
                 status = 201 if not request_id else 200
                 repo.customers.idempotency_put(
                     operation, key, fingerprint, {"status": status, "body": value}

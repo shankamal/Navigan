@@ -101,10 +101,13 @@ export function PlatformDashboard() {
   );
   const canCreateEnvironment = hasPermission(
     identity,
-    "environment.request.create",
+    "environment.create",
   );
-  const canCreateCluster = hasPermission(identity, "cluster.request.create");
-  const canReview = hasPermission(identity, "request.review");
+  const canCreateCluster = hasPermission(identity, "cluster.create");
+  const canReview =
+    hasPermission(identity, "customer.review") ||
+    hasPermission(identity, "environment.review") ||
+    hasPermission(identity, "cluster.review");
 
   if (countQueries.some((query) => query.isPending)) {
     return <Loading label="Loading platform dashboard…" />;

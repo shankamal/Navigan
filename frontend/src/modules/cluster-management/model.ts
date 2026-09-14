@@ -41,11 +41,26 @@ export const executionLogsSchema = z.object({
     }),
   ),
 });
+export interface ClusterNodeGroupInput {
+  name: string;
+  instanceTypes: string[];
+  capacityType: "ON_DEMAND" | "SPOT";
+  minSize: number;
+  desiredSize: number;
+  maxSize: number;
+  diskSizeGiB: number;
+}
+
 export interface ClusterInput {
   environmentId: string;
   environmentApprovedVersion: number;
-  blueprintName: string;
   clusterName: string;
+  kubernetesVersion: string;
+  endpointAccess: "PRIVATE" | "PUBLIC_AND_PRIVATE";
+  nodeGroups: ClusterNodeGroupInput[];
+  provisioningRoleArn: string;
+  externalIdSecretArn: string;
+  tags?: Record<string, string>;
   description?: string;
 }
 export interface ClusterFilters {

@@ -10,8 +10,10 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
+import { hasPermission } from "@/shared/auth/permissions";
 import {
   Button,
   EmptyState,
@@ -23,9 +25,13 @@ import {
 } from "@/shared/components/ui";
 import { environments } from "@/modules/environment-management/services/environments";
 import { customersService } from "@/modules/customer-management/services/customers";
-import { useClusters } from "./hooks/queries";
+import { useClusterCount, useClusters } from "./hooks/queries";
 import { clusters } from "./service";
-import type { ClusterFilters, ClusterInput } from "./model";
+import type {
+  ClusterFilters,
+  ClusterInput,
+  ClusterNodeGroupInput,
+} from "./model";
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value)
@@ -50,14 +56,35 @@ const statusLabels: Record<string, string> = {
   PLAN_READY: "Plan ready",
   APPLYING: "Applying",
   ACTIVE: "Active",
+  STOPPING: "Stopping",
+  STOPPED: "Stopped",
+  STARTING: "Starting",
+  DELETING: "Deleting",
+  DELETED: "Deleted",
   FAILED: "Failed",
   REJECTED: "Rejected",
 };
 
-export function ClusterAdminPage() {
+type ClusterAdminMode = "directory" | "reviews" | "operations";
+
+interface ClusterAdminPageProps {
+  mode?: ClusterAdminMode;
+}
+
+const initialStatusByMode: Record<ClusterAdminMode, string | undefined> = {
+  directory: undefined,
+  reviews: "SUBMITTED",
+  operations: "PLAN_RUNNING",
+};
+
+export function ClusterAdminPage({
+  mode = "directory",
+}: ClusterAdminPageProps = {}) {
+  const { identity } = useAuth();
   const [filters, setFilters] = useState<ClusterFilters>({
     page: 0,
     pageSize: 20,
+    status: initialStatusByMode[mode],
   });
   const [search, setSearch] = useState("");
   useEffect(() => {
@@ -73,38 +100,46 @@ export function ClusterAdminPage() {
     return () => clearTimeout(timeout);
   }, [search]);
   const query = useClusters(filters);
-  const visibleRequests = query.data?.items ?? [];
-  const metrics = [
-    {
-      label: "Total requests",
-      value: query.data?.pagination.totalElements,
-      icon: Network,
-    },
-    {
-      label: "Active on this page",
-      value: query.data
-        ? visibleRequests.filter((item) => item.status === "ACTIVE").length
-        : undefined,
-      icon: Check,
-    },
-    {
-      label: "Submitted on this page",
-      value: query.data
-        ? visibleRequests.filter((item) => item.status === "SUBMITTED").length
-        : undefined,
-      icon: ShieldCheck,
-    },
-    {
-      label: "Drafts on this page",
-      value: query.data
-        ? visibleRequests.filter((item) => item.status === "DRAFT").length
-        : undefined,
-      icon: CloudCog,
-    },
-  ];
+  const total = useClusterCount(undefined, mode === "directory");
+  const active = useClusterCount("ACTIVE", mode !== "reviews");
+  const draft = useClusterCount("DRAFT", mode === "directory");
+  const submitted = useClusterCount("SUBMITTED", mode !== "operations");
+  const underReview = useClusterCount("UNDER_REVIEW", mode === "reviews");
+  const planReady = useClusterCount("PLAN_READY", mode === "operations");
+  const applying = useClusterCount("APPLYING", mode === "operations");
+  const failed = useClusterCount("FAILED", mode === "operations");
+  const metrics =
+    mode === "reviews"
+      ? [
+          { label: "Submitted", value: submitted.data, icon: ShieldCheck },
+          { label: "Under review", value: underReview.data, icon: Search },
+        ]
+      : mode === "operations"
+        ? [
+            { label: "Plan ready", value: planReady.data, icon: ShieldCheck },
+            { label: "Applying", value: applying.data, icon: CloudCog },
+            { label: "Failed", value: failed.data, icon: Network },
+            { label: "Active", value: active.data, icon: Check },
+          ]
+        : [
+            { label: "Total requests", value: total.data, icon: Network },
+            { label: "Active", value: active.data, icon: Check },
+            { label: "Submitted", value: submitted.data, icon: ShieldCheck },
+            { label: "Drafts", value: draft.data, icon: CloudCog },
+          ];
+  const availableStatuses =
+    mode === "reviews"
+      ? ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"]
+      : mode === "operations"
+        ? ["PLAN_RUNNING", "PLAN_READY", "APPLYING", "FAILED", "ACTIVE"]
+        : Object.keys(statusLabels);
   const reset = () => {
     setSearch("");
-    setFilters({ page: 0, pageSize: 20 });
+    setFilters({
+      page: 0,
+      pageSize: 20,
+      status: initialStatusByMode[mode],
+    });
   };
   const filter = (values: Partial<ClusterFilters>) =>
     setFilters((old) => ({ ...old, ...values, page: 0 }));
@@ -112,12 +147,27 @@ export function ClusterAdminPage() {
     <>
       <PageHeading
         eyebrow="CONTAINER PROVISIONING"
-        title="Cluster Setup Requests"
-        description="Review cluster setup requests and track Terraform plan and apply executions."
+        title={
+          mode === "reviews"
+            ? "Cluster Reviews"
+            : mode === "operations"
+              ? "Cluster Operations"
+              : "Cluster Setup Requests"
+        }
+        description={
+          mode === "reviews"
+            ? "Review submitted cluster requests and record independent architecture decisions."
+            : mode === "operations"
+              ? "Monitor Terraform planning, certified plans, apply activity, failures, and active clusters."
+              : "Track cluster setup requests across their complete governed lifecycle."
+        }
         action={
-          <Link className="button button-primary" href="/clusters/new">
-            <Plus size={18} /> New Cluster Setup
-          </Link>
+          mode === "directory" &&
+          hasPermission(identity, "cluster.create") && (
+            <Link className="button button-primary" href="/clusters/new">
+              <Plus size={18} /> New Cluster Setup
+            </Link>
+          )
         }
       />
       <div className="metrics-grid">
@@ -134,9 +184,19 @@ export function ClusterAdminPage() {
       <section className="panel">
         <div className="list-heading">
           <div>
-            <h2>Cluster setup requests</h2>
+            <h2>
+              {mode === "reviews"
+                ? "Cluster review queue"
+                : mode === "operations"
+                  ? "Cluster execution queue"
+                  : "Cluster setup requests"}
+            </h2>
             <p className="muted">
-              Requests pinned to an approved environment baseline.
+              {mode === "reviews"
+                ? "Submitted requests are shown first. Use the status filter to inspect requests already under review."
+                : mode === "operations"
+                  ? "Planning requests are shown first. Use the status filter to inspect ready, applying, failed, or active requests."
+                  : "Requests pinned to an approved environment baseline."}
             </p>
           </div>
         </div>
@@ -161,10 +221,10 @@ export function ClusterAdminPage() {
                 filter({ status: event.target.value || undefined })
               }
             >
-              <option value="">All statuses</option>
-              {Object.entries(statusLabels).map(([value, label]) => (
+              {mode === "directory" && <option value="">All statuses</option>}
+              {availableStatuses.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {statusLabels[value]}
                 </option>
               ))}
             </select>
@@ -180,8 +240,12 @@ export function ClusterAdminPage() {
           <EmptyState
             icon={<Network size={28} />}
             title={
-              filters.status || search
-                ? "No matching cluster setup requests"
+              mode === "reviews"
+                ? "No cluster requests in this review state"
+                : mode === "operations"
+                  ? "No cluster executions in this state"
+                  : filters.status || search
+                    ? "No matching cluster setup requests"
                 : "No cluster setup requests yet"
             }
             action={
@@ -189,15 +253,18 @@ export function ClusterAdminPage() {
                 <Button variant="secondary" onClick={reset}>
                   Clear filters
                 </Button>
-              ) : (
+              ) : mode === "directory" &&
+                hasPermission(identity, "cluster.create") ? (
                 <Link className="button button-primary" href="/clusters/new">
                   New Cluster Setup
                 </Link>
-              )
+              ) : undefined
             }
           >
             {filters.status || search
-              ? "Try another name, ID, or status."
+              ? mode === "directory"
+                ? "Try another name, ID, or status."
+                : "Choose another status or return when new work enters this queue."
               : "Create a cluster setup request against an approved environment."}
           </EmptyState>
         ) : (
@@ -260,11 +327,26 @@ export function ClusterAdminPage() {
   );
 }
 
+const defaultNodeGroup = (index = 0): ClusterNodeGroupInput => ({
+  name: index ? `workers-${index + 1}` : "general",
+  instanceTypes: [],
+  capacityType: "ON_DEMAND",
+  minSize: 1,
+  desiredSize: 1,
+  maxSize: 2,
+  diskSizeGiB: 50,
+});
+
 const defaults: ClusterInput = {
   environmentId: "",
   environmentApprovedVersion: 0,
-  blueprintName: "",
   clusterName: "",
+  kubernetesVersion: "",
+  endpointAccess: "PRIVATE",
+  nodeGroups: [defaultNodeGroup()],
+  provisioningRoleArn: "",
+  externalIdSecretArn: "",
+  tags: {},
   description: "",
 };
 
@@ -312,17 +394,49 @@ export function NewClusterPage() {
   const location = objectValue(baseline.location);
   const network = objectValue(baseline.network);
   const vpc = objectValue(network.vpc);
+  const extensions = objectValue(baseline.extensions);
+  const contract = objectValue(extensions.provisioningContract);
   const clusterSubnets = Array.isArray(network.clusterSubnets)
     ? network.clusterSubnets
     : [];
   const nodeSubnets = Array.isArray(network.nodeSubnets)
     ? network.nodeSubnets
     : [];
-  const blueprints = arrayValue(baseline.clusters);
-  const hasClusterConfig = blueprints.length > 0;
-  const selectedBlueprint = blueprints.find(
-    (b) => b.name === value.blueprintName,
-  );
+  const legacyBlueprint = arrayValue(baseline.clusters)[0];
+  const legacyProvisioning = objectValue(legacyBlueprint?.provisioning);
+  const kubernetesVersions = Array.isArray(contract.kubernetesVersions)
+    ? contract.kubernetesVersions.filter(
+        (item): item is string => typeof item === "string",
+      )
+    : typeof legacyBlueprint?.kubernetesVersion === "string"
+      ? [legacyBlueprint.kubernetesVersion]
+      : [];
+  const instanceTypes = Array.isArray(contract.instanceTypes)
+    ? contract.instanceTypes
+        .map((item) =>
+          typeof item === "string" ? item : objectValue(item).instanceType,
+        )
+        .filter((item): item is string => typeof item === "string")
+    : arrayValue(legacyBlueprint?.nodeGroups)
+        .flatMap((group) =>
+          Array.isArray(group.instanceTypes) ? group.instanceTypes : [],
+        )
+        .filter((item): item is string => typeof item === "string");
+  const provisioningRoles = Array.isArray(contract.provisioningRoles)
+    ? arrayValue(contract.provisioningRoles)
+    : legacyProvisioning.roleArn
+      ? [{ roleArn: legacyProvisioning.roleArn, roleName: "NaviganProvisioningRole" }]
+      : [];
+  const provisioningSecrets = Array.isArray(contract.provisioningSecrets)
+    ? arrayValue(contract.provisioningSecrets)
+    : legacyProvisioning.externalIdSecretArn
+      ? [
+          {
+            arn: legacyProvisioning.externalIdSecretArn,
+            name: "Provisioning external ID",
+          },
+        ]
+      : [];
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -344,7 +458,7 @@ export function NewClusterPage() {
       <PageHeading
         eyebrow="CONTAINER PROVISIONING"
         title="New Cluster Setup"
-        description="Select a customer, an approved environment, and one of its cluster blueprints, then name the cluster. Kubernetes version, node groups and provisioning credentials come from that blueprint."
+        description="Select an approved environment baseline, then define the Kubernetes control plane, worker capacity, scaling, storage and provisioning access for this cluster request."
       />
       {customers.error && (
         <ErrorNotice error={customers.error} onRetry={() => customers.refetch()} />
@@ -388,6 +502,10 @@ export function NewClusterPage() {
                   ...current,
                   environmentId: "",
                   environmentApprovedVersion: 0,
+                  kubernetesVersion: "",
+                  nodeGroups: [defaultNodeGroup()],
+                  provisioningRoleArn: "",
+                  externalIdSecretArn: "",
                 }));
               }}
             >
@@ -413,7 +531,10 @@ export function NewClusterPage() {
                   ...current,
                   environmentId: event.target.value,
                   environmentApprovedVersion: env?.approvedVersion || 0,
-                  blueprintName: "",
+                  kubernetesVersion: "",
+                  nodeGroups: [defaultNodeGroup()],
+                  provisioningRoleArn: "",
+                  externalIdSecretArn: "",
                 }));
               }}
             >
@@ -472,16 +593,8 @@ export function NewClusterPage() {
                       </dd>
                     </div>
                   </dl>
-                  <span
-                    className={
-                      hasClusterConfig
-                        ? "security-chip"
-                        : "security-chip needs-review"
-                    }
-                  >
-                    {hasClusterConfig
-                      ? `${blueprints.length} cluster blueprint${blueprints.length === 1 ? "" : "s"} available`
-                      : "This environment has no cluster blueprints yet — edit and re-approve it before creating a cluster setup request."}
+                  <span className="security-chip">
+                    Reusable infrastructure baseline ready
                   </span>
                   <p className="metadata">
                     Terraform uses this immutable approved snapshot—not the
@@ -490,50 +603,6 @@ export function NewClusterPage() {
                 </>
               )}
             </div>
-          )}
-          {hasClusterConfig && (
-            <label className="field cluster-field-span">
-              Cluster blueprint *
-              <select
-                required
-                value={value.blueprintName}
-                onChange={(event) =>
-                  setValue((current) => ({
-                    ...current,
-                    blueprintName: event.target.value,
-                  }))
-                }
-              >
-                <option value="">Select a cluster blueprint</option>
-                {blueprints.map((blueprint) => (
-                  <option value={String(blueprint.name)} key={String(blueprint.name)}>
-                    {String(blueprint.name)} · {String(blueprint.kubernetesVersion)} ·{" "}
-                    {arrayValue(blueprint.nodeGroups).length} node group
-                    {arrayValue(blueprint.nodeGroups).length === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {selectedBlueprint && (
-            <dl className="cluster-baseline-grid cluster-field-span">
-              <div>
-                <dt>Kubernetes version</dt>
-                <dd>{textValue(selectedBlueprint.kubernetesVersion)}</dd>
-              </div>
-              <div>
-                <dt>Endpoint access</dt>
-                <dd>{textValue(selectedBlueprint.endpointAccess)}</dd>
-              </div>
-              <div>
-                <dt>Node groups</dt>
-                <dd>
-                  {arrayValue(selectedBlueprint.nodeGroups)
-                    .map((g) => String(g.name))
-                    .join(", ")}
-                </dd>
-              </div>
-            </dl>
           )}
           <label className="field">
             Cluster name *
@@ -544,6 +613,45 @@ export function NewClusterPage() {
                 setValue({ ...value, clusterName: event.target.value })
               }
             />
+          </label>
+          <label className="field">
+            Kubernetes version *
+            <select
+              required
+              disabled={!value.environmentId || selectedEnvironment.isPending}
+              value={value.kubernetesVersion}
+              onChange={(event) =>
+                setValue({ ...value, kubernetesVersion: event.target.value })
+              }
+            >
+              <option value="">Select an available EKS version</option>
+              {kubernetesVersions.map((version) => (
+                <option value={version} key={version}>
+                  {version}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            API endpoint access *
+            <select
+              required
+              value={value.endpointAccess}
+              onChange={(event) =>
+                setValue({
+                  ...value,
+                  endpointAccess: event.target.value as
+                    | "PRIVATE"
+                    | "PUBLIC_AND_PRIVATE",
+                })
+              }
+            >
+              <option value="PRIVATE">Private only</option>
+              <option value="PUBLIC_AND_PRIVATE">
+                Public and private
+              </option>
+            </select>
+            <small>Private-only access is the recommended baseline.</small>
           </label>
           <label className="field">
             Description
@@ -557,6 +665,201 @@ export function NewClusterPage() {
               }
             />
           </label>
+          <fieldset className="cluster-field-span blueprint-section">
+            <legend>Managed node groups, scaling and storage</legend>
+            <p className="muted">
+              Define the worker pools required by this cluster. A single
+              instance type keeps every node in a pool uniform.
+            </p>
+            {value.nodeGroups.map((group, index) => (
+              <div className="cluster-blueprint-card" key={index}>
+                <div className="cluster-setup-grid">
+                  <label className="field">
+                    Node group name *
+                    <input
+                      required
+                      value={group.name}
+                      onChange={(event) =>
+                        setValue((current) => ({
+                          ...current,
+                          nodeGroups: current.nodeGroups.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? { ...item, name: event.target.value }
+                              : item,
+                          ),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    EC2 instance type *
+                    <select
+                      required
+                      value={group.instanceTypes[0] || ""}
+                      onChange={(event) =>
+                        setValue((current) => ({
+                          ...current,
+                          nodeGroups: current.nodeGroups.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...item,
+                                  instanceTypes: event.target.value
+                                    ? [event.target.value]
+                                    : [],
+                                }
+                              : item,
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="">Select a regional instance type</option>
+                      {instanceTypes.map((instanceType) => (
+                        <option value={instanceType} key={instanceType}>
+                          {instanceType}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    Capacity type *
+                    <select
+                      value={group.capacityType}
+                      onChange={(event) =>
+                        setValue((current) => ({
+                          ...current,
+                          nodeGroups: current.nodeGroups.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...item,
+                                  capacityType: event.target.value as
+                                    | "ON_DEMAND"
+                                    | "SPOT",
+                                }
+                              : item,
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="ON_DEMAND">On-demand</option>
+                      <option value="SPOT">Spot</option>
+                    </select>
+                  </label>
+                  {(
+                    [
+                      ["minSize", "Minimum nodes"],
+                      ["desiredSize", "Desired nodes"],
+                      ["maxSize", "Maximum nodes"],
+                      ["diskSizeGiB", "Disk size (GiB)"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label className="field" key={key}>
+                      {label} *
+                      <input
+                        required
+                        type="number"
+                        min={key === "diskSizeGiB" ? 20 : key === "maxSize" ? 1 : 0}
+                        max={key === "diskSizeGiB" ? 16384 : 1000}
+                        value={group[key]}
+                        onChange={(event) =>
+                          setValue((current) => ({
+                            ...current,
+                            nodeGroups: current.nodeGroups.map(
+                              (item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      [key]: Number(event.target.value),
+                                    }
+                                  : item,
+                            ),
+                          }))
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                {value.nodeGroups.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      setValue((current) => ({
+                        ...current,
+                        nodeGroups: current.nodeGroups.filter(
+                          (_, itemIndex) => itemIndex !== index,
+                        ),
+                      }))
+                    }
+                  >
+                    <Trash2 size={16} /> Remove node group
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setValue((current) => ({
+                  ...current,
+                  nodeGroups: [
+                    ...current.nodeGroups,
+                    defaultNodeGroup(current.nodeGroups.length),
+                  ],
+                }))
+              }
+            >
+              <Plus size={16} /> Add node group
+            </Button>
+          </fieldset>
+          <fieldset className="cluster-field-span blueprint-section">
+            <legend>Provisioning access</legend>
+            <div className="cluster-setup-grid">
+              <label className="field">
+                Provisioning role ARN *
+                <select
+                  required
+                  value={value.provisioningRoleArn}
+                  onChange={(event) =>
+                    setValue({
+                      ...value,
+                      provisioningRoleArn: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Select an approved role</option>
+                  {provisioningRoles.map((role) => (
+                    <option
+                      value={String(role.roleArn)}
+                      key={String(role.roleArn)}
+                    >
+                      {String(role.roleName || role.roleArn)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                External ID secret ARN *
+                <select
+                  required
+                  value={value.externalIdSecretArn}
+                  onChange={(event) =>
+                    setValue({
+                      ...value,
+                      externalIdSecretArn: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Select an approved secret</option>
+                  {provisioningSecrets.map((secret) => (
+                    <option value={String(secret.arn)} key={String(secret.arn)}>
+                      {String(secret.name || secret.arn)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </fieldset>
         </div>
         <div className="form-actions cluster-setup-actions">
           <Link className="button button-secondary" href="/clusters">
@@ -567,7 +870,16 @@ export function NewClusterPage() {
             disabled={
               saving ||
               !value.environmentApprovedVersion ||
-              !value.blueprintName ||
+              !value.kubernetesVersion ||
+              !value.provisioningRoleArn ||
+              !value.externalIdSecretArn ||
+              value.nodeGroups.some(
+                (group) =>
+                  !group.name ||
+                  !group.instanceTypes.length ||
+                  group.minSize > group.desiredSize ||
+                  group.desiredSize > group.maxSize,
+              ) ||
               selectedEnvironment.isPending
             }
           >
@@ -585,7 +897,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
     queryKey: ["cluster", id],
     queryFn: () => clusters.get(id),
     refetchInterval: (state) =>
-      ["PLAN_RUNNING", "APPLYING"].includes(state.state.data?.status || "")
+      ["PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"].includes(
+        state.state.data?.status || "",
+      )
         ? 5000
         : false,
   });
@@ -606,6 +920,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const row = query.data;
   const engineer = identity?.roles.includes("CLOUD_ENGINEER");
   const architect = identity?.roles.includes("PLATFORM_ARCHITECT");
+  const canOperate = hasPermission(identity, "cluster.apply");
+  const canDelete = hasPermission(identity, "cluster.decommission");
   const configuration = objectValue(row.configuration);
   const nodeGroups = arrayValue(configuration.nodeGroups);
   const workflow = objectValue(row.workflow);
@@ -616,7 +932,15 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const certificationPassed = certification.status === "PASSED";
   const planAvailable = ["PLAN_READY", "APPLYING", "ACTIVE"].includes(row.status);
   const actions: Array<
-    "submit" | "review" | "approve" | "reject" | "plan" | "apply"
+    | "submit"
+    | "review"
+    | "approve"
+    | "reject"
+    | "plan"
+    | "apply"
+    | "stop"
+    | "start"
+    | "delete"
   > =
     engineer && ["DRAFT", "REJECTED"].includes(row.status)
       ? ["submit"]
@@ -630,7 +954,17 @@ export function ClusterRequestPage({ id }: { id: string }) {
               ? certificationPassed
                 ? ["apply"]
                 : ["plan"]
-              : [];
+              : canOperate && row.status === "ACTIVE"
+                ? canDelete
+                  ? ["stop", "delete"]
+                  : ["stop"]
+                : canOperate && row.status === "STOPPED"
+                  ? canDelete
+                    ? ["start", "delete"]
+                    : ["start"]
+                  : canDelete && row.status === "FAILED"
+                    ? ["delete"]
+                    : [];
   const act = async (action: (typeof actions)[number]) => {
     if (
       action === "apply" &&
@@ -639,8 +973,27 @@ export function ClusterRequestPage({ id }: { id: string }) {
       )
     )
       return;
+    if (
+      action === "stop" &&
+      !window.confirm(
+        "Stop this cluster's worker capacity? The EKS control plane remains active and billed.",
+      )
+    )
+      return;
+    if (
+      action === "start" &&
+      !window.confirm("Restore the approved worker capacity for this cluster?")
+    )
+      return;
+    if (
+      action === "delete" &&
+      !window.confirm(
+        "Permanently destroy this cluster through its recorded Terraform state? This cannot be undone.",
+      )
+    )
+      return;
     const comments = actionComments.trim();
-    if (action === "reject" && !comments) return;
+    if (["reject", "delete"].includes(action) && !comments) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -693,8 +1046,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 <dd>Version {row.environmentApprovedVersion}</dd>
               </div>
               <div>
-                <dt>Blueprint</dt>
-                <dd>{textValue(configuration.blueprintName)}</dd>
+                <dt>Platform</dt>
+                <dd>{row.platform}</dd>
               </div>
             </dl>
             {row.description && (
@@ -711,8 +1064,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 <span className="eyebrow">APPROVED CONFIGURATION</span>
                 <h2>Cluster specification</h2>
                 <p className="muted">
-                  Read-only values copied from the approved environment
-                  blueprint.
+                  Cluster-owned values reviewed with the pinned, approved
+                  environment baseline.
                 </p>
               </div>
               <ShieldCheck aria-hidden="true" />
@@ -769,7 +1122,10 @@ export function ClusterRequestPage({ id }: { id: string }) {
             </div>
           </section>
 
-          {["PLAN_RUNNING", "PLAN_READY", "FAILED", "APPLYING", "ACTIVE"].includes(
+          {[
+            "PLAN_RUNNING", "PLAN_READY", "FAILED", "APPLYING", "ACTIVE",
+            "STOPPING", "STOPPED", "STARTING", "DELETING",
+          ].includes(
             row.status,
           ) && (
             <section className="panel panel-padding cluster-certification">
@@ -943,7 +1299,10 @@ export function ClusterRequestPage({ id }: { id: string }) {
             </p>
             {actions.length > 0 && (
               <label className="field">
-                Review comments {actions.includes("reject") ? "*" : ""}
+                Action comments{" "}
+                {actions.some((action) => ["reject", "delete"].includes(action))
+                  ? "*"
+                  : ""}
                 <textarea
                   rows={4}
                   maxLength={4000}
@@ -959,11 +1318,12 @@ export function ClusterRequestPage({ id }: { id: string }) {
                   key={action}
                   disabled={
                     busy ||
-                    (action === "reject" && !actionComments.trim()) ||
+                    (["reject", "delete"].includes(action) &&
+                      !actionComments.trim()) ||
                     (action === "apply" && !planConfirmed)
                   }
                   className={
-                    action === "reject"
+                    ["reject", "delete"].includes(action)
                       ? "button button-danger"
                       : "button button-primary"
                   }
@@ -975,6 +1335,12 @@ export function ClusterRequestPage({ id }: { id: string }) {
                       ? "Apply certified plan"
                       : action === "review"
                         ? "Start review"
+                        : action === "stop"
+                          ? "Stop worker capacity"
+                          : action === "start"
+                            ? "Start worker capacity"
+                            : action === "delete"
+                              ? "Delete cluster"
                         : action === "approve"
                           ? "Approve and generate plan"
                           : action.replace(/^./, (letter) => letter.toUpperCase())}
@@ -983,7 +1349,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
             </div>
             {actions.length === 0 && (
               <p className="notice">
-                {row.status === "PLAN_RUNNING" || row.status === "APPLYING"
+                {[
+                  "PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING",
+                ].includes(row.status)
                   ? "This page refreshes automatically as the execution progresses."
                   : "No action is currently required from your role."}
               </p>

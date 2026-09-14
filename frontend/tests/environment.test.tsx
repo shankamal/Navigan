@@ -9,7 +9,9 @@ import {
   cleanConfiguration,
 } from "@/modules/environment-management/components/configuration-fields";
 import {
+  baselineFrom,
   defaultAwsBaselineSelection,
+  requestedResourceVariables,
   validateAwsBaselineSelection,
 } from "@/modules/environment-management/components/aws-discovery-panel";
 import { allowedActions } from "@/modules/environment-management/model/policy";
@@ -171,6 +173,8 @@ describe("Environment module", () => {
   });
 
   it("allows all documented routes with exact methods", () => {
+    expect(isAllowedRoute("GET", ["access", "me"])).toBe(true);
+    expect(isAllowedRoute("POST", ["access", "me"])).toBe(false);
     const contract = JSON.parse(
       readFileSync(
         resolve(process.cwd(), "../docs/environment-openapi.json"),
@@ -193,6 +197,14 @@ describe("Environment module", () => {
     expect(count).toBe(22);
     expect(
       isAllowedRoute("POST", ["environments", "blueprint-readiness"]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("POST", [
+        "environments",
+        "bootstrap-remediations",
+        "BRQ-0123456789abcdef0123456789abcdef",
+        "verify",
+      ]),
     ).toBe(true);
     expect(
       isAllowedRoute("GET", [
@@ -246,6 +258,63 @@ describe("Environment module", () => {
         network: { subnets: [] },
       }),
     ).toEqual({ extensions: { feature: false } });
+  });
+
+  it("persists a compact baseline instead of the full discovery inventory", () => {
+    const largeDiscovery = {
+      ...discovery,
+      regions: [{
+        ...discovery.regions[0],
+        serviceQuotas: Array.from({ length: 100 }, (_, index) => ({
+          serviceCode: "eks",
+          quotaCode: `L-${index}`,
+          quotaName: `Verbose quota description ${index}`.repeat(20),
+          value: index,
+          adjustable: true,
+        })),
+        instanceTypes: Array.from({ length: 1000 }, (_, index) => ({
+          instanceType: `m7i.${index}`,
+          currentGeneration: true,
+          vCpu: 4,
+          memoryMiB: 16384,
+          architectures: ["x86_64"],
+          burstablePerformanceSupported: false,
+        })),
+      }],
+    } as AwsDiscovery;
+    const baseline = baselineFrom(
+      largeDiscovery,
+      defaultAwsBaselineSelection(largeDiscovery),
+      "DEV",
+      "Cloud Engineer",
+      "CC-123",
+    );
+    expect(new TextEncoder().encode(JSON.stringify(baseline)).length).toBeLessThan(
+      65536,
+    );
+    expect(
+      (
+        baseline.extensions as Record<string, unknown>
+      ).provisioningContract,
+    ).toBeTruthy();
+  });
+
+  it("generates non-secret Terraform variables for requested resource names", () => {
+    expect(
+      requestedResourceVariables({
+        EKS_CLUSTER_ROLE: "NaviganEksClusterRole-dev",
+        EKS_NODE_ROLE: "NaviganEksNodeRole-dev",
+        KMS_KEY: "alias/navigan-dev-eks",
+      }),
+    ).toEqual({
+      create_eks_cluster_role: true,
+      eks_cluster_role_name: "NaviganEksClusterRole-dev",
+      create_eks_node_role: true,
+      eks_node_role_name: "NaviganEksNodeRole-dev",
+      create_eks_kms_key: true,
+      recommended_kms_alias: "alias/navigan-dev-eks",
+      confirm_create_recommended_resources: false,
+    });
   });
   it("removes duplicate instance types before environment writes", () => {
     expect(

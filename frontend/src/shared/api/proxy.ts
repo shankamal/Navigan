@@ -11,6 +11,8 @@ const actions = [
   "deactivate",
 ];
 export function isAllowedRoute(method: string, path: string[]): boolean {
+  if (path.length === 2 && path[0] === "access" && path[1] === "me")
+    return method === "GET";
   if (path[0] === "clusters") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^CLU-[A-Za-z0-9-]+$/.test(path[1])) return false;
@@ -20,7 +22,10 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     return (
       path.length === 3 &&
       method === "POST" &&
-      ["submit", "review", "approve", "reject", "plan", "apply"].includes(path[2])
+      [
+        "submit", "review", "approve", "reject", "plan", "apply",
+        "stop", "start", "delete",
+      ].includes(path[2])
     );
   }
   if (path[0] === "environments") {
@@ -38,7 +43,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       path.length === 4 &&
       path[1] === "bootstrap-remediations" &&
       /^BRQ-[A-Fa-f0-9]{32}$/.test(path[2]) &&
-      ["approve", "reject"].includes(path[3])
+      ["approve", "reject", "verify"].includes(path[3])
     )
       return method === "POST";
     if (path.length === 3 && path[1] === "discover" && path[2] === "aws")

@@ -3,7 +3,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Search, ShieldAlert, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Download,
+  Search,
+  ShieldAlert,
+  XCircle,
+} from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import {
   Button,
@@ -23,6 +29,7 @@ import type {
   BootstrapRemediation,
   BootstrapRemediationFilters,
 } from "../model/types";
+import { requestedResourceVariables } from "./aws-discovery-panel";
 
 const statusLabels: Record<BootstrapRemediation["status"], string> = {
   REQUESTED: "Awaiting review",
@@ -225,6 +232,22 @@ export function BootstrapRemediationDetails({
     event.preventDefault();
     mutation.mutate(decision);
   };
+  const downloadRequestedVariables = () => {
+    const body = {
+      region: item.region,
+      customer_id: item.customerId,
+      ...requestedResourceVariables(item.desiredResources),
+    };
+    const blob = new Blob([JSON.stringify(body, null, 2) + "\n"], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `navigan-${item.requestId}.auto.tfvars.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -248,6 +271,12 @@ export function BootstrapRemediationDetails({
                 <div>
                   <strong>{resource}</strong>
                   <p>{item.requestedActions[index] || "Create and validate this prerequisite."}</p>
+                  {item.desiredResources[resource] && (
+                    <p>
+                      Requested name:{" "}
+                      <code>{item.desiredResources[resource]}</code>
+                    </p>
+                  )}
                 </div>
               </article>
             ))}
@@ -258,6 +287,28 @@ export function BootstrapRemediationDetails({
             <div><dt>Discovery role</dt><dd className="break-all">{item.discoveryRoleArn}</dd></div>
             <div><dt>Correlation ID</dt><dd className="break-all">{item.correlationId}</dd></div>
           </dl>
+          {["APPROVED", "PLAN_RUNNING", "PLAN_READY", "APPLY_RUNNING", "COMPLETED"].includes(
+            item.status,
+          ) && (
+            <div className="form-actions">
+              <a
+                className="button button-secondary"
+                href="/downloads/navigan-aws-customer-bootstrap-v1.1.4.zip"
+                download
+              >
+                <Download size={16} aria-hidden="true" />
+                Download bootstrap v1.1.4
+              </a>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={downloadRequestedVariables}
+              >
+                <Download size={16} aria-hidden="true" />
+                Download approved names
+              </Button>
+            </div>
+          )}
         </section>
         <aside className="panel panel-padding remediation-decision">
           <p className="eyebrow">DECISION GATE</p>

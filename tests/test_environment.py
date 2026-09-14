@@ -10,9 +10,13 @@ from navigan.shared.errors import ApiError
 from navigan.modules.environment_management.configuration import schema, validate
 from navigan.modules.environment_management.handler import resource_path, query_params, lambda_handler
 from navigan.modules.environment_management.service import Service, TRANSITIONS
-from navigan.modules.environment_management.models import AwsDiscoveryRequest
+from navigan.modules.environment_management.models import (
+    AwsDiscoveryRequest,
+    CreateBootstrapRemediation,
+)
 from navigan.modules.environment_management.discovery import _route_profile, _subnet_routes
 from navigan.modules.environment_management.readiness import assess_eks_blueprints
+from navigan.modules.environment_management.remediation import BootstrapRemediationService
 
 
 def example(distribution):
@@ -291,6 +295,90 @@ def test_aws_discovery_request_requires_matching_fixed_role_and_distinct_regions
         AwsDiscoveryRequest.model_validate({**valid, "regions": ["ap-south-1", "ap-south-1"]})
 
 
+def test_resource_fulfilment_request_enforces_action_mapping_and_safe_names():
+    valid = {
+        "customerId": "CUS-test",
+        "accountId": "123456789012",
+        "region": "ap-south-1",
+        "discoveryRoleArn": "arn:aws:iam::123456789012:role/NaviganDiscoveryRole",
+        "missingResources": ["EKS_CLUSTER_ROLE", "KMS_KEY"],
+        "requestedActions": ["CREATE_EKS_CLUSTER_ROLE", "CREATE_KMS_KEY"],
+        "desiredResources": {
+            "EKS_CLUSTER_ROLE": "CustomerEksClusterRole",
+            "KMS_KEY": "alias/customer-eks",
+        },
+        "confirmed": True,
+    }
+    model = CreateBootstrapRemediation.model_validate(valid)
+    assert model.desiredResources["KMS_KEY"] == "alias/customer-eks"
+    with pytest.raises(Exception):
+        CreateBootstrapRemediation.model_validate(
+            {**valid, "requestedActions": ["CREATE_KMS_KEY", "CREATE_EKS_CLUSTER_ROLE"]}
+        )
+    with pytest.raises(Exception):
+        CreateBootstrapRemediation.model_validate(
+            {
+                **valid,
+                "missingResources": ["KMS_KEY"],
+                "requestedActions": ["CREATE_KMS_KEY"],
+            }
+        )
+
+
+def test_resource_fulfilment_verification_requires_exact_ready_resources():
+    row = {
+        "desiredResources": {
+            "EKS_CLUSTER_ROLE": "CustomerEksClusterRole",
+            "EKS_NODE_ROLE": "CustomerEksNodeRole",
+            "KMS_KEY": "alias/customer-eks",
+        },
+        "missingResources": [
+            "EKS_CLUSTER_ROLE",
+            "EKS_NODE_ROLE",
+            "KMS_KEY",
+            "PROVISIONING_ROLE",
+        ],
+    }
+    discovery = {
+        "iamRoles": [
+            {
+                "roleName": "CustomerEksClusterRole",
+                "roleType": "CLUSTER",
+                "eligibility": "READY",
+            },
+            {
+                "roleName": "CustomerEksNodeRole",
+                "roleType": "NODE",
+                "eligibility": "READY",
+            },
+        ],
+        "provisioningRoles": [
+            {
+                "roleName": "NaviganProvisioningRole",
+                "roleArn": "arn:aws:iam::123456789012:role/NaviganProvisioningRole",
+            }
+        ],
+        "provisioningSecrets": [],
+        "regions": [
+            {
+                "kmsKeys": [
+                    {
+                        "aliasName": "alias/customer-eks",
+                        "eligibility": "READY",
+                    }
+                ],
+                "kubernetesVersions": ["1.35"],
+            }
+        ],
+    }
+    found, missing = BootstrapRemediationService._verification_result(row, discovery)
+    assert not missing
+    assert found["PROVISIONING_ROLE"] == "discovered"
+    discovery["iamRoles"][1]["eligibility"] = "BLOCKED"
+    _, missing = BootstrapRemediationService._verification_result(row, discovery)
+    assert missing == ["EKS_NODE_ROLE"]
+
+
 def test_environment_review_must_be_independent():
     repo = MagicMock()
     repo.principal = Principal("maker", frozenset({"PLATFORM_ARCHITECT"}), frozenset(), True)
@@ -353,7 +441,7 @@ def test_gateway_routes_and_scopes():
     routes = [
         r["Properties"] for r in template["Resources"].values() if r["Type"] == "AWS::ApiGatewayV2::Route"
     ]
-    assert len(routes) == 29
+    assert len(routes) == 30
     assert all(
         r["AuthorizationType"] == "JWT" and r["AuthorizationScopes"] == [{"Ref": "JwtScope"}] for r in routes
     )
