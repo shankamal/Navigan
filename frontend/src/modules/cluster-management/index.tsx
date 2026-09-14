@@ -47,6 +47,70 @@ function textValue(value: unknown, fallback = "Not configured") {
   return typeof value === "string" && value ? value : fallback;
 }
 
+function versionTuple(version: string): number[] {
+  return version.split(".").map((part) => Number(part) || 0);
+}
+
+function compareVersionsDescending(left: string, right: string): number {
+  const a = versionTuple(left);
+  const b = versionTuple(right);
+  return (b[0] || 0) - (a[0] || 0) || (b[1] || 0) - (a[1] || 0);
+}
+
+function supportedEksVersions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) =>
+          typeof item === "string"
+            ? item
+            : typeof objectValue(item).version === "string"
+              ? String(objectValue(item).version)
+              : "",
+        )
+        .filter(Boolean),
+    ),
+  ].toSorted(compareVersionsDescending);
+}
+
+function approvedProvisioningSecrets(...values: unknown[]) {
+  return values
+    .flatMap((value) => (Array.isArray(value) ? value : []))
+    .map((item) => {
+      if (typeof item === "string") return { arn: item, name: item };
+      const record = objectValue(item);
+      const arn = record.arn || record.ARN || record.secretArn;
+      return {
+        arn: typeof arn === "string" ? arn : "",
+        name:
+          typeof record.name === "string"
+            ? record.name
+            : typeof record.secretName === "string"
+              ? record.secretName
+              : typeof arn === "string"
+                ? arn
+                : "",
+      };
+    })
+    .filter(
+      (item, index, items) =>
+        Boolean(item.arn) &&
+        items.findIndex((candidate) => candidate.arn === item.arn) === index,
+    );
+}
+
+function recommendedNodeGroupName(clusterName: string, index = 0): string {
+  const clusterPrefix = clusterName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  const workload = index === 0 ? "general" : `workload-${index + 1}`;
+  return clusterPrefix ? `${clusterPrefix}-${workload}-ng` : `${workload}-ng`;
+}
+
 const statusLabels: Record<string, string> = {
   DRAFT: "Draft",
   SUBMITTED: "Submitted",
@@ -327,8 +391,11 @@ export function ClusterAdminPage({
   );
 }
 
-const defaultNodeGroup = (index = 0): ClusterNodeGroupInput => ({
-  name: index ? `workers-${index + 1}` : "general",
+const defaultNodeGroup = (
+  index = 0,
+  clusterName = "",
+): ClusterNodeGroupInput => ({
+  name: recommendedNodeGroupName(clusterName, index),
   instanceTypes: [],
   capacityType: "ON_DEMAND",
   minSize: 1,
@@ -389,12 +456,19 @@ export function NewClusterPage() {
     enabled: Boolean(value.environmentId),
     staleTime: 60000,
   });
+  const liveProvisioningOptions = useQuery({
+    queryKey: ["cluster-provisioning-options", value.environmentId],
+    queryFn: () => environments.provisioningOptions(value.environmentId),
+    enabled: Boolean(value.environmentId),
+    staleTime: 60000,
+  });
   const baseline = objectValue(selectedEnvironment.data?.configuration);
   const account = objectValue(baseline.account);
   const location = objectValue(baseline.location);
   const network = objectValue(baseline.network);
   const vpc = objectValue(network.vpc);
   const extensions = objectValue(baseline.extensions);
+  const discovery = objectValue(extensions.discovery);
   const contract = objectValue(extensions.provisioningContract);
   const clusterSubnets = Array.isArray(network.clusterSubnets)
     ? network.clusterSubnets
@@ -405,9 +479,7 @@ export function NewClusterPage() {
   const legacyBlueprint = arrayValue(baseline.clusters)[0];
   const legacyProvisioning = objectValue(legacyBlueprint?.provisioning);
   const kubernetesVersions = Array.isArray(contract.kubernetesVersions)
-    ? contract.kubernetesVersions.filter(
-        (item): item is string => typeof item === "string",
-      )
+    ? supportedEksVersions(contract.kubernetesVersions)
     : typeof legacyBlueprint?.kubernetesVersion === "string"
       ? [legacyBlueprint.kubernetesVersion]
       : [];
@@ -427,16 +499,20 @@ export function NewClusterPage() {
     : legacyProvisioning.roleArn
       ? [{ roleArn: legacyProvisioning.roleArn, roleName: "NaviganProvisioningRole" }]
       : [];
-  const provisioningSecrets = Array.isArray(contract.provisioningSecrets)
-    ? arrayValue(contract.provisioningSecrets)
-    : legacyProvisioning.externalIdSecretArn
+  const provisioningSecrets = approvedProvisioningSecrets(
+    liveProvisioningOptions.data?.provisioningSecrets,
+    contract.provisioningSecrets,
+    discovery.provisioningSecrets,
+    baseline.provisioningSecrets,
+    legacyProvisioning.externalIdSecretArn
       ? [
           {
             arn: legacyProvisioning.externalIdSecretArn,
             name: "Provisioning external ID",
           },
         ]
-      : [];
+      : [],
+  );
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -609,9 +685,25 @@ export function NewClusterPage() {
             <input
               required
               value={value.clusterName}
-              onChange={(event) =>
-                setValue({ ...value, clusterName: event.target.value })
-              }
+              onChange={(event) => {
+                const clusterName = event.target.value;
+                setValue((current) => ({
+                  ...current,
+                  clusterName,
+                  nodeGroups: current.nodeGroups.map((group, index) => {
+                    const previousRecommendation = recommendedNodeGroupName(
+                      current.clusterName,
+                      index,
+                    );
+                    return group.name === previousRecommendation
+                      ? {
+                          ...group,
+                          name: recommendedNodeGroupName(clusterName, index),
+                        }
+                      : group;
+                  }),
+                }));
+              }}
             />
           </label>
           <label className="field">
@@ -679,6 +771,10 @@ export function NewClusterPage() {
                     <input
                       required
                       value={group.name}
+                      placeholder={recommendedNodeGroupName(
+                        value.clusterName,
+                        index,
+                      )}
                       onChange={(event) =>
                         setValue((current) => ({
                           ...current,
@@ -804,7 +900,10 @@ export function NewClusterPage() {
                   ...current,
                   nodeGroups: [
                     ...current.nodeGroups,
-                    defaultNodeGroup(current.nodeGroups.length),
+                    defaultNodeGroup(
+                      current.nodeGroups.length,
+                      current.clusterName,
+                    ),
                   ],
                 }))
               }
@@ -842,6 +941,7 @@ export function NewClusterPage() {
                 External ID secret ARN *
                 <select
                   required
+                  disabled={liveProvisioningOptions.isPending}
                   value={value.externalIdSecretArn}
                   onChange={(event) =>
                     setValue({
@@ -857,6 +957,18 @@ export function NewClusterPage() {
                     </option>
                   ))}
                 </select>
+                {liveProvisioningOptions.isPending && (
+                  <small className="muted">
+                    Loading registered provisioning secrets…
+                  </small>
+                )}
+                {!liveProvisioningOptions.isPending &&
+                  provisioningSecrets.length === 0 && (
+                    <small className="field-error">
+                      No External ID secret is registered for this customer.
+                      Complete or verify the environment bootstrap first.
+                    </small>
+                  )}
               </label>
             </div>
           </fieldset>

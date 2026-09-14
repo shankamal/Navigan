@@ -27,8 +27,6 @@ import { useEnvironment } from "../hooks/queries";
 import { allowedActions, labels } from "../model/policy";
 import { environments } from "../services/environments";
 import type { Action, HistoryKind } from "../model/types";
-import type { BlueprintReadiness } from "../model/types";
-import { BlueprintReadinessPanel } from "./blueprint-readiness";
 
 const lifecycle = [
   { status: "DRAFT", label: "Draft" },
@@ -62,7 +60,6 @@ export function EnvironmentDetails({ id }: { id: string }) {
   );
   const [page, setPage] = useState(0);
   const [version, setVersion] = useState<number | null>(null);
-  const [readiness, setReadiness] = useState<BlueprintReadiness | null>(null);
   const attempt = useRef<{ body: string; key: string } | null>(null);
   const records = useQuery({
     queryKey: ["environment-records", id, tab, page, query.data?.version],
@@ -105,6 +102,12 @@ export function EnvironmentDetails({ id }: { id: string }) {
     ["DRAFT", "REJECTED"].includes(env.status) &&
     identity?.roles.includes("CLOUD_ENGINEER");
   const actions = allowedActions(env, identity);
+  const submissionAction = actions.find((item) =>
+    ["submit", "resubmit"].includes(item),
+  );
+  const decisionActions = actions.filter(
+    (item) => !["submit", "resubmit"].includes(item),
+  );
   const lifecycleStatus =
     env.status === "UNDER_REVIEW" ? "SUBMITTED" : env.status;
   const lifecycleIndex = lifecycle.findIndex(
@@ -122,25 +125,37 @@ export function EnvironmentDetails({ id }: { id: string }) {
           env.description || "Reusable cloud infrastructure baseline"
         }
         action={
-          editable && (
-            <Link
-              className="button button-primary"
-              href={`/environments/${id}/edit`}
-            >
-              <Pencil size={16} aria-hidden="true" />
-              Edit draft revision
-            </Link>
+          (editable || submissionAction) && (
+            <>
+              {editable && (
+                <Link
+                  className="button button-secondary"
+                  href={`/environments/${id}/edit`}
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                  Edit draft revision
+                </Link>
+              )}
+              {submissionAction && (
+                <Button
+                  variant="primary"
+                  aria-pressed={action === submissionAction}
+                  onClick={() => {
+                    setAction(
+                      action === submissionAction ? null : submissionAction,
+                    );
+                    setReason("");
+                    setComments("");
+                    mutation.reset();
+                  }}
+                >
+                  {labels[submissionAction]}
+                </Button>
+              )}
+            </>
           )
         }
       />
-      {["DRAFT", "REJECTED"].includes(env.status) &&
-        env.kubernetesDistribution === "EKS" && (
-          <BlueprintReadinessPanel
-            distribution={env.kubernetesDistribution}
-            configuration={env.configuration}
-            onResult={setReadiness}
-          />
-        )}
       <section className="panel environment-command-center">
         <header className="environment-command-header">
           <div>
@@ -218,7 +233,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
             <p>{formatDateTime(env.updatedAt || env.createdAt)}</p>
           </div>
         </div>
-        {!!actions.length && (
+        {!!decisionActions.length && (
           <div className="environment-decision-bar">
             <div>
               <strong>Next action</strong>
@@ -228,7 +243,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
               </p>
             </div>
             <div className="environment-actions">
-              {actions.map((a) => (
+              {decisionActions.map((a) => (
                 <Button
                   key={a}
                   variant={
@@ -254,17 +269,6 @@ export function EnvironmentDetails({ id }: { id: string }) {
             </div>
           </div>
         )}
-        {actions.some((item) => ["submit", "resubmit"].includes(item)) &&
-          readiness?.status !== "PASSED" && (
-            <div className="environment-availability-note">
-              <ShieldCheck size={18} aria-hidden="true" />
-              <p>
-                Validate the blueprint here for a preview. Submission always
-                runs a fresh authoritative readiness check and will stop if any
-                blocking issue remains.
-              </p>
-            </div>
-          )}
         {env.approvedVersion &&
           env.approvedStatus === "ACTIVE" &&
           env.status !== "ACTIVE" && (

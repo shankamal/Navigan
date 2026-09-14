@@ -37,6 +37,12 @@ export const environments = {
       environmentSchema,
       (await apiClient.get(`${base}/${id}`)).data,
     ),
+  provisioningOptions: async (id: string) =>
+    (
+      await apiClient.get<{
+        provisioningSecrets: Array<{ name: string; arn: string }>;
+      }>(`${base}/${id}/provisioning-options`)
+    ).data,
   metadata: async () =>
     parseResponse(
       metadataSchema,

@@ -98,6 +98,7 @@ def discover_aws(body, boto3_module=None):
         iam = session.client("iam")
         roles = []
         provisioning_roles = []
+        provisioning_external_ids = set()
         # IAM-heavy enterprise accounts commonly exceed 100 roles. Scan up to
         # the default IAM account quota so eligible Navigan/EKS roles are not
         # silently omitted by alphabetical pagination.
@@ -155,11 +156,28 @@ def discover_aws(body, boto3_module=None):
                 )
             if name.endswith("NaviganProvisioningRole"):
                 provisioning_roles.append({"roleName": name, "roleArn": role.get("Arn", "")})
+                from .provisioning_options import trusted_external_ids
+
+                provisioning_external_ids.update(
+                    trusted_external_ids(document)
+                )
 
         access_stage = "list_provisioning_secrets"
+        from .provisioning_options import register_provisioning_external_id
+
+        if len(provisioning_external_ids) == 1:
+            register_provisioning_external_id(
+                body["customerId"],
+                body["accountId"],
+                next(iter(provisioning_external_ids)),
+                boto3_module,
+            )
         provisioning_secrets = []
         secrets = boto3_module.client("secretsmanager")
-        prefix = f"navigan/provisioning/{body['customerId']}/"
+        prefix = (
+            f"navigan/provisioning/{body['customerId']}/"
+            f"{body['accountId']}/"
+        )
         for secret in _items(
             secrets, "list_secrets", "SecretList", Filters=[{"Key": "name", "Values": [prefix]}]
         ):

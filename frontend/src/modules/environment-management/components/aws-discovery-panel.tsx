@@ -89,7 +89,7 @@ const managedResourceDefinitions: Array<{
   },
 ];
 
-function dedicatedResourceDefaults(customerId: string) {
+function dedicatedResourceDefaults(customerId: string, accountId = "") {
   const suffix = customerId
     .replace(/^CUS-/i, "")
     .replace(/[^A-Za-z0-9-]/g, "-")
@@ -99,7 +99,7 @@ function dedicatedResourceDefaults(customerId: string) {
     EKS_NODE_ROLE: `NaviganEksNodeRole-${suffix}`,
     KMS_KEY: `alias/navigan-${suffix.toLowerCase()}-eks`,
     PROVISIONING_ROLE: "NaviganProvisioningRole",
-    EXTERNAL_ID_SECRET: `navigan/provisioning/${customerId}/external-id`,
+    EXTERNAL_ID_SECRET: `navigan/provisioning/${customerId}/${accountId || "aws-account-id"}/external-id`,
   } satisfies Record<ManagedResourceType, string>;
 }
 
@@ -654,7 +654,10 @@ export function AwsDiscoveryPanel({
       ? ["KUBERNETES_VERSIONS"]
       : []),
   ];
-  const generatedDefaults = dedicatedResourceDefaults(customerId);
+  const generatedDefaults = dedicatedResourceDefaults(
+    customerId,
+    input.accountId,
+  );
   const bootstrapResourceNames =
     resourceStrategy === "DEDICATED"
       ? desiredResources
@@ -789,7 +792,9 @@ export function AwsDiscoveryPanel({
   const chooseResourceStrategy = (strategy: ResourceStrategy) => {
     setResourceStrategy(strategy);
     setDesiredResources(
-      strategy === "DEDICATED" ? dedicatedResourceDefaults(customerId) : {},
+      strategy === "DEDICATED"
+        ? dedicatedResourceDefaults(customerId, input.accountId)
+        : {},
     );
     setAutomaticSetupConfirmed(false);
     setApplied(false);
@@ -887,7 +892,11 @@ export function AwsDiscoveryPanel({
             onChange={(event) => set("externalId", event.target.value)}
             autoComplete="new-password"
           />
-          <small>Sent only to AWS STS and never stored by Navigan</small>
+          <small>
+            Sent to AWS STS. After successful discovery, Navigan securely
+            registers the matching provisioning-role External ID for later
+            cluster requests.
+          </small>
         </label>
       </div>
       <div className="account-setup-panel resource-strategy-panel">

@@ -58,6 +58,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       );
     if (!/^ENV-[A-Za-z0-9-]+$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 3 && path[2] === "provisioning-options")
+      return method === "GET";
     if (path.length === 4 && path[2] === "versions")
       return method === "GET" && /^[1-9][0-9]*$/.test(path[3]);
     if (path.length !== 3) return false;

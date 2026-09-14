@@ -92,6 +92,23 @@ describe("Customer lifecycle affordances", () => {
     ).toEqual(["CLOUD_ENGINEER"]);
     expect(identityFromClaims({ roles: "[invalid" }).roles).toEqual([]);
   });
+  it("uses a human-readable identity instead of the Cognito subject ID", () => {
+    const subject = "21638d6a-7001-70d7-f897-5cbac88922b6";
+    expect(
+      identityFromClaims({
+        sub: subject,
+        name: subject,
+        email: "cloud.engineer@example.com",
+      }).displayName,
+    ).toBe("cloud.engineer@example.com");
+    expect(
+      identityFromClaims({
+        sub: subject,
+        given_name: "Cloud",
+        family_name: "Engineer",
+      }).displayName,
+    ).toBe("Cloud Engineer");
+  });
   it("recognizes administrators without granting requester or reviewer actions", () => {
     expect(
       identityFromClaims({

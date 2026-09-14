@@ -129,88 +129,11 @@ def test_eks_rejects_cross_vpc_account_and_region_references():
     assert "configuration.encryption.nodeVolumeKmsKey.keyArn" in fields
 
 
-def test_eks_node_group_size_must_satisfy_min_desired_max():
+def test_eks_environment_submission_does_not_require_cluster_blueprints():
     config = example("EKS")
-    config["clusters"][0]["nodeGroups"][0]["desiredSize"] = 999
-    with pytest.raises(ApiError) as error:
-        validate(config, "EKS", "1.0", True)
-    fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.clusters.0.nodeGroups.0" in fields
-
-
-def test_eks_node_group_names_must_be_unique():
-    config = example("EKS")
-    config["clusters"][0]["nodeGroups"].append(
-        copy.deepcopy(config["clusters"][0]["nodeGroups"][0])
-    )
-    with pytest.raises(ApiError) as error:
-        validate(config, "EKS", "1.0", True)
-    fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.clusters.0.nodeGroups" in fields
-
-
-def test_eks_cluster_blueprint_names_must_be_unique():
-    config = example("EKS")
-    config["clusters"].append(copy.deepcopy(config["clusters"][0]))
-    with pytest.raises(ApiError) as error:
-        validate(config, "EKS", "1.0", True)
-    fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.clusters" in fields
-
-
-def test_eks_provisioning_role_must_belong_to_account():
-    config = example("EKS")
-    config["clusters"][0]["provisioning"]["roleArn"] = (
-        "arn:aws:iam::210987654321:role/NaviganProvisioningRole"
-    )
-    with pytest.raises(ApiError) as error:
-        validate(config, "EKS", "1.0", True)
-    fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.clusters.0.provisioning.roleArn" in fields
-
-
-def test_eks_draft_allows_a_blank_blueprint_name_being_typed():
-    config = example("EKS")
-    config["clusters"][0]["name"] = ""
-    config["clusters"][0]["nodeGroups"][0]["name"] = ""
-    config["clusters"][0]["kubernetesVersion"] = ""
-    config["clusters"][0]["provisioning"]["roleArn"] = ""
-    config["clusters"][0]["provisioning"]["externalIdSecretArn"] = ""
+    config.pop("clusters", None)
     validate(config, "EKS", "1.0")
-
-
-def test_eks_draft_allows_duplicate_blank_entries_while_still_typing():
-    config = example("EKS")
-    config["clusters"][0]["nodeGroups"][0]["instanceTypes"] = ["", ""]
-    config["clusters"].append(copy.deepcopy(config["clusters"][0]))
-    validate(config, "EKS", "1.0")
-    with pytest.raises(ApiError):
-        validate(config, "EKS", "1.0", True)
-
-
-def test_eks_submission_rejects_malformed_blueprint_fields():
-    config = example("EKS")
-    config["clusters"][0]["name"] = "Not Valid!"
-    config["clusters"][0]["kubernetesVersion"] = "1.33.0"
-    config["clusters"][0]["nodeGroups"][0]["name"] = "Not Valid!"
-    config["clusters"][0]["provisioning"]["roleArn"] = "not-an-arn"
-    config["clusters"][0]["provisioning"]["externalIdSecretArn"] = "not-an-arn"
-    with pytest.raises(ApiError) as error:
-        validate(config, "EKS", "1.0", True)
-    fields = {item["field"] for item in error.value.details["fields"]}
-    assert "configuration.clusters.0.name" in fields
-    assert "configuration.clusters.0.kubernetesVersion" in fields
-    assert "configuration.clusters.0.nodeGroups.0.name" in fields
-    assert "configuration.clusters.0.provisioning.roleArn" in fields
-    assert "configuration.clusters.0.provisioning.externalIdSecretArn" in fields
-
-
-def test_eks_clusters_required_only_when_submitting():
-    config = example("EKS")
-    del config["clusters"]
-    validate(config, "EKS", "1.0")
-    with pytest.raises(ApiError):
-        validate(config, "EKS", "1.0", True)
+    validate(config, "EKS", "1.0", True)
 
 
 def test_route_table_classification_uses_effective_default_route():

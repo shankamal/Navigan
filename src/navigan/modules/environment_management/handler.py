@@ -29,6 +29,7 @@ from .service import Service, TRANSITIONS
 from .discovery import discover_aws
 from .readiness import assess_eks_blueprints
 from .remediation import BootstrapRemediationService
+from .provisioning_options import provisioning_options
 
 emit("environment_module_import", "completed")
 BASE = "/api/v1/environments"
@@ -189,6 +190,31 @@ def execute(event, principal, correlation, tx=transaction):
             raise ApiError(422, "READINESS_UNSUPPORTED", "Blueprint readiness currently supports EKS.")
         with phase("environment_blueprint_readiness"):
             return response(200, assess_eks_blueprints(body.configuration), correlation)
+    if (
+        method == "GET"
+        and len(parts) == 2
+        and re.fullmatch(r"ENV-[A-Fa-f0-9]{32}", parts[0])
+        and parts[1] == "provisioning-options"
+    ):
+        principal.require("CLOUD_ENGINEER")
+        with tx() as db:
+            environment = Repository(db, principal).get(parts[0])
+        account_id = str(
+            (environment.get("configuration") or {})
+            .get("account", {})
+            .get("accountId", "")
+        )
+        if not re.fullmatch(r"[0-9]{12}", account_id):
+            raise ApiError(
+                409,
+                "AWS_ACCOUNT_NOT_CONFIGURED",
+                "The approved environment has no valid AWS account association.",
+            )
+        return response(
+            200,
+            provisioning_options(environment["customer_id"], account_id),
+            correlation,
+        )
     if parts and parts[0] == "bootstrap-remediations":
         headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
         request_id = parts[1] if len(parts) > 1 else None

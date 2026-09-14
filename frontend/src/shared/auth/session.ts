@@ -2,7 +2,11 @@
 import { Amplify } from "aws-amplify";
 import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
 import { fetchAuthSession, signOut as cognitoSignOut } from "aws-amplify/auth";
-import { identityFromClaims, type Identity } from "./claims";
+import {
+  identityFromClaims,
+  isHumanReadableDisplayName,
+  type Identity,
+} from "./claims";
 
 interface EffectiveAccessResponse {
   user: { userId: string; displayName: string };
@@ -74,7 +78,11 @@ export async function currentIdentity(): Promise<Identity | null> {
   const legacy = identityFromClaims({
     ...tokens.accessToken.payload,
     name: tokens.idToken?.payload.name,
+    given_name: tokens.idToken?.payload.given_name,
+    family_name: tokens.idToken?.payload.family_name,
     email: tokens.idToken?.payload.email,
+    preferred_username: tokens.idToken?.payload.preferred_username,
+    "cognito:username": tokens.idToken?.payload["cognito:username"],
   });
   const response = await fetch("/api/platform/access/me", {
     headers: {
@@ -98,7 +106,12 @@ export async function currentIdentity(): Promise<Identity | null> {
     );
     return {
       ...legacy,
-      displayName: access.user.displayName || legacy.displayName,
+      displayName: isHumanReadableDisplayName(
+        access.user.displayName,
+        legacy.subject,
+      )
+        ? access.user.displayName.trim()
+        : legacy.displayName,
       customerIds: [...new Set(customerIds)],
       platformScope: access.scopes.some((scope) => scope.type === "PLATFORM"),
       canCreate: access.privileges.includes("customer.create"),

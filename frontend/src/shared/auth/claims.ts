@@ -27,6 +27,19 @@ function strings(value: unknown): string[] {
   }
   return value.split(/\s+/).filter(Boolean);
 }
+export function isHumanReadableDisplayName(
+  value: unknown,
+  subject = "",
+): value is string {
+  if (typeof value !== "string" || !value.trim()) return false;
+  const normalized = value.trim();
+  return (
+    normalized !== subject &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalized,
+    )
+  );
+}
 // Display/action affordances only. API Gateway verifies JWTs and Lambda enforces all authorization.
 export function identityFromClaims(claims: Record<string, unknown>): Identity {
   const roles = strings(claims.roles).filter((role): role is PlatformRole =>
@@ -38,16 +51,26 @@ export function identityFromClaims(claims: Record<string, unknown>): Identity {
     ].includes(role),
   );
   const subject = typeof claims.sub === "string" ? claims.sub : "";
+  const fullName = [claims.given_name, claims.family_name]
+    .filter((value): value is string => typeof value === "string" && !!value.trim())
+    .join(" ")
+    .trim();
+  const displayNameCandidates = [
+    claims.name,
+    fullName,
+    claims.email,
+    claims.preferred_username,
+    claims["cognito:username"],
+    claims.username,
+  ];
   return {
     subject,
     roles,
     customerIds: strings(claims.customer_ids),
     displayName:
-      typeof claims.name === "string"
-        ? claims.name
-        : typeof claims.email === "string"
-          ? claims.email
-          : "Platform user",
+      displayNameCandidates.find((value) =>
+        isHumanReadableDisplayName(value, subject),
+      )?.toString().trim() || "Platform user",
     platformScope: String(claims.platform_scope).toLowerCase() === "true",
     canCreate: String(claims.customer_create).toLowerCase() === "true",
   };

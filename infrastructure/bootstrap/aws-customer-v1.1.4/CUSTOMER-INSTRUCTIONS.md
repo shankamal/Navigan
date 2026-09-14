@@ -57,19 +57,15 @@ Never reuse another customer's External ID or bootstrap configuration.
 7. Return the role ARN and completion evidence to the Navigan operator. Transfer
    the provisioning External ID only through the organization's approved secret
    exchange mechanism. Do not place it in email, chat, tickets, or logs.
-8. The Navigan operator stores the same provisioning External ID as the raw
-   secret value in the Navigan platform account:
+8. Return to Navigan and run **Fetch AWS inventory**. After AWS STS verifies
+   the supplied External ID, Navigan reads the exact value enforced by
+   `NaviganProvisioningRole` and registers it in the platform account as:
 
-   ```cmd
-   aws secretsmanager create-secret ^
-     --region <platform-region> ^
-     --name "navigan/provisioning/<customer-id>/external-id" ^
-     --description "External ID for Navigan tenant-bound provisioning" ^
-     --secret-string "<provisioning-external-id>" ^
-     --tags Key=ManagedBy,Value=Navigan Key=NaviganCustomerId,Value=<customer-id> Key=Purpose,Value=ProvisioningExternalId
-   ```
+   `navigan/provisioning/<customer-id>/<aws-account-id>/external-id`
 
-   Do not use JSON for the secret value. Navigan expects the raw External ID.
+   Navigan stores the raw value securely but displays only its ARN. If a
+   previously registered value differs from the IAM trust policy, discovery
+   stops instead of overwriting either side.
 
 9. Return to the environment draft, select **Fetch AWS inventory**, choose the
    eligible resources, apply the verified baseline and save the revision.
