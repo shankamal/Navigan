@@ -1,0 +1,149 @@
+# Navigan-approved, resource-conscious kube-prometheus-stack baseline.
+# Server-side monitoring components are isolated to the protected system nodes.
+
+fullnameOverride: navigan-monitoring
+
+defaultRules:
+  create: true
+
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: true
+  defaultDashboardsEnabled: true
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  persistence:
+    enabled: false
+  nodeSelector:
+    navigan.io/platform-services: "true"
+    eks.amazonaws.com/nodegroup: navigan-system-v1
+  tolerations:
+    - key: navigan.io/system-only
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  grafana.ini:
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+    security:
+      disable_gravatar: true
+      cookie_secure: true
+      cookie_samesite: strict
+    users:
+      allow_sign_up: false
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+
+prometheusOperator:
+  nodeSelector:
+    navigan.io/platform-services: "true"
+    eks.amazonaws.com/nodegroup: navigan-system-v1
+  tolerations:
+    - key: navigan.io/system-only
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        navigan.io/platform-services: "true"
+        eks.amazonaws.com/nodegroup: navigan-system-v1
+      tolerations:
+        - key: navigan.io/system-only
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+prometheus:
+  service:
+    type: ClusterIP
+  prometheusSpec:
+    replicas: 1
+    retention: 7d
+    retentionSize: 8GB
+    nodeSelector:
+      navigan.io/platform-services: "true"
+      eks.amazonaws.com/nodegroup: navigan-system-v1
+    tolerations:
+      - key: navigan.io/system-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 300m
+        memory: 768Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      fsGroup: 2000
+      seccompProfile:
+        type: RuntimeDefault
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+kube-state-metrics:
+  nodeSelector:
+    navigan.io/platform-services: "true"
+    eks.amazonaws.com/nodegroup: navigan-system-v1
+  tolerations:
+    - key: navigan.io/system-only
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+prometheus-node-exporter:
+  # This DaemonSet must observe all worker nodes. The toleration also permits
+  # collection from the protected system nodes.
+  tolerations:
+    - operator: Exists
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 150m
+      memory: 96Mi
+
+kubeEtcd:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false

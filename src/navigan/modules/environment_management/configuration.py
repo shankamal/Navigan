@@ -134,6 +134,16 @@ def validate(configuration, distribution, version, submitting=False):
                         "message": "The IAM role must belong to the selected AWS account.",
                     }
                 )
+        installer_role = (
+            configuration.get("connectorInstaller", {}).get("serviceRoleArn", "")
+        )
+        if installer_role and f"::{account_id}:role/" not in installer_role:
+            errors.append(
+                {
+                    "field": "configuration.connectorInstaller.serviceRoleArn",
+                    "message": "The connector installer role must belong to the selected AWS account.",
+                }
+            )
         key_arn = configuration.get("encryption", {}).get("nodeVolumeKmsKey", {}).get("keyArn", "")
         if key_arn and (f":kms:{region}:{account_id}:key/" not in key_arn):
             errors.append(

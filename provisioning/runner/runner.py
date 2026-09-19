@@ -40,11 +40,27 @@ def security_scan(plan, request):
         actions = resource.get("change", {}).get("actions", [])
         if "delete" in actions:
             destructive.append(resource.get("address", "unknown"))
-    if destructive:
+    migration = configuration.get("systemNodeGroupMigration") or {}
+    legacy_name = migration.get("legacyNodeGroupName")
+    allowed_destructive = {
+        f'aws_eks_node_group.this["{legacy_name}"]',
+        f'aws_launch_template.node["{legacy_name}"]',
+    } if legacy_name else set()
+    unexpected_destructive = [
+        address for address in destructive if address not in allowed_destructive
+    ]
+    if unexpected_destructive:
         findings.append({
             "severity": "HIGH",
             "rule": "NO_DESTRUCTIVE_CHANGES",
             "message": "The plan contains destructive resource changes.",
+            "resources": unexpected_destructive[:25],
+        })
+    if destructive and set(destructive) != allowed_destructive:
+        findings.append({
+            "severity": "HIGH",
+            "rule": "SYSTEM_NODE_GROUP_MIGRATION_SCOPE",
+            "message": "The migration must retire exactly the legacy node group and its launch template.",
             "resources": destructive[:25],
         })
     return {
@@ -163,7 +179,11 @@ try:
     )
     baseline = request["environment"]["configuration"]
     external_id = secrets.get_secret_value(SecretId=request["externalIdSecretArn"])["SecretString"]
-    preflight(request, baseline, external_id)
+    # Destruction must remain possible when the original environment resources
+    # are degraded or superseded. Terraform state and the recorded provider
+    # identity are authoritative for decommissioning.
+    if mode != "delete":
+        preflight(request, baseline, external_id)
     variables = {
         "region": baseline["location"]["region"],
         "provisioning_role_arn": request["provisioningRoleArn"],
@@ -186,7 +206,15 @@ try:
         "cluster_secrets_kms_key_arn": (
             baseline.get("encryption", {}).get("clusterSecretsKmsKey", {}).get("keyArn")
         ),
-        "node_groups": request["configuration"]["nodeGroups"],
+        "node_groups": [
+            {
+                **group,
+                "purpose": group.get(
+                    "purpose", "SYSTEM" if index == 0 else "APPLICATION"
+                ),
+            }
+            for index, group in enumerate(request["configuration"]["nodeGroups"])
+        ],
         "tags": {
             **baseline["tags"], **request["configuration"].get("tags", {}),
             "ManagedBy": "Navigan", "NaviganClusterId": request["clusterId"],

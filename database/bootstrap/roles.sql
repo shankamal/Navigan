@@ -32,8 +32,18 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA environment_management TO navigan_api;
 -- Cluster Management keeps request, Terraform execution and audit state in its own schema.
 GRANT USAGE ON SCHEMA cluster_management TO navigan_api;
 GRANT SELECT,INSERT,UPDATE ON cluster_management.clusters TO navigan_api;
+GRANT SELECT,INSERT,UPDATE ON cluster_management.cluster_node_group_requests TO navigan_api;
 GRANT SELECT,INSERT ON cluster_management.cluster_versions,
  cluster_management.cluster_status_history,cluster_management.cluster_audit_log TO navigan_api;
+GRANT SELECT ON cluster_management.cluster_identity_integrations,
+ cluster_management.cluster_access_reconciliations,
+ cluster_management.webkubectl_sessions,
+ cluster_management.cluster_namespace_inventories,
+ cluster_management.cluster_namespaces,
+ cluster_management.cluster_connectors TO navigan_api;
+GRANT INSERT,UPDATE,DELETE ON cluster_management.cluster_namespace_inventories,
+ cluster_management.cluster_namespaces,
+ cluster_management.cluster_connectors TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA cluster_management TO navigan_api;
 -- Dynamic access management is the authorization source of truth.
 GRANT USAGE ON SCHEMA access_management TO navigan_api;
@@ -41,10 +51,13 @@ GRANT SELECT ON access_management.users,access_management.roles,
  access_management.privileges,access_management.role_privileges,
  access_management.user_role_assignments,access_management.user_privilege_assignments,
  access_management.access_scopes,access_management.user_role_scopes,
- access_management.user_privilege_scopes TO navigan_api;
+ access_management.user_privilege_scopes,
+ access_management.kubernetes_access_profiles,
+ access_management.kubernetes_access_assignments TO navigan_api;
 GRANT INSERT,UPDATE ON access_management.users,access_management.roles,
  access_management.role_privileges,access_management.user_role_assignments,
  access_management.user_privilege_assignments,access_management.access_scopes,
  access_management.user_role_scopes,access_management.user_privilege_scopes TO navigan_api;
+GRANT INSERT,UPDATE ON access_management.kubernetes_access_assignments TO navigan_api;
 GRANT INSERT,SELECT ON access_management.access_audit_log TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA access_management TO navigan_api;

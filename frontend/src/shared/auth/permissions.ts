@@ -36,6 +36,14 @@ export type PlatformPermission =
   | "cluster.cancel"
   | "cluster.decommission"
   | "cluster.logs.view"
+  | "cluster.audit.view"
+  | "cluster.identity.view"
+  | "cluster.identity.reconcile"
+  | "cluster.access.view"
+  | "cluster.access.manage"
+  | "cluster.dashboard.view"
+  | "cluster.webkubectl.open"
+  | "cluster.webkubectl.audit"
   | "blueprint.view"
   | "remediation.review"
   | "operations.view"
@@ -68,6 +76,10 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "cluster.edit",
     "cluster.submit",
     "cluster.logs.view",
+    "cluster.identity.view",
+    "cluster.access.view",
+    "cluster.dashboard.view",
+    "cluster.webkubectl.open",
   ],
   PLATFORM_ARCHITECT: [
     "dashboard.platform.view",
@@ -89,8 +101,16 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "cluster.approve",
     "cluster.plan",
     "cluster.apply",
+    "cluster.audit.view",
     "cluster.decommission",
     "cluster.logs.view",
+    "cluster.identity.view",
+    "cluster.identity.reconcile",
+    "cluster.access.view",
+    "cluster.access.manage",
+    "cluster.dashboard.view",
+    "cluster.webkubectl.open",
+    "cluster.webkubectl.audit",
     "blueprint.view",
     "remediation.review",
     "operations.view",
@@ -102,8 +122,18 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "customer.view",
     "environment.view",
     "cluster.view",
+    "cluster.create",
+    "cluster.review",
     "cluster.apply",
+    "cluster.audit.view",
     "cluster.decommission",
+    "cluster.identity.view",
+    "cluster.identity.reconcile",
+    "cluster.access.view",
+    "cluster.access.manage",
+    "cluster.dashboard.view",
+    "cluster.webkubectl.open",
+    "cluster.webkubectl.audit",
     "operations.view",
     "operations.logs.view",
     "user.view",

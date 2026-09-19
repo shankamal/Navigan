@@ -358,6 +358,28 @@
       ],
       "additionalProperties": false
     },
+    "connectorInstaller": {
+      "type": "object",
+      "title": "Private cluster connector installer",
+      "properties": {
+        "projectName": {
+          "type": "string",
+          "title": "Customer installer project",
+          "const": "NaviganClusterInstaller"
+        },
+        "serviceRoleArn": {
+          "type": "string",
+          "title": "Customer installer role ARN",
+          "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/NaviganClusterInstallerRole$",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "projectName",
+        "serviceRoleArn"
+      ],
+      "additionalProperties": false
+    },
     "tags": {
       "type": "object",
       "title": "Baseline tags",
@@ -426,6 +448,14 @@
                   "minLength": 1,
                   "maxLength": 63
                 },
+                "purpose": {
+                  "type": "string",
+                  "title": "Node group purpose",
+                  "enum": [
+                    "SYSTEM",
+                    "APPLICATION"
+                  ]
+                },
                 "instanceTypes": {
                   "type": "array",
                   "title": "Instance types",
@@ -449,13 +479,13 @@
                 "minSize": {
                   "type": "integer",
                   "title": "Minimum size",
-                  "minimum": 0,
+                  "minimum": 2,
                   "maximum": 1000
                 },
                 "desiredSize": {
                   "type": "integer",
                   "title": "Desired size",
-                  "minimum": 0,
+                  "minimum": 2,
                   "maximum": 1000
                 },
                 "maxSize": {
@@ -473,6 +503,7 @@
               },
               "required": [
                 "name",
+                "purpose",
                 "instanceTypes",
                 "capacityType",
                 "minSize",
@@ -482,7 +513,7 @@
               "additionalProperties": true
             },
             "minItems": 1,
-            "maxItems": 20,
+            "maxItems": 1,
             "uniqueItems": true
           },
           "tags": {

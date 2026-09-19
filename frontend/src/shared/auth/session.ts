@@ -120,8 +120,10 @@ export async function currentIdentity(): Promise<Identity | null> {
       authorizationSource: access.source,
     };
   }
-  // During additive rollout, older stacks do not yet expose /access/me.
-  if ([404, 502, 503, 504].includes(response.status)) return legacy;
+  // During the additive rollout, keep the established Cognito identity when
+  // dynamic authorization is unavailable. This only controls client display;
+  // every upstream API continues to enforce authorization server-side.
+  if ([404, 500, 502, 503, 504].includes(response.status)) return legacy;
   throw new Error(`Authorization lookup failed with status ${response.status}.`);
 }
 export async function clearSession(): Promise<void> {

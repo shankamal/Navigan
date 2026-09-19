@@ -364,7 +364,7 @@ def test_gateway_routes_and_scopes():
     routes = [
         r["Properties"] for r in template["Resources"].values() if r["Type"] == "AWS::ApiGatewayV2::Route"
     ]
-    assert len(routes) == 30
+    assert len(routes) == 31
     assert all(
         r["AuthorizationType"] == "JWT" and r["AuthorizationScopes"] == [{"Ref": "JwtScope"}] for r in routes
     )
@@ -373,12 +373,25 @@ def test_gateway_routes_and_scopes():
         == "navigan.modules.environment_management.handler.lambda_handler"
     )
     policies = template["Resources"]["EnvironmentFunction"]["Properties"]["Policies"]
-    assert any(
-        statement.get("Action") == "sts:AssumeRole"
-        and statement["Resource"]["Fn::Sub"].endswith(":role/NaviganDiscoveryRole")
+    assume_resources = [
+        resource
         for policy in policies
         if isinstance(policy, dict)
         for statement in policy.get("Statement", [])
+        if (
+            statement.get("Action") == "sts:AssumeRole"
+            or "sts:AssumeRole" in statement.get("Action", [])
+        )
+        for resource in (
+            statement.get("Resource", [])
+            if isinstance(statement.get("Resource"), list)
+            else [statement.get("Resource")]
+        )
+        if isinstance(resource, dict)
+    ]
+    assert any(
+        resource.get("Fn::Sub", "").endswith(":role/NaviganDiscoveryRole")
+        for resource in assume_resources
     )
 
 
@@ -393,7 +406,23 @@ def test_blueprint_readiness_reports_missing_bootstrap_without_exposing_secrets(
             assert name == "secretsmanager"
             return Secrets()
 
-    report = assess_eks_blueprints(example("EKS"), Boto())
+    configuration = example("EKS")
+    configuration["clusters"] = [
+        {
+            "name": "default",
+            "provisioning": {
+                "roleArn": (
+                    "arn:aws:iam::123456789012:role/NaviganProvisioningRole"
+                ),
+                "externalIdSecretArn": (
+                    "arn:aws:secretsmanager:ap-south-1:123456789012:"
+                    "secret:navigan/provisioning/example"
+                ),
+            },
+            "nodeGroups": [],
+        }
+    ]
+    report = assess_eks_blueprints(configuration, Boto())
     assert report["status"] == "FAILED"
     assert report["blockingCount"] == 1
     assert report["findings"][0]["code"] == "PROVISIONING_SECRET_NOT_FOUND"

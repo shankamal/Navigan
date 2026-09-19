@@ -31,10 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     let revision = 0;
     let fingerprint: string | undefined;
+    let lastIdentity: Identity | null = null;
     const update = (identity: Identity | null) => {
       const next = JSON.stringify(identity);
       if (fingerprint !== next) cache.clear();
       fingerprint = next;
+      lastIdentity = identity;
       if (active)
         setState({ identity, loading: false, configured: authConfigured });
     };
@@ -44,7 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const identity = await currentIdentity();
         if (active && request === revision) update(identity);
       } catch {
-        if (active && request === revision) update(null);
+        // A temporary authorization-service failure must not turn a valid
+        // Cognito session into a misleading login failure. API authorization
+        // remains enforced server-side. Explicit sign-out and token refresh
+        // failures still clear the identity through the Hub listener below.
+        if (active && request === revision) {
+          if (lastIdentity) {
+            setState({
+              identity: lastIdentity,
+              loading: false,
+              configured: authConfigured,
+            });
+          } else {
+            update(null);
+          }
+        }
       }
     };
     if (!authConfigured) {

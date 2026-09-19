@@ -1,0 +1,42 @@
+apiVersion: navigan.io/v1alpha1
+kind: ApprovedPlatformCatalog
+metadata:
+  name: navigan-system-baseline
+spec:
+  catalogVersion: "2026.09.1"
+  registryPolicy:
+    requireApprovedMirror: true
+    requireImmutableDigest: true
+    requireVulnerabilityScan: true
+    allowMutableTags: false
+  components:
+    - code: argocd
+      chart: argo-cd
+      chartVersion: 10.9.0
+      upstreamRepository: https://argoproj.github.io/argo-helm
+      approvedChart: oci://__PLATFORM_REGISTRY__/helm/argo-cd
+      required: true
+    - code: connector
+      chart: navigan-cluster-connector
+      chartVersion: 0.1.0
+      approvedChart: oci://__PLATFORM_REGISTRY__/helm/navigan-cluster-connector
+      required: true
+    - code: monitoring
+      chart: kube-prometheus-stack
+      chartVersion: 89.2.4
+      upstreamRepository: oci://ghcr.io/prometheus-community/charts
+      approvedChart: oci://__PLATFORM_REGISTRY__/helm/kube-prometheus-stack
+      required: true
+    - code: falco
+      chart: falco
+      chartVersion: 9.1.0
+      upstreamRepository: https://falcosecurity.github.io/charts
+      approvedChart: oci://__PLATFORM_REGISTRY__/helm/falco
+      required: true
+    - code: headlamp
+      chart: headlamp
+      chartVersion: 0.45.0
+      appVersion: 0.45.0
+      upstreamRepository: https://kubernetes-sigs.github.io/headlamp
+      approvedChart: oci://__PLATFORM_REGISTRY__/helm/headlamp
+      required: true

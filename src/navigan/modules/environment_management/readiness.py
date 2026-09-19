@@ -302,6 +302,25 @@ def assess_eks_blueprints(configuration, boto3_module=None):
                         severity="WARNING",
                     )
                 )
+            if group.get("purpose") == "SYSTEM":
+                if group.get("minSize", 0) < 2 or group.get("desiredSize", 0) < 2:
+                    findings.append(
+                        finding(
+                            "SYSTEM_NODE_GROUP_CAPACITY_REQUIRED",
+                            f"{prefix}.nodeGroups.{group_index}",
+                            "The system node group does not maintain two ready nodes.",
+                            "Set both minimum and desired capacity to at least two nodes.",
+                        )
+                    )
+                if any(item.endswith((".nano", ".micro")) for item in selected):
+                    findings.append(
+                        finding(
+                            "SYSTEM_NODE_GROUP_INSTANCE_TYPE_UNSUPPORTED",
+                            f"{prefix}.nodeGroups.{group_index}.instanceTypes",
+                            "Nano and micro EC2 types do not provide reliable capacity for platform services.",
+                            "Choose small or larger compatible EC2 instance types for the system node group.",
+                        )
+                    )
         instance_types = sorted(
             {
                 instance

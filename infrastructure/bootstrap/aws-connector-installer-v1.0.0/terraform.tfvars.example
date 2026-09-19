@@ -1,0 +1,10 @@
+region      = "ap-south-1"
+customer_id = "CUS-REPLACE-ME"
+vpc_id      = "vpc-REPLACE-ME"
+subnet_ids = [
+  "subnet-REPLACE-ME-A",
+  "subnet-REPLACE-ME-B",
+]
+security_group_ids = [
+  "sg-REPLACE-ME",
+]

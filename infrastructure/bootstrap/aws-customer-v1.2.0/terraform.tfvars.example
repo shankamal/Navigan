@@ -1,0 +1,50 @@
+region                           = "ap-south-1"
+customer_id                      = "CUS-REPLACE-ME"
+navigan_execution_role_arn      = "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-ME"
+navigan_validation_role_arn     = "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-ME"
+navigan_discovery_principal_arn = "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-ME"
+navigan_connector_principal_arns = [
+  "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-CLUSTER-FUNCTION-ROLE",
+  "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-STATUS-FUNCTION-ROLE",
+]
+external_id                     = "REPLACE-WITH-THE-EXTERNAL-ID-PROVIDED-BY-NAVIGAN"
+
+# Use existing eligible customer resources.
+eks_cluster_role_arns = [
+  "arn:aws:iam::CUSTOMER_ACCOUNT_ID:role/ExistingEksClusterRole"
+]
+eks_node_role_arns = [
+  "arn:aws:iam::CUSTOMER_ACCOUNT_ID:role/ExistingEksNodeRole"
+]
+kms_key_arns = [
+  "arn:aws:kms:ap-south-1:CUSTOMER_ACCOUNT_ID:key/REPLACE-ME"
+]
+
+# Keep false when using the existing resources above.
+create_recommended_eks_resources     = false
+confirm_create_recommended_resources = false
+
+# Or request individual dedicated resources with approved names.
+create_eks_cluster_role = false
+eks_cluster_role_name   = "NaviganEksClusterRole-dev"
+create_eks_node_role    = false
+eks_node_role_name      = "NaviganEksNodeRole-dev"
+create_eks_kms_key      = false
+recommended_kms_alias   = "alias/navigan-dev-eks"
+
+# Private-cluster connector installation. Use approved private subnets and a
+# security group that the EKS private endpoint permits on TCP 443.
+create_connector_installer = true
+connector_installer_vpc_id = "vpc-REPLACE-ME"
+connector_installer_subnet_ids = [
+  "subnet-REPLACE-ME-A",
+  "subnet-REPLACE-ME-B",
+]
+connector_installer_security_group_ids = [
+  "sg-REPLACE-ME",
+]
+
+# If no eligible roles or KMS key exist, remove the example ARNs above,
+# set both values below to true, review the saved plan, and then apply it.
+# create_recommended_eks_resources     = true
+# confirm_create_recommended_resources = true

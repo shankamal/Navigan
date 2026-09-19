@@ -41,12 +41,28 @@ variable "cluster_secrets_kms_key_arn" {
 variable "node_groups" {
   type = list(object({
     name          = string
+    purpose       = string
     instanceTypes = list(string)
     capacityType  = string
     desiredSize   = number
     minSize       = number
     maxSize       = number
     diskSizeGiB   = number
+    managementMode = optional(string, "MANAGED")
   }))
+  validation {
+    condition = alltrue([
+      for group in var.node_groups :
+      contains(["SYSTEM", "APPLICATION"], group.purpose)
+    ])
+    error_message = "node group purpose must be SYSTEM or APPLICATION."
+  }
+  validation {
+    condition = alltrue([
+      for group in var.node_groups :
+      contains(["MANAGED", "ADOPTED"], group.managementMode)
+    ])
+    error_message = "node group managementMode must be MANAGED or ADOPTED."
+  }
 }
 variable "tags" { type = map(string) }

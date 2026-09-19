@@ -1,0 +1,11 @@
+image:
+  repository: __PLATFORM_REGISTRY__/navigan-cluster-connector
+  tag: ""
+  digest: __CONNECTOR_IMAGE_DIGEST__
+  pullPolicy: IfNotPresent
+
+navigan:
+  apiBaseUrl: __NAVIGAN_API_BASE_URL__
+  connectorId: __CONNECTOR_ID__
+  existingSecret: navigan-cluster-connector
+  syncIntervalSeconds: 60

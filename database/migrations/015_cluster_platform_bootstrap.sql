@@ -1,0 +1,14 @@
+BEGIN;
+
+ALTER TABLE cluster_management.clusters
+  DROP CONSTRAINT IF EXISTS clusters_status_check;
+
+ALTER TABLE cluster_management.clusters
+  ADD CONSTRAINT clusters_status_check CHECK(status IN (
+    'DRAFT','SUBMITTED','UNDER_REVIEW','APPROVED','PLAN_RUNNING','PLAN_READY',
+    'APPLYING','BOOTSTRAPPING','BOOTSTRAP_FAILED','ACTIVE',
+    'STOPPING','STOPPED','STARTING','DELETING','DELETED',
+    'FAILED','REJECTED','CANCELLED'
+  ));
+
+COMMIT;

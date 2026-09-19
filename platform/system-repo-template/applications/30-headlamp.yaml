@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: navigan-dashboard
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: navigan-platform
+spec:
+  project: navigan-platform
+  sources:
+    - repoURL: __PLATFORM_REGISTRY__/helm
+      chart: headlamp
+      targetRevision: 0.45.0
+      helm:
+        releaseName: navigan-dashboard
+        valueFiles:
+          - $values/values/headlamp.yaml
+    - repoURL: __SYSTEM_REPO_URL__
+      targetRevision: __SYSTEM_REPO_REVISION__
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: navigan-dashboard
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

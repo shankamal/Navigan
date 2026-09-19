@@ -12,7 +12,12 @@ Parameters:
   RdsCaLayerArn: {Type: String}
   ApiId: {Type: String}
   AuthorizerId: {Type: String}
+  IdentityUserPoolId: {Type: String}
   TerraformRunnerImageUri: {Type: String}
+  ConnectorImageUri: {Type: String, Default: ''}
+  GitHubAppId: {Type: String, Default: ''}
+  GitHubAppSlug: {Type: String, Default: ''}
+  GitHubAppPrivateKeySecretArn: {Type: String, Default: ''}
 Globals:
   Function:
     Runtime: python3.12
@@ -32,7 +37,35 @@ Globals:
         DB_SECRET_ARN: !Ref ApiDatabaseSecretArn
         TERRAFORM_ARTIFACT_BUCKET: !Ref TerraformArtifacts
         TERRAFORM_STATE_KMS_KEY_ARN: !GetAtt TerraformStateKey.Arn
+Conditions:
+  HasGitHubAppPrivateKey: !Not [!Equals [!Ref GitHubAppPrivateKeySecretArn, '']]
 Resources:
+  ConnectorRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Retain the newest 20 connector images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 20
+                },
+                "action": {"type": "expire"}
+              }
+            ]
+          }
   TerraformStateKey:
     Type: AWS::KMS::Key
     DeletionPolicy: Retain
@@ -86,12 +119,24 @@ Resources:
       Environment:
         Variables:
           TERRAFORM_CODEBUILD_PROJECT: !Ref TerraformProject
+          IDENTITY_USER_POOL_ID: !Ref IdentityUserPoolId
+          CONNECTOR_IMAGE_URI: !Ref ConnectorImageUri
+          CONNECTOR_API_BASE_URL: !Sub 'https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1'
+          GITHUB_APP_ID: !Ref GitHubAppId
+          GITHUB_APP_SLUG: !Ref GitHubAppSlug
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
-              Resource: !Ref ApiDatabaseSecretArn
+              Resource:
+                - !Ref ApiDatabaseSecretArn
+                - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/provisioning/*'
+                - !If
+                  - HasGitHubAppPrivateKey
+                  - !Ref GitHubAppPrivateKeySecretArn
+                  - !Ref AWS::NoValue
             - Effect: Allow
               Action: kms:Decrypt
               Resource: !Ref SecretsKmsKeyArn
@@ -102,27 +147,64 @@ Resources:
               Action: [kms:GenerateDataKey, kms:Decrypt]
               Resource: !GetAtt TerraformStateKey.Arn
             - Effect: Allow
-              Action: codebuild:StartBuild
+              Action: [codebuild:StartBuild, codebuild:BatchGetBuilds]
               Resource: !GetAtt TerraformProject.Arn
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Resource: !Sub 'arn:${AWS::Partition}:iam::*:role/NaviganProvisioningRole'
             - Effect: Allow
               Action: logs:GetLogEvents
               Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${TerraformProject}:log-stream:*'
+            - Effect: Allow
+              Action:
+                - cognito-idp:ListUsers
+                - cognito-idp:ListGroups
+                - cognito-idp:AdminGetUser
+                - cognito-idp:GetGroup
+              Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${IdentityUserPoolId}'
   StatusFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: navigan.modules.cluster_management.status_handler.lambda_handler
+      Timeout: 120
+      Environment:
+        Variables:
+          CONNECTOR_IMAGE_URI: !Ref ConnectorImageUri
+          CONNECTOR_API_BASE_URL: !Sub 'https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1'
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
-              Resource: !Ref ApiDatabaseSecretArn
+              Resource:
+                - !Ref ApiDatabaseSecretArn
+                - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/provisioning/*'
             - Effect: Allow
               Action: kms:Decrypt
               Resource: [!Ref SecretsKmsKeyArn, !GetAtt TerraformStateKey.Arn]
             - Effect: Allow
               Action: s3:GetObject
               Resource: !Sub '${TerraformArtifacts.Arn}/*'
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Resource: !Sub 'arn:${AWS::Partition}:iam::*:role/NaviganProvisioningRole'
+  ConnectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: navigan.modules.cluster_management.connector_handler.lambda_handler
+      ReservedConcurrentExecutions: 10
+      Timeout: 15
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource:
+                - !Ref ApiDatabaseSecretArn
+                - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/provisioning/*'
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !Ref SecretsKmsKeyArn
   TerraformRole:
     Type: AWS::IAM::Role
     Properties:
@@ -207,6 +289,15 @@ Resources:
       IntegrationUri: !GetAtt ClusterFunction.Arn
       PayloadFormatVersion: '2.0'
       TimeoutInMillis: 29000
+  ConnectorIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiId
+      IntegrationMethod: POST
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ConnectorFunction.Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 14000
   ClusterInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -215,6 +306,14 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceAccount: !Ref AWS::AccountId
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/clusters*'
+  ConnectorInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ConnectorFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/connectors/*'
   CreateRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: ClusterInvokePermission
@@ -251,6 +350,168 @@ Resources:
     Properties:
       ApiId: !Ref ApiId
       RouteKey: GET /api/v1/clusters/{clusterId}/execution-logs
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  IdentityRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/identity
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  KubernetesAccessRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/access
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  KubernetesAccessSubjectsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/access/subjects
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  KubernetesAccessNamespacesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/access/namespaces
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  InstallConnectorRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/connector/install
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  ListNodeGroupRequestsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/node-groups
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  CreateNodeGroupRequestRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/node-groups
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrateSystemNodeGroupRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/migrate-system-node-group
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  NodeGroupRequestActionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/node-groups/{requestId}/{nodeGroupAction}
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  NodeGroupExecutionLogsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/node-groups/{requestId}/execution-logs
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  ClusterAuditLogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/audit-log
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  ReportConnectorNamespacesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/connectors/{connectorId}/inventory/namespaces
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  ReportConnectorPlatformComponentsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/connectors/{connectorId}/inventory/platform-components
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  GetConnectorDesiredAccessRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/connectors/{connectorId}/access/desired
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  ReportConnectorAccessStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/connectors/{connectorId}/access/status
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  CreateKubernetesAccessRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/access/assignments
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  RevokeKubernetesAccessRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/access/assignments/{assignmentId}/revoke
       Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
@@ -325,6 +586,26 @@ Resources:
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
       AuthorizationScopes: [!Ref JwtScope]
+  BeginGitHubAuthorizationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/github/authorize
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  CompleteGitHubAuthorizationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/github/complete
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
   StopRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: ClusterInvokePermission
@@ -357,6 +638,11 @@ Resources:
       AuthorizationScopes: [!Ref JwtScope]
 Outputs:
   FunctionName: {Value: !Ref ClusterFunction}
+  ClusterFunctionRoleArn: {Value: !GetAtt ClusterFunctionRole.Arn}
+  StatusFunctionName: {Value: !Ref StatusFunction}
+  StatusFunctionRoleArn: {Value: !GetAtt StatusFunctionRole.Arn}
+  ConnectorFunctionName: {Value: !Ref ConnectorFunction}
+  ConnectorRepositoryUri: {Value: !GetAtt ConnectorRepository.RepositoryUri}
   TerraformProjectName: {Value: !Ref TerraformProject}
   TerraformArtifactBucket: {Value: !Ref TerraformArtifacts}
   TerraformStateKmsKeyArn: {Value: !GetAtt TerraformStateKey.Arn}

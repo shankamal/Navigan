@@ -13,9 +13,9 @@ terraform {
 provider "aws" {
   region = var.region
   assume_role {
-    role_arn      = var.provisioning_role_arn
-    external_id   = var.external_id
-    session_name  = "NaviganTerraform"
+    role_arn     = var.provisioning_role_arn
+    external_id  = var.external_id
+    session_name = "NaviganTerraform"
   }
   default_tags {
     tags = var.tags

@@ -7,6 +7,9 @@ Parameters:
     Type: String
   JwtAudience:
     Type: String
+  IdentityUserPoolId:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+_[A-Za-z0-9]+$'
   JwtScope:
     Type: String
     Default: navigan/api
@@ -40,6 +43,20 @@ Parameters:
   TerraformRunnerImageUri:
     Type: String
     Description: Immutable ECR image URI for the Navigan Terraform runner
+  ConnectorImageUri:
+    Type: String
+    Default: ''
+    Description: Immutable image URI for the outbound-only cluster connector
+  GitHubAppId:
+    Type: String
+    Default: ''
+  GitHubAppSlug:
+    Type: String
+    Default: ''
+  GitHubAppPrivateKeySecretArn:
+    Type: String
+    Default: ''
+    Description: Secret containing the PEM private key for the Navigan GitHub App
   BlueprintAdvisorModelId:
     Type: String
     Default: ''
@@ -131,8 +148,18 @@ Resources:
         RdsCaLayerArn: *id008
         ApiId: *id009
         AuthorizerId: *id010
+        IdentityUserPoolId:
+          Ref: IdentityUserPoolId
         TerraformRunnerImageUri:
           Ref: TerraformRunnerImageUri
+        ConnectorImageUri:
+          Ref: ConnectorImageUri
+        GitHubAppId:
+          Ref: GitHubAppId
+        GitHubAppSlug:
+          Ref: GitHubAppSlug
+        GitHubAppPrivateKeySecretArn:
+          Ref: GitHubAppPrivateKeySecretArn
   AccessManagement:
     Type: AWS::Serverless::Application
     Properties:
@@ -199,6 +226,31 @@ Outputs:
       Fn::GetAtt:
       - ClusterManagement
       - Outputs.FunctionName
+  ClusterFunctionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.ClusterFunctionRoleArn
+  StatusFunctionName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.StatusFunctionName
+  StatusFunctionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.StatusFunctionRoleArn
+  ConnectorFunctionName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.ConnectorFunctionName
+  ConnectorRepositoryUri:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.ConnectorRepositoryUri
   AccessManagementStackId:
     Value:
       Ref: AccessManagement

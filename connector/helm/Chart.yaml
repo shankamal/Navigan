@@ -1,0 +1,6 @@
+apiVersion: v2
+name: navigan-cluster-connector
+description: Outbound-only namespace inventory connector for Navigan
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

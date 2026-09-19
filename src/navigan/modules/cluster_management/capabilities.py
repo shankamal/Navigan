@@ -17,9 +17,16 @@ class ActionDefinition:
 
 ACTIONS = {
     "VIEW_DETAILS": ActionDefinition("VIEW_DETAILS", "View details", "cluster.view"),
-    "MANAGE": ActionDefinition("MANAGE", "Manage", "cluster.view"),
-    "DASHBOARD": ActionDefinition("DASHBOARD", "Dashboard", "cluster.view"),
-    "WEB_KUBECTL": ActionDefinition("WEB_KUBECTL", "WebKubectl", "cluster.view"),
+    "MANAGE": ActionDefinition("MANAGE", "Cluster settings", "cluster.view"),
+    "DASHBOARD": ActionDefinition(
+        "DASHBOARD", "Dashboard", "cluster.dashboard.view"
+    ),
+    "WEB_KUBECTL": ActionDefinition(
+        "WEB_KUBECTL", "WebKubectl", "cluster.webkubectl.open"
+    ),
+    "MANAGE_ACCESS": ActionDefinition(
+        "MANAGE_ACCESS", "Access & RBAC", "cluster.access.manage"
+    ),
     "EDIT_REQUEST": ActionDefinition("EDIT_REQUEST", "Edit request", "cluster.edit"),
     "SUBMIT_REQUEST": ActionDefinition("SUBMIT_REQUEST", "Submit request", "cluster.submit"),
     "START_REVIEW": ActionDefinition("START_REVIEW", "Start review", "cluster.review"),
@@ -89,17 +96,27 @@ STATUS_ACTIONS = {
     "PLAN_READY": ("VIEW_DETAILS", "VIEW_LOGS", "APPLY"),
     "PROVISIONING": ("VIEW_PROGRESS", "VIEW_LOGS", "CANCEL_PROVISIONING"),
     "APPLYING": ("VIEW_PROGRESS", "VIEW_LOGS", "CANCEL_PROVISIONING"),
-    "READY": ("DASHBOARD", "WEB_KUBECTL", "MANAGE"),
-    "RUNNING": ("DASHBOARD", "WEB_KUBECTL", "MANAGE"),
-    "ACTIVE": ("DASHBOARD", "WEB_KUBECTL", "MANAGE", "STOP", "DELETE"),
-    "UPDATING": ("VIEW_PROGRESS", "VIEW_LOGS", "MANAGE"),
+    "BOOTSTRAPPING": ("VIEW_PROGRESS", "VIEW_LOGS", "MANAGE", "MANAGE_ACCESS"),
+    "BOOTSTRAP_FAILED": (
+        "MANAGE",
+        "MANAGE_ACCESS",
+        "VIEW_LOGS",
+        "DELETE",
+    ),
+    "READY": ("DASHBOARD", "WEB_KUBECTL", "MANAGE", "MANAGE_ACCESS"),
+    "RUNNING": ("DASHBOARD", "WEB_KUBECTL", "MANAGE", "MANAGE_ACCESS"),
+    "ACTIVE": (
+        "DASHBOARD", "WEB_KUBECTL", "MANAGE", "MANAGE_ACCESS", "STOP", "DELETE"
+    ),
+    "UPDATING": ("VIEW_PROGRESS", "VIEW_LOGS", "MANAGE", "MANAGE_ACCESS"),
     "STOPPING": ("VIEW_PROGRESS", "VIEW_LOGS"),
     "STARTING": ("VIEW_PROGRESS", "VIEW_LOGS"),
-    "STOPPED": ("START", "MANAGE", "EDIT_REQUEST", "DELETE"),
+    "STOPPED": ("START", "MANAGE", "MANAGE_ACCESS", "EDIT_REQUEST", "DELETE"),
     "DELETING": ("VIEW_PROGRESS",),
     "DELETED": ("VIEW_DETAILS",),
     "FAILED": (
         "MANAGE",
+        "MANAGE_ACCESS",
         "EDIT_REQUEST",
         "VIEW_LOGS",
         "RETRY_PROVISIONING",
@@ -113,8 +130,6 @@ STATUS_ACTIONS = {
 
 
 TEMPORARILY_UNAVAILABLE = {
-    "DASHBOARD": "Cluster dashboard is not available yet.",
-    "WEB_KUBECTL": "WebKubectl requires verified OIDC and Kubernetes RBAC integration.",
     "EDIT_REQUEST": "Only draft or rejected cluster requests can currently be edited.",
     "RETRY_PROVISIONING": "Automated retry is not available for this failure yet.",
     "CANCEL_REQUEST": "Request cancellation is not implemented yet.",
@@ -133,6 +148,12 @@ def resolve_cluster_actions(cluster, access):
         if not access.has(definition.privilege):
             continue
         reason = TEMPORARILY_UNAVAILABLE.get(code)
+        identity_status = str(cluster.get("identity_status") or "NOT_CONFIGURED").upper()
+        if code in {"DASHBOARD", "WEB_KUBECTL"} and identity_status != "READY":
+            reason = (
+                "Verified OIDC and Kubernetes RBAC integration is required. "
+                f"Current identity status: {identity_status.replace('_', ' ').title()}."
+            )
         actions.append(
             {
                 "code": definition.code,

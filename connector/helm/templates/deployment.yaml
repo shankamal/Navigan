@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigan-cluster-connector
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: navigan-cluster-connector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: navigan-cluster-connector
+    spec:
+      serviceAccountName: navigan-cluster-connector
+      automountServiceAccountToken: true
+      tolerations:
+        - key: navigan.io/system-only
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: connector
+          image: "{{ required "image.repository is required" .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: NAVIGAN_API_BASE_URL
+              value: {{ required "navigan.apiBaseUrl is required" .Values.navigan.apiBaseUrl | quote }}
+            - name: NAVIGAN_CONNECTOR_ID
+              value: {{ required "navigan.connectorId is required" .Values.navigan.connectorId | quote }}
+            - name: NAVIGAN_CONNECTOR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.navigan.existingSecret }}
+                  key: token
+            - name: SYNC_INTERVAL_SECONDS
+              value: {{ .Values.navigan.syncIntervalSeconds | quote }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import os; assert os.environ.get('NAVIGAN_CONNECTOR_TOKEN')"]
+            initialDelaySeconds: 3
+            periodSeconds: 30

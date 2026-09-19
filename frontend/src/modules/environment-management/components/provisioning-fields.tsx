@@ -39,7 +39,8 @@ function nodeGroupsOf(blueprint: Record<string, JsonValue>) {
 
 function defaultNodeGroup(index: number): Record<string, JsonValue> {
   return {
-    name: index ? `workers-${index + 1}` : "general",
+    name: index ? `workers-${index + 1}` : "system",
+    purpose: index ? "APPLICATION" : "SYSTEM",
     instanceTypes: ["m6i.large"],
     capacityType: "ON_DEMAND",
     minSize: 1,
@@ -411,11 +412,12 @@ export function ProvisioningFields({
           <fieldset className="blueprint-section">
             <legend>
               <Cpu size={17} aria-hidden="true" />
-              Managed node groups
+              Initial system node group
             </legend>
             <p className="blueprint-section-help">
-              Configure independent worker pools for applications with different
-              capacity or scaling needs.
+              Define the protected on-demand pool that runs the connector and
+              mandatory platform services. Application pools are requested
+              from the cluster after onboarding.
             </p>
             <div className="node-group-list">
               {nodeGroupsOf(blueprint).map((group, groupIndex) => {
@@ -437,23 +439,12 @@ export function ProvisioningFields({
                         </strong>
                         <span>Worker pool {groupIndex + 1}</span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        aria-label={`Remove node group ${groupIndex + 1}`}
-                        disabled={groups.length === 1}
-                        onClick={() =>
-                          setNodeGroups(
-                            index,
-                            groups.filter((_, i) => i !== groupIndex),
-                          )
-                        }
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                        Remove
-                      </Button>
                     </header>
                     <div className="blueprint-field-grid">
+                      <label className="field">
+                        Purpose
+                        <input value="System platform services" disabled />
+                      </label>
                       <label className="field">
                         Node group name *
                         <input
@@ -469,6 +460,7 @@ export function ProvisioningFields({
                         Capacity type *
                         <select
                           required
+                          disabled
                           value={stringValue(group.capacityType)}
                           onChange={(event) =>
                             updateGroup({ capacityType: event.target.value })
@@ -552,20 +544,6 @@ export function ProvisioningFields({
                 );
               })}
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={nodeGroupsOf(blueprint).length >= 20}
-              onClick={() =>
-                setNodeGroups(index, [
-                  ...nodeGroupsOf(blueprint),
-                  defaultNodeGroup(nodeGroupsOf(blueprint).length),
-                ])
-              }
-            >
-              <Plus size={16} aria-hidden="true" />
-              Add node group
-            </Button>
           </fieldset>
 
           <ProvisioningRoleAndSecretFields

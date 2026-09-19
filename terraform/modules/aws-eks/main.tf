@@ -1,5 +1,38 @@
 locals {
   node_groups = { for group in var.node_groups : group.name => group }
+  managed_node_groups = {
+    for name, group in local.node_groups : name => group
+    if group.managementMode == "MANAGED"
+  }
+  adopted_node_groups = {
+    for name, group in local.node_groups : name => group
+    if group.managementMode == "ADOPTED"
+  }
+}
+
+resource "aws_security_group" "managed_nodes" {
+  name_prefix = "${var.cluster_name}-navigan-nodes-"
+  description = "Navigan-managed shared security group for all EKS worker nodes"
+  vpc_id      = var.vpc_id
+
+  tags = merge(var.tags, {
+    Name               = "${var.cluster_name}-navigan-nodes"
+    NaviganManagedRole = "SHARED_NODE_NETWORK"
+  })
+}
+
+resource "aws_vpc_security_group_ingress_rule" "managed_nodes_self" {
+  security_group_id            = aws_security_group.managed_nodes.id
+  referenced_security_group_id = aws_security_group.managed_nodes.id
+  ip_protocol                  = "-1"
+  description                  = "Allow communication between all Navigan-managed cluster nodes"
+}
+
+resource "aws_vpc_security_group_egress_rule" "managed_nodes_ipv4" {
+  security_group_id = aws_security_group.managed_nodes.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+  description       = "Allow worker node egress"
 }
 
 resource "aws_eks_cluster" "this" {
@@ -31,14 +64,44 @@ resource "aws_eks_cluster" "this" {
   tags = var.tags
 }
 
+resource "aws_vpc_security_group_ingress_rule" "managed_nodes_from_control_plane_https" {
+  security_group_id            = aws_security_group.managed_nodes.id
+  referenced_security_group_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
+  description                  = "Allow EKS control plane HTTPS traffic to worker nodes"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "managed_nodes_from_control_plane_kubelet" {
+  security_group_id            = aws_security_group.managed_nodes.id
+  referenced_security_group_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  from_port                    = 1025
+  to_port                      = 65535
+  ip_protocol                  = "tcp"
+  description                  = "Allow EKS control plane kubelet and webhook traffic to worker nodes"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "control_plane_from_managed_nodes_https" {
+  security_group_id            = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  referenced_security_group_id = aws_security_group.managed_nodes.id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
+  description                  = "Allow worker nodes to reach the EKS control plane"
+}
+
 resource "aws_launch_template" "node" {
-  for_each = local.node_groups
+  for_each = local.managed_node_groups
 
   name_prefix            = "${var.cluster_name}-${each.key}-"
   update_default_version = true
 
   network_interfaces {
-    security_groups = var.node_security_group_ids
+    security_groups = distinct(concat(
+      var.node_security_group_ids,
+      [aws_security_group.managed_nodes.id],
+    ))
   }
 
   block_device_mappings {
@@ -60,7 +123,7 @@ resource "aws_launch_template" "node" {
 }
 
 resource "aws_eks_node_group" "this" {
-  for_each = local.node_groups
+  for_each = local.managed_node_groups
 
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = each.key
@@ -68,6 +131,15 @@ resource "aws_eks_node_group" "this" {
   subnet_ids      = var.node_subnet_ids
   instance_types  = each.value.instanceTypes
   capacity_type   = each.value.capacityType
+  labels = merge(
+    {
+      "navigan.io/node-purpose" = lower(each.value.purpose)
+      "navigan.io/managed-by"   = "navigan"
+    },
+    each.value.purpose == "SYSTEM" ? {
+      "navigan.io/platform-services" = "true"
+    } : {}
+  )
 
   scaling_config {
     desired_size = each.value.desiredSize
@@ -84,5 +156,31 @@ resource "aws_eks_node_group" "this" {
     max_unavailable_percentage = 25
   }
 
-  tags = var.tags
+  dynamic "taint" {
+    for_each = each.value.purpose == "SYSTEM" ? [1] : []
+    content {
+      key    = "navigan.io/system-only"
+      value  = "true"
+      effect = "NO_SCHEDULE"
+    }
+  }
+
+  tags = merge(var.tags, {
+    "NaviganNodePurpose" = each.value.purpose
+  })
+
+  depends_on = [
+    aws_vpc_security_group_ingress_rule.managed_nodes_self,
+    aws_vpc_security_group_ingress_rule.managed_nodes_from_control_plane_https,
+    aws_vpc_security_group_ingress_rule.managed_nodes_from_control_plane_kubelet,
+    aws_vpc_security_group_ingress_rule.control_plane_from_managed_nodes_https,
+    aws_vpc_security_group_egress_rule.managed_nodes_ipv4,
+  ]
+}
+
+data "aws_eks_node_group" "adopted" {
+  for_each = local.adopted_node_groups
+
+  cluster_name    = aws_eks_cluster.this.name
+  node_group_name = each.key
 }
