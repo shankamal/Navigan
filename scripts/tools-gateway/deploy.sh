@@ -25,6 +25,16 @@ LOAD_BALANCER_ARN="$(stack_resource LoadBalancer)"
 VPC_ID="$(stack_parameter VpcId)"
 PRIVATE_SUBNET_IDS="$(stack_parameter PrivateSubnetIds)"
 HOSTED_ZONE_ID="$(stack_parameter HostedZoneId)"
+FRONTEND_HOSTNAME="$(stack_parameter FrontendHostname)"
+FRONTEND_CERTIFICATE_ARN="$(stack_parameter CertificateArn)"
+if [[ "$GATEWAY_HOSTNAME" == "$FRONTEND_HOSTNAME" ]]; then
+  EXISTING_CERTIFICATE_ARN="$FRONTEND_CERTIFICATE_ARN"
+  CREATE_DNS_RECORD=false
+else
+  EXISTING_CERTIFICATE_ARN=
+  CREATE_DNS_RECORD=true
+fi
+ENVIRONMENT_NAME="${ENVIRONMENT_NAME:-Dev}"
 read -r LOAD_BALANCER_DNS_NAME LOAD_BALANCER_CANONICAL_ZONE_ID < <(
   aws "${AWS_ARGS[@]}" elbv2 describe-load-balancers \
     --load-balancer-arns "$LOAD_BALANCER_ARN" \
@@ -65,6 +75,9 @@ aws "${AWS_ARGS[@]}" cloudformation deploy \
     "LoadBalancerSecurityGroupId=$LOAD_BALANCER_SECURITY_GROUP_ID" \
     "PlatformApiBaseUrl=$PLATFORM_API_BASE_URL" \
     "GatewayHostname=$GATEWAY_HOSTNAME" \
+    "ExistingCertificateArn=$EXISTING_CERTIFICATE_ARN" \
+    "CreateDnsRecord=$CREATE_DNS_RECORD" \
+    "EnvironmentName=$ENVIRONMENT_NAME" \
     "HostedZoneId=$HOSTED_ZONE_ID" \
     "LoadBalancerDnsName=$LOAD_BALANCER_DNS_NAME" \
     "LoadBalancerCanonicalHostedZoneId=$LOAD_BALANCER_CANONICAL_ZONE_ID" \

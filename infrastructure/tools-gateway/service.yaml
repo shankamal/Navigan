@@ -22,6 +22,16 @@ Parameters:
   GatewayHostname:
     Type: String
     AllowedPattern: '[a-zA-Z0-9.-]+'
+  ExistingCertificateArn:
+    Type: String
+    Default: ''
+  CreateDnsRecord:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+  EnvironmentName:
+    Type: String
+    Default: Dev
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
   LoadBalancerDnsName:
@@ -33,9 +43,13 @@ Parameters:
     Default: 20
     MinValue: 1
     MaxValue: 50000
+Conditions:
+  CreateGatewayCertificate: !Equals [!Ref ExistingCertificateArn, '']
+  ManageGatewayDns: !Equals [!Ref CreateDnsRecord, 'true']
 Resources:
   GatewayCertificate:
     Type: AWS::CertificateManager::Certificate
+    Condition: CreateGatewayCertificate
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -48,15 +62,19 @@ Resources:
         - Key: ManagedBy
           Value: Navigan
         - Key: Environment
-          Value: Dev
+          Value: !Ref EnvironmentName
   GatewayListenerCertificate:
     Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
     Properties:
       ListenerArn: !Ref HttpsListenerArn
       Certificates:
-        - CertificateArn: !Ref GatewayCertificate
+        - CertificateArn: !If
+            - CreateGatewayCertificate
+            - !Ref GatewayCertificate
+            - !Ref ExistingCertificateArn
   GatewayDns:
     Type: AWS::Route53::RecordSet
+    Condition: ManageGatewayDns
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref GatewayHostname
@@ -233,7 +251,11 @@ Resources:
           TargetGroupArn: !Ref TargetGroup
 Outputs:
   GatewayUrl: {Value: !Sub 'https://${GatewayHostname}/tools'}
-  CertificateArn: {Value: !Ref GatewayCertificate}
+  CertificateArn:
+    Value: !If
+      - CreateGatewayCertificate
+      - !Ref GatewayCertificate
+      - !Ref ExistingCertificateArn
   ServiceName: {Value: !GetAtt Service.Name}
   TaskDefinitionArn: {Value: !Ref TaskDefinition}
   TargetGroupArn: {Value: !Ref TargetGroup}
