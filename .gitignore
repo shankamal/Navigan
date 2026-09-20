@@ -20,3 +20,4 @@ terraform/bootstrap/aws-provisioning-role/*.tfplan
 frontend/.next-stale-*/
 frontend/.standalone-runtime*/
 frontend/.npm-cache/
+.promotion-backups/
