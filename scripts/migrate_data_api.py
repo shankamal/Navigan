@@ -161,11 +161,20 @@ def main() -> int:
     parser.add_argument("--migrations-dir", default="database/migrations")
     parser.add_argument("--roles-file", default="database/bootstrap/roles.sql")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--confirm-production-database",
+        help="Required for non-Dev targets; value must exactly match --database",
+    )
     args = parser.parse_args()
 
-    # Refuse production-like targets. This utility is intentionally dev-only.
-    if not args.database.endswith("_dev"):
-        raise SystemExit("Safety stop: --database must end with '_dev'")
+    if (
+        not args.database.endswith("_dev")
+        and args.confirm_production_database != args.database
+    ):
+        raise SystemExit(
+            "Safety stop: non-Dev targets require "
+            "--confirm-production-database with the exact database name"
+        )
 
     migrations_dir = Path(args.migrations_dir).resolve()
     roles_file = Path(args.roles_file).resolve()
