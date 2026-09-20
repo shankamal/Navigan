@@ -19,3 +19,4 @@ terraform/bootstrap/aws-provisioning-role/*.tfplan
 .codex-bootstrap-package/
 frontend/.next-stale-*/
 frontend/.standalone-runtime*/
+frontend/.npm-cache/

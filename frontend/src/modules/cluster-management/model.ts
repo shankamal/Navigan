@@ -1,5 +1,93 @@
 import { z } from "zod";
 
+function versionTuple(version: string): number[] {
+  return version.split(".").map((part) => Number(part) || 0);
+}
+
+function compareVersionsDescending(left: string, right: string): number {
+  const a = versionTuple(left);
+  const b = versionTuple(right);
+  return (b[0] || 0) - (a[0] || 0) || (b[1] || 0) - (a[1] || 0);
+}
+
+export function supportedEksVersions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (!item || typeof item !== "object" || Array.isArray(item))
+            return "";
+          const record = item as Record<string, unknown>;
+          return typeof record.version === "string" &&
+            ["STANDARD_SUPPORT", "EXTENDED_SUPPORT"].includes(
+              String(record.support),
+            )
+            ? record.version
+            : "";
+        })
+        .filter(Boolean),
+    ),
+  ].toSorted(compareVersionsDescending);
+}
+
+export type ClusterLifecycleAction =
+  | "submit"
+  | "review"
+  | "approve"
+  | "reject"
+  | "plan"
+  | "apply"
+  | "stop"
+  | "start"
+  | "delete";
+
+export function clusterLifecycleActions({
+  status,
+  canSubmit,
+  canReview,
+  canOperate,
+  canDelete,
+  certificationPassed,
+}: {
+  status: string;
+  canSubmit: boolean;
+  canReview: boolean;
+  canOperate: boolean;
+  canDelete: boolean;
+  certificationPassed: boolean;
+}): ClusterLifecycleAction[] {
+  if (canSubmit && ["DRAFT", "REJECTED"].includes(status)) return ["submit"];
+  if (canReview && status === "SUBMITTED") return ["review"];
+  if (canReview && status === "UNDER_REVIEW") return ["approve", "reject"];
+  if (canReview && status === "FAILED") return ["plan"];
+  if (canReview && status === "PLAN_READY")
+    return certificationPassed ? ["apply"] : ["plan"];
+  if (canOperate && status === "ACTIVE")
+    return canDelete ? ["stop", "delete"] : ["stop"];
+  if (canOperate && status === "STOPPED")
+    return canDelete ? ["start", "delete"] : ["start"];
+  if (canDelete && status === "FAILED") return ["delete"];
+  return [];
+}
+
+export function shouldShowClusterExecutionPanel({
+  hasExecutionId,
+  historicalExecution,
+  status,
+}: {
+  hasExecutionId: boolean;
+  historicalExecution: boolean;
+  status: string;
+}): boolean {
+  return (
+    hasExecutionId &&
+    (!historicalExecution ||
+      ["FAILED", "BOOTSTRAPPING", "BOOTSTRAP_FAILED"].includes(status))
+  );
+}
+
 export const clusterActionSchema = z.object({
   code: z.string(),
   label: z.string(),
@@ -100,6 +188,109 @@ export const connectorInstallationSchema = z.object({
   status: z.enum(["REQUESTED", "RUNNING"]),
   executionId: z.string(),
 });
+export const clusterRuntimeInventorySchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  status: z.enum(["NOT_REPORTED", "READY", "DEGRADED", "STALE"]),
+  connectorId: z.string().nullable(),
+  sourceRevision: z.number().nullable(),
+  observedAt: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+  metrics: z.record(z.string(), z.number()),
+  resources: z.array(
+    z.object({
+      kind: z.enum([
+        "Node",
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "Pod",
+        "Service",
+      ]),
+      namespace: z.string().nullable(),
+      name: z.string(),
+      status: z.string(),
+      ready: z.number(),
+      desired: z.number(),
+      restarts: z.number(),
+    }),
+  ),
+  warningEvents: z.array(
+    z.object({
+      namespace: z.string().nullable(),
+      reason: z.string(),
+      resourceKind: z.string().nullable(),
+      resourceName: z.string().nullable(),
+      message: z.string(),
+      count: z.number(),
+      lastObservedAt: z.string().nullable(),
+    }),
+  ),
+});
+export const platformComponentInventorySchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  status: z.enum(["NOT_REPORTED", "READY", "DEGRADED"]),
+  connectorId: z.string().nullable(),
+  sourceRevision: z.number().nullable(),
+  observedAt: z.string().nullable(),
+  components: z.array(
+    z.object({
+      componentCode: z.string(),
+      status: z.enum(["READY", "PROGRESSING", "DEGRADED", "MISSING"]),
+      version: z.string().nullable(),
+      syncStatus: z.string().nullable(),
+      healthStatus: z.string().nullable(),
+      observedAt: z.string().nullable(),
+      sourceRevision: z.number().nullable(),
+    }),
+  ),
+  runtimeInventory: clusterRuntimeInventorySchema,
+});
+export const clusterToolAccessSchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  gateway: z.object({
+    status: z.enum(["READY", "NOT_DEPLOYED"]),
+    baseUrl: z.string().url().nullable(),
+  }),
+  tunnel: z.object({
+    status: z.enum(["READY", "NOT_CONNECTED"]),
+    connectorReady: z.boolean(),
+  }),
+  tools: z.array(
+    z.object({
+      code: z.enum([
+        "HEADLAMP",
+        "GRAFANA",
+        "PROMETHEUS",
+        "ARGOCD",
+        "WEBKUBECTL",
+      ]),
+      label: z.string(),
+      status: z.enum(["READY", "UNAVAILABLE"]),
+      componentStatus: z.string(),
+      interactive: z.boolean(),
+      launchUrl: z.string().url().nullable(),
+      disabledReason: z.string().nullable(),
+    }),
+  ),
+});
+export const clusterToolSessionSchema = z.object({
+  sessionId: z.string(),
+  exchangeToken: z.string(),
+  exchangeExpiresAt: z.string(),
+  expiresAt: z.string(),
+  toolCode: z.enum([
+    "HEADLAMP",
+    "GRAFANA",
+    "PROMETHEUS",
+    "ARGOCD",
+    "WEBKUBECTL",
+  ]),
+  exchangeUrl: z.string().url(),
+  launchUrl: z.string().url(),
+});
 export const clusterNodeGroupRequestSchema = z.object({
   requestId: z.string(),
   clusterId: z.string(),
@@ -133,7 +324,10 @@ export const clusterNodeGroupRequestsSchema = z.object({
 export const clusterListSchema = z.object({
   items: z.array(clusterSchema),
   pagination: z.object({
-    page: z.number(), pageSize: z.number(), totalElements: z.number(), totalPages: z.number(),
+    page: z.number(),
+    pageSize: z.number(),
+    totalElements: z.number(),
+    totalPages: z.number(),
   }),
 });
 export const executionLogsSchema = z.object({
@@ -207,6 +401,8 @@ export type ClusterNamespaceInventory = z.infer<
   typeof clusterNamespaceInventorySchema
 >;
 export type ConnectorInstallation = z.infer<typeof connectorInstallationSchema>;
+export type ClusterToolAccess = z.infer<typeof clusterToolAccessSchema>;
+export type ClusterToolSession = z.infer<typeof clusterToolSessionSchema>;
 export type ClusterNodeGroupRequest = z.infer<
   typeof clusterNodeGroupRequestSchema
 >;

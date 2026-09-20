@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Navigan shared private-cluster tools gateway behind the existing HTTPS ALB
+Parameters:
+  ImageUri:
+    Type: String
+    AllowedPattern: '.+@sha256:[0-9a-f]{64}'
+  RepositoryArn:
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  ClusterArn:
+    Type: String
+  HttpsListenerArn:
+    Type: String
+  LoadBalancerSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  PlatformApiBaseUrl:
+    Type: String
+    AllowedPattern: 'https://[a-zA-Z0-9.-]+/[a-zA-Z0-9/_-]+'
+  GatewayHostname:
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9.-]+'
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+  LoadBalancerDnsName:
+    Type: String
+  LoadBalancerCanonicalHostedZoneId:
+    Type: String
+  ListenerRulePriority:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 50000
+Resources:
+  GatewayCertificate:
+    Type: AWS::CertificateManager::Certificate
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      DomainName: !Ref GatewayHostname
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref GatewayHostname
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: ManagedBy
+          Value: Navigan
+        - Key: Environment
+          Value: Dev
+  GatewayListenerCertificate:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties:
+      ListenerArn: !Ref HttpsListenerArn
+      Certificates:
+        - CertificateArn: !Ref GatewayCertificate
+  GatewayDns:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref GatewayHostname
+      Type: A
+      AliasTarget:
+        DNSName: !Ref LoadBalancerDnsName
+        HostedZoneId: !Ref LoadBalancerCanonicalHostedZoneId
+        EvaluateTargetHealth: true
+  GatewaySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Navigan tools gateway - ALB ingress and HTTPS egress
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+  GatewayIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref GatewaySecurityGroup
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 3100
+      ToPort: 3100
+  LoadBalancerGatewayEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref LoadBalancerSecurityGroupId
+      DestinationSecurityGroupId: !Ref GatewaySecurityGroup
+      IpProtocol: tcp
+      FromPort: 3100
+      ToPort: 3100
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 3100
+      TargetType: ip
+      HealthCheckPath: /healthz
+      HealthCheckProtocol: HTTP
+      Matcher: {HttpCode: '200'}
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: GatewayListenerCertificate
+    Properties:
+      ListenerArn: !Ref HttpsListenerArn
+      Priority: !Ref ListenerRulePriority
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values: [!Ref GatewayHostname]
+        - Field: path-pattern
+          PathPatternConfig:
+            Values: [/tools, /tools/*]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+  Logs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RetentionInDays: 30
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PullImageAndWriteLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action: [ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage]
+                Resource: !Ref RepositoryArn
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt Logs.Arn
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: tools-gateway
+          Image: !Ref ImageUri
+          Essential: true
+          User: '65532'
+          PortMappings:
+            - ContainerPort: 3100
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: '3100'
+            - Name: NAVIGAN_API_BASE_URL
+              Value: !Ref PlatformApiBaseUrl
+          HealthCheck:
+            Command:
+              - CMD
+              - /nodejs/bin/node
+              - -e
+              - "fetch('http://127.0.0.1:3100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 20
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref Logs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: gateway
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: [ListenerRule, GatewayIngress, LoadBalancerGatewayEgress]
+    Properties:
+      Cluster: !Ref ClusterArn
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      PlatformVersion: '1.4.0'
+      HealthCheckGracePeriodSeconds: 60
+      EnableECSManagedTags: true
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!Ref GatewaySecurityGroup]
+      LoadBalancers:
+        - ContainerName: tools-gateway
+          ContainerPort: 3100
+          TargetGroupArn: !Ref TargetGroup
+Outputs:
+  GatewayUrl: {Value: !Sub 'https://${GatewayHostname}/tools'}
+  CertificateArn: {Value: !Ref GatewayCertificate}
+  ServiceName: {Value: !GetAtt Service.Name}
+  TaskDefinitionArn: {Value: !Ref TaskDefinition}
+  TargetGroupArn: {Value: !Ref TargetGroup}
+  LogGroupName: {Value: !Ref Logs}

@@ -104,7 +104,7 @@ variable "connector_installer_subnet_ids" {
   default     = []
 }
 variable "connector_installer_security_group_ids" {
-  description = "Security groups allowed to reach private EKS API endpoints."
+  description = "Deprecated. A stable dedicated installer security group is created automatically."
   type        = set(string)
   default     = []
 }

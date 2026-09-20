@@ -57,7 +57,23 @@ def environment_snapshot(missing_cluster=False):
         "location": {"region": "ap-south-1"},
         "extensions": {
             "provisioningContract": {
-                "kubernetesVersions": ["1.33", "1.34"],
+                "kubernetesVersions": [
+                    {
+                        "version": "1.33",
+                        "support": "STANDARD_SUPPORT",
+                        "default": True,
+                    },
+                    {
+                        "version": "1.34",
+                        "support": "EXTENDED_SUPPORT",
+                        "default": False,
+                    },
+                    {
+                        "version": "1.35",
+                        "support": "UNSUPPORTED",
+                        "default": False,
+                    },
+                ],
                 "instanceTypes": [
                     {"instanceType": "m6i.large"},
                     {"instanceType": "m6a.large"},
@@ -345,6 +361,67 @@ def test_namespace_inventory_is_not_configured_until_connector_reports():
     assert result["namespaces"] == []
 
 
+def test_platform_component_inventory_includes_unreported_required_components():
+    db = MagicMock()
+    cluster = {
+        **row("BOOTSTRAPPING"),
+        "customer_name": "Customer",
+        "environment_name": "Environment",
+    }
+    cluster["configuration"]["platformBaseline"] = {
+        "requiredComponents": ["connector", "argocd", "prometheus"],
+    }
+    db.execute.return_value.fetchone.side_effect = [
+        cluster,
+        {
+            "status": "DEGRADED",
+            "connector_id": "KCC-test",
+            "source_revision": 4,
+            "observed_at": None,
+        },
+        None,
+    ]
+    db.execute.return_value.fetchall.return_value = [
+        {
+            "component_code": "connector",
+            "status": "READY",
+            "version": None,
+            "sync_status": None,
+            "health_status": "Healthy",
+            "observed_at": None,
+            "source_revision": 4,
+        },
+        {
+            "component_code": "argocd",
+            "status": "READY",
+            "version": None,
+            "sync_status": "Synced",
+            "health_status": "Healthy",
+            "observed_at": None,
+            "source_revision": 4,
+        },
+    ]
+    principal = Principal(
+        "architect",
+        frozenset({"PLATFORM_ARCHITECT"}),
+        frozenset(),
+        True,
+    )
+
+    result = Repository(db, principal).platform_components("CLU-test")
+
+    assert result["status"] == "DEGRADED"
+    assert result["components"][-1] == {
+        "componentCode": "prometheus",
+        "status": "MISSING",
+        "version": None,
+        "syncStatus": "Unknown",
+        "healthStatus": "Not reported",
+        "observedAt": None,
+        "sourceRevision": None,
+    }
+
+
 def test_cognito_directory_uses_stable_user_subjects(monkeypatch):
     client = MagicMock()
     client.list_users.return_value = {
@@ -390,6 +467,15 @@ def test_create_owns_configuration_and_provisioning_on_cluster_request():
     assert created["configuration"]["kubernetesVersion"] == "1.33"
     assert created["configuration"]["blueprintName"] == "default"
     assert created["configuration"]["nodeGroups"][0]["purpose"] == "SYSTEM"
+    assert created["configuration"]["platformBaseline"]["requiredComponents"] == [
+        "connector",
+        "argocd",
+        "falco",
+        "prometheus",
+        "grafana",
+        "headlamp",
+    ]
+    assert "connector" in created["configuration"]["platformBaseline"]["components"]
     assert created["provisioningRoleArn"].endswith("NaviganProvisioningRole")
     assert created["externalIdSecretArn"] == provisioning_configuration()["externalIdSecretArn"]
 
@@ -403,6 +489,15 @@ def test_create_accepts_another_version_from_the_approved_contract():
 
 
 def test_create_rejects_version_outside_the_approved_contract():
+    repo = repository("CLOUD_ENGINEER")
+    with pytest.raises(ApiError) as error:
+        Service(repo, "correlation", MagicMock()).create(
+            {**request(), "kubernetesVersion": "1.36"}
+        )
+    assert error.value.code == "KUBERNETES_VERSION_NOT_APPROVED"
+
+
+def test_create_rejects_unsupported_version_from_the_approved_contract():
     repo = repository("CLOUD_ENGINEER")
     with pytest.raises(ApiError) as error:
         Service(repo, "correlation", MagicMock()).create(

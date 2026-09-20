@@ -18,6 +18,18 @@ Parameters:
   GitHubAppId: {Type: String, Default: ''}
   GitHubAppSlug: {Type: String, Default: ''}
   GitHubAppPrivateKeySecretArn: {Type: String, Default: ''}
+  PlatformToolsBaseUrl:
+    Type: String
+    Default: ''
+    Description: Environment-specific shared tools base URL, for example https://dev.navigan.click/tools
+  PlatformToolsGatewayEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  PlatformToolsTunnelEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
 Globals:
   Function:
     Runtime: python3.12
@@ -125,6 +137,9 @@ Resources:
           GITHUB_APP_ID: !Ref GitHubAppId
           GITHUB_APP_SLUG: !Ref GitHubAppSlug
           GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
+          PLATFORM_TOOLS_BASE_URL: !Ref PlatformToolsBaseUrl
+          PLATFORM_TOOLS_GATEWAY_ENABLED: !Ref PlatformToolsGatewayEnabled
+          PLATFORM_TOOLS_TUNNEL_ENABLED: !Ref PlatformToolsTunnelEnabled
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
@@ -171,6 +186,8 @@ Resources:
         Variables:
           CONNECTOR_IMAGE_URI: !Ref ConnectorImageUri
           CONNECTOR_API_BASE_URL: !Sub 'https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1'
+          GITHUB_APP_ID: !Ref GitHubAppId
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
@@ -179,6 +196,10 @@ Resources:
               Resource:
                 - !Ref ApiDatabaseSecretArn
                 - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/provisioning/*'
+                - !If
+                  - HasGitHubAppPrivateKey
+                  - !Ref GitHubAppPrivateKeySecretArn
+                  - !Ref AWS::NoValue
             - Effect: Allow
               Action: kms:Decrypt
               Resource: [!Ref SecretsKmsKeyArn, !GetAtt TerraformStateKey.Arn]
@@ -194,6 +215,10 @@ Resources:
       Handler: navigan.modules.cluster_management.connector_handler.lambda_handler
       ReservedConcurrentExecutions: 10
       Timeout: 15
+      Environment:
+        Variables:
+          GITHUB_APP_ID: !Ref GitHubAppId
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
@@ -202,6 +227,25 @@ Resources:
               Resource:
                 - !Ref ApiDatabaseSecretArn
                 - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/provisioning/*'
+                - !If
+                  - HasGitHubAppPrivateKey
+                  - !Ref GitHubAppPrivateKeySecretArn
+                  - !Ref AWS::NoValue
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !Ref SecretsKmsKeyArn
+  ToolSessionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: navigan.modules.cluster_management.tool_session_handler.lambda_handler
+      ReservedConcurrentExecutions: 20
+      Timeout: 10
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref ApiDatabaseSecretArn
             - Effect: Allow
               Action: kms:Decrypt
               Resource: !Ref SecretsKmsKeyArn
@@ -298,6 +342,15 @@ Resources:
       IntegrationUri: !GetAtt ConnectorFunction.Arn
       PayloadFormatVersion: '2.0'
       TimeoutInMillis: 14000
+  ToolSessionIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiId
+      IntegrationMethod: POST
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ToolSessionFunction.Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 9000
   ClusterInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -314,6 +367,14 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceAccount: !Ref AWS::AccountId
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/connectors/*'
+  ToolSessionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ToolSessionFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/POST/api/v1/tool-sessions/*'
   CreateRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: ClusterInvokePermission
@@ -464,6 +525,36 @@ Resources:
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
       AuthorizationScopes: [!Ref JwtScope]
+  GetClusterPlatformComponentsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/platform-components
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  GetClusterToolsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/tools
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  CreateClusterToolSessionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/tools/{toolCode}/sessions
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
   ReportConnectorNamespacesRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: ConnectorInvokePermission
@@ -495,6 +586,46 @@ Resources:
       ApiId: !Ref ApiId
       RouteKey: POST /api/v1/connectors/{connectorId}/access/status
       Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  GetConnectorGitHubCredentialsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/connectors/{connectorId}/github/credentials
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  AuthorizeConnectorToolsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/connectors/{connectorId}/tools/authorize
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  ReportConnectorToolsStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ConnectorInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/connectors/{connectorId}/tools/status
+      Target: !Join ['/', [integrations, !Ref ConnectorIntegration]]
+      AuthorizationType: NONE
+  ExchangeToolSessionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ToolSessionInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/tool-sessions/{sessionId}/exchange
+      Target: !Join ['/', [integrations, !Ref ToolSessionIntegration]]
+      AuthorizationType: NONE
+  ValidateToolSessionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ToolSessionInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/tool-sessions/{sessionId}/validate
+      Target: !Join ['/', [integrations, !Ref ToolSessionIntegration]]
       AuthorizationType: NONE
   CreateKubernetesAccessRoute:
     Type: AWS::ApiGatewayV2::Route

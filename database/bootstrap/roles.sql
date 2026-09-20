@@ -40,10 +40,20 @@ GRANT SELECT ON cluster_management.cluster_identity_integrations,
  cluster_management.webkubectl_sessions,
  cluster_management.cluster_namespace_inventories,
  cluster_management.cluster_namespaces,
- cluster_management.cluster_connectors TO navigan_api;
+ cluster_management.cluster_connectors,
+ cluster_management.cluster_tool_tunnels TO navigan_api;
 GRANT INSERT,UPDATE,DELETE ON cluster_management.cluster_namespace_inventories,
  cluster_management.cluster_namespaces,
- cluster_management.cluster_connectors TO navigan_api;
+ cluster_management.cluster_connectors,
+ cluster_management.cluster_tool_tunnels TO navigan_api;
+GRANT SELECT,INSERT,UPDATE ON
+ cluster_management.cluster_platform_component_inventories,
+ cluster_management.cluster_platform_components,
+ cluster_management.github_app_connections,
+ cluster_management.github_app_authorization_states,
+ cluster_management.cluster_system_repositories,
+ cluster_management.cluster_runtime_inventories,
+ cluster_management.cluster_tool_sessions TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA cluster_management TO navigan_api;
 -- Dynamic access management is the authorization source of truth.
 GRANT USAGE ON SCHEMA access_management TO navigan_api;

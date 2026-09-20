@@ -9,6 +9,9 @@ import {
   identitySubjectsSchema,
   clusterNamespaceInventorySchema,
   connectorInstallationSchema,
+  platformComponentInventorySchema,
+  clusterToolAccessSchema,
+  clusterToolSessionSchema,
   clusterNodeGroupRequestSchema,
   clusterNodeGroupRequestsSchema,
   type ClusterFilters,
@@ -76,6 +79,30 @@ export const clusters = {
               key: crypto.randomUUID(),
             }),
           },
+        )
+      ).data,
+    ),
+  platformComponents: async (id: string) =>
+    parseResponse(
+      platformComponentInventorySchema,
+      (await apiClient.get(`${base}/${id}/platform-components`)).data,
+    ),
+  tools: async (id: string) =>
+    parseResponse(
+      clusterToolAccessSchema,
+      (await apiClient.get(`${base}/${id}/tools`)).data,
+    ),
+  createToolSession: async (
+    id: string,
+    toolCode: "HEADLAMP" | "GRAFANA" | "PROMETHEUS" | "ARGOCD" | "WEBKUBECTL",
+  ) =>
+    parseResponse(
+      clusterToolSessionSchema,
+      (
+        await apiClient.post(
+          `${base}/${id}/tools/${toolCode.toLowerCase()}/sessions`,
+          { toolCode },
+          { headers: writeHeaders({ key: crypto.randomUUID() }) },
         )
       ).data,
     ),
@@ -159,9 +186,14 @@ export const clusters = {
       ).data,
     ),
   create: async (input: ClusterInput) =>
-    parseResponse(clusterSchema, (
-      await apiClient.post(base, input, { headers: writeHeaders({ key: crypto.randomUUID() }) })
-    ).data),
+    parseResponse(
+      clusterSchema,
+      (
+        await apiClient.post(base, input, {
+          headers: writeHeaders({ key: crypto.randomUUID() }),
+        })
+      ).data,
+    ),
   beginGitHubAuthorization: async (id: string, version: number) =>
     (
       await apiClient.post(
@@ -221,15 +253,20 @@ export const clusters = {
     version: number,
     comments = "",
   ) =>
-    parseResponse(clusterSchema, (
-      await apiClient.post(
-        base + "/" + id + "/" + action,
-        {
-          version,
-          comments,
-          ...(["reject", "delete"].includes(action) ? { reason: comments } : {}),
-        },
-        { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
-      )
-    ).data),
+    parseResponse(
+      clusterSchema,
+      (
+        await apiClient.post(
+          base + "/" + id + "/" + action,
+          {
+            version,
+            comments,
+            ...(["reject", "delete"].includes(action)
+              ? { reason: comments }
+              : {}),
+          },
+          { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+        )
+      ).data,
+    ),
 };

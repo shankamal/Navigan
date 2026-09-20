@@ -17,6 +17,8 @@ spec:
     spec:
       serviceAccountName: navigan-cluster-connector
       automountServiceAccountToken: true
+      nodeSelector:
+        navigan.io/platform-services: "true"
       tolerations:
         - key: navigan.io/system-only
           operator: Equal
@@ -47,6 +49,15 @@ spec:
                   key: token
             - name: SYNC_INTERVAL_SECONDS
               value: {{ .Values.navigan.syncIntervalSeconds | quote }}
+            {{- if .Values.navigan.toolsTunnelUrl }}
+            - name: NAVIGAN_TOOLS_TUNNEL_URL
+              value: {{ .Values.navigan.toolsTunnelUrl | quote }}
+            {{- end }}
+            - name: NAVIGAN_READY_FILE
+              value: /var/run/navigan/ready
+          volumeMounts:
+            - name: runtime
+              mountPath: /var/run/navigan
           resources:
             requests:
               cpu: 10m
@@ -56,6 +67,9 @@ spec:
               memory: 64Mi
           readinessProbe:
             exec:
-              command: ["python", "-c", "import os; assert os.environ.get('NAVIGAN_CONNECTOR_TOKEN')"]
+              command: ["python", "-c", "from pathlib import Path; assert Path('/var/run/navigan/ready').is_file()"]
             initialDelaySeconds: 3
-            periodSeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: runtime
+          emptyDir: {}

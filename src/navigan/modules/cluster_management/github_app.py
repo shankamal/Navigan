@@ -3,6 +3,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from base64 import b64encode
 
 import boto3
 import jwt
@@ -99,12 +100,20 @@ class GitHubApp:
                 ) from None
             raise
 
-    def installation_token(self, installation_id):
+    def installation_token_details(
+        self, installation_id, *, permissions=None, repositories=None
+    ):
+        body = {
+            "permissions": permissions
+            or {"administration": "write", "contents": "write"}
+        }
+        if repositories:
+            body["repositories"] = repositories
         value = self._request(
             "POST",
             f"/app/installations/{installation_id}/access_tokens",
             self._jwt(),
-            {"permissions": {"administration": "write", "contents": "write"}},
+            body,
         )
         token = value.get("token")
         if not token:
@@ -113,7 +122,17 @@ class GitHubApp:
                 "GITHUB_INSTALLATION_TOKEN_UNAVAILABLE",
                 "GitHub did not issue a repository provisioning token.",
             )
-        return token
+        return {"token": token, "expiresAt": value.get("expires_at")}
+
+    def installation_token(self, installation_id):
+        return self.installation_token_details(installation_id)["token"]
+
+    def repository_token(self, installation_id, repository_name, *, write=False):
+        return self.installation_token_details(
+            installation_id,
+            permissions={"contents": "write" if write else "read"},
+            repositories=[repository_name],
+        )
 
     def ensure_private_repository(self, installation_id, organization, name):
         token = self.installation_token(installation_id)
@@ -145,3 +164,77 @@ class GitHubApp:
                     "The existing system repository must be private.",
                 )
             return repository
+
+    def commit_files(
+        self,
+        installation_id,
+        organization,
+        repository_name,
+        files,
+        *,
+        branch="main",
+        message="Initialize Navigan system repository",
+    ):
+        """Atomically create or replace the managed repository files."""
+        token = self.repository_token(
+            installation_id, repository_name, write=True
+        )["token"]
+        repository_path = f"/repos/{organization}/{repository_name}"
+        try:
+            reference = self._request(
+                "GET", f"{repository_path}/git/ref/heads/{branch}", token
+            )
+        except ApiError as error:
+            if error.status != 404:
+                raise
+            repository = self._request("GET", repository_path, token)
+            branch = repository.get("default_branch") or branch
+            reference = self._request(
+                "GET", f"{repository_path}/git/ref/heads/{branch}", token
+            )
+        parent_sha = reference["object"]["sha"]
+        parent = self._request(
+            "GET", f"{repository_path}/git/commits/{parent_sha}", token
+        )
+        entries = []
+        for path, content in sorted(files.items()):
+            blob = self._request(
+                "POST",
+                f"{repository_path}/git/blobs",
+                token,
+                {
+                    "content": b64encode(content.encode()).decode(),
+                    "encoding": "base64",
+                },
+            )
+            entries.append(
+                {
+                    "path": path,
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": blob["sha"],
+                }
+            )
+        tree = self._request(
+            "POST",
+            f"{repository_path}/git/trees",
+            token,
+            {"base_tree": parent["tree"]["sha"], "tree": entries},
+        )
+        commit = self._request(
+            "POST",
+            f"{repository_path}/git/commits",
+            token,
+            {
+                "message": message,
+                "tree": tree["sha"],
+                "parents": [parent_sha],
+            },
+        )
+        self._request(
+            "PATCH",
+            f"{repository_path}/git/refs/heads/{branch}",
+            token,
+            {"sha": commit["sha"], "force": False},
+        )
+        return {"revision": commit["sha"], "branch": branch}

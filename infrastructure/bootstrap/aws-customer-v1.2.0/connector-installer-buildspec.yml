@@ -1,0 +1,180 @@
+version: 0.2
+phases:
+  build:
+    commands:
+      - set -eu
+      - PAYLOAD="$NAVIGAN_CONNECTOR_INSTALLATION"
+      - CLUSTER_ID="$(printf '%s' "$PAYLOAD" | jq -r '.clusterId')"
+      - CLUSTER_NAME="$(printf '%s' "$PAYLOAD" | jq -r '.clusterName')"
+      - CONNECTOR_ID="$(printf '%s' "$PAYLOAD" | jq -r '.connectorId')"
+      - SECRET_ARN="$(printf '%s' "$PAYLOAD" | jq -r '.connectorSecretArn')"
+      - API_BASE_URL="$(printf '%s' "$PAYLOAD" | jq -r '.apiBaseUrl')"
+      - SYSTEM_REPO_URL="$(printf '%s' "$PAYLOAD" | jq -r '.systemRepositoryUrl')"
+      - SYSTEM_REPO_REVISION="$(printf '%s' "$PAYLOAD" | jq -r '.systemRepositoryRevision')"
+      - test "$(printf '%s' "$PAYLOAD" | jq -r '.schemaVersion')" = "1.0"
+      - printf '%s' "$CLUSTER_ID" | grep -Eq '^CLU-[a-f0-9]{32}$'
+      - printf '%s' "$CLUSTER_NAME" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$'
+      - printf '%s' "$CONNECTOR_ID" | grep -Eq '^KCC-[a-f0-9]{32}$'
+      - printf '%s' "$API_BASE_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(/[A-Za-z0-9/_-]+)?$'
+      - printf '%s' "$SYSTEM_REPO_URL" | grep -Eq '^https://github.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$'
+      - printf '%s' "$SYSTEM_REPO_REVISION" | grep -Eq '^[A-Za-z0-9._/-]{1,200}$'
+      - HELM_VERSION=3.22.0
+      - HELM_ARCHIVE="helm-v${HELM_VERSION}-linux-amd64.tar.gz"
+      - curl --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 2 --output "/tmp/${HELM_ARCHIVE}" "https://get.helm.sh/${HELM_ARCHIVE}"
+      - curl --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 2 --output "/tmp/${HELM_ARCHIVE}.sha256sum" "https://get.helm.sh/${HELM_ARCHIVE}.sha256sum"
+      - cd /tmp && sha256sum --check "${HELM_ARCHIVE}.sha256sum" && cd -
+      - tar -xzf "/tmp/${HELM_ARCHIVE}" -C /tmp
+      - install -m 0755 /tmp/linux-amd64/helm /tmp/helm
+      - /tmp/helm version --short
+      - KUBERNETES_VERSION="$(aws eks describe-cluster --name "$CLUSTER_NAME" --query 'cluster.version' --output text)"
+      - curl --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 2 --output /tmp/kubectl "https://dl.k8s.io/release/v${KUBERNETES_VERSION}.0/bin/linux/amd64/kubectl"
+      - curl --fail --silent --show-error --location --http1.1 --retry 5 --retry-all-errors --retry-delay 2 --output /tmp/kubectl.sha256 "https://dl.k8s.io/release/v${KUBERNETES_VERSION}.0/bin/linux/amd64/kubectl.sha256"
+      - echo "$(cat /tmp/kubectl.sha256)  /tmp/kubectl" | sha256sum --check
+      - chmod 0700 /tmp/kubectl
+      - aws eks update-kubeconfig --name "$CLUSTER_NAME" --kubeconfig /tmp/navigan-kubeconfig
+      - |
+        READY_SYSTEM_NODES=$(
+          /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig get nodes \
+            -l navigan.io/platform-services=true -o json |
+          jq '[.items[] | select(any(.status.conditions[]; .type == "Ready" and .status == "True"))] | length'
+        )
+        if [ "$READY_SYSTEM_NODES" -lt 2 ]; then
+          echo "At least two Ready protected system nodes are required; found $READY_SYSTEM_NODES."
+          /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig get nodes -o wide
+          exit 1
+        fi
+      - |
+        /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n kube-system \
+          patch deployment coredns --type strategic --patch '{
+            "spec": {
+              "template": {
+                "spec": {
+                  "nodeSelector": {
+                    "navigan.io/platform-services": "true"
+                  },
+                  "tolerations": [
+                    {
+                      "key": "navigan.io/system-only",
+                      "operator": "Equal",
+                      "value": "true",
+                      "effect": "NoSchedule"
+                    }
+                  ]
+                }
+              }
+            }
+          }'
+        if ! /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n kube-system \
+          rollout status deployment/coredns --timeout=5m; then
+          /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n kube-system \
+            get pods -l k8s-app=kube-dns -o wide || true
+          exit 1
+        fi
+      - install -m 0600 /dev/null /tmp/bootstrap-credentials
+      - aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query SecretString --output text > /tmp/bootstrap-credentials
+      - install -m 0600 /dev/null /tmp/connector-token
+      - jq -rj '.connectorToken' /tmp/bootstrap-credentials > /tmp/connector-token
+      - install -m 0600 /dev/null /tmp/github-token
+      - jq -rj '.githubToken' /tmp/bootstrap-credentials > /tmp/github-token
+      - test -s /tmp/github-token
+      - /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig create namespace navigan-system --dry-run=client -o yaml | /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig apply -f -
+      - /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig create namespace argocd --dry-run=client -o yaml | /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig apply -f -
+      - /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n navigan-system create secret generic navigan-cluster-connector --from-file=token=/tmp/connector-token --dry-run=client -o yaml | /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig apply -f -
+      - |
+        /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n argocd create secret generic navigan-system-repository \
+          --from-literal=type=git \
+          --from-literal=url="$SYSTEM_REPO_URL" \
+          --from-literal=username=x-access-token \
+          --from-file=password=/tmp/github-token \
+          --dry-run=client -o yaml |
+        /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig label --local -f - \
+          argocd.argoproj.io/secret-type=repository -o yaml |
+        /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig apply -f -
+      - |
+        cat >/tmp/argocd-values.yaml <<YAML
+        global:
+          nodeSelector:
+            navigan.io/platform-services: "true"
+          tolerations:
+            - key: navigan.io/system-only
+              operator: Equal
+              value: "true"
+              effect: NoSchedule
+        configs:
+          params:
+            server.insecure: "true"
+            server.basehref: "/tools/clusters/${CLUSTER_ID}/argocd"
+          cm:
+            admin.enabled: "false"
+            users.anonymous.enabled: "true"
+          rbac:
+            policy.default: role:readonly
+        server:
+          service:
+            type: ClusterIP
+          ingress:
+            enabled: false
+        dex:
+          enabled: false
+        notifications:
+          enabled: false
+        YAML
+      - /tmp/helm repo add argo https://argoproj.github.io/argo-helm
+      - /tmp/helm repo update argo
+      - /tmp/helm --kubeconfig /tmp/navigan-kubeconfig upgrade --install argocd argo/argo-cd --version 10.9.0 --namespace argocd --values /tmp/argocd-values.yaml --wait --timeout 15m
+      - |
+        /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig apply -f - <<YAML
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: navigan-system
+          namespace: argocd
+          finalizers:
+            - resources-finalizer.argocd.argoproj.io
+        spec:
+          project: default
+          source:
+            repoURL: "$SYSTEM_REPO_URL"
+            targetRevision: "$SYSTEM_REPO_REVISION"
+            path: applications
+            directory:
+              recurse: true
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: argocd
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+              allowEmpty: false
+            syncOptions:
+              - CreateNamespace=true
+              - PruneLast=true
+              - ServerSideApply=true
+        YAML
+      - |
+        for attempt in $(seq 1 120); do
+          if /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n navigan-system \
+            get deployment navigan-cluster-connector >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$attempt" -eq 120 ]; then
+            echo "Argo CD did not create the connector deployment within 10 minutes."
+            /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n argocd get applications -o wide || true
+            /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n argocd describe application navigan-system || true
+            exit 1
+          fi
+          if [ $((attempt % 12)) -eq 0 ]; then
+            /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n argocd get applications -o wide || true
+          fi
+          sleep 5
+        done
+        if ! /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n navigan-system rollout status deployment/navigan-cluster-connector --timeout=20m; then
+          /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n argocd get applications -o wide || true
+          /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n argocd describe application navigan-system || true
+          /tmp/kubectl --kubeconfig /tmp/navigan-kubeconfig -n navigan-system get pods -o wide || true
+          exit 1
+        fi
+      - aws secretsmanager delete-secret --secret-id "$SECRET_ARN" --force-delete-without-recovery
+    finally:
+      - rm -rf /tmp/bootstrap-credentials /tmp/connector-token /tmp/github-token /tmp/navigan-kubeconfig /tmp/kubectl /tmp/kubectl.sha256 /tmp/argocd-values.yaml /tmp/helm /tmp/helm-v*-linux-amd64.tar.gz /tmp/helm-v*-linux-amd64.tar.gz.sha256sum /tmp/linux-amd64

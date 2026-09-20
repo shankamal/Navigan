@@ -25,7 +25,7 @@ ACTIONS = {
         "WEB_KUBECTL", "WebKubectl", "cluster.webkubectl.open"
     ),
     "MANAGE_ACCESS": ActionDefinition(
-        "MANAGE_ACCESS", "Access & RBAC", "cluster.access.manage"
+        "MANAGE_ACCESS", "Authorization", "cluster.access.manage"
     ),
     "EDIT_REQUEST": ActionDefinition("EDIT_REQUEST", "Edit request", "cluster.edit"),
     "SUBMIT_REQUEST": ActionDefinition("SUBMIT_REQUEST", "Submit request", "cluster.submit"),
@@ -137,7 +137,6 @@ TEMPORARILY_UNAVAILABLE = {
     "REFRESH_STATUS": "Provider status reconciliation is not implemented yet.",
     "TROUBLESHOOT": "Automated troubleshooting is not available yet; review execution logs.",
 }
-
 
 def resolve_cluster_actions(cluster, access):
     """Return state-valid actions filtered by effective backend privileges."""

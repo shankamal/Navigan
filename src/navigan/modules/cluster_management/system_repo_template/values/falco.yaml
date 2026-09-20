@@ -1,0 +1,17 @@
+driver:
+  kind: modern_ebpf
+falco:
+  jsonOutput: true
+  jsonIncludeOutputProperty: true
+tolerations:
+  - key: navigan.io/system-only
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+nodeSelector:
+  navigan.io/platform-services: "true"
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: 500m, memory: 768Mi}
+falcosidekick:
+  enabled: false

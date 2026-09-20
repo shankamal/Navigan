@@ -21,8 +21,19 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       return method === "GET";
     if (path.length === 3 && path[2] === "node-groups")
       return ["GET", "POST"].includes(method);
-    if (path.length === 3 && path[2] === "audit-log")
+    if (path.length === 3 && path[2] === "audit-log") return method === "GET";
+    if (path.length === 3 && path[2] === "platform-components")
       return method === "GET";
+    if (path.length === 3 && path[2] === "tools") return method === "GET";
+    if (
+      path.length === 5 &&
+      path[2] === "tools" &&
+      ["headlamp", "grafana", "prometheus", "argocd", "webkubectl"].includes(
+        path[3],
+      ) &&
+      path[4] === "sessions"
+    )
+      return method === "POST";
     if (
       path.length === 4 &&
       path[2] === "github" &&
@@ -36,7 +47,9 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       (["submit", "approve", "reject", "apply", "retry"].includes(path[4]) ||
         path[4] === "execution-logs")
     )
-      return path[4] === "execution-logs" ? method === "GET" : method === "POST";
+      return path[4] === "execution-logs"
+        ? method === "GET"
+        : method === "POST";
     if (path.length === 3 && ["identity", "access"].includes(path[2]))
       return method === "GET";
     if (
@@ -45,17 +58,9 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       ["subjects", "namespaces"].includes(path[3])
     )
       return method === "GET";
-    if (
-      path.length === 4 &&
-      path[2] === "access" &&
-      path[3] === "assignments"
-    )
+    if (path.length === 4 && path[2] === "access" && path[3] === "assignments")
       return method === "POST";
-    if (
-      path.length === 4 &&
-      path[2] === "connector" &&
-      path[3] === "install"
-    )
+    if (path.length === 4 && path[2] === "connector" && path[3] === "install")
       return method === "POST";
     if (
       path.length === 6 &&
@@ -69,8 +74,16 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       path.length === 3 &&
       method === "POST" &&
       [
-        "submit", "review", "approve", "reject", "plan", "apply",
-        "stop", "start", "delete", "migrate-system-node-group",
+        "submit",
+        "review",
+        "approve",
+        "reject",
+        "plan",
+        "apply",
+        "stop",
+        "start",
+        "delete",
+        "migrate-system-node-group",
       ].includes(path[2])
     );
   }

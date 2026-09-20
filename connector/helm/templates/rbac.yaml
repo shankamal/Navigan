@@ -10,11 +10,11 @@ rules:
     resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["nodes", "namespaces", "pods", "pods/log", "services", "configmaps", "events"]
+    resources: ["nodes", "namespaces", "pods", "services", "events"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
-    verbs: ["get", "list", "watch", "patch", "update"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
     verbs: ["get", "list", "watch"]
@@ -27,6 +27,31 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: navigan-cluster-connector
+subjects:
+  - kind: ServiceAccount
+    name: navigan-cluster-connector
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: navigan-github-credential-refresher
+  namespace: argocd
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["navigan-system-repository"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: navigan-github-credential-refresher
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: navigan-github-credential-refresher
 subjects:
   - kind: ServiceAccount
     name: navigan-cluster-connector

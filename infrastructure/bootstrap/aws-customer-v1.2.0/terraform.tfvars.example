@@ -32,16 +32,13 @@ eks_node_role_name      = "NaviganEksNodeRole-dev"
 create_eks_kms_key      = false
 recommended_kms_alias   = "alias/navigan-dev-eks"
 
-# Private-cluster connector installation. Use approved private subnets and a
-# security group that the EKS private endpoint permits on TCP 443.
+# Private-cluster GitOps bootstrap. A stable outbound-only installer security
+# group is created automatically.
 create_connector_installer = true
 connector_installer_vpc_id = "vpc-REPLACE-ME"
 connector_installer_subnet_ids = [
   "subnet-REPLACE-ME-A",
   "subnet-REPLACE-ME-B",
-]
-connector_installer_security_group_ids = [
-  "sg-REPLACE-ME",
 ]
 
 # If no eligible roles or KMS key exist, remove the example ARNs above,

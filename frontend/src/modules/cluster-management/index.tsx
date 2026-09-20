@@ -15,6 +15,7 @@ import {
   ChevronDown,
   CloudCog,
   EllipsisVertical,
+  ExternalLink,
   KeyRound,
   Network,
   Plus,
@@ -40,6 +41,11 @@ import { environments } from "@/modules/environment-management/services/environm
 import { customersService } from "@/modules/customer-management/services/customers";
 import { useClusterCount, useClusters } from "./hooks/queries";
 import { clusters } from "./service";
+import {
+  clusterLifecycleActions,
+  shouldShowClusterExecutionPanel,
+  supportedEksVersions,
+} from "./model";
 import type {
   Cluster,
   ClusterAction,
@@ -60,33 +66,6 @@ function arrayValue(value: unknown): Record<string, unknown>[] {
 
 function textValue(value: unknown, fallback = "Not configured") {
   return typeof value === "string" && value ? value : fallback;
-}
-
-function versionTuple(version: string): number[] {
-  return version.split(".").map((part) => Number(part) || 0);
-}
-
-function compareVersionsDescending(left: string, right: string): number {
-  const a = versionTuple(left);
-  const b = versionTuple(right);
-  return (b[0] || 0) - (a[0] || 0) || (b[1] || 0) - (a[1] || 0);
-}
-
-function supportedEksVersions(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return [
-    ...new Set(
-      value
-        .map((item) =>
-          typeof item === "string"
-            ? item
-            : typeof objectValue(item).version === "string"
-              ? String(objectValue(item).version)
-              : "",
-        )
-        .filter(Boolean),
-    ),
-  ].toSorted(compareVersionsDescending);
 }
 
 function approvedProvisioningSecrets(...values: unknown[]) {
@@ -161,14 +140,13 @@ function identityDisplayName(subject: {
     .replace(/^NAVIGAN_/, "")
     .split("_")
     .filter(Boolean)
-    .map(
-      (part) =>
-        part.slice(0, 1).toUpperCase() + part.slice(1).toLowerCase(),
-    )
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
 }
 
 type ClusterAdminMode = "directory" | "reviews" | "operations";
+type ClusterToolCode =
+  "HEADLAMP" | "GRAFANA" | "PROMETHEUS" | "ARGOCD" | "WEBKUBECTL";
 
 interface ClusterAdminPageProps {
   mode?: ClusterAdminMode;
@@ -181,15 +159,21 @@ const directOperations: Partial<
   START: "start",
   DELETE: "delete",
 };
-const actionLinks: Partial<Record<ClusterAction["code"], (cluster: Cluster) => string>> = {
+const actionLinks: Partial<
+  Record<ClusterAction["code"], (cluster: Cluster) => string>
+> = {
   MANAGE_ACCESS: (cluster) =>
     `/clusters/access?cluster=${encodeURIComponent(cluster.clusterId)}`,
 };
 
 const actionLabels: Partial<Record<ClusterAction["code"], string>> = {
-  MANAGE: "Cluster settings",
-  MANAGE_ACCESS: "Access & RBAC",
+  MANAGE: "Manage Cluster",
+  MANAGE_ACCESS: "Authorization",
 };
+const hiddenDirectoryActions = new Set<ClusterAction["code"]>([
+  "DASHBOARD",
+  "WEBKUBECTL",
+]);
 
 function clusterActionLabel(action: ClusterAction) {
   return actionLabels[action.code] || action.label;
@@ -208,6 +192,9 @@ function ClusterActionMenu({
   const popup = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<CSSProperties>();
+  const menuActions = cluster.allowedActions.filter(
+    (action) => !hiddenDirectoryActions.has(action.code),
+  );
   useEffect(() => {
     if (!open) return;
     const close = (event: MouseEvent) => {
@@ -247,13 +234,16 @@ function ClusterActionMenu({
     const width = 260;
     const estimatedHeight = Math.min(
       360,
-      Math.max(56, cluster.allowedActions.length * 58),
+      Math.max(56, menuActions.length * 58),
     );
     const opensAbove =
       rect.bottom + estimatedHeight + 12 > window.innerHeight &&
       rect.top > estimatedHeight;
     setPosition({
-      left: Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12)),
+      left: Math.max(
+        12,
+        Math.min(rect.right - width, window.innerWidth - width - 12),
+      ),
       top: opensAbove
         ? Math.max(12, rect.top - estimatedHeight - 4)
         : rect.bottom + 4,
@@ -262,8 +252,8 @@ function ClusterActionMenu({
     setOpen(true);
   };
   const items =
-    cluster.allowedActions.length > 0 ? (
-      cluster.allowedActions.map((action) => {
+    menuActions.length > 0 ? (
+      menuActions.map((action) => {
         const operation = directOperations[action.code];
         const actionHref = actionLinks[action.code]?.(cluster);
         if (!operation && action.enabled) {
@@ -360,13 +350,7 @@ export function ClusterAdminPage({
       cluster: Cluster;
       action: "stop" | "start" | "delete";
       reason: string;
-    }) =>
-      clusters.action(
-        cluster.clusterId,
-        action,
-        cluster.version,
-        reason,
-      ),
+    }) => clusters.action(cluster.clusterId, action, cluster.version, reason),
     onSuccess: async () => {
       setActionError(undefined);
       await queryClient.invalidateQueries({ queryKey: ["clusters"] });
@@ -441,9 +425,9 @@ export function ClusterAdminPage({
     if (!operationCode || !action.enabled) return;
     const reason =
       operationCode === "delete"
-        ? window.prompt(
-            "Provide the required reason for deleting this cluster:",
-          )?.trim()
+        ? window
+            .prompt("Provide the required reason for deleting this cluster:")
+            ?.trim()
         : clusterActionLabel(action);
     if (!reason) return;
     if (action.confirmation && !window.confirm(action.confirmation)) return;
@@ -558,7 +542,7 @@ export function ClusterAdminPage({
                   ? "No cluster executions in this state"
                   : filters.status || search
                     ? "No matching cluster setup requests"
-                : "No cluster setup requests yet"
+                    : "No cluster setup requests yet"
             }
             action={
               filters.status || search ? (
@@ -726,9 +710,7 @@ export function NewClusterPage() {
         value.environmentId,
         value.environmentApprovedVersion,
       ),
-    enabled: Boolean(
-      value.environmentId && value.environmentApprovedVersion,
-    ),
+    enabled: Boolean(value.environmentId && value.environmentApprovedVersion),
     staleTime: 60000,
   });
   const liveProvisioningOptions = useQuery({
@@ -757,8 +739,7 @@ export function NewClusterPage() {
       (item) =>
         item.isDefault === true ||
         textValue(item.name, "").toLowerCase() === "default",
-    ) ||
-    (approvedBlueprints.length === 1 ? approvedBlueprints[0] : undefined);
+    ) || (approvedBlueprints.length === 1 ? approvedBlueprints[0] : undefined);
   const resolvedBlueprint = approvedDefaultBlueprint || {
     name: "environment-default",
     displayName: "Approved environment defaults",
@@ -780,7 +761,9 @@ export function NewClusterPage() {
         : []),
       ...(blueprintKubernetesVersion ? [blueprintKubernetesVersion] : []),
     ]),
-  ).sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+  ).sort((left, right) =>
+    right.localeCompare(left, undefined, { numeric: true }),
+  );
   const approvedEndpointAccess =
     textValue(legacyBlueprint?.endpointAccess, "PRIVATE") ===
     "PUBLIC_AND_PRIVATE"
@@ -800,7 +783,12 @@ export function NewClusterPage() {
   const provisioningRoles = Array.isArray(contract.provisioningRoles)
     ? arrayValue(contract.provisioningRoles)
     : legacyProvisioning.roleArn
-      ? [{ roleArn: legacyProvisioning.roleArn, roleName: "NaviganProvisioningRole" }]
+      ? [
+          {
+            roleArn: legacyProvisioning.roleArn,
+            roleName: "NaviganProvisioningRole",
+          },
+        ]
       : [];
   const provisioningSecrets = approvedProvisioningSecrets(
     liveProvisioningOptions.data?.provisioningSecrets,
@@ -833,8 +821,7 @@ export function NewClusterPage() {
         kubernetesVersions[0] ||
         "",
       endpointAccess:
-        textValue(blueprint.endpointAccess, "PRIVATE") ===
-        "PUBLIC_AND_PRIVATE"
+        textValue(blueprint.endpointAccess, "PRIVATE") === "PUBLIC_AND_PRIVATE"
           ? "PUBLIC_AND_PRIVATE"
           : "PRIVATE",
       nodeGroups: systemGroup
@@ -888,29 +875,34 @@ export function NewClusterPage() {
         description="Select an approved environment baseline, then define the Kubernetes control plane, worker capacity, scaling, storage and provisioning access for this cluster request."
       />
       {customers.error && (
-        <ErrorNotice error={customers.error} onRetry={() => customers.refetch()} />
+        <ErrorNotice
+          error={customers.error}
+          onRetry={() => customers.refetch()}
+        />
       )}
       {envs.error && (
         <ErrorNotice error={envs.error} onRetry={() => envs.refetch()} />
       )}
       {Boolean(error) && <ErrorNotice error={error} />}
-      {error instanceof ApiError &&
-        Array.isArray(error.details?.fields) && (
-          <ul className="notice notice-error cluster-validation-fields">
-            {(
-              error.details.fields as {
-                field?: string;
-                message?: string;
-              }[]
-            ).map((item, index) => (
-              <li key={`${item.field}-${index}`}>
-                <strong>{item.field || "Request"}:</strong>{" "}
-                {item.message || "Invalid value"}
-              </li>
-            ))}
-          </ul>
-        )}
-      <form className="panel panel-padding cluster-setup-form" onSubmit={submit}>
+      {error instanceof ApiError && Array.isArray(error.details?.fields) && (
+        <ul className="notice notice-error cluster-validation-fields">
+          {(
+            error.details.fields as {
+              field?: string;
+              message?: string;
+            }[]
+          ).map((item, index) => (
+            <li key={`${item.field}-${index}`}>
+              <strong>{item.field || "Request"}:</strong>{" "}
+              {item.message || "Invalid value"}
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="panel panel-padding cluster-setup-form"
+        onSubmit={submit}
+      >
         <div className="cluster-setup-heading">
           <div>
             <span className="eyebrow">APPROVED BASELINE</span>
@@ -992,7 +984,9 @@ export function NewClusterPage() {
               {envs.data?.items.map((env) => (
                 <option value={env.environmentId} key={env.environmentId}>
                   {env.environmentName} · approved v{env.approvedVersion}
-                  {env.status !== "ACTIVE" ? ` · revision ${env.status.toLowerCase()}` : ""}
+                  {env.status !== "ACTIVE"
+                    ? ` · revision ${env.status.toLowerCase()}`
+                    : ""}
                 </option>
               ))}
             </select>
@@ -1183,9 +1177,9 @@ export function NewClusterPage() {
           <fieldset className="cluster-field-span blueprint-section">
             <legend>System node group</legend>
             <p className="muted">
-              Every cluster starts with one protected, on-demand worker pool
-              for the connector and mandatory platform services. Application
-              node groups are requested after cluster onboarding.
+              Every cluster starts with one protected, on-demand worker pool for
+              the connector and mandatory platform services. Application node
+              groups are requested after cluster onboarding.
             </p>
             {value.nodeGroups.map((group, index) => (
               <div className="cluster-blueprint-card" key={index}>
@@ -1209,10 +1203,11 @@ export function NewClusterPage() {
                       onChange={(event) =>
                         setValue((current) => ({
                           ...current,
-                          nodeGroups: current.nodeGroups.map((item, itemIndex) =>
-                            itemIndex === index
-                              ? { ...item, name: event.target.value }
-                              : item,
+                          nodeGroups: current.nodeGroups.map(
+                            (item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, name: event.target.value }
+                                : item,
                           ),
                         }))
                       }
@@ -1226,15 +1221,16 @@ export function NewClusterPage() {
                       onChange={(event) =>
                         setValue((current) => ({
                           ...current,
-                          nodeGroups: current.nodeGroups.map((item, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...item,
-                                  instanceTypes: event.target.value
-                                    ? [event.target.value]
-                                    : [],
-                                }
-                              : item,
+                          nodeGroups: current.nodeGroups.map(
+                            (item, itemIndex) =>
+                              itemIndex === index
+                                ? {
+                                    ...item,
+                                    instanceTypes: event.target.value
+                                      ? [event.target.value]
+                                      : [],
+                                  }
+                                : item,
                           ),
                         }))
                       }
@@ -1255,15 +1251,15 @@ export function NewClusterPage() {
                       onChange={(event) =>
                         setValue((current) => ({
                           ...current,
-                          nodeGroups: current.nodeGroups.map((item, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...item,
-                                  capacityType: event.target.value as
-                                    | "ON_DEMAND"
-                                    | "SPOT",
-                                }
-                              : item,
+                          nodeGroups: current.nodeGroups.map(
+                            (item, itemIndex) =>
+                              itemIndex === index
+                                ? {
+                                    ...item,
+                                    capacityType: event.target.value as
+                                      "ON_DEMAND" | "SPOT",
+                                  }
+                                : item,
                           ),
                         }))
                       }
@@ -1285,7 +1281,9 @@ export function NewClusterPage() {
                       <input
                         required
                         type="number"
-                        min={key === "diskSizeGiB" ? 20 : key === "maxSize" ? 1 : 0}
+                        min={
+                          key === "diskSizeGiB" ? 20 : key === "maxSize" ? 1 : 0
+                        }
                         max={key === "diskSizeGiB" ? 16384 : 1000}
                         value={group[key]}
                         onChange={(event) =>
@@ -1463,10 +1461,13 @@ export function ClusterAccessPage({
         : false,
   });
   const hasPendingAssignments =
-    access.data?.assignments.some((assignment) => assignment.status === "PENDING") ??
-    false;
+    access.data?.assignments.some(
+      (assignment) => assignment.status === "PENDING",
+    ) ?? false;
   const subjects =
-    subjectType === "USER" ? directory.data?.users ?? [] : directory.data?.groups ?? [];
+    subjectType === "USER"
+      ? (directory.data?.users ?? [])
+      : (directory.data?.groups ?? []);
   const normalizedSearch = subjectSearch.trim().toLowerCase();
   const visibleSubjects = subjects.filter((subject) =>
     [
@@ -1495,7 +1496,12 @@ export function ClusterAccessPage({
   );
   const assign = useMutation({
     mutationFn: async () => {
-      if (!clusterId || !profileCode || !selectedSubjects.length || !reason.trim())
+      if (
+        !clusterId ||
+        !profileCode ||
+        !selectedSubjects.length ||
+        !reason.trim()
+      )
         return;
       for (const subjectId of selectedSubjects) {
         await clusters.assignAccess(clusterId, {
@@ -1529,7 +1535,9 @@ export function ClusterAccessPage({
       await clusters.revokeAccess(clusterId, assignmentId, revokeReason);
     },
     onSuccess: async () =>
-      queryClient.invalidateQueries({ queryKey: ["cluster-access", clusterId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["cluster-access", clusterId],
+      }),
     onError: setError,
   });
   const installConnector = useMutation({
@@ -1599,8 +1607,8 @@ export function ClusterAccessPage({
         eyebrow="KUBERNETES GOVERNANCE"
         title={
           cluster.data
-            ? `Access & RBAC · ${cluster.data.clusterName}`
-            : "Kubernetes Access & RBAC"
+            ? `Authorization · ${cluster.data.clusterName}`
+            : "Kubernetes Authorization"
         }
         description={
           cluster.data
@@ -1642,7 +1650,8 @@ export function ClusterAccessPage({
               <div>
                 <h2>Choose people or teams</h2>
                 <p className="muted">
-                  Identities are loaded securely from the configured Cognito user pool.
+                  Identities are loaded securely from the configured Cognito
+                  user pool.
                 </p>
               </div>
             </div>
@@ -1679,7 +1688,10 @@ export function ClusterAccessPage({
             {directory.isPending ? (
               <Loading label="Loading identity directory…" />
             ) : directory.error ? (
-              <ErrorNotice error={directory.error} onRetry={() => directory.refetch()} />
+              <ErrorNotice
+                error={directory.error}
+                onRetry={() => directory.refetch()}
+              />
             ) : (
               <div className="identity-multiselect">
                 <button
@@ -1714,7 +1726,9 @@ export function ClusterAccessPage({
                         autoFocus
                         type="search"
                         value={subjectSearch}
-                        onChange={(event) => setSubjectSearch(event.target.value)}
+                        onChange={(event) =>
+                          setSubjectSearch(event.target.value)
+                        }
                         placeholder={
                           subjectType === "USER"
                             ? "Search by name, email, or username"
@@ -1748,7 +1762,10 @@ export function ClusterAccessPage({
                               disabled={disabled}
                               onChange={() => toggleSubject(subject.id)}
                             />
-                            <span className="access-subject-avatar" aria-hidden="true">
+                            <span
+                              className="access-subject-avatar"
+                              aria-hidden="true"
+                            >
                               {subject.type === "GROUP" ? (
                                 <UsersRound size={17} />
                               ) : (
@@ -1766,7 +1783,9 @@ export function ClusterAccessPage({
                                   "Cognito team"}
                               </small>
                             </span>
-                            {existing && <span className="metadata">Assigned</span>}
+                            {existing && (
+                              <span className="metadata">Assigned</span>
+                            )}
                             {subject.enabled === false && (
                               <span className="metadata">Disabled</span>
                             )}
@@ -1775,7 +1794,8 @@ export function ClusterAccessPage({
                       })}
                       {!visibleSubjects.length && (
                         <p className="identity-picker-empty">
-                          No matching {subjectType === "USER" ? "users" : "teams"}.
+                          No matching{" "}
+                          {subjectType === "USER" ? "users" : "teams"}.
                         </p>
                       )}
                     </div>
@@ -1792,9 +1812,14 @@ export function ClusterAccessPage({
                   </div>
                 )}
                 {selectedSubjects.length > 0 && (
-                  <div className="identity-selection-chips" aria-label="Selected identities">
+                  <div
+                    className="identity-selection-chips"
+                    aria-label="Selected identities"
+                  >
                     {selectedSubjects.map((subjectId) => {
-                      const subject = subjects.find((item) => item.id === subjectId);
+                      const subject = subjects.find(
+                        (item) => item.id === subjectId,
+                      );
                       return (
                         <button
                           type="button"
@@ -1826,14 +1851,18 @@ export function ClusterAccessPage({
               <div>
                 <h2>Define their access</h2>
                 <p className="muted">
-                  Select an approved least-privilege profile and record the purpose.
+                  Select an approved least-privilege profile and record the
+                  purpose.
                 </p>
               </div>
             </div>
             {access.isPending ? (
               <Loading label="Loading access profiles…" />
             ) : access.error ? (
-              <ErrorNotice error={access.error} onRetry={() => access.refetch()} />
+              <ErrorNotice
+                error={access.error}
+                onRetry={() => access.refetch()}
+              />
             ) : (
               <form
                 onSubmit={(event) => {
@@ -1846,7 +1875,9 @@ export function ClusterAccessPage({
                   {access.data?.profiles.map((profile) => (
                     <label
                       key={profile.profileCode}
-                      className={profileCode === profile.profileCode ? "selected" : ""}
+                      className={
+                        profileCode === profile.profileCode ? "selected" : ""
+                      }
                     >
                       <input
                         type="radio"
@@ -1876,7 +1907,9 @@ export function ClusterAccessPage({
                     ) : namespaceInventory.error ? (
                       <div className="namespace-inventory-state warning">
                         <strong>Namespace inventory could not be loaded</strong>
-                        <span>Retry after confirming the Dev API is available.</span>
+                        <span>
+                          Retry after confirming the Dev API is available.
+                        </span>
                         <Button
                           type="button"
                           variant="secondary"
@@ -1948,13 +1981,17 @@ export function ClusterAccessPage({
                           {namespaceInventory.data.namespaces
                             .filter((item) => !item.isSystem)
                             .map((item) => (
-                              <option key={item.namespace} value={item.namespace}>
+                              <option
+                                key={item.namespace}
+                                value={item.namespace}
+                              >
                                 {item.namespace}
                               </option>
                             ))}
                         </select>
                         <small>
-                          Verified from this cluster. System namespaces are hidden.
+                          Verified from this cluster. System namespaces are
+                          hidden.
                         </small>
                       </>
                     )}
@@ -1978,7 +2015,9 @@ export function ClusterAccessPage({
                     {selectedSubjects.length || "No"}{" "}
                     {subjectType === "USER" ? "user(s)" : "team(s)"} selected
                   </span>
-                  <span>{selectedProfile?.profileName || "No access level selected"}</span>
+                  <span>
+                    {selectedProfile?.profileName || "No access level selected"}
+                  </span>
                   <span>
                     {selectedProfile?.scopeType === "NAMESPACE"
                       ? namespace
@@ -2005,7 +2044,8 @@ export function ClusterAccessPage({
                     : `Grant access to ${selectedSubjects.length || 0} selected`}
                 </Button>
                 <p className="metadata">
-                  New assignments remain pending until Kubernetes RBAC reconciliation succeeds.
+                  New assignments remain pending until Kubernetes RBAC
+                  reconciliation succeeds.
                 </p>
               </form>
             )}
@@ -2045,7 +2085,9 @@ export function ClusterAccessPage({
                         ) || assignment.subjectId}
                       </strong>
                       <span className="metadata">
-                        {assignment.subjectType === "USER" ? "Individual user" : "Team"}
+                        {assignment.subjectType === "USER"
+                          ? "Individual user"
+                          : "Team"}
                       </span>
                     </td>
                     <td>{assignment.profileName}</td>
@@ -2102,11 +2144,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const requestedTab = searchParams.get("tab") || "overview";
   const activeTab = [
     "overview",
-    "resources",
     "compute",
-    "capabilities",
     "access",
-    "observability",
     "operations",
     "audit",
   ].includes(requestedTab)
@@ -2117,11 +2156,40 @@ export function ClusterRequestPage({ id }: { id: string }) {
     queryKey: ["cluster", id],
     queryFn: () => clusters.get(id),
     refetchInterval: (state) =>
-      ["PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"].includes(
-        state.state.data?.status || "",
-      )
+      [
+        "PLAN_RUNNING",
+        "APPLYING",
+        "STOPPING",
+        "STARTING",
+        "DELETING",
+        "BOOTSTRAPPING",
+      ].includes(state.state.data?.status || "")
         ? 5000
         : false,
+  });
+  const platformComponents = useQuery({
+    queryKey: ["cluster-platform-components", id],
+    queryFn: () => clusters.platformComponents(id),
+    enabled: ["BOOTSTRAPPING", "BOOTSTRAP_FAILED", "ACTIVE"].includes(
+      query.data?.status || "",
+    ),
+    refetchInterval: (state) =>
+      state.state.data?.status === "READY" ? 30_000 : 5000,
+    refetchIntervalInBackground: true,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const toolAccess = useQuery({
+    queryKey: ["cluster-tools", id],
+    queryFn: () => clusters.tools(id),
+    enabled: ["ACTIVE", "READY", "RUNNING"].includes(query.data?.status || ""),
+    refetchInterval: (state) =>
+      state.state.data?.tunnel.status === "READY" ? 30_000 : 5000,
+    refetchIntervalInBackground: true,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    retry: false,
   });
   const logs = useQuery({
     queryKey: ["cluster-execution-logs", id, query.data?.providerExecutionId],
@@ -2170,7 +2238,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
   });
   const nodeGroupProviderRunning =
     nodeGroupLogs.data?.status === "IN_PROGRESS" ||
-    ["PLAN_RUNNING", "APPLYING"].includes(trackedNodeGroupRequest?.status || "");
+    ["PLAN_RUNNING", "APPLYING"].includes(
+      trackedNodeGroupRequest?.status || "",
+    );
   const nodeGroupDisplayStatus = nodeGroupProviderRunning
     ? nodeGroupLogs.data?.operation === "apply"
       ? "APPLYING"
@@ -2206,16 +2276,23 @@ export function ClusterRequestPage({ id }: { id: string }) {
     staleTime: 60_000,
   });
   const currentEnvironment = useQuery({
-    queryKey: ["cluster-node-group-current-environment", query.data?.environmentId],
+    queryKey: [
+      "cluster-node-group-current-environment",
+      query.data?.environmentId,
+    ],
     queryFn: () => environments.get(query.data!.environmentId),
     enabled: Boolean(query.data?.environmentId),
     staleTime: 60_000,
   });
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
+  const [launchingTool, setLaunchingTool] = useState<ClusterToolCode>();
   const [actionComments, setActionComments] = useState("");
   const [planConfirmed, setPlanConfirmed] = useState(false);
   const [showNodeGroupForm, setShowNodeGroupForm] = useState(false);
+  const [resourceCategory, setResourceCategory] = useState("All resources");
+  const [resourceSearch, setResourceSearch] = useState("");
+  const [resourcePage, setResourcePage] = useState(0);
   const [nodeGroupDraft, setNodeGroupDraft] = useState({
     name: "",
     instanceTypes: "",
@@ -2249,8 +2326,10 @@ export function ClusterRequestPage({ id }: { id: string }) {
       textValue(group.purpose, index === 0 ? "SYSTEM" : "APPLICATION") ===
       "SYSTEM",
   );
-  const defaultSystemGroupRecorded = nodeGroups.some(
-    (group) => textValue(group.name, "") === "navigan-system-v1",
+  const currentSystemGroupRecorded = nodeGroups.some((group) =>
+    ["navigan-system-v1", recommendedNodeGroupName(row.clusterName)].includes(
+      textValue(group.name, ""),
+    ),
   );
   const configuredAddOns = arrayValue(
     configuration.addOns ?? configuration.addons,
@@ -2280,27 +2359,211 @@ export function ClusterRequestPage({ id }: { id: string }) {
   );
   const approvedApplicationInstanceTypes = [
     ...new Set(
-      (
-        Array.isArray(currentContract.instanceTypes)
-          ? currentContract.instanceTypes.map((item) =>
-              typeof item === "string"
-                ? item
-                : objectValue(item).instanceType,
+      (Array.isArray(currentContract.instanceTypes)
+        ? currentContract.instanceTypes.map((item) =>
+            typeof item === "string" ? item : objectValue(item).instanceType,
+          )
+        : Array.isArray(pinnedContract.instanceTypes)
+          ? pinnedContract.instanceTypes.map((item) =>
+              typeof item === "string" ? item : objectValue(item).instanceType,
             )
-          : Array.isArray(pinnedContract.instanceTypes)
-            ? pinnedContract.instanceTypes.map((item) =>
-              typeof item === "string"
-                ? item
-                : objectValue(item).instanceType,
+          : arrayValue(pinnedBlueprint?.nodeGroups).flatMap((group) =>
+              Array.isArray(group.instanceTypes) ? group.instanceTypes : [],
             )
-            : arrayValue(pinnedBlueprint?.nodeGroups).flatMap((group) =>
-                Array.isArray(group.instanceTypes) ? group.instanceTypes : [],
-              )
-      ).filter((item): item is string => typeof item === "string" && Boolean(item)),
+      ).filter(
+        (item): item is string => typeof item === "string" && Boolean(item),
+      ),
     ),
   ].sort();
   const workflow = objectValue(row.workflow);
   const platformBootstrap = objectValue(workflow.platformBootstrap);
+  const connectorReported =
+    platformComponents.data?.components.some(
+      (component) =>
+        component.componentCode === "connector" && component.status === "READY",
+    ) || false;
+  const pendingPlatformComponents =
+    platformComponents.data?.components.filter(
+      (component) => component.status !== "READY",
+    ) || [];
+  const componentStatus = (code: string) =>
+    platformComponents.data?.components.find(
+      (component) => component.componentCode === code,
+    );
+  const componentLabel = (code: string) => {
+    const component = componentStatus(code);
+    if (!component) return "Not reported";
+    if (component.status === "READY") return "Healthy";
+    return [component.syncStatus, component.healthStatus]
+      .filter(Boolean)
+      .join(" · ");
+  };
+  const toolByCode = (code: string) =>
+    toolAccess.data?.tools.find((tool) => tool.code === code);
+  const openTool = async (code: ClusterToolCode) => {
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      setError(
+        new Error(
+          "Your browser blocked the tool window. Allow pop-ups for Navigan and try again.",
+        ),
+      );
+      return;
+    }
+    popup.opener = null;
+    popup.document.title = "Opening Navigan tool…";
+    popup.document.body.textContent = "Preparing your secure tool session…";
+    setLaunchingTool(code);
+    setError(undefined);
+    try {
+      const session = await clusters.createToolSession(id, code);
+      const targetName = `navigan-tool-${crypto.randomUUID()}`;
+      popup.name = targetName;
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = session.exchangeUrl;
+      form.target = targetName;
+      for (const [name, value] of [
+        ["sessionId", session.sessionId],
+        ["exchangeToken", session.exchangeToken],
+      ]) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
+    } catch (caught) {
+      popup.close();
+      setError(caught);
+    } finally {
+      setLaunchingTool(undefined);
+    }
+  };
+  const toolLaunch = (code: ClusterToolCode, label: string) => {
+    const tool = toolByCode(code);
+    return tool?.launchUrl ? (
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={Boolean(launchingTool)}
+        onClick={() => openTool(code)}
+      >
+        {launchingTool === code ? `Opening ${label}…` : `Open ${label}`}
+        <ExternalLink size={15} aria-hidden="true" />
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        variant="secondary"
+        disabled
+        title={
+          tool?.disabledReason ||
+          (toolAccess.error
+            ? "Tool access status is temporarily unavailable."
+            : "Checking tool access readiness.")
+        }
+      >
+        Open {label}
+      </Button>
+    );
+  };
+  const monitoringReady = ["prometheus", "grafana"].every(
+    (code) => componentStatus(code)?.status === "READY",
+  );
+  const runtimeInventory = platformComponents.data?.runtimeInventory;
+  const runtimeResources = runtimeInventory?.resources || [];
+  const runtimeMetrics = runtimeInventory?.metrics || {};
+  const runtimeInventoryReady = runtimeInventory?.status === "READY";
+  const telemetryReady = monitoringReady && runtimeInventoryReady;
+  const resourceCategories = [
+    { label: "All resources", kinds: [] },
+    {
+      label: "Workloads",
+      kinds: ["Deployment", "StatefulSet", "DaemonSet", "Pod"],
+    },
+    { label: "Cluster", kinds: ["Node"] },
+    { label: "Service and networking", kinds: ["Service"] },
+  ];
+  const selectedResourceKinds =
+    resourceCategories.find((category) => category.label === resourceCategory)
+      ?.kinds || [];
+  const normalizedResourceSearch = resourceSearch.trim().toLowerCase();
+  const filteredRuntimeResources = runtimeResources.filter(
+    (resource) =>
+      (!selectedResourceKinds.length ||
+        selectedResourceKinds.includes(resource.kind)) &&
+      (!normalizedResourceSearch ||
+        [resource.name, resource.namespace, resource.kind, resource.status]
+          .filter(Boolean)
+          .some((value) =>
+            String(value).toLowerCase().includes(normalizedResourceSearch),
+          )),
+  );
+  const resourcePageSize = 12;
+  const resourcePageCount = Math.max(
+    1,
+    Math.ceil(filteredRuntimeResources.length / resourcePageSize),
+  );
+  const visibleResourcePage = Math.min(resourcePage, resourcePageCount - 1);
+  const visibleRuntimeResources = filteredRuntimeResources.slice(
+    visibleResourcePage * resourcePageSize,
+    (visibleResourcePage + 1) * resourcePageSize,
+  );
+  const nodeCount = Number(runtimeMetrics.nodeCount || 0);
+  const readyNodeCount = Number(runtimeMetrics.readyNodeCount || 0);
+  const podCount = Number(runtimeMetrics.podCount || 0);
+  const readyPodCount = Number(runtimeMetrics.readyPodCount || 0);
+  const readinessPercent = (ready: number, total: number) =>
+    total > 0 ? Math.min(100, Math.round((ready / total) * 100)) : 0;
+  const workloadResources = runtimeResources.filter((resource) =>
+    ["Deployment", "StatefulSet", "DaemonSet", "Pod"].includes(resource.kind),
+  );
+  const workloadDesired = workloadResources.reduce(
+    (total, resource) => total + resource.desired,
+    0,
+  );
+  const workloadReady = workloadResources.reduce(
+    (total, resource) => total + Math.min(resource.ready, resource.desired),
+    0,
+  );
+  const resourceKindCounts = [
+    "Node",
+    "Deployment",
+    "StatefulSet",
+    "DaemonSet",
+    "Pod",
+    "Service",
+  ]
+    .map((kind) => ({
+      kind,
+      count: runtimeResources.filter((resource) => resource.kind === kind)
+        .length,
+    }))
+    .filter((item) => item.count > 0);
+  const largestResourceKindCount = Math.max(
+    1,
+    ...resourceKindCounts.map((item) => item.count),
+  );
+  const restartCountsByNamespace = Array.from(
+    runtimeResources
+      .filter((resource) => resource.kind === "Pod")
+      .reduce((counts, resource) => {
+        const namespace = resource.namespace || "Cluster-wide";
+        counts.set(namespace, (counts.get(namespace) || 0) + resource.restarts);
+        return counts;
+      }, new Map<string, number>()),
+  )
+    .map(([namespace, restarts]) => ({ namespace, restarts }))
+    .sort((left, right) => right.restarts - left.restarts)
+    .slice(0, 6);
+  const largestNamespaceRestartCount = Math.max(
+    1,
+    ...restartCountsByNamespace.map((item) => item.restarts),
+  );
   const systemNodeGroupMigration = objectValue(
     configuration.systemNodeGroupMigration,
   );
@@ -2315,12 +2578,6 @@ export function ClusterRequestPage({ id }: { id: string }) {
         : row.status === "BOOTSTRAP_FAILED"
           ? "Needs attention"
           : "Pending";
-  const dashboardCapability = row.allowedActions.find(
-    (action) => action.code === "DASHBOARD",
-  );
-  const webKubectlCapability = row.allowedActions.find(
-    (action) => action.code === "WEB_KUBECTL",
-  );
   const executionOperation =
     logs.data?.operation ||
     textValue(objectValue(workflow.currentExecution).mode, "") ||
@@ -2332,19 +2589,22 @@ export function ClusterRequestPage({ id }: { id: string }) {
     plan: {
       eyebrow: "TERRAFORM PLANNING",
       title: "Plan progress",
-      description: "Validation, security checks and Terraform planning for this request.",
+      description:
+        "Validation, security checks and Terraform planning for this request.",
       steps: ["Request approved", "Configuration validated", "Plan certified"],
     },
     apply: {
       eyebrow: "CLUSTER PROVISIONING",
       title: "Provisioning progress",
-      description: "Terraform and AWS progress for this cluster provisioning operation.",
+      description:
+        "Terraform and AWS progress for this cluster provisioning operation.",
       steps: ["Plan certified", "Infrastructure applying", "Cluster active"],
     },
     stop: {
       eyebrow: "CLUSTER LIFECYCLE",
       title: "Stop operation",
-      description: "AWS progress for scaling the cluster worker capacity to zero.",
+      description:
+        "AWS progress for scaling the cluster worker capacity to zero.",
       steps: [
         "Stop requested",
         "Node groups scaling down",
@@ -2360,7 +2620,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
     delete: {
       eyebrow: "CLUSTER LIFECYCLE",
       title: "Delete operation",
-      description: "Terraform and AWS progress for decommissioning this cluster.",
+      description:
+        "Terraform and AWS progress for decommissioning this cluster.",
       steps: [
         "Deletion requested",
         "Infrastructure destroying",
@@ -2390,9 +2651,11 @@ export function ClusterRequestPage({ id }: { id: string }) {
     Boolean(logs.data?.complete) &&
     Boolean(executionOperation) &&
     !executionReachedTarget;
-  const showExecutionPanel =
-    Boolean(row.providerExecutionId) &&
-    (!historicalExecution || row.status === "FAILED");
+  const showExecutionPanel = shouldShowClusterExecutionPanel({
+    hasExecutionId: Boolean(row.providerExecutionId),
+    historicalExecution,
+    status: row.status,
+  });
   const executionTitle = historicalExecution
     ? `Previous ${executionPresentation.title.toLowerCase()}`
     : executionPresentation.title;
@@ -2401,41 +2664,25 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const certification = objectValue(workflow.certification);
   const planSummary = objectValue(workflow.planSummary);
   const certificationPassed = certification.status === "PASSED";
-  const planAvailable = ["PLAN_READY", "APPLYING", "ACTIVE"].includes(row.status);
-  const actions: Array<
-    | "submit"
-    | "review"
-    | "approve"
-    | "reject"
-    | "plan"
-    | "apply"
-    | "stop"
-    | "start"
-    | "delete"
-  > =
-    canSubmitCluster && ["DRAFT", "REJECTED"].includes(row.status)
-      ? ["submit"]
-        : canReviewCluster && row.status === "SUBMITTED"
-        ? ["approve", "reject"]
-        : canReviewCluster && row.status === "UNDER_REVIEW"
-          ? ["approve", "reject"]
-          : canReviewCluster && row.status === "FAILED"
-            ? ["plan"]
-            : canReviewCluster && row.status === "PLAN_READY"
-              ? certificationPassed
-                ? ["apply"]
-                : ["plan"]
-              : canOperate && row.status === "ACTIVE"
-                ? canDelete
-                  ? ["stop", "delete"]
-                  : ["stop"]
-                : canOperate && row.status === "STOPPED"
-                  ? canDelete
-                    ? ["start", "delete"]
-                    : ["start"]
-                  : canDelete && row.status === "FAILED"
-                    ? ["delete"]
-                    : [];
+  const planAvailable = ["PLAN_READY", "APPLYING", "ACTIVE"].includes(
+    row.status,
+  );
+  const actions = clusterLifecycleActions({
+    status: row.status,
+    canSubmit: canSubmitCluster,
+    canReview: canReviewCluster,
+    canOperate,
+    canDelete,
+    certificationPassed,
+  });
+  const actionPanelTab = [
+    "DRAFT",
+    "REJECTED",
+    "SUBMITTED",
+    "UNDER_REVIEW",
+  ].includes(row.status)
+    ? "overview"
+    : "operations";
   const act = async (action: (typeof actions)[number]) => {
     if (
       action === "apply" &&
@@ -2542,7 +2789,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
   };
   const migrateDefaultSystemGroup = async () => {
     const legacyName = textValue(recordedSystemGroup?.name, "");
-    if (!legacyName || defaultSystemGroupRecorded) return;
+    if (!legacyName || currentSystemGroupRecorded) return;
     if (
       !window.confirm(
         `Adopt navigan-system-v1 as the default system node group and generate a certified plan to retire ${legacyName}? Application node groups will not be changed.`,
@@ -2572,6 +2819,26 @@ export function ClusterRequestPage({ id }: { id: string }) {
       const parameters = new URLSearchParams(searchParams.toString());
       parameters.set("tab", "operations");
       router.replace(`?${parameters.toString()}`, { scroll: false });
+      await query.refetch();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const restartPlatformBootstrap = async () => {
+    if (
+      !window.confirm("Restart the secure platform bootstrap for this cluster?")
+    )
+      return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await clusters.installConnector(
+        id,
+        row.version,
+        "Authorized retry of secure platform bootstrap",
+      );
       await query.refetch();
     } catch (caught) {
       setError(caught);
@@ -2634,11 +2901,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
       <nav className="cluster-workspace-tabs" aria-label="Cluster workspace">
         {[
           ["overview", "Overview"],
-          ["resources", "Resources"],
           ["compute", "Compute"],
-          ["capabilities", "Capabilities"],
-          ["access", "Access & RBAC"],
-          ["observability", "Observability"],
+          ["access", "Authorization"],
           ["operations", "Operations"],
           ...(canViewAudit ? [["audit", "Audit"]] : []),
         ].map(([code, label]) => (
@@ -2657,11 +2921,17 @@ export function ClusterRequestPage({ id }: { id: string }) {
           </button>
         ))}
       </nav>
-      <div className="cluster-review-layout">
+      <div
+        className={`cluster-review-layout ${
+          activeTab === actionPanelTab ? "has-action-panel" : ""
+        }`}
+      >
         <main className="cluster-review-main">
           <section className="panel panel-padding cluster-review-hero cluster-tab-panel cluster-tab-overview">
             <div className="cluster-review-status">
-              <span className={"status-badge status-" + row.status.toLowerCase()}>
+              <span
+                className={"status-badge status-" + row.status.toLowerCase()}
+              >
                 {clusterStatusLabel(row.status)}
               </span>
               <span>Last updated {formatDate(row.updatedAt)}</span>
@@ -2725,21 +2995,223 @@ export function ClusterRequestPage({ id }: { id: string }) {
             </article>
           </section>
 
-          <section className="panel cluster-context-panel cluster-tab-panel cluster-tab-resources">
-            <aside className="resource-type-nav" aria-label="Kubernetes resource types">
-              <strong>Resource types</strong>
+          <section className="panel panel-padding cluster-tab-panel cluster-tab-overview cluster-overview-command-center">
+            {platformComponents.error && (
+              <ErrorNotice
+                error={platformComponents.error}
+                onRetry={() => platformComponents.refetch()}
+              />
+            )}
+            <div className="cluster-review-section-heading">
+              <div>
+                <span className="eyebrow">PLATFORM WORKSPACE</span>
+                <h2>Operate and observe</h2>
+                <p className="muted">
+                  Open the cluster&apos;s private management tools and review
+                  its latest health snapshot from one place.
+                </p>
+              </div>
+              <span
+                className={`security-chip ${telemetryReady ? "" : "needs-review"}`}
+              >
+                {telemetryReady ? "All systems healthy" : "Health updating"}
+              </span>
+            </div>
+
+            <dl className="overview-health-strip">
+              <div>
+                <dt>Ready nodes</dt>
+                <dd>
+                  {runtimeMetrics.readyNodeCount ?? "—"} /{" "}
+                  {runtimeMetrics.nodeCount ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>Ready pods</dt>
+                <dd>
+                  {runtimeMetrics.readyPodCount ?? "—"} /{" "}
+                  {runtimeMetrics.podCount ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>Warning events</dt>
+                <dd>{runtimeMetrics.warningEventCount ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Container restarts</dt>
+                <dd>{runtimeMetrics.containerRestartCount ?? "—"}</dd>
+              </div>
+            </dl>
+
+            <div className="overview-tool-grid">
               {[
-                "Workloads",
-                "Cluster",
-                "Service and networking",
-                "Config and secrets",
-                "Storage",
-                "Authorization",
-              ].map((category) => (
-                <span key={category}>{category}</span>
+                {
+                  code: "HEADLAMP" as ClusterToolCode,
+                  component: "headlamp",
+                  eyebrow: "CLUSTER DASHBOARD",
+                  label: "Headlamp",
+                  description:
+                    "Browse Kubernetes workloads, objects and namespaces.",
+                },
+                {
+                  code: "GRAFANA" as ClusterToolCode,
+                  component: "grafana",
+                  eyebrow: "VISUAL ANALYTICS",
+                  label: "Grafana",
+                  description:
+                    "Explore dashboards for cluster and workload usage.",
+                },
+                {
+                  code: "PROMETHEUS" as ClusterToolCode,
+                  component: "prometheus",
+                  eyebrow: "METRICS ENGINE",
+                  label: "Prometheus",
+                  description:
+                    "Run metric queries and inspect targets and alerts.",
+                },
+                {
+                  code: "ARGOCD" as ClusterToolCode,
+                  component: "argocd",
+                  eyebrow: "GITOPS CONTROL PLANE",
+                  label: "Argo CD",
+                  description:
+                    "Review application synchronization and deployment health.",
+                },
+              ].map((tool) => (
+                <article className="overview-tool-card" key={tool.code}>
+                  <header>
+                    <span className="eyebrow">{tool.eyebrow}</span>
+                    <span
+                      className={`overview-tool-status ${
+                        componentStatus(tool.component)?.status === "READY"
+                          ? "ready"
+                          : ""
+                      }`}
+                    >
+                      <span aria-hidden="true" />
+                      {componentLabel(tool.component)}
+                    </span>
+                  </header>
+                  <div>
+                    <h3>{tool.label}</h3>
+                    <p>{tool.description}</p>
+                  </div>
+                  <footer>
+                    <small>
+                      {toolByCode(tool.code)?.disabledReason ||
+                        "Private access through the shared Navigan gateway."}
+                    </small>
+                    {toolLaunch(tool.code, tool.label)}
+                  </footer>
+                </article>
+              ))}
+            </div>
+
+            <div className="overview-telemetry-grid">
+              <article className="telemetry-chart">
+                <header>
+                  <div>
+                    <span className="eyebrow">LIVE READINESS</span>
+                    <h3>Cluster capacity</h3>
+                  </div>
+                  <strong>
+                    {readinessPercent(workloadReady, workloadDesired)}%
+                  </strong>
+                </header>
+                {[
+                  { label: "Nodes", ready: readyNodeCount, total: nodeCount },
+                  { label: "Pods", ready: readyPodCount, total: podCount },
+                  {
+                    label: "Workload replicas",
+                    ready: workloadReady,
+                    total: workloadDesired,
+                  },
+                ].map((metric) => (
+                  <div className="telemetry-progress-row" key={metric.label}>
+                    <div>
+                      <span>{metric.label}</span>
+                      <strong>
+                        {metric.ready} / {metric.total}
+                      </strong>
+                    </div>
+                    <span className="telemetry-progress-track">
+                      <span
+                        style={{
+                          width: `${readinessPercent(metric.ready, metric.total)}%`,
+                        }}
+                      />
+                    </span>
+                  </div>
+                ))}
+              </article>
+              <article className="telemetry-chart">
+                <header>
+                  <div>
+                    <span className="eyebrow">RESOURCE MIX</span>
+                    <h3>Reported Kubernetes objects</h3>
+                  </div>
+                  <strong>{runtimeResources.length}</strong>
+                </header>
+                <div className="telemetry-bars">
+                  {resourceKindCounts.map((item) => (
+                    <div key={item.kind}>
+                      <span>{item.kind}</span>
+                      <span className="telemetry-bar-track">
+                        <span
+                          style={{
+                            width: `${Math.max(
+                              5,
+                              (item.count / largestResourceKindCount) * 100,
+                            )}%`,
+                          }}
+                        />
+                      </span>
+                      <strong>{item.count}</strong>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section className="panel cluster-context-panel cluster-tab-panel cluster-tab-resources">
+            <aside
+              className="resource-type-nav"
+              aria-label="Kubernetes resource types"
+            >
+              <strong>Resource types</strong>
+              {resourceCategories.map((category) => (
+                <button
+                  type="button"
+                  className={
+                    resourceCategory === category.label ? "active" : ""
+                  }
+                  key={category.label}
+                  onClick={() => {
+                    setResourceCategory(category.label);
+                    setResourcePage(0);
+                  }}
+                >
+                  <span>{category.label}</span>
+                  <small>
+                    {
+                      runtimeResources.filter(
+                        (resource) =>
+                          !category.kinds.length ||
+                          category.kinds.includes(resource.kind),
+                      ).length
+                    }
+                  </small>
+                </button>
               ))}
             </aside>
             <div className="resource-inventory">
+              {platformComponents.error && (
+                <ErrorNotice
+                  error={platformComponents.error}
+                  onRetry={() => platformComponents.refetch()}
+                />
+              )}
               <div className="cluster-review-section-heading">
                 <div>
                   <span className="eyebrow">KUBERNETES INVENTORY</span>
@@ -2749,13 +3221,139 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     in-cluster connector.
                   </p>
                 </div>
-                <span className="security-chip needs-review">Inventory required</span>
+                <span
+                  className={`security-chip ${
+                    runtimeInventory?.status === "READY" ? "" : "needs-review"
+                  }`}
+                >
+                  {runtimeInventory?.status.replaceAll("_", " ") || "Loading"}
+                </span>
               </div>
-              <EmptyState title="Workload inventory is not available yet">
-                The current connector reports namespaces and access
-                reconciliation only. Pods, workloads, services and storage will
-                appear here after the inventory contract is expanded.
-              </EmptyState>
+              <div className="resource-inventory-toolbar">
+                <label>
+                  <span className="sr-only">Search cluster resources</span>
+                  <Search size={16} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={resourceSearch}
+                    placeholder="Search name, namespace, kind or status"
+                    onChange={(event) => {
+                      setResourceSearch(event.target.value);
+                      setResourcePage(0);
+                    }}
+                  />
+                </label>
+                <span className="metadata">
+                  {filteredRuntimeResources.length} of {runtimeResources.length}{" "}
+                  resources
+                </span>
+              </div>
+              {runtimeResources.length ? (
+                <div>
+                  <div className="table-scroll cluster-node-table resource-compact-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Resource</th>
+                          <th>Namespace</th>
+                          <th>Status</th>
+                          <th>Ready</th>
+                          <th>Restarts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleRuntimeResources.map((resource) => (
+                          <tr
+                            key={`${resource.kind}:${resource.namespace}:${resource.name}`}
+                          >
+                            <td>
+                              <strong>{resource.name}</strong>
+                              <span className="metadata">{resource.kind}</span>
+                            </td>
+                            <td>{resource.namespace || "Cluster-wide"}</td>
+                            <td>{resource.status}</td>
+                            <td>
+                              {resource.ready} / {resource.desired}
+                            </td>
+                            <td>{resource.restarts}</td>
+                          </tr>
+                        ))}
+                        {!visibleRuntimeResources.length && (
+                          <tr>
+                            <td colSpan={5}>No resources match this view.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {resourcePageCount > 1 && (
+                    <div className="resource-pagination">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={visibleResourcePage === 0}
+                        onClick={() =>
+                          setResourcePage((current) => Math.max(0, current - 1))
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <span>
+                        Page {visibleResourcePage + 1} of {resourcePageCount}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={visibleResourcePage + 1 >= resourcePageCount}
+                        onClick={() =>
+                          setResourcePage((current) =>
+                            Math.min(resourcePageCount - 1, current + 1),
+                          )
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <EmptyState title="Waiting for runtime inventory">
+                  The connector will report nodes, workloads, pods and services
+                  without exposing the cluster API publicly.
+                </EmptyState>
+              )}
+            </div>
+          </section>
+
+          <section className="panel panel-padding cluster-tab-panel cluster-tab-resources">
+            <div className="cluster-review-section-heading">
+              <div>
+                <span className="eyebrow">CLUSTER DASHBOARD</span>
+                <h2>Headlamp resource dashboard</h2>
+                <p className="muted">
+                  Read-only Kubernetes resource views provided by the
+                  cluster&apos;s managed dashboard service.
+                </p>
+              </div>
+              <span className="security-chip">
+                {componentLabel("headlamp")}
+              </span>
+            </div>
+            <div className="capability-list">
+              <article>
+                <div>
+                  <strong>Dashboard access</strong>
+                  <span>
+                    Open the cluster&apos;s managed, read-only Headlamp
+                    interface through the shared Navigan tools gateway.
+                  </span>
+                  <small>
+                    {toolByCode("HEADLAMP")?.disabledReason ||
+                      "Access is authenticated, authorized and routed without a public cluster endpoint."}
+                  </small>
+                </div>
+                {toolLaunch("HEADLAMP", "dashboard")}
+              </article>
             </div>
           </section>
 
@@ -2788,7 +3386,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
               </div>
               <div>
                 <dt>Security groups</dt>
-                <dd>{clusterSecurityGroups.length + nodeSecurityGroups.length}</dd>
+                <dd>
+                  {clusterSecurityGroups.length + nodeSecurityGroups.length}
+                </dd>
               </div>
             </dl>
             <div className="compact-inventory-grid">
@@ -2826,98 +3426,237 @@ export function ClusterRequestPage({ id }: { id: string }) {
             </div>
           </section>
 
-          <section className="panel panel-padding cluster-tab-panel cluster-tab-capabilities">
-            <div className="cluster-review-section-heading">
-              <div>
-                <span className="eyebrow">CLUSTER CAPABILITIES</span>
-                <h2>Operator tools</h2>
-                <p className="muted">
-                  Access is controlled by backend permissions and verified
-                  Kubernetes identity readiness.
-                </p>
-              </div>
-            </div>
-            <div className="capability-list">
-              {[
-                {
-                  name: "Cluster Dashboard",
-                  description:
-                    "Read-only health, workload, capacity and warning-event views.",
-                  capability: dashboardCapability,
-                  unavailableReason: undefined,
-                },
-                {
-                  name: "WebKubectl",
-                  description:
-                    "Short-lived, scoped terminal access through the private session broker.",
-                  capability: webKubectlCapability,
-                  unavailableReason: undefined,
-                },
-                {
-                  name: "Argo CD GitOps",
-                  description:
-                    "Register this cluster with the customer-level Argo CD service for governed application delivery.",
-                  capability: undefined,
-                  unavailableReason:
-                    "Customer Argo CD integration and cluster registration status are not reported yet.",
-                },
-              ].map(
-                ({ name, description, capability, unavailableReason }) => (
-                <article key={name}>
-                  <div>
-                    <strong>{name}</strong>
-                    <span>{description}</span>
-                    {!capability?.enabled && (
-                      <small>
-                        {unavailableReason ||
-                          capability?.disabledReason ||
-                          "This capability is not available for the current identity or cluster state."}
-                      </small>
-                    )}
-                  </div>
-                  <Button type="button" disabled={!capability?.enabled}>
-                    {capability?.enabled ? `Open ${name}` : "Unavailable"}
-                  </Button>
-                </article>
-                ),
-              )}
-            </div>
-          </section>
-
           <section className="panel panel-padding cluster-tab-panel cluster-tab-observability">
+            {platformComponents.error && (
+              <ErrorNotice
+                error={platformComponents.error}
+                onRetry={() => platformComponents.refetch()}
+              />
+            )}
             <div className="cluster-review-section-heading">
               <div>
                 <span className="eyebrow">OBSERVABILITY</span>
                 <h2>Health and telemetry</h2>
                 <p className="muted">
-                  Cluster signals exposed through approved platform integrations.
+                  Cluster signals exposed through approved platform
+                  integrations.
                 </p>
               </div>
-              <span className="security-chip needs-review">Not configured</span>
+              <span
+                className={`security-chip ${telemetryReady ? "" : "needs-review"}`}
+              >
+                {telemetryReady
+                  ? "Healthy"
+                  : runtimeInventory?.status === "STALE"
+                    ? "Refreshing telemetry"
+                    : "Needs attention"}
+              </span>
             </div>
+            {!platformComponents.error &&
+              runtimeInventory?.status !== "READY" && (
+                <div className="notice">
+                  <strong>
+                    {runtimeInventory?.status === "STALE"
+                      ? "The last runtime snapshot has expired."
+                      : "Runtime telemetry has not been reported yet."}
+                  </strong>{" "}
+                  Navigan will refresh automatically, or you can request it now.
+                  <div className="action-row">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={platformComponents.isFetching}
+                      onClick={() => platformComponents.refetch()}
+                    >
+                      {platformComponents.isFetching
+                        ? "Refreshing telemetry…"
+                        : "Refresh telemetry"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             <dl className="compact-facts">
               <div>
-                <dt>Metrics</dt>
-                <dd>Not reported</dd>
+                <dt>Ready nodes</dt>
+                <dd>
+                  {runtimeMetrics.readyNodeCount ?? "—"} /{" "}
+                  {runtimeMetrics.nodeCount ?? "—"}
+                </dd>
               </div>
               <div>
-                <dt>Logs</dt>
-                <dd>Execution logs only</dd>
+                <dt>Ready pods</dt>
+                <dd>
+                  {runtimeMetrics.readyPodCount ?? "—"} /{" "}
+                  {runtimeMetrics.podCount ?? "—"}
+                </dd>
               </div>
               <div>
-                <dt>Kubernetes events</dt>
-                <dd>Not reported</dd>
+                <dt>Container restarts</dt>
+                <dd>{runtimeMetrics.containerRestartCount ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Warning events</dt>
+                <dd>{runtimeMetrics.warningEventCount ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Prometheus</dt>
+                <dd>{componentLabel("prometheus")}</dd>
+              </div>
+              <div>
+                <dt>Grafana</dt>
+                <dd>{componentLabel("grafana")}</dd>
+              </div>
+              <div>
+                <dt>Falco</dt>
+                <dd>{componentLabel("falco")}</dd>
               </div>
               <div>
                 <dt>Connector</dt>
-                <dd>{platformReadiness}</dd>
+                <dd>{componentLabel("connector")}</dd>
               </div>
             </dl>
-            <p className="notice">
-              Runtime CPU, memory, restart and warning-event telemetry will be
-              enabled only after a verified metrics and logging integration is
-              attached to this cluster.
-            </p>
+            <div className="telemetry-visual-grid">
+              <article className="telemetry-chart">
+                <header>
+                  <div>
+                    <span className="eyebrow">PROMETHEUS SNAPSHOT</span>
+                    <h3>Readiness</h3>
+                  </div>
+                  <strong>
+                    {readinessPercent(workloadReady, workloadDesired)}%
+                  </strong>
+                </header>
+                {[
+                  {
+                    label: "Nodes",
+                    ready: readyNodeCount,
+                    total: nodeCount,
+                  },
+                  {
+                    label: "Pods",
+                    ready: readyPodCount,
+                    total: podCount,
+                  },
+                  {
+                    label: "Workload replicas",
+                    ready: workloadReady,
+                    total: workloadDesired,
+                  },
+                ].map((metric) => (
+                  <div className="telemetry-progress-row" key={metric.label}>
+                    <div>
+                      <span>{metric.label}</span>
+                      <strong>
+                        {metric.ready} / {metric.total}
+                      </strong>
+                    </div>
+                    <span className="telemetry-progress-track">
+                      <span
+                        style={{
+                          width: `${readinessPercent(metric.ready, metric.total)}%`,
+                        }}
+                      />
+                    </span>
+                  </div>
+                ))}
+              </article>
+              <article className="telemetry-chart">
+                <header>
+                  <div>
+                    <span className="eyebrow">GRAFANA OVERVIEW</span>
+                    <h3>Resource mix</h3>
+                  </div>
+                  <strong>{runtimeResources.length}</strong>
+                </header>
+                <div className="telemetry-bars">
+                  {resourceKindCounts.map((item) => (
+                    <div key={item.kind}>
+                      <span>{item.kind}</span>
+                      <span className="telemetry-bar-track">
+                        <span
+                          style={{
+                            width: `${Math.max(
+                              5,
+                              (item.count / largestResourceKindCount) * 100,
+                            )}%`,
+                          }}
+                        />
+                      </span>
+                      <strong>{item.count}</strong>
+                    </div>
+                  ))}
+                </div>
+              </article>
+              <article className="telemetry-chart telemetry-chart-wide">
+                <header>
+                  <div>
+                    <span className="eyebrow">POD STABILITY</span>
+                    <h3>Container restarts by namespace</h3>
+                  </div>
+                  <strong>
+                    {Number(runtimeMetrics.containerRestartCount || 0)}
+                  </strong>
+                </header>
+                <div className="telemetry-bars">
+                  {restartCountsByNamespace.map((item) => (
+                    <div key={item.namespace}>
+                      <span title={item.namespace}>{item.namespace}</span>
+                      <span className="telemetry-bar-track restart">
+                        <span
+                          style={{
+                            width: `${Math.max(
+                              item.restarts ? 5 : 0,
+                              (item.restarts / largestNamespaceRestartCount) *
+                                100,
+                            )}%`,
+                          }}
+                        />
+                      </span>
+                      <strong>{item.restarts}</strong>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+            {runtimeInventory?.warningEvents.length ? (
+              <div className="compact-inventory-grid">
+                <section>
+                  <h3>Recent warning events</h3>
+                  {runtimeInventory.warningEvents
+                    .slice(-10)
+                    .reverse()
+                    .map((event, index) => (
+                      <div
+                        key={`${event.resourceKind}:${event.resourceName}:${index}`}
+                      >
+                        <strong>{event.reason}</strong>
+                        <span>
+                          {event.resourceKind} {event.resourceName}:{" "}
+                          {event.message}
+                        </span>
+                      </div>
+                    ))}
+                </section>
+              </div>
+            ) : null}
+            <div className="capability-list">
+              {[
+                ["GRAFANA", "Grafana", "dashboards and metric exploration"],
+                ["PROMETHEUS", "Prometheus", "queries, targets and alerts"],
+              ].map(([code, label, description]) => (
+                <article key={code}>
+                  <div>
+                    <strong>{label}</strong>
+                    <span>Use the real {description} interface.</span>
+                    <small>
+                      {toolByCode(code)?.disabledReason ||
+                        "The service remains private and is reached through the shared Navigan gateway."}
+                    </small>
+                  </div>
+                  {toolLaunch(code as ClusterToolCode, label)}
+                </article>
+              ))}
+            </div>
           </section>
 
           <section className="panel panel-padding cluster-tab-panel cluster-tab-addons">
@@ -2934,7 +3673,10 @@ export function ClusterRequestPage({ id }: { id: string }) {
             </div>
             <div className="platform-service-grid">
               {[
-                ["Navigan connector", platformBootstrap.connectorId ? "Ready" : platformReadiness],
+                [
+                  "Navigan connector",
+                  platformBootstrap.connectorId ? "Ready" : platformReadiness,
+                ],
                 ["Argo CD cluster registration", "Not reported"],
                 ["Falco", "Planned"],
                 ["AWS Private CA connector", "Planned"],
@@ -2969,7 +3711,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
                       ? "Cloud Engineer or Platform Administrator permission is required"
                       : row.status === "ACTIVE"
                         ? "Request application capacity"
-                      : "Node groups can be requested when the cluster is Active"
+                        : "Node groups can be requested when the cluster is Active"
                   }
                   onClick={() => setShowNodeGroupForm((current) => !current)}
                 >
@@ -3020,7 +3762,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 <tbody>
                   {nodeGroups.map((group, index) => (
                     <tr key={`compute-${String(group.name || index)}`}>
-                      <td><strong>{textValue(group.name)}</strong></td>
+                      <td>
+                        <strong>{textValue(group.name)}</strong>
+                      </td>
                       <td>
                         {textValue(
                           group.purpose,
@@ -3045,7 +3789,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
               </table>
             </div>
 
-            {!defaultSystemGroupRecorded &&
+            {!currentSystemGroupRecorded &&
               recordedSystemGroup &&
               row.status === "ACTIVE" &&
               canOperate && (
@@ -3070,7 +3814,10 @@ export function ClusterRequestPage({ id }: { id: string }) {
               )}
 
             {showNodeGroupForm && (
-              <form className="node-group-request-form" onSubmit={createNodeGroup}>
+              <form
+                className="node-group-request-form"
+                onSubmit={createNodeGroup}
+              >
                 <label>
                   Node-group name
                   <input
@@ -3091,8 +3838,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
                   <select
                     required
                     disabled={
-                      (pinnedEnvironment.isPending ||
-                        currentEnvironment.isPending) ||
+                      pinnedEnvironment.isPending ||
+                      currentEnvironment.isPending ||
                       approvedApplicationInstanceTypes.length === 0
                     }
                     value={nodeGroupDraft.instanceTypes}
@@ -3104,7 +3851,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     }
                   >
                     <option value="">
-                      {pinnedEnvironment.isPending || currentEnvironment.isPending
+                      {pinnedEnvironment.isPending ||
+                      currentEnvironment.isPending
                         ? "Loading approved instance types…"
                         : approvedApplicationInstanceTypes.length
                           ? "Select an approved instance type"
@@ -3128,7 +3876,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     onChange={(event) =>
                       setNodeGroupDraft((current) => ({
                         ...current,
-                        capacityType: event.target.value as "ON_DEMAND" | "SPOT",
+                        capacityType: event.target.value as
+                          "ON_DEMAND" | "SPOT",
                       }))
                     }
                   >
@@ -3136,31 +3885,31 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     <option value="SPOT">Spot</option>
                   </select>
                 </label>
-                {(["minSize", "desiredSize", "maxSize", "diskSizeGiB"] as const).map(
-                  (field) => (
-                    <label key={field}>
-                      {field === "minSize"
-                        ? "Minimum"
-                        : field === "desiredSize"
-                          ? "Desired"
-                          : field === "maxSize"
-                            ? "Maximum"
-                            : "Disk (GiB)"}
-                      <input
-                        type="number"
-                        min={field === "diskSizeGiB" ? 20 : 0}
-                        required
-                        value={nodeGroupDraft[field]}
-                        onChange={(event) =>
-                          setNodeGroupDraft((current) => ({
-                            ...current,
-                            [field]: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                  ),
-                )}
+                {(
+                  ["minSize", "desiredSize", "maxSize", "diskSizeGiB"] as const
+                ).map((field) => (
+                  <label key={field}>
+                    {field === "minSize"
+                      ? "Minimum"
+                      : field === "desiredSize"
+                        ? "Desired"
+                        : field === "maxSize"
+                          ? "Maximum"
+                          : "Disk (GiB)"}
+                    <input
+                      type="number"
+                      min={field === "diskSizeGiB" ? 20 : 0}
+                      required
+                      value={nodeGroupDraft[field]}
+                      onChange={(event) =>
+                        setNodeGroupDraft((current) => ({
+                          ...current,
+                          [field]: Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
                 <label className="node-group-request-reason">
                   Application onboarding justification
                   <textarea
@@ -3249,8 +3998,60 @@ export function ClusterRequestPage({ id }: { id: string }) {
                                 Submit
                               </Button>
                             )}
-                          {canReviewNodeGroup && request.status === "SUBMITTED" && (
-                            <div className="node-group-request-actions">
+                          {canReviewNodeGroup &&
+                            request.status === "SUBMITTED" && (
+                              <div className="node-group-request-actions">
+                                <Button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    actOnNodeGroup(
+                                      request.requestId,
+                                      request.version,
+                                      "approve",
+                                    )
+                                  }
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    actOnNodeGroup(
+                                      request.requestId,
+                                      request.version,
+                                      "reject",
+                                    )
+                                  }
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            )}
+                          {canReviewNodeGroup &&
+                            request.status === "PLAN_READY" && (
+                              <Button
+                                type="button"
+                                disabled={
+                                  busy ||
+                                  objectValue(request.workflow.certification)
+                                    .status !== "PASSED"
+                                }
+                                onClick={() =>
+                                  actOnNodeGroup(
+                                    request.requestId,
+                                    request.version,
+                                    "apply",
+                                  )
+                                }
+                              >
+                                Apply plan
+                              </Button>
+                            )}
+                          {canReviewNodeGroup &&
+                            request.status === "FAILED" && (
                               <Button
                                 type="button"
                                 disabled={busy}
@@ -3258,62 +4059,13 @@ export function ClusterRequestPage({ id }: { id: string }) {
                                   actOnNodeGroup(
                                     request.requestId,
                                     request.version,
-                                    "approve",
+                                    "retry",
                                   )
                                 }
                               >
-                                Approve
+                                Retry plan
                               </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                disabled={busy}
-                                onClick={() =>
-                                  actOnNodeGroup(
-                                    request.requestId,
-                                    request.version,
-                                    "reject",
-                                  )
-                                }
-                              >
-                                Reject
-                              </Button>
-                            </div>
-                          )}
-                          {canReviewNodeGroup && request.status === "PLAN_READY" && (
-                            <Button
-                              type="button"
-                              disabled={
-                                busy ||
-                                objectValue(request.workflow.certification)
-                                  .status !== "PASSED"
-                              }
-                              onClick={() =>
-                                actOnNodeGroup(
-                                  request.requestId,
-                                  request.version,
-                                  "apply",
-                                )
-                              }
-                            >
-                              Apply plan
-                            </Button>
-                          )}
-                          {canReviewNodeGroup && request.status === "FAILED" && (
-                            <Button
-                              type="button"
-                              disabled={busy}
-                              onClick={() =>
-                                actOnNodeGroup(
-                                  request.requestId,
-                                  request.version,
-                                  "retry",
-                                )
-                              }
-                            >
-                              Retry plan
-                            </Button>
-                          )}
+                            )}
                         </td>
                       </tr>
                     ))}
@@ -3321,9 +4073,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 </table>
               </div>
             ) : (
-              <EmptyState
-                title="No application node groups requested"
-              >
+              <EmptyState title="No application node groups requested">
                 The protected system node group remains the only cluster
                 capacity.
               </EmptyState>
@@ -3382,7 +4132,10 @@ export function ClusterRequestPage({ id }: { id: string }) {
                   baseline. Optional extensions will appear here when requested
                   through the approved add-on catalog.
                 </EmptyState>
-                <div className="addon-category-grid" aria-label="Planned add-on categories">
+                <div
+                  className="addon-category-grid"
+                  aria-label="Planned add-on categories"
+                >
                   {[
                     ["Networking", "Ingress controllers, DNS and service mesh"],
                     ["Security", "Policy engines and secrets integrations"],
@@ -3416,7 +4169,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     className="button button-primary"
                     href={`/clusters/access?cluster=${row.clusterId}`}
                   >
-                    Manage Access & RBAC
+                    Manage Authorization
                   </Link>
                 ) : (
                   <span className="security-chip">View only</span>
@@ -3432,7 +4185,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 <article>
                   <span className="eyebrow">ENABLED</span>
                   <strong>
-                    {access.data?.assignments.filter((item) => item.status === "ACTIVE").length ?? "—"}
+                    {access.data?.assignments.filter(
+                      (item) => item.status === "ACTIVE",
+                    ).length ?? "—"}
                   </strong>
                   <span>Active access</span>
                   <small>Successfully reconciled to Kubernetes</small>
@@ -3440,10 +4195,28 @@ export function ClusterRequestPage({ id }: { id: string }) {
                 <article>
                   <span className="eyebrow">ATTENTION</span>
                   <strong>
-                    {access.data?.assignments.filter((item) => item.status === "PENDING").length ?? "—"}
+                    {access.data?.assignments.filter(
+                      (item) => item.status === "PENDING",
+                    ).length ?? "—"}
                   </strong>
                   <span>Awaiting sync</span>
                   <small>Pending connector reconciliation</small>
+                </article>
+              </div>
+              <div className="capability-list">
+                <article>
+                  <div>
+                    <strong>WebKubectl</strong>
+                    <span>
+                      Start a short-lived interactive Kubernetes session using
+                      the current approved access assignment.
+                    </span>
+                    <small>
+                      {toolByCode("WEBKUBECTL")?.disabledReason ||
+                        "Sessions are user-bound, time-limited and audited."}
+                    </small>
+                  </div>
+                  {toolLaunch("WEBKUBECTL", "WebKubectl")}
                 </article>
               </div>
               {access.data?.assignments.length ? (
@@ -3463,7 +4236,9 @@ export function ClusterRequestPage({ id }: { id: string }) {
                           <td>
                             <strong>{assignment.subjectId}</strong>
                             <span className="metadata">
-                              {assignment.subjectType === "GROUP" ? "Team" : "Individual user"}
+                              {assignment.subjectType === "GROUP"
+                                ? "Team"
+                                : "Individual user"}
                             </span>
                           </td>
                           <td>{assignment.profileName}</td>
@@ -3473,8 +4248,12 @@ export function ClusterRequestPage({ id }: { id: string }) {
                               : `Namespace: ${assignment.namespace || "Not set"}`}
                           </td>
                           <td>
-                            <span className={`status-badge status-${assignment.status.toLowerCase()}`}>
-                              {assignment.status === "ACTIVE" ? "Enabled" : assignment.status}
+                            <span
+                              className={`status-badge status-${assignment.status.toLowerCase()}`}
+                            >
+                              {assignment.status === "ACTIVE"
+                                ? "Enabled"
+                                : assignment.status}
                             </span>
                           </td>
                         </tr>
@@ -3483,7 +4262,13 @@ export function ClusterRequestPage({ id }: { id: string }) {
                   </table>
                 </div>
               ) : (
-                <EmptyState title={access.isPending ? "Loading access assignments" : "No access assignments"}>
+                <EmptyState
+                  title={
+                    access.isPending
+                      ? "Loading access assignments"
+                      : "No access assignments"
+                  }
+                >
                   {access.error
                     ? "Access information is temporarily unavailable."
                     : "No Kubernetes access has been granted for this cluster."}
@@ -3491,57 +4276,67 @@ export function ClusterRequestPage({ id }: { id: string }) {
               )}
             </section>
           )}
+
           {trackedNodeGroupRequest?.providerExecutionId &&
             !showSystemNodeGroupMigration && (
-            <section className="panel panel-padding execution-console cluster-tab-panel cluster-tab-operations">
-              <header>
-                <div>
-                  <span className="eyebrow">NODE-GROUP EXECUTION</span>
-                  <h2>{trackedNodeGroupRequest.nodeGroup.name}</h2>
-                  <p className="muted">
-                    Follow this governed request from approval through certified
-                    planning and applied EKS capacity.
-                  </p>
-                </div>
-                <span
-                  className={`execution-state ${
-                    nodeGroupProviderRunning ? "running" : "complete"
-                  }`}
+              <section className="panel panel-padding execution-console cluster-tab-panel cluster-tab-operations">
+                <header>
+                  <div>
+                    <span className="eyebrow">NODE-GROUP EXECUTION</span>
+                    <h2>{trackedNodeGroupRequest.nodeGroup.name}</h2>
+                    <p className="muted">
+                      Follow this governed request from approval through
+                      certified planning and applied EKS capacity.
+                    </p>
+                  </div>
+                  <span
+                    className={`execution-state ${
+                      nodeGroupProviderRunning ? "running" : "complete"
+                    }`}
+                  >
+                    <span aria-hidden="true" />
+                    {nodeGroupProviderRunning
+                      ? `${nodeGroupDisplayStatus} · refreshing`
+                      : nodeGroupDisplayStatus}
+                  </span>
+                </header>
+                <dl className="operation-facts" aria-label="Execution summary">
+                  <div>
+                    <dt>Operation</dt>
+                    <dd>
+                      {nodeGroupLogs.data?.operation === "apply"
+                        ? "Apply certified plan"
+                        : "Generate certified plan"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Provider status</dt>
+                    <dd>{nodeGroupDisplayStatus || "Loading"}</dd>
+                  </div>
+                  <div>
+                    <dt>Last activity</dt>
+                    <dd>
+                      {nodeGroupLastEvent
+                        ? new Date(
+                            nodeGroupLastEvent.timestamp,
+                          ).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "Waiting for events"}
+                    </dd>
+                  </div>
+                </dl>
+                <div
+                  className="execution-progress"
+                  aria-label="Node-group progress"
                 >
-                  <span aria-hidden="true" />
-                  {nodeGroupProviderRunning
-                    ? `${nodeGroupDisplayStatus} · refreshing`
-                    : nodeGroupDisplayStatus}
-                </span>
-              </header>
-              <dl className="operation-facts" aria-label="Execution summary">
-                <div>
-                  <dt>Operation</dt>
-                  <dd>
-                    {nodeGroupLogs.data?.operation === "apply"
-                      ? "Apply certified plan"
-                      : "Generate certified plan"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Provider status</dt>
-                  <dd>{nodeGroupDisplayStatus || "Loading"}</dd>
-                </div>
-                <div>
-                  <dt>Last activity</dt>
-                  <dd>
-                    {nodeGroupLastEvent
-                      ? new Date(nodeGroupLastEvent.timestamp).toLocaleTimeString(
-                          [],
-                          { hour: "2-digit", minute: "2-digit", second: "2-digit" },
-                        )
-                      : "Waiting for events"}
-                  </dd>
-                </div>
-              </dl>
-              <div className="execution-progress" aria-label="Node-group progress">
-                {["Request approved", "Plan certified", "Capacity applied"].map(
-                  (label, index) => {
+                  {[
+                    "Request approved",
+                    "Plan certified",
+                    "Capacity applied",
+                  ].map((label, index) => {
                     const completed =
                       index === 0 ||
                       (index === 1 &&
@@ -3558,39 +4353,371 @@ export function ClusterRequestPage({ id }: { id: string }) {
                       nodeGroupLogs.data?.operation === "apply";
                     return (
                       <div
-                        className={completed ? "complete" : running ? "running" : ""}
+                        className={
+                          completed ? "complete" : running ? "running" : ""
+                        }
                         key={label}
                       >
                         <span aria-hidden="true" />
                         <strong>{running ? "Capacity applying" : label}</strong>
                       </div>
                     );
-                  },
+                  })}
+                </div>
+                {nodeGroupExecutionFailed && (
+                  <div
+                    className="operation-outcome operation-outcome-failed"
+                    role="alert"
+                  >
+                    <strong>Capacity was not fully applied</strong>
+                    <span>
+                      The certified plan started, but the provider execution did
+                      not finish successfully. Review the final diagnostic
+                      events before retrying.
+                    </span>
+                  </div>
                 )}
+                <details
+                  className="execution-diagnostics"
+                  open={nodeGroupProviderRunning}
+                >
+                  <summary>
+                    <span>Technical execution log</span>
+                    <small>
+                      {nodeGroupLogs.data?.events.length || 0} provider events
+                    </small>
+                  </summary>
+                  <div className="execution-log" role="log" aria-live="polite">
+                    {nodeGroupLogs.isPending && (
+                      <p>Connecting to the execution log…</p>
+                    )}
+                    {nodeGroupLogs.error && (
+                      <p>
+                        Node-group execution logs are temporarily unavailable.
+                      </p>
+                    )}
+                    {nodeGroupLogs.data?.events.map((event, index) => (
+                      <p key={`${event.timestamp}-${index}`}>
+                        <time>
+                          {new Date(event.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </time>
+                        <span>{event.message}</span>
+                      </p>
+                    ))}
+                    {nodeGroupLogs.data &&
+                      !nodeGroupLogs.data.events.length && (
+                        <p>Waiting for the first execution event…</p>
+                      )}
+                  </div>
+                </details>
+              </section>
+            )}
+          {["ACTIVE", "BOOTSTRAPPING", "BOOTSTRAP_FAILED"].includes(
+            row.status,
+          ) && (
+            <section className="panel panel-padding execution-console cluster-tab-panel cluster-tab-operations">
+              <header>
+                <div>
+                  <span className="eyebrow">PLATFORM BOOTSTRAP</span>
+                  <h2>
+                    {row.status === "BOOTSTRAP_FAILED"
+                      ? "Platform service installation failed"
+                      : row.status === "ACTIVE"
+                        ? "Platform services"
+                        : "Installing platform services"}
+                  </h2>
+                  <p className="muted">
+                    Navigan is installing the connector and waiting for the
+                    approved platform components to report healthy.
+                  </p>
+                </div>
+                <span
+                  className={`execution-state ${
+                    row.status === "BOOTSTRAP_FAILED" ? "complete" : "running"
+                  }`}
+                >
+                  <span aria-hidden="true" />
+                  {row.status === "BOOTSTRAP_FAILED"
+                    ? "Installation failed"
+                    : connectorReported
+                      ? "Live · verifying platform health"
+                      : "Live · awaiting connector"}
+                </span>
+              </header>
+              <dl
+                className="operation-facts"
+                aria-label="Platform bootstrap summary"
+              >
+                <div>
+                  <dt>Installer execution</dt>
+                  <dd>{textValue(platformBootstrap.executionId, "Pending")}</dd>
+                </div>
+                <div>
+                  <dt>Connector</dt>
+                  <dd>{textValue(platformBootstrap.connectorId, "Pending")}</dd>
+                </div>
+                <div>
+                  <dt>Started</dt>
+                  <dd>
+                    {typeof platformBootstrap.startedAt === "string"
+                      ? formatDate(platformBootstrap.startedAt)
+                      : "Pending"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Failure code</dt>
+                  <dd>
+                    {textValue(platformBootstrap.failureCode, "None reported")}
+                  </dd>
+                </div>
+              </dl>
+              <div
+                className="execution-progress"
+                aria-label="Platform bootstrap progress"
+              >
+                <div className="complete">
+                  <span aria-hidden="true" />
+                  <strong>Cluster infrastructure provisioned</strong>
+                </div>
+                <div
+                  className={
+                    connectorReported
+                      ? "complete"
+                      : row.status === "BOOTSTRAP_FAILED"
+                        ? ""
+                        : "running"
+                  }
+                >
+                  <span aria-hidden="true" />
+                  <strong>Connector installation</strong>
+                </div>
+                <div className={connectorReported ? "running" : ""}>
+                  <span aria-hidden="true" />
+                  <strong>Platform health verified</strong>
+                </div>
               </div>
-              {nodeGroupExecutionFailed && (
-                <div className="operation-outcome operation-outcome-failed" role="alert">
-                  <strong>Capacity was not fully applied</strong>
-                  <span>
-                    The certified plan started, but the provider execution did
-                    not finish successfully. Review the final diagnostic events
-                    before retrying.
-                  </span>
+              {connectorReported && pendingPlatformComponents.length > 0 && (
+                <div className="notice">
+                  <strong>Waiting for platform components:</strong>{" "}
+                  {pendingPlatformComponents
+                    .map(
+                      (component) =>
+                        `${component.componentCode} (${component.syncStatus || component.status}, ${component.healthStatus || component.status})`,
+                    )
+                    .join(", ")}
                 </div>
               )}
-              <details className="execution-diagnostics" open={nodeGroupProviderRunning}>
-                <summary>
-                  <span>Technical execution log</span>
-                  <small>
-                    {nodeGroupLogs.data?.events.length || 0} provider events
-                  </small>
-                </summary>
+              {hasPermission(identity, "cluster.access.manage") && (
+                <div className="action-row">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={restartPlatformBootstrap}
+                  >
+                    {busy
+                      ? "Restarting bootstrap…"
+                      : row.status === "ACTIVE"
+                        ? "Refresh platform services"
+                        : "Restart platform bootstrap"}
+                  </Button>
+                </div>
+              )}
+              <p className="notice">
+                The installer runs in the customer AWS account. Detailed
+                customer CodeBuild events are not exposed through Navigan yet;
+                use the installer execution ID above for provider-side
+                diagnostics.
+              </p>
+            </section>
+          )}
+          {[
+            "PLAN_RUNNING",
+            "PLAN_READY",
+            "FAILED",
+            "APPLYING",
+            "ACTIVE",
+            "STOPPING",
+            "STOPPED",
+            "STARTING",
+            "DELETING",
+          ].includes(row.status) &&
+            (!trackedNodeGroupRequest?.providerExecutionId ||
+              showSystemNodeGroupMigration) && (
+              <section className="panel panel-padding cluster-certification cluster-tab-panel cluster-tab-operations">
+                <div className="cluster-review-section-heading">
+                  <div>
+                    <span className="eyebrow">TERRAFORM ASSURANCE</span>
+                    <h2>Plan validation and certification</h2>
+                    <p className="muted">
+                      Apply is permitted only after the saved plan passes all
+                      blocking checks.
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      certificationPassed
+                        ? "security-chip"
+                        : "security-chip needs-review"
+                    }
+                  >
+                    {row.status === "PLAN_RUNNING"
+                      ? "Checks running"
+                      : certificationPassed
+                        ? "Certified for apply"
+                        : "Not certified"}
+                  </span>
+                </div>
+                <div className="cluster-assurance-grid">
+                  <div
+                    className={
+                      validation.valid === true ? "assurance-pass" : ""
+                    }
+                  >
+                    <Check size={20} aria-hidden="true" />
+                    <span>Terraform validation</span>
+                    <strong>
+                      {validation.valid === true
+                        ? "Passed"
+                        : row.status === "PLAN_RUNNING"
+                          ? "Running"
+                          : "Not passed"}
+                    </strong>
+                  </div>
+                  <div
+                    className={
+                      securityScan.status === "PASSED" ? "assurance-pass" : ""
+                    }
+                  >
+                    <ShieldCheck size={20} aria-hidden="true" />
+                    <span>Security policy checks</span>
+                    <strong>
+                      {securityScan.status === "PASSED"
+                        ? "No blocking findings"
+                        : row.status === "PLAN_RUNNING"
+                          ? "Running"
+                          : `${String(securityScan.blockingFindings || 0)} blocking`}
+                    </strong>
+                  </div>
+                  <div className={row.planSha256 ? "assurance-pass" : ""}>
+                    <Network size={20} aria-hidden="true" />
+                    <span>Immutable plan artifact</span>
+                    <strong>
+                      {row.planSha256 ? "Hash verified" : "Pending"}
+                    </strong>
+                  </div>
+                </div>
+                {planAvailable && (
+                  <>
+                    <dl className="details-grid cluster-plan-summary">
+                      <div>
+                        <dt>Planned resources</dt>
+                        <dd>{String(planSummary.resourceCount || 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Validation warnings</dt>
+                        <dd>{String(validation.warningCount || 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Blocking findings</dt>
+                        <dd>{String(securityScan.blockingFindings || 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Plan SHA-256</dt>
+                        <dd className="plan-hash">{row.planSha256}</dd>
+                      </div>
+                    </dl>
+                    {certificationPassed && row.status === "PLAN_READY" && (
+                      <label className="plan-confirmation">
+                        <input
+                          type="checkbox"
+                          checked={planConfirmed}
+                          onChange={(event) =>
+                            setPlanConfirmed(event.target.checked)
+                          }
+                        />
+                        <span>
+                          I reviewed this exact plan hash and confirm it is
+                          ready to apply.
+                        </span>
+                      </label>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+          {showExecutionPanel &&
+            (!trackedNodeGroupRequest?.providerExecutionId ||
+              showSystemNodeGroupMigration) && (
+              <section className="panel panel-padding execution-console cluster-tab-panel cluster-tab-operations">
+                <header>
+                  <div>
+                    <span className="eyebrow">
+                      {executionPresentation.eyebrow}
+                    </span>
+                    <h2>{executionTitle}</h2>
+                    <p className="muted">
+                      {historicalExecution
+                        ? `Historical execution record. The cluster's current lifecycle state is ${clusterStatusLabel(row.status)}.`
+                        : executionPresentation.description}
+                    </p>
+                  </div>
+                  <span
+                    className={`execution-state ${logs.data?.complete ? "complete" : "running"}`}
+                  >
+                    <span aria-hidden="true" />
+                    {logs.data?.complete
+                      ? "Execution finished"
+                      : "Live · refreshing"}
+                  </span>
+                </header>
+                <div
+                  className="execution-progress"
+                  aria-label="Execution progress"
+                >
+                  {executionPresentation.steps.map((label, index) => {
+                    const displayLabel =
+                      executionOperation === "delete" &&
+                      index === 2 &&
+                      executionReachedTarget
+                        ? "Cluster removed"
+                        : label;
+                    return (
+                      <div
+                        className={
+                          index === 0 ||
+                          (index === 1 &&
+                            (!logs.data?.complete || executionReachedTarget)) ||
+                          (index === 2 && executionReachedTarget)
+                            ? "complete"
+                            : ""
+                        }
+                        key={label}
+                      >
+                        <span aria-hidden="true" />
+                        <strong>{displayLabel}</strong>
+                      </div>
+                    );
+                  })}
+                </div>
+                {executionFailed && (
+                  <div className="error-notice" role="alert">
+                    <strong>{executionPresentation.title} failed.</strong>
+                    <span>
+                      {logs.data?.errorCode
+                        ? ` AWS reported ${logs.data.errorCode}. Review the latest execution events below.`
+                        : " Review the latest execution events below for the failure reason."}
+                    </span>
+                  </div>
+                )}
                 <div className="execution-log" role="log" aria-live="polite">
-                  {nodeGroupLogs.isPending && <p>Connecting to the execution log…</p>}
-                  {nodeGroupLogs.error && (
-                    <p>Node-group execution logs are temporarily unavailable.</p>
-                  )}
-                  {nodeGroupLogs.data?.events.map((event, index) => (
+                  {logs.isPending && <p>Connecting to the execution log…</p>}
+                  {logs.error && <p>Live log is temporarily unavailable.</p>}
+                  {logs.data?.events.map((event, index) => (
                     <p key={`${event.timestamp}-${index}`}>
                       <time>
                         {new Date(event.timestamp).toLocaleTimeString([], {
@@ -3602,191 +4729,12 @@ export function ClusterRequestPage({ id }: { id: string }) {
                       <span>{event.message}</span>
                     </p>
                   ))}
-                  {nodeGroupLogs.data && !nodeGroupLogs.data.events.length && (
+                  {logs.data && !logs.data.events.length && (
                     <p>Waiting for the first execution event…</p>
                   )}
                 </div>
-              </details>
-            </section>
-          )}
-          {[
-            "PLAN_RUNNING", "PLAN_READY", "FAILED", "APPLYING", "ACTIVE",
-            "STOPPING", "STOPPED", "STARTING", "DELETING",
-          ].includes(row.status) &&
-            (!trackedNodeGroupRequest?.providerExecutionId ||
-              showSystemNodeGroupMigration) && (
-            <section className="panel panel-padding cluster-certification cluster-tab-panel cluster-tab-operations">
-              <div className="cluster-review-section-heading">
-                <div>
-                  <span className="eyebrow">TERRAFORM ASSURANCE</span>
-                  <h2>Plan validation and certification</h2>
-                  <p className="muted">
-                    Apply is permitted only after the saved plan passes all
-                    blocking checks.
-                  </p>
-                </div>
-                <span
-                  className={
-                    certificationPassed
-                      ? "security-chip"
-                      : "security-chip needs-review"
-                  }
-                >
-                  {row.status === "PLAN_RUNNING"
-                    ? "Checks running"
-                    : certificationPassed
-                      ? "Certified for apply"
-                      : "Not certified"}
-                </span>
-              </div>
-              <div className="cluster-assurance-grid">
-                <div className={validation.valid === true ? "assurance-pass" : ""}>
-                  <Check size={20} aria-hidden="true" />
-                  <span>Terraform validation</span>
-                  <strong>
-                    {validation.valid === true
-                      ? "Passed"
-                      : row.status === "PLAN_RUNNING"
-                        ? "Running"
-                        : "Not passed"}
-                  </strong>
-                </div>
-                <div
-                  className={
-                    securityScan.status === "PASSED" ? "assurance-pass" : ""
-                  }
-                >
-                  <ShieldCheck size={20} aria-hidden="true" />
-                  <span>Security policy checks</span>
-                  <strong>
-                    {securityScan.status === "PASSED"
-                      ? "No blocking findings"
-                      : row.status === "PLAN_RUNNING"
-                        ? "Running"
-                        : `${String(securityScan.blockingFindings || 0)} blocking`}
-                  </strong>
-                </div>
-                <div className={row.planSha256 ? "assurance-pass" : ""}>
-                  <Network size={20} aria-hidden="true" />
-                  <span>Immutable plan artifact</span>
-                  <strong>{row.planSha256 ? "Hash verified" : "Pending"}</strong>
-                </div>
-              </div>
-              {planAvailable && (
-                <>
-                  <dl className="details-grid cluster-plan-summary">
-                    <div>
-                      <dt>Planned resources</dt>
-                      <dd>{String(planSummary.resourceCount || 0)}</dd>
-                    </div>
-                    <div>
-                      <dt>Validation warnings</dt>
-                      <dd>{String(validation.warningCount || 0)}</dd>
-                    </div>
-                    <div>
-                      <dt>Blocking findings</dt>
-                      <dd>{String(securityScan.blockingFindings || 0)}</dd>
-                    </div>
-                    <div>
-                      <dt>Plan SHA-256</dt>
-                      <dd className="plan-hash">{row.planSha256}</dd>
-                    </div>
-                  </dl>
-                  {certificationPassed && row.status === "PLAN_READY" && (
-                    <label className="plan-confirmation">
-                      <input
-                        type="checkbox"
-                        checked={planConfirmed}
-                        onChange={(event) =>
-                          setPlanConfirmed(event.target.checked)
-                        }
-                      />
-                      <span>
-                        I reviewed this exact plan hash and confirm it is ready
-                        to apply.
-                      </span>
-                    </label>
-                  )}
-                </>
-              )}
-            </section>
-          )}
-          {showExecutionPanel &&
-            (!trackedNodeGroupRequest?.providerExecutionId ||
-              showSystemNodeGroupMigration) && (
-            <section className="panel panel-padding execution-console cluster-tab-panel cluster-tab-operations">
-              <header>
-                <div>
-                  <span className="eyebrow">{executionPresentation.eyebrow}</span>
-                  <h2>{executionTitle}</h2>
-                  <p className="muted">
-                    {historicalExecution
-                      ? `Historical execution record. The cluster's current lifecycle state is ${clusterStatusLabel(row.status)}.`
-                      : executionPresentation.description}
-                  </p>
-                </div>
-                <span className={`execution-state ${logs.data?.complete ? "complete" : "running"}`}>
-                  <span aria-hidden="true" />
-                  {logs.data?.complete ? "Execution finished" : "Live · refreshing"}
-                </span>
-              </header>
-              <div className="execution-progress" aria-label="Execution progress">
-                {executionPresentation.steps.map((label, index) => {
-                  const displayLabel =
-                    executionOperation === "delete" &&
-                    index === 2 &&
-                    executionReachedTarget
-                      ? "Cluster removed"
-                      : label;
-                  return (
-                    <div
-                      className={
-                        index === 0 ||
-                        (index === 1 &&
-                          (!logs.data?.complete || executionReachedTarget)) ||
-                        (index === 2 && executionReachedTarget)
-                          ? "complete"
-                          : ""
-                      }
-                      key={label}
-                    >
-                      <span aria-hidden="true" />
-                      <strong>{displayLabel}</strong>
-                    </div>
-                  );
-                })}
-              </div>
-              {executionFailed && (
-                <div className="error-notice" role="alert">
-                  <strong>{executionPresentation.title} failed.</strong>
-                  <span>
-                    {logs.data?.errorCode
-                      ? ` AWS reported ${logs.data.errorCode}. Review the latest execution events below.`
-                      : " Review the latest execution events below for the failure reason."}
-                  </span>
-                </div>
-              )}
-              <div className="execution-log" role="log" aria-live="polite">
-                {logs.isPending && <p>Connecting to the execution log…</p>}
-                {logs.error && <p>Live log is temporarily unavailable.</p>}
-                {logs.data?.events.map((event, index) => (
-                  <p key={`${event.timestamp}-${index}`}>
-                    <time>
-                      {new Date(event.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </time>
-                    <span>{event.message}</span>
-                  </p>
-                ))}
-                {logs.data && !logs.data.events.length && (
-                  <p>Waiting for the first execution event…</p>
-                )}
-              </div>
-            </section>
-          )}
+              </section>
+            )}
 
           {canViewAudit && (
             <section className="panel panel-padding cluster-tab-panel cluster-tab-audit">
@@ -3806,12 +4754,18 @@ export function ClusterRequestPage({ id }: { id: string }) {
               {auditLog.isPending ? (
                 <Loading label="Loading audit history…" />
               ) : auditLog.error ? (
-                <ErrorNotice error={auditLog.error} onRetry={() => auditLog.refetch()} />
+                <ErrorNotice
+                  error={auditLog.error}
+                  onRetry={() => auditLog.refetch()}
+                />
               ) : auditLog.data?.items.length ? (
                 <ol className="cluster-audit-timeline">
                   {auditLog.data.items.map((event) => (
                     <li key={event.auditId}>
-                      <span className="cluster-audit-marker" aria-hidden="true" />
+                      <span
+                        className="cluster-audit-marker"
+                        aria-hidden="true"
+                      />
                       <div className="cluster-audit-content">
                         <div>
                           <strong>
@@ -3840,100 +4794,114 @@ export function ClusterRequestPage({ id }: { id: string }) {
 
         {(!trackedNodeGroupRequest?.providerExecutionId ||
           showSystemNodeGroupMigration) && (
-        <aside className="cluster-review-aside cluster-tab-panel cluster-tab-operations">
-          <section className="panel panel-padding cluster-action-panel">
-            <span className="eyebrow">NEXT ACTION</span>
-            <h2>
-              {row.status === "DRAFT"
-                ? "Submit for architecture review"
-                : row.status === "SUBMITTED"
-                  ? "Begin independent review"
-                  : row.status === "UNDER_REVIEW"
-                    ? "Record review decision"
-                    : row.status === "PLAN_RUNNING"
-                      ? "Terraform checks are running"
-                      : row.status === "PLAN_READY"
-                        ? certificationPassed
-                          ? "Confirm and apply"
-                          : "Generate a certified plan"
-                        : row.status === "APPLYING"
-                          ? "Applying approved plan"
-                          : "Request status"}
-            </h2>
-            <p className="muted">
-              Comments are saved in the request audit history.
-            </p>
-            {actions.length > 0 && (
-              <label className="field">
-                Action comments{" "}
-                {actions.some((action) => ["reject", "delete"].includes(action))
-                  ? "*"
-                  : ""}
-                <textarea
-                  rows={4}
-                  maxLength={4000}
-                  value={actionComments}
-                  onChange={(event) => setActionComments(event.target.value)}
-                  placeholder="Add the reason, review notes, or implementation context."
-                />
-              </label>
-            )}
-            <div className="cluster-action-buttons">
-              {canReviewCluster && githubAuthorizationRequired && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="button button-primary"
-                  onClick={() => void authorizeGitHubOrganization()}
-                >
-                  Connect {textValue(systemRepository.organization, "GitHub organization")}
-                </button>
-              )}
-              {actions.map((action) => (
-                <button
-                  key={action}
-                  disabled={
-                    busy ||
-                    (["reject", "delete"].includes(action) &&
-                      !actionComments.trim()) ||
-                    (action === "apply" && !planConfirmed)
-                  }
-                  className={
-                    ["reject", "delete"].includes(action)
-                      ? "button button-danger"
-                      : "button button-primary"
-                  }
-                  onClick={() => void act(action)}
-                >
-                  {action === "plan"
-                    ? "Generate certified plan"
-                    : action === "apply"
-                      ? "Apply certified plan"
-                      : action === "review"
-                        ? "Start review"
-                        : action === "stop"
-                          ? "Stop worker capacity"
-                          : action === "start"
-                            ? "Start worker capacity"
-                            : action === "delete"
-                              ? "Delete cluster"
-                        : action === "approve"
-                          ? "Approve and generate plan"
-                          : action.replace(/^./, (letter) => letter.toUpperCase())}
-                </button>
-              ))}
-            </div>
-            {actions.length === 0 && (
-              <p className="notice">
-                {[
-                  "PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING",
-                ].includes(row.status)
-                  ? "This page refreshes automatically as the execution progresses."
-                  : "No action is currently required from your role."}
+          <aside
+            className={`cluster-review-aside cluster-tab-panel cluster-tab-${actionPanelTab}`}
+          >
+            <section className="panel panel-padding cluster-action-panel">
+              <span className="eyebrow">NEXT ACTION</span>
+              <h2>
+                {row.status === "DRAFT"
+                  ? "Submit for architecture review"
+                  : row.status === "SUBMITTED"
+                    ? "Begin independent review"
+                    : row.status === "UNDER_REVIEW"
+                      ? "Record review decision"
+                      : row.status === "PLAN_RUNNING"
+                        ? "Terraform checks are running"
+                        : row.status === "PLAN_READY"
+                          ? certificationPassed
+                            ? "Confirm and apply"
+                            : "Generate a certified plan"
+                          : row.status === "APPLYING"
+                            ? "Applying approved plan"
+                            : "Request status"}
+              </h2>
+              <p className="muted">
+                Comments are saved in the request audit history.
               </p>
-            )}
-          </section>
-        </aside>
+              {actions.length > 0 && (
+                <label className="field">
+                  Action comments{" "}
+                  {actions.some((action) =>
+                    ["reject", "delete"].includes(action),
+                  )
+                    ? "*"
+                    : ""}
+                  <textarea
+                    rows={4}
+                    maxLength={4000}
+                    value={actionComments}
+                    onChange={(event) => setActionComments(event.target.value)}
+                    placeholder="Add the reason, review notes, or implementation context."
+                  />
+                </label>
+              )}
+              <div className="cluster-action-buttons">
+                {canReviewCluster && githubAuthorizationRequired && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="button button-primary"
+                    onClick={() => void authorizeGitHubOrganization()}
+                  >
+                    Connect{" "}
+                    {textValue(
+                      systemRepository.organization,
+                      "GitHub organization",
+                    )}
+                  </button>
+                )}
+                {actions.map((action) => (
+                  <button
+                    key={action}
+                    disabled={
+                      busy ||
+                      (["reject", "delete"].includes(action) &&
+                        !actionComments.trim()) ||
+                      (action === "apply" && !planConfirmed)
+                    }
+                    className={
+                      ["reject", "delete"].includes(action)
+                        ? "button button-danger"
+                        : "button button-primary"
+                    }
+                    onClick={() => void act(action)}
+                  >
+                    {action === "plan"
+                      ? "Generate certified plan"
+                      : action === "apply"
+                        ? "Apply certified plan"
+                        : action === "review"
+                          ? "Start review"
+                          : action === "stop"
+                            ? "Stop worker capacity"
+                            : action === "start"
+                              ? "Start worker capacity"
+                              : action === "delete"
+                                ? "Delete cluster"
+                                : action === "approve"
+                                  ? "Approve and generate plan"
+                                  : action.replace(/^./, (letter) =>
+                                      letter.toUpperCase(),
+                                    )}
+                  </button>
+                ))}
+              </div>
+              {actions.length === 0 && (
+                <p className="notice">
+                  {[
+                    "PLAN_RUNNING",
+                    "APPLYING",
+                    "STOPPING",
+                    "STARTING",
+                    "DELETING",
+                  ].includes(row.status)
+                    ? "This page refreshes automatically as the execution progresses."
+                    : "No action is currently required from your role."}
+                </p>
+              )}
+            </section>
+          </aside>
         )}
       </div>
     </div>

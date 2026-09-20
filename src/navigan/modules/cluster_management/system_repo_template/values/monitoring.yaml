@@ -1,0 +1,64 @@
+fullnameOverride: navigan-monitoring
+alertmanager: {enabled: false}
+grafana:
+  enabled: true
+  service: {type: ClusterIP}
+  ingress: {enabled: false}
+  persistence: {enabled: false}
+  env:
+    GF_AUTH_ANONYMOUS_ENABLED: "true"
+    GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    GF_AUTH_DISABLE_LOGIN_FORM: "true"
+  serviceMonitor:
+    path: /metrics
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 6
+  sidecar:
+    datasources:
+      url: http://navigan-monitoring-prometheus.navigan-monitoring.svc.cluster.local:9090/tools/clusters/__CLUSTER_ID__/prometheus
+      alertmanager:
+        enabled: false
+  grafana.ini:
+    server:
+      root_url: __NAVIGAN_TOOLS_BASE_URL__/clusters/__CLUSTER_ID__/grafana/
+      serve_from_sub_path: false
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    auth:
+      disable_login_form: true
+  nodeSelector: {navigan.io/platform-services: "true"}
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+prometheusOperator:
+  nodeSelector: {navigan.io/platform-services: "true"}
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+  admissionWebhooks:
+    patch:
+      nodeSelector: {navigan.io/platform-services: "true"}
+      tolerations:
+        - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+prometheus:
+  service: {type: ClusterIP}
+  prometheusSpec:
+    replicas: 1
+    retention: 7d
+    externalUrl: __NAVIGAN_TOOLS_BASE_URL__/clusters/__CLUSTER_ID__/prometheus/
+    routePrefix: /tools/clusters/__CLUSTER_ID__/prometheus
+    nodeSelector: {navigan.io/platform-services: "true"}
+    tolerations:
+      - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+kube-state-metrics:
+  nodeSelector: {navigan.io/platform-services: "true"}
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+prometheus-node-exporter:
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+kubeEtcd: {enabled: false}
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}

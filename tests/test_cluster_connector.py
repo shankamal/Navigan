@@ -170,6 +170,72 @@ def test_connector_acknowledgement_activates_pending_assignment(monkeypatch):
     assert any("SET status='ACTIVE'" in sql for sql in statements)
 
 
+def test_connector_accepts_runtime_inventory(monkeypatch):
+    token = "connector-token-value-with-sufficient-length"
+    db = MagicMock()
+    db.execute.return_value.fetchone.side_effect = [
+        {
+            "connector_id": "KCC-0123456789abcdef0123456789abcdef",
+            "cluster_id": "CLU-test",
+            "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+            "status": "ACTIVE",
+        },
+        None,
+        None,
+        None,
+    ]
+
+    @contextmanager
+    def tx():
+        yield db
+
+    monkeypatch.setattr(connector_handler, "transaction", tx)
+    request = event(
+        token,
+        {
+            "revision": 1234,
+            "components": [
+                {
+                    "code": "connector",
+                    "status": "READY",
+                    "healthStatus": "Healthy",
+                }
+            ],
+            "runtime": {
+            "resources": [
+                {
+                    "kind": "Deployment",
+                    "namespace": "apps",
+                    "name": "checkout",
+                    "status": "HEALTHY",
+                    "ready": 2,
+                    "desired": 2,
+                    "restarts": 0,
+                }
+            ],
+            "warningEvents": [],
+            "metrics": {
+                "nodeCount": 2,
+                "readyNodeCount": 2,
+                "podCount": 8,
+                "readyPodCount": 8,
+            },
+            },
+        },
+    )
+    request["rawPath"] = (
+        "/api/v1/connectors/"
+        "KCC-0123456789abcdef0123456789abcdef/inventory/platform-components"
+    )
+
+    result = connector_handler.execute(request, "correlation")
+
+    assert result["status"] == "ACCEPTED"
+    assert result["runtimeResourceCount"] == 1
+    statements = [call.args[0] for call in db.execute.call_args_list]
+    assert any("cluster_runtime_inventories" in sql for sql in statements)
+
+
 def test_successful_reconciliation_completes_bootstrap_after_inventory_is_ready():
     db = MagicMock()
     db.execute.return_value.fetchone.side_effect = [
@@ -180,7 +246,18 @@ def test_successful_reconciliation_completes_bootstrap_after_inventory_is_ready(
             "status": "BOOTSTRAPPING",
             "version": 4,
             "workflow": {"platformBootstrap": {"status": "RUNNING"}},
+            "configuration": {
+                "platformBaseline": {
+                    "readinessContract": "PLATFORM_COMPONENTS_V1",
+                    "requiredComponents": ["connector", "argocd"],
+                    "components": ["connector", "argocd"],
+                }
+            },
         },
+    ]
+    db.execute.return_value.fetchall.return_value = [
+        {"component_code": "connector", "status": "READY"},
+        {"component_code": "argocd", "status": "READY"},
     ]
 
     connector_handler.complete_platform_bootstrap(
@@ -199,6 +276,28 @@ def test_successful_reconciliation_completes_bootstrap_after_inventory_is_ready(
         for sql in statements
     )
     assert any("ClusterPlatformBootstrapCompleted" in sql for sql in statements)
+
+
+def test_legacy_platform_baseline_requires_the_reported_connector_code():
+    assert connector_handler.required_platform_components(
+        {
+            "components": [
+                "navigan-connector",
+                "argocd",
+                "falco",
+                "prometheus",
+                "grafana",
+                "headlamp",
+            ]
+        }
+    ) == {
+        "connector",
+        "argocd",
+        "falco",
+        "prometheus",
+        "grafana",
+        "headlamp",
+    }
 
 
 def test_bootstrap_remains_pending_until_namespace_inventory_is_ready():

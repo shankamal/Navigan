@@ -112,11 +112,11 @@ Enable the installer with approved network values:
 create_connector_installer = true
 connector_installer_vpc_id = "vpc-..."
 connector_installer_subnet_ids = ["subnet-...", "subnet-..."]
-connector_installer_security_group_ids = ["sg-..."]
 ```
 
-The selected security group must be permitted to reach the private EKS API
-endpoint on TCP 443. The installer has no inbound listener. Navigan starts it
+The module creates a stable installer security group with no inbound rules.
+Add its output to the environment contract so Navigan permits it to reach each
+private EKS API endpoint on TCP 443. Navigan starts the installer
 through the customer provisioning role and passes only non-secret deployment
 metadata plus the ARN of an ephemeral customer Secrets Manager secret.
 
@@ -126,7 +126,8 @@ Add the returned role to the approved EKS environment configuration:
 {
   "connectorInstaller": {
     "projectName": "NaviganClusterInstaller",
-    "serviceRoleArn": "arn:aws:iam::123456789012:role/NaviganClusterInstallerRole"
+    "serviceRoleArn": "arn:aws:iam::123456789012:role/NaviganClusterInstallerRole",
+    "securityGroupId": "<connector_installer_security_group_id output>"
   }
 }
 ```

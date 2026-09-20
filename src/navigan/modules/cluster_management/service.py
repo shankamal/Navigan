@@ -110,15 +110,20 @@ class Service:
                 "nodeGroups": body["nodeGroups"],
             }
         contract_versions = contract.get("kubernetesVersions", [])
-        allowed_versions = {
-            value
-            for value in (
-                contract_versions
-                if isinstance(contract_versions, list)
-                else []
-            )
-            if isinstance(value, str)
-        }
+        allowed_versions = set()
+        for value in contract_versions if isinstance(contract_versions, list) else []:
+            if isinstance(value, str):
+                allowed_versions.add(value)
+                continue
+            if not isinstance(value, dict):
+                continue
+            version = value.get("version")
+            support = value.get("support")
+            if isinstance(version, str) and support in {
+                "STANDARD_SUPPORT",
+                "EXTENDED_SUPPORT",
+            }:
+                allowed_versions.add(version)
         if not allowed_versions and isinstance(blueprint.get("kubernetesVersion"), str):
             allowed_versions.add(blueprint["kubernetesVersion"])
         if body["kubernetesVersion"] not in allowed_versions:
@@ -206,8 +211,16 @@ class Service:
                 "status": "PENDING",
                 "installationMode": "AUTOMATIC",
                 "readinessContract": "PLATFORM_COMPONENTS_V1",
+                "requiredComponents": [
+                    "connector",
+                    "argocd",
+                    "falco",
+                    "prometheus",
+                    "grafana",
+                    "headlamp",
+                ],
                 "components": [
-                    "navigan-connector",
+                    "connector",
                     "argocd",
                     "falco",
                     "prometheus",

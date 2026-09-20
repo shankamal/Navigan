@@ -17,11 +17,8 @@ variable "subnet_ids" {
 }
 variable "security_group_ids" {
   type        = set(string)
-  description = "Security groups permitted to reach the private EKS API endpoint."
-  validation {
-    condition     = length(var.security_group_ids) >= 1
-    error_message = "At least one security group is required."
-  }
+  description = "Deprecated. The module now creates a stable dedicated installer security group."
+  default     = []
 }
 variable "provisioning_role_name" {
   type        = string

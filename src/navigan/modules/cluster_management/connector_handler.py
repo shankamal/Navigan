@@ -7,12 +7,13 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
+from .github_app import GitHubApp
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -41,10 +42,40 @@ class PlatformComponentItem(BaseModel):
     healthStatus: str | None = Field(default=None, max_length=40)
 
 
+class RuntimeResourceItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+    kind: str = Field(pattern=r"^(Node|Deployment|StatefulSet|DaemonSet|Pod|Service)$")
+    namespace: str | None = Field(default=None, max_length=253)
+    name: str = Field(min_length=1, max_length=253)
+    status: str = Field(min_length=1, max_length=40)
+    ready: int = Field(ge=0, le=100000)
+    desired: int = Field(ge=0, le=100000)
+    restarts: int = Field(ge=0, le=1000000)
+
+
+class WarningEventItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+    namespace: str | None = Field(default=None, max_length=253)
+    reason: str = Field(min_length=1, max_length=100)
+    resourceKind: str | None = Field(default=None, max_length=100)
+    resourceName: str | None = Field(default=None, max_length=253)
+    message: str = Field(max_length=500)
+    count: int = Field(ge=1, le=1000000)
+    lastObservedAt: str | None = Field(default=None, max_length=50)
+
+
+class RuntimeInventory(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    resources: list[RuntimeResourceItem] = Field(max_length=1000)
+    warningEvents: list[WarningEventItem] = Field(max_length=100)
+    metrics: dict[str, int] = Field(default_factory=dict)
+
+
 class PlatformComponentInventory(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     revision: int = Field(gt=0)
     components: list[PlatformComponentItem] = Field(min_length=1, max_length=100)
+    runtime: RuntimeInventory | None = None
 
 
 class ReconciliationResult(BaseModel):
@@ -58,6 +89,14 @@ class ReconciliationReport(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     revision: int = Field(gt=0)
     results: list[ReconciliationResult] = Field(max_length=1000)
+
+
+class ToolTunnelStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+    status: str = Field(pattern=r"^(CONNECTED|DISCONNECTED)$")
+    gatewayInstanceId: str = Field(
+        min_length=1, max_length=100, pattern=r"^[A-Za-z0-9._:-]+$"
+    )
 
 
 def response(status, body, correlation):
@@ -83,7 +122,7 @@ def body_of(event):
     raw = event.get("body") or ""
     if event.get("isBase64Encoded"):
         raw = base64.b64decode(raw, validate=True).decode()
-    if not raw or len(raw.encode()) > 65536:
+    if not raw or len(raw.encode()) > 262144:
         raise ApiError(413, "INVALID_CONNECTOR_PAYLOAD", "Connector payload is invalid.")
     value = json.loads(raw)
     if not isinstance(value, dict):
@@ -147,6 +186,32 @@ def desired_access(db, connector, now):
             }
             for row in rows
         ],
+    }
+
+
+def github_repository_credentials(db, connector, github_app=None):
+    repository = db.execute(
+        "SELECT r.repository_url,r.repository_name,c.installation_id "
+        "FROM cluster_management.cluster_system_repositories r "
+        "JOIN cluster_management.github_app_connections c "
+        "ON c.connection_id=r.connection_id "
+        "WHERE r.cluster_id=%s AND r.status='ACTIVE' AND c.status='ACTIVE'",
+        [connector["cluster_id"]],
+    ).fetchone()
+    if not repository or not repository.get("installation_id"):
+        raise ApiError(
+            409,
+            "SYSTEM_REPOSITORY_NOT_READY",
+            "The cluster system repository connection is not active.",
+        )
+    credential = (github_app or GitHubApp()).repository_token(
+        repository["installation_id"], repository["repository_name"]
+    )
+    return {
+        "repositoryUrl": repository["repository_url"],
+        "username": "x-access-token",
+        "token": credential["token"],
+        "expiresAt": credential["expiresAt"],
     }
 
 
@@ -237,7 +302,7 @@ def complete_platform_bootstrap(db, connector, now, correlation):
     configuration = cluster.get("configuration") or {}
     baseline = configuration.get("platformBaseline") or {}
     if baseline.get("readinessContract") == "PLATFORM_COMPONENTS_V1":
-        required = set(baseline.get("components") or [])
+        required = required_platform_components(baseline)
         component_rows = db.execute(
             "SELECT component_code,status "
             "FROM cluster_management.cluster_platform_components "
@@ -325,6 +390,20 @@ def complete_platform_bootstrap(db, connector, now, correlation):
     )
 
 
+def required_platform_components(baseline):
+    """Resolve the blocking component set for current and legacy baselines."""
+    configured = baseline.get("requiredComponents")
+    if isinstance(configured, list) and configured:
+        return {code for code in configured if isinstance(code, str)}
+    components = {
+        code for code in baseline.get("components", []) if isinstance(code, str)
+    }
+    if "navigan-connector" in components:
+        components.remove("navigan-connector")
+        components.add("connector")
+    return components
+
+
 def execute(event, correlation):
     method = event.get("requestContext", {}).get("http", {}).get("method")
     path = path_of(event)
@@ -344,12 +423,35 @@ def execute(event, correlation):
         re.escape(BASE) + r"/(KCC-[a-f0-9]{32})/inventory/platform-components",
         path,
     )
-    match = inventory_match or desired_match or status_match or components_match
+    credentials_match = re.fullmatch(
+        re.escape(BASE) + r"/(KCC-[a-f0-9]{32})/github/credentials",
+        path,
+    )
+    tools_authorize_match = re.fullmatch(
+        re.escape(BASE) + r"/(KCC-[a-f0-9]{32})/tools/authorize",
+        path,
+    )
+    tools_status_match = re.fullmatch(
+        re.escape(BASE) + r"/(KCC-[a-f0-9]{32})/tools/status",
+        path,
+    )
+    match = (
+        inventory_match
+        or desired_match
+        or status_match
+        or components_match
+        or credentials_match
+        or tools_authorize_match
+        or tools_status_match
+    )
     if not match or (
         inventory_match and method != "POST"
         or desired_match and method != "GET"
         or status_match and method != "POST"
         or components_match and method != "POST"
+        or credentials_match and method != "GET"
+        or tools_authorize_match and method != "GET"
+        or tools_status_match and method != "POST"
     ):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     connector_id = match.group(1)
@@ -363,9 +465,54 @@ def execute(event, correlation):
         else None
     )
     report = ReconciliationReport.model_validate(body_of(event)) if status_match else None
+    tunnel_status = (
+        ToolTunnelStatus.model_validate(body_of(event))
+        if tools_status_match
+        else None
+    )
     now = datetime.now(timezone.utc)
     with transaction() as db:
         connector = authenticate(db, connector_id, headers)
+        if tools_authorize_match:
+            return {
+                "connectorId": connector_id,
+                "clusterId": connector["cluster_id"],
+                "status": "AUTHORIZED",
+            }
+        if tools_status_match:
+            expires_at = now + timedelta(minutes=2)
+            db.execute(
+                "INSERT INTO cluster_management.cluster_tool_tunnels"
+                "(cluster_id,connector_id,status,gateway_instance_id,connected_at,"
+                "last_seen_at,expires_at,updated_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT(cluster_id) DO UPDATE SET "
+                "connector_id=excluded.connector_id,status=excluded.status,"
+                "gateway_instance_id=excluded.gateway_instance_id,"
+                "connected_at=CASE WHEN excluded.status='CONNECTED' "
+                "THEN coalesce(cluster_tool_tunnels.connected_at,excluded.connected_at) "
+                "ELSE cluster_tool_tunnels.connected_at END,"
+                "last_seen_at=excluded.last_seen_at,expires_at=excluded.expires_at,"
+                "updated_at=excluded.updated_at",
+                [
+                    connector["cluster_id"],
+                    connector_id,
+                    tunnel_status.status,
+                    tunnel_status.gatewayInstanceId,
+                    now if tunnel_status.status == "CONNECTED" else None,
+                    now,
+                    expires_at,
+                    now,
+                ],
+            )
+            return {
+                "connectorId": connector_id,
+                "clusterId": connector["cluster_id"],
+                "status": tunnel_status.status,
+                "expiresAt": expires_at.isoformat(),
+            }
+        if credentials_match:
+            return github_repository_credentials(db, connector)
         if desired_match:
             return desired_access(db, connector, now)
         if status_match:
@@ -440,6 +587,59 @@ def execute(event, correlation):
                 "SET status='ACTIVE',last_seen_at=%s WHERE connector_id=%s",
                 [now, connector_id],
             )
+            if components.runtime:
+                current_runtime = db.execute(
+                    "SELECT source_revision "
+                    "FROM cluster_management.cluster_runtime_inventories "
+                    "WHERE cluster_id=%s FOR UPDATE",
+                    [connector["cluster_id"]],
+                ).fetchone()
+                if (
+                    not current_runtime
+                    or components.revision > current_runtime["source_revision"]
+                ):
+                    runtime = components.runtime
+                    degraded = any(
+                        item.kind != "Service"
+                        and (
+                            item.ready < item.desired
+                            or item.status in {"Failed", "Unknown"}
+                        )
+                        for item in runtime.resources
+                    )
+                    db.execute(
+                        "INSERT INTO cluster_management.cluster_runtime_inventories"
+                        "(cluster_id,connector_id,source_revision,status,resources,"
+                        "warning_events,metrics,observed_at,expires_at,updated_at) "
+                        "VALUES (%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s,"
+                        "%s + interval '10 minutes',%s) "
+                        "ON CONFLICT(cluster_id) DO UPDATE SET "
+                        "connector_id=excluded.connector_id,"
+                        "source_revision=excluded.source_revision,"
+                        "status=excluded.status,resources=excluded.resources,"
+                        "warning_events=excluded.warning_events,"
+                        "metrics=excluded.metrics,observed_at=excluded.observed_at,"
+                        "expires_at=excluded.expires_at,updated_at=excluded.updated_at",
+                        [
+                            connector["cluster_id"],
+                            connector_id,
+                            components.revision,
+                            "DEGRADED" if degraded else "READY",
+                            json.dumps(
+                                [item.model_dump() for item in runtime.resources]
+                            ),
+                            json.dumps(
+                                [
+                                    item.model_dump()
+                                    for item in runtime.warningEvents
+                                ]
+                            ),
+                            json.dumps(runtime.metrics),
+                            now,
+                            now,
+                            now,
+                        ],
+                    )
             complete_platform_bootstrap(db, connector, now, correlation)
             return {
                 "connectorId": connector_id,
@@ -447,6 +647,9 @@ def execute(event, correlation):
                 "revision": components.revision,
                 "componentCount": len(components.components),
                 "overallStatus": overall,
+                "runtimeResourceCount": (
+                    len(components.runtime.resources) if components.runtime else 0
+                ),
             }
         state = db.execute(
             "SELECT source_revision FROM cluster_management.cluster_namespace_inventories "

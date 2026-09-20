@@ -30,6 +30,11 @@ variable "node_subnet_ids" {
 }
 variable "cluster_security_group_ids" { type = list(string) }
 variable "node_security_group_ids" { type = list(string) }
+variable "installer_security_group_id" {
+  type     = string
+  default  = null
+  nullable = true
+}
 variable "cluster_role_arn" { type = string }
 variable "node_role_arn" { type = string }
 variable "node_volume_kms_key_arn" { type = string }
@@ -40,14 +45,14 @@ variable "cluster_secrets_kms_key_arn" {
 }
 variable "node_groups" {
   type = list(object({
-    name          = string
-    purpose       = string
-    instanceTypes = list(string)
-    capacityType  = string
-    desiredSize   = number
-    minSize       = number
-    maxSize       = number
-    diskSizeGiB   = number
+    name           = string
+    purpose        = string
+    instanceTypes  = list(string)
+    capacityType   = string
+    desiredSize    = number
+    minSize        = number
+    maxSize        = number
+    diskSizeGiB    = number
     managementMode = optional(string, "MANAGED")
   }))
   validation {

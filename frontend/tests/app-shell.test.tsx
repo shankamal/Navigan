@@ -127,20 +127,14 @@ describe("Application shell permissions", () => {
     ).not.toHaveAttribute("aria-current");
   });
 
-  it("selects only Cluster Operations on its dedicated route", () => {
+  it("does not expose Cluster Operations in the sidebar", () => {
     identity = architect;
     pathname = "/clusters/operations";
     render(<AppShell>Content</AppShell>);
 
     expect(
-      screen.getByRole("link", { name: "Cluster Operations" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.getByRole("link", { name: "Cluster Directory" }),
-    ).not.toHaveAttribute("aria-current");
-    expect(
-      screen.getByRole("link", { name: "Cluster Reviews" }),
-    ).not.toHaveAttribute("aria-current");
+      screen.queryByRole("link", { name: "Cluster Operations" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the public shell without workspace navigation", () => {

@@ -3,7 +3,6 @@ import json
 import os
 import pathlib
 import subprocess
-import sys
 import time
 import boto3
 from botocore.config import Config
@@ -141,7 +140,9 @@ def preflight(request, baseline, external_id):
     group_ids = sorted({
         item["securityGroupId"]
         for item in security["clusterSecurityGroups"] + security["nodeSecurityGroups"]
-    })
+    } | {
+        baseline.get("connectorInstaller", {}).get("securityGroupId")
+    } - {None})
     groups = clients["ec2"].describe_security_groups(GroupIds=group_ids)["SecurityGroups"]
     if len(groups) != len(group_ids) or any(item["VpcId"] != vpc_id for item in groups):
         raise ValueError("Approved security groups are unavailable or belong to another VPC.")
@@ -200,6 +201,9 @@ try:
         "node_security_group_ids": [
             x["securityGroupId"] for x in baseline["security"]["nodeSecurityGroups"]
         ],
+        "installer_security_group_id": (
+            baseline.get("connectorInstaller", {}).get("securityGroupId")
+        ),
         "cluster_role_arn": baseline["iam"]["clusterRole"]["roleArn"],
         "node_role_arn": baseline["iam"]["nodeRole"]["roleArn"],
         "node_volume_kms_key_arn": baseline["encryption"]["nodeVolumeKmsKey"]["keyArn"],

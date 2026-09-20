@@ -9,3 +9,4 @@ navigan:
   connectorId: ""
   existingSecret: navigan-cluster-connector
   syncIntervalSeconds: 60
+  toolsTunnelUrl: ""

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: navigan-connector
+  namespace: argocd
+spec:
+  project: navigan-platform
+  sources:
+    - repoURL: __SYSTEM_REPO_URL__
+      targetRevision: __SYSTEM_REPO_REVISION__
+      path: charts/navigan-cluster-connector
+      helm:
+        releaseName: navigan-cluster-connector
+        valueFiles:
+          - $values/values/connector.yaml
+    - repoURL: __SYSTEM_REPO_URL__
+      targetRevision: __SYSTEM_REPO_REVISION__
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: navigan-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

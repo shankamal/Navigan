@@ -75,11 +75,30 @@ resource "aws_iam_role_policy" "installer" {
   policy = data.aws_iam_policy_document.installer.json
 }
 
+resource "aws_security_group" "installer" {
+  name        = "NaviganClusterInstallerSecurityGroup"
+  description = "Outbound-only security group for the Navigan cluster installer"
+  vpc_id      = var.vpc_id
+
+  tags = {
+    ManagedBy         = "Navigan"
+    Purpose           = "PrivateClusterGitOpsBootstrap"
+    NaviganCustomerId = var.customer_id
+  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "installer" {
+  security_group_id = aws_security_group.installer.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+  description       = "Allow GitHub, chart repository, AWS API, and EKS endpoint access"
+}
+
 resource "aws_codebuild_project" "installer" {
   name           = "NaviganClusterInstaller"
   description    = "API-triggered installation of the outbound-only Navigan connector"
   service_role   = aws_iam_role.installer.arn
-  build_timeout  = 15
+  build_timeout  = 45
   queued_timeout = 15
 
   artifacts { type = "NO_ARTIFACTS" }
@@ -97,7 +116,7 @@ resource "aws_codebuild_project" "installer" {
   vpc_config {
     vpc_id             = var.vpc_id
     subnets            = sort(tolist(var.subnet_ids))
-    security_group_ids = sort(tolist(var.security_group_ids))
+    security_group_ids = length(var.security_group_ids) > 0 ? sort(tolist(var.security_group_ids)) : [aws_security_group.installer.id]
   }
   tags = {
     ManagedBy         = "Navigan"
@@ -170,4 +189,7 @@ output "connector_installer_project_name" {
 }
 output "connector_installer_role_arn" {
   value = aws_iam_role.installer.arn
+}
+output "connector_installer_security_group_id" {
+  value = aws_security_group.installer.id
 }

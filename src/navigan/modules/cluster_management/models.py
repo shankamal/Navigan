@@ -166,6 +166,12 @@ class ConnectorInstallationRequest(Model):
     reason: str = Field(min_length=3, max_length=2000)
 
 
+class ToolSessionRequest(Model):
+    toolCode: Literal[
+        "HEADLAMP", "GRAFANA", "PROMETHEUS", "ARGOCD", "WEBKUBECTL"
+    ]
+
+
 class CreateNodeGroupRequest(Model):
     nodeGroup: NodeGroup
     reason: str = Field(min_length=3, max_length=2000)

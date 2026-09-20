@@ -1,9 +1,13 @@
 import math
 import hashlib
+import json
+import secrets
 from datetime import datetime, timedelta, timezone
 from navigan.shared.errors import ApiError
 from navigan.modules.customer_management.repository import scope_clause, json_text
 from .capabilities import resolve_cluster_actions
+from .github_app import GitHubApp
+from .system_repository import render_system_repository
 
 
 def camel(key):
@@ -98,6 +102,24 @@ class Repository:
                 409,
                 "SYSTEM_REPOSITORY_NOT_CONFIGURED",
                 "This cluster request has no system repository configuration.",
+            )
+        return row
+
+    def system_repository_access(self, cluster_id):
+        row = self.db.execute(
+            "SELECT r.*,c.installation_id "
+            "FROM cluster_management.cluster_system_repositories r "
+            "JOIN cluster_management.github_app_connections c "
+            "ON c.connection_id=r.connection_id "
+            "WHERE r.cluster_id=%s AND r.status='ACTIVE' "
+            "AND c.status='ACTIVE' AND c.installation_id IS NOT NULL",
+            [cluster_id],
+        ).fetchone()
+        if not row or not row.get("repository_url"):
+            raise ApiError(
+                409,
+                "SYSTEM_REPOSITORY_NOT_READY",
+                "Connect the approved GitHub App before platform bootstrap.",
             )
         return row
 
@@ -311,6 +333,168 @@ class Repository:
             "namespaces": [serialize(row) for row in rows],
         }
 
+    def platform_components(self, identifier):
+        cluster = self.get(identifier)
+        inventory = self.db.execute(
+            "SELECT status,connector_id,source_revision,observed_at "
+            "FROM cluster_management.cluster_platform_component_inventories "
+            "WHERE cluster_id=%s",
+            [identifier],
+        ).fetchone()
+        rows = self.db.execute(
+            "SELECT component_code,status,version,sync_status,health_status,"
+            "observed_at,source_revision "
+            "FROM cluster_management.cluster_platform_components "
+            "WHERE cluster_id=%s ORDER BY component_code",
+            [identifier],
+        ).fetchall()
+        required = (
+            (cluster.get("configuration") or {})
+            .get("platformBaseline", {})
+            .get("requiredComponents", [])
+        )
+        reported = {row["component_code"] for row in rows}
+        components = [serialize(row) for row in rows]
+        components.extend(
+            {
+                "componentCode": code,
+                "status": "MISSING",
+                "version": None,
+                "syncStatus": "Unknown",
+                "healthStatus": "Not reported",
+                "observedAt": None,
+                "sourceRevision": None,
+            }
+            for code in required
+            if code not in reported
+        )
+        components.sort(key=lambda item: item["componentCode"])
+        return {
+            "clusterId": identifier,
+            "customerId": cluster["customer_id"],
+            "status": inventory["status"] if inventory else "NOT_REPORTED",
+            "connectorId": inventory["connector_id"] if inventory else None,
+            "sourceRevision": inventory["source_revision"] if inventory else None,
+            "observedAt": (
+                inventory["observed_at"].isoformat()
+                if inventory and inventory["observed_at"]
+                else None
+            ),
+            "components": components,
+            "runtimeInventory": self.runtime_inventory(identifier, cluster),
+        }
+
+    def platform_component_rows(self, identifier):
+        self.get(identifier)
+        rows = self.db.execute(
+            "SELECT component_code,status,version,sync_status,health_status,"
+            "observed_at,source_revision "
+            "FROM cluster_management.cluster_platform_components "
+            "WHERE cluster_id=%s ORDER BY component_code",
+            [identifier],
+        ).fetchall()
+        return [serialize(row) for row in rows]
+
+    def tool_tunnel_connected(self, identifier):
+        self.get(identifier)
+        row = self.db.execute(
+            "SELECT status,expires_at FROM cluster_management.cluster_tool_tunnels "
+            "WHERE cluster_id=%s",
+            [identifier],
+        ).fetchone()
+        return bool(
+            row
+            and row["status"] == "CONNECTED"
+            and row["expires_at"] > datetime.now(timezone.utc)
+        )
+
+    def create_tool_session(self, cluster, tool_code, correlation):
+        now = datetime.now(timezone.utc)
+        exchange_token = secrets.token_urlsafe(32)
+        session_id = "KTS-" + secrets.token_hex(16)
+        exchange_expires_at = now + timedelta(minutes=1)
+        expires_at = now + timedelta(minutes=30)
+        self.db.execute(
+            "INSERT INTO cluster_management.cluster_tool_sessions"
+            "(session_id,cluster_id,customer_id,user_id,tool_code,status,"
+            "exchange_token_sha256,exchange_expires_at,issued_at,expires_at) "
+            "VALUES (%s,%s,%s,%s,%s,'ISSUED',%s,%s,%s,%s)",
+            [
+                session_id,
+                cluster["cluster_id"],
+                cluster["customer_id"],
+                self.principal.user_id,
+                tool_code,
+                hashlib.sha256(exchange_token.encode()).hexdigest(),
+                exchange_expires_at,
+                now,
+                expires_at,
+            ],
+        )
+        self.db.execute(
+            "INSERT INTO cluster_management.cluster_audit_log"
+            "(cluster_id,action,performed_by,correlation_id,new_value) "
+            "VALUES (%s,'ClusterToolSessionIssued',%s,%s,%s::jsonb)",
+            [
+                cluster["cluster_id"],
+                self.principal.user_id,
+                correlation,
+                json.dumps(
+                    {
+                        "sessionId": session_id,
+                        "toolCode": tool_code,
+                        "expiresAt": expires_at.isoformat(),
+                    }
+                ),
+            ],
+        )
+        return {
+            "sessionId": session_id,
+            "exchangeToken": exchange_token,
+            "exchangeExpiresAt": exchange_expires_at.isoformat(),
+            "expiresAt": expires_at.isoformat(),
+        }
+
+    def runtime_inventory(self, identifier, cluster=None):
+        cluster = cluster or self.get(identifier)
+        row = self.db.execute(
+            "SELECT status,connector_id,source_revision,resources,warning_events,"
+            "metrics,observed_at,expires_at "
+            "FROM cluster_management.cluster_runtime_inventories "
+            "WHERE cluster_id=%s",
+            [identifier],
+        ).fetchone()
+        if not row:
+            return {
+                "clusterId": identifier,
+                "customerId": cluster["customer_id"],
+                "status": "NOT_REPORTED",
+                "connectorId": None,
+                "sourceRevision": None,
+                "resources": [],
+                "warningEvents": [],
+                "metrics": {},
+                "observedAt": None,
+                "expiresAt": None,
+            }
+        effective_status = (
+            "STALE"
+            if row["expires_at"] <= datetime.now(timezone.utc)
+            else row["status"]
+        )
+        return {
+            "clusterId": identifier,
+            "customerId": cluster["customer_id"],
+            "status": effective_status,
+            "connectorId": row["connector_id"],
+            "sourceRevision": row["source_revision"],
+            "resources": row["resources"],
+            "warningEvents": row["warning_events"],
+            "metrics": row["metrics"],
+            "observedAt": row["observed_at"].isoformat(),
+            "expiresAt": row["expires_at"].isoformat(),
+        }
+
     def node_group_requests(self, identifier):
         cluster = self.get(identifier)
         rows = self.db.execute(
@@ -413,7 +597,15 @@ class Repository:
             ],
         )
 
-    def request_connector_install(self, identifier, token, reason, correlation, installer):
+    def request_connector_install(
+        self,
+        identifier,
+        token,
+        reason,
+        correlation,
+        installer,
+        github_app=None,
+    ):
         cluster = self.get(identifier, lock=True)
         current = self.db.execute(
             "SELECT connector_id FROM cluster_management.cluster_connectors "
@@ -448,7 +640,43 @@ class Repository:
         _, snapshot = self.pinned_environment_snapshot(
             cluster["environment_id"], cluster["environment_approved_version"]
         )
-        execution = installer.start(cluster, snapshot, connector_id, token)
+        system_repository = self.system_repository_access(identifier)
+        app = github_app or GitHubApp()
+        connector_image = __import__("os").environ.get("CONNECTOR_IMAGE_URI", "")
+        api_base_url = __import__("os").environ.get("CONNECTOR_API_BASE_URL", "")
+        tools_base_url = __import__("os").environ.get("PLATFORM_TOOLS_BASE_URL", "")
+        files = render_system_repository(
+            repository_url=system_repository["repository_url"],
+            connector_id=connector_id,
+            cluster_id=cluster["cluster_id"],
+            connector_image=connector_image,
+            api_base_url=api_base_url,
+            tools_base_url=tools_base_url,
+        )
+        commit = app.commit_files(
+            system_repository["installation_id"],
+            system_repository["organization_login"],
+            system_repository["repository_name"],
+            files,
+            message=f"Configure Navigan platform services for {cluster['cluster_name']}",
+        )
+        repository_credential = app.repository_token(
+            system_repository["installation_id"],
+            system_repository["repository_name"],
+        )
+        execution = installer.start(
+            cluster,
+            snapshot,
+            connector_id,
+            token,
+            {
+                "url": system_repository["repository_url"],
+                "revision": commit["branch"],
+                "commit": commit["revision"],
+                "token": repository_credential["token"],
+                "tokenExpiresAt": repository_credential["expiresAt"],
+            },
+        )
         self.db.execute(
             "UPDATE cluster_management.cluster_connectors "
             "SET installation_status=%s,installation_execution_id=%s,"
@@ -460,11 +688,52 @@ class Repository:
                 connector_id,
             ],
         )
+        now = datetime.now(timezone.utc)
+        workflow = dict(cluster.get("workflow") or {})
+        platform_bootstrap = dict(workflow.get("platformBootstrap") or {})
+        workflow["platformBootstrap"] = {
+            **platform_bootstrap,
+            "status": "INSTALLING",
+            "connectorId": connector_id,
+            "executionId": execution["executionId"],
+            "startedAt": now.isoformat(),
+            "failureCode": None,
+            "systemRepositoryCommit": commit["revision"],
+        }
+        next_version = cluster["version"] + 1
+        self.db.execute(
+            "UPDATE cluster_management.clusters "
+            "SET status='BOOTSTRAPPING',version=%s,workflow=%s::jsonb,"
+            "updated_by=%s,updated_at=%s WHERE cluster_id=%s",
+            [
+                next_version,
+                json_text(workflow),
+                self.principal.user_id,
+                now,
+                identifier,
+            ],
+        )
+        if cluster["status"] != "BOOTSTRAPPING":
+            self.db.execute(
+                "INSERT INTO cluster_management.cluster_status_history"
+                "(cluster_id,previous_status,new_status,changed_by,reason,correlation_id) "
+                "VALUES (%s,%s,'BOOTSTRAPPING',%s,%s,%s)",
+                [
+                    identifier,
+                    cluster["status"],
+                    self.principal.user_id,
+                    reason,
+                    correlation,
+                ],
+            )
         audit = {
             "connectorId": connector_id,
             "clusterId": identifier,
             "status": execution["status"],
             "executionId": execution["executionId"],
+            "systemRepositoryCommit": commit["revision"],
+            "version": next_version,
+            "startedAt": now.isoformat(),
         }
         self.db.execute(
             "INSERT INTO cluster_management.cluster_audit_log"

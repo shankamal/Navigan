@@ -27,10 +27,12 @@ from .models import (
     SystemNodeGroupMigration,
     GitHubAuthorizationRequest,
     CompleteGitHubAuthorization,
+    ToolSessionRequest,
 )
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
 from .connector_installation import ConnectorInstaller
+from .tool_access import resolve_tool_access
 
 BASE = "/api/v1/clusters"
 logger = logging.getLogger(__name__)
@@ -302,6 +304,19 @@ def execute(event, principal, correlation):
         method == "POST" and len(parts) == 3
         and parts[1:] == ["connector", "install"]
     )
+    create_tool_session = (
+        method == "POST"
+        and len(parts) == 4
+        and parts[1] == "tools"
+        and parts[2] in {
+            "headlamp",
+            "grafana",
+            "prometheus",
+            "argocd",
+            "webkubectl",
+        }
+        and parts[3] == "sessions"
+    )
     node_group_requests = len(parts) == 2 and parts[1] == "node-groups"
     audit_log = len(parts) == 2 and parts[1] == "audit-log"
     node_group_execution_logs = (
@@ -334,7 +349,13 @@ def execute(event, principal, correlation):
         and re.fullmatch(r"KNG-[a-f0-9]{32}", parts[2] or "")
         and parts[3] in {"submit", "approve", "reject", "apply", "retry"}
     )
-    read_actions = {"execution-logs", "identity", "access"}
+    read_actions = {
+        "execution-logs",
+        "identity",
+        "access",
+        "platform-components",
+        "tools",
+    }
     read = method == "GET" and (
         len(parts) <= 1
         or (len(parts) == 2 and action in read_actions)
@@ -352,6 +373,7 @@ def execute(event, principal, correlation):
         or create_access
         or revoke_access
         or install_connector
+        or create_tool_session
         or create_node_group_request
         or migrate_system_node_group
         or begin_github_authorization
@@ -378,6 +400,8 @@ def execute(event, principal, correlation):
             if revoke_access
             else ConnectorInstallationRequest
             if install_connector
+            else ToolSessionRequest
+            if create_tool_session
             else CreateNodeGroupRequest
             if create_node_group_request
             else SystemNodeGroupMigration
@@ -414,6 +438,28 @@ def execute(event, principal, correlation):
                 elif action == "access":
                     access.require("cluster.access.view")
                     value = repo.kubernetes_access(identifier)
+                elif action == "platform-components":
+                    value = repo.platform_components(identifier)
+                elif action == "tools":
+                    value = resolve_tool_access(
+                        row,
+                        access,
+                        repo.platform_component_rows(identifier),
+                        base_url=os.environ.get("PLATFORM_TOOLS_BASE_URL"),
+                        gateway_enabled=(
+                            os.environ.get("PLATFORM_TOOLS_GATEWAY_ENABLED", "false")
+                            .strip()
+                            .lower()
+                            == "true"
+                        ),
+                        tunnel_enabled=(
+                            os.environ.get("PLATFORM_TOOLS_TUNNEL_ENABLED", "false")
+                            .strip()
+                            .lower()
+                            == "true"
+                        ),
+                        tunnel_connected=repo.tool_tunnel_connected(identifier),
+                    )
                 elif access_subjects:
                     access.require("cluster.access.manage")
                     value = {
@@ -480,7 +526,66 @@ def execute(event, principal, correlation):
             result = response(replay["status"], replay["body"], correlation)
             result["headers"]["Idempotency-Replayed"] = "true"
             return result
-        if create_access:
+        if create_tool_session:
+            if body["toolCode"].lower() != parts[2]:
+                raise ApiError(
+                    400,
+                    "TOOL_CODE_MISMATCH",
+                    "The requested tool does not match the route.",
+                )
+            cluster = repo.get(identifier)
+            tool_access = resolve_tool_access(
+                cluster,
+                access,
+                repo.platform_component_rows(identifier),
+                base_url=os.environ.get("PLATFORM_TOOLS_BASE_URL"),
+                gateway_enabled=(
+                    os.environ.get("PLATFORM_TOOLS_GATEWAY_ENABLED", "false")
+                    .strip()
+                    .lower()
+                    == "true"
+                ),
+                tunnel_enabled=(
+                    os.environ.get("PLATFORM_TOOLS_TUNNEL_ENABLED", "false")
+                    .strip()
+                    .lower()
+                    == "true"
+                ),
+                tunnel_connected=repo.tool_tunnel_connected(identifier),
+            )
+            tool = next(
+                (
+                    item
+                    for item in tool_access["tools"]
+                    if item["code"] == body["toolCode"]
+                ),
+                None,
+            )
+            if not tool:
+                raise ApiError(
+                    403,
+                    "FORBIDDEN",
+                    "This tool is outside your access permissions.",
+                )
+            if not tool["launchUrl"]:
+                raise ApiError(
+                    409,
+                    "TOOL_UNAVAILABLE",
+                    tool["disabledReason"] or "This tool is not available.",
+                )
+            session = repo.create_tool_session(
+                cluster, body["toolCode"], correlation
+            )
+            value = {
+                **session,
+                "toolCode": body["toolCode"],
+                "exchangeUrl": (
+                    tool_access["gateway"]["baseUrl"] + "/session/exchange"
+                ),
+                "launchUrl": tool["launchUrl"],
+            }
+            status = 201
+        elif create_access:
             access.require("cluster.access.manage")
             validate_identity_subject(body["subjectType"], body["subjectId"])
             value = repo.create_kubernetes_access(identifier, body, correlation)

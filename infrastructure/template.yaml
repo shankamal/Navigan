@@ -61,6 +61,21 @@ Parameters:
     Type: String
     Default: ''
     Description: Optional Amazon Bedrock model or inference-profile ID for sanitized blueprint advice
+  PlatformToolsBaseUrl:
+    Type: String
+    Default: ''
+  PlatformToolsGatewayEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+    - 'true'
+    - 'false'
+  PlatformToolsTunnelEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+    - 'true'
+    - 'false'
 Resources:
   SharedPlatform:
     Type: AWS::Serverless::Application
@@ -160,6 +175,12 @@ Resources:
           Ref: GitHubAppSlug
         GitHubAppPrivateKeySecretArn:
           Ref: GitHubAppPrivateKeySecretArn
+        PlatformToolsBaseUrl:
+          Ref: PlatformToolsBaseUrl
+        PlatformToolsGatewayEnabled:
+          Ref: PlatformToolsGatewayEnabled
+        PlatformToolsTunnelEnabled:
+          Ref: PlatformToolsTunnelEnabled
   AccessManagement:
     Type: AWS::Serverless::Application
     Properties:

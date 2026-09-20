@@ -91,6 +91,16 @@ resource "aws_vpc_security_group_ingress_rule" "control_plane_from_managed_nodes
   description                  = "Allow worker nodes to reach the EKS control plane"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "control_plane_from_installer_https" {
+  count                        = var.installer_security_group_id == null ? 0 : 1
+  security_group_id            = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  referenced_security_group_id = var.installer_security_group_id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
+  description                  = "Allow the stable Navigan installer to reach the EKS API"
+}
+
 resource "aws_launch_template" "node" {
   for_each = local.managed_node_groups
 

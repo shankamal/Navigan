@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Immutable ECR repository for the Navigan shared tools gateway
+Parameters:
+  RepositoryName:
+    Type: String
+    Default: navigan/tools-gateway
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Retain newest 20 gateway images",
+              "selection": {
+                "tagStatus": "any",
+                "countType": "imageCountMoreThan",
+                "countNumber": 20
+              },
+              "action": {"type": "expire"}
+            }]
+          }
+Outputs:
+  RepositoryUri: {Value: !GetAtt Repository.RepositoryUri}
+  RepositoryArn: {Value: !GetAtt Repository.Arn}

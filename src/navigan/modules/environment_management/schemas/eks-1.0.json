@@ -372,11 +372,18 @@
           "title": "Customer installer role ARN",
           "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/NaviganClusterInstallerRole$",
           "maxLength": 2048
+        },
+        "securityGroupId": {
+          "type": "string",
+          "title": "Stable installer security group",
+          "pattern": "^sg-[a-f0-9]+$",
+          "maxLength": 64
         }
       },
       "required": [
         "projectName",
-        "serviceRoleArn"
+        "serviceRoleArn",
+        "securityGroupId"
       ],
       "additionalProperties": false
     },

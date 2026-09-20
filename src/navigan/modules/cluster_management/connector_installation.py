@@ -21,7 +21,14 @@ class ConnectorInstaller:
         self.secrets = secrets or boto3.client("secretsmanager")
         self.client_factory = client_factory or boto3.client
 
-    def start(self, cluster, environment_snapshot, connector_id, token):
+    def start(
+        self,
+        cluster,
+        environment_snapshot,
+        connector_id,
+        token,
+        system_repository,
+    ):
         configuration = environment_snapshot.get("configuration") or {}
         account_id = cluster["provisioning_role_arn"].split(":")[4]
         partition = cluster["provisioning_role_arn"].split(":")[1]
@@ -32,6 +39,7 @@ class ConnectorInstaller:
         )
         connector_image = os.environ.get("CONNECTOR_IMAGE_URI", "")
         api_base_url = os.environ.get("CONNECTOR_API_BASE_URL", "")
+        tools_base_url = os.environ.get("PLATFORM_TOOLS_BASE_URL", "")
         if not connector_image or not api_base_url:
             raise ApiError(
                 409,
@@ -68,10 +76,17 @@ class ConnectorInstaller:
         secret_name = (
             f"navigan/connectors/{cluster['cluster_id']}/{connector_id}"
         )
+        bootstrap_credentials = {
+            "connectorToken": token,
+            "githubToken": system_repository["token"],
+            "githubTokenExpiresAt": system_repository.get("tokenExpiresAt"),
+        }
         secret = customer_secrets.create_secret(
             Name=secret_name,
             Description="Navigan private cluster connector credential",
-            SecretString=token,
+            SecretString=json.dumps(
+                bootstrap_credentials, sort_keys=True, separators=(",", ":")
+            ),
             Tags=[
                 {"Key": "ManagedBy", "Value": "Navigan"},
                 {"Key": "NaviganClusterId", "Value": cluster["cluster_id"]},
@@ -86,7 +101,11 @@ class ConnectorInstaller:
             "connectorSecretArn": secret["ARN"],
             "connectorImage": connector_image,
             "apiBaseUrl": api_base_url,
+            "toolsBaseUrl": tools_base_url,
             "serviceRoleArn": service_role_arn,
+            "systemRepositoryUrl": system_repository["url"],
+            "systemRepositoryRevision": system_repository["revision"],
+            "systemRepositoryCommit": system_repository["commit"],
         }
         try:
             build = customer_codebuild.start_build(
