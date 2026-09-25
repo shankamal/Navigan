@@ -13,6 +13,10 @@ spec:
       labels: {app.kubernetes.io/name: navigan-cluster-connector}
     spec:
       serviceAccountName: navigan-cluster-connector
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       nodeSelector: {navigan.io/platform-services: "true"}
       tolerations:
         - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
@@ -37,6 +41,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.navigan.existingSecret }}
                   key: token
+            - name: NAVIGAN_CONNECTOR_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NAVIGAN_CONNECTOR_DEPLOYMENT
+              value: navigan-cluster-connector
             - name: SYNC_INTERVAL_SECONDS
               value: {{ .Values.navigan.syncIntervalSeconds | quote }}
             {{- if .Values.navigan.toolsTunnelUrl }}

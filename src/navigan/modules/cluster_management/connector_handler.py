@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -172,7 +173,7 @@ def desired_access(db, connector, now):
         "FROM access_management.kubernetes_access_assignments WHERE cluster_id=%s",
         [connector["cluster_id"]],
     ).fetchone()
-    return {
+    result = {
         "revision": max(1, revision_row["revision"] if revision_row else 1),
         "assignments": [
             {
@@ -187,6 +188,13 @@ def desired_access(db, connector, now):
             for row in rows
         ],
     }
+    desired_image = os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
+    if desired_image:
+        result["connector"] = {
+            "desiredImage": desired_image,
+            "upgradeMode": "KUBERNETES_NATIVE",
+        }
+    return result
 
 
 def github_repository_credentials(db, connector, github_app=None):

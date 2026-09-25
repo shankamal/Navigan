@@ -45,10 +45,16 @@ spec:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
               readOnly: true
+            - name: web
+              mountPath: /usr/share/nginx/html
+              readOnly: true
       volumes:
         - name: nginx-config
           configMap:
             name: retailflow-nginx
+        - name: web
+          configMap:
+            name: retailflow-web
 ---
 apiVersion: v1
 kind: Service

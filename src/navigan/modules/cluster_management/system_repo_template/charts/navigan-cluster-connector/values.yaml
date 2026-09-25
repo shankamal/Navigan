@@ -3,6 +3,7 @@ image:
   tag: ""
   digest: ""
   pullPolicy: IfNotPresent
+  pullSecrets: []
 navigan:
   apiBaseUrl: ""
   connectorId: ""

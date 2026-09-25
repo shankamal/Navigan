@@ -1,12 +1,25 @@
 import hashlib
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from navigan.modules.cluster_management import connector_handler
 from navigan.shared.errors import ApiError
+
+
+def test_connector_function_receives_desired_connector_image():
+    template = (
+        Path(__file__).parents[1]
+        / "infrastructure/modules/cluster-management/template.yaml"
+    ).read_text()
+    connector_function = template.split("  ConnectorFunction:", 1)[1].split(
+        "  ToolSessionFunction:", 1
+    )[0]
+
+    assert "CONNECTOR_IMAGE_URI: !Ref ConnectorImageUri" in connector_function
 
 
 def event(token="connector-token-value-with-sufficient-length", body=None):
@@ -86,7 +99,7 @@ def test_connector_rejects_invalid_namespace_before_database_access(monkeypatch)
     tx.assert_not_called()
 
 
-def test_connector_returns_desired_access_rules(monkeypatch):
+def test_connector_returns_desired_access_rules_and_generic_runtime_policy(monkeypatch):
     token = "connector-token-value-with-sufficient-length"
     db = MagicMock()
     db.execute.return_value.fetchone.side_effect = [
@@ -116,6 +129,10 @@ def test_connector_returns_desired_access_rules(monkeypatch):
         yield db
 
     monkeypatch.setattr(connector_handler, "transaction", tx)
+    monkeypatch.setenv(
+        "CONNECTOR_IMAGE_URI",
+        "registry.example.test/navigan/connector@sha256:" + "a" * 64,
+    )
     request = event(token)
     request["rawPath"] = (
         "/api/v1/connectors/"
@@ -129,6 +146,12 @@ def test_connector_returns_desired_access_rules(monkeypatch):
     assert result["revision"] == 1234
     assert result["assignments"][0]["subjectId"] == "cognito-subject"
     assert result["assignments"][0]["rules"][0]["resources"] == ["pods"]
+    assert result["connector"] == {
+        "desiredImage": (
+            "registry.example.test/navigan/connector@sha256:" + "a" * 64
+        ),
+        "upgradeMode": "KUBERNETES_NATIVE",
+    }
 
 
 def test_connector_acknowledgement_activates_pending_assignment(monkeypatch):

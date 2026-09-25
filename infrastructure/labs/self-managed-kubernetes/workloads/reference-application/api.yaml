@@ -113,6 +113,7 @@ metadata:
   name: retailflow-api
 spec:
   selector: {app: retailflow-api}
+  sessionAffinity: ClientIP
   ports:
     - name: http
       port: 8080

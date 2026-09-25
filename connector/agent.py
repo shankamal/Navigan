@@ -19,6 +19,9 @@ KUBERNETES_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.
 KUBERNETES_PORT = os.environ.get("KUBERNETES_SERVICE_PORT_HTTPS", "443")
 SERVICE_ACCOUNT = "/var/run/secrets/kubernetes.io/serviceaccount"
 READY_FILE = os.environ.get("NAVIGAN_READY_FILE", "/var/run/navigan/ready")
+CONNECTOR_DEPLOYMENT = os.environ.get(
+    "NAVIGAN_CONNECTOR_DEPLOYMENT", "navigan-cluster-connector"
+)
 MAX_RUNTIME_RESOURCES_PER_KIND = 50
 MAX_WARNING_EVENTS = 50
 MAX_TUNNEL_MESSAGE_BYTES = 8 * 1024 * 1024
@@ -694,6 +697,74 @@ def delete_resource(path, name):
             raise
 
 
+def connector_namespace():
+    configured = os.environ.get("NAVIGAN_CONNECTOR_NAMESPACE", "").strip()
+    return configured or read(f"{SERVICE_ACCOUNT}/namespace")
+
+
+def reconcile_connector_runtime(policy):
+    desired_image = (policy or {}).get("desiredImage", "").strip()
+    if not desired_image:
+        return False
+    if (
+        len(desired_image) > 2048
+        or any(character.isspace() for character in desired_image)
+        or "\x00" in desired_image
+    ):
+        raise RuntimeError("desired connector image is invalid")
+
+    namespace = connector_namespace()
+    path = (
+        f"/apis/apps/v1/namespaces/{urllib.parse.quote(namespace, safe='')}/"
+        f"deployments/{urllib.parse.quote(CONNECTOR_DEPLOYMENT, safe='')}"
+    )
+    deployment = kubernetes_request(path)
+    containers = deployment.get("spec", {}).get("template", {}).get("spec", {}).get(
+        "containers", []
+    )
+    connector = next(
+        (item for item in containers if item.get("name") == "connector"),
+        None,
+    )
+    if connector is None:
+        raise RuntimeError("connector container was not found in its deployment")
+    if connector.get("image") == desired_image:
+        return False
+
+    kubernetes_request(
+        path,
+        "PATCH",
+        {
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "navigan.io/connector-updated-at": str(int(time.time()))
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {"name": "connector", "image": desired_image}
+                        ]
+                    },
+                }
+            }
+        },
+        "application/strategic-merge-patch+json",
+    )
+    print(
+        json.dumps(
+            {
+                "event": "connector_runtime_upgrade_requested",
+                "deployment": CONNECTOR_DEPLOYMENT,
+                "namespace": namespace,
+            }
+        ),
+        flush=True,
+    )
+    return True
+
+
 def reconcile_assignment(assignment):
     name = resource_name(assignment["assignmentId"])
     labels = {
@@ -786,6 +857,21 @@ def reconcile(base_url, connector_id, connector_token):
         base_url, connector_id, connector_token, "/access/status", "POST",
         {"revision": desired["revision"], "results": results},
     )
+    try:
+        reconcile_connector_runtime(desired.get("connector"))
+    except Exception as error:
+        # Runtime upgrades are deliberately isolated from access reconciliation:
+        # a chart/RBAC/version issue must never leave a permission grant pending.
+        print(
+            json.dumps(
+                {
+                    "event": "connector_runtime_upgrade_failed",
+                    "errorType": type(error).__name__,
+                    "error": error_detail(error),
+                }
+            ),
+            flush=True,
+        )
     return results
 
 

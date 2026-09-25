@@ -217,6 +217,7 @@ Resources:
       Timeout: 15
       Environment:
         Variables:
+          CONNECTOR_IMAGE_URI: !Ref ConnectorImageUri
           GITHUB_APP_ID: !Ref GitHubAppId
           GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
       Policies:

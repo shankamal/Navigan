@@ -4,6 +4,7 @@ namespace: retailflow
 resources:
   - namespace.yaml
   - configuration.yaml
+  - web.yaml
   - rbac.yaml
   - storage.yaml
   - database.yaml

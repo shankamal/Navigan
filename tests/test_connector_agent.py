@@ -100,6 +100,104 @@ def test_headlamp_uses_helm_release_service_name():
     )
 
 
+def test_connector_runtime_upgrade_uses_namespaced_kubernetes_api(monkeypatch):
+    desired_image = "registry.example.test/navigan/connector@sha256:" + "b" * 64
+    calls = []
+    monkeypatch.setenv("NAVIGAN_CONNECTOR_NAMESPACE", "navigan-system")
+    monkeypatch.setattr(agent.time, "time", lambda: 1234567890)
+
+    def request(path, method="GET", body=None, content_type="application/json"):
+        calls.append((path, method, body, content_type))
+        if method == "GET":
+            return {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {"name": "connector", "image": "old.example/connector:v1"}
+                            ]
+                        }
+                    }
+                }
+            }
+        return {}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+
+    assert agent.reconcile_connector_runtime({"desiredImage": desired_image}) is True
+    assert calls[0][0] == (
+        "/apis/apps/v1/namespaces/navigan-system/"
+        "deployments/navigan-cluster-connector"
+    )
+    assert calls[1][1] == "PATCH"
+    assert calls[1][2]["spec"]["template"]["spec"]["containers"] == [
+        {"name": "connector", "image": desired_image}
+    ]
+    assert calls[1][3] == "application/strategic-merge-patch+json"
+
+
+def test_connector_runtime_upgrade_is_noop_when_image_is_current(monkeypatch):
+    desired_image = "registry.example.test/navigan/connector:v2"
+    monkeypatch.setenv("NAVIGAN_CONNECTOR_NAMESPACE", "navigan-system")
+    calls = []
+
+    def request(path, method="GET", body=None, content_type="application/json"):
+        calls.append((path, method))
+        return {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {"name": "connector", "image": desired_image}
+                        ]
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+
+    assert agent.reconcile_connector_runtime({"desiredImage": desired_image}) is False
+    assert calls == [
+        (
+            "/apis/apps/v1/namespaces/navigan-system/"
+            "deployments/navigan-cluster-connector",
+            "GET",
+        )
+    ]
+
+
+def test_runtime_upgrade_failure_does_not_block_access_acknowledgement(
+    monkeypatch,
+    capsys,
+):
+    calls = []
+
+    def navigan(*args):
+        path = args[3]
+        calls.append(path)
+        if path == "/access/desired":
+            return {
+                "revision": 10,
+                "assignments": [],
+                "connector": {"desiredImage": "registry.example/connector:v2"},
+            }
+        return {}
+
+    monkeypatch.setattr(agent, "navigan_request", navigan)
+    monkeypatch.setattr(agent, "prune", lambda _desired: None)
+    monkeypatch.setattr(
+        agent,
+        "reconcile_connector_runtime",
+        lambda _policy: (_ for _ in ()).throw(RuntimeError("upgrade denied")),
+    )
+
+    assert agent.reconcile("https://api.example", "KCC-test", "token") == []
+    assert calls == ["/access/desired", "/access/status"]
+    event = json.loads(capsys.readouterr().out)
+    assert event["event"] == "connector_runtime_upgrade_failed"
+
+
 def test_argocd_proxy_removes_public_prefix(monkeypatch):
     observed = {}
 

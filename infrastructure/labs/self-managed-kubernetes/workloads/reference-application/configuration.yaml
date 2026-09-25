@@ -16,7 +16,21 @@ data:
     import json
     import os
     import socket
+    import threading
+    from datetime import datetime, timezone
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import urlparse
+
+    PRODUCTS = [
+        {"id": "RF-1001", "name": "Wireless Headphones", "category": "Audio", "price": 129.00, "stock": 42},
+        {"id": "RF-1002", "name": "Smart Fitness Watch", "category": "Wearables", "price": 189.00, "stock": 18},
+        {"id": "RF-1003", "name": "Portable Speaker", "category": "Audio", "price": 79.00, "stock": 31},
+        {"id": "RF-1004", "name": "Mechanical Keyboard", "category": "Workspace", "price": 109.00, "stock": 24},
+        {"id": "RF-1005", "name": "Ergonomic Mouse", "category": "Workspace", "price": 59.00, "stock": 57},
+        {"id": "RF-1006", "name": "USB-C Travel Hub", "category": "Accessories", "price": 69.00, "stock": 36},
+    ]
+    ORDERS = []
+    ORDER_LOCK = threading.Lock()
 
     def tcp_status(host, port):
         try:
@@ -25,34 +39,105 @@ data:
         except OSError as error:
             return f"unreachable:{type(error).__name__}"
 
+    def dependencies():
+        return {
+            "postgres": tcp_status("postgres", 5432),
+            "redis": tcp_status("redis", 6379),
+        }
+
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == "/healthz":
-                payload, status = {"status": "healthy"}, 200
-            elif self.path == "/readyz":
-                dependencies = {
-                    "postgres": tcp_status("postgres", 5432),
-                    "redis": tcp_status("redis", 6379),
-                }
-                ready = all(value == "reachable" for value in dependencies.values())
-                payload, status = {"ready": ready, "dependencies": dependencies}, 200 if ready else 503
-            else:
-                payload, status = {
-                    "message": os.getenv("API_MESSAGE"),
-                    "environment": os.getenv("APP_ENV"),
-                    "pod": socket.gethostname(),
-                    "dependencies": {
-                        "postgres": tcp_status("postgres", 5432),
-                        "redis": tcp_status("redis", 6379),
-                    },
-                        "secretMounted": os.path.exists("/var/run/secrets/retailflow/API_TOKEN"),
-                }, 200
+        def send_json(self, payload, status=200):
             body = json.dumps(payload).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def do_GET(self):
+            path = urlparse(self.path).path
+            dependency_status = dependencies()
+
+            if path == "/healthz":
+                return self.send_json({"status": "healthy"})
+            if path == "/readyz":
+                ready = all(value == "reachable" for value in dependency_status.values())
+                return self.send_json(
+                    {"ready": ready, "dependencies": dependency_status},
+                    200 if ready else 503,
+                )
+            if path == "/catalog":
+                return self.send_json({"products": PRODUCTS})
+            if path == "/orders":
+                with ORDER_LOCK:
+                    return self.send_json({"orders": list(reversed(ORDERS[-20:]))})
+            if path == "/stats":
+                with ORDER_LOCK:
+                    order_count = len(ORDERS)
+                    revenue = round(sum(order["total"] for order in ORDERS), 2)
+                return self.send_json({
+                    "products": len(PRODUCTS),
+                    "orders": order_count,
+                    "revenue": revenue,
+                    "dependencies": dependency_status,
+                    "pod": socket.gethostname(),
+                })
+
+            return self.send_json({
+                "message": os.getenv("API_MESSAGE"),
+                "environment": os.getenv("APP_ENV"),
+                "pod": socket.gethostname(),
+                "dependencies": dependency_status,
+                "secretMounted": os.path.exists("/var/run/secrets/retailflow/API_TOKEN"),
+            })
+
+        def do_POST(self):
+            if urlparse(self.path).path != "/orders":
+                return self.send_json({"error": "Route not found"}, 404)
+
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                request = json.loads(self.rfile.read(length) or b"{}")
+                quantities = request.get("items", {})
+                customer = str(request.get("customer", "Guest")).strip() or "Guest"
+                product_map = {product["id"]: product for product in PRODUCTS}
+                items = []
+
+                for product_id, quantity in quantities.items():
+                    quantity = int(quantity)
+                    if quantity <= 0 or product_id not in product_map:
+                        continue
+                    product = product_map[product_id]
+                    items.append({
+                        "id": product_id,
+                        "name": product["name"],
+                        "quantity": quantity,
+                        "price": product["price"],
+                        "lineTotal": round(product["price"] * quantity, 2),
+                    })
+
+                if not items:
+                    return self.send_json({"error": "Add at least one item"}, 400)
+
+                with ORDER_LOCK:
+                    order = {
+                        "id": f"ORD-{10001 + len(ORDERS)}",
+                        "customer": customer,
+                        "items": items,
+                        "total": round(sum(item["lineTotal"] for item in items), 2),
+                        "status": "Processing",
+                        "createdAt": datetime.now(timezone.utc).isoformat(),
+                        "pod": socket.gethostname(),
+                    }
+                    ORDERS.append(order)
+
+                return self.send_json(order, 201)
+            except (ValueError, TypeError, json.JSONDecodeError) as error:
+                return self.send_json({"error": f"Invalid order: {error}"}, 400)
+
+        def log_message(self, format, *args):
+            return
 
     ThreadingHTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
 ---
@@ -78,8 +163,8 @@ data:
       }
 
       location / {
-        default_type text/html;
-        return 200 '<html><body><h1>RetailFlow</h1><p>Order-management application running on self-managed Kubernetes.</p><p>Use <a href="/api/">/api/</a> to inspect service dependencies.</p></body></html>';
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
       }
     }
 ---
