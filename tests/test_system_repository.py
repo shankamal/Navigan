@@ -22,6 +22,11 @@ def test_system_repository_renders_gitops_baseline_without_secrets():
     assert "applications/30-headlamp.yaml" in rendered
     assert "applications/31-headlamp-readonly.yaml" in rendered
     assert "charts/navigan-cluster-connector/templates/deployment.yaml" in rendered
+    connector_rbac = rendered[
+        "charts/navigan-cluster-connector/templates/rbac.yaml"
+    ]
+    assert 'resources: ["roles", "clusterroles"]' in connector_rbac
+    assert 'verbs: ["bind", "escalate"]' in connector_rbac
     combined = "\n".join(rendered.values())
     assert "__" not in combined
     assert "connector-token" not in combined
