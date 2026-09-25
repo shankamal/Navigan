@@ -975,3 +975,36 @@ def test_update_can_only_rename_the_cluster():
     assert updated["clusterName"] == "navigan-dev-02"
     assert updated["description"] == "Updated context."
     assert updated["configuration"]["kubernetesVersion"] == "1.33"
+
+
+def test_repository_get_excludes_archived_ownership_records():
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = row("ACTIVE")
+    principal = Principal(
+        "engineer", frozenset({"CLOUD_ENGINEER"}), frozenset(), True
+    )
+
+    Repository(db, principal).get("CLU-test")
+
+    sql = db.execute.call_args.args[0]
+    assert "workflow->>'ownershipStatus'" in sql
+    assert "'ARCHIVED'" in sql
+
+
+def test_repository_list_excludes_archived_ownership_records():
+    db = MagicMock()
+    count_result = MagicMock()
+    count_result.fetchone.return_value = {"n": 0}
+    rows_result = MagicMock()
+    rows_result.fetchall.return_value = []
+    db.execute.side_effect = [count_result, rows_result]
+    principal = Principal(
+        "engineer", frozenset({"CLOUD_ENGINEER"}), frozenset(), True
+    )
+
+    Repository(db, principal).list({"page": 0, "pageSize": 20})
+
+    count_sql = db.execute.call_args_list[0].args[0]
+    rows_sql = db.execute.call_args_list[1].args[0]
+    assert "workflow->>'ownershipStatus'" in count_sql
+    assert "workflow->>'ownershipStatus'" in rows_sql

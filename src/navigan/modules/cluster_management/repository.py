@@ -10,6 +10,11 @@ from .github_app import GitHubApp
 from .system_repository import render_system_repository
 
 
+VISIBLE_CLUSTER_CONDITION = (
+    "coalesce(k.workflow->>'ownershipStatus','') <> 'ARCHIVED'"
+)
+
+
 def camel(key):
     first, *rest = key.split("_")
     return first + "".join(part.title() for part in rest)
@@ -47,7 +52,11 @@ class Repository:
             "JOIN customer_management.customers c USING(customer_id) "
             "JOIN environment_management.environments e USING(environment_id) "
             "LEFT JOIN cluster_management.cluster_identity_integrations i USING(cluster_id) "
-            "WHERE k.cluster_id=%s AND " + scope + (" FOR UPDATE OF k" if lock else ""),
+            "WHERE k.cluster_id=%s AND "
+            + VISIBLE_CLUSTER_CONDITION
+            + " AND "
+            + scope
+            + (" FOR UPDATE OF k" if lock else ""),
             [identifier, *params],
         ).fetchone()
         if not row:
@@ -963,7 +972,7 @@ class Repository:
 
     def list(self, query, access=None):
         scope, params = scope_clause(self.principal)
-        conditions = [scope]
+        conditions = [VISIBLE_CLUSTER_CONDITION, scope]
         for key, column in {
             "status": "k.status", "environmentId": "k.environment_id",
             "customerId": "k.customer_id", "platform": "k.platform",
