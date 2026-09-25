@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+${common_bootstrap}
+
+PRIVATE_IP="$(hostname -I | awk '{print $1}')"
+
+aws ssm delete-parameter \
+  --name "${join_parameter_name}" \
+  --region "${aws_region}" || true
+
+kubeadm init \
+  --kubernetes-version "stable-${kubernetes_version}" \
+  --apiserver-advertise-address "$PRIVATE_IP" \
+  --pod-network-cidr "${pod_cidr}" \
+  --service-cidr "${service_cidr}"
+
+mkdir -p /root/.kube /home/ubuntu/.kube
+cp /etc/kubernetes/admin.conf /root/.kube/config
+cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+chown -R ubuntu:ubuntu /home/ubuntu/.kube
+
+kubectl create -f \
+  "https://raw.githubusercontent.com/projectcalico/calico/v${calico_version}/manifests/operator-crds.yaml"
+kubectl create -f \
+  "https://raw.githubusercontent.com/projectcalico/calico/v${calico_version}/manifests/tigera-operator.yaml"
+curl -fsSL \
+  "https://raw.githubusercontent.com/projectcalico/calico/v${calico_version}/manifests/custom-resources.yaml" \
+  | sed "s#cidr: 192.168.0.0/16#cidr: ${pod_cidr}#" \
+  | kubectl create -f -
+
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server
+helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+helm repo update
+
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.service.type=NodePort \
+  --set controller.metrics.enabled=true
+
+helm upgrade --install metrics-server metrics-server/metrics-server \
+  --namespace kube-system \
+  --set 'args[0]=--cert-dir=/tmp' \
+  --set 'args[1]=--secure-port=10250' \
+  --set 'args[2]=--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname' \
+  --set 'args[3]=--kubelet-use-node-status-port' \
+  --set 'args[4]=--metric-resolution=15s' \
+  --set 'args[5]=--kubelet-insecure-tls'
+
+helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
+  --namespace kube-system
+
+JOIN_COMMAND="$(kubeadm token create --ttl 24h --print-join-command)"
+aws ssm put-parameter \
+  --name "${join_parameter_name}" \
+  --type SecureString \
+  --overwrite \
+  --value "$JOIN_COMMAND" \
+  --region "${aws_region}"
+
+aws ssm put-parameter \
+  --name "${cluster_ready_name}" \
+  --type String \
+  --overwrite \
+  --value "$(date -u +%FT%TZ)" \
+  --region "${aws_region}"
+
+kubectl label node "$(hostname)" navigan.io/lab-role=control-plane --overwrite
+
+EXPECTED_NODES="$((1 + ${worker_count}))"
+for attempt in $(seq 1 90); do
+  READY_NODES="$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')"
+  if [[ "$READY_NODES" -ge "$EXPECTED_NODES" ]]; then
+    break
+  fi
+  sleep 20
+done
+
+if [[ "$${READY_NODES:-0}" -lt "$EXPECTED_NODES" ]]; then
+  echo "Timed out waiting for all Kubernetes nodes to become Ready" >&2
+  exit 1
+fi
+
+kubectl wait --for=condition=Available deployment/metrics-server \
+  --namespace kube-system --timeout=10m
+kubectl wait --for=condition=Available deployment/ebs-csi-controller \
+  --namespace kube-system --timeout=10m
+kubectl wait --for=condition=Available deployment/ingress-nginx-controller \
+  --namespace ingress-nginx --timeout=10m
+
+mkdir -p /opt/navigan/reference-application
+aws s3 cp \
+  "s3://${workload_bucket}/${workload_object_key}" \
+  /tmp/reference-application.zip \
+  --region "${aws_region}"
+unzip -o /tmp/reference-application.zip -d /opt/navigan/reference-application
+kubectl apply -k /opt/navigan/reference-application
+
+kubectl rollout status statefulset/postgres -n migration-demo --timeout=10m
+kubectl rollout status statefulset/redis -n migration-demo --timeout=10m
+kubectl rollout status deployment/reference-api -n migration-demo --timeout=10m
+kubectl rollout status deployment/reference-frontend -n migration-demo --timeout=10m
+kubectl wait --for=condition=complete job/reference-connectivity-check \
+  -n migration-demo --timeout=5m
