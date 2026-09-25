@@ -1,18 +1,18 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: reference-api
+  name: retailflow-api
 automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: reference-operator
+  name: retailflow-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: reference-reader
+  name: retailflow-reader
 rules:
   - apiGroups: [""]
     resources: ["configmaps", "pods", "services"]
@@ -24,12 +24,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: reference-reader
+  name: retailflow-reader
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: reference-reader
+  name: retailflow-reader
 subjects:
   - kind: ServiceAccount
-    name: reference-operator
-    namespace: migration-demo
+    name: retailflow-operator
+    namespace: retailflow

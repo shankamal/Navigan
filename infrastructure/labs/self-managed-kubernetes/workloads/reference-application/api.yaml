@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reference-api
+  name: retailflow-api
 spec:
   replicas: 2
   revisionHistoryLimit: 3
@@ -9,17 +9,17 @@ spec:
     type: RollingUpdate
     rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
   selector:
-    matchLabels: {app: reference-api}
+    matchLabels: {app: retailflow-api}
   template:
     metadata:
       labels:
-        app: reference-api
+        app: retailflow-api
         tier: application
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
     spec:
-      serviceAccountName: reference-api
+      serviceAccountName: retailflow-api
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 10001
@@ -30,8 +30,9 @@ spec:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
           labelSelector:
-            matchLabels: {app: reference-api}
+            matchLabels: {app: retailflow-api}
       initContainers:
         - name: wait-for-data-services
           image: busybox:1.37
@@ -41,6 +42,9 @@ spec:
             - until nc -z postgres 5432 && nc -z redis 6379; do sleep 2; done
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10005
             capabilities: {drop: ["ALL"]}
       containers:
         - name: api
@@ -48,7 +52,7 @@ spec:
           command: ["python", "/app/server.py"]
           envFrom:
             - configMapRef:
-                name: reference-settings
+                name: retailflow-settings
           env:
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
@@ -76,7 +80,7 @@ spec:
             capabilities: {drop: ["ALL"]}
           volumeMounts:
             - {name: source, mountPath: /app, readOnly: true}
-            - {name: secret, mountPath: /var/run/secrets/reference, readOnly: true}
+            - {name: secret, mountPath: /var/run/secrets/retailflow, readOnly: true}
             - {name: tmp, mountPath: /tmp}
         - name: heartbeat-sidecar
           image: busybox:1.37
@@ -93,11 +97,11 @@ spec:
       volumes:
         - name: source
           configMap:
-            name: reference-api-source
+            name: retailflow-api-source
             defaultMode: 0444
         - name: secret
           secret:
-            secretName: reference-secrets
+            secretName: retailflow-secrets
             defaultMode: 0440
         - name: tmp
           emptyDir:
@@ -106,9 +110,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: reference-api
+  name: retailflow-api
 spec:
-  selector: {app: reference-api}
+  selector: {app: retailflow-api}
   ports:
     - name: http
       port: 8080
@@ -117,12 +121,12 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: reference-api
+  name: retailflow-api
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: reference-api
+    name: retailflow-api
   minReplicas: 2
   maxReplicas: 6
   behavior:

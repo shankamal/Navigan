@@ -24,13 +24,13 @@ variable "vpc_cidr" {
 variable "control_plane_instance_type" {
   description = "EC2 type for the single lab control-plane node."
   type        = string
-  default     = "t3.large"
+  default     = "t3.medium"
 }
 
 variable "worker_instance_type" {
   description = "EC2 type for worker nodes."
   type        = string
-  default     = "t3.large"
+  default     = "t3.small"
 }
 
 variable "worker_count" {
@@ -47,7 +47,12 @@ variable "worker_count" {
 variable "root_volume_size_gib" {
   description = "Encrypted gp3 root volume size for every node."
   type        = number
-  default     = 40
+  default     = 30
+
+  validation {
+    condition     = var.root_volume_size_gib >= 30 && var.root_volume_size_gib <= 100
+    error_message = "root_volume_size_gib must be between 30 and 100 GiB."
+  }
 }
 
 variable "kubernetes_minor_version" {

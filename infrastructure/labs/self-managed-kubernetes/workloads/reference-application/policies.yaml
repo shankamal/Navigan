@@ -12,7 +12,7 @@ metadata:
   name: allow-ingress-to-frontend
 spec:
   podSelector:
-    matchLabels: {app: reference-frontend}
+    matchLabels: {app: retailflow-frontend}
   policyTypes: ["Ingress"]
   ingress:
     - from:
@@ -31,12 +31,12 @@ metadata:
   name: allow-frontend-and-diagnostics-to-api
 spec:
   podSelector:
-    matchLabels: {app: reference-api}
+    matchLabels: {app: retailflow-api}
   policyTypes: ["Ingress"]
   ingress:
     - from:
         - podSelector:
-            matchLabels: {app: reference-frontend}
+            matchLabels: {app: retailflow-frontend}
         - podSelector:
             matchLabels: {tier: diagnostics}
       ports:
@@ -53,7 +53,7 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels: {app: reference-api}
+            matchLabels: {app: retailflow-api}
       ports:
         - {protocol: TCP, port: 5432}
         - {protocol: TCP, port: 6379}

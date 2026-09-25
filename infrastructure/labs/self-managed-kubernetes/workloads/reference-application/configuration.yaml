@@ -1,16 +1,16 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: reference-settings
+  name: retailflow-settings
 data:
-  APP_ENV: migration-lab
-  API_MESSAGE: Navigan self-managed Kubernetes reference application
+  APP_ENV: retailflow
+  API_MESSAGE: RetailFlow order-management application
   FEATURE_BACKGROUND_JOBS: "true"
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: reference-api-source
+  name: retailflow-api-source
 data:
   server.py: |
     import json
@@ -45,7 +45,7 @@ data:
                         "postgres": tcp_status("postgres", 5432),
                         "redis": tcp_status("redis", 6379),
                     },
-                    "secretMounted": os.path.exists("/var/run/secrets/reference/API_TOKEN"),
+                        "secretMounted": os.path.exists("/var/run/secrets/retailflow/API_TOKEN"),
                 }, 200
             body = json.dumps(payload).encode()
             self.send_response(status)
@@ -59,7 +59,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: reference-nginx
+  name: retailflow-nginx
 data:
   default.conf: |
     server {
@@ -74,19 +74,19 @@ data:
       location /api/ {
         proxy_set_header Host $host;
         proxy_set_header X-Request-ID $request_id;
-        proxy_pass http://reference-api:8080/;
+        proxy_pass http://retailflow-api:8080/;
       }
 
       location / {
         default_type text/html;
-        return 200 '<html><body><h1>Navigan migration reference application</h1><p>Use <a href="/api/">/api/</a> to test pod-to-pod communication.</p></body></html>';
+        return 200 '<html><body><h1>RetailFlow</h1><p>Order-management application running on self-managed Kubernetes.</p><p>Use <a href="/api/">/api/</a> to inspect service dependencies.</p></body></html>';
       }
     }
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: reference-secrets
+  name: retailflow-secrets
 type: Opaque
 stringData:
   API_TOKEN: replace-before-non-lab-use

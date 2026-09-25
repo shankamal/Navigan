@@ -17,15 +17,16 @@ mkdir -p /root/.kube /home/ubuntu/.kube
 cp /etc/kubernetes/admin.conf /root/.kube/config
 cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
 chown -R ubuntu:ubuntu /home/ubuntu/.kube
+export KUBECONFIG=/etc/kubernetes/admin.conf
 
-kubectl create -f \
+kubectl apply --server-side --force-conflicts -f \
   "https://raw.githubusercontent.com/projectcalico/calico/v${calico_version}/manifests/operator-crds.yaml"
-kubectl create -f \
+kubectl apply --server-side --force-conflicts -f \
   "https://raw.githubusercontent.com/projectcalico/calico/v${calico_version}/manifests/tigera-operator.yaml"
 curl -fsSL \
   "https://raw.githubusercontent.com/projectcalico/calico/v${calico_version}/manifests/custom-resources.yaml" \
   | sed "s#cidr: 192.168.0.0/16#cidr: ${pod_cidr}#" \
-  | kubectl create -f -
+  | kubectl apply -f -
 
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
@@ -44,7 +45,7 @@ helm upgrade --install metrics-server metrics-server/metrics-server \
   --namespace kube-system \
   --set 'args[0]=--cert-dir=/tmp' \
   --set 'args[1]=--secure-port=10250' \
-  --set 'args[2]=--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname' \
+  --set-string 'args[2]=--kubelet-preferred-address-types=InternalIP\,ExternalIP\,Hostname' \
   --set 'args[3]=--kubelet-use-node-status-port' \
   --set 'args[4]=--metric-resolution=15s' \
   --set 'args[5]=--kubelet-insecure-tls'
@@ -98,9 +99,9 @@ aws s3 cp \
 unzip -o /tmp/reference-application.zip -d /opt/navigan/reference-application
 kubectl apply -k /opt/navigan/reference-application
 
-kubectl rollout status statefulset/postgres -n migration-demo --timeout=10m
-kubectl rollout status statefulset/redis -n migration-demo --timeout=10m
-kubectl rollout status deployment/reference-api -n migration-demo --timeout=10m
-kubectl rollout status deployment/reference-frontend -n migration-demo --timeout=10m
-kubectl wait --for=condition=complete job/reference-connectivity-check \
-  -n migration-demo --timeout=5m
+kubectl rollout status statefulset/postgres -n retailflow --timeout=10m
+kubectl rollout status statefulset/redis -n retailflow --timeout=10m
+kubectl rollout status deployment/retailflow-api -n retailflow --timeout=10m
+kubectl rollout status deployment/retailflow-frontend -n retailflow --timeout=10m
+kubectl wait --for=condition=complete job/retailflow-connectivity-check \
+  -n retailflow --timeout=5m

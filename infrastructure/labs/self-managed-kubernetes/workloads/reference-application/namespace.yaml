@@ -1,9 +1,10 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: migration-demo
+  name: retailflow
   labels:
-    app.kubernetes.io/part-of: navigan-migration-reference
+    app.kubernetes.io/name: retailflow
+    app.kubernetes.io/part-of: retailflow
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted

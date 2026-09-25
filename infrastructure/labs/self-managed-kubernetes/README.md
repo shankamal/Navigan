@@ -20,6 +20,11 @@ Navigan migration accelerator.
 The single control plane is intentional for this disposable development lab.
 It is not a production high-availability design.
 
+The default Mumbai topology uses one `t3.medium`, two `t3.small` workers and
+30 GiB root volumes. Its September 2026 baseline is approximately USD 86 per
+month before tax, internet data transfer and excess burst CPU charges. Stop the
+instances whenever the lab is idle.
+
 ## Create a plan
 
 ```bash
@@ -58,8 +63,11 @@ Run the `reference_application_validation_command` output on the control-plane
 node, then inspect all resources:
 
 ```bash
-sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get all,pvc,ingress,networkpolicy -n migration-demo
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get all,pvc,ingress,networkpolicy -n retailflow
 ```
+
+RetailFlow is exposed through the existing ingress controller at
+`https://retailflow.navigan.click:32024`.
 
 ## Remove the lab
 

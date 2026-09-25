@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reference-frontend
+  name: retailflow-frontend
 spec:
   replicas: 2
   selector:
-    matchLabels: {app: reference-frontend}
+    matchLabels: {app: retailflow-frontend}
   template:
     metadata:
       labels:
-        app: reference-frontend
+        app: retailflow-frontend
         tier: frontend
     spec:
       affinity:
@@ -19,10 +19,10 @@ spec:
               podAffinityTerm:
                 topologyKey: kubernetes.io/hostname
                 labelSelector:
-                  matchLabels: {app: reference-frontend}
+                  matchLabels: {app: retailflow-frontend}
       containers:
         - name: nginx
-          image: nginx:1.29-alpine
+          image: nginxinc/nginx-unprivileged:1.29-alpine
           ports:
             - name: http
               containerPort: 8080
@@ -37,6 +37,9 @@ spec:
             limits: {cpu: 250m, memory: 128Mi}
           securityContext:
             allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
             capabilities: {drop: ["ALL"]}
           volumeMounts:
             - name: nginx-config
@@ -45,14 +48,14 @@ spec:
       volumes:
         - name: nginx-config
           configMap:
-            name: reference-nginx
+            name: retailflow-nginx
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: reference-frontend
+  name: retailflow-frontend
 spec:
-  selector: {app: reference-frontend}
+  selector: {app: retailflow-frontend}
   ports:
     - name: http
       port: 80
@@ -61,19 +64,23 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: reference-application
+  name: retailflow
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - retailflow.navigan.click
+      secretName: retailflow-tls
   rules:
-    - host: migration-lab.navigan.local
+    - host: retailflow.navigan.click
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: reference-frontend
+                name: retailflow-frontend
                 port:
                   name: http

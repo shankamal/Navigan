@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reference-worker
+  name: retailflow-order-processor
 spec:
   replicas: 1
   selector:
-    matchLabels: {app: reference-worker}
+    matchLabels: {app: retailflow-order-processor}
   template:
     metadata:
       labels:
-        app: reference-worker
+        app: retailflow-order-processor
         tier: worker
     spec:
       containers:
@@ -18,10 +18,10 @@ spec:
           command:
             - sh
             - -c
-            - while true; do echo "$(date -u) processed demo message"; sleep 20; done
+            - while true; do echo "$(date -u) processed RetailFlow order"; sleep 20; done
           envFrom:
             - configMapRef:
-                name: reference-settings
+                name: retailflow-settings
           resources:
             requests: {cpu: 10m, memory: 16Mi}
             limits: {cpu: 100m, memory: 64Mi}
@@ -35,14 +35,14 @@ spec:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: reference-node-agent
+  name: retailflow-node-agent
 spec:
   selector:
-    matchLabels: {app: reference-node-agent}
+    matchLabels: {app: retailflow-node-agent}
   template:
     metadata:
       labels:
-        app: reference-node-agent
+        app: retailflow-node-agent
         tier: operations
     spec:
       tolerations:

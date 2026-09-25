@@ -35,5 +35,5 @@ output "bootstrap_artifact_bucket" {
 }
 
 output "reference_application_validation_command" {
-  value = "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl logs -n migration-demo job/reference-connectivity-check"
+  value = "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl logs -n retailflow job/retailflow-connectivity-check"
 }
