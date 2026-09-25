@@ -7,5 +7,5 @@ navigan:
   apiBaseUrl: ""
   connectorId: ""
   existingSecret: navigan-cluster-connector
-  syncIntervalSeconds: 60
+  syncIntervalSeconds: 30
   toolsTunnelUrl: ""

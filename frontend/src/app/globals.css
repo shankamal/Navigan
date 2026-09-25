@@ -1529,14 +1529,6 @@ td {
   font-size: 0.875rem;
   font-weight: 500;
 }
-.connector-upgrade-notice {
-  max-width: 760px;
-  margin-bottom: 16px;
-}
-.connector-upgrade-notice .button {
-  width: fit-content;
-  margin-top: 6px;
-}
 .namespace-inventory-state.warning {
   border-color: #e5c9a1;
   background: #fff9ef;

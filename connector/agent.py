@@ -813,6 +813,24 @@ def main():
     interval = max(30, min(int(os.environ.get("SYNC_INTERVAL_SECONDS", "60")), 600))
     next_github_refresh = 0
     while True:
+        results = []
+        try:
+            # Access reconciliation is the connector's primary control-plane
+            # responsibility. Run it before telemetry collection so a failure
+            # in optional inventory or health reporting cannot leave a newly
+            # granted or revoked assignment waiting indefinitely.
+            results = reconcile(base_url, connector_id, connector_token)
+        except Exception as error:
+            print(
+                json.dumps(
+                    {
+                        "event": "access_reconciliation_failed",
+                        "errorType": type(error).__name__,
+                        "error": error_detail(error),
+                    }
+                ),
+                flush=True,
+            )
         try:
             now = time.time()
             if now >= next_github_refresh:
@@ -851,7 +869,6 @@ def main():
                 component_inventory,
                 runtime,
             )
-            results = reconcile(base_url, connector_id, connector_token)
             mark_ready()
             print(
                 json.dumps(
@@ -869,7 +886,7 @@ def main():
             print(
                 json.dumps(
                     {
-                        "event": "namespace_inventory_failed",
+                        "event": "platform_inventory_failed",
                         "errorType": type(error).__name__,
                         "error": error_detail(error),
                     }

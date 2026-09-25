@@ -1460,10 +1460,6 @@ export function ClusterAccessPage({
         ? 5000
         : false,
   });
-  const hasPendingAssignments =
-    access.data?.assignments.some(
-      (assignment) => assignment.status === "PENDING",
-    ) ?? false;
   const subjects =
     subjectType === "USER"
       ? (directory.data?.users ?? [])
@@ -1619,27 +1615,6 @@ export function ClusterAccessPage({
         }
       />
       {error && <ErrorNotice error={error} />}
-      {hasPendingAssignments &&
-        namespaceInventory.data?.status === "READY" &&
-        namespaceInventory.data.connectorId && (
-          <div className="namespace-inventory-state connector-upgrade-notice">
-            <strong>Access reconciliation update available</strong>
-            <span>
-              Update the cluster connector so pending Kubernetes access can be
-              applied and confirmed automatically.
-            </span>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={installConnector.isPending}
-              onClick={() => installConnector.mutate()}
-            >
-              {installConnector.isPending
-                ? "Starting connector update…"
-                : "Update cluster connector"}
-            </Button>
-          </div>
-        )}
       {cluster.error ? (
         <ErrorNotice error={cluster.error} onRetry={() => cluster.refetch()} />
       ) : (
@@ -2044,8 +2019,8 @@ export function ClusterAccessPage({
                     : `Grant access to ${selectedSubjects.length || 0} selected`}
                 </Button>
                 <p className="metadata">
-                  New assignments remain pending until Kubernetes RBAC
-                  reconciliation succeeds.
+                  Navigan applies the assignment automatically through the
+                  existing cluster connector.
                 </p>
               </form>
             )}
@@ -2101,12 +2076,12 @@ export function ClusterAccessPage({
                         className={`status-badge status-${assignment.status.toLowerCase()}`}
                         title={
                           assignment.status === "PENDING"
-                            ? "Waiting for the cluster connector to reconcile Kubernetes RBAC."
+                            ? "Navigan is applying this assignment automatically through the cluster connector."
                             : undefined
                         }
                       >
                         {assignment.status === "PENDING"
-                          ? "Awaiting sync"
+                          ? "Applying"
                           : assignment.status === "ACTIVE"
                             ? "Enabled"
                             : assignment.status.toLowerCase()}

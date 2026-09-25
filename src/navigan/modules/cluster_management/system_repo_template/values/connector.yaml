@@ -8,5 +8,5 @@ navigan:
   apiBaseUrl: __NAVIGAN_API_BASE_URL__
   connectorId: __CONNECTOR_ID__
   existingSecret: navigan-cluster-connector
-  syncIntervalSeconds: 60
+  syncIntervalSeconds: 30
   toolsTunnelUrl: __NAVIGAN_TOOLS_TUNNEL_URL__

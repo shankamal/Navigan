@@ -1,11 +1,96 @@
 import base64
 import io
+import json
 import threading
 import urllib.error
 
 import pytest
 
 from connector import agent
+
+
+def connector_environment(monkeypatch):
+    monkeypatch.setenv("NAVIGAN_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv(
+        "NAVIGAN_CONNECTOR_ID",
+        "KCC-0123456789abcdef0123456789abcdef",
+    )
+    monkeypatch.setenv(
+        "NAVIGAN_CONNECTOR_TOKEN",
+        "connector-token-value-with-sufficient-length",
+    )
+    monkeypatch.delenv("NAVIGAN_TOOLS_TUNNEL_URL", raising=False)
+    monkeypatch.setattr(
+        agent,
+        "refresh_github_repository_credential",
+        lambda *_args: None,
+    )
+
+
+def stop_after_first_cycle(monkeypatch):
+    monkeypatch.setattr(
+        agent.time,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(StopIteration()),
+    )
+
+
+def test_access_reconciliation_runs_before_failing_platform_inventory(
+    monkeypatch,
+    capsys,
+):
+    connector_environment(monkeypatch)
+    stop_after_first_cycle(monkeypatch)
+    calls = []
+
+    monkeypatch.setattr(
+        agent,
+        "reconcile",
+        lambda *_args: calls.append("access") or [],
+    )
+
+    def failing_namespaces():
+        calls.append("inventory")
+        raise RuntimeError("inventory unavailable")
+
+    monkeypatch.setattr(agent, "namespaces", failing_namespaces)
+
+    with pytest.raises(StopIteration):
+        agent.main()
+
+    events = [json.loads(line)["event"] for line in capsys.readouterr().out.splitlines()]
+    assert calls == ["access", "inventory"]
+    assert "platform_inventory_failed" in events
+
+
+def test_access_failure_does_not_block_platform_inventory(monkeypatch, capsys):
+    connector_environment(monkeypatch)
+    stop_after_first_cycle(monkeypatch)
+    calls = []
+
+    def failing_reconciliation(*_args):
+        calls.append("access")
+        raise RuntimeError("access unavailable")
+
+    monkeypatch.setattr(agent, "reconcile", failing_reconciliation)
+    monkeypatch.setattr(agent, "namespaces", lambda: calls.append("inventory") or [])
+    monkeypatch.setattr(agent, "report", lambda *_args: None)
+    monkeypatch.setattr(agent, "platform_components", lambda: [])
+    monkeypatch.setattr(
+        agent,
+        "runtime_inventory",
+        lambda: {"resources": [], "warningEvents": [], "metrics": {}},
+    )
+    monkeypatch.setattr(agent, "report_platform_components", lambda *_args: None)
+    monkeypatch.setattr(agent, "mark_ready", lambda: None)
+
+    with pytest.raises(StopIteration):
+        agent.main()
+
+    events = [json.loads(line)["event"] for line in capsys.readouterr().out.splitlines()]
+    assert calls == ["access", "inventory"]
+    assert "access_reconciliation_failed" in events
+    assert "namespace_inventory_reported" in events
 
 
 def test_headlamp_uses_helm_release_service_name():
