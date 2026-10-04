@@ -33,7 +33,7 @@ try{
  await page.getByRole('link',{name:'New Environment',exact:true}).click();
  await page.getByLabel(/^Customer/).selectOption('CUS-demo');
  for(const [provider,label] of Object.entries({AWS:'Account ID',AZURE:'Tenant ID',GCP:'Project ID',OCI:'Tenancy OCID'})){
-  await page.getByLabel(/^Kubernetes distribution/).selectOption(provider);
+  await page.getByLabel(/^Container distribution/).selectOption(provider);
   await page.getByLabel(new RegExp(label)).waitFor();
   assert.equal(await page.getByLabel(new RegExp(label)).count(),1);
  }
