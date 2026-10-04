@@ -32,6 +32,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Verify custom login in a browser
         run: |
+          mkdir -p .next/standalone/.next
+          cp -R .next/static .next/standalone/.next/static
+          if [ -d public ]; then cp -R public .next/standalone/public; fi
           HOSTNAME=127.0.0.1 PORT=3101 node .next/standalone/server.js > /tmp/navigan-frontend.log 2>&1 &
           FRONTEND_PID=$!
           trap 'kill "$FRONTEND_PID" || true' EXIT
