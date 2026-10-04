@@ -32,7 +32,6 @@ try{
  await page.screenshot({path:'test-results/environments-desktop.png',fullPage:true});
  await page.getByRole('link',{name:'New Environment',exact:true}).click();
  await page.getByLabel(/^Customer/).selectOption('CUS-demo');
- await page.getByLabel(/^Container distribution/).selectOption('AWS');
  await page.getByLabel(/Account ID/).waitFor();
  assert.equal(await page.getByLabel(/Account ID/).count(),1);
  await page.screenshot({path:'test-results/environment-oke-form.png',fullPage:true});
