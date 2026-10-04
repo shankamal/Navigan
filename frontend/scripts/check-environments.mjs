@@ -30,7 +30,7 @@ try{
  await mkdir('test-results',{recursive:true});
  await page.goto(base+'/environments');await page.getByRole('link',{name:'Production EKS',exact:true}).waitFor();
  await page.screenshot({path:'test-results/environments-desktop.png',fullPage:true});
- await page.getByRole('link',{name:'Create environment',exact:true}).click();
+ await page.getByRole('link',{name:'New Environment',exact:true}).click();
  await page.getByLabel(/^Customer/).selectOption('CUS-demo');
  for(const [provider,label] of Object.entries({AWS:'Account ID',AZURE:'Tenant ID',GCP:'Project ID',OCI:'Tenancy OCID'})){
   await page.getByLabel(/^Kubernetes distribution/).selectOption(provider);
