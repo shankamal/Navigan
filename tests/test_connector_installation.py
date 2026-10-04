@@ -124,12 +124,37 @@ def test_token_is_written_to_customer_secret_and_not_build_metadata(monkeypatch)
     eks.list_associated_access_policies.return_value = {
         "associatedAccessPolicies": []
     }
+    eks.describe_cluster.return_value = {
+        "cluster": {
+            "resourcesVpcConfig": {
+                "vpcId": "vpc-test",
+                "clusterSecurityGroupId": "sg-cluster",
+            }
+        }
+    }
+    ec2 = MagicMock()
+    ec2.describe_security_groups.return_value = {
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-installer",
+                "VpcId": "vpc-test",
+                "Tags": [
+                    {"Key": "ManagedBy", "Value": "Navigan"},
+                    {
+                        "Key": "Purpose",
+                        "Value": "PrivateClusterGitOpsBootstrap",
+                    },
+                ],
+            }
+        ]
+    }
 
     def clients(name, **_options):
         return {
             "secretsmanager": customer_secrets,
             "codebuild": codebuild,
             "eks": eks,
+            "ec2": ec2,
         }[name]
 
     result = ConnectorInstaller(
@@ -164,3 +189,86 @@ def test_token_is_written_to_customer_secret_and_not_build_metadata(monkeypatch)
     assert "token" not in payload
     eks.describe_access_entry.assert_called_once()
     eks.associate_access_policy.assert_called_once()
+    ingress = ec2.authorize_security_group_ingress.call_args.kwargs
+    assert ingress["GroupId"] == "sg-cluster"
+    assert ingress["IpPermissions"] == [
+        {
+            "IpProtocol": "tcp",
+            "FromPort": 443,
+            "ToPort": 443,
+            "UserIdGroupPairs": [
+                {
+                    "GroupId": "sg-installer",
+                    "Description": (
+                        "Allow dedicated Navigan installer "
+                        "to reach private EKS API"
+                    ),
+                }
+            ],
+        }
+    ]
+    assert "IpRanges" not in ingress["IpPermissions"][0]
+
+def test_installer_network_discovery_fails_closed_when_ambiguous():
+    eks = MagicMock()
+    eks.describe_cluster.return_value = {
+        "cluster": {
+            "resourcesVpcConfig": {
+                "vpcId": "vpc-test",
+                "clusterSecurityGroupId": "sg-cluster",
+            }
+        }
+    }
+    tags = [
+        {"Key": "ManagedBy", "Value": "Navigan"},
+        {
+            "Key": "Purpose",
+            "Value": "PrivateClusterGitOpsBootstrap",
+        },
+    ]
+    ec2 = MagicMock()
+    ec2.describe_security_groups.return_value = {
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-installer-a",
+                "VpcId": "vpc-test",
+                "Tags": tags,
+            },
+            {
+                "GroupId": "sg-installer-b",
+                "VpcId": "vpc-test",
+                "Tags": tags,
+            },
+        ]
+    }
+
+    with pytest.raises(ApiError) as error:
+        ConnectorInstaller._ensure_cluster_network(
+            eks, ec2, "private-cluster", None
+        )
+
+    assert (
+        error.value.code
+        == "CONNECTOR_INSTALLER_SECURITY_GROUP_INVALID"
+    )
+    ec2.authorize_security_group_ingress.assert_not_called()
+
+
+def test_installer_projects_reject_worker_security_group_overrides():
+    focused = Path(
+        "infrastructure/bootstrap/"
+        "aws-connector-installer-v1.0.0/main.tf"
+    ).read_text()
+    customer = Path(
+        "infrastructure/bootstrap/aws-customer-v1.2.0/main.tf"
+    ).read_text()
+
+    assert (
+        "security_group_ids = [aws_security_group.installer.id]"
+        in focused
+    )
+    assert (
+        "security_group_ids = "
+        "[aws_security_group.connector_installer[0].id]"
+        in customer
+    )

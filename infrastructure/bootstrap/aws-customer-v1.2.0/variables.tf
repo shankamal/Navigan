@@ -104,7 +104,14 @@ variable "connector_installer_subnet_ids" {
   default     = []
 }
 variable "connector_installer_security_group_ids" {
-  description = "Deprecated. A stable dedicated installer security group is created automatically."
+  description = "Deprecated. The installer always uses its dedicated security group."
   type        = set(string)
   default     = []
+
+  validation {
+    condition = (
+      length(var.connector_installer_security_group_ids) == 0
+    )
+    error_message = "Remove connector_installer_security_group_ids; worker or shared security groups are not accepted."
+  }
 }

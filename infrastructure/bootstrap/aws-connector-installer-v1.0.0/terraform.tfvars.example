@@ -5,6 +5,3 @@ subnet_ids = [
   "subnet-REPLACE-ME-A",
   "subnet-REPLACE-ME-B",
 ]
-security_group_ids = [
-  "sg-REPLACE-ME",
-]

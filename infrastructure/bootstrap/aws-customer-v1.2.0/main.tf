@@ -517,7 +517,7 @@ resource "aws_codebuild_project" "connector_installer" {
   vpc_config {
     vpc_id             = var.connector_installer_vpc_id
     subnets            = sort(tolist(var.connector_installer_subnet_ids))
-    security_group_ids = length(var.connector_installer_security_group_ids) > 0 ? sort(tolist(var.connector_installer_security_group_ids)) : [aws_security_group.connector_installer[0].id]
+    security_group_ids = [aws_security_group.connector_installer[0].id]
   }
   tags = {
     ManagedBy         = "Navigan"

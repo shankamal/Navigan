@@ -116,7 +116,7 @@ resource "aws_codebuild_project" "installer" {
   vpc_config {
     vpc_id             = var.vpc_id
     subnets            = sort(tolist(var.subnet_ids))
-    security_group_ids = length(var.security_group_ids) > 0 ? sort(tolist(var.security_group_ids)) : [aws_security_group.installer.id]
+    security_group_ids = [aws_security_group.installer.id]
   }
   tags = {
     ManagedBy         = "Navigan"
