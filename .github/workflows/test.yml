@@ -45,7 +45,7 @@ jobs:
       - run: psql "$DATABASE_URL" -v database_name=navigan_bootstrap_test -f database/bootstrap/create_database.sql
       - run: python scripts/migrate.py
       - run: python scripts/migrate.py
-      - run: pytest -q
+      - run: python -m pytest -q
       - run: python scripts/generate_openapi.py
       - run: python scripts/generate_environment_openapi.py
       - run: git diff --exit-code docs/openapi.json docs/environment-openapi.json

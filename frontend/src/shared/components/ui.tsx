@@ -101,14 +101,16 @@ export function PageHeading({
   title,
   description,
   action,
+  className,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="page-heading">
+    <div className={["page-heading", className].filter(Boolean).join(" ")}>
       <div>
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>

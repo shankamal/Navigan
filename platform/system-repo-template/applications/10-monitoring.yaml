@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: navigan-monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: navigan-platform
+spec:
+  project: navigan-platform
+  sources:
+    - repoURL: __PLATFORM_REGISTRY__/helm
+      chart: kube-prometheus-stack
+      targetRevision: 89.2.4
+      helm:
+        releaseName: navigan-monitoring
+        valueFiles:
+          - $values/values/monitoring.yaml
+    - repoURL: __SYSTEM_REPO_URL__
+      targetRevision: __SYSTEM_REPO_REVISION__
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: navigan-monitoring
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

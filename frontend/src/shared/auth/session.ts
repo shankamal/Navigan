@@ -2,7 +2,22 @@
 import { Amplify } from "aws-amplify";
 import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
 import { fetchAuthSession, signOut as cognitoSignOut } from "aws-amplify/auth";
-import { identityFromClaims, type Identity } from "./claims";
+import {
+  identityFromClaims,
+  isHumanReadableDisplayName,
+  type Identity,
+} from "./claims";
+
+interface EffectiveAccessResponse {
+  user: { userId: string; displayName: string };
+  authorizationRevision: number;
+  privileges: string[];
+  scopes: Array<{
+    type: "SELF" | "CUSTOMER" | "PLATFORM" | "RESOURCE";
+    customerIds?: string[];
+  }>;
+  source: "DYNAMIC" | "LEGACY_CLAIMS";
+}
 
 export const authConfigured = Boolean(process.env.NEXT_PUBLIC_OIDC_CLIENT_ID);
 let configured = false;
@@ -60,11 +75,60 @@ export async function currentIdentity(): Promise<Identity | null> {
   configureAuth();
   const { tokens } = await fetchAuthSession();
   if (!tokens) return null;
-  return identityFromClaims({
+  const legacy = identityFromClaims({
     ...tokens.accessToken.payload,
     name: tokens.idToken?.payload.name,
+    given_name: tokens.idToken?.payload.given_name,
+    family_name: tokens.idToken?.payload.family_name,
     email: tokens.idToken?.payload.email,
+    preferred_username: tokens.idToken?.payload.preferred_username,
+    "cognito:username": tokens.idToken?.payload["cognito:username"],
   });
+  const response = await fetch("/api/platform/access/me", {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${tokens.accessToken.toString()}`,
+      "X-Correlation-ID": crypto.randomUUID(),
+    },
+    cache: "no-store",
+  });
+  if (response.ok) {
+    const access = (await response.json()) as EffectiveAccessResponse;
+    if (
+      access?.user?.userId !== legacy.subject ||
+      !Array.isArray(access.privileges) ||
+      !Array.isArray(access.scopes)
+    ) {
+      throw new Error(
+        "The authorization service returned an invalid identity.",
+      );
+    }
+    const customerIds = access.scopes.flatMap((scope) =>
+      scope.type === "CUSTOMER" ? (scope.customerIds ?? []) : [],
+    );
+    return {
+      ...legacy,
+      displayName: isHumanReadableDisplayName(
+        access.user.displayName,
+        legacy.subject,
+      )
+        ? access.user.displayName.trim()
+        : legacy.displayName,
+      customerIds: [...new Set(customerIds)],
+      platformScope: access.scopes.some((scope) => scope.type === "PLATFORM"),
+      canCreate: access.privileges.includes("customer.create"),
+      privileges: access.privileges,
+      authorizationRevision: access.authorizationRevision,
+      authorizationSource: access.source,
+    };
+  }
+  // During the additive rollout, keep the established Cognito identity when
+  // dynamic authorization is unavailable. This only controls client display;
+  // every upstream API continues to enforce authorization server-side.
+  if ([404, 500, 502, 503, 504].includes(response.status)) return legacy;
+  throw new Error(
+    `Authorization lookup failed with status ${response.status}.`,
+  );
 }
 export async function clearSession(): Promise<void> {
   configureAuth();

@@ -1,0 +1,12 @@
+image:
+  repository: ""
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+navigan:
+  apiBaseUrl: ""
+  connectorId: ""
+  existingSecret: navigan-cluster-connector
+  syncIntervalSeconds: 30
+  toolsTunnelUrl: ""

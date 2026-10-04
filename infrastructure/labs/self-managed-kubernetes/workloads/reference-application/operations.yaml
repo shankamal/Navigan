@@ -1,0 +1,93 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: retailflow-connectivity-check
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: retailflow-connectivity-check
+        tier: diagnostics
+    spec:
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: curlimages/curl:8.16.0
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              nslookup retailflow-api.retailflow.svc.cluster.local.
+              nslookup postgres.retailflow.svc.cluster.local.
+              nslookup redis.retailflow.svc.cluster.local.
+              curl --fail --show-error http://retailflow-api:8080/readyz
+              curl --fail --show-error http://retailflow-frontend/healthz
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retailflow-periodic-check
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: retailflow-periodic-check
+            tier: diagnostics
+        spec:
+          restartPolicy: Never
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check
+              image: curlimages/curl:8.16.0
+              command: ["curl", "--fail", "--show-error", "http://retailflow-api:8080/readyz"]
+              resources:
+                requests: {cpu: 10m, memory: 16Mi}
+                limits: {cpu: 50m, memory: 32Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 10001
+                capabilities: {drop: ["ALL"]}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: retailflow-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: retailflow-api}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: retailflow-frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: retailflow-frontend}

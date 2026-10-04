@@ -11,7 +11,8 @@ import {
   listSchema,
 } from "@/modules/customer-management/model/types";
 import { identityFromClaims } from "@/shared/auth/claims";
-import { customer, engineer, architect } from "./fixtures";
+import { hasPermission } from "@/shared/auth/permissions";
+import { customer, engineer, architect, administrator } from "./fixtures";
 describe("Customer lifecycle affordances", () => {
   it("matches all permitted lifecycle transitions", () => {
     expect(allowedActions(engineer, customer).map((x) => x.action)).toEqual([
@@ -90,6 +91,51 @@ describe("Customer lifecycle affordances", () => {
       identityFromClaims({ roles: "CLOUD_ENGINEER UNKNOWN" }).roles,
     ).toEqual(["CLOUD_ENGINEER"]);
     expect(identityFromClaims({ roles: "[invalid" }).roles).toEqual([]);
+  });
+  it("uses a human-readable identity instead of the Cognito subject ID", () => {
+    const subject = "21638d6a-7001-70d7-f897-5cbac88922b6";
+    expect(
+      identityFromClaims({
+        sub: subject,
+        name: subject,
+        email: "cloud.engineer@example.com",
+      }).displayName,
+    ).toBe("cloud.engineer@example.com");
+    expect(
+      identityFromClaims({
+        sub: subject,
+        given_name: "Cloud",
+        family_name: "Engineer",
+      }).displayName,
+    ).toBe("Cloud Engineer");
+  });
+  it("recognizes administrators without granting requester or reviewer actions", () => {
+    expect(
+      identityFromClaims({
+        sub: "admin",
+        roles: '["PLATFORM_ADMINISTRATOR"]',
+        platform_scope: "true",
+      }).roles,
+    ).toEqual(["PLATFORM_ADMINISTRATOR"]);
+    expect(hasPermission(administrator, "dashboard.platform.view")).toBe(true);
+    expect(hasPermission(administrator, "user.manage")).toBe(true);
+    expect(hasPermission(administrator, "environment.create")).toBe(false);
+    expect(hasPermission(administrator, "environment.approve")).toBe(false);
+  });
+  it("separates engineer creation from architect review permissions", () => {
+    expect(hasPermission(engineer, "environment.create")).toBe(true);
+    expect(hasPermission(engineer, "environment.review")).toBe(false);
+    expect(hasPermission(architect, "environment.create")).toBe(false);
+    expect(hasPermission(architect, "environment.review")).toBe(true);
+  });
+  it("uses dynamic privileges instead of role names when available", () => {
+    const customReviewer = {
+      ...engineer,
+      roles: [],
+      privileges: ["customer.view", "customer.review"],
+    };
+    expect(hasPermission(customReviewer, "customer.review")).toBe(true);
+    expect(hasPermission(customReviewer, "customer.create")).toBe(false);
   });
 });
 describe("API validation", () => {

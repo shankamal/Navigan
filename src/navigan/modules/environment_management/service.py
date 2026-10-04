@@ -7,11 +7,12 @@ from .configuration import DISTRIBUTIONS, validate
 from .repository import serialize
 
 TRANSITIONS = {
-    "submit": ({"DRAFT", "REJECTED"}, "SUBMITTED", "CLOUD_ENGINEER"),
-    "resubmit": ({"REJECTED"}, "SUBMITTED", "CLOUD_ENGINEER"),
+    "revise": ({"ACTIVE"}, "DRAFT", "ENVIRONMENT_AUTHOR"),
+    "submit": ({"DRAFT", "REJECTED"}, "SUBMITTED", "ENVIRONMENT_AUTHOR"),
+    "resubmit": ({"REJECTED"}, "SUBMITTED", "ENVIRONMENT_AUTHOR"),
     "review": ({"SUBMITTED"}, "UNDER_REVIEW", "PLATFORM_ARCHITECT"),
-    "approve": ({"UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
-    "reject": ({"UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
+    "approve": ({"SUBMITTED", "UNDER_REVIEW"}, "APPROVED", "PLATFORM_ARCHITECT"),
+    "reject": ({"SUBMITTED", "UNDER_REVIEW"}, "REJECTED", "PLATFORM_ARCHITECT"),
     "activate": ({"APPROVED"}, "ACTIVE", "PLATFORM_ARCHITECT"),
     "suspend": ({"ACTIVE"}, "SUSPENDED", "PLATFORM_ARCHITECT"),
     "reactivate": ({"SUSPENDED"}, "ACTIVE", "PLATFORM_ARCHITECT"),
@@ -20,6 +21,7 @@ TRANSITIONS = {
 EVENTS = {
     "create": "EnvironmentCreated",
     "update": "EnvironmentUpdated",
+    "revise": "EnvironmentRevisionStarted",
     "submit": "EnvironmentSubmitted",
     "resubmit": "EnvironmentResubmitted",
     "review": "EnvironmentReviewStarted",
@@ -40,7 +42,7 @@ class Service:
         self.principal.require("CLOUD_ENGINEER")
         if DISTRIBUTIONS[body["cloudProvider"]] != body["kubernetesDistribution"]:
             raise ApiError(422, "INVALID_DISTRIBUTION", "Distribution must match the cloud provider.")
-        self.repo.validate_parent(body["customerId"], body["cloudProvider"])
+        self.repo.validate_parent(body["customerId"], body["cloudProvider"], active=True)
         self.repo.validate_type(body["environmentType"])
         with phase("environment_configuration_validation"):
             validate(
@@ -60,6 +62,8 @@ class Service:
             "status": "DRAFT",
             "version": 1,
             "approved_version": None,
+            "pending_approved_version": None,
+            "approved_status": None,
             "created_by": self.principal.user_id,
             "created_at": now,
             "updated_by": self.principal.user_id,
@@ -77,8 +81,7 @@ class Service:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest environment before saving.")
         old = copy.deepcopy(row)
         if action == "update":
-            if not self.principal.roles.intersection({"CLOUD_ENGINEER", "PLATFORM_ARCHITECT"}):
-                self.principal.require("CLOUD_ENGINEER")
+            self.principal.require("CLOUD_ENGINEER")
             if row["status"] not in {"DRAFT", "REJECTED"}:
                 raise ApiError(
                     409, "INVALID_STATUS_TRANSITION", "Only draft or rejected environments can be edited."
@@ -99,13 +102,26 @@ class Service:
             )
         else:
             states, target, role = TRANSITIONS[action]
-            self.principal.require(role)
+            if role == "ENVIRONMENT_AUTHOR":
+                self.principal.require("CLOUD_ENGINEER")
+            else:
+                self.principal.require(role)
             if row["status"] not in states:
                 raise ApiError(
                     409, "INVALID_STATUS_TRANSITION", "Action is not allowed in the current status."
                 )
             if action in {"reject", "suspend", "deactivate"} and not body.get("reason"):
                 raise ApiError(422, "REASON_REQUIRED", "Provide a reason for this action.")
+            submitted_by = row.get("workflow", {}).get("submitted", {}).get("by")
+            if action in {"review", "approve", "reject"} and self.principal.user_id in {
+                row.get("created_by"),
+                submitted_by,
+            }:
+                raise ApiError(
+                    403,
+                    "INDEPENDENT_REVIEW_REQUIRED",
+                    "The creator or submitter cannot review or decide this environment.",
+                )
             if action in {"submit", "resubmit", "approve", "activate", "reactivate"}:
                 self.repo.validate_parent(row["customer_id"], row["provider_code"], active=True)
                 with phase("environment_submission_validation"):
@@ -117,6 +133,7 @@ class Service:
                     )
             row["status"] = target
             field = {
+                "revise": "revisionStarted",
                 "submit": "submitted",
                 "resubmit": "submitted",
                 "review": "reviewStarted",
@@ -135,7 +152,24 @@ class Service:
                 "comments": body.get("comments"),
             }
             if action == "approve":
-                row["approved_version"] = row["version"] + 1
+                row["pending_approved_version"] = row["version"] + 1
+            elif action == "activate":
+                pending = row.get("pending_approved_version")
+                if not pending:
+                    raise ApiError(
+                        409,
+                        "APPROVED_VERSION_MISSING",
+                        "Approve this revision before activating it.",
+                    )
+                row["approved_version"] = pending
+                row["pending_approved_version"] = None
+                row["approved_status"] = "ACTIVE"
+            elif action == "suspend":
+                row["approved_status"] = "SUSPENDED"
+            elif action == "reactivate":
+                row["approved_status"] = "ACTIVE"
+            elif action == "deactivate":
+                row["approved_status"] = "DEACTIVATED"
         row["version"] += 1
         row["updated_by"], row["updated_at"] = self.principal.user_id, datetime.now(timezone.utc)
         self.repo.save(row)

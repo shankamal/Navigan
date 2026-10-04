@@ -3,18 +3,180 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isAllowedRoute } from "@/shared/api/proxy";
+import { activeCustomerParams } from "@/modules/environment-management/components/environment-form";
 import {
   ConfigurationFields,
   cleanConfiguration,
 } from "@/modules/environment-management/components/configuration-fields";
+import {
+  baselineFrom,
+  defaultAwsBaselineSelection,
+  requestedResourceVariables,
+  validateAwsBaselineSelection,
+} from "@/modules/environment-management/components/aws-discovery-panel";
 import { allowedActions } from "@/modules/environment-management/model/policy";
 import type {
   ConfigurationSchema,
+  AwsDiscovery,
   Environment,
 } from "@/modules/environment-management/model/types";
 import type { Identity } from "@/shared/auth/claims";
 describe("Environment module", () => {
-  it("allows all 21 documented routes with exact methods", () => {
+  const discovery = {
+    cloudProvider: "AWS",
+    kubernetesDistribution: "EKS",
+    account: { accountId: "905418045935", principalArn: "arn:test" },
+    roleArn: "arn:aws:iam::905418045935:role/NaviganDiscoveryRole",
+    regions: [
+      {
+        region: "ap-south-1",
+        availabilityZones: [],
+        vpcs: [
+          { vpcId: "vpc-one-zone", name: "default", isDefault: true },
+          { vpcId: "vpc-ready", name: "platform", isDefault: false },
+        ],
+        subnets: [
+          {
+            subnetId: "subnet-a",
+            name: "private-a",
+            vpcId: "vpc-one-zone",
+            availabilityZone: "ap-south-1a",
+            availableIpAddressCount: 100,
+            mapPublicIpOnLaunch: false,
+            routeTableId: "rtb-a",
+            type: "PRIVATE",
+            egressTarget: "nat-a",
+          },
+          {
+            subnetId: "subnet-b",
+            name: "private-b",
+            vpcId: "vpc-ready",
+            availabilityZone: "ap-south-1a",
+            availableIpAddressCount: 90,
+            mapPublicIpOnLaunch: false,
+            routeTableId: "rtb-b",
+            type: "PRIVATE",
+            egressTarget: "nat-b",
+          },
+          {
+            subnetId: "subnet-c",
+            name: "private-c",
+            vpcId: "vpc-ready",
+            availabilityZone: "ap-south-1b",
+            availableIpAddressCount: 80,
+            mapPublicIpOnLaunch: false,
+            routeTableId: "rtb-c",
+            type: "PRIVATE",
+            egressTarget: "nat-b",
+          },
+        ],
+        securityGroups: [
+          {
+            securityGroupId: "sg-cluster",
+            name: "cluster",
+            description: "cluster traffic",
+            vpcId: "vpc-ready",
+          },
+          {
+            securityGroupId: "sg-node",
+            name: "nodes",
+            description: "node traffic",
+            vpcId: "vpc-ready",
+          },
+        ],
+        vpcEndpoints: [],
+        natGateways: [
+          {
+            natGatewayId: "nat-b",
+            vpcId: "vpc-ready",
+            subnetId: "subnet-public",
+            state: "available",
+          },
+        ],
+        kmsKeys: [
+          {
+            aliasName: "alias/eks",
+            keyArn: "arn:aws:kms:key/eks",
+            eligibility: "READY",
+          },
+        ],
+        eksClusters: [],
+        ecrRepositories: [],
+        serviceQuotas: [],
+        ebsEncryptionByDefault: true,
+      },
+    ],
+    iamRoles: [
+      {
+        roleName: "NaviganEKSClusterRole",
+        roleArn: "arn:cluster",
+        roleType: "CLUSTER",
+        eligibility: "READY",
+      },
+      {
+        roleName: "NaviganEKSNodeRole",
+        roleArn: "arn:node",
+        roleType: "NODE",
+        eligibility: "READY",
+      },
+    ],
+    provisioningRoles: [
+      { roleName: "NaviganProvisioningRole", roleArn: "arn:provisioning" },
+    ],
+    provisioningSecrets: [
+      { name: "navigan/provisioning/CUS-test", arn: "arn:secret" },
+    ],
+    counts: {},
+    fetchedAt: "2026-09-09T12:00:00Z",
+  } as AwsDiscovery;
+
+  it("requests ACTIVE customers without excluding customers that already have environments", () => {
+    expect(activeCustomerParams("bank", 2)).toEqual({
+      search: "bank",
+      status: "ACTIVE",
+      page: 2,
+      pageSize: 50,
+      sort: "name,asc",
+    });
+  });
+
+  it("prefers an EKS-ready VPC and private subnets across availability zones", () => {
+    const selected = defaultAwsBaselineSelection(discovery);
+    expect(selected.vpcId).toBe("vpc-ready");
+    expect(selected.subnetIds).toEqual(["subnet-b", "subnet-c"]);
+    expect(
+      validateAwsBaselineSelection(discovery, selected, "CC-123").ready,
+    ).toBe(true);
+  });
+
+  it("blocks a baseline that selects private subnets in only one availability zone", () => {
+    const selected = defaultAwsBaselineSelection(discovery);
+    const readiness = validateAwsBaselineSelection(
+      discovery,
+      {
+        ...selected,
+        subnetIds: ["subnet-b"],
+      },
+      "CC-123",
+    );
+    expect(readiness.ready).toBe(false);
+    expect(readiness.checks.find((item) => item.id === "subnets")?.passed).toBe(
+      false,
+    );
+  });
+
+  it("requires a cost center before an AWS baseline can be applied", () => {
+    const selected = defaultAwsBaselineSelection(discovery);
+    const readiness = validateAwsBaselineSelection(discovery, selected, "");
+    expect(readiness.ready).toBe(false);
+    expect(readiness.checks.find((item) => item.id === "tags")?.passed).toBe(
+      false,
+    );
+  });
+
+  it("allows all documented routes with exact methods", () => {
+    expect(isAllowedRoute("GET", ["access", "me"])).toBe(true);
+    expect(isAllowedRoute("POST", ["access", "me"])).toBe(false);
     const contract = JSON.parse(
       readFileSync(
         resolve(process.cwd(), "../docs/environment-openapi.json"),
@@ -34,7 +196,21 @@ describe("Environment module", () => {
         expect(isAllowedRoute(method.toUpperCase(), parts)).toBe(true);
         count++;
       }
-    expect(count).toBe(21);
+    expect(count).toBe(23);
+    expect(
+      isAllowedRoute("POST", ["environments", "blueprint-readiness"]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("POST", [
+        "environments",
+        "bootstrap-remediations",
+        "BRQ-0123456789abcdef0123456789abcdef",
+        "verify",
+      ]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("GET", ["clusters", "CLU-test", "execution-logs"]),
+    ).toBe(true);
     expect(isAllowedRoute("DELETE", ["environments", "ENV-test"])).toBe(false);
     expect(
       isAllowedRoute("POST", ["environments", "ENV-test", "versions"]),
@@ -81,6 +257,88 @@ describe("Environment module", () => {
       }),
     ).toEqual({ extensions: { feature: false } });
   });
+
+  it("persists a compact baseline instead of the full discovery inventory", () => {
+    const largeDiscovery = {
+      ...discovery,
+      regions: [
+        {
+          ...discovery.regions[0],
+          serviceQuotas: Array.from({ length: 100 }, (_, index) => ({
+            serviceCode: "eks",
+            quotaCode: `L-${index}`,
+            quotaName: `Verbose quota description ${index}`.repeat(20),
+            value: index,
+            adjustable: true,
+          })),
+          instanceTypes: Array.from({ length: 1000 }, (_, index) => ({
+            instanceType: `m7i.${index}`,
+            currentGeneration: true,
+            vCpu: 4,
+            memoryMiB: 16384,
+            architectures: ["x86_64"],
+            burstablePerformanceSupported: false,
+          })),
+        },
+      ],
+    } as AwsDiscovery;
+    const baseline = baselineFrom(
+      largeDiscovery,
+      defaultAwsBaselineSelection(largeDiscovery),
+      "DEV",
+      "Cloud Engineer",
+      "CC-123",
+    );
+    expect(
+      new TextEncoder().encode(JSON.stringify(baseline)).length,
+    ).toBeLessThan(65536);
+    expect(
+      (baseline.extensions as Record<string, unknown>).provisioningContract,
+    ).toBeTruthy();
+  });
+
+  it("generates non-secret Terraform variables for requested resource names", () => {
+    expect(
+      requestedResourceVariables({
+        EKS_CLUSTER_ROLE: "NaviganEksClusterRole-dev",
+        EKS_NODE_ROLE: "NaviganEksNodeRole-dev",
+        KMS_KEY: "alias/navigan-dev-eks",
+      }),
+    ).toEqual({
+      create_eks_cluster_role: true,
+      eks_cluster_role_name: "NaviganEksClusterRole-dev",
+      create_eks_node_role: true,
+      eks_node_role_name: "NaviganEksNodeRole-dev",
+      create_eks_kms_key: true,
+      recommended_kms_alias: "alias/navigan-dev-eks",
+      confirm_create_recommended_resources: false,
+    });
+  });
+  it("removes duplicate instance types before environment writes", () => {
+    expect(
+      cleanConfiguration({
+        clusters: [
+          {
+            nodeGroups: [
+              {
+                instanceTypes: ["m6i.large", "", "m6i.large", "m6i.xlarge"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual({
+      clusters: [
+        {
+          nodeGroups: [
+            {
+              instanceTypes: ["m6i.large", "m6i.xlarge"],
+            },
+          ],
+        },
+      ],
+    });
+  });
   it("adds approved subnet entries", () => {
     const change = vi.fn();
     render(
@@ -97,11 +355,57 @@ describe("Environment module", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add node subnets" }));
     expect(change).toHaveBeenCalledWith([""]);
   });
+  it("renders cluster blueprint fields, including provisioning, from the actual EKS schema", () => {
+    const schema = JSON.parse(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          "../src/navigan/modules/environment_management/schemas/eks-1.0.json",
+        ),
+        "utf8",
+      ),
+    ) as ConfigurationSchema;
+    render(
+      <ConfigurationFields
+        schema={schema}
+        value={{ clusters: [{}] }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText(/Kubernetes version/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Provisioning role ARN/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/External ID secret ARN/)).toBeInTheDocument();
+  });
+  it("renders integer schema fields as numeric inputs and emits numbers, not strings", () => {
+    const change = vi.fn();
+    render(
+      <ConfigurationFields
+        schema={{
+          type: "integer",
+          title: "Minimum size",
+          minimum: 0,
+          maximum: 1000,
+        }}
+        value={0}
+        onChange={change}
+      />,
+    );
+    const input = screen.getByLabelText(/Minimum size/) as HTMLInputElement;
+    expect(input.type).toBe("number");
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(change).toHaveBeenCalledWith(3);
+  });
   it("restricts approval affordances to architects", () => {
     const env = { status: "UNDER_REVIEW" } as Environment;
     expect(
       allowedActions(env, { roles: ["CLOUD_ENGINEER"] } as Identity),
     ).toEqual([]);
+    expect(
+      allowedActions(env, { roles: ["PLATFORM_ARCHITECT"] } as Identity),
+    ).toEqual(["approve", "reject"]);
+  });
+  it("lets an architect decide a submitted environment without a separate start-review click", () => {
+    const env = { status: "SUBMITTED" } as Environment;
     expect(
       allowedActions(env, { roles: ["PLATFORM_ARCHITECT"] } as Identity),
     ).toEqual(["approve", "reject"]);

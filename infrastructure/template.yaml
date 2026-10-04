@@ -7,6 +7,9 @@ Parameters:
     Type: String
   JwtAudience:
     Type: String
+  IdentityUserPoolId:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+_[A-Za-z0-9]+$'
   JwtScope:
     Type: String
     Default: navigan/api
@@ -37,6 +40,42 @@ Parameters:
     - 'false'
     Description: Set false during migration until the previous publisher has been
       stopped.
+  TerraformRunnerImageUri:
+    Type: String
+    Description: Immutable ECR image URI for the Navigan Terraform runner
+  ConnectorImageUri:
+    Type: String
+    Default: ''
+    Description: Immutable image URI for the outbound-only cluster connector
+  GitHubAppId:
+    Type: String
+    Default: ''
+  GitHubAppSlug:
+    Type: String
+    Default: ''
+  GitHubAppPrivateKeySecretArn:
+    Type: String
+    Default: ''
+    Description: Secret containing the PEM private key for the Navigan GitHub App
+  BlueprintAdvisorModelId:
+    Type: String
+    Default: ''
+    Description: Optional Amazon Bedrock model or inference-profile ID for sanitized blueprint advice
+  PlatformToolsBaseUrl:
+    Type: String
+    Default: ''
+  PlatformToolsGatewayEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+    - 'true'
+    - 'false'
+  PlatformToolsTunnelEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+    - 'true'
+    - 'false'
 Resources:
   SharedPlatform:
     Type: AWS::Serverless::Application
@@ -107,6 +146,56 @@ Resources:
         RdsCaLayerArn: *id008
         ApiId: *id009
         AuthorizerId: *id010
+        BlueprintAdvisorModelId:
+          Ref: BlueprintAdvisorModelId
+  ClusterManagement:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/cluster-management/template.yaml
+      Parameters:
+        JwtScope: *id001
+        DatabaseName: *id002
+        DatabaseProxyHost: *id003
+        ApiDatabaseSecretArn: *id004
+        SecretsKmsKeyArn: *id005
+        PrivateSubnetIds: *id006
+        LambdaSecurityGroupIds: *id007
+        RdsCaLayerArn: *id008
+        ApiId: *id009
+        AuthorizerId: *id010
+        IdentityUserPoolId:
+          Ref: IdentityUserPoolId
+        TerraformRunnerImageUri:
+          Ref: TerraformRunnerImageUri
+        ConnectorImageUri:
+          Ref: ConnectorImageUri
+        GitHubAppId:
+          Ref: GitHubAppId
+        GitHubAppSlug:
+          Ref: GitHubAppSlug
+        GitHubAppPrivateKeySecretArn:
+          Ref: GitHubAppPrivateKeySecretArn
+        PlatformToolsBaseUrl:
+          Ref: PlatformToolsBaseUrl
+        PlatformToolsGatewayEnabled:
+          Ref: PlatformToolsGatewayEnabled
+        PlatformToolsTunnelEnabled:
+          Ref: PlatformToolsTunnelEnabled
+  AccessManagement:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/access-management/template.yaml
+      Parameters:
+        JwtScope: *id001
+        DatabaseName: *id002
+        DatabaseProxyHost: *id003
+        ApiDatabaseSecretArn: *id004
+        SecretsKmsKeyArn: *id005
+        PrivateSubnetIds: *id006
+        LambdaSecurityGroupIds: *id007
+        RdsCaLayerArn: *id008
+        ApiId: *id009
+        AuthorizerId: *id010
 Outputs:
   ApiId:
     Value:
@@ -150,3 +239,64 @@ Outputs:
       Fn::GetAtt:
       - EnvironmentManagement
       - Outputs.FunctionName
+  ClusterManagementStackId:
+    Value:
+      Ref: ClusterManagement
+  ClusterFunctionName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.FunctionName
+  ClusterFunctionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.ClusterFunctionRoleArn
+  StatusFunctionName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.StatusFunctionName
+  StatusFunctionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.StatusFunctionRoleArn
+  ConnectorFunctionName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.ConnectorFunctionName
+  ConnectorRepositoryUri:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.ConnectorRepositoryUri
+  AccessManagementStackId:
+    Value:
+      Ref: AccessManagement
+  AccessFunctionName:
+    Value:
+      Fn::GetAtt:
+      - AccessManagement
+      - Outputs.FunctionName
+  TerraformProjectName:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformProjectName
+  TerraformArtifactBucket:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformArtifactBucket
+  TerraformStateKmsKeyArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformStateKmsKeyArn
+  TerraformExecutionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - ClusterManagement
+      - Outputs.TerraformExecutionRoleArn

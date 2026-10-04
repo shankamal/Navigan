@@ -10,6 +10,13 @@ from navigan.shared.errors import ApiError
 from navigan.modules.environment_management.configuration import schema, validate
 from navigan.modules.environment_management.handler import resource_path, query_params, lambda_handler
 from navigan.modules.environment_management.service import Service, TRANSITIONS
+from navigan.modules.environment_management.models import (
+    AwsDiscoveryRequest,
+    CreateBootstrapRemediation,
+)
+from navigan.modules.environment_management.discovery import _route_profile, _subnet_routes
+from navigan.modules.environment_management.readiness import assess_eks_blueprints
+from navigan.modules.environment_management.remediation import BootstrapRemediationService
 
 
 def example(distribution):
@@ -22,6 +29,8 @@ def example(distribution):
             return {k: fill(v) for k, v in node["properties"].items() if k in node.get("required", [])}
         if node["type"] == "array":
             return [fill(node["items"]) for _ in range(node.get("minItems", 1))]
+        if node["type"] in ("integer", "number"):
+            return node.get("minimum", 0)
         pattern = node.get("pattern", "")
         mappings = {
             "Account ID": "123456789012",
@@ -36,6 +45,11 @@ def example(distribution):
             "Security group ID": "sg-123abc",
             "Role ARN": "arn:aws:iam::123456789012:role/example",
             "KMS key ARN": "arn:aws:kms:ap-south-1:123456789012:key/abc",
+            "Kubernetes version": "1.33",
+            "Provisioning role ARN": "arn:aws:iam::123456789012:role/NaviganProvisioningRole",
+            "External ID secret ARN": (
+                "arn:aws:secretsmanager:ap-south-1:123456789012:secret:navigan/provisioning/example"
+            ),
         }
         if node.get("title") in mappings:
             return mappings[node["title"]]
@@ -47,6 +61,7 @@ def example(distribution):
 
     config = fill(schema(distribution, "1.0"))
     if distribution == "EKS":
+        config["location"]["region"] = "ap-south-1"
         for key in ["clusterSubnets", "nodeSubnets"]:
             config["network"][key] = [
                 {"subnetId": "subnet-123abc", "availabilityZone": "ap-south-1a"},
@@ -99,6 +114,48 @@ def test_eks_az_rule_and_distribution_schema():
         schema("../../etc", "1.0")
 
 
+def test_eks_rejects_cross_vpc_account_and_region_references():
+    config = example("EKS")
+    config["network"]["clusterSubnets"][0]["vpcId"] = "vpc-other"
+    config["security"]["clusterSecurityGroups"][0]["vpcId"] = "vpc-other"
+    config["iam"]["clusterRole"]["roleArn"] = "arn:aws:iam::210987654321:role/cluster"
+    config["encryption"]["nodeVolumeKmsKey"]["keyArn"] = "arn:aws:kms:us-east-1:123456789012:key/abc"
+    with pytest.raises(ApiError) as error:
+        validate(config, "EKS", "1.0", True)
+    fields = {item["field"] for item in error.value.details["fields"]}
+    assert "configuration.network.clusterSubnets" in fields
+    assert "configuration.security.clusterSecurityGroups" in fields
+    assert "configuration.iam.clusterRole.roleArn" in fields
+    assert "configuration.encryption.nodeVolumeKmsKey.keyArn" in fields
+
+
+def test_eks_environment_submission_does_not_require_cluster_blueprints():
+    config = example("EKS")
+    config.pop("clusters", None)
+    validate(config, "EKS", "1.0")
+    validate(config, "EKS", "1.0", True)
+
+
+def test_route_table_classification_uses_effective_default_route():
+    tables = [
+        {
+            "RouteTableId": "rtb-main",
+            "VpcId": "vpc-1",
+            "Associations": [{"Main": True}],
+            "Routes": [{"DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": "nat-1"}],
+        },
+        {
+            "RouteTableId": "rtb-public",
+            "VpcId": "vpc-1",
+            "Associations": [{"SubnetId": "subnet-public"}],
+            "Routes": [{"DestinationCidrBlock": "0.0.0.0/0", "GatewayId": "igw-1"}],
+        },
+    ]
+    explicit, main = _subnet_routes(tables)
+    assert _route_profile(main["vpc-1"]) == ("PRIVATE", "nat-1")
+    assert _route_profile(explicit["subnet-public"]) == ("PUBLIC", "igw-1")
+
+
 @pytest.mark.parametrize(
     "stage,path,expected",
     [
@@ -146,6 +203,152 @@ def test_stale_version_not_saved():
     repo.save.assert_not_called()
 
 
+def test_aws_discovery_request_requires_matching_fixed_role_and_distinct_regions():
+    valid = {
+        "customerId": "CUS-test",
+        "accountId": "123456789012",
+        "roleArn": "arn:aws:iam::123456789012:role/NaviganDiscoveryRole",
+        "externalId": "navigan-test-123",
+        "regions": ["ap-south-1"],
+    }
+    assert AwsDiscoveryRequest.model_validate(valid).accountId == "123456789012"
+    with pytest.raises(Exception):
+        AwsDiscoveryRequest.model_validate({**valid, "accountId": "210987654321"})
+    with pytest.raises(Exception):
+        AwsDiscoveryRequest.model_validate({**valid, "regions": ["ap-south-1", "ap-south-1"]})
+
+
+def test_resource_fulfilment_request_enforces_action_mapping_and_safe_names():
+    valid = {
+        "customerId": "CUS-test",
+        "accountId": "123456789012",
+        "region": "ap-south-1",
+        "discoveryRoleArn": "arn:aws:iam::123456789012:role/NaviganDiscoveryRole",
+        "missingResources": ["EKS_CLUSTER_ROLE", "KMS_KEY"],
+        "requestedActions": ["CREATE_EKS_CLUSTER_ROLE", "CREATE_KMS_KEY"],
+        "desiredResources": {
+            "EKS_CLUSTER_ROLE": "CustomerEksClusterRole",
+            "KMS_KEY": "alias/customer-eks",
+        },
+        "confirmed": True,
+    }
+    model = CreateBootstrapRemediation.model_validate(valid)
+    assert model.desiredResources["KMS_KEY"] == "alias/customer-eks"
+    with pytest.raises(Exception):
+        CreateBootstrapRemediation.model_validate(
+            {**valid, "requestedActions": ["CREATE_KMS_KEY", "CREATE_EKS_CLUSTER_ROLE"]}
+        )
+    with pytest.raises(Exception):
+        CreateBootstrapRemediation.model_validate(
+            {
+                **valid,
+                "missingResources": ["KMS_KEY"],
+                "requestedActions": ["CREATE_KMS_KEY"],
+            }
+        )
+
+
+def test_resource_fulfilment_verification_requires_exact_ready_resources():
+    row = {
+        "desiredResources": {
+            "EKS_CLUSTER_ROLE": "CustomerEksClusterRole",
+            "EKS_NODE_ROLE": "CustomerEksNodeRole",
+            "KMS_KEY": "alias/customer-eks",
+        },
+        "missingResources": [
+            "EKS_CLUSTER_ROLE",
+            "EKS_NODE_ROLE",
+            "KMS_KEY",
+            "PROVISIONING_ROLE",
+        ],
+    }
+    discovery = {
+        "iamRoles": [
+            {
+                "roleName": "CustomerEksClusterRole",
+                "roleType": "CLUSTER",
+                "eligibility": "READY",
+            },
+            {
+                "roleName": "CustomerEksNodeRole",
+                "roleType": "NODE",
+                "eligibility": "READY",
+            },
+        ],
+        "provisioningRoles": [
+            {
+                "roleName": "NaviganProvisioningRole",
+                "roleArn": "arn:aws:iam::123456789012:role/NaviganProvisioningRole",
+            }
+        ],
+        "provisioningSecrets": [],
+        "regions": [
+            {
+                "kmsKeys": [
+                    {
+                        "aliasName": "alias/customer-eks",
+                        "eligibility": "READY",
+                    }
+                ],
+                "kubernetesVersions": ["1.35"],
+            }
+        ],
+    }
+    found, missing = BootstrapRemediationService._verification_result(row, discovery)
+    assert not missing
+    assert found["PROVISIONING_ROLE"] == "discovered"
+    discovery["iamRoles"][1]["eligibility"] = "BLOCKED"
+    _, missing = BootstrapRemediationService._verification_result(row, discovery)
+    assert missing == ["EKS_NODE_ROLE"]
+
+
+def test_environment_review_must_be_independent():
+    repo = MagicMock()
+    repo.principal = Principal("maker", frozenset({"PLATFORM_ARCHITECT"}), frozenset(), True)
+    repo.get.return_value = {
+        "version": 1,
+        "status": "SUBMITTED",
+        "created_by": "maker",
+        "workflow": {"submitted": {"by": "maker"}},
+    }
+    with pytest.raises(ApiError) as error:
+        Service(repo, "test").change("ENV-test", "review", {"version": 1})
+    assert error.value.code == "INDEPENDENT_REVIEW_REQUIRED"
+    repo.save.assert_not_called()
+
+
+def test_platform_architect_cannot_author_environment_request():
+    repo = MagicMock()
+    repo.principal = Principal("architect", frozenset({"PLATFORM_ARCHITECT"}), frozenset(), True)
+    with pytest.raises(ApiError) as error:
+        Service(repo, "test").create({})
+    assert error.value.status == 403
+    repo.insert.assert_not_called()
+
+
+def test_revision_keeps_active_baseline_until_new_revision_is_activated():
+    repo = MagicMock()
+    repo.principal = Principal("engineer", frozenset({"CLOUD_ENGINEER"}), frozenset(), True)
+    repo.get.return_value = {
+        "environment_id": "ENV-test",
+        "customer_id": "CUS-test",
+        "provider_code": "AWS",
+        "kubernetes_distribution": "EKS",
+        "version": 8,
+        "status": "ACTIVE",
+        "approved_status": "ACTIVE",
+        "approved_version": 7,
+        "pending_approved_version": None,
+        "created_by": "engineer",
+        "workflow": {},
+    }
+    revised = Service(repo, "test").change("ENV-test", "revise", {"version": 8})
+    assert revised["status"] == "DRAFT"
+    assert revised["approvedStatus"] == "ACTIVE"
+    assert revised["approvedVersion"] == 7
+    assert revised["pendingApprovedVersion"] is None
+
+
 def test_unauthenticated_metadata():
     result = lambda_handler(
         {"rawPath": "/api/v1/environments/metadata", "requestContext": {"http": {"method": "GET"}}},
@@ -161,7 +364,7 @@ def test_gateway_routes_and_scopes():
     routes = [
         r["Properties"] for r in template["Resources"].values() if r["Type"] == "AWS::ApiGatewayV2::Route"
     ]
-    assert len(routes) == 21
+    assert len(routes) == 31
     assert all(
         r["AuthorizationType"] == "JWT" and r["AuthorizationScopes"] == [{"Ref": "JwtScope"}] for r in routes
     )
@@ -169,3 +372,58 @@ def test_gateway_routes_and_scopes():
         template["Resources"]["EnvironmentFunction"]["Properties"]["Handler"]
         == "navigan.modules.environment_management.handler.lambda_handler"
     )
+    policies = template["Resources"]["EnvironmentFunction"]["Properties"]["Policies"]
+    assume_resources = [
+        resource
+        for policy in policies
+        if isinstance(policy, dict)
+        for statement in policy.get("Statement", [])
+        if (
+            statement.get("Action") == "sts:AssumeRole"
+            or "sts:AssumeRole" in statement.get("Action", [])
+        )
+        for resource in (
+            statement.get("Resource", [])
+            if isinstance(statement.get("Resource"), list)
+            else [statement.get("Resource")]
+        )
+        if isinstance(resource, dict)
+    ]
+    assert any(
+        resource.get("Fn::Sub", "").endswith(":role/NaviganDiscoveryRole")
+        for resource in assume_resources
+    )
+
+
+def test_blueprint_readiness_reports_missing_bootstrap_without_exposing_secrets():
+    class Secrets:
+        def get_secret_value(self, **_):
+            raise RuntimeError("missing-sensitive-value")
+
+    class Boto:
+        @staticmethod
+        def client(name, **_):
+            assert name == "secretsmanager"
+            return Secrets()
+
+    configuration = example("EKS")
+    configuration["clusters"] = [
+        {
+            "name": "default",
+            "provisioning": {
+                "roleArn": (
+                    "arn:aws:iam::123456789012:role/NaviganProvisioningRole"
+                ),
+                "externalIdSecretArn": (
+                    "arn:aws:secretsmanager:ap-south-1:123456789012:"
+                    "secret:navigan/provisioning/example"
+                ),
+            },
+            "nodeGroups": [],
+        }
+    ]
+    report = assess_eks_blueprints(configuration, Boto())
+    assert report["status"] == "FAILED"
+    assert report["blockingCount"] == 1
+    assert report["findings"][0]["code"] == "PROVISIONING_SECRET_NOT_FOUND"
+    assert "missing-sensitive-value" not in json.dumps(report)

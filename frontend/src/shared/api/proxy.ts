@@ -1,4 +1,5 @@
 const actions = [
+  "revise",
   "submit",
   "resubmit",
   "review/start",
@@ -10,9 +11,104 @@ const actions = [
   "deactivate",
 ];
 export function isAllowedRoute(method: string, path: string[]): boolean {
+  if (path.length === 2 && path[0] === "access" && path[1] === "me")
+    return method === "GET";
+  if (path[0] === "clusters") {
+    if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (!/^CLU-[A-Za-z0-9-]+$/.test(path[1])) return false;
+    if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 3 && path[2] === "execution-logs")
+      return method === "GET";
+    if (path.length === 3 && path[2] === "node-groups")
+      return ["GET", "POST"].includes(method);
+    if (path.length === 3 && path[2] === "audit-log") return method === "GET";
+    if (path.length === 3 && path[2] === "platform-components")
+      return method === "GET";
+    if (path.length === 3 && path[2] === "tools") return method === "GET";
+    if (
+      path.length === 5 &&
+      path[2] === "tools" &&
+      ["headlamp", "grafana", "prometheus", "argocd", "webkubectl"].includes(
+        path[3],
+      ) &&
+      path[4] === "sessions"
+    )
+      return method === "POST";
+    if (
+      path.length === 4 &&
+      path[2] === "github" &&
+      ["authorize", "complete"].includes(path[3])
+    )
+      return method === "POST";
+    if (
+      path.length === 5 &&
+      path[2] === "node-groups" &&
+      /^KNG-[a-f0-9]{32}$/.test(path[3]) &&
+      (["submit", "approve", "reject", "apply", "retry"].includes(path[4]) ||
+        path[4] === "execution-logs")
+    )
+      return path[4] === "execution-logs"
+        ? method === "GET"
+        : method === "POST";
+    if (path.length === 3 && ["identity", "access"].includes(path[2]))
+      return method === "GET";
+    if (
+      path.length === 4 &&
+      path[2] === "access" &&
+      ["subjects", "namespaces"].includes(path[3])
+    )
+      return method === "GET";
+    if (path.length === 4 && path[2] === "access" && path[3] === "assignments")
+      return method === "POST";
+    if (path.length === 4 && path[2] === "connector" && path[3] === "install")
+      return method === "POST";
+    if (
+      path.length === 6 &&
+      path[2] === "access" &&
+      path[3] === "assignments" &&
+      /^KAA-[A-Fa-f0-9]{32}$/.test(path[4]) &&
+      path[5] === "revoke"
+    )
+      return method === "POST";
+    return (
+      path.length === 3 &&
+      method === "POST" &&
+      [
+        "submit",
+        "review",
+        "approve",
+        "reject",
+        "plan",
+        "apply",
+        "stop",
+        "start",
+        "delete",
+        "migrate-system-node-group",
+      ].includes(path[2])
+    );
+  }
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (path.length === 2 && path[1] === "metadata") return method === "GET";
+    if (path.length === 2 && path[1] === "bootstrap-remediations")
+      return ["GET", "POST"].includes(method);
+    if (
+      path.length === 3 &&
+      path[1] === "bootstrap-remediations" &&
+      /^BRQ-[A-Fa-f0-9]{32}$/.test(path[2])
+    )
+      return method === "GET";
+    if (
+      path.length === 4 &&
+      path[1] === "bootstrap-remediations" &&
+      /^BRQ-[A-Fa-f0-9]{32}$/.test(path[2]) &&
+      ["approve", "reject", "verify"].includes(path[3])
+    )
+      return method === "POST";
+    if (path.length === 3 && path[1] === "discover" && path[2] === "aws")
+      return method === "POST";
+    if (path.length === 2 && path[1] === "blueprint-readiness")
+      return method === "POST";
     if (path.length === 4 && path[1] === "configuration-schemas")
       return (
         method === "GET" &&
@@ -21,6 +117,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       );
     if (!/^ENV-[A-Za-z0-9-]+$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 3 && path[2] === "provisioning-options")
+      return method === "GET";
     if (path.length === 4 && path[2] === "versions")
       return method === "GET" && /^[1-9][0-9]*$/.test(path[3]);
     if (path.length !== 3) return false;

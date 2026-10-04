@@ -1,0 +1,30 @@
+replicaCount: 2
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+nodeSelector:
+  navigan.io/platform-services: "true"
+
+tolerations:
+  - key: navigan.io/system-only
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
+resources:
+  requests: {cpu: 50m, memory: 96Mi}
+  limits: {cpu: 300m, memory: 384Mi}
+
+config:
+  inCluster: true
+
+serviceAccount:
+  create: true
+
+clusterRoleBinding:
+  create: false
+

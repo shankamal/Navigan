@@ -80,10 +80,13 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error);
     const normalized = normalizeApiError(error);
     if (normalized.status === 401 && authConfigured) await clearSession();
     // Metadata only: never log tokens, customer bodies, contacts or raw Axios errors.
-    console.error("Navigan API request failed", {
+    // Next.js treats console.error as a development overlay. Keep sanitized
+    // request metadata visible without obscuring the page during API outages.
+    console.warn("Navigan API request failed", {
       status: normalized.status,
       code: normalized.code,
       correlationId: normalized.correlationId,

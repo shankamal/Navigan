@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retailflow-order-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: retailflow-order-processor}
+  template:
+    metadata:
+      labels:
+        app: retailflow-order-processor
+        tier: worker
+    spec:
+      containers:
+        - name: worker
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - while true; do echo "$(date -u) processed RetailFlow order"; sleep 20; done
+          envFrom:
+            - configMapRef:
+                name: retailflow-settings
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10003
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: retailflow-node-agent
+spec:
+  selector:
+    matchLabels: {app: retailflow-node-agent}
+  template:
+    metadata:
+      labels:
+        app: retailflow-node-agent
+        tier: operations
+    spec:
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: agent
+          image: busybox:1.37
+          command: ["sh", "-c", "while true; do echo node=$(hostname); sleep 60; done"]
+          resources:
+            requests: {cpu: 5m, memory: 8Mi}
+            limits: {cpu: 25m, memory: 32Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10004
+            capabilities: {drop: ["ALL"]}

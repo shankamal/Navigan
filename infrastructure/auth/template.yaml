@@ -88,6 +88,7 @@ Resources:
               role_groups = {
                   "NAVIGAN_CLOUD_ENGINEER": "CLOUD_ENGINEER",
                   "NAVIGAN_PLATFORM_ARCHITECT": "PLATFORM_ARCHITECT",
+                  "NAVIGAN_PLATFORM_ADMINISTRATOR": "PLATFORM_ADMINISTRATOR",
               }
               roles = sorted(role for group, role in role_groups.items() if group in groups)
               customers = sorted(g.removeprefix("NAVIGAN_CUSTOMER_") for g in groups

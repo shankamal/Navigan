@@ -1,0 +1,26 @@
+region                           = "ap-south-1"
+customer_id                      = "CUS-REPLACE-ME"
+navigan_execution_role_arn      = "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-ME"
+navigan_validation_role_arn     = "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-ME"
+navigan_discovery_principal_arn = "arn:aws:iam::PLATFORM_ACCOUNT_ID:role/REPLACE-ME"
+external_id                     = "REPLACE-WITH-THE-EXTERNAL-ID-PROVIDED-BY-NAVIGAN"
+
+# Use existing eligible customer resources.
+eks_cluster_role_arns = [
+  "arn:aws:iam::CUSTOMER_ACCOUNT_ID:role/ExistingEksClusterRole"
+]
+eks_node_role_arns = [
+  "arn:aws:iam::CUSTOMER_ACCOUNT_ID:role/ExistingEksNodeRole"
+]
+kms_key_arns = [
+  "arn:aws:kms:ap-south-1:CUSTOMER_ACCOUNT_ID:key/REPLACE-ME"
+]
+
+# Keep false when using the existing resources above.
+create_recommended_eks_resources     = false
+confirm_create_recommended_resources = false
+
+# If no eligible roles or KMS key exist, remove the example ARNs above,
+# set both values below to true, review the saved plan, and then apply it.
+# create_recommended_eks_resources     = true
+# confirm_create_recommended_resources = true

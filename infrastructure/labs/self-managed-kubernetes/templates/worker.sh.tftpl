@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+${common_bootstrap}
+
+for attempt in $(seq 1 90); do
+  JOIN_COMMAND="$(aws ssm get-parameter \
+    --name "${join_parameter_name}" \
+    --with-decryption \
+    --region "${aws_region}" \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null || true)"
+
+  if [[ "$JOIN_COMMAND" == kubeadm\ join* ]]; then
+    $JOIN_COMMAND
+    systemctl enable --now kubelet
+    exit 0
+  fi
+
+  sleep 20
+done
+
+echo "Timed out waiting for the control-plane join command" >&2
+exit 1

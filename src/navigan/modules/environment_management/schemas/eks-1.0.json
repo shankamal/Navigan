@@ -358,6 +358,35 @@
       ],
       "additionalProperties": false
     },
+    "connectorInstaller": {
+      "type": "object",
+      "title": "Private cluster connector installer",
+      "properties": {
+        "projectName": {
+          "type": "string",
+          "title": "Customer installer project",
+          "const": "NaviganClusterInstaller"
+        },
+        "serviceRoleArn": {
+          "type": "string",
+          "title": "Customer installer role ARN",
+          "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/NaviganClusterInstallerRole$",
+          "maxLength": 2048
+        },
+        "securityGroupId": {
+          "type": "string",
+          "title": "Stable installer security group",
+          "pattern": "^sg-[a-f0-9]+$",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "projectName",
+        "serviceRoleArn",
+        "securityGroupId"
+      ],
+      "additionalProperties": false
+    },
     "tags": {
       "type": "object",
       "title": "Baseline tags",
@@ -387,6 +416,156 @@
         "Environment"
       ],
       "additionalProperties": true
+    },
+    "clusters": {
+      "type": "array",
+      "title": "Cluster blueprints",
+      "items": {
+        "type": "object",
+        "title": "Cluster blueprint",
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Blueprint name",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "kubernetesVersion": {
+            "type": "string",
+            "title": "Kubernetes version"
+          },
+          "endpointAccess": {
+            "type": "string",
+            "title": "Endpoint access",
+            "enum": [
+              "PRIVATE",
+              "PUBLIC_AND_PRIVATE"
+            ]
+          },
+          "nodeGroups": {
+            "type": "array",
+            "title": "Node groups",
+            "items": {
+              "type": "object",
+              "title": "Node group",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "title": "Name",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "purpose": {
+                  "type": "string",
+                  "title": "Node group purpose",
+                  "enum": [
+                    "SYSTEM",
+                    "APPLICATION"
+                  ]
+                },
+                "instanceTypes": {
+                  "type": "array",
+                  "title": "Instance types",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "uniqueItems": true
+                },
+                "capacityType": {
+                  "type": "string",
+                  "title": "Capacity type",
+                  "enum": [
+                    "ON_DEMAND",
+                    "SPOT"
+                  ]
+                },
+                "minSize": {
+                  "type": "integer",
+                  "title": "Minimum size",
+                  "minimum": 2,
+                  "maximum": 1000
+                },
+                "desiredSize": {
+                  "type": "integer",
+                  "title": "Desired size",
+                  "minimum": 2,
+                  "maximum": 1000
+                },
+                "maxSize": {
+                  "type": "integer",
+                  "title": "Maximum size",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "diskSizeGiB": {
+                  "type": "integer",
+                  "title": "Disk size (GiB)",
+                  "minimum": 20,
+                  "maximum": 16384
+                }
+              },
+              "required": [
+                "name",
+                "purpose",
+                "instanceTypes",
+                "capacityType",
+                "minSize",
+                "desiredSize",
+                "maxSize"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 1,
+            "uniqueItems": true
+          },
+          "tags": {
+            "type": "object",
+            "title": "Cluster tags",
+            "properties": {},
+            "required": [],
+            "additionalProperties": true
+          },
+          "provisioning": {
+            "type": "object",
+            "title": "Provisioning",
+            "properties": {
+              "roleArn": {
+                "type": "string",
+                "title": "Provisioning role ARN",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "externalIdSecretArn": {
+                "type": "string",
+                "title": "External ID secret ARN",
+                "minLength": 1,
+                "maxLength": 2048
+              }
+            },
+            "required": [
+              "roleArn",
+              "externalIdSecretArn"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "name",
+          "kubernetesVersion",
+          "endpointAccess",
+          "nodeGroups",
+          "provisioning"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true
     },
     "dns": {
       "type": "object",

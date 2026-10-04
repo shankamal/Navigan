@@ -15,6 +15,11 @@ export interface ConfigurationSchema {
   const?: string;
   additionalProperties?: boolean;
   minItems?: number;
+  maxItems?: number;
+  uniqueItems?: boolean;
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
 }
 export const distributions = {
   AWS: "EKS",
@@ -35,6 +40,11 @@ export const summarySchema = z.object({
   status: statusSchema,
   version: z.number().int().positive(),
   approvedVersion: z.number().nullable().optional(),
+  pendingApprovedVersion: z.number().nullable().optional(),
+  approvedStatus: z
+    .enum(["ACTIVE", "SUSPENDED", "DEACTIVATED"])
+    .nullable()
+    .optional(),
   createdAt: z.string(),
   updatedAt: z.string().nullable().optional(),
 });
@@ -80,12 +90,227 @@ export interface EnvironmentInput {
   configurationSchemaVersion: string;
   configuration: Record<string, JsonValue>;
 }
+export interface AwsDiscoveryInput {
+  customerId: string;
+  accountId: string;
+  roleArn: string;
+  externalId: string;
+  regions: string[];
+}
+const discoveredRegionSchema = z.object({
+  region: z.string(),
+  availabilityZones: z.array(z.object({ name: z.string(), state: z.string() })),
+  vpcs: z.array(
+    z.object({
+      vpcId: z.string(),
+      name: z.string(),
+      cidrBlock: z.string().nullable().optional(),
+      isDefault: z.boolean(),
+    }),
+  ),
+  subnets: z.array(
+    z.object({
+      subnetId: z.string(),
+      name: z.string(),
+      vpcId: z.string(),
+      availabilityZone: z.string(),
+      cidrBlock: z.string().nullable().optional(),
+      availableIpAddressCount: z.number(),
+      mapPublicIpOnLaunch: z.boolean(),
+      routeTableId: z.string(),
+      type: z.enum(["PRIVATE", "PUBLIC"]),
+      egressTarget: z.string(),
+    }),
+  ),
+  securityGroups: z.array(
+    z.object({
+      securityGroupId: z.string(),
+      name: z.string(),
+      description: z.string(),
+      vpcId: z.string().nullable().optional(),
+    }),
+  ),
+  vpcEndpoints: z.array(
+    z.object({ vpcEndpointId: z.string(), serviceName: z.string() }),
+  ),
+  natGateways: z.array(
+    z.object({
+      natGatewayId: z.string(),
+      vpcId: z.string(),
+      subnetId: z.string(),
+      state: z.string(),
+    }),
+  ),
+  instanceTypes: z
+    .array(
+      z.object({
+        instanceType: z.string(),
+        vCpu: z.number(),
+        memoryMiB: z.number(),
+        architectures: z.array(z.string()),
+        currentGeneration: z.boolean(),
+        burstablePerformanceSupported: z.boolean(),
+      }),
+    )
+    .optional(),
+  kmsKeys: z.array(
+    z.object({
+      aliasName: z.string(),
+      keyArn: z.string(),
+      eligibility: z.enum(["READY", "WARNING", "BLOCKED"]).optional(),
+      eligibilityReason: z.string().optional(),
+    }),
+  ),
+  kubernetesVersions: z
+    .array(
+      z.object({
+        version: z.string(),
+        support: z.enum([
+          "STANDARD_SUPPORT",
+          "EXTENDED_SUPPORT",
+          "UNSUPPORTED",
+        ]),
+        default: z.boolean(),
+      }),
+    )
+    .optional(),
+  eksClusters: z.array(z.object({ name: z.string() })),
+  ecrRepositories: z.array(
+    z.object({
+      repositoryName: z.string(),
+      repositoryArn: z.string(),
+      imageTagMutability: z.string(),
+    }),
+  ),
+  serviceQuotas: z.array(
+    z.object({
+      serviceCode: z.string(),
+      quotaCode: z.string(),
+      quotaName: z.string(),
+      value: z.number(),
+      adjustable: z.boolean(),
+    }),
+  ),
+  ebsEncryptionByDefault: z.boolean(),
+});
+export const awsDiscoverySchema = z.object({
+  cloudProvider: z.literal("AWS"),
+  kubernetesDistribution: z.literal("EKS"),
+  account: z.object({ accountId: z.string(), principalArn: z.string() }),
+  roleArn: z.string(),
+  regions: z.array(discoveredRegionSchema),
+  iamRoles: z.array(
+    z.object({
+      roleName: z.string(),
+      roleArn: z.string(),
+      roleType: z.enum(["CLUSTER", "NODE", "OTHER"]).optional(),
+      eligibility: z.enum(["READY", "WARNING", "BLOCKED"]).optional(),
+      eligibilityReason: z.string().optional(),
+    }),
+  ),
+  provisioningRoles: z.array(
+    z.object({ roleName: z.string(), roleArn: z.string() }),
+  ),
+  provisioningSecrets: z.array(z.object({ name: z.string(), arn: z.string() })),
+  counts: z.record(z.string(), z.number()),
+  fetchedAt: z.string(),
+});
+export type AwsDiscovery = z.infer<typeof awsDiscoverySchema>;
+export const blueprintFindingSchema = z.object({
+  code: z.string(),
+  field: z.string(),
+  severity: z.enum(["BLOCKING", "WARNING"]),
+  message: z.string(),
+  recommendation: z.string(),
+});
+export const blueprintReadinessSchema = z.object({
+  status: z.enum(["PASSED", "FAILED"]),
+  score: z.number(),
+  blockingCount: z.number().int().nonnegative(),
+  warningCount: z.number().int().nonnegative(),
+  findings: z.array(blueprintFindingSchema),
+  advisor: z.object({
+    mode: z.enum(["DETERMINISTIC", "BEDROCK"]),
+    summary: z.string(),
+    modelId: z.string().optional(),
+  }),
+});
+export type BlueprintReadiness = z.infer<typeof blueprintReadinessSchema>;
+export const bootstrapRemediationSchema = z.object({
+  requestId: z.string(),
+  customerId: z.string(),
+  customerName: z.string().optional(),
+  accountId: z.string(),
+  region: z.string(),
+  discoveryRoleArn: z.string(),
+  missingResources: z.array(z.string()),
+  requestedActions: z.array(z.string()),
+  desiredResources: z.record(z.string(), z.string()).default({}),
+  status: z.enum([
+    "REQUESTED",
+    "APPROVED",
+    "REJECTED",
+    "PLAN_RUNNING",
+    "PLAN_READY",
+    "APPLY_RUNNING",
+    "COMPLETED",
+    "FAILED",
+  ]),
+  confirmedBy: z.string(),
+  confirmedAt: z.string(),
+  requestedBy: z.string(),
+  requestedAt: z.string(),
+  decidedBy: z.string().nullable().optional(),
+  decidedAt: z.string().nullable().optional(),
+  decisionReason: z.string().nullable().optional(),
+  verificationDetails: z
+    .object({
+      found: z.record(z.string(), z.string()).default({}),
+      missing: z.array(z.string()).default([]),
+    })
+    .default({ found: {}, missing: [] }),
+  verifiedBy: z.string().nullable().optional(),
+  verifiedAt: z.string().nullable().optional(),
+  version: z.number().int().positive(),
+  correlationId: z.string(),
+});
+export type BootstrapRemediation = z.infer<typeof bootstrapRemediationSchema>;
+export const bootstrapRemediationListSchema = z.object({
+  items: z.array(bootstrapRemediationSchema),
+  pagination: paginationSchema,
+});
+export interface BootstrapRemediationInput {
+  customerId: string;
+  accountId: string;
+  region: string;
+  discoveryRoleArn: string;
+  missingResources: string[];
+  requestedActions: string[];
+  desiredResources: Record<string, string>;
+  confirmed: true;
+}
+export interface BootstrapRemediationFilters {
+  page: number;
+  pageSize: number;
+  status?: BootstrapRemediation["status"];
+  customerId?: string;
+  search?: string;
+}
+export interface BootstrapRemediationDecisionInput {
+  version: number;
+  reason?: string;
+}
+export interface BootstrapRemediationVerificationInput {
+  version: number;
+  externalId: string;
+}
 export interface Filters {
   page: number;
   pageSize: number;
   sort: string;
   search?: string;
   status?: string;
+  approvedStatus?: string;
   cloudProvider?: string;
   customerId?: string;
   environmentType?: string;
@@ -95,6 +320,7 @@ export interface Filters {
   createdTo?: string;
 }
 export type Action =
+  | "revise"
   | "submit"
   | "resubmit"
   | "review"

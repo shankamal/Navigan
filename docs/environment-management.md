@@ -71,8 +71,13 @@ submission validates the complete baseline. Common tags Owner, CostCenter and
 Environment are Navigan policy requirements. Provider-managed or customer-managed
 encryption is supported for AKS/GKE/OKE; the latter requires a key reference.
 EKS requires approved KMS node-volume encryption and subnets in two availability zones.
-Schema validation checks structure, not live resource existence or permissions.
-Architects verify the real infrastructure before approval.
+For AWS, Platform Architects can assume a customer-owned `NaviganDiscoveryRole`
+with an external ID and fetch a bounded, read-only inventory. The discovery result
+populates resource references but never persists the external ID or temporary STS
+credentials. Subnet classification uses effective route tables rather than only the
+public-IP-on-launch flag. Submission also rejects cross-account IAM/KMS references and
+subnet/security-group references that conflict with the selected VPC. Architects still
+verify current resource existence, capacity and permissions before approval.
 
 Customer/provider/distribution are immutable. Names are unique case-insensitively
 within a customer/provider. Adding new infrastructure fields under `extensions`
@@ -96,6 +101,17 @@ Cluster consumers must check current environment AND customer status, then pin
 `environmentId` and `approvedVersion`, reading the snapshot from
 `GET /api/v1/environments/{id}/versions/{approvedVersion}`. Current lifecycle version
 may differ from approvedVersion. No provisioning consumer is implemented here.
+
+The immutable approved snapshot is the provisioning contract for stable substrate:
+account, region, network, security groups, IAM roles, encryption, connectivity and
+mandatory tags. A Platform Setup or Cluster Request owns variable workload intent:
+Kubernetes version, control-plane endpoint access, node pools, instance types,
+autoscaling bounds and add-ons. A provisioner must persist both the Environment
+`approvedVersion` and its Cluster Request version in the cluster record. It must fail
+closed if the profile/customer is no longer ACTIVE or a referenced resource cannot be
+revalidated; it must never silently substitute resources or resolve an unversioned
+"latest" profile. This separation allows many cluster shapes to reuse one approved
+environment without losing deterministic, auditable inputs.
 
 Environment domain events are written atomically to the outbox. Their EventBridge
 source is `navigan.environment-management`; the existing customer notification rule

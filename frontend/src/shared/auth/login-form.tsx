@@ -14,6 +14,10 @@ type Step = SignInOutput["nextStep"];
 type Mode = "login" | "forgot" | "reset" | "challenge";
 export function loginError(error: unknown): Error {
   const name = error instanceof Error ? error.name : "";
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String(error.code)
+      : "";
   const messages: Record<string, string> = {
     NotAuthorizedException:
       "Sign-in was not accepted. Check your credentials, or ask your administrator to verify the public app client configuration.",
@@ -35,9 +39,13 @@ export function loginError(error: unknown): Error {
     NetworkError:
       "Unable to connect. Check your internet connection and try again.",
   };
+  const diagnostic =
+    process.env.NODE_ENV === "development" && (name || code)
+      ? ` (${name || code})`
+      : "";
   return new Error(
     messages[name] ||
-      "Sign-in could not be completed. Try again, or contact your administrator.",
+      `Sign-in could not be completed. Try again, or contact your administrator.${diagnostic}`,
   );
 }
 export function LoginForm() {

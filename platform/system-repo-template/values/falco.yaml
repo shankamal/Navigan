@@ -1,0 +1,17 @@
+driver:
+  kind: modern_ebpf
+
+falco:
+  jsonOutput: true
+  jsonIncludeOutputProperty: true
+
+tolerations:
+  - operator: Exists
+
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: 500m, memory: 768Mi}
+
+falcosidekick:
+  enabled: false
+

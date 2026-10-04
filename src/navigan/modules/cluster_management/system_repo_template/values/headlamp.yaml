@@ -1,0 +1,33 @@
+replicaCount: 2
+service: {type: ClusterIP}
+ingress: {enabled: false}
+nodeSelector:
+  navigan.io/platform-services: "true"
+tolerations:
+  - key: navigan.io/system-only
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+resources:
+  requests: {cpu: 50m, memory: 96Mi}
+  limits: {cpu: 300m, memory: 384Mi}
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+config:
+  inCluster: true
+  baseURL: /tools/clusters/__CLUSTER_ID__/headlamp
+  unsafeUseServiceAccountToken: true
+  extraArgs:
+    - -proxy-auth=true
+serviceAccount:
+  create: true
+  name: navigan-dashboard
+clusterRoleBinding: {create: false}

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: navigan-platform
+  namespace: argocd
+spec:
+  description: Mandatory Navigan-managed cluster utilities
+  sourceRepos:
+    - __SYSTEM_REPO_URL__
+    - __PLATFORM_REGISTRY__/helm
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: navigan-system
+    - server: https://kubernetes.default.svc
+      namespace: navigan-monitoring
+    - server: https://kubernetes.default.svc
+      namespace: navigan-security
+    - server: https://kubernetes.default.svc
+      namespace: navigan-dashboard
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  orphanedResources:
+    warn: true

@@ -1,0 +1,56 @@
+# Keep this file synchronized with platform/monitoring/values.yaml.
+fullnameOverride: navigan-monitoring
+
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: true
+  service: {type: ClusterIP}
+  ingress: {enabled: false}
+  persistence: {enabled: false}
+  nodeSelector:
+    navigan.io/platform-services: "true"
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+  resources:
+    requests: {cpu: 100m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+  grafana.ini:
+    users: {allow_sign_up: false}
+    analytics: {reporting_enabled: false, check_for_updates: false}
+
+prometheusOperator:
+  nodeSelector:
+    navigan.io/platform-services: "true"
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+
+prometheus:
+  service: {type: ClusterIP}
+  prometheusSpec:
+    replicas: 1
+    retention: 7d
+    retentionSize: 8GB
+    nodeSelector:
+      navigan.io/platform-services: "true"
+    tolerations:
+      - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+    resources:
+      requests: {cpu: 300m, memory: 768Mi}
+      limits: {cpu: "1", memory: 1536Mi}
+
+kube-state-metrics:
+  nodeSelector:
+    navigan.io/platform-services: "true"
+  tolerations:
+    - {key: navigan.io/system-only, operator: Equal, value: "true", effect: NoSchedule}
+
+prometheus-node-exporter:
+  tolerations:
+    - operator: Exists
+
+kubeEtcd: {enabled: false}
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+
