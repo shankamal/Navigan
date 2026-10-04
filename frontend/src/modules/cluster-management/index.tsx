@@ -2292,7 +2292,13 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const platformBaseline = objectValue(configuration.platformBaseline);
   const systemRepository = objectValue(platformBaseline.repository);
   const githubAuthorizationRequired =
-    ["SUBMITTED", "UNDER_REVIEW", "APPROVED"].includes(row.status) &&
+    [
+      "SUBMITTED",
+      "UNDER_REVIEW",
+      "APPROVED",
+      "ACTIVE",
+      "BOOTSTRAP_FAILED",
+    ].includes(row.status) &&
     textValue(systemRepository.connectionStatus, "AUTHORIZATION_REQUIRED") !==
       "ACTIVE";
   const nodeGroups = arrayValue(configuration.nodeGroups);

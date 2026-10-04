@@ -289,11 +289,17 @@ class Service:
         cluster = self.repo.get(identifier, lock=True)
         if cluster["version"] != body["version"]:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
-        if cluster["status"] not in {"SUBMITTED", "UNDER_REVIEW", "APPROVED"}:
+        if cluster["status"] not in {
+            "SUBMITTED",
+            "UNDER_REVIEW",
+            "APPROVED",
+            "ACTIVE",
+            "BOOTSTRAP_FAILED",
+        }:
             raise ApiError(
                 409,
                 "GITHUB_AUTHORIZATION_NOT_AVAILABLE",
-                "GitHub organization authorization is available for a submitted or approved request.",
+                "GitHub organization authorization is available for a submitted, approved, active, or bootstrap-failed cluster.",
             )
         app_slug = os.environ.get("GITHUB_APP_SLUG", "").strip()
         if not app_slug:
