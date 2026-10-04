@@ -4,6 +4,7 @@ import os
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from navigan.shared.errors import ApiError
 
@@ -66,6 +67,13 @@ class ConnectorInstaller:
         customer_secrets = self.client_factory("secretsmanager", **options)
         customer_codebuild = self.client_factory("codebuild", **options)
         customer_eks = self.client_factory("eks", **options)
+        customer_ec2 = self.client_factory("ec2", **options)
+        self._ensure_cluster_network(
+            customer_eks,
+            customer_ec2,
+            cluster["cluster_name"],
+            installer.get("securityGroupId"),
+        )
         self._ensure_cluster_access(
             customer_eks,
             cluster["cluster_name"],
@@ -130,6 +138,93 @@ class ConnectorInstaller:
             "secretArn": secret["ARN"],
             "status": "RUNNING",
         }
+
+    @staticmethod
+    def _ensure_cluster_network(
+        eks, ec2, cluster_name, configured_security_group_id
+    ):
+        cluster = eks.describe_cluster(name=cluster_name).get("cluster", {})
+        network = cluster.get("resourcesVpcConfig") or {}
+        vpc_id = network.get("vpcId")
+        cluster_security_group_id = network.get("clusterSecurityGroupId")
+        if not vpc_id or not cluster_security_group_id:
+            raise ApiError(
+                409,
+                "CONNECTOR_INSTALLER_NETWORK_NOT_CONFIGURED",
+                "The private EKS control-plane network could not be verified.",
+            )
+
+        if configured_security_group_id:
+            response = ec2.describe_security_groups(
+                GroupIds=[configured_security_group_id]
+            )
+        else:
+            response = ec2.describe_security_groups(
+                Filters=[
+                    {"Name": "vpc-id", "Values": [vpc_id]},
+                    {"Name": "tag:ManagedBy", "Values": ["Navigan"]},
+                    {
+                        "Name": "tag:Purpose",
+                        "Values": ["PrivateClusterGitOpsBootstrap"],
+                    },
+                ]
+            )
+
+        candidates = []
+        for group in response.get("SecurityGroups", []):
+            tags = {
+                item.get("Key"): item.get("Value")
+                for item in group.get("Tags", [])
+            }
+            if (
+                group.get("VpcId") == vpc_id
+                and tags.get("ManagedBy") == "Navigan"
+                and tags.get("Purpose")
+                == "PrivateClusterGitOpsBootstrap"
+            ):
+                candidates.append(group["GroupId"])
+
+        if len(candidates) != 1:
+            raise ApiError(
+                409,
+                "CONNECTOR_INSTALLER_SECURITY_GROUP_INVALID",
+                "Exactly one approved installer security group is required "
+                "in the cluster VPC.",
+            )
+
+        installer_security_group_id = candidates[0]
+        if installer_security_group_id == cluster_security_group_id:
+            raise ApiError(
+                409,
+                "CONNECTOR_INSTALLER_SECURITY_GROUP_INVALID",
+                "The installer and EKS control-plane security groups "
+                "must be separate.",
+            )
+
+        try:
+            ec2.authorize_security_group_ingress(
+                GroupId=cluster_security_group_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "UserIdGroupPairs": [
+                            {
+                                "GroupId": installer_security_group_id,
+                                "Description": (
+                                    "Allow dedicated Navigan installer "
+                                    "to reach private EKS API"
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            )
+        except ClientError as error:
+            code = error.response.get("Error", {}).get("Code")
+            if code != "InvalidPermission.Duplicate":
+                raise
 
     @staticmethod
     def _ensure_cluster_access(

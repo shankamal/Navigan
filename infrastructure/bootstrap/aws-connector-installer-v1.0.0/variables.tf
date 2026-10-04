@@ -17,8 +17,13 @@ variable "subnet_ids" {
 }
 variable "security_group_ids" {
   type        = set(string)
-  description = "Deprecated. The module now creates a stable dedicated installer security group."
+  description = "Deprecated. The module always uses its dedicated installer security group."
   default     = []
+
+  validation {
+    condition     = length(var.security_group_ids) == 0
+    error_message = "Remove security_group_ids; worker or shared security groups are not accepted."
+  }
 }
 variable "provisioning_role_name" {
   type        = string
