@@ -36,7 +36,7 @@ try{
  assert.equal(await page.getByLabel(/AWS account ID/i).count(),1);
  await page.screenshot({path:'test-results/environment-oke-form.png',fullPage:true});
  await page.getByLabel(/^Environment name/).fill('OCI Sandbox');await page.getByLabel(/^Environment type/).selectOption('DEV');
- await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('heading',{name:'OCI Sandbox',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Save as Draft',exact:true}).click();await page.getByRole('heading',{name:'OCI Sandbox',exact:true}).waitFor();
  await page.screenshot({path:'test-results/environment-details.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});await page.goto(base+'/environments');await page.getByRole('link',{name:'Production EKS',exact:true}).waitFor();
  await page.screenshot({path:'test-results/environments-mobile.png',fullPage:true});
