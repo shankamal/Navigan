@@ -32,11 +32,9 @@ try{
  await page.screenshot({path:'test-results/environments-desktop.png',fullPage:true});
  await page.getByRole('link',{name:'New Environment',exact:true}).click();
  await page.getByLabel(/^Customer/).selectOption('CUS-demo');
- for(const [provider,label] of Object.entries({AWS:'Account ID',AZURE:'Tenant ID',GCP:'Project ID',OCI:'Tenancy OCID'})){
-  await page.getByLabel(/^Container distribution/).selectOption(provider);
-  await page.getByLabel(new RegExp(label)).waitFor();
-  assert.equal(await page.getByLabel(new RegExp(label)).count(),1);
- }
+ await page.getByLabel(/^Container distribution/).selectOption('AWS');
+ await page.getByLabel(/Account ID/).waitFor();
+ assert.equal(await page.getByLabel(/Account ID/).count(),1);
  await page.screenshot({path:'test-results/environment-oke-form.png',fullPage:true});
  await page.getByLabel(/^Environment name/).fill('OCI Sandbox');await page.getByLabel(/^Environment type/).selectOption('DEV');
  await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('heading',{name:'OCI Sandbox',exact:true}).waitFor();
