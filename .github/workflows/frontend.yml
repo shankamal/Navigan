@@ -28,6 +28,10 @@ jobs:
       - run: npm test
       - run: npm run format:check
       - run: npm run build
+        env:
+          NEXT_PUBLIC_OIDC_AUTHORITY: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz
+          NEXT_PUBLIC_OIDC_CLIENT_ID: ci-public-client
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3101
       - run: npx playwright install --with-deps chromium
       - name: Verify custom login in a browser
         run: |
