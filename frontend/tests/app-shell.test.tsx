@@ -107,9 +107,7 @@ describe("Application shell permissions", () => {
 
   it("places sign out inside the top-right account menu", () => {
     render(<AppShell>Content</AppShell>);
-    fireEvent.click(
-      screen.getByRole("button", { name: /Open account menu/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Open account menu/i }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(signOut).toHaveBeenCalledOnce();
   });

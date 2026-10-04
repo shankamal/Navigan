@@ -52,7 +52,9 @@ export function identityFromClaims(claims: Record<string, unknown>): Identity {
   );
   const subject = typeof claims.sub === "string" ? claims.sub : "";
   const fullName = [claims.given_name, claims.family_name]
-    .filter((value): value is string => typeof value === "string" && !!value.trim())
+    .filter(
+      (value): value is string => typeof value === "string" && !!value.trim(),
+    )
     .join(" ")
     .trim();
   const displayNameCandidates = [
@@ -68,9 +70,10 @@ export function identityFromClaims(claims: Record<string, unknown>): Identity {
     roles,
     customerIds: strings(claims.customer_ids),
     displayName:
-      displayNameCandidates.find((value) =>
-        isHumanReadableDisplayName(value, subject),
-      )?.toString().trim() || "Platform user",
+      displayNameCandidates
+        .find((value) => isHumanReadableDisplayName(value, subject))
+        ?.toString()
+        .trim() || "Platform user",
     platformScope: String(claims.platform_scope).toLowerCase() === "true",
     canCreate: String(claims.customer_create).toLowerCase() === "true",
   };

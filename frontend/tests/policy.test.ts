@@ -117,13 +117,9 @@ describe("Customer lifecycle affordances", () => {
         platform_scope: "true",
       }).roles,
     ).toEqual(["PLATFORM_ADMINISTRATOR"]);
-    expect(
-      hasPermission(administrator, "dashboard.platform.view"),
-    ).toBe(true);
+    expect(hasPermission(administrator, "dashboard.platform.view")).toBe(true);
     expect(hasPermission(administrator, "user.manage")).toBe(true);
-    expect(
-      hasPermission(administrator, "environment.create"),
-    ).toBe(false);
+    expect(hasPermission(administrator, "environment.create")).toBe(false);
     expect(hasPermission(administrator, "environment.approve")).toBe(false);
   });
   it("separates engineer creation from architect review permissions", () => {

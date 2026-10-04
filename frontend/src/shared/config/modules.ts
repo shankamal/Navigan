@@ -1,4 +1,10 @@
-import { Building2, Layers3, Network, Boxes, LayoutDashboard } from "lucide-react";
+import {
+  Building2,
+  Layers3,
+  Network,
+  Boxes,
+  LayoutDashboard,
+} from "lucide-react";
 export const platformModules = [
   {
     id: "dashboard",

@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { Button, ErrorNotice } from "@/shared/components/ui";
 import { environments } from "../services/environments";
 import type { EnvironmentInput } from "../model/types";
@@ -65,7 +70,8 @@ export function BlueprintReadinessPanel({
                   : `${report.blockingCount} blocking issue${report.blockingCount === 1 ? "" : "s"} found`}
               </strong>
               <p>
-                Readiness score {report.score}/100 · {report.warningCount} warning
+                Readiness score {report.score}/100 · {report.warningCount}{" "}
+                warning
                 {report.warningCount === 1 ? "" : "s"}
               </p>
             </div>

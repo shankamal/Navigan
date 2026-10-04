@@ -144,7 +144,9 @@ describe("Environment module", () => {
     const selected = defaultAwsBaselineSelection(discovery);
     expect(selected.vpcId).toBe("vpc-ready");
     expect(selected.subnetIds).toEqual(["subnet-b", "subnet-c"]);
-    expect(validateAwsBaselineSelection(discovery, selected, "CC-123").ready).toBe(true);
+    expect(
+      validateAwsBaselineSelection(discovery, selected, "CC-123").ready,
+    ).toBe(true);
   });
 
   it("blocks a baseline that selects private subnets in only one availability zone", () => {
@@ -207,11 +209,7 @@ describe("Environment module", () => {
       ]),
     ).toBe(true);
     expect(
-      isAllowedRoute("GET", [
-        "clusters",
-        "CLU-test",
-        "execution-logs",
-      ]),
+      isAllowedRoute("GET", ["clusters", "CLU-test", "execution-logs"]),
     ).toBe(true);
     expect(isAllowedRoute("DELETE", ["environments", "ENV-test"])).toBe(false);
     expect(
@@ -263,24 +261,26 @@ describe("Environment module", () => {
   it("persists a compact baseline instead of the full discovery inventory", () => {
     const largeDiscovery = {
       ...discovery,
-      regions: [{
-        ...discovery.regions[0],
-        serviceQuotas: Array.from({ length: 100 }, (_, index) => ({
-          serviceCode: "eks",
-          quotaCode: `L-${index}`,
-          quotaName: `Verbose quota description ${index}`.repeat(20),
-          value: index,
-          adjustable: true,
-        })),
-        instanceTypes: Array.from({ length: 1000 }, (_, index) => ({
-          instanceType: `m7i.${index}`,
-          currentGeneration: true,
-          vCpu: 4,
-          memoryMiB: 16384,
-          architectures: ["x86_64"],
-          burstablePerformanceSupported: false,
-        })),
-      }],
+      regions: [
+        {
+          ...discovery.regions[0],
+          serviceQuotas: Array.from({ length: 100 }, (_, index) => ({
+            serviceCode: "eks",
+            quotaCode: `L-${index}`,
+            quotaName: `Verbose quota description ${index}`.repeat(20),
+            value: index,
+            adjustable: true,
+          })),
+          instanceTypes: Array.from({ length: 1000 }, (_, index) => ({
+            instanceType: `m7i.${index}`,
+            currentGeneration: true,
+            vCpu: 4,
+            memoryMiB: 16384,
+            architectures: ["x86_64"],
+            burstablePerformanceSupported: false,
+          })),
+        },
+      ],
     } as AwsDiscovery;
     const baseline = baselineFrom(
       largeDiscovery,
@@ -289,13 +289,11 @@ describe("Environment module", () => {
       "Cloud Engineer",
       "CC-123",
     );
-    expect(new TextEncoder().encode(JSON.stringify(baseline)).length).toBeLessThan(
-      65536,
-    );
     expect(
-      (
-        baseline.extensions as Record<string, unknown>
-      ).provisioningContract,
+      new TextEncoder().encode(JSON.stringify(baseline)).length,
+    ).toBeLessThan(65536);
+    expect(
+      (baseline.extensions as Record<string, unknown>).provisioningContract,
     ).toBeTruthy();
   });
 
@@ -323,12 +321,7 @@ describe("Environment module", () => {
           {
             nodeGroups: [
               {
-                instanceTypes: [
-                  "m6i.large",
-                  "",
-                  "m6i.large",
-                  "m6i.xlarge",
-                ],
+                instanceTypes: ["m6i.large", "", "m6i.large", "m6i.xlarge"],
               },
             ],
           },
@@ -380,18 +373,19 @@ describe("Environment module", () => {
       />,
     );
     expect(screen.getByLabelText(/Kubernetes version/)).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(/Provisioning role ARN/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(/External ID secret ARN/),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Provisioning role ARN/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/External ID secret ARN/)).toBeInTheDocument();
   });
   it("renders integer schema fields as numeric inputs and emits numbers, not strings", () => {
     const change = vi.fn();
     render(
       <ConfigurationFields
-        schema={{ type: "integer", title: "Minimum size", minimum: 0, maximum: 1000 }}
+        schema={{
+          type: "integer",
+          title: "Minimum size",
+          minimum: 0,
+          maximum: 1000,
+        }}
         value={0}
         onChange={change}
       />,

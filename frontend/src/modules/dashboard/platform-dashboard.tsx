@@ -99,10 +99,7 @@ export function PlatformDashboard() {
     (sum, count) => sum + count,
     0,
   );
-  const canCreateEnvironment = hasPermission(
-    identity,
-    "environment.create",
-  );
+  const canCreateEnvironment = hasPermission(identity, "environment.create");
   const canCreateCluster = hasPermission(identity, "cluster.create");
   const canReview =
     hasPermission(identity, "customer.review") ||
@@ -161,7 +158,10 @@ export function PlatformDashboard() {
         action={
           <div className="dashboard-actions">
             {canCreateEnvironment && (
-              <Link className="button button-secondary" href="/environments/new">
+              <Link
+                className="button button-secondary"
+                href="/environments/new"
+              >
                 New environment
               </Link>
             )}
@@ -181,7 +181,11 @@ export function PlatformDashboard() {
 
       <div className="dashboard-metrics">
         {metrics.map((metric) => (
-          <Link className="dashboard-metric" href={metric.href} key={metric.label}>
+          <Link
+            className="dashboard-metric"
+            href={metric.href}
+            key={metric.label}
+          >
             <span className="dashboard-metric-icon">
               <metric.icon size={21} />
             </span>
@@ -214,7 +218,9 @@ export function PlatformDashboard() {
               onRetry={() => environments.refetch()}
             />
           ) : providerTotal === 0 ? (
-            <p className="dashboard-empty">No environment profiles are available.</p>
+            <p className="dashboard-empty">
+              No environment profiles are available.
+            </p>
           ) : (
             <div className="provider-bars">
               {["AWS", "AZURE", "GCP", "OCI"].map((provider) => {
@@ -245,7 +251,9 @@ export function PlatformDashboard() {
             <div>
               <p className="eyebrow">OPERATIONS</p>
               <h2>Attention queue</h2>
-              <p className="muted">Items that may require a decision or action.</p>
+              <p className="muted">
+                Items that may require a decision or action.
+              </p>
             </div>
             {(failedClusters.data ?? 0) > 0 ? (
               <AlertTriangle className="dashboard-warning" size={24} />
@@ -265,24 +273,34 @@ export function PlatformDashboard() {
           </div>
           <div className="attention-list">
             {(pendingCustomers.data?.items ?? []).map((customer) => (
-              <Link href={`/customers/${customer.customerId}`} key={customer.customerId}>
+              <Link
+                href={`/customers/${customer.customerId}`}
+                key={customer.customerId}
+              >
                 <span>
                   <Building2 size={17} />
                   <span>
                     <strong>{customer.name}</strong>
-                    <small>Customer request · {customer.status.replaceAll("_", " ")}</small>
+                    <small>
+                      Customer request · {customer.status.replaceAll("_", " ")}
+                    </small>
                   </span>
                 </span>
                 <ArrowRight size={16} />
               </Link>
             ))}
             {(pendingClusters.data?.items ?? []).map((cluster) => (
-              <Link href={`/clusters/${cluster.clusterId}`} key={cluster.clusterId}>
+              <Link
+                href={`/clusters/${cluster.clusterId}`}
+                key={cluster.clusterId}
+              >
                 <span>
                   <ServerCog size={17} />
                   <span>
                     <strong>{cluster.clusterName}</strong>
-                    <small>Cluster request · {cluster.status.replaceAll("_", " ")}</small>
+                    <small>
+                      Cluster request · {cluster.status.replaceAll("_", " ")}
+                    </small>
                   </span>
                 </span>
                 <ArrowRight size={16} />

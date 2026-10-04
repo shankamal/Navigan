@@ -208,7 +208,9 @@ export const awsDiscoverySchema = z.object({
       eligibilityReason: z.string().optional(),
     }),
   ),
-  provisioningRoles: z.array(z.object({ roleName: z.string(), roleArn: z.string() })),
+  provisioningRoles: z.array(
+    z.object({ roleName: z.string(), roleArn: z.string() }),
+  ),
   provisioningSecrets: z.array(z.object({ name: z.string(), arn: z.string() })),
   counts: z.record(z.string(), z.number()),
   fetchedAt: z.string(),

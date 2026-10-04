@@ -102,7 +102,11 @@ function InstanceTypeSelector({
         placeholder="Search by type, vCPU, memory or architecture"
         aria-label="Search available EC2 instance types"
       />
-      <div className="instance-type-options" role="group" aria-label="Available EC2 instance types">
+      <div
+        className="instance-type-options"
+        role="group"
+        aria-label="Available EC2 instance types"
+      >
         {filtered.map((item) => (
           <label key={item.instanceType} className="instance-type-option">
             <input
@@ -113,16 +117,17 @@ function InstanceTypeSelector({
             <span>
               <strong>{item.instanceType}</strong>
               <small>
-                {item.vCpu} vCPU · {(item.memoryMiB / 1024).toFixed(
-                  item.memoryMiB % 1024 ? 1 : 0,
-                )}{" "}
+                {item.vCpu} vCPU ·{" "}
+                {(item.memoryMiB / 1024).toFixed(item.memoryMiB % 1024 ? 1 : 0)}{" "}
                 GiB · {item.architectures.join(", ")}
                 {item.currentGeneration ? " · Current generation" : ""}
               </small>
             </span>
           </label>
         ))}
-        {!filtered.length && <p className="muted">No matching instance types.</p>}
+        {!filtered.length && (
+          <p className="muted">No matching instance types.</p>
+        )}
       </div>
       <small>
         Selected: {selected.length ? selected.join(", ") : "none"}. One type
@@ -382,9 +387,8 @@ export function ProvisioningFields({
                   <div className="resource-remediation">
                     <strong>No supported versions discovered</strong>
                     <span>
-                      Grant NaviganDiscoveryRole
-                      eks:DescribeClusterVersions permission, then run Fetch
-                      details again.
+                      Grant NaviganDiscoveryRole eks:DescribeClusterVersions
+                      permission, then run Fetch details again.
                     </span>
                   </div>
                 )}
@@ -416,8 +420,8 @@ export function ProvisioningFields({
             </legend>
             <p className="blueprint-section-help">
               Define the protected on-demand pool that runs the connector and
-              mandatory platform services. Application pools are requested
-              from the cluster after onboarding.
+              mandatory platform services. Application pools are requested from
+              the cluster after onboarding.
             </p>
             <div className="node-group-list">
               {nodeGroupsOf(blueprint).map((group, groupIndex) => {
@@ -474,7 +478,10 @@ export function ProvisioningFields({
                         EC2 instance types *
                         <small>
                           Available instance types discovered in{" "}
-                          <strong>{configuredRegion || "the selected region"}</strong>.
+                          <strong>
+                            {configuredRegion || "the selected region"}
+                          </strong>
+                          .
                         </small>
                         {discoveredInstanceTypes.length ? (
                           <InstanceTypeSelector

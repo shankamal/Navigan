@@ -109,7 +109,9 @@ export function EnvironmentList({
   const availableStatuses =
     mode === "reviews"
       ? statuses.filter((status) =>
-          ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(status),
+          ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"].includes(
+            status,
+          ),
         )
       : statuses;
   const set = (key: string, value: string) =>

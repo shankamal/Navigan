@@ -111,11 +111,9 @@ export function requestedResourceVariables(
     eks_cluster_role_name:
       desiredResources.EKS_CLUSTER_ROLE || "NaviganEksClusterRole",
     create_eks_node_role: Boolean(desiredResources.EKS_NODE_ROLE),
-    eks_node_role_name:
-      desiredResources.EKS_NODE_ROLE || "NaviganEksNodeRole",
+    eks_node_role_name: desiredResources.EKS_NODE_ROLE || "NaviganEksNodeRole",
     create_eks_kms_key: Boolean(desiredResources.KMS_KEY),
-    recommended_kms_alias:
-      desiredResources.KMS_KEY || "alias/navigan-eks",
+    recommended_kms_alias: desiredResources.KMS_KEY || "alias/navigan-eks",
     confirm_create_recommended_resources: false,
   };
 }
@@ -167,25 +165,19 @@ export function defaultAwsBaselineSelection(
     );
   const vpcId = rankedVpcs[0]?.vpc.vpcId || "";
   const groups = region.securityGroups.filter((item) => item.vpcId === vpcId);
-  const clusterRole =
-    discovery.iamRoles.find((item) =>
-      item.roleType === "CLUSTER" && item.eligibility === "READY",
-    );
-  const nodeRole =
-    discovery.iamRoles.find((item) =>
-      item.roleType === "NODE" && item.eligibility === "READY",
-    );
+  const clusterRole = discovery.iamRoles.find(
+    (item) => item.roleType === "CLUSTER" && item.eligibility === "READY",
+  );
+  const nodeRole = discovery.iamRoles.find(
+    (item) => item.roleType === "NODE" && item.eligibility === "READY",
+  );
   const hasNat = region.natGateways.some(
     (item) => item.vpcId === vpcId && item.state === "available",
   );
   return {
     vpcId,
-    subnetIds: preferredSubnets(discovery, vpcId).map(
-      (item) => item.subnetId,
-    ),
-    clusterSecurityGroupIds: groups[0]
-      ? [groups[0].securityGroupId]
-      : [],
+    subnetIds: preferredSubnets(discovery, vpcId).map((item) => item.subnetId),
+    clusterSecurityGroupIds: groups[0] ? [groups[0].securityGroupId] : [],
     nodeSecurityGroupIds: groups[1]
       ? [groups[1].securityGroupId]
       : groups[0]
@@ -194,8 +186,7 @@ export function defaultAwsBaselineSelection(
     clusterRoleArn: clusterRole?.roleArn || "",
     nodeRoleArn: nodeRole?.roleArn || "",
     kmsKeyArn:
-      region.kmsKeys.find((item) => item.eligibility === "READY")?.keyArn ||
-      "",
+      region.kmsKeys.find((item) => item.eligibility === "READY")?.keyArn || "",
     egressMode: hasNat
       ? "NAT"
       : region.vpcEndpoints.length >= 3
@@ -354,9 +345,7 @@ export function baselineFrom(
       nodeSubnets: subnets,
     },
     security: {
-      clusterSecurityGroups: securityGroups(
-        selection.clusterSecurityGroupIds,
-      ),
+      clusterSecurityGroups: securityGroups(selection.clusterSecurityGroupIds),
       nodeSecurityGroups: securityGroups(selection.nodeSecurityGroupIds),
     },
     iam: {
@@ -538,7 +527,9 @@ function CompactMultiSelect({
               <button
                 type="button"
                 aria-label={`Remove ${item.name}`}
-                onClick={() => onChange(selected.filter((id) => id !== item.id))}
+                onClick={() =>
+                  onChange(selected.filter((id) => id !== item.id))
+                }
               >
                 <X size={14} aria-hidden="true" />
               </button>
@@ -584,8 +575,7 @@ export function AwsDiscoveryPanel({
   const [setupChoice, setSetupChoice] = useState<"MANUAL" | "PLATFORM">(
     "MANUAL",
   );
-  const [automaticSetupConfirmed, setAutomaticSetupConfirmed] =
-    useState(false);
+  const [automaticSetupConfirmed, setAutomaticSetupConfirmed] = useState(false);
   const [desiredResources, setDesiredResources] = useState<
     Partial<Record<ManagedResourceType, string>>
   >({});
@@ -624,8 +614,7 @@ export function AwsDiscoveryPanel({
   const region = result?.regions[0];
   const readyClusterRoles =
     result?.iamRoles.filter(
-      (item) =>
-        item.roleType === "CLUSTER" && item.eligibility === "READY",
+      (item) => item.roleType === "CLUSTER" && item.eligibility === "READY",
     ) ?? [];
   const readyNodeRoles =
     result?.iamRoles.filter(
@@ -644,9 +633,7 @@ export function AwsDiscoveryPanel({
     ...(!readyClusterRoles.length ? ["EKS_CLUSTER_ROLE"] : []),
     ...(!readyNodeRoles.length ? ["EKS_NODE_ROLE"] : []),
     ...(!readyKmsKeys.length ? ["KMS_KEY"] : []),
-    ...(!(result?.provisioningRoles.length ?? 0)
-      ? ["PROVISIONING_ROLE"]
-      : []),
+    ...(!(result?.provisioningRoles.length ?? 0) ? ["PROVISIONING_ROLE"] : []),
     ...(!(result?.provisioningSecrets.length ?? 0)
       ? ["EXTERNAL_ID_SECRET"]
       : []),
@@ -741,36 +728,33 @@ export function AwsDiscoveryPanel({
         { key: crypto.randomUUID() },
       ),
   });
-  const readiness = useMemo(
-    () => {
-      if (!result || !selection) return undefined;
-      const baseline = validateAwsBaselineSelection(
-        result,
-        selection,
-        costCenter,
-      );
-      const fulfilment: ReadinessCheck = {
-        id: "resource-fulfilment",
-        label: "Dedicated resource fulfilment",
-        passed: outstandingNamedResourceTypes.length === 0,
-        details:
-          namedResourceTypes.length === 0
-            ? "No outstanding named-resource requests"
-            : outstandingNamedResourceTypes.length === 0
-              ? "Every requested dedicated resource was verified by rediscovery"
-              : `${outstandingNamedResourceTypes.length} requested resource${outstandingNamedResourceTypes.length === 1 ? "" : "s"} must be created and verified by rediscovery`,
-      };
-      const checks = [...baseline.checks, fulfilment];
-      return { checks, ready: checks.every((item) => item.passed) };
-    },
-    [
+  const readiness = useMemo(() => {
+    if (!result || !selection) return undefined;
+    const baseline = validateAwsBaselineSelection(
       result,
       selection,
       costCenter,
-      namedResourceTypes.length,
-      outstandingNamedResourceTypes.length,
-    ],
-  );
+    );
+    const fulfilment: ReadinessCheck = {
+      id: "resource-fulfilment",
+      label: "Dedicated resource fulfilment",
+      passed: outstandingNamedResourceTypes.length === 0,
+      details:
+        namedResourceTypes.length === 0
+          ? "No outstanding named-resource requests"
+          : outstandingNamedResourceTypes.length === 0
+            ? "Every requested dedicated resource was verified by rediscovery"
+            : `${outstandingNamedResourceTypes.length} requested resource${outstandingNamedResourceTypes.length === 1 ? "" : "s"} must be created and verified by rediscovery`,
+    };
+    const checks = [...baseline.checks, fulfilment];
+    return { checks, ready: checks.every((item) => item.passed) };
+  }, [
+    result,
+    selection,
+    costCenter,
+    namedResourceTypes.length,
+    outstandingNamedResourceTypes.length,
+  ]);
   const count = result
     ? Object.values(result.counts).reduce((sum, value) => sum + value, 0)
     : 0;
@@ -815,15 +799,16 @@ export function AwsDiscoveryPanel({
     anchor.click();
     URL.revokeObjectURL(url);
   };
-  const availableEgress = region && selection
-    ? {
-        nat: region.natGateways.some(
-          (item) =>
-            item.vpcId === selection.vpcId && item.state === "available",
-        ),
-        endpoints: region.vpcEndpoints.length >= 3,
-      }
-    : { nat: false, endpoints: false };
+  const availableEgress =
+    region && selection
+      ? {
+          nat: region.natGateways.some(
+            (item) =>
+              item.vpcId === selection.vpcId && item.state === "available",
+          ),
+          endpoints: region.vpcEndpoints.length >= 3,
+        }
+      : { nat: false, endpoints: false };
   return (
     <section className="panel panel-padding aws-discovery-panel">
       <div className="environment-section-heading">
@@ -1060,19 +1045,18 @@ export function AwsDiscoveryPanel({
             </div>
           </header>
           <div className="environment-operation-steps">
-            {(
-              mutation.isPending
-                ? [
-                    "Assume tenant discovery role",
-                    "Read network and IAM inventory",
-                    "Check encryption and regional capacity",
-                    "Prepare eligible resource list",
-                  ]
-                : [
-                    "Validate requested resources",
-                    "Create immutable bootstrap plan",
-                    "Record approval request",
-                  ]
+            {(mutation.isPending
+              ? [
+                  "Assume tenant discovery role",
+                  "Read network and IAM inventory",
+                  "Check encryption and regional capacity",
+                  "Prepare eligible resource list",
+                ]
+              : [
+                  "Validate requested resources",
+                  "Create immutable bootstrap plan",
+                  "Record approval request",
+                ]
             ).map((label, index) => (
               <div className={index === 0 ? "active" : ""} key={label}>
                 <span aria-hidden="true" />
@@ -1105,17 +1089,22 @@ export function AwsDiscoveryPanel({
             <div>
               <strong>AWS account {result.account.accountId} connected</strong>
               <p>
-                {count} references discovered · {readiness.checks.filter((item) => item.passed).length}
-                /{readiness.checks.length} baseline checks passed
+                {count} references discovered ·{" "}
+                {readiness.checks.filter((item) => item.passed).length}/
+                {readiness.checks.length} baseline checks passed
               </p>
             </div>
-            <span className="metadata">Fetched {formatDate(result.fetchedAt)}</span>
+            <span className="metadata">
+              Fetched {formatDate(result.fetchedAt)}
+            </span>
           </div>
           <div className="discovery-summary-grid">
             <article>
               <Network size={20} />
               <span>Network</span>
-              <strong>{region.vpcs.length} VPCs · {region.subnets.length} subnets</strong>
+              <strong>
+                {region.vpcs.length} VPCs · {region.subnets.length} subnets
+              </strong>
             </article>
             <article>
               <KeyRound size={20} />
@@ -1125,30 +1114,64 @@ export function AwsDiscoveryPanel({
             <article>
               <ShieldCheck size={20} />
               <span>Security</span>
-              <strong>{region.securityGroups.length} groups · {region.kmsKeys.length} KMS keys</strong>
+              <strong>
+                {region.securityGroups.length} groups · {region.kmsKeys.length}{" "}
+                KMS keys
+              </strong>
             </article>
             <article className={readiness.ready ? "" : "needs-review"}>
-              {readiness.ready ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+              {readiness.ready ? (
+                <CheckCircle2 size={20} />
+              ) : (
+                <AlertTriangle size={20} />
+              )}
               <span>Selected baseline</span>
-              <strong>{readiness.ready ? "Ready to apply" : "Selection required"}</strong>
+              <strong>
+                {readiness.ready ? "Ready to apply" : "Selection required"}
+              </strong>
             </article>
           </div>
-          <section className="discovery-selection" aria-labelledby="aws-baseline-selection">
+          <section
+            className="discovery-selection"
+            aria-labelledby="aws-baseline-selection"
+          >
             <div className="environment-section-heading">
               <div>
                 <p className="eyebrow">EKS PROVISIONING BASELINE</p>
-                <h3 id="aws-baseline-selection">Select the exact resources EKS may use</h3>
-                <p className="muted">Only this approved baseline is saved in the environment profile. Cluster version, capacity and add-ons remain part of the later cluster request.</p>
+                <h3 id="aws-baseline-selection">
+                  Select the exact resources EKS may use
+                </h3>
+                <p className="muted">
+                  Only this approved baseline is saved in the environment
+                  profile. Cluster version, capacity and add-ons remain part of
+                  the later cluster request.
+                </p>
               </div>
-              <span className={readiness.ready ? "security-chip" : "security-chip needs-review"}>
-                {readiness.ready ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+              <span
+                className={
+                  readiness.ready
+                    ? "security-chip"
+                    : "security-chip needs-review"
+                }
+              >
+                {readiness.ready ? (
+                  <CheckCircle2 size={15} />
+                ) : (
+                  <AlertTriangle size={15} />
+                )}
                 {readiness.ready ? "Baseline ready" : "Review required"}
               </span>
             </div>
             <div className="baseline-group">
               <div className="baseline-group-heading">
                 <Network size={19} />
-                <div><h4>1. Network</h4><p>Select one VPC and private subnets in at least two availability zones.</p></div>
+                <div>
+                  <h4>1. Network</h4>
+                  <p>
+                    Select one VPC and private subnets in at least two
+                    availability zones.
+                  </p>
+                </div>
               </div>
               <label className="field baseline-primary-field">
                 VPC *
@@ -1156,112 +1179,281 @@ export function AwsDiscoveryPanel({
                   value={selection.vpcId}
                   onChange={(event) => {
                     const vpcId = event.target.value;
-                    const groups = region.securityGroups.filter((item) => item.vpcId === vpcId);
-                    const nat = region.natGateways.some((item) => item.vpcId === vpcId && item.state === "available");
+                    const groups = region.securityGroups.filter(
+                      (item) => item.vpcId === vpcId,
+                    );
+                    const nat = region.natGateways.some(
+                      (item) =>
+                        item.vpcId === vpcId && item.state === "available",
+                    );
                     select({
                       vpcId,
-                      subnetIds: preferredSubnets(result, vpcId).map((item) => item.subnetId),
-                      clusterSecurityGroupIds: groups[0] ? [groups[0].securityGroupId] : [],
-                      nodeSecurityGroupIds: groups[1] ? [groups[1].securityGroupId] : groups[0] ? [groups[0].securityGroupId] : [],
-                      egressMode: nat ? "NAT" : region.vpcEndpoints.length >= 3 ? "PRIVATE_ENDPOINTS" : "",
+                      subnetIds: preferredSubnets(result, vpcId).map(
+                        (item) => item.subnetId,
+                      ),
+                      clusterSecurityGroupIds: groups[0]
+                        ? [groups[0].securityGroupId]
+                        : [],
+                      nodeSecurityGroupIds: groups[1]
+                        ? [groups[1].securityGroupId]
+                        : groups[0]
+                          ? [groups[0].securityGroupId]
+                          : [],
+                      egressMode: nat
+                        ? "NAT"
+                        : region.vpcEndpoints.length >= 3
+                          ? "PRIVATE_ENDPOINTS"
+                          : "",
                     });
                   }}
                 >
                   {region.vpcs.map((item) => (
-                    <option key={item.vpcId} value={item.vpcId}>{item.name || item.vpcId} · {item.vpcId} · {item.cidrBlock}</option>
+                    <option key={item.vpcId} value={item.vpcId}>
+                      {item.name || item.vpcId} · {item.vpcId} ·{" "}
+                      {item.cidrBlock}
+                    </option>
                   ))}
                 </select>
-                {!region.vpcs.length && <div className="resource-remediation"><strong>No VPC is available</strong><span>Create a VPC in the selected region, including DNS support and DNS hostnames, then run Fetch details again.</span></div>}
+                {!region.vpcs.length && (
+                  <div className="resource-remediation">
+                    <strong>No VPC is available</strong>
+                    <span>
+                      Create a VPC in the selected region, including DNS support
+                      and DNS hostnames, then run Fetch details again.
+                    </span>
+                  </div>
+                )}
               </label>
               <ChoiceList
                 legend="Approved private subnets *"
                 help="Select at least two subnets in different availability zones. Public subnets are excluded."
-                items={privateSubnetsForVpc(result, selection.vpcId).map((item) => ({
-                  id: item.subnetId,
-                  name: item.name || item.subnetId,
-                  metadata: `${item.subnetId} · ${item.availabilityZone} · ${item.cidrBlock || "CIDR unavailable"} · ${item.availableIpAddressCount} IPs`,
-                }))}
+                items={privateSubnetsForVpc(result, selection.vpcId).map(
+                  (item) => ({
+                    id: item.subnetId,
+                    name: item.name || item.subnetId,
+                    metadata: `${item.subnetId} · ${item.availabilityZone} · ${item.cidrBlock || "CIDR unavailable"} · ${item.availableIpAddressCount} IPs`,
+                  }),
+                )}
                 selected={selection.subnetIds}
                 onChange={(subnetIds) => select({ subnetIds })}
               />
-              {privateSubnetsForVpc(result, selection.vpcId).length < 2 && <div className="resource-remediation"><strong>At least two private subnets are required</strong><span>Create private subnets in two different availability zones in the selected VPC. Ensure their route tables do not route directly to an internet gateway, then run Fetch details again.</span></div>}
+              {privateSubnetsForVpc(result, selection.vpcId).length < 2 && (
+                <div className="resource-remediation">
+                  <strong>At least two private subnets are required</strong>
+                  <span>
+                    Create private subnets in two different availability zones
+                    in the selected VPC. Ensure their route tables do not route
+                    directly to an internet gateway, then run Fetch details
+                    again.
+                  </span>
+                </div>
+              )}
             </div>
             <div className="baseline-group">
               <div className="baseline-group-heading">
                 <KeyRound size={19} />
-                <div><h4>2. IAM and encryption</h4><p>Pin the roles and KMS key that the future cluster request may reference.</p></div>
+                <div>
+                  <h4>2. IAM and encryption</h4>
+                  <p>
+                    Pin the roles and KMS key that the future cluster request
+                    may reference.
+                  </p>
+                </div>
               </div>
               <div className="baseline-field-grid">
-                <label className="field">EKS cluster role *
-                  <select value={selection.clusterRoleArn} onChange={(event) => select({ clusterRoleArn: event.target.value })}>
-                    <option value="">{readyClusterRoles.length ? "Select a verified cluster role" : "No eligible cluster role discovered"}</option>
+                <label className="field">
+                  EKS cluster role *
+                  <select
+                    value={selection.clusterRoleArn}
+                    onChange={(event) =>
+                      select({ clusterRoleArn: event.target.value })
+                    }
+                  >
+                    <option value="">
+                      {readyClusterRoles.length
+                        ? "Select a verified cluster role"
+                        : "No eligible cluster role discovered"}
+                    </option>
                     {readyClusterRoles.map((item) => (
                       <option key={item.roleArn} value={item.roleArn}>
                         ● Ready · {item.roleName}
                       </option>
                     ))}
                   </select>
-                  {!readyClusterRoles.length && <div className="resource-remediation"><strong>Create or make a cluster role verifiable</strong><span>Create a role trusted by eks.amazonaws.com with AmazonEKSClusterPolicy. Grant NaviganDiscoveryRole iam:GetRole and iam:ListAttachedRolePolicies, then run Fetch details again.</span></div>}
+                  {!readyClusterRoles.length && (
+                    <div className="resource-remediation">
+                      <strong>Create or make a cluster role verifiable</strong>
+                      <span>
+                        Create a role trusted by eks.amazonaws.com with
+                        AmazonEKSClusterPolicy. Grant NaviganDiscoveryRole
+                        iam:GetRole and iam:ListAttachedRolePolicies, then run
+                        Fetch details again.
+                      </span>
+                    </div>
+                  )}
                 </label>
-                <label className="field">EKS node role *
-                  <select value={selection.nodeRoleArn} onChange={(event) => select({ nodeRoleArn: event.target.value })}>
-                    <option value="">{readyNodeRoles.length ? "Select a verified node role" : "No eligible node role discovered"}</option>
+                <label className="field">
+                  EKS node role *
+                  <select
+                    value={selection.nodeRoleArn}
+                    onChange={(event) =>
+                      select({ nodeRoleArn: event.target.value })
+                    }
+                  >
+                    <option value="">
+                      {readyNodeRoles.length
+                        ? "Select a verified node role"
+                        : "No eligible node role discovered"}
+                    </option>
                     {readyNodeRoles.map((item) => (
                       <option key={item.roleArn} value={item.roleArn}>
                         ● Ready · {item.roleName}
                       </option>
                     ))}
                   </select>
-                  {!readyNodeRoles.length && <div className="resource-remediation"><strong>Create or make a node role verifiable</strong><span>Create a role trusted by ec2.amazonaws.com with AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryPullOnly and AmazonEKS_CNI_Policy. Do not attach AdministratorAccess. Grant discovery permission and run Fetch details again.</span></div>}
+                  {!readyNodeRoles.length && (
+                    <div className="resource-remediation">
+                      <strong>Create or make a node role verifiable</strong>
+                      <span>
+                        Create a role trusted by ec2.amazonaws.com with
+                        AmazonEKSWorkerNodePolicy,
+                        AmazonEC2ContainerRegistryPullOnly and
+                        AmazonEKS_CNI_Policy. Do not attach AdministratorAccess.
+                        Grant discovery permission and run Fetch details again.
+                      </span>
+                    </div>
+                  )}
                 </label>
-                <label className="field">Node-volume KMS key *
-                  <select value={selection.kmsKeyArn} onChange={(event) => select({ kmsKeyArn: event.target.value })}>
-                    <option value="">{readyKmsKeys.length ? "Select a verified customer-managed key" : "No eligible encryption key discovered"}</option>
+                <label className="field">
+                  Node-volume KMS key *
+                  <select
+                    value={selection.kmsKeyArn}
+                    onChange={(event) =>
+                      select({ kmsKeyArn: event.target.value })
+                    }
+                  >
+                    <option value="">
+                      {readyKmsKeys.length
+                        ? "Select a verified customer-managed key"
+                        : "No eligible encryption key discovered"}
+                    </option>
                     {readyKmsKeys.map((item) => (
                       <option key={item.keyArn} value={item.keyArn}>
                         ● Ready · {item.aliasName || item.keyArn}
                       </option>
                     ))}
                   </select>
-                  {!readyKmsKeys.length && <div className="resource-remediation"><strong>Create or make an encryption key verifiable</strong><span>Create an enabled customer-managed symmetric ENCRYPT_DECRYPT KMS key in this region. Grant NaviganDiscoveryRole kms:ListAliases and kms:DescribeKey, then run Fetch details again.</span></div>}
+                  {!readyKmsKeys.length && (
+                    <div className="resource-remediation">
+                      <strong>
+                        Create or make an encryption key verifiable
+                      </strong>
+                      <span>
+                        Create an enabled customer-managed symmetric
+                        ENCRYPT_DECRYPT KMS key in this region. Grant
+                        NaviganDiscoveryRole kms:ListAliases and
+                        kms:DescribeKey, then run Fetch details again.
+                      </span>
+                    </div>
+                  )}
                 </label>
               </div>
             </div>
             <div className="baseline-group">
               <div className="baseline-group-heading">
                 <ShieldCheck size={19} />
-                <div><h4>3. Security groups</h4><p>Keep control-plane and worker-node access independently selectable.</p></div>
+                <div>
+                  <h4>3. Security groups</h4>
+                  <p>
+                    Keep control-plane and worker-node access independently
+                    selectable.
+                  </p>
+                </div>
               </div>
               <div className="baseline-field-grid baseline-field-grid-two">
                 <CompactMultiSelect
                   legend="Cluster security groups *"
                   help="Applied to EKS control-plane network interfaces."
-                  items={region.securityGroups.filter((item) => item.vpcId === selection.vpcId).map((item) => ({ id: item.securityGroupId, name: item.name || item.securityGroupId, metadata: `${item.securityGroupId} · ${item.description}` }))}
+                  items={region.securityGroups
+                    .filter((item) => item.vpcId === selection.vpcId)
+                    .map((item) => ({
+                      id: item.securityGroupId,
+                      name: item.name || item.securityGroupId,
+                      metadata: `${item.securityGroupId} · ${item.description}`,
+                    }))}
                   selected={selection.clusterSecurityGroupIds}
-                  onChange={(clusterSecurityGroupIds) => select({ clusterSecurityGroupIds })}
+                  onChange={(clusterSecurityGroupIds) =>
+                    select({ clusterSecurityGroupIds })
+                  }
                 />
                 <CompactMultiSelect
                   legend="Node security groups *"
                   help="Applied to managed node groups created later."
-                  items={region.securityGroups.filter((item) => item.vpcId === selection.vpcId).map((item) => ({ id: item.securityGroupId, name: item.name || item.securityGroupId, metadata: `${item.securityGroupId} · ${item.description}` }))}
+                  items={region.securityGroups
+                    .filter((item) => item.vpcId === selection.vpcId)
+                    .map((item) => ({
+                      id: item.securityGroupId,
+                      name: item.name || item.securityGroupId,
+                      metadata: `${item.securityGroupId} · ${item.description}`,
+                    }))}
                   selected={selection.nodeSecurityGroupIds}
-                  onChange={(nodeSecurityGroupIds) => select({ nodeSecurityGroupIds })}
+                  onChange={(nodeSecurityGroupIds) =>
+                    select({ nodeSecurityGroupIds })
+                  }
                 />
               </div>
-              {!region.securityGroups.some((item) => item.vpcId === selection.vpcId) && <div className="resource-remediation"><strong>No security groups are available in this VPC</strong><span>Create dedicated EKS control-plane and worker-node security groups, then run Fetch details again.</span></div>}
+              {!region.securityGroups.some(
+                (item) => item.vpcId === selection.vpcId,
+              ) && (
+                <div className="resource-remediation">
+                  <strong>No security groups are available in this VPC</strong>
+                  <span>
+                    Create dedicated EKS control-plane and worker-node security
+                    groups, then run Fetch details again.
+                  </span>
+                </div>
+              )}
             </div>
             <div className="baseline-group">
               <div className="baseline-group-heading">
                 <CloudCog size={19} />
-                <div><h4>4. Private connectivity</h4><p>Select an egress path already discovered for the selected VPC.</p></div>
+                <div>
+                  <h4>4. Private connectivity</h4>
+                  <p>
+                    Select an egress path already discovered for the selected
+                    VPC.
+                  </p>
+                </div>
               </div>
-              <label className="field baseline-primary-field">Approved egress *
-                <select value={selection.egressMode} onChange={(event) => select({ egressMode: event.target.value as AwsBaselineSelection["egressMode"] })}>
+              <label className="field baseline-primary-field">
+                Approved egress *
+                <select
+                  value={selection.egressMode}
+                  onChange={(event) =>
+                    select({
+                      egressMode: event.target
+                        .value as AwsBaselineSelection["egressMode"],
+                    })
+                  }
+                >
                   <option value="">No eligible path discovered</option>
-                  {availableEgress.nat && <option value="NAT">NAT gateway</option>}
-                  {availableEgress.endpoints && <option value="PRIVATE_ENDPOINTS">VPC endpoints</option>}
+                  {availableEgress.nat && (
+                    <option value="NAT">NAT gateway</option>
+                  )}
+                  {availableEgress.endpoints && (
+                    <option value="PRIVATE_ENDPOINTS">VPC endpoints</option>
+                  )}
                 </select>
-                {!availableEgress.nat && !availableEgress.endpoints && <div className="resource-remediation"><strong>No private egress path is ready</strong><span>Add a working NAT gateway or the required private VPC endpoints for EKS, ECR, S3, STS and supporting services, then run Fetch details again.</span></div>}
+                {!availableEgress.nat && !availableEgress.endpoints && (
+                  <div className="resource-remediation">
+                    <strong>No private egress path is ready</strong>
+                    <span>
+                      Add a working NAT gateway or the required private VPC
+                      endpoints for EKS, ECR, S3, STS and supporting services,
+                      then run Fetch details again.
+                    </span>
+                  </div>
+                )}
               </label>
             </div>
             {(accountSetupRequired || namedResourceTypes.length > 0) && (
@@ -1302,8 +1494,8 @@ export function AwsDiscoveryPanel({
                       <strong>Customer-managed setup</strong>
                       <small>Recommended default</small>
                       <p>
-                        A customer administrator reviews and applies the
-                        Navigan Terraform bootstrap in their AWS account.
+                        A customer administrator reviews and applies the Navigan
+                        Terraform bootstrap in their AWS account.
                       </p>
                     </span>
                   </label>
@@ -1338,18 +1530,81 @@ export function AwsDiscoveryPanel({
                     </strong>
                     <p>
                       Intended tenant: customer <code>{customerId}</code>
-                      {input.accountId
-                        ? <> · AWS account <code>{input.accountId}</code></>
-                        : null}
+                      {input.accountId ? (
+                        <>
+                          {" "}
+                          · AWS account <code>{input.accountId}</code>
+                        </>
+                      ) : null}
                       . The administrator must stop if AWS STS reports a
                       different account.
                     </p>
                     <ol className="account-setup-checklist">
-                      <li><span>1</span><div><strong>Download and verify the tenant</strong><p>Use bootstrap v1.1.4. Authenticate with the customer administrator profile and run <code>aws sts get-caller-identity</code> before Terraform.</p></div></li>
-                      <li><span>2</span><div><strong>Create a unique provisioning External ID</strong><p>Do not reuse the discovery External ID or a value belonging to another customer. Keep it out of chat, logs and tickets.</p></div></li>
-                      <li><span>3</span><div><strong>Validate and review a saved plan</strong><p>The trust must contain only the exact Terraform execution and Environment Lambda validation roles, protected by the unique External ID. Run Terraform init, format check, validation and plan; reject unexpected deletion or replacement.</p></div></li>
-                      <li><span>4</span><div><strong>Apply and complete the secure handoff</strong><p>The AWS administrator applies the exact saved plan. The Navigan operator then registers the raw External ID under <code>navigan/provisioning/{customerId}/external-id</code> through an approved secret exchange—not email, chat or tickets.</p></div></li>
-                      <li><span>5</span><div><strong>Refresh and save the revision</strong><p>Fetch AWS inventory again, select every green eligible resource, apply the verified baseline and save the revision.</p></div></li>
+                      <li>
+                        <span>1</span>
+                        <div>
+                          <strong>Download and verify the tenant</strong>
+                          <p>
+                            Use bootstrap v1.1.4. Authenticate with the customer
+                            administrator profile and run{" "}
+                            <code>aws sts get-caller-identity</code> before
+                            Terraform.
+                          </p>
+                        </div>
+                      </li>
+                      <li>
+                        <span>2</span>
+                        <div>
+                          <strong>
+                            Create a unique provisioning External ID
+                          </strong>
+                          <p>
+                            Do not reuse the discovery External ID or a value
+                            belonging to another customer. Keep it out of chat,
+                            logs and tickets.
+                          </p>
+                        </div>
+                      </li>
+                      <li>
+                        <span>3</span>
+                        <div>
+                          <strong>Validate and review a saved plan</strong>
+                          <p>
+                            The trust must contain only the exact Terraform
+                            execution and Environment Lambda validation roles,
+                            protected by the unique External ID. Run Terraform
+                            init, format check, validation and plan; reject
+                            unexpected deletion or replacement.
+                          </p>
+                        </div>
+                      </li>
+                      <li>
+                        <span>4</span>
+                        <div>
+                          <strong>Apply and complete the secure handoff</strong>
+                          <p>
+                            The AWS administrator applies the exact saved plan.
+                            The Navigan operator then registers the raw External
+                            ID under{" "}
+                            <code>
+                              navigan/provisioning/{customerId}/external-id
+                            </code>{" "}
+                            through an approved secret exchange—not email, chat
+                            or tickets.
+                          </p>
+                        </div>
+                      </li>
+                      <li>
+                        <span>5</span>
+                        <div>
+                          <strong>Refresh and save the revision</strong>
+                          <p>
+                            Fetch AWS inventory again, select every green
+                            eligible resource, apply the verified baseline and
+                            save the revision.
+                          </p>
+                        </div>
+                      </li>
                     </ol>
                     <a
                       className="button button-secondary account-setup-download"
@@ -1388,8 +1643,8 @@ export function AwsDiscoveryPanel({
                       />
                       <span>
                         I confirm that I am requesting a reviewed Terraform
-                        plan—not immediate AWS changes—for this customer
-                        account and region.
+                        plan—not immediate AWS changes—for this customer account
+                        and region.
                       </span>
                     </label>
                     <p>
@@ -1438,42 +1693,130 @@ export function AwsDiscoveryPanel({
             <div className="baseline-review">
               <div>
                 <h4>Provisioning readiness</h4>
-                <p className="muted">Resolve every failed check before applying this baseline to the draft.</p>
+                <p className="muted">
+                  Resolve every failed check before applying this baseline to
+                  the draft.
+                </p>
               </div>
               <div className="baseline-checks">
                 {readiness.checks.map((item) => (
-                  <div key={item.id} className={item.passed ? "baseline-check passed" : "baseline-check failed"}>
-                    {item.passed ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}
-                    <span><strong>{item.label}</strong><small>{item.details}</small></span>
+                  <div
+                    key={item.id}
+                    className={
+                      item.passed
+                        ? "baseline-check passed"
+                        : "baseline-check failed"
+                    }
+                  >
+                    {item.passed ? (
+                      <CheckCircle2 size={17} />
+                    ) : (
+                      <AlertTriangle size={17} />
+                    )}
+                    <span>
+                      <strong>{item.label}</strong>
+                      <small>{item.details}</small>
+                    </span>
                   </div>
                 ))}
               </div>
               <div className="environment-actions baseline-apply-actions">
-                {applied && <span className="readiness-pass"><CheckCircle2 size={17} /> Baseline applied to draft</span>}
-                <Button type="button" disabled={disabled || !readiness.ready} onClick={apply}>
-                  {applied ? "Reapply selected baseline" : "Apply selected baseline"}
+                {applied && (
+                  <span className="readiness-pass">
+                    <CheckCircle2 size={17} /> Baseline applied to draft
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  disabled={disabled || !readiness.ready}
+                  onClick={apply}
+                >
+                  {applied
+                    ? "Reapply selected baseline"
+                    : "Apply selected baseline"}
                 </Button>
               </div>
-              {readiness.ready && !applied && <p className="baseline-next-instruction">All checks passed. Apply the selected baseline, then choose <strong>Save as Draft</strong> or <strong>Review and Submit</strong> at the bottom of the page.</p>}
-              {applied && <p className="baseline-next-instruction success">The verified baseline is attached. Continue to the bottom of the page and choose <strong>Save as Draft</strong> or <strong>Review and Submit</strong>.</p>}
+              {readiness.ready && !applied && (
+                <p className="baseline-next-instruction">
+                  All checks passed. Apply the selected baseline, then choose{" "}
+                  <strong>Save as Draft</strong> or{" "}
+                  <strong>Review and Submit</strong> at the bottom of the page.
+                </p>
+              )}
+              {applied && (
+                <p className="baseline-next-instruction success">
+                  The verified baseline is attached. Continue to the bottom of
+                  the page and choose <strong>Save as Draft</strong> or{" "}
+                  <strong>Review and Submit</strong>.
+                </p>
+              )}
             </div>
           </section>
           <details className="discovery-inventory-details">
-            <summary><ChevronDown size={17} /> Review complete discovery inventory</summary>
-            <div className="discovery-resource-table" role="region" aria-label="Discovered AWS resource inventory">
-              <div className="discovery-resource-row discovery-resource-head"><span>Resource type</span><span>Discovered</span><span>Profile relevance</span></div>
+            <summary>
+              <ChevronDown size={17} /> Review complete discovery inventory
+            </summary>
+            <div
+              className="discovery-resource-table"
+              role="region"
+              aria-label="Discovered AWS resource inventory"
+            >
+              <div className="discovery-resource-row discovery-resource-head">
+                <span>Resource type</span>
+                <span>Discovered</span>
+                <span>Profile relevance</span>
+              </div>
               {[
                 ["VPCs", region.vpcs.length, "Select exactly one"],
-                ["Private subnets", region.subnets.filter((item) => item.type === "PRIVATE").length, "Select two or more availability zones"],
-                ["IAM roles", result.iamRoles.length, "Select cluster and node roles"],
-                ["Security groups", region.securityGroups.length, "Select cluster and node groups"],
-                ["KMS keys", region.kmsKeys.length, "Select one node-volume key"],
-                ["VPC endpoints", region.vpcEndpoints.length, "Optional private egress path"],
-                ["NAT gateways", region.natGateways.filter((item) => item.state === "available").length, "Optional managed egress path"],
-                ["ECR repositories", region.ecrRepositories.length, "Inventory only; not stored in baseline"],
-                ["Service quotas", region.serviceQuotas.length, "Revalidated before provisioning"],
+                [
+                  "Private subnets",
+                  region.subnets.filter((item) => item.type === "PRIVATE")
+                    .length,
+                  "Select two or more availability zones",
+                ],
+                [
+                  "IAM roles",
+                  result.iamRoles.length,
+                  "Select cluster and node roles",
+                ],
+                [
+                  "Security groups",
+                  region.securityGroups.length,
+                  "Select cluster and node groups",
+                ],
+                [
+                  "KMS keys",
+                  region.kmsKeys.length,
+                  "Select one node-volume key",
+                ],
+                [
+                  "VPC endpoints",
+                  region.vpcEndpoints.length,
+                  "Optional private egress path",
+                ],
+                [
+                  "NAT gateways",
+                  region.natGateways.filter(
+                    (item) => item.state === "available",
+                  ).length,
+                  "Optional managed egress path",
+                ],
+                [
+                  "ECR repositories",
+                  region.ecrRepositories.length,
+                  "Inventory only; not stored in baseline",
+                ],
+                [
+                  "Service quotas",
+                  region.serviceQuotas.length,
+                  "Revalidated before provisioning",
+                ],
               ].map(([label, discovered, relevance]) => (
-                <div className="discovery-resource-row" key={String(label)}><strong>{label}</strong><span>{discovered}</span><span>{relevance}</span></div>
+                <div className="discovery-resource-row" key={String(label)}>
+                  <strong>{label}</strong>
+                  <span>{discovered}</span>
+                  <span>{relevance}</span>
+                </div>
               ))}
             </div>
           </details>

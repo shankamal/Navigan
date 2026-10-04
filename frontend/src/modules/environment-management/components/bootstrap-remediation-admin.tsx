@@ -140,7 +140,10 @@ export function BootstrapRemediationQueue() {
             <ErrorNotice error={query.error} onRetry={() => query.refetch()} />
           </div>
         ) : query.data.items.length === 0 ? (
-          <EmptyState icon={<ShieldAlert size={28} />} title="No matching requests">
+          <EmptyState
+            icon={<ShieldAlert size={28} />}
+            title="No matching requests"
+          >
             There are no bootstrap remediation requests in this view.
           </EmptyState>
         ) : (
@@ -160,7 +163,9 @@ export function BootstrapRemediationQueue() {
                   {query.data.items.map((item) => (
                     <tr key={item.requestId}>
                       <td>
-                        <Link href={`/environments/remediations/${item.requestId}`}>
+                        <Link
+                          href={`/environments/remediations/${item.requestId}`}
+                        >
                           <strong>{item.requestId}</strong>
                         </Link>
                         <div className="metadata">{item.region}</div>
@@ -170,7 +175,9 @@ export function BootstrapRemediationQueue() {
                         <div className="metadata">{item.accountId}</div>
                       </td>
                       <td>{item.missingResources.length} requested</td>
-                      <td><StatusBadge status={item.status} /></td>
+                      <td>
+                        <StatusBadge status={item.status} />
+                      </td>
                       <td>{formatDateTime(item.requestedAt)}</td>
                     </tr>
                   ))}
@@ -270,7 +277,10 @@ export function BootstrapRemediationDetails({
                 <CheckCircle2 size={20} aria-hidden="true" />
                 <div>
                   <strong>{resource}</strong>
-                  <p>{item.requestedActions[index] || "Create and validate this prerequisite."}</p>
+                  <p>
+                    {item.requestedActions[index] ||
+                      "Create and validate this prerequisite."}
+                  </p>
                   {item.desiredResources[resource] && (
                     <p>
                       Requested name:{" "}
@@ -282,14 +292,30 @@ export function BootstrapRemediationDetails({
             ))}
           </div>
           <dl className="remediation-audit-grid">
-            <div><dt>Requested by</dt><dd>{item.requestedBy}</dd></div>
-            <div><dt>Confirmed at</dt><dd>{formatDateTime(item.confirmedAt)}</dd></div>
-            <div><dt>Discovery role</dt><dd className="break-all">{item.discoveryRoleArn}</dd></div>
-            <div><dt>Correlation ID</dt><dd className="break-all">{item.correlationId}</dd></div>
+            <div>
+              <dt>Requested by</dt>
+              <dd>{item.requestedBy}</dd>
+            </div>
+            <div>
+              <dt>Confirmed at</dt>
+              <dd>{formatDateTime(item.confirmedAt)}</dd>
+            </div>
+            <div>
+              <dt>Discovery role</dt>
+              <dd className="break-all">{item.discoveryRoleArn}</dd>
+            </div>
+            <div>
+              <dt>Correlation ID</dt>
+              <dd className="break-all">{item.correlationId}</dd>
+            </div>
           </dl>
-          {["APPROVED", "PLAN_RUNNING", "PLAN_READY", "APPLY_RUNNING", "COMPLETED"].includes(
-            item.status,
-          ) && (
+          {[
+            "APPROVED",
+            "PLAN_RUNNING",
+            "PLAN_READY",
+            "APPLY_RUNNING",
+            "COMPLETED",
+          ].includes(item.status) && (
             <div className="form-actions">
               <a
                 className="button button-secondary"

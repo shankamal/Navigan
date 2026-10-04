@@ -41,47 +41,99 @@ const containerPlatformCatalogue = [
   {
     group: "Amazon Web Services",
     options: [
-      { value: "AWS/EKS", label: "AWS / Elastic Kubernetes Service (EKS)", supported: true },
-      { value: "AWS/ECS", label: "AWS / Elastic Container Service (ECS)", supported: false },
+      {
+        value: "AWS/EKS",
+        label: "AWS / Elastic Kubernetes Service (EKS)",
+        supported: true,
+      },
+      {
+        value: "AWS/ECS",
+        label: "AWS / Elastic Container Service (ECS)",
+        supported: false,
+      },
     ],
   },
   {
     group: "Microsoft Azure",
     options: [
-      { value: "AZURE/AKS", label: "Azure / Kubernetes Service (AKS)", supported: false },
-      { value: "AZURE/CONTAINER_APPS", label: "Azure / Container Apps", supported: false },
+      {
+        value: "AZURE/AKS",
+        label: "Azure / Kubernetes Service (AKS)",
+        supported: false,
+      },
+      {
+        value: "AZURE/CONTAINER_APPS",
+        label: "Azure / Container Apps",
+        supported: false,
+      },
     ],
   },
   {
     group: "Google Cloud",
     options: [
-      { value: "GCP/GKE", label: "Google / Kubernetes Engine (GKE)", supported: false },
+      {
+        value: "GCP/GKE",
+        label: "Google / Kubernetes Engine (GKE)",
+        supported: false,
+      },
       { value: "GCP/CLOUD_RUN", label: "Google / Cloud Run", supported: false },
     ],
   },
   {
     group: "Red Hat",
     options: [
-      { value: "REDHAT/OPENSHIFT", label: "Red Hat OpenShift Container Platform", supported: false },
-      { value: "AWS/ROSA", label: "Red Hat OpenShift Service on AWS (ROSA)", supported: false },
-      { value: "AZURE/ARO", label: "Azure Red Hat OpenShift (ARO)", supported: false },
+      {
+        value: "REDHAT/OPENSHIFT",
+        label: "Red Hat OpenShift Container Platform",
+        supported: false,
+      },
+      {
+        value: "AWS/ROSA",
+        label: "Red Hat OpenShift Service on AWS (ROSA)",
+        supported: false,
+      },
+      {
+        value: "AZURE/ARO",
+        label: "Azure Red Hat OpenShift (ARO)",
+        supported: false,
+      },
       { value: "REDHAT/OSD", label: "OpenShift Dedicated", supported: false },
     ],
   },
   {
     group: "Enterprise and managed platforms",
     options: [
-      { value: "OCI/OKE", label: "Oracle Kubernetes Engine (OKE)", supported: false },
-      { value: "IBM/IKS", label: "IBM Cloud Kubernetes Service", supported: false },
-      { value: "IBM/ROKS", label: "Red Hat OpenShift on IBM Cloud", supported: false },
-      { value: "VMWARE/TANZU", label: "VMware Tanzu Kubernetes Grid", supported: false },
+      {
+        value: "OCI/OKE",
+        label: "Oracle Kubernetes Engine (OKE)",
+        supported: false,
+      },
+      {
+        value: "IBM/IKS",
+        label: "IBM Cloud Kubernetes Service",
+        supported: false,
+      },
+      {
+        value: "IBM/ROKS",
+        label: "Red Hat OpenShift on IBM Cloud",
+        supported: false,
+      },
+      {
+        value: "VMWARE/TANZU",
+        label: "VMware Tanzu Kubernetes Grid",
+        supported: false,
+      },
       { value: "SUSE/RANCHER", label: "SUSE Rancher", supported: false },
     ],
   },
   {
     group: "Open-source distributions",
     options: [
-      { value: "CNCF/KUBERNETES", label: "CNCF Kubernetes / kubeadm", supported: false },
+      {
+        value: "CNCF/KUBERNETES",
+        label: "CNCF Kubernetes / kubeadm",
+        supported: false,
+      },
       { value: "CNCF/K3S", label: "K3s", supported: false },
       { value: "CNCF/RKE2", label: "RKE2", supported: false },
       { value: "CNCF/MICROK8S", label: "Canonical MicroK8s", supported: false },
@@ -208,7 +260,10 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
       return environments.action(
         draft.environmentId,
         environment?.status === "REJECTED" ? "resubmit" : "submit",
-        { version: draft.version, comments: "Submitted from environment review." },
+        {
+          version: draft.version,
+          comments: "Submitted from environment review.",
+        },
         { key: crypto.randomUUID(), version: draft.version },
       );
     },
@@ -284,7 +339,10 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         }
       />
       {environment && (
-        <section className="revision-context-banner" aria-label="Revision context">
+        <section
+          className="revision-context-banner"
+          aria-label="Revision context"
+        >
           <span className="revision-context-icon">
             <GitBranch size={20} aria-hidden="true" />
           </span>
@@ -520,27 +578,26 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
             onRetry={() => metadata.refetch()}
           />
         )}
-        {isEks &&
-          identity?.roles.includes("CLOUD_ENGINEER") && (
-            <AwsDiscoveryPanel
-              customerId={input.customerId}
-              environmentType={input.environmentType}
-              owner={identity.displayName}
-              costCenter={costCenter}
-              disabled={mutation.isPending}
-              onApply={(configuration) => {
-                setHasDiscovery(true);
-                setInput((current) => ({
-                  ...current,
-                  configuration: {
-                    ...current.configuration,
-                    ...configuration,
-                  },
-                }));
-              }}
-              onDiscovered={setDiscovery}
-            />
-          )}
+        {isEks && identity?.roles.includes("CLOUD_ENGINEER") && (
+          <AwsDiscoveryPanel
+            customerId={input.customerId}
+            environmentType={input.environmentType}
+            owner={identity.displayName}
+            costCenter={costCenter}
+            disabled={mutation.isPending}
+            onApply={(configuration) => {
+              setHasDiscovery(true);
+              setInput((current) => ({
+                ...current,
+                configuration: {
+                  ...current.configuration,
+                  ...configuration,
+                },
+              }));
+            }}
+            onDiscovered={setDiscovery}
+          />
+        )}
         {isEks ? (
           <>
             <section className="panel panel-padding environment-config-summary">
@@ -616,7 +673,9 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               </div>
               <div>
                 <dt>Container distribution</dt>
-                <dd>{input.cloudProvider} / {input.kubernetesDistribution}</dd>
+                <dd>
+                  {input.cloudProvider} / {input.kubernetesDistribution}
+                </dd>
               </div>
               <div>
                 <dt>Cost center</dt>
@@ -628,15 +687,16 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                   {String(
                     (
                       input.configuration.account as
-                        | Record<string, unknown>
-                        | undefined
+                        Record<string, unknown> | undefined
                     )?.accountId || "Not selected",
                   )}
                 </dd>
               </div>
               <div>
                 <dt>Baseline</dt>
-                <dd>{hasDiscovery ? "Verified and attached" : "Not applied"}</dd>
+                <dd>
+                  {hasDiscovery ? "Verified and attached" : "Not applied"}
+                </dd>
               </div>
             </dl>
           </section>

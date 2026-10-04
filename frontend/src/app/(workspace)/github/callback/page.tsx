@@ -48,7 +48,11 @@ export default function GitHubAppCallbackPage() {
         title="Completing authorization"
         description="Navigan is verifying the GitHub App installation and organization."
       />
-      {error ? <ErrorNotice error={error} /> : <Loading label="Verifying GitHub organization…" />}
+      {error ? (
+        <ErrorNotice error={error} />
+      ) : (
+        <Loading label="Verifying GitHub organization…" />
+      )}
     </>
   );
 }

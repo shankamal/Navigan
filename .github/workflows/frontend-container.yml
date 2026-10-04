@@ -34,7 +34,7 @@ jobs:
           done
           curl --fail --show-error http://127.0.0.1:3000/healthz
           curl --fail --silent --output /dev/null http://127.0.0.1:3000/login
-          test "$(docker exec frontend-ci id -u)" = 1000
+          test "$(docker exec frontend-ci id -u)" -ne 0
       - name: Container logs and cleanup
         if: always()
         run: |

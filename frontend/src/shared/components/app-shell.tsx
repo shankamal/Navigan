@@ -156,8 +156,7 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
 ];
 
 function isCloudEngineerOnly(identity: ReturnType<typeof useAuth>["identity"]) {
-  const humanRoles =
-    identity?.roles.filter((role) => role !== "SERVICE") ?? [];
+  const humanRoles = identity?.roles.filter((role) => role !== "SERVICE") ?? [];
   return humanRoles.length === 1 && humanRoles[0] === "CLOUD_ENGINEER";
 }
 

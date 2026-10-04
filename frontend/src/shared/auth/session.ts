@@ -99,10 +99,12 @@ export async function currentIdentity(): Promise<Identity | null> {
       !Array.isArray(access.privileges) ||
       !Array.isArray(access.scopes)
     ) {
-      throw new Error("The authorization service returned an invalid identity.");
+      throw new Error(
+        "The authorization service returned an invalid identity.",
+      );
     }
     const customerIds = access.scopes.flatMap((scope) =>
-      scope.type === "CUSTOMER" ? scope.customerIds ?? [] : [],
+      scope.type === "CUSTOMER" ? (scope.customerIds ?? []) : [],
     );
     return {
       ...legacy,
@@ -124,7 +126,9 @@ export async function currentIdentity(): Promise<Identity | null> {
   // dynamic authorization is unavailable. This only controls client display;
   // every upstream API continues to enforce authorization server-side.
   if ([404, 500, 502, 503, 504].includes(response.status)) return legacy;
-  throw new Error(`Authorization lookup failed with status ${response.status}.`);
+  throw new Error(
+    `Authorization lookup failed with status ${response.status}.`,
+  );
 }
 export async function clearSession(): Promise<void> {
   configureAuth();

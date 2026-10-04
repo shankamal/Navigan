@@ -58,13 +58,13 @@ export function allowedActions(
     case "UNDER_REVIEW":
       return canApprove
         ? [
-        { action: "approve", label: "Approve customer" },
-        {
-          action: "reject",
-          label: "Reject request",
-          destructive: true,
-          reasonRequired: true,
-        },
+            { action: "approve", label: "Approve customer" },
+            {
+              action: "reject",
+              label: "Reject request",
+              destructive: true,
+              reasonRequired: true,
+            },
           ]
         : [];
     case "APPROVED":
@@ -75,22 +75,22 @@ export function allowedActions(
       return [
         ...(hasPermission(identity, "customer.suspend")
           ? [
-        {
-          action: "suspend" as const,
-          label: "Suspend customer",
-          destructive: true,
-          reasonRequired: true,
-        },
+              {
+                action: "suspend" as const,
+                label: "Suspend customer",
+                destructive: true,
+                reasonRequired: true,
+              },
             ]
           : []),
         ...(hasPermission(identity, "customer.deactivate")
           ? [
-        {
-          action: "deactivate" as const,
-          label: "Deactivate customer",
-          destructive: true,
-          reasonRequired: true,
-        },
+              {
+                action: "deactivate" as const,
+                label: "Deactivate customer",
+                destructive: true,
+                reasonRequired: true,
+              },
             ]
           : []),
       ];
