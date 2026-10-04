@@ -34,7 +34,10 @@ jobs:
           done
           curl --fail --show-error http://127.0.0.1:3000/healthz
           curl --fail --silent --output /dev/null http://127.0.0.1:3000/login
-          test "$(docker exec frontend-ci id -u)" -ne 0
+          IMAGE_USER="$(docker image inspect navigan-frontend:ci --format '{{.Config.User}}')"
+          test -n "$IMAGE_USER"
+          test "$IMAGE_USER" != "0"
+          test "$IMAGE_USER" != "root"
       - name: Container logs and cleanup
         if: always()
         run: |

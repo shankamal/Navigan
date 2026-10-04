@@ -31,13 +31,17 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Verify custom login in a browser
         run: |
-          npm run start -- --hostname 127.0.0.1 --port 3101 > /tmp/navigan-frontend.log 2>&1 &
+          HOSTNAME=127.0.0.1 PORT=3101 node .next/standalone/server.js > /tmp/navigan-frontend.log 2>&1 &
           FRONTEND_PID=$!
           trap 'kill "$FRONTEND_PID" || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:3101/healthz; then break; fi
             sleep 1
           done
+          if ! curl --fail --show-error http://127.0.0.1:3101/healthz; then
+            cat /tmp/navigan-frontend.log
+            exit 1
+          fi
           node scripts/check-login.mjs
           node scripts/check-environments.mjs
       - uses: actions/upload-artifact@v4

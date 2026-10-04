@@ -85,11 +85,13 @@ def test_full_lifecycle_and_approved_version(provider, dist):
         "deactivate",
     ]:
         role = "CLOUD_ENGINEER" if action in {"submit", "resubmit"} else "PLATFORM_ARCHITECT"
+        actor = "maker" if action in {"submit", "resubmit"} else "independent-reviewer"
         status, row, _ = call(
             "POST",
             f"/{identifier}/{action}",
             {"version": row["version"], "reason": "Integration review", "comments": "Checked"},
             role=role,
+            actor=actor,
         )
         assert status == 200, row
     assert row["status"] == "DEACTIVATED"
