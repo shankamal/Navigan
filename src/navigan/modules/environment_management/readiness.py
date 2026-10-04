@@ -49,6 +49,28 @@ def _advisor(findings, boto3_module):
     if not model_id or not findings:
         return fallback
 
+    try:
+        client = boto3_module.client(
+            "bedrock-runtime",
+            config=Config(connect_timeout=3, read_timeout=8, retries={"total_max_attempts": 1}),
+        )
+        prompt = (
+            "You are an infrastructure readiness advisor. Explain the supplied sanitized findings "
+            "for a cloud engineer in at most 120 words. Do not change severity, invent resources, "
+            "or claim that validation passed. Mention exact field paths.\n"
+            + json.dumps(findings, separators=(",", ":"))
+        )
+        response = client.converse(
+            modelId=model_id,
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": 220, "temperature": 0},
+        )
+        text = response["output"]["message"]["content"][0]["text"].strip()
+        return {"mode": "BEDROCK", "summary": text[:2000], "modelId": model_id}
+    except Exception:
+        return fallback
+
+
 
 def _values(value):
     return value if isinstance(value, list) else [value]
@@ -93,26 +115,6 @@ def _kms_allows_autoscaling(policy, account_id, partition="aws"):
         if isinstance(item, dict)
     )
     return use_allowed and grant_allowed
-    try:
-        client = boto3_module.client(
-            "bedrock-runtime",
-            config=Config(connect_timeout=3, read_timeout=8, retries={"total_max_attempts": 1}),
-        )
-        prompt = (
-            "You are an infrastructure readiness advisor. Explain the supplied sanitized findings "
-            "for a cloud engineer in at most 120 words. Do not change severity, invent resources, "
-            "or claim that validation passed. Mention exact field paths.\n"
-            + json.dumps(findings, separators=(",", ":"))
-        )
-        response = client.converse(
-            modelId=model_id,
-            messages=[{"role": "user", "content": [{"text": prompt}]}],
-            inferenceConfig={"maxTokens": 220, "temperature": 0},
-        )
-        text = response["output"]["message"]["content"][0]["text"].strip()
-        return {"mode": "BEDROCK", "summary": text[:2000], "modelId": model_id}
-    except Exception:
-        return fallback
 
 
 def assess_eks_blueprints(configuration, boto3_module=None):

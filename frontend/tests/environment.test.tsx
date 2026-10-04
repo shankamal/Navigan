@@ -196,7 +196,7 @@ describe("Environment module", () => {
         expect(isAllowedRoute(method.toUpperCase(), parts)).toBe(true);
         count++;
       }
-    expect(count).toBe(22);
+    expect(count).toBe(23);
     expect(
       isAllowedRoute("POST", ["environments", "blueprint-readiness"]),
     ).toBe(true);
