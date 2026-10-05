@@ -1,15 +1,20 @@
+import hashlib
 import json
 
 import pytest
 
 from migration_connector.agent import (
     collect_inventory,
+    collect_source_catalogue,
+    navigan_request,
+    run_once,
     secure_base_url,
 )
 
 
 def assignment(namespaces=None):
     return {
+        "assignmentType": "SOURCE_CATALOGUE",
         "migrationId": "MIG-" + "a" * 32,
         "migrationVersion": 3,
         "executionMode": "ASSESSMENT_ONLY",
@@ -170,3 +175,132 @@ def test_rejects_non_assessment_assignment():
         match="assessment-only",
     ):
         collect_inventory(value, lambda _path: {"items": []})
+
+
+def test_collects_minimal_source_catalogue_with_canonical_digest():
+    def request(path):
+        if path == "/version":
+            return {"gitVersion": "v1.37.1"}
+        if path == "/api/v1/nodes":
+            return {"items": [node(), node(), node()]}
+        if path == "/api/v1/namespaces":
+            return {
+                "items": [
+                    {"metadata": {"name": "retailflow"}},
+                    {"metadata": {"name": "kube-system"}},
+                ]
+            }
+        if path.endswith("/deployments"):
+            return {"items": [{}, {}]}
+        if path.endswith("/services"):
+            return {"items": [{}]}
+        return {"items": []}
+
+    report = collect_source_catalogue(
+        assignment(),
+        request,
+        observed_at="2026-10-05T12:30:00Z",
+    )
+
+    catalogue = {
+        "schemaVersion": 1,
+        "sourceKubernetesVersion": "v1.37.1",
+        "nodeCount": 3,
+        "architectures": ["amd64"],
+        "namespaces": [
+            {
+                "name": "retailflow",
+                "resourceCounts": {
+                    "Deployment": 2,
+                    "Service": 1,
+                },
+            }
+        ],
+        "sensitiveDataIncluded": False,
+    }
+    expected_digest = hashlib.sha256(
+        json.dumps(
+            catalogue,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+    assert report["inventoryDigest"] == expected_digest
+    assert report["migrationVersion"] == 3
+    assert report["namespaces"] == catalogue["namespaces"]
+    assert "resources" not in report
+    assert "private-provider-id" not in json.dumps(report)
+
+
+def test_rejects_non_catalogue_assignment():
+    value = assignment()
+    value["assignmentType"] = "DETAILED_ASSESSMENT"
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unsupported migration connector assignment",
+    ):
+        collect_source_catalogue(
+            value,
+            lambda _path: {},
+        )
+
+
+def test_posts_catalogue_without_putting_token_in_url(monkeypatch):
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, _maximum):
+            return b'{"status":"INVENTORY_READY"}'
+
+    def open_request(request, timeout, context=None):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        captured["context"] = context
+        return Response()
+
+    monkeypatch.setattr(
+        "migration_connector.agent.open_request",
+        open_request,
+    )
+
+    result = navigan_request(
+        "https://api.example.test/api/v1",
+        "MGC-" + "a" * 32,
+        "short-lived-secret-token",
+        "inventory",
+        method="POST",
+        body={"version": 1},
+    )
+
+    request = captured["request"]
+    assert result["status"] == "INVENTORY_READY"
+    assert request.get_method() == "POST"
+    assert request.full_url.endswith("/inventory")
+    assert "short-lived-secret-token" not in request.full_url
+    assert request.get_header("Authorization") == (
+        "Bearer short-lived-secret-token"
+    )
+    assert json.loads(request.data) == {"version": 1}
+
+
+def test_run_once_requires_inventory_ready_response():
+    value = assignment()
+    report = {"version": 1}
+
+    with pytest.raises(
+        RuntimeError,
+        match="did not accept",
+    ):
+        run_once(
+            fetch=lambda: value,
+            collect=lambda observed: report,
+            submit=lambda observed: {"status": "FAILED"},
+        )

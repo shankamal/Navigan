@@ -1,7 +1,10 @@
 """Outbound-only Kubernetes migration discovery agent."""
 
+from datetime import datetime, timezone
+import hashlib
 import json
 import os
+import re
 import ssl
 import urllib.error
 import urllib.parse
@@ -48,6 +51,45 @@ CLUSTER_RESOURCE_PATHS = (
     "/apis/storage.k8s.io/v1/storageclasses",
     "/apis/apiextensions.k8s.io/v1/customresourcedefinitions",
 )
+
+CATALOGUE_RESOURCE_PATHS = (
+    (NAMESPACED_RESOURCE_PATHS[0], "Deployment"),
+    (NAMESPACED_RESOURCE_PATHS[1], "StatefulSet"),
+    (NAMESPACED_RESOURCE_PATHS[2], "DaemonSet"),
+    (NAMESPACED_RESOURCE_PATHS[3], "Job"),
+    (NAMESPACED_RESOURCE_PATHS[4], "CronJob"),
+    (NAMESPACED_RESOURCE_PATHS[5], "Service"),
+    (NAMESPACED_RESOURCE_PATHS[6], "PersistentVolumeClaim"),
+    (NAMESPACED_RESOURCE_PATHS[7], "Ingress"),
+    (NAMESPACED_RESOURCE_PATHS[8], "NetworkPolicy"),
+    (NAMESPACED_RESOURCE_PATHS[9], "HorizontalPodAutoscaler"),
+    (NAMESPACED_RESOURCE_PATHS[10], "PodDisruptionBudget"),
+)
+
+
+class RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        request,
+        response,
+        code,
+        message,
+        headers,
+        new_url,
+    ):
+        return None
+
+
+def open_request(request, timeout, context=None):
+    handlers = [RejectRedirects()]
+    if context is not None:
+        handlers.append(
+            urllib.request.HTTPSHandler(context=context)
+        )
+    return urllib.request.build_opener(*handlers).open(
+        request,
+        timeout=timeout,
+    )
 
 
 def required(name):
@@ -114,10 +156,10 @@ def kubernetes_request(path):
     )
 
     try:
-        with urllib.request.urlopen(
+        with open_request(
             request,
-            context=context,
             timeout=20,
+            context=context,
         ) as response:
             return read_json_response(response)
     except urllib.error.HTTPError as error:
@@ -131,23 +173,52 @@ def navigan_request(
     connector_id,
     connector_token,
     path,
+    method="GET",
+    body=None,
 ):
     base_url = secure_base_url(base_url)
+
+    if not re.fullmatch(r"MGC-[0-9a-f]{32}", connector_id):
+        raise RuntimeError("Migration connector ID is invalid.")
+
+    if method not in {"GET", "POST"}:
+        raise RuntimeError("Unsupported Navigan API method.")
+
+    encoded_body = None
+    headers = {
+        "Authorization": f"Bearer {connector_token}",
+        "Accept": "application/json",
+        "User-Agent": "navigan-migration-connector/0.1.0",
+    }
+
+    if body is not None:
+        if method != "POST" or not isinstance(body, dict):
+            raise RuntimeError("Navigan request body is invalid.")
+
+        encoded_body = json.dumps(
+            body,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+        if len(encoded_body) > 1_048_576:
+            raise RuntimeError(
+                "Navigan request body size limit exceeded."
+            )
+
+        headers["Content-Type"] = "application/json"
+
     request = urllib.request.Request(
         (
             f"{base_url}/migration-connectors/"
             f"{connector_id}/{path.lstrip('/')}"
         ),
-        method="GET",
-        headers={
-            "Authorization": f"Bearer {connector_token}",
-            "Accept": "application/json",
-            "User-Agent": "navigan-migration-connector/0.1.0",
-        },
+        data=encoded_body,
+        method=method,
+        headers=headers,
     )
 
     try:
-        with urllib.request.urlopen(
+        with open_request(
             request,
             timeout=20,
         ) as response:
@@ -275,3 +346,163 @@ def fetch_assignment():
         required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
         "assignment",
     )
+
+def collect_source_catalogue(
+    assignment,
+    request=kubernetes_request,
+    observed_at=None,
+):
+    if assignment.get("assignmentType") != "SOURCE_CATALOGUE":
+        raise RuntimeError(
+            "Unsupported migration connector assignment."
+        )
+
+    if assignment.get("executionMode") != "ASSESSMENT_ONLY":
+        raise RuntimeError(
+            "Only assessment-only discovery is supported."
+        )
+
+    source = assignment.get("source")
+    if (
+        not isinstance(source, dict)
+        or source.get("platform")
+        != "SELF_MANAGED_KUBERNETES"
+    ):
+        raise RuntimeError(
+            "Unsupported source platform assignment."
+        )
+
+    migration_version = assignment.get("migrationVersion")
+    if (
+        not isinstance(migration_version, int)
+        or migration_version < 1
+    ):
+        raise RuntimeError("Migration version is invalid.")
+
+    version_payload = request("/version")
+    kubernetes_version = version_payload.get("gitVersion")
+    if not isinstance(kubernetes_version, str):
+        raise RuntimeError(
+            "Kubernetes version could not be determined."
+        )
+
+    nodes = resource_items(request("/api/v1/nodes"))
+    architectures = sorted(
+        {
+            architecture.strip().lower()
+            for node in nodes
+            if isinstance(node, dict)
+            for architecture in [
+                node.get("status", {})
+                .get("nodeInfo", {})
+                .get("architecture")
+            ]
+            if isinstance(architecture, str)
+            and architecture.strip()
+        }
+    )
+
+    namespace_catalogue = []
+    for namespace in selected_namespaces(
+        assignment,
+        request,
+    ):
+        encoded_namespace = urllib.parse.quote(
+            namespace,
+            safe="",
+        )
+        resource_counts = {}
+
+        for template, kind in CATALOGUE_RESOURCE_PATHS:
+            items = resource_items(
+                request(
+                    template.format(
+                        namespace=encoded_namespace
+                    )
+                )
+            )
+            if items:
+                resource_counts[kind] = len(items)
+
+        namespace_catalogue.append(
+            {
+                "name": namespace,
+                "resourceCounts": resource_counts,
+            }
+        )
+
+    catalogue = {
+        "schemaVersion": 1,
+        "sourceKubernetesVersion": kubernetes_version,
+        "nodeCount": len(nodes),
+        "architectures": architectures,
+        "namespaces": namespace_catalogue,
+        "sensitiveDataIncluded": False,
+    }
+
+    digest = hashlib.sha256(
+        json.dumps(
+            catalogue,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+    timestamp = observed_at
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    if isinstance(timestamp, datetime):
+        timestamp = timestamp.isoformat().replace(
+            "+00:00",
+            "Z",
+        )
+    if not isinstance(timestamp, str):
+        raise RuntimeError("Observation timestamp is invalid.")
+
+    return {
+        "version": 1,
+        "migrationVersion": migration_version,
+        "observedAt": timestamp,
+        "sourceKubernetesVersion": kubernetes_version,
+        "inventoryDigest": digest,
+        "nodeCount": len(nodes),
+        "architectures": architectures,
+        "namespaces": namespace_catalogue,
+        "sensitiveDataIncluded": False,
+    }
+
+
+def submit_source_catalogue(report):
+    return navigan_request(
+        required("NAVIGAN_API_BASE_URL"),
+        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
+        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        "inventory",
+        method="POST",
+        body=report,
+    )
+
+
+def run_once(
+    fetch=fetch_assignment,
+    collect=collect_source_catalogue,
+    submit=submit_source_catalogue,
+):
+    assignment = fetch()
+    report = collect(assignment)
+    result = submit(report)
+
+    if result.get("status") != "INVENTORY_READY":
+        raise RuntimeError(
+            "Navigan did not accept the source catalogue."
+        )
+
+    return result
+
+
+def main():
+    run_once()
+
+
+if __name__ == "__main__":
+    main()

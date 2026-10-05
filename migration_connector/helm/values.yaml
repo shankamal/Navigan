@@ -1,0 +1,23 @@
+image:
+  repository: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+navigan:
+  apiBaseUrl: ""
+  connectorId: ""
+  credentialsSecretName: navigan-migration-connector-credentials
+  connectorTokenKey: connector-token
+
+job:
+  activeDeadlineSeconds: 900
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
