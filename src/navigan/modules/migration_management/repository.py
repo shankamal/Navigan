@@ -62,6 +62,31 @@ class Repository:
             )
         return row
 
+    def get_source_catalogue(self, identifier):
+        migration = self.get(identifier)
+
+        catalogue = self.db.execute(
+            "SELECT catalogue_version,migration_version,"
+            "schema_version,observed_at,"
+            "source_kubernetes_version,inventory_digest,"
+            "node_count,architectures,namespaces,created_at "
+            "FROM migration_management.migration_source_catalogues "
+            "WHERE migration_id=%s "
+            "ORDER BY catalogue_version DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+
+        return {
+            "migrationId": identifier,
+            "version": migration["version"],
+            "status": migration["status"],
+            "catalogue": (
+                serialize(catalogue)
+                if catalogue
+                else None
+            ),
+        }
+
     def list(self, query):
         scope, params = scope_clause(self.principal)
         conditions = [scope]

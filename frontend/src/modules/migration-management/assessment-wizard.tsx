@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -17,8 +17,12 @@ import {
 import { useClusters } from "@/modules/cluster-management/hooks/queries";
 import { useCustomers } from "@/modules/customer-management/hooks/queries";
 import { useEnvironments } from "@/modules/environment-management/hooks/queries";
+import { normalizeApiError } from "@/shared/api/client";
 import { PageHeading } from "@/shared/components/ui";
 
+import { useSourceCatalogue } from "./hooks";
+import type { Migration } from "./model";
+import { migrations } from "./service";
 import styles from "./migration-management.module.css";
 
 const steps = [
@@ -35,10 +39,14 @@ export function AssessmentWizard() {
   const [name, setName] = useState("");
   const [customer, setCustomer] = useState("");
   const [targetEnvironment, setTargetEnvironment] = useState("");
-  const [targetType, setTargetType] = useState("EXISTING_EKS");
-  const [sourceConnection, setSourceConnection] = useState("");
+  const [targetType, setTargetType] = useState("EXISTING_CLUSTER");
   const [targetConnection, setTargetConnection] = useState("");
-  const [namespaces, setNamespaces] = useState(["retailflow"]);
+  const [namespaces, setNamespaces] = useState<string[]>([]);
+  const [migration, setMigration] = useState<Migration | null>(null);
+  const [connectorToken, setConnectorToken] = useState("");
+  const [sourceBusy, setSourceBusy] = useState(false);
+  const [sourceError, setSourceError] = useState("");
+  const [scopeSaved, setScopeSaved] = useState(false);
 
   const customersQuery = useCustomers({
     page: 0,
@@ -85,16 +93,34 @@ export function AssessmentWizard() {
     (item) => item.clusterId === targetConnection,
   );
 
+  const catalogueQuery = useSourceCatalogue(
+    migration?.migrationId ?? "",
+  );
+  const sourceCatalogue = catalogueQuery.data?.catalogue ?? null;
+
+  useEffect(() => {
+    if (sourceCatalogue && namespaces.length === 0) {
+      setNamespaces(
+        sourceCatalogue.namespaces.map((item) => item.name),
+      );
+    }
+  }, [sourceCatalogue, namespaces.length]);
+
   const canContinue = [
     name.trim().length >= 3 &&
       customer !== "" &&
       targetEnvironment !== "" &&
-      targetType !== "",
-    sourceConnection !== "",
+      targetType === "EXISTING_CLUSTER",
+    Boolean(sourceCatalogue),
     namespaces.length > 0,
     targetConnection !== "",
     true,
-    false,
+    Boolean(
+      migration &&
+      sourceCatalogue &&
+      selectedTarget &&
+      namespaces.length > 0,
+    ),
   ][step];
 
   function toggleNamespace(namespace: string) {
@@ -103,6 +129,119 @@ export function AssessmentWizard() {
         ? current.filter((item) => item !== namespace)
         : [...current, namespace],
     );
+  }
+
+  async function prepareSourceConnector() {
+    if (!selectedEnvironment || sourceBusy) return;
+
+    setSourceBusy(true);
+    setSourceError("");
+
+    try {
+      const created = await migrations.create({
+        customerId: customer,
+        name: name.trim(),
+        source: {
+          platform: "SELF_MANAGED_KUBERNETES",
+          accessMode: "READ_ONLY_CONNECTOR",
+        },
+        target: {
+          platform: "EKS",
+          targetType: "EXISTING_CLUSTER",
+          environmentId: selectedEnvironment.environmentId,
+          environmentApprovedVersion: Number(
+            selectedEnvironment.approvedVersion,
+          ),
+          endpointAccess: "PRIVATE",
+        },
+        scope: {
+          namespaces: [],
+          excludeNamespaces: [
+            "kube-node-lease",
+            "kube-public",
+            "kube-system",
+          ],
+          includeClusterScopedResources: false,
+          includePersistentData: false,
+        },
+      });
+
+      const token = (
+        crypto.randomUUID() + crypto.randomUUID()
+      ).replaceAll("-", "");
+
+      const enrolled = await migrations.discover(
+        created.migrationId,
+        created.version,
+        token,
+      );
+
+      setConnectorToken(token);
+      setMigration(enrolled);
+    } catch (error) {
+      setSourceError(normalizeApiError(error).message);
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function saveAssessmentScope() {
+    if (
+      !migration ||
+      !catalogueQuery.data ||
+      !selectedEnvironment ||
+      !selectedTarget ||
+      namespaces.length === 0 ||
+      sourceBusy
+    ) {
+      return;
+    }
+
+    setSourceBusy(true);
+    setSourceError("");
+
+    try {
+      const updated = await migrations.update(
+        migration.migrationId,
+        {
+          version: catalogueQuery.data.version,
+          source: {
+            platform: "SELF_MANAGED_KUBERNETES",
+            accessMode: "READ_ONLY_CONNECTOR",
+          },
+          target: {
+            platform: "EKS",
+            targetType: "EXISTING_CLUSTER",
+            environmentId: selectedEnvironment.environmentId,
+            environmentApprovedVersion: Number(
+              selectedEnvironment.approvedVersion,
+            ),
+            clusterId: selectedTarget.clusterId,
+            clusterName: selectedTarget.clusterName,
+            endpointAccess: "PRIVATE",
+          },
+          scope: {
+            namespaces,
+            excludeNamespaces: [
+              "kube-node-lease",
+              "kube-public",
+              "kube-system",
+            ],
+            includeClusterScopedResources: false,
+            includePersistentData: false,
+          },
+          changeReason:
+            "Save discovered workload scope and target cluster",
+        },
+      );
+
+      setMigration(updated);
+      setScopeSaved(true);
+    } catch (error) {
+      setSourceError(normalizeApiError(error).message);
+    } finally {
+      setSourceBusy(false);
+    }
   }
 
   return (
@@ -162,7 +301,10 @@ export function AssessmentWizard() {
         <form
           className={styles.content}
           aria-label="New migration assessment"
-          onSubmit={(event) => event.preventDefault()}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveAssessmentScope();
+          }}
         >
           {step === 0 && (
             <div className={styles.stepContent}>
@@ -289,8 +431,8 @@ export function AssessmentWizard() {
                   <input
                     type="radio"
                     name="targetType"
-                    value="EXISTING_EKS"
-                    checked={targetType === "EXISTING_EKS"}
+                    value="EXISTING_CLUSTER"
+                    checked={targetType === "EXISTING_CLUSTER"}
                     onChange={(event) =>
                       setTargetType(event.target.value)
                     }
@@ -333,47 +475,111 @@ export function AssessmentWizard() {
           {step === 1 && (
             <div className={styles.stepContent}>
               <header>
-                <span className={styles.kicker}>Discover the source</span>
+                <span className={styles.kicker}>
+                  Establish read-only access
+                </span>
                 <h2>Connect the source cluster</h2>
                 <p>
-                  Select a registered read-only connector. Installation and
-                  permission management will be handled from Connections.
+                  Create a short-lived connector identity, install the
+                  one-shot connector, and wait for its sanitized catalogue.
                 </p>
               </header>
 
-              <label className="field">
-                <span>Source connection</span>
-                <select
-                  value={sourceConnection}
-                  onChange={(event) =>
-                    setSourceConnection(event.target.value)
-                  }
+              {!migration && (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={sourceBusy}
+                  onClick={() => void prepareSourceConnector()}
                 >
-                  <option value="">Select a source connection</option>
-                  <option value="preview-lab">
-                    Kubernetes migration lab — connected preview
-                  </option>
-                </select>
-              </label>
+                  {sourceBusy
+                    ? "Preparing connector…"
+                    : "Prepare secure source connector"}
+                </button>
+              )}
 
-              {sourceConnection && (
+              {migration?.discoveryConnector && (
                 <div className={styles.connectionCard}>
                   <div>
                     <span className={styles.connectedDot} />
-                    <strong>Connected</strong>
+                    <strong>Connector identity prepared</strong>
                   </div>
                   <dl>
-                    <div><dt>Platform</dt><dd>Self-managed Kubernetes</dd></div>
-                    <div><dt>Version</dt><dd>v1.37.1</dd></div>
-                    <div><dt>Nodes</dt><dd>3 ready</dd></div>
-                    <div><dt>Access</dt><dd>Read-only metadata</dd></div>
+                    <div>
+                      <dt>Migration</dt>
+                      <dd>{migration.migrationId}</dd>
+                    </div>
+                    <div>
+                      <dt>Connector</dt>
+                      <dd>
+                        {migration.discoveryConnector.connectorId}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Status</dt>
+                      <dd>
+                        {sourceCatalogue
+                          ? "Inventory ready"
+                          : "Waiting for connector installation"}
+                      </dd>
+                    </div>
                   </dl>
-                  <span className={styles.previewBadge}>Preview data</span>
+
+                  {connectorToken && !sourceCatalogue && (
+                    <div>
+                      <strong>One-time connector token</strong>
+                      <p>
+                        Copy this token securely. It is kept only in this
+                        browser page and is never stored by Navigan.
+                      </p>
+                      <code>{connectorToken}</code>
+                    </div>
+                  )}
                 </div>
               )}
 
+              {sourceCatalogue && (
+                <div className={styles.connectionCard}>
+                  <div>
+                    <span className={styles.connectedDot} />
+                    <strong>Source catalogue received</strong>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>Kubernetes</dt>
+                      <dd>
+                        {sourceCatalogue.sourceKubernetesVersion}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Nodes</dt>
+                      <dd>{sourceCatalogue.nodeCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Architectures</dt>
+                      <dd>
+                        {sourceCatalogue.architectures.join(", ") ||
+                          "Not reported"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Namespaces</dt>
+                      <dd>{sourceCatalogue.namespaces.length}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
+              {catalogueQuery.isError && (
+                <p role="alert">
+                  Unable to retrieve the source catalogue.
+                </p>
+              )}
+
+              {sourceError && <p role="alert">{sourceError}</p>}
+
               <div className={styles.protectionList}>
-                <span>✓ No Secret values</span>
+                <span>✓ No Secret or ConfigMap access</span>
                 <span>✓ No workload changes</span>
                 <span>✓ No application data</span>
               </div>
@@ -383,42 +589,49 @@ export function AssessmentWizard() {
           {step === 2 && (
             <div className={styles.stepContent}>
               <header>
-                <span className={styles.kicker}>Choose the scope</span>
+                <span className={styles.kicker}>
+                  Choose the discovered scope
+                </span>
                 <h2>Select workloads to assess</h2>
                 <p>
-                  Navigan will include related services, ingress, identities
-                  and storage references for the selected namespaces.
+                  These namespaces came from the sanitized source catalogue.
+                  Select only the workloads intended for assessment.
                 </p>
               </header>
 
               <fieldset className={styles.namespaceList}>
-                <legend>Namespaces</legend>
-                {[
-                  ["retailflow", "7 workloads · 4 services · 1 ingress"],
-                  ["monitoring", "5 workloads · 3 services"],
-                  ["kube-system", "System namespace · excluded by default"],
-                ].map(([namespace, detail]) => (
-                  <label key={namespace}>
-                    <input
-                      type="checkbox"
-                      checked={namespaces.includes(namespace)}
-                      disabled={namespace === "kube-system"}
-                      onChange={() => toggleNamespace(namespace)}
-                    />
-                    <span>
-                      <strong>{namespace}</strong>
-                      <small>{detail}</small>
-                    </span>
-                  </label>
-                ))}
+                <legend>Discovered namespaces</legend>
+                {(sourceCatalogue?.namespaces ?? []).map((item) => {
+                  const detail = Object.entries(item.resourceCounts)
+                    .map(([kind, count]) => `${count} ${kind}`)
+                    .join(" · ");
+
+                  return (
+                    <label key={item.name}>
+                      <input
+                        type="checkbox"
+                        checked={namespaces.includes(item.name)}
+                        onChange={() => toggleNamespace(item.name)}
+                      />
+                      <span>
+                        <strong>{item.name}</strong>
+                        <small>
+                          {detail || "No supported resources reported"}
+                        </small>
+                      </span>
+                    </label>
+                  );
+                })}
               </fieldset>
 
               <div className={styles.scopeSummary}>
                 <FileSearch size={22} />
                 <div>
-                  <strong>{namespaces.length} namespace selected</strong>
+                  <strong>
+                    {namespaces.length} namespace selected
+                  </strong>
                   <span>
-                    Workloads and their direct dependencies will be assessed.
+                    Only sanitized metadata will be assessed.
                   </span>
                 </div>
               </div>
@@ -566,12 +779,19 @@ export function AssessmentWizard() {
                 <div>
                   <span>Target type</span>
                   <strong>
-                    {targetType === "EXISTING_EKS"
+                    {targetType === "EXISTING_CLUSTER"
                       ? "Existing EKS cluster"
                       : "Planned EKS platform"}
                   </strong>
                 </div>
-                <div><span>Source</span><strong>Kubernetes migration lab</strong></div>
+                <div>
+                  <span>Source</span>
+                  <strong>
+                    {sourceCatalogue
+                      ? `${sourceCatalogue.sourceKubernetesVersion} · ${sourceCatalogue.nodeCount} nodes`
+                      : "Not connected"}
+                  </strong>
+                </div>
                 <div>
                   <span>Target</span>
                   <strong>
@@ -626,9 +846,13 @@ export function AssessmentWizard() {
                 <button
                   type="submit"
                   className="button button-primary"
-                  disabled
+                  disabled={!canContinue || sourceBusy || scopeSaved}
                 >
-                  Start assessment
+                  {scopeSaved
+                    ? "Assessment scope saved"
+                    : sourceBusy
+                      ? "Saving assessment scope…"
+                      : "Save assessment scope"}
                 </button>
               )}
             </div>

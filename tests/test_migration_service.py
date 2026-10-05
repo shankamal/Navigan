@@ -302,3 +302,59 @@ def test_minimal_draft_can_start_source_enrollment():
     assert result["status"] == "SOURCE_ENROLLMENT_PENDING"
     assert result["discoveryConnector"]["status"] == "ENROLLED"
     assert repo.connector_token.startswith("migration-connector-")
+
+def test_inventory_ready_can_save_scope_and_target_selection():
+    repo = Repository()
+    access = Access(
+        "creator",
+        {"migration.create", "migration.edit"},
+    )
+    created = Service(repo, access, "corr-create").create(
+        minimal_create_body()
+    )
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "INVENTORY_READY"
+    repo.rows[identifier]["version"] = 4
+
+    result = Service(repo, access, "corr-update").update(
+        identifier,
+        {
+            "version": 4,
+            "source": {
+                "platform": "SELF_MANAGED_KUBERNETES",
+                "clusterName": "migration-lab",
+                "accessMode": "READ_ONLY_CONNECTOR",
+            },
+            "target": {
+                "platform": "EKS",
+                "targetType": "EXISTING_CLUSTER",
+                "environmentId": "ENV-demo",
+                "environmentApprovedVersion": 1,
+                "clusterId": "CLU-demo",
+                "clusterName": "target-eks",
+                "endpointAccess": "PRIVATE",
+            },
+            "scope": {
+                "namespaces": ["retailflow"],
+                "excludeNamespaces": [
+                    "kube-node-lease",
+                    "kube-public",
+                    "kube-system",
+                ],
+                "includeClusterScopedResources": False,
+                "includePersistentData": False,
+            },
+            "changeReason": (
+                "Save discovered workload scope and target cluster"
+            ),
+        },
+    )
+
+    assert result["status"] == "INVENTORY_READY"
+    assert result["version"] == 5
+    assert result["migrationScope"]["namespaces"] == [
+        "retailflow"
+    ]
+    assert result["targetConfiguration"]["clusterId"] == (
+        "CLU-demo"
+    )

@@ -68,3 +68,15 @@ def test_response_disables_caching():
 
     assert result["headers"]["Cache-Control"] == "no-store"
     assert result["headers"]["X-Correlation-ID"] == "corr-1"
+
+def test_routes_authenticated_source_catalogue_read():
+    identifier = "MIG-" + "c" * 32
+
+    assert route_of(
+        "GET",
+        f"{BASE}/{identifier}/source-catalogue",
+    ) == (
+        "source_catalogue",
+        identifier,
+        None,
+    )

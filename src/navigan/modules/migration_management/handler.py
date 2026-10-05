@@ -127,6 +127,13 @@ def route_of(method, path):
     if len(parts) == 1 and method == "GET":
         return "get", identifier, None
 
+    if (
+        len(parts) == 2
+        and parts[1] == "source-catalogue"
+        and method == "GET"
+    ):
+        return "source_catalogue", identifier, None
+
     if len(parts) == 1 and method == "PUT":
         return "update", identifier, None
 
@@ -226,15 +233,14 @@ def execute(event, principal, correlation):
 
         if not mutating:
             access.require("migration.view")
-            value = (
-                repo.list(query_of(event))
-                if route == "list"
-                else repo.get(identifier)
-            )
-            if route == "get":
+            if route == "list":
+                value = repo.list(query_of(event))
+            elif route == "source_catalogue":
+                value = repo.get_source_catalogue(identifier)
+            else:
                 from .repository import serialize
 
-                value = serialize(value)
+                value = serialize(repo.get(identifier))
             return response(200, value, correlation)
 
         customer_repo = CustomerRepository(db, principal)

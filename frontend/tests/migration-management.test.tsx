@@ -76,6 +76,80 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
   }),
 }));
 
+vi.mock("@/modules/migration-management/hooks", () => ({
+  useSourceCatalogue: (migrationId: string) => ({
+    data: migrationId
+      ? {
+          migrationId,
+          version: 4,
+          status: "INVENTORY_READY",
+          catalogue: {
+            catalogueVersion: 1,
+            migrationVersion: 3,
+            schemaVersion: 1,
+            observedAt: "2026-10-05T12:30:00Z",
+            sourceKubernetesVersion: "v1.37.1",
+            inventoryDigest: "a".repeat(64),
+            nodeCount: 3,
+            architectures: ["amd64"],
+            namespaces: [
+              {
+                name: "retailflow",
+                resourceCounts: {
+                  Deployment: 2,
+                  Service: 1,
+                },
+              },
+            ],
+            createdAt: "2026-10-05T12:30:01Z",
+          },
+        }
+      : undefined,
+    isError: false,
+  }),
+}));
+
+vi.mock("@/modules/migration-management/service", () => ({
+  migrations: {
+    create: vi.fn(async () => ({
+      migrationId: "MIG-" + "a".repeat(32),
+      customerId: "CUS-active",
+      name: "RetailFlow migration feasibility",
+      status: "DRAFT",
+      version: 1,
+      sourceConfiguration: {},
+      targetConfiguration: {},
+      migrationScope: {},
+    })),
+    discover: vi.fn(async () => ({
+      migrationId: "MIG-" + "a".repeat(32),
+      customerId: "CUS-active",
+      name: "RetailFlow migration feasibility",
+      status: "SOURCE_ENROLLMENT_PENDING",
+      version: 2,
+      sourceConfiguration: {},
+      targetConfiguration: {},
+      migrationScope: {},
+      discoveryConnector: {
+        connectorId: "MGC-" + "b".repeat(32),
+        status: "ENROLLED",
+      },
+    })),
+    update: vi.fn(async () => ({
+      migrationId: "MIG-" + "a".repeat(32),
+      customerId: "CUS-active",
+      name: "RetailFlow migration feasibility",
+      status: "INVENTORY_READY",
+      version: 5,
+      sourceConfiguration: {},
+      targetConfiguration: {},
+      migrationScope: {
+        namespaces: ["retailflow"],
+      },
+    })),
+  },
+}));
+
 describe("Migration UI", () => {
   it("presents the assessment-only workflow", () => {
     render(<MigrationManagementPage />);
@@ -94,7 +168,7 @@ describe("Migration UI", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("guides the user through a read-only assessment", () => {
+  it("guides the user through a read-only assessment", async () => {
     render(<MigrationCreatePage />);
 
     expect(
@@ -156,11 +230,15 @@ describe("Migration UI", () => {
       }),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Source connection"), {
-      target: { value: "preview-lab" },
-    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Prepare secure source connector",
+      }),
+    );
 
-    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Source catalogue received"),
+    ).toBeInTheDocument();
     fireEvent.click(continueButton());
 
     expect(
@@ -207,8 +285,17 @@ describe("Migration UI", () => {
     expect(
       screen.getByText("RetailFlow migration feasibility"),
     ).toBeInTheDocument();
+    const saveButton = screen.getByRole("button", {
+      name: "Save assessment scope",
+    });
+    expect(saveButton).toBeEnabled();
+
+    fireEvent.click(saveButton);
+
     expect(
-      screen.getByRole("button", { name: "Start assessment" }),
+      await screen.findByRole("button", {
+        name: "Assessment scope saved",
+      }),
     ).toBeDisabled();
   });
 });

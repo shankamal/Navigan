@@ -198,6 +198,21 @@ Resources:
       RouteKey: GET /api/v1/migrations/{migrationId}
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
+  GetMigrationSourceCatalogueRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/source-catalogue
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationIntegration}
+
   UpdateMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission

@@ -93,11 +93,15 @@ class Service:
                 "Reload the latest migration request.",
             )
 
-        if current["status"] not in {"DRAFT", "REJECTED"}:
+        if current["status"] not in {
+            "DRAFT",
+            "REJECTED",
+            "INVENTORY_READY",
+        }:
             raise ApiError(
                 409,
                 "MIGRATION_NOT_EDITABLE",
-                "Only draft or rejected migrations can be edited.",
+                "The migration cannot be edited in its current status.",
             )
 
         row = copy.deepcopy(current)
