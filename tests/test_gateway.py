@@ -13,11 +13,12 @@ def templates():
         'infrastructure/template.yaml',
         'infrastructure/shared/template.yaml',
         'infrastructure/modules/customer-management/template.yaml',
+        'infrastructure/modules/migration-management/template.yaml',
     ))
 
 
 def test_gateway_exposes_every_documented_operation_with_authentication():
-    _, shared, module = templates()
+    _, shared, module, _ = templates()
     contract = json.loads((ROOT / 'docs/openapi.json').read_text())
     expected = {f'{method.upper()} {path}' for path, methods in contract['paths'].items() for method in methods}
     routes = [r['Properties'] for r in module['Resources'].values() if r['Type'] == 'AWS::ApiGatewayV2::Route']
@@ -45,15 +46,20 @@ def test_gateway_exposes_every_documented_operation_with_authentication():
 
 
 def test_parent_passes_all_required_child_parameters_and_outputs():
-    parent, shared, module = templates()
+    parent, shared, module, migration = templates()
     assert set(parent['Resources']) == {
         'SharedPlatform',
         'CustomerManagement',
         'EnvironmentManagement',
         'ClusterManagement',
+        'MigrationManagement',
         'AccessManagement',
     }
-    for name, child in [('SharedPlatform', shared), ('CustomerManagement', module)]:
+    for name, child in [
+        ('SharedPlatform', shared),
+        ('CustomerManagement', module),
+        ('MigrationManagement', migration),
+    ]:
         app = parent['Resources'][name]
         assert app['Type'] == 'AWS::Serverless::Application'
         assert (ROOT / 'infrastructure' / app['Properties']['Location']).is_file()
@@ -92,3 +98,60 @@ def test_sam_config_builds_parent_and_deploys_built_nested_templates():
     assert deploy['template_file'] == '.aws-sam/build/template.yaml'
     assert {'CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND'} <= set(deploy['capabilities'].split())
     assert deploy['confirm_changeset'] is True
+
+
+
+def test_migration_routes_require_jwt_scope_and_least_privilege():
+    _, _, _, migration = templates()
+    routes = {
+        resource["Properties"]["RouteKey"]: resource["Properties"]
+        for resource in migration["Resources"].values()
+        if resource["Type"] == "AWS::ApiGatewayV2::Route"
+    }
+
+    human_routes = {
+        key: route
+        for key, route in routes.items()
+        if key.startswith("GET /api/v1/migrations")
+        or key.startswith("POST /api/v1/migrations")
+        or key.startswith("PUT /api/v1/migrations")
+    }
+    assert len(human_routes) == 10
+
+    for route in human_routes.values():
+        assert route["AuthorizationType"] == "JWT"
+        assert route["AuthorizerId"] == {"Ref": "AuthorizerId"}
+        assert route["AuthorizationScopes"] == [{"Ref": "JwtScope"}]
+
+    connector_routes = {
+        key: route
+        for key, route in routes.items()
+        if "/api/v1/migration-connectors/" in key
+    }
+    assert set(connector_routes) == {
+        "GET /api/v1/migration-connectors/{connectorId}/assignment",
+        "POST /api/v1/migration-connectors/{connectorId}/inventory",
+        "POST /api/v1/migration-connectors/{connectorId}/assessment",
+    }
+    for connector_route in connector_routes.values():
+        assert connector_route["AuthorizationType"] == "NONE"
+        assert "AuthorizerId" not in connector_route
+        assert "AuthorizationScopes" not in connector_route
+
+    for function_name in (
+        "MigrationFunction",
+        "MigrationConnectorFunction",
+    ):
+        policies = migration["Resources"][function_name]["Properties"][
+            "Policies"
+        ]
+        assert policies[0] == "AWSLambdaVPCAccessExecutionRole"
+
+        actions = {
+            statement["Action"]
+            for statement in policies[1]["Statement"]
+        }
+        assert actions == {
+            "secretsmanager:GetSecretValue",
+            "kms:Decrypt",
+        }
