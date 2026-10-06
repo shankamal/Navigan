@@ -212,22 +212,22 @@ export interface CreateSourceClusterInput {
 
 export interface UpdateMigrationInput {
   version: number;
-  source: {
+  source?: {
     platform: "SELF_MANAGED_KUBERNETES";
     sourceClusterId?: string;
     clusterName?: string;
     accessMode: "READ_ONLY_CONNECTOR";
   };
-  target: {
+  target?: {
     platform: "EKS";
     targetType: "EXISTING_CLUSTER";
     environmentId: string;
     environmentApprovedVersion: number;
-    clusterId: string;
-    clusterName: string;
+    clusterId?: string;
+    clusterName?: string;
     endpointAccess: "PRIVATE";
   };
-  scope: {
+  scope?: {
     namespaces: string[];
     excludeNamespaces: string[];
     includeClusterScopedResources: false;

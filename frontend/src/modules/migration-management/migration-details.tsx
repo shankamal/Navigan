@@ -16,7 +16,7 @@ import {
   useMigrationAssessment,
   useSourceClusters,
 } from "./hooks";
-import type { SourceEnrollment } from "./model";
+import type { SourceClusterRegistration, SourceEnrollment } from "./model";
 import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
 
@@ -25,6 +25,12 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const cache = useQueryClient();
   const [sourceEnrollment, setSourceEnrollment] =
     useState<SourceEnrollment | null>(null);
+  const [registeredSource, setRegisteredSource] =
+    useState<SourceClusterRegistration | null>(null);
+  const [sourceName, setSourceName] = useState("");
+  const [sourceDistribution, setSourceDistribution] = useState("kubeadm");
+  const [sourceRegion, setSourceRegion] = useState("ap-south-1");
+  const [sourceError, setSourceError] = useState("");
   const migrationQuery = useMigration(migrationId);
   const migration = migrationQuery.data;
   const assessmentQuery = useMigrationAssessment(migrationId, true);
@@ -37,15 +43,64 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const sourceCluster = sourceClustersQuery.data?.items.find(
     (item) => item.sourceClusterId === sourceClusterId,
   );
+  const effectiveSourceCluster = sourceCluster ?? registeredSource;
+
+  const sourceRegistration = useMutation({
+    mutationFn: async () => {
+      if (!migration) {
+        throw new Error("Migration is unavailable.");
+      }
+      const registered = await sourceClusters.create({
+        customerId: migration.customerId,
+        name: sourceName.trim(),
+        distribution: sourceDistribution.trim() || undefined,
+        registrationMethod: "LOCAL_KUBECONFIG",
+        location: {
+          type: "CLOUD",
+          cloudProvider: "AWS",
+          region: sourceRegion.trim() || undefined,
+        },
+      });
+      await migrations.update(migration.migrationId, {
+        version: migration.version,
+        source: {
+          platform: "SELF_MANAGED_KUBERNETES",
+          sourceClusterId: registered.sourceClusterId,
+          clusterName: registered.name,
+          accessMode: "READ_ONLY_CONNECTOR",
+        },
+        changeReason: "Attach registered source cluster",
+      });
+      const issuedEnrollment = await sourceClusters.enroll(
+        registered.sourceClusterId,
+        registered.version,
+      );
+      return { registered, issuedEnrollment };
+    },
+    onSuccess: async ({ registered, issuedEnrollment }) => {
+      setRegisteredSource(registered);
+      setSourceEnrollment(issuedEnrollment);
+      setSourceError("");
+      await cache.invalidateQueries({
+        queryKey: ["migrations", migrationId],
+      });
+      await cache.invalidateQueries({
+        queryKey: ["source-clusters", migration?.customerId],
+      });
+    },
+    onError: (error) => {
+      setSourceError(normalizeApiError(error).message);
+    },
+  });
 
   const enrollment = useMutation({
     mutationFn: async () => {
-      if (!sourceCluster) {
+      if (!effectiveSourceCluster) {
         throw new Error("The registered source cluster is unavailable.");
       }
       return sourceClusters.enroll(
-        sourceCluster.sourceClusterId,
-        sourceCluster.version,
+        effectiveSourceCluster.sourceClusterId,
+        effectiveSourceCluster.version,
       );
     },
     onSuccess: setSourceEnrollment,
@@ -93,7 +148,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     (!sourceClusterId || !sourceCluster);
 
   function downloadSourceBootstrap() {
-    if (!sourceEnrollment || !sourceCluster) return;
+    if (!sourceEnrollment || !effectiveSourceCluster) return;
 
     const apiBaseUrl =
       process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
@@ -106,7 +161,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     const bootstrap = JSON.stringify(
       {
         apiBaseUrl,
-        sourceClusterId: sourceCluster.sourceClusterId,
+        sourceClusterId: effectiveSourceCluster.sourceClusterId,
         enrollmentToken: sourceEnrollment.enrollmentToken,
         enrollmentExpiresAt: sourceEnrollment.expiresAt,
         imageRepository,
@@ -120,7 +175,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = `navigan-source-${sourceCluster.sourceClusterId}.json`;
+    link.download = `navigan-source-${effectiveSourceCluster.sourceClusterId}.json`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -149,23 +204,81 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       {migration && (
         <>
           {migration.status === "SOURCE_ENROLLMENT_PENDING" && (
-            <section className={`panel ${styles.bootstrapNotice}`}>
+            <section
+              className={`panel ${styles.bootstrapNotice} ${
+                sourceRegistrationMissing
+                  ? styles.sourceRegistrationWarning
+                  : ""
+              }`}
+            >
               {sourceRegistrationMissing ? (
                 <>
                   <div role="alert">
-                    <strong>Source registration was not completed</strong>
+                    <h2>Source registration was not completed</h2>
                     <p className="muted">
                       This earlier migration request has no registered source
-                      cluster attached, so a connector setup file cannot be
-                      generated from it.
+                      cluster attached. Register it here to continue this same
+                      migration request.
                     </p>
                   </div>
-                  <Link
-                    href="/migrations/new"
-                    className="button button-primary"
-                  >
-                    Register source cluster
-                  </Link>
+                  {sourceEnrollment ? (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={downloadSourceBootstrap}
+                    >
+                      Download connector setup
+                    </button>
+                  ) : (
+                    <div className={styles.sourceRecoveryForm}>
+                      <label className="field">
+                        <span>Source cluster name</span>
+                        <input
+                          value={sourceName}
+                          minLength={3}
+                          maxLength={100}
+                          placeholder="navigan-migration-lab"
+                          onChange={(event) =>
+                            setSourceName(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Kubernetes distribution</span>
+                        <input
+                          value={sourceDistribution}
+                          maxLength={100}
+                          onChange={(event) =>
+                            setSourceDistribution(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>AWS region</span>
+                        <input
+                          value={sourceRegion}
+                          maxLength={64}
+                          onChange={(event) =>
+                            setSourceRegion(event.target.value)
+                          }
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        disabled={
+                          sourceName.trim().length < 3 ||
+                          sourceRegistration.isPending
+                        }
+                        onClick={() => sourceRegistration.mutate()}
+                      >
+                        {sourceRegistration.isPending
+                          ? "Registering source cluster…"
+                          : "Register source cluster"}
+                      </button>
+                      {sourceError && <p role="alert">{sourceError}</p>}
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

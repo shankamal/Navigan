@@ -38,6 +38,13 @@ class Repository:
     def get(self, identifier, lock=False):
         return copy.deepcopy(self.rows[identifier])
 
+    def get_source_cluster(self, identifier, lock=False):
+        return {
+            "source_cluster_id": identifier,
+            "customer_id": "CUS-demo",
+            "status": "PENDING_ENROLLMENT",
+        }
+
     def save(self, row, old, action, correlation, create=False):
         self.rows[row["migration_id"]] = copy.deepcopy(row)
         self.saved.append((action, correlation, create))
@@ -357,6 +364,40 @@ def test_inventory_ready_can_save_scope_and_target_selection():
     ]
     assert result["targetConfiguration"]["clusterId"] == (
         "CLU-demo"
+    )
+
+
+def test_pending_migration_can_recover_missing_source_registration():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.edit"})
+    created = Service(repo, access, "corr-create").create(
+        minimal_create_body()
+    )
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "SOURCE_ENROLLMENT_PENDING"
+    repo.rows[identifier]["source_configuration"].pop(
+        "sourceClusterId",
+        None,
+    )
+
+    result = Service(repo, access, "corr-recover").update(
+        identifier,
+        {
+            "version": 1,
+            "source": {
+                "platform": "SELF_MANAGED_KUBERNETES",
+                "sourceClusterId": "SRC-" + "a" * 32,
+                "clusterName": "migration-lab",
+                "accessMode": "READ_ONLY_CONNECTOR",
+            },
+            "changeReason": "Attach registered source cluster",
+        },
+    )
+
+    assert result["status"] == "SOURCE_ENROLLMENT_PENDING"
+    assert result["version"] == 2
+    assert result["sourceConfiguration"]["sourceClusterId"] == (
+        "SRC-" + "a" * 32
     )
 
 

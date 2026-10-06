@@ -157,16 +157,53 @@ class Service:
                 "Reload the latest migration request.",
             )
 
+        source = body.get("source")
+        recovering_source_registration = (
+            current["status"] == "SOURCE_ENROLLMENT_PENDING"
+            and not current["source_configuration"].get("sourceClusterId")
+            and source is not None
+            and source.get("sourceClusterId")
+        )
+
         if current["status"] not in {
             "DRAFT",
             "REJECTED",
             "INVENTORY_READY",
-        }:
+        } and not recovering_source_registration:
             raise ApiError(
                 409,
                 "MIGRATION_NOT_EDITABLE",
                 "The migration cannot be edited in its current status.",
             )
+
+        if recovering_source_registration:
+            unexpected = set(body) - {
+                "version",
+                "source",
+                "changeReason",
+            }
+            if unexpected:
+                raise ApiError(
+                    409,
+                    "SOURCE_REGISTRATION_RECOVERY_ONLY",
+                    "Only the missing source cluster can be attached at this stage.",
+                )
+
+            registered_source = self.repo.get_source_cluster(
+                source["sourceClusterId"]
+            )
+            if registered_source["customer_id"] != current["customer_id"]:
+                raise ApiError(
+                    409,
+                    "SOURCE_CLUSTER_CUSTOMER_MISMATCH",
+                    "The source cluster must belong to the migration customer.",
+                )
+            if registered_source["status"] == "REVOKED":
+                raise ApiError(
+                    409,
+                    "SOURCE_CLUSTER_REVOKED",
+                    "The selected source cluster has been revoked.",
+                )
 
         row = copy.deepcopy(current)
         for key, column in {

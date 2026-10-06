@@ -189,6 +189,41 @@
   color: #66765a;
 }
 
+.sourceRegistrationWarning {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 20px 22px;
+  border: 1px solid #d8a936;
+  border-left: 5px solid #c98b00;
+  background: #fff9e8;
+}
+
+.sourceRegistrationWarning h2 {
+  margin: 0;
+  color: #372900;
+  font-size: 18px;
+}
+
+.sourceRegistrationWarning p {
+  color: #5f5330;
+}
+
+.sourceRecoveryForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr)) auto;
+  gap: 14px;
+  align-items: end;
+  grid-column: 1 / -1;
+}
+
+.sourceRecoveryForm p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #9b1c1c;
+}
+
 .connectionCard > div:first-child {
   display: flex;
   gap: 8px;
