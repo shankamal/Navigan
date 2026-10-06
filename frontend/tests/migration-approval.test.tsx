@@ -56,6 +56,8 @@ vi.mock("@/modules/migration-management/hooks", () => ({
           locationType: "CLOUD",
           cloudProvider: "AWS",
           registrationMethod: "LOCAL_KUBECONFIG",
+          deliveryMethod: "MANUAL_HELM",
+          deliveryConfiguration: {},
           status: "PENDING_ENROLLMENT",
           version: 1,
         },
@@ -72,6 +74,7 @@ vi.mock("@/modules/migration-management/service", () => ({
   },
   sourceClusters: {
     enroll: state.enroll,
+    updateDelivery: vi.fn(),
   },
 }));
 

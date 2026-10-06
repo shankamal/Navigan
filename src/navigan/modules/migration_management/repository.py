@@ -76,7 +76,8 @@ class Repository:
             "SELECT s.source_cluster_id,s.customer_id,"
             "c.name AS customer_name,s.name,s.distribution,"
             "s.location_type,s.cloud_provider,s.region,"
-            "s.registration_method,s.status,s.version,"
+            "s.registration_method,s.delivery_method,"
+            "s.delivery_configuration,s.status,s.version,"
             "s.last_connected_at,s.created_at,s.updated_at "
             "FROM migration_management.source_clusters s "
             "JOIN customer_management.customers c USING(customer_id) "
@@ -93,8 +94,10 @@ class Repository:
             "INSERT INTO migration_management.source_clusters("
             "source_cluster_id,customer_id,name,distribution,"
             "location_type,cloud_provider,region,registration_method,"
+            "delivery_method,delivery_configuration,"
             "status,version,created_by,updated_by"
-            ") VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+            ") VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,"
+            "%s,%s,%s,%s) "
             "RETURNING *",
             [
                 row["source_cluster_id"],
@@ -105,6 +108,8 @@ class Repository:
                 row.get("cloud_provider"),
                 row.get("region"),
                 row["registration_method"],
+                row["delivery_method"],
+                json_text(row["delivery_configuration"]),
                 row["status"],
                 row["version"],
                 row["created_by"],
@@ -121,6 +126,37 @@ class Repository:
             },
         )
         return created
+
+    def update_source_cluster_delivery(
+        self,
+        source_cluster,
+        delivery,
+        reason,
+        correlation,
+    ):
+        updated = self.db.execute(
+            "UPDATE migration_management.source_clusters "
+            "SET delivery_method=%s,delivery_configuration=%s::jsonb,"
+            "version=version+1,updated_by=%s,updated_at=now() "
+            "WHERE source_cluster_id=%s "
+            "RETURNING *",
+            [
+                delivery["method"],
+                json_text(delivery.get("awsSsm") or {}),
+                self.principal.user_id,
+                source_cluster["source_cluster_id"],
+            ],
+        ).fetchone()
+        self.audit_source_cluster(
+            source_cluster["source_cluster_id"],
+            "SOURCE_CLUSTER_DELIVERY_CONFIGURED",
+            correlation,
+            {
+                "deliveryMethod": delivery["method"],
+                "reason": reason,
+            },
+        )
+        return updated
 
     def create_source_enrollment(
         self,

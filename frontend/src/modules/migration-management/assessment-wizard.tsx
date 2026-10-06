@@ -65,6 +65,15 @@ export function AssessmentWizard() {
     "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER"
   >("AWS");
   const [sourceRegion, setSourceRegion] = useState("");
+  const [sourceDeliveryMethod, setSourceDeliveryMethod] = useState<
+    "MANUAL_HELM" | "AWS_SSM" | "GITOPS"
+  >("AWS_SSM");
+  const [sourceAwsAccountId, setSourceAwsAccountId] = useState("");
+  const [sourceManagedInstanceId, setSourceManagedInstanceId] = useState("");
+  const [sourceRoleArn, setSourceRoleArn] = useState("");
+  const [sourceKubeconfigPath, setSourceKubeconfigPath] = useState(
+    "/etc/kubernetes/admin.conf",
+  );
   const [registeredSource, setRegisteredSource] =
     useState<SourceClusterRegistration | null>(null);
   const [sourceEnrollment, setSourceEnrollment] =
@@ -265,12 +274,30 @@ export function AssessmentWizard() {
         customerId: customer,
         name: sourceName.trim(),
         distribution: sourceDistribution.trim() || undefined,
-        registrationMethod: "LOCAL_KUBECONFIG",
+        registrationMethod:
+          sourceDeliveryMethod === "AWS_SSM"
+            ? "PROVIDER_AUTOMATION"
+            : sourceDeliveryMethod === "GITOPS"
+              ? "GITOPS"
+              : "LOCAL_KUBECONFIG",
         location: {
           type: sourceLocationType,
           cloudProvider:
             sourceLocationType === "CLOUD" ? sourceCloudProvider : undefined,
           region: sourceRegion.trim() || undefined,
+        },
+        delivery: {
+          method: sourceDeliveryMethod,
+          awsSsm:
+            sourceDeliveryMethod === "AWS_SSM"
+              ? {
+                  accountId: sourceAwsAccountId.trim(),
+                  region: sourceRegion.trim(),
+                  managedInstanceId: sourceManagedInstanceId.trim(),
+                  roleArn: sourceRoleArn.trim() || undefined,
+                  kubeconfigPath: sourceKubeconfigPath.trim(),
+                }
+              : undefined,
         },
       });
       const enrollment = await sourceClusters.enroll(
@@ -768,22 +795,91 @@ export function AssessmentWizard() {
                           />
                         </label>
                         <label className="field">
-                          <span>Registration method</span>
-                          <select value="LOCAL_KUBECONFIG" disabled>
-                            <option value="LOCAL_KUBECONFIG">
-                              Local kubeconfig bootstrap — recommended
+                          <span>Connector delivery</span>
+                          <select
+                            value={sourceDeliveryMethod}
+                            onChange={(event) =>
+                              setSourceDeliveryMethod(
+                                event.target.value as
+                                  "MANUAL_HELM" | "AWS_SSM" | "GITOPS",
+                              )
+                            }
+                          >
+                            <option value="AWS_SSM">
+                              AWS Systems Manager — no SSH
                             </option>
+                            <option value="MANUAL_HELM">
+                              Download Helm setup
+                            </option>
+                            <option value="GITOPS">GitOps delivery</option>
                           </select>
                           <small>
-                            The kubeconfig remains on this computer and is never
-                            uploaded to Navigan.
+                            Navigan never uploads or stores your kubeconfig.
                           </small>
                         </label>
+                        {sourceDeliveryMethod === "AWS_SSM" && (
+                          <>
+                            <label className="field">
+                              <span>AWS account ID</span>
+                              <input
+                                value={sourceAwsAccountId}
+                                inputMode="numeric"
+                                minLength={12}
+                                maxLength={12}
+                                placeholder="123456789012"
+                                onChange={(event) =>
+                                  setSourceAwsAccountId(event.target.value)
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span>Control-plane managed instance ID</span>
+                              <input
+                                value={sourceManagedInstanceId}
+                                placeholder="i-0123456789abcdef0"
+                                onChange={(event) =>
+                                  setSourceManagedInstanceId(event.target.value)
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span>Cross-account role ARN (optional)</span>
+                              <input
+                                value={sourceRoleArn}
+                                placeholder="Leave blank for this AWS account"
+                                onChange={(event) =>
+                                  setSourceRoleArn(event.target.value)
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span>Kubeconfig path</span>
+                              <input
+                                value={sourceKubeconfigPath}
+                                onChange={(event) =>
+                                  setSourceKubeconfigPath(event.target.value)
+                                }
+                              />
+                            </label>
+                          </>
+                        )}
                       </div>
                       <button
                         type="button"
                         className="button button-primary"
-                        disabled={sourceName.trim().length < 3 || sourceBusy}
+                        disabled={
+                          sourceName.trim().length < 3 ||
+                          sourceBusy ||
+                          (sourceDeliveryMethod === "AWS_SSM" &&
+                            (sourceLocationType !== "CLOUD" ||
+                              sourceCloudProvider !== "AWS" ||
+                              !/^\d{12}$/.test(sourceAwsAccountId.trim()) ||
+                              !/^(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)$/.test(
+                                sourceManagedInstanceId.trim(),
+                              ) ||
+                              sourceRegion.trim().length < 3 ||
+                              !sourceKubeconfigPath.trim().startsWith("/")))
+                        }
                         onClick={() => void registerSourceCluster()}
                       >
                         {sourceBusy

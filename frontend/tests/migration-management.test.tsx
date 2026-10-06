@@ -150,6 +150,8 @@ vi.mock("@/modules/migration-management/service", () => ({
       cloudProvider: null,
       region: "Chennai DC",
       registrationMethod: "LOCAL_KUBECONFIG",
+      deliveryMethod: "MANUAL_HELM",
+      deliveryConfiguration: {},
       status: "PENDING_ENROLLMENT",
       version: 1,
     })),
@@ -160,6 +162,7 @@ vi.mock("@/modules/migration-management/service", () => ({
       expiresAt: "2026-10-06T15:15:00Z",
       enrollmentToken: "e".repeat(43),
     })),
+    updateDelivery: vi.fn(),
   },
   migrations: {
     create: vi.fn(async () => ({
@@ -290,18 +293,35 @@ describe("Migration UI", () => {
         name: /Register a new source cluster/i,
       }),
     ).toBeChecked();
-    expect(
-      screen.getByText(/kubeconfig remains on this computer/i),
-    ).toBeInTheDocument();
-
     fireEvent.change(screen.getByLabelText("Source cluster name"), {
       target: { value: "retailflow-source" },
     });
     fireEvent.change(screen.getByLabelText("Kubernetes distribution"), {
       target: { value: "kubeadm" },
     });
+    fireEvent.change(screen.getByLabelText("Cluster location"), {
+      target: { value: "CLOUD" },
+    });
     fireEvent.change(screen.getByLabelText("Region or location (optional)"), {
-      target: { value: "Chennai DC" },
+      target: { value: "ap-south-1" },
+    });
+    fireEvent.change(screen.getByLabelText("AWS account ID"), {
+      target: { value: "905418045935" },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Control-plane managed instance ID"),
+      {
+        target: { value: "i-08e28d9b2242cbd53" },
+      },
+    );
+    expect(
+      screen.getByRole("combobox", { name: /Connector delivery/i }),
+    ).toHaveValue("AWS_SSM");
+    expect(
+      screen.getByText(/never uploads or stores your kubeconfig/i),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Kubeconfig path"), {
+      target: { value: "/etc/kubernetes/admin.conf" },
     });
     fireEvent.click(
       screen.getByRole("button", {

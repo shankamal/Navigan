@@ -24,6 +24,7 @@ from .models import (
     CreateSourceEnrollment,
     DiscoveryAction,
     MigrationAction,
+    UpdateSourceClusterDelivery,
     UpdateMigration,
 )
 from .repository import Repository
@@ -130,6 +131,8 @@ def route_of(method, path):
             raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
         if len(parts) == 1 and method == "GET":
             return "source_cluster_get", identifier, None
+        if len(parts) == 1 and method == "PUT":
+            return "source_cluster_update", identifier, None
         if (
             len(parts) == 2
             and parts[1] == "enrollments"
@@ -193,6 +196,7 @@ def execute(event, principal, correlation):
         "update",
         "action",
         "source_cluster_create",
+        "source_cluster_update",
         "source_cluster_enrollment",
     }
     idempotent = mutating and route != "source_cluster_enrollment"
@@ -241,6 +245,8 @@ def execute(event, principal, correlation):
             model = UpdateMigration
         elif route == "source_cluster_create":
             model = CreateSourceCluster
+        elif route == "source_cluster_update":
+            model = UpdateSourceClusterDelivery
         elif route == "source_cluster_enrollment":
             model = CreateSourceEnrollment
         elif action in {"discover", "assess"}:
@@ -332,6 +338,9 @@ def execute(event, principal, correlation):
         if route == "source_cluster_create":
             value = service.create_source_cluster(body)
             status = 201
+        elif route == "source_cluster_update":
+            value = service.update_source_cluster_delivery(identifier, body)
+            status = 200
         elif route == "source_cluster_enrollment":
             value = service.create_source_enrollment(identifier, body)
             status = 201

@@ -99,6 +99,10 @@ class Service:
             "cloud_provider": location.get("cloudProvider"),
             "region": location.get("region"),
             "registration_method": body["registrationMethod"],
+            "delivery_method": body["delivery"]["method"],
+            "delivery_configuration": (
+                body["delivery"].get("awsSsm") or {}
+            ),
             "status": "PENDING_ENROLLMENT",
             "version": 1,
             "created_by": self.principal.user_id,
@@ -106,6 +110,37 @@ class Service:
         }
         return serialize(
             self.repo.create_source_cluster(row, self.correlation)
+        )
+
+    def update_source_cluster_delivery(self, identifier, body):
+        self.access.require("migration.edit")
+        source_cluster = self.repo.get_source_cluster(
+            identifier,
+            lock=True,
+        )
+        self.access.require_customer(
+            source_cluster["customer_id"],
+            source_cluster["created_by"],
+        )
+        if source_cluster["version"] != body["version"]:
+            raise ApiError(
+                409,
+                "CONCURRENT_UPDATE",
+                "Reload the latest source cluster.",
+            )
+        if source_cluster["status"] == "REVOKED":
+            raise ApiError(
+                409,
+                "SOURCE_CLUSTER_REVOKED",
+                "A revoked source cluster cannot be configured.",
+            )
+        return serialize(
+            self.repo.update_source_cluster_delivery(
+                source_cluster,
+                body["delivery"],
+                body["reason"],
+                self.correlation,
+            )
         )
 
     def create_source_enrollment(self, identifier, body):

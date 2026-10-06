@@ -110,6 +110,11 @@ def test_routes_authenticated_source_cluster_registration():
         identifier,
         None,
     )
+    assert route_of("PUT", f"{SOURCE_CLUSTERS_BASE}/{identifier}") == (
+        "source_cluster_update",
+        identifier,
+        None,
+    )
     assert route_of(
         "POST",
         f"{SOURCE_CLUSTERS_BASE}/{identifier}/enrollments",

@@ -254,6 +254,7 @@ def source_assignment(db, connector, now, correlation):
         connector["source_cluster_id"],
         {
             "DRAFT",
+            "SOURCE_ENROLLMENT_PENDING",
             "INVENTORY_DISCOVERING",
             "DISCOVERY_PENDING",
             "DISCOVERING",
@@ -275,6 +276,12 @@ def source_assignment(db, connector, now, correlation):
 
     flows = {
         "DRAFT": {
+            "activeStatus": "INVENTORY_DISCOVERING",
+            "assignmentType": "SOURCE_CATALOGUE",
+            "event": "MIGRATION_INVENTORY_STARTED",
+            "reason": "Connected source cluster accepted catalogue assignment",
+        },
+        "SOURCE_ENROLLMENT_PENDING": {
             "activeStatus": "INVENTORY_DISCOVERING",
             "assignmentType": "SOURCE_CATALOGUE",
             "event": "MIGRATION_INVENTORY_STARTED",
@@ -851,19 +858,28 @@ def submit_source_inventory(
         "status": "ASSESSMENT_READY",
     }
 
+def path_of(event):
+    path = event.get("rawPath", "")
+    stage = event.get("requestContext", {}).get("stage")
+    prefix = "/" + stage if stage and stage != "$default" else ""
+    if prefix and path.startswith(prefix + "/api/v1/"):
+        return path[len(prefix):]
+    return path
+
+
 def execute(event, correlation):
     method = (
         event.get("requestContext", {})
         .get("http", {})
         .get("method", "")
     )
-    path = event.get("rawPath") or ""
+    path = path_of(event)
     source_enroll = path == SOURCE_CONNECTOR_BASE + "/enroll"
     source_assignment_match = re.fullmatch(
         SOURCE_CONNECTOR_BASE + r"/(SCC-[0-9a-f]{32})/assignment",
         path,
     )
-    source_inventory_match = re.fullmatch(
+    source_catalogue_match = re.fullmatch(
         SOURCE_CONNECTOR_BASE + r"/(SCC-[0-9a-f]{32})/inventory",
         path,
     )
@@ -891,9 +907,9 @@ def execute(event, correlation):
     elif source_assignment_match and method == "GET":
         route = "source_assignment"
         connector_id = source_assignment_match.group(1)
-    elif source_inventory_match and method == "POST":
+    elif source_catalogue_match and method == "POST":
         route = "source_catalogue"
-        connector_id = source_inventory_match.group(1)
+        connector_id = source_catalogue_match.group(1)
     elif source_detail_match and method == "POST":
         route = "source_detail"
         connector_id = source_detail_match.group(1)

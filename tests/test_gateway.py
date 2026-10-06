@@ -132,6 +132,7 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         "POST /api/v1/source-clusters",
         "GET /api/v1/source-clusters",
         "GET /api/v1/source-clusters/{sourceClusterId}",
+        "PUT /api/v1/source-clusters/{sourceClusterId}",
         (
             "POST /api/v1/source-clusters/"
             "{sourceClusterId}/enrollments"

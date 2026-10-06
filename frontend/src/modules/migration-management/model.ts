@@ -105,6 +105,10 @@ export const sourceClusterSchema = z
       "GITOPS",
       "PROVIDER_AUTOMATION",
     ]),
+    deliveryMethod: z
+      .enum(["MANUAL_HELM", "AWS_SSM", "GITOPS"])
+      .default("MANUAL_HELM"),
+    deliveryConfiguration: z.record(z.string(), z.unknown()).default({}),
     status: z.enum(["PENDING_ENROLLMENT", "CONNECTED", "STALE", "REVOKED"]),
     version: z.number().int().positive(),
     lastConnectedAt: z.string().nullable().optional(),
@@ -208,6 +212,24 @@ export interface CreateSourceClusterInput {
     cloudProvider?: "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER";
     region?: string;
   };
+  delivery: SourceConnectorDeliveryInput;
+}
+
+export interface SourceConnectorDeliveryInput {
+  method: "MANUAL_HELM" | "AWS_SSM" | "GITOPS";
+  awsSsm?: {
+    accountId: string;
+    region: string;
+    managedInstanceId: string;
+    roleArn?: string;
+    kubeconfigPath: string;
+  };
+}
+
+export interface UpdateSourceClusterDeliveryInput {
+  version: number;
+  delivery: SourceConnectorDeliveryInput;
+  reason: string;
 }
 
 export interface UpdateMigrationInput {

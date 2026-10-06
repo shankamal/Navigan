@@ -139,6 +139,56 @@ def test_cloud_source_registration_requires_provider():
         )
 
 
+def test_accepts_aws_systems_manager_connector_delivery():
+    value = CreateSourceCluster.model_validate(
+        {
+            "customerId": "CUS-demo",
+            "name": "navigan-migration-lab",
+            "distribution": "kubeadm",
+            "registrationMethod": "PROVIDER_AUTOMATION",
+            "location": {
+                "type": "CLOUD",
+                "cloudProvider": "AWS",
+                "region": "ap-south-1",
+            },
+            "delivery": {
+                "method": "AWS_SSM",
+                "awsSsm": {
+                    "accountId": "905418045935",
+                    "region": "ap-south-1",
+                    "managedInstanceId": "i-08e28d9b2242cbd53",
+                    "kubeconfigPath": "/etc/kubernetes/admin.conf",
+                },
+            },
+        }
+    )
+
+    assert value.delivery.method == "AWS_SSM"
+    assert value.delivery.awsSsm.managedInstanceId == "i-08e28d9b2242cbd53"
+
+
+def test_rejects_aws_delivery_for_non_aws_source():
+    with pytest.raises(
+        ValidationError,
+        match="requires an AWS cloud location",
+    ):
+        CreateSourceCluster.model_validate(
+            {
+                "customerId": "CUS-demo",
+                "name": "on-prem-source",
+                "location": {"type": "ON_PREMISES"},
+                "delivery": {
+                    "method": "AWS_SSM",
+                    "awsSsm": {
+                        "accountId": "905418045935",
+                        "region": "ap-south-1",
+                        "managedInstanceId": "i-08e28d9b2242cbd53",
+                    },
+                },
+            }
+        )
+
+
 def test_accepts_sanitized_assessment():
     report = AssessmentReport.model_validate(
         {

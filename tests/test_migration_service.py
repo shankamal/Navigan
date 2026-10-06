@@ -42,7 +42,23 @@ class Repository:
         return {
             "source_cluster_id": identifier,
             "customer_id": "CUS-demo",
+            "created_by": self.principal.user_id,
             "status": "PENDING_ENROLLMENT",
+            "version": 1,
+        }
+
+    def update_source_cluster_delivery(
+        self,
+        source_cluster,
+        delivery,
+        reason,
+        correlation,
+    ):
+        return {
+            **source_cluster,
+            "delivery_method": delivery["method"],
+            "delivery_configuration": delivery.get("awsSsm") or {},
+            "version": source_cluster["version"] + 1,
         }
 
     def save(self, row, old, action, correlation, create=False):
@@ -101,6 +117,31 @@ def test_creates_assessment_only_migration():
     assert result["executionMode"] == "ASSESSMENT_ONLY"
     assert result["status"] == "DRAFT"
     assert repo.saved == [("MIGRATION_CREATED", "corr-1", True)]
+
+
+def test_configures_aws_ssm_source_connector_delivery():
+    repo = Repository()
+    access = Access("creator", {"migration.edit"})
+
+    result = Service(repo, access, "corr-source").update_source_cluster_delivery(
+        "SRC-" + "a" * 32,
+        {
+            "version": 1,
+            "delivery": {
+                "method": "AWS_SSM",
+                "awsSsm": {
+                    "accountId": "905418045935",
+                    "region": "ap-south-1",
+                    "managedInstanceId": "i-08e28d9b2242cbd53",
+                    "kubeconfigPath": "/etc/kubernetes/admin.conf",
+                },
+            },
+            "reason": "Configure secure delivery",
+        },
+    )
+
+    assert result["deliveryMethod"] == "AWS_SSM"
+    assert result["version"] == 2
 
 
 def test_creator_cannot_review_own_request():

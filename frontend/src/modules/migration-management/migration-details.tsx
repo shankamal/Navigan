@@ -30,6 +30,12 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const [sourceName, setSourceName] = useState("");
   const [sourceDistribution, setSourceDistribution] = useState("kubeadm");
   const [sourceRegion, setSourceRegion] = useState("ap-south-1");
+  const [sourceAwsAccountId, setSourceAwsAccountId] = useState("");
+  const [sourceManagedInstanceId, setSourceManagedInstanceId] = useState("");
+  const [sourceRoleArn, setSourceRoleArn] = useState("");
+  const [sourceKubeconfigPath, setSourceKubeconfigPath] = useState(
+    "/etc/kubernetes/admin.conf",
+  );
   const [sourceError, setSourceError] = useState("");
   const migrationQuery = useMigration(migrationId);
   const migration = migrationQuery.data;
@@ -43,7 +49,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const sourceCluster = sourceClustersQuery.data?.items.find(
     (item) => item.sourceClusterId === sourceClusterId,
   );
-  const effectiveSourceCluster = sourceCluster ?? registeredSource;
+  const effectiveSourceCluster = registeredSource ?? sourceCluster;
   const matchingPendingSource =
     registeredSource ??
     sourceClustersQuery.data?.items.find(
@@ -68,6 +74,16 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
             type: "CLOUD",
             cloudProvider: "AWS",
             region: sourceRegion.trim() || undefined,
+          },
+          delivery: {
+            method: "AWS_SSM",
+            awsSsm: {
+              accountId: sourceAwsAccountId.trim(),
+              region: sourceRegion.trim(),
+              managedInstanceId: sourceManagedInstanceId.trim(),
+              roleArn: sourceRoleArn.trim() || undefined,
+              kubeconfigPath: sourceKubeconfigPath.trim(),
+            },
           },
         }));
       setRegisteredSource(registered);
@@ -114,6 +130,41 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       );
     },
     onSuccess: setSourceEnrollment,
+  });
+
+  const deliveryConfiguration = useMutation({
+    mutationFn: async () => {
+      if (!effectiveSourceCluster) {
+        throw new Error("The registered source cluster is unavailable.");
+      }
+      return sourceClusters.updateDelivery(
+        effectiveSourceCluster.sourceClusterId,
+        {
+          version: effectiveSourceCluster.version,
+          delivery: {
+            method: "AWS_SSM",
+            awsSsm: {
+              accountId: sourceAwsAccountId.trim(),
+              region: sourceRegion.trim(),
+              managedInstanceId: sourceManagedInstanceId.trim(),
+              roleArn: sourceRoleArn.trim() || undefined,
+              kubeconfigPath: sourceKubeconfigPath.trim(),
+            },
+          },
+          reason: "Configure secure source connector delivery",
+        },
+      );
+    },
+    onSuccess: async (updated) => {
+      setRegisteredSource(updated);
+      setSourceError("");
+      await cache.invalidateQueries({
+        queryKey: ["source-clusters", migration?.customerId],
+      });
+    },
+    onError: (error) => {
+      setSourceError(normalizeApiError(error).message);
+    },
   });
 
   const action = useMutation({
@@ -221,6 +272,91 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                   : ""
               }`}
             >
+              {effectiveSourceCluster &&
+                effectiveSourceCluster.deliveryMethod !== "AWS_SSM" && (
+                  <div className={styles.deliveryConfiguration}>
+                    <div>
+                      <h2>Configure secure connector delivery</h2>
+                      <p className="muted">
+                        Record the AWS Systems Manager destination for the
+                        one-shot connector. No inbound SSH access or kubeconfig
+                        upload is required.
+                      </p>
+                    </div>
+                    <div className={styles.contextGrid}>
+                      <label className="field">
+                        <span>AWS account ID</span>
+                        <input
+                          value={sourceAwsAccountId}
+                          inputMode="numeric"
+                          minLength={12}
+                          maxLength={12}
+                          placeholder="123456789012"
+                          onChange={(event) =>
+                            setSourceAwsAccountId(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>AWS region</span>
+                        <input
+                          value={sourceRegion}
+                          onChange={(event) =>
+                            setSourceRegion(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Control-plane managed instance ID</span>
+                        <input
+                          value={sourceManagedInstanceId}
+                          placeholder="i-0123456789abcdef0"
+                          onChange={(event) =>
+                            setSourceManagedInstanceId(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Cross-account role ARN (optional)</span>
+                        <input
+                          value={sourceRoleArn}
+                          placeholder="Leave blank for this AWS account"
+                          onChange={(event) =>
+                            setSourceRoleArn(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Kubeconfig path</span>
+                        <input
+                          value={sourceKubeconfigPath}
+                          onChange={(event) =>
+                            setSourceKubeconfigPath(event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={
+                        deliveryConfiguration.isPending ||
+                        !/^\d{12}$/.test(sourceAwsAccountId.trim()) ||
+                        !/^(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)$/.test(
+                          sourceManagedInstanceId.trim(),
+                        ) ||
+                        sourceRegion.trim().length < 3 ||
+                        !sourceKubeconfigPath.trim().startsWith("/")
+                      }
+                      onClick={() => deliveryConfiguration.mutate()}
+                    >
+                      {deliveryConfiguration.isPending
+                        ? "Saving delivery profile…"
+                        : "Save connector delivery profile"}
+                    </button>
+                    {sourceError && <p role="alert">{sourceError}</p>}
+                  </div>
+                )}
               {sourceRegistrationMissing ? (
                 <>
                   <div role="alert">
@@ -273,11 +409,59 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                           }
                         />
                       </label>
+                      <label className="field">
+                        <span>AWS account ID</span>
+                        <input
+                          value={sourceAwsAccountId}
+                          inputMode="numeric"
+                          minLength={12}
+                          maxLength={12}
+                          placeholder="123456789012"
+                          onChange={(event) =>
+                            setSourceAwsAccountId(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Control-plane managed instance ID</span>
+                        <input
+                          value={sourceManagedInstanceId}
+                          placeholder="i-0123456789abcdef0"
+                          onChange={(event) =>
+                            setSourceManagedInstanceId(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Cross-account role ARN (optional)</span>
+                        <input
+                          value={sourceRoleArn}
+                          placeholder="Leave blank for this AWS account"
+                          onChange={(event) =>
+                            setSourceRoleArn(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Kubeconfig path</span>
+                        <input
+                          value={sourceKubeconfigPath}
+                          onChange={(event) =>
+                            setSourceKubeconfigPath(event.target.value)
+                          }
+                        />
+                      </label>
                       <button
                         type="button"
                         className="button button-primary"
                         disabled={
                           sourceName.trim().length < 3 ||
+                          !/^\d{12}$/.test(sourceAwsAccountId.trim()) ||
+                          !/^(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)$/.test(
+                            sourceManagedInstanceId.trim(),
+                          ) ||
+                          sourceRegion.trim().length < 3 ||
+                          !sourceKubeconfigPath.trim().startsWith("/") ||
                           sourceRegistration.isPending
                         }
                         onClick={() => sourceRegistration.mutate()}

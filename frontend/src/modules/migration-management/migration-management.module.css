@@ -218,6 +218,18 @@
   grid-column: 1 / -1;
 }
 
+.deliveryConfiguration {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.deliveryConfiguration > button {
+  justify-self: start;
+}
+
 .sourceRecoveryForm p {
   grid-column: 1 / -1;
   margin: 0;

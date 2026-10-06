@@ -11,6 +11,7 @@ import {
   type CreateMigrationInput,
   type CreateSourceClusterInput,
   type UpdateMigrationInput,
+  type UpdateSourceClusterDeliveryInput,
 } from "./model";
 
 const base = "/migrations";
@@ -156,6 +157,22 @@ export const sourceClusters = {
       (
         await apiClient.post(sourceClustersBase, input, {
           headers: writeHeaders({ key: crypto.randomUUID() }),
+        })
+      ).data,
+    ),
+
+  updateDelivery: async (
+    sourceClusterId: string,
+    input: UpdateSourceClusterDeliveryInput,
+  ) =>
+    parseResponse(
+      sourceClusterSchema,
+      (
+        await apiClient.put(`${sourceClustersBase}/${sourceClusterId}`, input, {
+          headers: writeHeaders({
+            key: crypto.randomUUID(),
+            version: input.version,
+          }),
         })
       ).data,
     ),

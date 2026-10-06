@@ -295,6 +295,17 @@ Resources:
       RouteKey: GET /api/v1/source-clusters/{sourceClusterId}
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
+  UpdateSourceClusterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: PUT /api/v1/source-clusters/{sourceClusterId}
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
   CreateSourceClusterEnrollmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: SourceClusterInvokePermission
