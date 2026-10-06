@@ -2,6 +2,7 @@ import { apiClient, parseResponse, writeHeaders } from "@/shared/api/client";
 
 import {
   assessmentResponseSchema,
+  migrationListSchema,
   migrationSchema,
   sourceClusterListSchema,
   sourceClusterSchema,
@@ -15,6 +16,22 @@ import {
 const base = "/migrations";
 
 export const migrations = {
+  list: async () =>
+    parseResponse(
+      migrationListSchema,
+      (
+        await apiClient.get(base, {
+          params: { page: 0, pageSize: 100 },
+        })
+      ).data,
+    ),
+
+  get: async (migrationId: string) =>
+    parseResponse(
+      migrationSchema,
+      (await apiClient.get(`${base}/${migrationId}`)).data,
+    ),
+
   create: async (input: CreateMigrationInput) =>
     parseResponse(
       migrationSchema,
@@ -94,6 +111,28 @@ export const migrations = {
             version: input.version,
           }),
         })
+      ).data,
+    ),
+
+  action: async (
+    migrationId: string,
+    action: "submit" | "review" | "approve" | "reject",
+    version: number,
+    reason: string,
+  ) =>
+    parseResponse(
+      migrationSchema,
+      (
+        await apiClient.post(
+          `${base}/${migrationId}/${action}`,
+          { version, reason },
+          {
+            headers: writeHeaders({
+              key: crypto.randomUUID(),
+              version,
+            }),
+          },
+        )
       ).data,
     ),
 };

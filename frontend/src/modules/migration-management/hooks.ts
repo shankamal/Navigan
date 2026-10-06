@@ -10,6 +10,21 @@ export const useSourceClusters = (customerId: string) =>
     retry: false,
   });
 
+export const useMigrations = () =>
+  useQuery({
+    queryKey: ["migrations"],
+    queryFn: () => migrations.list(),
+    retry: false,
+  });
+
+export const useMigration = (migrationId: string) =>
+  useQuery({
+    queryKey: ["migrations", migrationId],
+    queryFn: () => migrations.get(migrationId),
+    enabled: Boolean(migrationId),
+    retry: false,
+  });
+
 export const useSourceCatalogue = (migrationId: string) =>
   useQuery({
     queryKey: ["migrations", migrationId, "source-catalogue"],

@@ -138,7 +138,35 @@ export const migrationSchema = z
   })
   .passthrough();
 
+export const migrationSummarySchema = z
+  .object({
+    migrationId: z.string(),
+    customerId: z.string(),
+    customerName: z.string(),
+    name: z.string(),
+    sourcePlatform: z.string(),
+    targetPlatform: z.string(),
+    executionMode: z.literal("ASSESSMENT_ONLY"),
+    status: z.string(),
+    version: z.number().int().positive(),
+    createdBy: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .passthrough();
+
+export const migrationListSchema = z.object({
+  items: z.array(migrationSummarySchema),
+  pagination: z.object({
+    page: z.number().int().nonnegative(),
+    pageSize: z.number().int().positive(),
+    totalElements: z.number().int().nonnegative(),
+    totalPages: z.number().int().nonnegative(),
+  }),
+});
+
 export type Migration = z.infer<typeof migrationSchema>;
+export type MigrationSummary = z.infer<typeof migrationSummarySchema>;
 export type SourceClusterRegistration = z.infer<typeof sourceClusterSchema>;
 export type SourceEnrollment = z.infer<typeof sourceEnrollmentSchema>;
 export type Assessment = z.infer<typeof assessmentSchema>;

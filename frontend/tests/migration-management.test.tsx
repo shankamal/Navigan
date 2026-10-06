@@ -78,6 +78,24 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 }));
 
 vi.mock("@/modules/migration-management/hooks", () => ({
+  useMigrations: () => ({
+    data: {
+      items: [],
+      pagination: {
+        page: 0,
+        pageSize: 100,
+        totalElements: 0,
+        totalPages: 0,
+      },
+    },
+    isPending: false,
+    isError: false,
+  }),
+  useMigration: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+  }),
   useSourceClusters: () => ({
     data: { items: [] },
     isPending: false,

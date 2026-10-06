@@ -16,6 +16,8 @@ import {
 } from "@/shared/auth/permissions";
 import { PageHeading } from "@/shared/components/ui";
 import { AssessmentWizard } from "./assessment-wizard";
+import { useMigrations } from "./hooks";
+import styles from "./migration-management.module.css";
 
 const capabilities = [
   {
@@ -46,6 +48,8 @@ const capabilities = [
 
 export function MigrationManagementPage() {
   const { identity } = useAuth();
+  const migrationsQuery = useMigrations();
+  const migrationItems = migrationsQuery.data?.items ?? [];
   const canCreate =
     hasPermission(identity, "migration.create") || isMigrationPreviewEnabled();
 
@@ -93,18 +97,55 @@ export function MigrationManagementPage() {
           <span className="status-badge">Assessment only</span>
         </div>
 
-        <div className="empty-state">
-          <Radar size={32} aria-hidden="true" />
-          <h3>No migration requests loaded yet</h3>
-          <p>
-            Create a migration assessment to select source and target platforms
-            and define the discovery scope.
-          </p>
-          <p>
-            Execution remains disabled until dry-run, validation, rollback, and
-            approval controls are implemented.
-          </p>
-        </div>
+        {migrationsQuery.isPending && (
+          <div className="empty-state">Loading migration requests…</div>
+        )}
+        {migrationsQuery.isError && (
+          <div className="empty-state" role="alert">
+            Unable to load migration requests.
+          </div>
+        )}
+        {!migrationsQuery.isPending &&
+          !migrationsQuery.isError &&
+          migrationItems.length === 0 && (
+            <div className="empty-state">
+              <Radar size={32} aria-hidden="true" />
+              <h3>No migration requests yet</h3>
+              <p>
+                Create a migration assessment to select source and target
+                platforms and define the discovery scope.
+              </p>
+            </div>
+          )}
+        {migrationItems.length > 0 && (
+          <div className={styles.migrationList}>
+            {migrationItems.map((migration) => (
+              <Link
+                key={migration.migrationId}
+                href={`/migrations/${migration.migrationId}`}
+                className={styles.migrationRow}
+              >
+                <div>
+                  <strong>{migration.name}</strong>
+                  <span>{migration.migrationId}</span>
+                </div>
+                <div>
+                  <span>Customer</span>
+                  <strong>{migration.customerName}</strong>
+                </div>
+                <div>
+                  <span>Path</span>
+                  <strong>
+                    {migration.sourcePlatform} → {migration.targetPlatform}
+                  </strong>
+                </div>
+                <span className="status-badge">
+                  {migration.status.replaceAll("_", " ")}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </>
   );
