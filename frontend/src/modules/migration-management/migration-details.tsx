@@ -87,6 +87,10 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const canPrepareSource =
     migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
     hasPermission(identity, "migration.edit");
+  const sourceRegistrationMissing =
+    migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
+    !sourceClustersQuery.isPending &&
+    (!sourceClusterId || !sourceCluster);
 
   function downloadSourceBootstrap() {
     if (!sourceEnrollment || !sourceCluster) return;
@@ -146,40 +150,63 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         <>
           {migration.status === "SOURCE_ENROLLMENT_PENDING" && (
             <section className={`panel ${styles.bootstrapNotice}`}>
-              <div>
-                <strong>Source connector setup required</strong>
-                <p className="muted">
-                  Reissue a short-lived setup file for the existing registered
-                  source cluster. This does not create another source cluster or
-                  migration request.
-                </p>
-              </div>
-              {sourceEnrollment ? (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  onClick={downloadSourceBootstrap}
-                >
-                  Download connector setup
-                </button>
+              {sourceRegistrationMissing ? (
+                <>
+                  <div role="alert">
+                    <strong>Source registration was not completed</strong>
+                    <p className="muted">
+                      This earlier migration request has no registered source
+                      cluster attached, so a connector setup file cannot be
+                      generated from it.
+                    </p>
+                  </div>
+                  <Link
+                    href="/migrations/new"
+                    className="button button-primary"
+                  >
+                    Register source cluster
+                  </Link>
+                </>
               ) : (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={
-                    !canPrepareSource || !sourceCluster || enrollment.isPending
-                  }
-                  onClick={() => enrollment.mutate()}
-                >
-                  {enrollment.isPending
-                    ? "Preparing connector setup…"
-                    : "Prepare new connector setup"}
-                </button>
-              )}
-              {enrollment.isError && (
-                <p role="alert">
-                  {normalizeApiError(enrollment.error).message}
-                </p>
+                <>
+                  <div>
+                    <strong>Source connector setup required</strong>
+                    <p className="muted">
+                      Reissue a short-lived setup file for the existing
+                      registered source cluster. This does not create another
+                      source cluster or migration request.
+                    </p>
+                  </div>
+                  {sourceEnrollment ? (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={downloadSourceBootstrap}
+                    >
+                      Download connector setup
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={
+                        !canPrepareSource ||
+                        !sourceCluster ||
+                        enrollment.isPending
+                      }
+                      onClick={() => enrollment.mutate()}
+                    >
+                      {enrollment.isPending
+                        ? "Preparing connector setup…"
+                        : "Prepare new connector setup"}
+                    </button>
+                  )}
+                  {enrollment.isError && (
+                    <p role="alert">
+                      {normalizeApiError(enrollment.error).message}
+                    </p>
+                  )}
+                </>
               )}
             </section>
           )}
