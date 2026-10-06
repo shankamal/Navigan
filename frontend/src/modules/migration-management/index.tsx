@@ -117,3 +117,6 @@ export function MigrationManagementPage() {
 export function MigrationCreatePage() {
   return <AssessmentWizard />;
 }
+
+
+export { AssessmentReportCard } from "./assessment-report";

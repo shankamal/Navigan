@@ -18,3 +18,21 @@ export const useSourceCatalogue = (
     refetchInterval: (query) =>
       query.state.data?.catalogue ? false : 5_000,
   });
+
+
+export const useMigrationAssessment = (
+  migrationId: string,
+  enabled: boolean,
+) =>
+  useQuery({
+    queryKey: [
+      "migrations",
+      migrationId,
+      "assessment",
+    ],
+    queryFn: () => migrations.assessment(migrationId),
+    enabled: Boolean(migrationId) && enabled,
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.assessment ? false : 5_000,
+  });

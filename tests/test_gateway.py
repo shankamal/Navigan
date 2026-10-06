@@ -116,7 +116,7 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         or key.startswith("POST /api/v1/migrations")
         or key.startswith("PUT /api/v1/migrations")
     }
-    assert len(human_routes) == 11
+    assert len(human_routes) == 12
 
     for route in human_routes.values():
         assert route["AuthorizationType"] == "JWT"

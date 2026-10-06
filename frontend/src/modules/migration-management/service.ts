@@ -5,6 +5,7 @@ import {
 } from "@/shared/api/client";
 
 import {
+  assessmentResponseSchema,
   migrationSchema,
   sourceCatalogueResponseSchema,
   type CreateMigrationInput,
@@ -47,6 +48,41 @@ export const migrations = {
               version,
             }),
           },
+        )
+      ).data,
+    ),
+
+  assess: async (
+    migrationId: string,
+    version: number,
+    connectorToken: string,
+  ) =>
+    parseResponse(
+      migrationSchema,
+      (
+        await apiClient.post(
+          `${base}/${migrationId}/assess`,
+          {
+            version,
+            reason: "Collect detailed inventory and assess feasibility",
+            connectorToken,
+          },
+          {
+            headers: writeHeaders({
+              key: crypto.randomUUID(),
+              version,
+            }),
+          },
+        )
+      ).data,
+    ),
+
+  assessment: async (migrationId: string) =>
+    parseResponse(
+      assessmentResponseSchema,
+      (
+        await apiClient.get(
+          `${base}/${migrationId}/assessment`,
         )
       ).data,
     ),

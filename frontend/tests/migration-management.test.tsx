@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AssessmentReportCard,
   MigrationCreatePage,
   MigrationManagementPage,
 } from "@/modules/migration-management";
@@ -77,6 +78,11 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 }));
 
 vi.mock("@/modules/migration-management/hooks", () => ({
+  useMigrationAssessment: () => ({
+    data: undefined,
+    isError: false,
+    isPending: false,
+  }),
   useSourceCatalogue: (migrationId: string) => ({
     data: migrationId
       ? {
@@ -298,4 +304,72 @@ describe("Migration UI", () => {
       }),
     ).toBeDisabled();
   });
+
+  it("renders the trusted feasibility scorecard", () => {
+    render(
+      <AssessmentReportCard
+        report={{
+          assessmentVersion: 1,
+          migrationVersion: 6,
+          reportSchemaVersion: 1,
+          sourceKubernetesVersion: "v1.37.1",
+          observedAt: "2026-10-06T08:00:00Z",
+          inventoryDigest: "a".repeat(64),
+          compatibilityScore: 82,
+          containsBlockers: false,
+          inventorySummary: {
+            resourceCount: 12,
+            resourceKinds: {
+              Deployment: 5,
+              Service: 3,
+            },
+            classification: {
+              SEAMLESS: 8,
+              AUTOMATED_CHANGE: 2,
+              MANUAL_CHANGE: 2,
+              BLOCKER: 0,
+            },
+            target: {
+              clusterId: "CLU-active",
+              clusterName: "DEV2-CLUS2-DEMO",
+              status: "READY",
+              nodeCount: 3,
+              readyNodeCount: 3,
+            },
+          },
+          findings: [
+            {
+              code: "LOAD_BALANCER_TRANSLATION",
+              severity: "WARNING",
+              category: "NETWORK",
+              disposition: "AUTOMATED_CHANGE",
+              namespace: "retailflow",
+              resourceKind: "Service",
+              resourceName: "retailflow",
+              message: "Load balancer translation required.",
+              remediation: "Generate approved AWS annotations.",
+            },
+          ],
+          createdBy: "NAVIGAN_ASSESSMENT_ENGINE",
+          createdAt: "2026-10-06T08:00:01Z",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Migration feasibility report",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Compatibility score"),
+    ).toHaveTextContent("82/100");
+    expect(
+      screen.getByText("Load balancer translation required."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("AUTOMATED CHANGE"),
+    ).toBeInTheDocument();
+  });
+
 });

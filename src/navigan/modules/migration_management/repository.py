@@ -87,6 +87,32 @@ class Repository:
             ),
         }
 
+    def get_assessment(self, identifier):
+        migration = self.get(identifier)
+
+        assessment = self.db.execute(
+            "SELECT assessment_version,migration_version,"
+            "report_schema_version,source_kubernetes_version,"
+            "observed_at,inventory_digest,compatibility_score,"
+            "contains_blockers,inventory_summary,findings,"
+            "created_by,created_at "
+            "FROM migration_management.migration_assessments "
+            "WHERE migration_id=%s "
+            "ORDER BY assessment_version DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+
+        return {
+            "migrationId": identifier,
+            "version": migration["version"],
+            "status": migration["status"],
+            "assessment": (
+                serialize(assessment)
+                if assessment
+                else None
+            ),
+        }
+
     def list(self, query):
         scope, params = scope_clause(self.principal)
         conditions = [scope]

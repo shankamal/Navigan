@@ -64,3 +64,46 @@ def test_source_catalogue_returns_pending_without_fake_data():
 
     assert result["catalogue"] is None
     assert result["status"] == "INVENTORY_DISCOVERING"
+
+
+def test_latest_assessment_is_customer_scoped():
+    database = MagicMock()
+    repository = Repository(database, MagicMock())
+    identifier = "MIG-" + "d" * 32
+
+    repository.get = MagicMock(
+        return_value={
+            "migration_id": identifier,
+            "version": 8,
+            "status": "ASSESSMENT_READY",
+        }
+    )
+    database.execute.return_value.fetchone.return_value = {
+        "assessment_version": 1,
+        "migration_version": 6,
+        "report_schema_version": 1,
+        "source_kubernetes_version": "v1.37.1",
+        "observed_at": "2026-10-06T08:00:00+00:00",
+        "inventory_digest": "a" * 64,
+        "compatibility_score": 84,
+        "contains_blockers": False,
+        "inventory_summary": {
+            "resourceCount": 12,
+            "classification": {
+                "SEAMLESS": 8,
+                "AUTOMATED_CHANGE": 2,
+                "MANUAL_CHANGE": 2,
+                "BLOCKER": 0,
+            },
+        },
+        "findings": [],
+        "created_by": "NAVIGAN_ASSESSMENT_ENGINE",
+        "created_at": "2026-10-06T08:00:01+00:00",
+    }
+
+    result = repository.get_assessment(identifier)
+
+    repository.get.assert_called_once_with(identifier)
+    assert result["status"] == "ASSESSMENT_READY"
+    assert result["assessment"]["compatibilityScore"] == 84
+    assert result["assessment"]["containsBlockers"] is False

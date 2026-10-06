@@ -80,3 +80,12 @@ def test_routes_authenticated_source_catalogue_read():
         identifier,
         None,
     )
+
+
+def test_routes_to_latest_trusted_assessment():
+    identifier = "MIG-" + "c" * 32
+
+    assert route_of(
+        "GET",
+        f"{BASE}/{identifier}/assessment",
+    ) == ("assessment", identifier, None)

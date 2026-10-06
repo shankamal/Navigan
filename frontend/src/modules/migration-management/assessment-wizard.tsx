@@ -20,7 +20,11 @@ import { useEnvironments } from "@/modules/environment-management/hooks/queries"
 import { normalizeApiError } from "@/shared/api/client";
 import { PageHeading } from "@/shared/components/ui";
 
-import { useSourceCatalogue } from "./hooks";
+import {
+  useMigrationAssessment,
+  useSourceCatalogue,
+} from "./hooks";
+import { AssessmentReportCard } from "./assessment-report";
 import type { Migration } from "./model";
 import { migrations } from "./service";
 import styles from "./migration-management.module.css";
@@ -47,6 +51,9 @@ export function AssessmentWizard() {
   const [sourceBusy, setSourceBusy] = useState(false);
   const [sourceError, setSourceError] = useState("");
   const [scopeSaved, setScopeSaved] = useState(false);
+  const [assessmentToken, setAssessmentToken] = useState("");
+  const [assessmentBusy, setAssessmentBusy] = useState(false);
+  const [assessmentError, setAssessmentError] = useState("");
 
   const customersQuery = useCustomers({
     page: 0,
@@ -97,6 +104,17 @@ export function AssessmentWizard() {
     migration?.migrationId ?? "",
   );
   const sourceCatalogue = catalogueQuery.data?.catalogue ?? null;
+  const assessmentQuery = useMigrationAssessment(
+    migration?.migrationId ?? "",
+    Boolean(migration?.assessmentConnector),
+  );
+  const assessment = assessmentQuery.data?.assessment ?? null;
+
+  useEffect(() => {
+    if (assessment) {
+      setAssessmentToken("");
+    }
+  }, [assessment]);
 
   useEffect(() => {
     if (sourceCatalogue && namespaces.length === 0) {
@@ -241,6 +259,39 @@ export function AssessmentWizard() {
       setSourceError(normalizeApiError(error).message);
     } finally {
       setSourceBusy(false);
+    }
+  }
+
+  async function startDetailedAssessment() {
+    if (
+      !migration ||
+      !scopeSaved ||
+      assessmentBusy ||
+      migration.assessmentConnector
+    ) {
+      return;
+    }
+
+    setAssessmentBusy(true);
+    setAssessmentError("");
+
+    try {
+      const token = (
+        crypto.randomUUID() + crypto.randomUUID()
+      ).replaceAll("-", "");
+
+      const started = await migrations.assess(
+        migration.migrationId,
+        migration.version,
+        token,
+      );
+
+      setAssessmentToken(token);
+      setMigration(started);
+    } catch (error) {
+      setAssessmentError(normalizeApiError(error).message);
+    } finally {
+      setAssessmentBusy(false);
     }
   }
 
@@ -813,6 +864,77 @@ export function AssessmentWizard() {
                 </div>
               </div>
             </div>
+          )}
+
+          {step === 5 && scopeSaved && (
+            <div className={styles.connectionCard}>
+              {!migration?.assessmentConnector && !assessment && (
+                <>
+                  <div>
+                    <strong>Ready for detailed assessment</strong>
+                  </div>
+                  <p>
+                    Start the second one-shot connector to collect
+                    detailed metadata and generate the trusted report.
+                  </p>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    disabled={assessmentBusy}
+                    onClick={() => void startDetailedAssessment()}
+                  >
+                    {assessmentBusy
+                      ? "Preparing assessment connector…"
+                      : "Start detailed assessment"}
+                  </button>
+                </>
+              )}
+
+              {migration?.assessmentConnector && !assessment && (
+                <>
+                  <div>
+                    <span className={styles.connectedDot} />
+                    <strong>Assessment connector prepared</strong>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>Connector</dt>
+                      <dd>
+                        {migration.assessmentConnector.connectorId}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Status</dt>
+                      <dd>
+                        {assessmentQuery.isError
+                          ? "Unable to retrieve report"
+                          : "Waiting for detailed inventory"}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {assessmentToken && (
+                    <div>
+                      <strong>One-time connector token</strong>
+                      <p>
+                        Run the approved one-shot Helm connector using
+                        this identity and token. The token remains only
+                        in this browser page.
+                      </p>
+                      <code>{assessmentToken}</code>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {assessmentError && (
+                <p role="alert">{assessmentError}</p>
+              )}
+            </div>
+          )}
+
+          {step === 5 && assessment && (
+            <AssessmentReportCard report={assessment} />
           )}
 
           <footer className={styles.actions}>
