@@ -44,23 +44,33 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     (item) => item.sourceClusterId === sourceClusterId,
   );
   const effectiveSourceCluster = sourceCluster ?? registeredSource;
+  const matchingPendingSource =
+    registeredSource ??
+    sourceClustersQuery.data?.items.find(
+      (item) =>
+        item.status !== "REVOKED" &&
+        item.name.toLowerCase() === sourceName.trim().toLowerCase(),
+    );
 
   const sourceRegistration = useMutation({
     mutationFn: async () => {
       if (!migration) {
         throw new Error("Migration is unavailable.");
       }
-      const registered = await sourceClusters.create({
-        customerId: migration.customerId,
-        name: sourceName.trim(),
-        distribution: sourceDistribution.trim() || undefined,
-        registrationMethod: "LOCAL_KUBECONFIG",
-        location: {
-          type: "CLOUD",
-          cloudProvider: "AWS",
-          region: sourceRegion.trim() || undefined,
-        },
-      });
+      const registered =
+        matchingPendingSource ??
+        (await sourceClusters.create({
+          customerId: migration.customerId,
+          name: sourceName.trim(),
+          distribution: sourceDistribution.trim() || undefined,
+          registrationMethod: "LOCAL_KUBECONFIG",
+          location: {
+            type: "CLOUD",
+            cloudProvider: "AWS",
+            region: sourceRegion.trim() || undefined,
+          },
+        }));
+      setRegisteredSource(registered);
       await migrations.update(migration.migrationId, {
         version: migration.version,
         source: {
@@ -273,8 +283,10 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                         onClick={() => sourceRegistration.mutate()}
                       >
                         {sourceRegistration.isPending
-                          ? "Registering source cluster…"
-                          : "Register source cluster"}
+                          ? "Attaching source cluster…"
+                          : matchingPendingSource
+                            ? "Attach existing source cluster"
+                            : "Register source cluster"}
                       </button>
                       {sourceError && <p role="alert">{sourceError}</p>}
                     </div>
