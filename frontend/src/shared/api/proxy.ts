@@ -87,6 +87,36 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       ].includes(path[2])
     );
   }
+  if (path[0] === "migrations") {
+    if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (!/^MIG-[a-f0-9]{32}$/.test(path[1])) return false;
+    if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length !== 3) return false;
+
+    if (["source-catalogue", "assessment"].includes(path[2])) {
+      return method === "GET";
+    }
+
+    return (
+      method === "POST" &&
+      [
+        "discover",
+        "assess",
+        "submit",
+        "review",
+        "approve",
+        "reject",
+        "cancel",
+      ].includes(path[2])
+    );
+  }
+  if (path[0] === "source-clusters") {
+    if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (!/^SRC-[a-f0-9]{32}$/.test(path[1])) return false;
+    if (path.length === 2) return method === "GET";
+    return path.length === 3 && path[2] === "enrollments" && method === "POST";
+  }
+
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (path.length === 2 && path[1] === "metadata") return method === "GET";

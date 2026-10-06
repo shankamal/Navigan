@@ -47,6 +47,11 @@ class Model(BaseModel):
 
 class SourceCluster(Model):
     platform: Platform
+    sourceClusterId: str | None = Field(
+        default=None,
+        pattern=r"^SRC-[a-f0-9]{32}$",
+        max_length=50,
+    )
     clusterName: str | None = Field(
         default=None,
         min_length=1,
@@ -64,6 +69,63 @@ class SourceCluster(Model):
         max_length=50,
     )
     accessMode: Literal["READ_ONLY_CONNECTOR"] = "READ_ONLY_CONNECTOR"
+
+
+class SourceClusterLocation(Model):
+    type: Literal["CLOUD", "ON_PREMISES", "OTHER"]
+    cloudProvider: Literal["AWS", "AZURE", "GCP", "OCI", "OTHER"] | None = None
+    region: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._ -]*$",
+    )
+
+    @model_validator(mode="after")
+    def provider_matches_location(self):
+        if self.type == "CLOUD" and self.cloudProvider is None:
+            raise ValueError("Cloud source clusters require a cloud provider.")
+        if self.type != "CLOUD" and self.cloudProvider is not None:
+            raise ValueError(
+                "Cloud provider is only valid for cloud source clusters."
+            )
+        return self
+
+
+class CreateSourceCluster(Model):
+    customerId: str = Field(
+        pattern=r"^CUS-[A-Za-z0-9-]+$",
+        max_length=50,
+    )
+    name: str = Field(
+        min_length=3,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._ -]*$",
+    )
+    distribution: str | None = Field(default=None, max_length=100)
+    registrationMethod: Literal[
+        "LOCAL_KUBECONFIG",
+        "GITOPS",
+        "PROVIDER_AUTOMATION",
+    ] = "LOCAL_KUBECONFIG"
+    location: SourceClusterLocation
+
+
+class CreateSourceEnrollment(Model):
+    version: int = Field(gt=0)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class EnrollSourceConnector(Model):
+    sourceClusterId: str = Field(
+        pattern=r"^SRC-[a-f0-9]{32}$",
+        max_length=50,
+    )
+    enrollmentToken: str = Field(
+        min_length=43,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
 
 
 class EksTarget(Model):
@@ -231,7 +293,7 @@ class CreateMigration(Model):
         pattern=r"^CUS-[A-Za-z0-9-]+$",
         max_length=50,
     )
-    name: str = Field(min_length=3, max_length=100)
+    name: str = Field(min_length=8, max_length=100)
     description: str | None = Field(default=None, max_length=4000)
     source: SourceCluster
     target: EksTarget
@@ -249,7 +311,7 @@ class CreateMigration(Model):
 
 class UpdateMigration(Model):
     version: int = Field(gt=0)
-    name: str | None = Field(default=None, min_length=3, max_length=100)
+    name: str | None = Field(default=None, min_length=8, max_length=100)
     description: str | None = Field(default=None, max_length=4000)
     source: SourceCluster | None = None
     target: EksTarget | None = None
@@ -264,7 +326,8 @@ class MigrationAction(Model):
 
 
 class DiscoveryAction(MigrationAction):
-    connectorToken: str = Field(
+    connectorToken: str | None = Field(
+        default=None,
         min_length=43,
         max_length=128,
         pattern=r"^[A-Za-z0-9_-]+$",

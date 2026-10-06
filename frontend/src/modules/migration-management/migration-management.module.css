@@ -167,6 +167,28 @@
   background: #f8fbf4;
 }
 
+.sourceRegistration {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.sourceRegistration > button {
+  justify-self: start;
+}
+
+.bootstrapNotice {
+  display: block !important;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #d7e5c5;
+}
+
+.bootstrapNotice p {
+  margin: 5px 0 0;
+  color: #66765a;
+}
+
 .connectionCard > div:first-child {
   display: flex;
   gap: 8px;

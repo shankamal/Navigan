@@ -3,8 +3,12 @@ import { apiClient, parseResponse, writeHeaders } from "@/shared/api/client";
 import {
   assessmentResponseSchema,
   migrationSchema,
+  sourceClusterListSchema,
+  sourceClusterSchema,
   sourceCatalogueResponseSchema,
+  sourceEnrollmentSchema,
   type CreateMigrationInput,
+  type CreateSourceClusterInput,
   type UpdateMigrationInput,
 } from "./model";
 
@@ -48,11 +52,7 @@ export const migrations = {
       ).data,
     ),
 
-  assess: async (
-    migrationId: string,
-    version: number,
-    connectorToken: string,
-  ) =>
+  assess: async (migrationId: string, version: number) =>
     parseResponse(
       migrationSchema,
       (
@@ -61,7 +61,6 @@ export const migrations = {
           {
             version,
             reason: "Collect detailed inventory and assess feasibility",
-            connectorToken,
           },
           {
             headers: writeHeaders({
@@ -95,6 +94,49 @@ export const migrations = {
             version: input.version,
           }),
         })
+      ).data,
+    ),
+};
+
+const sourceClustersBase = "/source-clusters";
+
+export const sourceClusters = {
+  list: async (customerId: string) =>
+    parseResponse(
+      sourceClusterListSchema,
+      (
+        await apiClient.get(sourceClustersBase, {
+          params: { customerId },
+        })
+      ).data,
+    ),
+
+  create: async (input: CreateSourceClusterInput) =>
+    parseResponse(
+      sourceClusterSchema,
+      (
+        await apiClient.post(sourceClustersBase, input, {
+          headers: writeHeaders({ key: crypto.randomUUID() }),
+        })
+      ).data,
+    ),
+
+  enroll: async (sourceClusterId: string, version: number) =>
+    parseResponse(
+      sourceEnrollmentSchema,
+      (
+        await apiClient.post(
+          `${sourceClustersBase}/${sourceClusterId}/enrollments`,
+          {
+            version,
+            reason: "Connect source cluster for read-only assessment",
+          },
+          {
+            headers: {
+              "If-Match": String(version),
+            },
+          },
+        )
       ).data,
     ),
 };

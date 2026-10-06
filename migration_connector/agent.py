@@ -6,6 +6,7 @@ import json
 import os
 import re
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -178,7 +179,11 @@ def navigan_request(
 ):
     base_url = secure_base_url(base_url)
 
-    if not re.fullmatch(r"MGC-[0-9a-f]{32}", connector_id):
+    if re.fullmatch(r"MGC-[0-9a-f]{32}", connector_id):
+        connector_path = "migration-connectors"
+    elif re.fullmatch(r"SCC-[0-9a-f]{32}", connector_id):
+        connector_path = "source-connectors"
+    else:
         raise RuntimeError("Migration connector ID is invalid.")
 
     if method not in {"GET", "POST"}:
@@ -209,7 +214,7 @@ def navigan_request(
 
     request = urllib.request.Request(
         (
-            f"{base_url}/migration-connectors/"
+            f"{base_url}/{connector_path}/"
             f"{connector_id}/{path.lstrip('/')}"
         ),
         data=encoded_body,
@@ -342,8 +347,8 @@ def collect_inventory(assignment, request=kubernetes_request):
 def fetch_assignment():
     return navigan_request(
         required("NAVIGAN_API_BASE_URL"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        required("NAVIGAN_SOURCE_CONNECTOR_ID"),
+        required("NAVIGAN_SOURCE_CONNECTOR_TOKEN"),
         "assignment",
     )
 
@@ -475,8 +480,8 @@ def collect_source_catalogue(
 def submit_source_catalogue(report):
     return navigan_request(
         required("NAVIGAN_API_BASE_URL"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        required("NAVIGAN_SOURCE_CONNECTOR_ID"),
+        required("NAVIGAN_SOURCE_CONNECTOR_TOKEN"),
         "inventory",
         method="POST",
         body=report,
@@ -531,8 +536,8 @@ def collect_source_inventory(
 def submit_source_inventory(report):
     return navigan_request(
         required("NAVIGAN_API_BASE_URL"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        required("NAVIGAN_SOURCE_CONNECTOR_ID"),
+        required("NAVIGAN_SOURCE_CONNECTOR_TOKEN"),
         "source-inventory",
         method="POST",
         body=report,
@@ -547,6 +552,11 @@ def run_once(
     assignment = fetch()
     assignment_type = assignment.get("assignmentType")
 
+    if assignment_type == "NONE":
+        return {
+            **assignment,
+            "status": assignment.get("status", "IDLE"),
+        }
     if assignment_type == "SOURCE_CATALOGUE":
         collector = collect or collect_source_catalogue
         submitter = submit or submit_source_catalogue
@@ -554,7 +564,7 @@ def run_once(
     elif assignment_type == "SOURCE_INVENTORY":
         collector = collect or collect_source_inventory
         submitter = submit or submit_source_inventory
-        expected_status = "ASSESSING"
+        expected_status = "ASSESSMENT_READY"
     else:
         raise RuntimeError(
             "Unsupported migration connector assignment."
@@ -570,8 +580,45 @@ def run_once(
 
     return result
 
+
+def run_forever(
+    run=run_once,
+    sleep=time.sleep,
+    poll_seconds=None,
+):
+    interval = poll_seconds
+    if interval is None:
+        raw_interval = os.environ.get("NAVIGAN_POLL_SECONDS", "30")
+        try:
+            interval = int(raw_interval)
+        except ValueError as exc:
+            raise RuntimeError(
+                "NAVIGAN_POLL_SECONDS must be an integer."
+            ) from exc
+    if not 5 <= interval <= 300:
+        raise RuntimeError(
+            "NAVIGAN_POLL_SECONDS must be between 5 and 300."
+        )
+
+    while True:
+        try:
+            run()
+        except Exception as error:
+            print(
+                json.dumps(
+                    {
+                        "level": "error",
+                        "event": "connector_cycle_failed",
+                        "errorType": type(error).__name__,
+                    }
+                ),
+                flush=True,
+            )
+        sleep(interval)
+
+
 def main():
-    run_once()
+    run_forever()
 
 
 if __name__ == "__main__":

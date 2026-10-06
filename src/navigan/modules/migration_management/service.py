@@ -1,4 +1,5 @@
 import copy
+import secrets
 import uuid
 
 from navigan.shared.errors import ApiError
@@ -82,6 +83,64 @@ class Service:
             create=True,
         )
         return serialize(row)
+
+    def create_source_cluster(self, body):
+        self.access.require("migration.create")
+        self.access.require_customer(body["customerId"])
+        self.repo.require_customer_visible(body["customerId"])
+
+        location = body["location"]
+        row = {
+            "source_cluster_id": "SRC-" + uuid.uuid4().hex,
+            "customer_id": body["customerId"],
+            "name": body["name"],
+            "distribution": body.get("distribution"),
+            "location_type": location["type"],
+            "cloud_provider": location.get("cloudProvider"),
+            "region": location.get("region"),
+            "registration_method": body["registrationMethod"],
+            "status": "PENDING_ENROLLMENT",
+            "version": 1,
+            "created_by": self.principal.user_id,
+            "updated_by": self.principal.user_id,
+        }
+        return serialize(
+            self.repo.create_source_cluster(row, self.correlation)
+        )
+
+    def create_source_enrollment(self, identifier, body):
+        self.access.require("migration.edit")
+        source_cluster = self.repo.get_source_cluster(
+            identifier,
+            lock=True,
+        )
+        self.access.require_customer(
+            source_cluster["customer_id"],
+            source_cluster["created_by"],
+        )
+        if source_cluster["version"] != body["version"]:
+            raise ApiError(
+                409,
+                "CONCURRENT_UPDATE",
+                "Reload the latest source cluster.",
+            )
+        if source_cluster["status"] == "REVOKED":
+            raise ApiError(
+                409,
+                "SOURCE_CLUSTER_REVOKED",
+                "A revoked source cluster cannot be enrolled.",
+            )
+
+        token = secrets.token_urlsafe(32)
+        enrollment = self.repo.create_source_enrollment(
+            source_cluster,
+            token,
+            body["reason"],
+            self.correlation,
+        )
+        result = serialize(enrollment)
+        result["enrollmentToken"] = token
+        return result
 
     def update(self, identifier, body):
         self.access.require("migration.edit")
@@ -176,10 +235,18 @@ class Service:
 
         connector = None
         if action in {"discover", "assess"}:
-            connector = self.repo.create_discovery_connector(
-                identifier,
-                body["connectorToken"],
-            )
+            connector_token = body.get("connectorToken")
+            if connector_token:
+                connector = self.repo.create_discovery_connector(
+                    identifier,
+                    connector_token,
+                )
+            elif not current["source_configuration"].get("sourceClusterId"):
+                raise ApiError(
+                    409,
+                    "SOURCE_CLUSTER_REQUIRED",
+                    "Select a connected source cluster.",
+                )
 
         row = copy.deepcopy(current)
         row["status"] = target

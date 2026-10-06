@@ -8,11 +8,7 @@ navigan:
   connectorId: ""
   credentialsSecretName: navigan-migration-connector-credentials
   connectorTokenKey: connector-token
-
-job:
-  activeDeadlineSeconds: 900
-  backoffLimit: 2
-  ttlSecondsAfterFinished: 3600
+  pollSeconds: 30
 
 resources:
   requests:

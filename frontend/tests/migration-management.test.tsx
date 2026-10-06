@@ -78,6 +78,11 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 }));
 
 vi.mock("@/modules/migration-management/hooks", () => ({
+  useSourceClusters: () => ({
+    data: { items: [] },
+    isPending: false,
+    isError: false,
+  }),
   useMigrationAssessment: () => ({
     data: undefined,
     isError: false,
@@ -116,6 +121,28 @@ vi.mock("@/modules/migration-management/hooks", () => ({
 }));
 
 vi.mock("@/modules/migration-management/service", () => ({
+  sourceClusters: {
+    create: vi.fn(async () => ({
+      sourceClusterId: "SRC-" + "c".repeat(32),
+      customerId: "CUS-active",
+      customerName: "Active customer",
+      name: "retailflow-source",
+      distribution: "kubeadm",
+      locationType: "ON_PREMISES",
+      cloudProvider: null,
+      region: "Chennai DC",
+      registrationMethod: "LOCAL_KUBECONFIG",
+      status: "PENDING_ENROLLMENT",
+      version: 1,
+    })),
+    enroll: vi.fn(async () => ({
+      enrollmentId: "SCE-" + "d".repeat(32),
+      sourceClusterId: "SRC-" + "c".repeat(32),
+      status: "ISSUED",
+      expiresAt: "2026-10-06T15:15:00Z",
+      enrollmentToken: "e".repeat(43),
+    })),
+  },
   migrations: {
     create: vi.fn(async () => ({
       migrationId: "MIG-" + "a".repeat(32),
@@ -240,15 +267,34 @@ describe("Migration UI", () => {
       }),
     ).toBeInTheDocument();
 
+    expect(
+      screen.getByRole("radio", {
+        name: /Register a new source cluster/i,
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByText(/kubeconfig remains on this computer/i),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Source cluster name"), {
+      target: { value: "retailflow-source" },
+    });
+    fireEvent.change(screen.getByLabelText("Kubernetes distribution"), {
+      target: { value: "kubeadm" },
+    });
+    fireEvent.change(screen.getByLabelText("Region or location (optional)"), {
+      target: { value: "Chennai DC" },
+    });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Prepare secure source connector",
+        name: "Register source cluster",
       }),
     );
 
     expect(
       await screen.findByText("Source catalogue received"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("e".repeat(43))).not.toBeInTheDocument();
     fireEvent.click(continueButton());
 
     expect(

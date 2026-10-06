@@ -18,12 +18,20 @@ from navigan.shared.auth import Principal
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 
-from .models import CreateMigration, DiscoveryAction, MigrationAction, UpdateMigration
+from .models import (
+    CreateMigration,
+    CreateSourceCluster,
+    CreateSourceEnrollment,
+    DiscoveryAction,
+    MigrationAction,
+    UpdateMigration,
+)
 from .repository import Repository
 from .service import Service, TRANSITIONS
 
 
 BASE = "/api/v1/migrations"
+SOURCE_CLUSTERS_BASE = "/api/v1/source-clusters"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -47,7 +55,7 @@ def path_of(event):
     path = event.get("rawPath", "")
     stage = event.get("requestContext", {}).get("stage")
     prefix = "/" + stage if stage and stage != "$default" else ""
-    if prefix and path.startswith(prefix + BASE):
+    if prefix and path.startswith(prefix + "/api/v1/"):
         return path[len(prefix):]
     return path
 
@@ -108,6 +116,28 @@ def query_of(event):
 
 
 def route_of(method, path):
+    if path == SOURCE_CLUSTERS_BASE:
+        if method == "GET":
+            return "source_cluster_list", None, None
+        if method == "POST":
+            return "source_cluster_create", None, None
+        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+
+    if path.startswith(SOURCE_CLUSTERS_BASE + "/"):
+        parts = path[len(SOURCE_CLUSTERS_BASE):].strip("/").split("/")
+        identifier = parts[0]
+        if not re.fullmatch(r"SRC-[a-f0-9]{32}", identifier):
+            raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+        if len(parts) == 1 and method == "GET":
+            return "source_cluster_get", identifier, None
+        if (
+            len(parts) == 2
+            and parts[1] == "enrollments"
+            and method == "POST"
+        ):
+            return "source_cluster_enrollment", identifier, None
+        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+
     if path == BASE:
         if method == "GET":
             return "list", None, None
@@ -158,7 +188,14 @@ def execute(event, principal, correlation):
     method = event.get("requestContext", {}).get("http", {}).get("method")
     path = path_of(event)
     route, identifier, action = route_of(method, path)
-    mutating = route in {"create", "update", "action"}
+    mutating = route in {
+        "create",
+        "update",
+        "action",
+        "source_cluster_create",
+        "source_cluster_enrollment",
+    }
+    idempotent = mutating and route != "source_cluster_enrollment"
 
     headers = {
         key.lower(): value
@@ -198,39 +235,43 @@ def execute(event, principal, correlation):
                     "Use an integer version.",
                 ) from None
 
-        model = (
-            CreateMigration
-            if route == "create"
-            else UpdateMigration
-            if route == "update"
-            else DiscoveryAction
-            if action in {"discover", "assess"}
-            else MigrationAction
-        )
+        if route == "create":
+            model = CreateMigration
+        elif route == "update":
+            model = UpdateMigration
+        elif route == "source_cluster_create":
+            model = CreateSourceCluster
+        elif route == "source_cluster_enrollment":
+            model = CreateSourceEnrollment
+        elif action in {"discover", "assess"}:
+            model = DiscoveryAction
+        else:
+            model = MigrationAction
         body = model.model_validate(body).model_dump(
             mode="json",
             exclude_none=True,
         )
 
-        key = headers.get("idempotency-key")
-        if not key or not re.fullmatch(
-            r"[A-Za-z0-9._:-]{1,128}",
-            key,
-        ):
-            raise ApiError(
-                400,
-                "IDEMPOTENCY_KEY_REQUIRED",
-                "Provide an Idempotency-Key.",
-            )
+        if idempotent:
+            key = headers.get("idempotency-key")
+            if not key or not re.fullmatch(
+                r"[A-Za-z0-9._:-]{1,128}",
+                key,
+            ):
+                raise ApiError(
+                    400,
+                    "IDEMPOTENCY_KEY_REQUIRED",
+                    "Provide an Idempotency-Key.",
+                )
 
-        operation = method + " " + path
-        fingerprint = hashlib.sha256(
-            json.dumps(
-                body,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode()
-        ).hexdigest()
+            operation = method + " " + path
+            fingerprint = hashlib.sha256(
+                json.dumps(
+                    body,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
 
     with transaction() as db:
         repo = Repository(db, principal)
@@ -240,7 +281,13 @@ def execute(event, principal, correlation):
 
         if not mutating:
             access.require("migration.view")
-            if route == "list":
+            if route == "source_cluster_list":
+                value = repo.list_source_clusters(query_of(event))
+            elif route == "source_cluster_get":
+                from .repository import serialize
+
+                value = serialize(repo.get_source_cluster(identifier))
+            elif route == "list":
                 value = repo.list(query_of(event))
             elif route == "source_catalogue":
                 value = repo.get_source_catalogue(identifier)
@@ -253,15 +300,25 @@ def execute(event, principal, correlation):
             return response(200, value, correlation)
 
         customer_repo = CustomerRepository(db, principal)
-        replay = customer_repo.idempotency_get(
-            operation,
-            key,
-            fingerprint,
+        replay = (
+            customer_repo.idempotency_get(
+                operation,
+                key,
+                fingerprint,
+            )
+            if idempotent
+            else None
         )
         if replay:
-            replay_identifier = replay["body"].get("migrationId")
+            replay_identifier = (
+                replay["body"].get("migrationId")
+                or replay["body"].get("sourceClusterId")
+            )
             if replay_identifier:
-                repo.get(replay_identifier)
+                if replay_identifier.startswith("SRC-"):
+                    repo.get_source_cluster(replay_identifier)
+                else:
+                    repo.get(replay_identifier)
             result = response(
                 replay["status"],
                 replay["body"],
@@ -272,7 +329,13 @@ def execute(event, principal, correlation):
 
         service = Service(repo, access, correlation)
 
-        if route == "create":
+        if route == "source_cluster_create":
+            value = service.create_source_cluster(body)
+            status = 201
+        elif route == "source_cluster_enrollment":
+            value = service.create_source_enrollment(identifier, body)
+            status = 201
+        elif route == "create":
             value = service.create(body)
             status = 201
         elif route == "update":
@@ -282,12 +345,13 @@ def execute(event, principal, correlation):
             value = service.change(identifier, action, body)
             status = 200
 
-        customer_repo.idempotency_put(
-            operation,
-            key,
-            fingerprint,
-            {"status": status, "body": value},
-        )
+        if idempotent:
+            customer_repo.idempotency_put(
+                operation,
+                key,
+                fingerprint,
+                {"status": status, "body": value},
+            )
         return response(status, value, correlation)
 
 

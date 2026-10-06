@@ -90,6 +90,39 @@ export const discoveryConnectorSchema = z
   })
   .passthrough();
 
+export const sourceClusterSchema = z
+  .object({
+    sourceClusterId: z.string().regex(/^SRC-[a-f0-9]{32}$/),
+    customerId: z.string(),
+    customerName: z.string().optional(),
+    name: z.string(),
+    distribution: z.string().nullable().optional(),
+    locationType: z.enum(["CLOUD", "ON_PREMISES", "OTHER"]),
+    cloudProvider: z.enum(["AWS", "AZURE", "GCP", "OCI", "OTHER"]).nullable(),
+    region: z.string().nullable().optional(),
+    registrationMethod: z.enum([
+      "LOCAL_KUBECONFIG",
+      "GITOPS",
+      "PROVIDER_AUTOMATION",
+    ]),
+    status: z.enum(["PENDING_ENROLLMENT", "CONNECTED", "STALE", "REVOKED"]),
+    version: z.number().int().positive(),
+    lastConnectedAt: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const sourceClusterListSchema = z.object({
+  items: z.array(sourceClusterSchema),
+});
+
+export const sourceEnrollmentSchema = z.object({
+  enrollmentId: z.string().regex(/^SCE-[a-f0-9]{32}$/),
+  sourceClusterId: z.string().regex(/^SRC-[a-f0-9]{32}$/),
+  status: z.literal("ISSUED"),
+  expiresAt: z.string(),
+  enrollmentToken: z.string().min(43),
+});
+
 export const migrationSchema = z
   .object({
     migrationId: z.string(),
@@ -106,6 +139,8 @@ export const migrationSchema = z
   .passthrough();
 
 export type Migration = z.infer<typeof migrationSchema>;
+export type SourceClusterRegistration = z.infer<typeof sourceClusterSchema>;
+export type SourceEnrollment = z.infer<typeof sourceEnrollmentSchema>;
 export type Assessment = z.infer<typeof assessmentSchema>;
 export type AssessmentResponse = z.infer<typeof assessmentResponseSchema>;
 export type SourceCatalogueResponse = z.infer<
@@ -117,6 +152,7 @@ export interface CreateMigrationInput {
   name: string;
   source: {
     platform: "SELF_MANAGED_KUBERNETES";
+    sourceClusterId?: string;
     accessMode: "READ_ONLY_CONNECTOR";
   };
   target: {
@@ -134,10 +170,23 @@ export interface CreateMigrationInput {
   };
 }
 
+export interface CreateSourceClusterInput {
+  customerId: string;
+  name: string;
+  distribution?: string;
+  registrationMethod: "LOCAL_KUBECONFIG" | "GITOPS" | "PROVIDER_AUTOMATION";
+  location: {
+    type: "CLOUD" | "ON_PREMISES" | "OTHER";
+    cloudProvider?: "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER";
+    region?: string;
+  };
+}
+
 export interface UpdateMigrationInput {
   version: number;
   source: {
     platform: "SELF_MANAGED_KUBERNETES";
+    sourceClusterId?: string;
     clusterName?: string;
     accessMode: "READ_ONLY_CONNECTOR";
   };

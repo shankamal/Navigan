@@ -7,10 +7,14 @@ import pytest
 from navigan.modules.migration_management import connector_handler
 from navigan.modules.migration_management.connector_handler import (
     authenticate,
+    authenticate_source_connector,
+    enroll_source_connector,
+    source_assignment,
 )
 from navigan.modules.migration_management.models import (
-    SourceInventoryReport,
+    EnrollSourceConnector,
     SourceCatalogueReport,
+    SourceInventoryReport,
 )
 from navigan.shared.errors import ApiError
 
@@ -100,6 +104,102 @@ def test_rejects_malformed_identity_before_database_access():
 
     assert error.value.code == "MIGRATION_CONNECTOR_UNAUTHENTICATED"
     db.execute.assert_not_called()
+
+
+def test_enrollment_exchanges_one_time_secret_for_persistent_connector():
+    enrollment_token = "enrollment-token-value-with-sufficient-length-123"
+    db = MagicMock()
+    db.execute.return_value.fetchone.side_effect = [
+        {
+            "enrollment_id": "SCE-" + "e" * 32,
+            "source_cluster_id": "SRC-" + "f" * 32,
+            "token_sha256": hashlib.sha256(
+                enrollment_token.encode()
+            ).hexdigest(),
+            "status": "ISSUED",
+            "expires_at": NOW + timedelta(minutes=15),
+            "source_status": "PENDING_ENROLLMENT",
+        },
+        {
+            "connector_id": "SCC-" + "a" * 32,
+            "source_cluster_id": "SRC-" + "f" * 32,
+            "status": "ACTIVE",
+            "expires_at": NOW + timedelta(days=30),
+        },
+    ]
+
+    result = enroll_source_connector(
+        db,
+        EnrollSourceConnector.model_validate(
+            {
+                "sourceClusterId": "SRC-" + "f" * 32,
+                "enrollmentToken": enrollment_token,
+            }
+        ),
+        NOW,
+        "corr-enroll",
+    )
+
+    calls = repr(db.execute.call_args_list)
+    assert enrollment_token not in calls
+    assert result["connectorId"].startswith("SCC-")
+    assert len(result["connectorToken"]) >= 43
+
+
+def test_authenticates_persistent_source_connector():
+    token = "persistent-source-connector-token-value-123456"
+    connector_id = "SCC-" + "a" * 32
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = {
+        "connector_id": connector_id,
+        "source_cluster_id": "SRC-" + "f" * 32,
+        "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+        "status": "ACTIVE",
+        "expires_at": NOW + timedelta(days=30),
+    }
+
+    result = authenticate_source_connector(
+        db,
+        connector_id,
+        headers(token),
+        NOW,
+    )
+
+    assert result["source_cluster_id"] == "SRC-" + "f" * 32
+
+
+def test_persistent_source_connector_receives_catalogue_assignment(monkeypatch):
+    db = MagicMock()
+    migration = migration_row("DRAFT")
+    migration["source_configuration"]["sourceClusterId"] = (
+        "SRC-" + "f" * 32
+    )
+    db.execute.return_value.fetchone.return_value = migration
+    saved = {}
+
+    class FakeRepository:
+        def __init__(self, observed_db, principal):
+            assert observed_db is db
+            saved["principal"] = principal.user_id
+
+        def save(self, row, old, action, correlation):
+            saved["row"] = row
+            saved["action"] = action
+
+    monkeypatch.setattr(connector_handler, "Repository", FakeRepository)
+    result = source_assignment(
+        db,
+        {
+            "connector_id": "SCC-" + "a" * 32,
+            "source_cluster_id": "SRC-" + "f" * 32,
+        },
+        NOW,
+        "corr-assignment",
+    )
+
+    assert result["assignmentType"] == "SOURCE_CATALOGUE"
+    assert result["status"] == "INVENTORY_DISCOVERING"
+    assert saved["row"]["version"] == migration["version"] + 1
 def test_repository_persists_only_connector_token_digest():
     from types import SimpleNamespace
 

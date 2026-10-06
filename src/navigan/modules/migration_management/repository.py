@@ -43,6 +43,143 @@ class Repository:
                 "Customer was not found within the permitted scope.",
             )
 
+    def get_source_cluster(self, identifier, lock=False):
+        scope, params = scope_clause(self.principal)
+        row = self.db.execute(
+            "SELECT s.*,c.name AS customer_name "
+            "FROM migration_management.source_clusters s "
+            "JOIN customer_management.customers c USING(customer_id) "
+            "WHERE s.source_cluster_id=%s AND "
+            + scope
+            + (" FOR UPDATE OF s" if lock else ""),
+            [identifier, *params],
+        ).fetchone()
+        if not row:
+            raise ApiError(
+                404,
+                "SOURCE_CLUSTER_NOT_FOUND",
+                "Source cluster was not found within the permitted scope.",
+            )
+        return row
+
+    def list_source_clusters(self, query):
+        scope, params = scope_clause(self.principal)
+        conditions = [scope]
+        if query.get("customerId"):
+            conditions.append("s.customer_id=%s")
+            params.append(query["customerId"])
+        if query.get("status"):
+            conditions.append("s.status=%s")
+            params.append(query["status"])
+
+        rows = self.db.execute(
+            "SELECT s.source_cluster_id,s.customer_id,"
+            "c.name AS customer_name,s.name,s.distribution,"
+            "s.location_type,s.cloud_provider,s.region,"
+            "s.registration_method,s.status,s.version,"
+            "s.last_connected_at,s.created_at,s.updated_at "
+            "FROM migration_management.source_clusters s "
+            "JOIN customer_management.customers c USING(customer_id) "
+            "WHERE "
+            + " AND ".join(conditions)
+            + " ORDER BY s.updated_at DESC,s.source_cluster_id "
+            "LIMIT 100",
+            params,
+        ).fetchall()
+        return {"items": [serialize(row) for row in rows]}
+
+    def create_source_cluster(self, row, correlation):
+        created = self.db.execute(
+            "INSERT INTO migration_management.source_clusters("
+            "source_cluster_id,customer_id,name,distribution,"
+            "location_type,cloud_provider,region,registration_method,"
+            "status,version,created_by,updated_by"
+            ") VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+            "RETURNING *",
+            [
+                row["source_cluster_id"],
+                row["customer_id"],
+                row["name"],
+                row.get("distribution"),
+                row["location_type"],
+                row.get("cloud_provider"),
+                row.get("region"),
+                row["registration_method"],
+                row["status"],
+                row["version"],
+                row["created_by"],
+                row["updated_by"],
+            ],
+        ).fetchone()
+        self.audit_source_cluster(
+            row["source_cluster_id"],
+            "SOURCE_CLUSTER_REGISTERED",
+            correlation,
+            {
+                "registrationMethod": row["registration_method"],
+                "locationType": row["location_type"],
+            },
+        )
+        return created
+
+    def create_source_enrollment(
+        self,
+        source_cluster,
+        token,
+        reason,
+        correlation,
+    ):
+        self.db.execute(
+            "UPDATE migration_management.source_cluster_enrollments "
+            "SET status='REVOKED',revoked_at=now() "
+            "WHERE source_cluster_id=%s AND status='ISSUED'",
+            [source_cluster["source_cluster_id"]],
+        )
+
+        enrollment_id = "SCE-" + uuid.uuid4().hex
+        token_sha256 = hashlib.sha256(token.encode()).hexdigest()
+        enrollment = self.db.execute(
+            "INSERT INTO migration_management.source_cluster_enrollments("
+            "enrollment_id,source_cluster_id,token_sha256,status,"
+            "expires_at,created_by"
+            ") VALUES(%s,%s,%s,'ISSUED',"
+            "now() + interval '15 minutes',%s) "
+            "RETURNING enrollment_id,source_cluster_id,status,expires_at",
+            [
+                enrollment_id,
+                source_cluster["source_cluster_id"],
+                token_sha256,
+                self.principal.user_id,
+            ],
+        ).fetchone()
+        self.audit_source_cluster(
+            source_cluster["source_cluster_id"],
+            "SOURCE_CLUSTER_ENROLLMENT_ISSUED",
+            correlation,
+            {"enrollmentId": enrollment_id, "reason": reason},
+        )
+        return enrollment
+
+    def audit_source_cluster(
+        self,
+        identifier,
+        action,
+        correlation,
+        details,
+    ):
+        self.db.execute(
+            "INSERT INTO migration_management.source_cluster_audit_log("
+            "source_cluster_id,action,performed_by,correlation_id,details"
+            ") VALUES(%s,%s,%s,%s,%s::jsonb)",
+            [
+                identifier,
+                action,
+                self.principal.user_id,
+                correlation,
+                json_text(details),
+            ],
+        )
+
     def get(self, identifier, lock=False):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(

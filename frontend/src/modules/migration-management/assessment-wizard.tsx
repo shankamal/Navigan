@@ -20,10 +20,18 @@ import { useEnvironments } from "@/modules/environment-management/hooks/queries"
 import { normalizeApiError } from "@/shared/api/client";
 import { PageHeading } from "@/shared/components/ui";
 
-import { useMigrationAssessment, useSourceCatalogue } from "./hooks";
+import {
+  useMigrationAssessment,
+  useSourceCatalogue,
+  useSourceClusters,
+} from "./hooks";
 import { AssessmentReportCard } from "./assessment-report";
-import type { Migration } from "./model";
-import { migrations } from "./service";
+import type {
+  Migration,
+  SourceClusterRegistration,
+  SourceEnrollment,
+} from "./model";
+import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
 
 const steps = [
@@ -44,11 +52,26 @@ export function AssessmentWizard() {
   const [targetConnection, setTargetConnection] = useState("");
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [migration, setMigration] = useState<Migration | null>(null);
-  const [connectorToken, setConnectorToken] = useState("");
+  const [sourceMode, setSourceMode] = useState<"EXISTING" | "REGISTER">(
+    "REGISTER",
+  );
+  const [sourceClusterId, setSourceClusterId] = useState("");
+  const [sourceName, setSourceName] = useState("");
+  const [sourceDistribution, setSourceDistribution] = useState("");
+  const [sourceLocationType, setSourceLocationType] = useState<
+    "CLOUD" | "ON_PREMISES" | "OTHER"
+  >("ON_PREMISES");
+  const [sourceCloudProvider, setSourceCloudProvider] = useState<
+    "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER"
+  >("AWS");
+  const [sourceRegion, setSourceRegion] = useState("");
+  const [registeredSource, setRegisteredSource] =
+    useState<SourceClusterRegistration | null>(null);
+  const [sourceEnrollment, setSourceEnrollment] =
+    useState<SourceEnrollment | null>(null);
   const [sourceBusy, setSourceBusy] = useState(false);
   const [sourceError, setSourceError] = useState("");
   const [scopeSaved, setScopeSaved] = useState(false);
-  const [assessmentToken, setAssessmentToken] = useState("");
   const [assessmentBusy, setAssessmentBusy] = useState(false);
   const [assessmentError, setAssessmentError] = useState("");
 
@@ -69,6 +92,7 @@ export function AssessmentWizard() {
     pageSize: 100,
     status: "ACTIVE",
   });
+  const sourceClustersQuery = useSourceClusters(customer);
 
   const customers = customersQuery.data?.items ?? [];
   const environments = (environmentsQuery.data?.items ?? []).filter(
@@ -96,20 +120,28 @@ export function AssessmentWizard() {
   const selectedTarget = targetClusters.find(
     (item) => item.clusterId === targetConnection,
   );
+  const availableSourceClusters = sourceClustersQuery.data?.items ?? [];
+  const selectedSource =
+    registeredSource ??
+    availableSourceClusters.find(
+      (item) => item.sourceClusterId === sourceClusterId,
+    );
 
   const catalogueQuery = useSourceCatalogue(migration?.migrationId ?? "");
   const sourceCatalogue = catalogueQuery.data?.catalogue ?? null;
   const assessmentQuery = useMigrationAssessment(
     migration?.migrationId ?? "",
-    Boolean(migration?.assessmentConnector),
+    Boolean(
+      migration &&
+      [
+        "DISCOVERY_PENDING",
+        "DISCOVERING",
+        "ASSESSING",
+        "ASSESSMENT_READY",
+      ].includes(migration.status),
+    ),
   );
   const assessment = assessmentQuery.data?.assessment ?? null;
-
-  useEffect(() => {
-    if (assessment) {
-      setAssessmentToken("");
-    }
-  }, [assessment]);
 
   useEffect(() => {
     if (sourceCatalogue && namespaces.length === 0) {
@@ -118,7 +150,8 @@ export function AssessmentWizard() {
   }, [sourceCatalogue, namespaces.length]);
 
   const canContinue = [
-    name.trim().length >= 3 &&
+    name.trim().length >= 8 &&
+      name.trim().length <= 100 &&
       customer !== "" &&
       targetEnvironment !== "" &&
       targetType === "EXISTING_CLUSTER",
@@ -139,50 +172,117 @@ export function AssessmentWizard() {
     );
   }
 
-  async function prepareSourceConnector() {
+  function downloadSourceBootstrap() {
+    if (!sourceEnrollment || !selectedSource) return;
+
+    const apiBaseUrl =
+      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
+    const imageRepository =
+      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ?? "";
+    const imageDigest =
+      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST ?? "";
+    if (!apiBaseUrl || !imageRepository || !imageDigest) {
+      setSourceError(
+        "The source connector image and API endpoint are not configured.",
+      );
+      return;
+    }
+
+    const bootstrap = JSON.stringify(
+      {
+        apiBaseUrl,
+        sourceClusterId: selectedSource.sourceClusterId,
+        enrollmentToken: sourceEnrollment.enrollmentToken,
+        enrollmentExpiresAt: sourceEnrollment.expiresAt,
+        imageRepository,
+        imageDigest,
+      },
+      null,
+      2,
+    );
+    const url = URL.createObjectURL(
+      new Blob([bootstrap], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `navigan-source-${selectedSource.sourceClusterId}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function createMigrationDraft(sourceId: string) {
+    if (!selectedEnvironment) {
+      throw new Error("Select the target environment first.");
+    }
+
+    return migrations.create({
+      customerId: customer,
+      name: name.trim(),
+      source: {
+        platform: "SELF_MANAGED_KUBERNETES",
+        sourceClusterId: sourceId,
+        accessMode: "READ_ONLY_CONNECTOR",
+      },
+      target: {
+        platform: "EKS",
+        targetType: "EXISTING_CLUSTER",
+        environmentId: selectedEnvironment.environmentId,
+        environmentApprovedVersion: Number(selectedEnvironment.approvedVersion),
+        endpointAccess: "PRIVATE",
+      },
+      scope: {
+        namespaces: [],
+        excludeNamespaces: ["kube-node-lease", "kube-public", "kube-system"],
+        includeClusterScopedResources: false,
+        includePersistentData: false,
+      },
+    });
+  }
+
+  async function useExistingSourceCluster() {
+    if (!sourceClusterId || sourceBusy) return;
+
+    setSourceBusy(true);
+    setSourceError("");
+
+    try {
+      setMigration(await createMigrationDraft(sourceClusterId));
+    } catch (error) {
+      setSourceError(normalizeApiError(error).message);
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function registerSourceCluster() {
     if (!selectedEnvironment || sourceBusy) return;
 
     setSourceBusy(true);
     setSourceError("");
 
     try {
-      const created = await migrations.create({
+      const registered = await sourceClusters.create({
         customerId: customer,
-        name: name.trim(),
-        source: {
-          platform: "SELF_MANAGED_KUBERNETES",
-          accessMode: "READ_ONLY_CONNECTOR",
-        },
-        target: {
-          platform: "EKS",
-          targetType: "EXISTING_CLUSTER",
-          environmentId: selectedEnvironment.environmentId,
-          environmentApprovedVersion: Number(
-            selectedEnvironment.approvedVersion,
-          ),
-          endpointAccess: "PRIVATE",
-        },
-        scope: {
-          namespaces: [],
-          excludeNamespaces: ["kube-node-lease", "kube-public", "kube-system"],
-          includeClusterScopedResources: false,
-          includePersistentData: false,
+        name: sourceName.trim(),
+        distribution: sourceDistribution.trim() || undefined,
+        registrationMethod: "LOCAL_KUBECONFIG",
+        location: {
+          type: sourceLocationType,
+          cloudProvider:
+            sourceLocationType === "CLOUD" ? sourceCloudProvider : undefined,
+          region: sourceRegion.trim() || undefined,
         },
       });
-
-      const token = (crypto.randomUUID() + crypto.randomUUID()).replaceAll(
-        "-",
-        "",
+      const enrollment = await sourceClusters.enroll(
+        registered.sourceClusterId,
+        registered.version,
       );
+      const created = await createMigrationDraft(registered.sourceClusterId);
 
-      const enrolled = await migrations.discover(
-        created.migrationId,
-        created.version,
-        token,
-      );
-
-      setConnectorToken(token);
-      setMigration(enrolled);
+      setRegisteredSource(registered);
+      setSourceClusterId(registered.sourceClusterId);
+      setSourceEnrollment(enrollment);
+      setMigration(created);
     } catch (error) {
       setSourceError(normalizeApiError(error).message);
     } finally {
@@ -210,6 +310,7 @@ export function AssessmentWizard() {
         version: catalogueQuery.data.version,
         source: {
           platform: "SELF_MANAGED_KUBERNETES",
+          sourceClusterId,
           accessMode: "READ_ONLY_CONNECTOR",
         },
         target: {
@@ -246,7 +347,7 @@ export function AssessmentWizard() {
       !migration ||
       !scopeSaved ||
       assessmentBusy ||
-      migration.assessmentConnector
+      migration.status !== "INVENTORY_READY"
     ) {
       return;
     }
@@ -255,18 +356,11 @@ export function AssessmentWizard() {
     setAssessmentError("");
 
     try {
-      const token = (crypto.randomUUID() + crypto.randomUUID()).replaceAll(
-        "-",
-        "",
-      );
-
       const started = await migrations.assess(
         migration.migrationId,
         migration.version,
-        token,
       );
 
-      setAssessmentToken(token);
       setMigration(started);
     } catch (error) {
       setAssessmentError(normalizeApiError(error).message);
@@ -354,11 +448,17 @@ export function AssessmentWizard() {
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="RetailFlow migration feasibility"
+                  minLength={8}
                   maxLength={100}
+                  required
+                  aria-describedby="assessment-name-help"
+                  aria-invalid={name.length > 0 && name.trim().length < 8}
                   autoComplete="off"
                 />
-                <small>
-                  Use a name that identifies the application and destination.
+                <small id="assessment-name-help">
+                  {name.length > 0 && name.trim().length < 8
+                    ? `Enter at least 8 characters (${name.trim().length}/8).`
+                    : `${name.length}/100 characters. Use a name that identifies the application and destination.`}
                 </small>
               </label>
 
@@ -506,57 +606,242 @@ export function AssessmentWizard() {
                 </span>
                 <h2>Connect the source cluster</h2>
                 <p>
-                  Create a short-lived connector identity, install the one-shot
-                  connector, and wait for its sanitized catalogue.
+                  Select a previously connected source or register any
+                  Kubernetes cluster in AWS, Azure, GCP, OCI, on-premises, or
+                  another location.
                 </p>
               </header>
 
               {!migration && (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={sourceBusy}
-                  onClick={() => void prepareSourceConnector()}
-                >
-                  {sourceBusy
-                    ? "Preparing connector…"
-                    : "Prepare secure source connector"}
-                </button>
+                <>
+                  <fieldset className={styles.targetType}>
+                    <legend>Source cluster</legend>
+                    <label className={styles.optionCard}>
+                      <input
+                        type="radio"
+                        name="sourceMode"
+                        value="REGISTER"
+                        checked={sourceMode === "REGISTER"}
+                        onChange={() => setSourceMode("REGISTER")}
+                      />
+                      <span>
+                        <strong>Register a new source cluster</strong>
+                        <small>
+                          Recommended when the cluster is not yet connected to
+                          Navigan.
+                        </small>
+                      </span>
+                    </label>
+                    <label className={styles.optionCard}>
+                      <input
+                        type="radio"
+                        name="sourceMode"
+                        value="EXISTING"
+                        checked={sourceMode === "EXISTING"}
+                        onChange={() => setSourceMode("EXISTING")}
+                      />
+                      <span>
+                        <strong>Use a connected source cluster</strong>
+                        <small>
+                          Reuse a read-only connector that was registered
+                          earlier.
+                        </small>
+                      </span>
+                    </label>
+                  </fieldset>
+
+                  {sourceMode === "EXISTING" && (
+                    <div className={styles.sourceRegistration}>
+                      <label className="field">
+                        <span>Connected source cluster</span>
+                        <select
+                          value={sourceClusterId}
+                          onChange={(event) =>
+                            setSourceClusterId(event.target.value)
+                          }
+                        >
+                          <option value="">
+                            {sourceClustersQuery.isPending
+                              ? "Loading source clusters…"
+                              : "Select a source cluster"}
+                          </option>
+                          {availableSourceClusters.map((source) => (
+                            <option
+                              key={source.sourceClusterId}
+                              value={source.sourceClusterId}
+                              disabled={source.status === "REVOKED"}
+                            >
+                              {source.name} —{" "}
+                              {source.status.replaceAll("_", " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        disabled={!sourceClusterId || sourceBusy}
+                        onClick={() => void useExistingSourceCluster()}
+                      >
+                        {sourceBusy
+                          ? "Preparing assessment…"
+                          : "Use selected source cluster"}
+                      </button>
+                    </div>
+                  )}
+
+                  {sourceMode === "REGISTER" && (
+                    <div className={styles.sourceRegistration}>
+                      <div className={styles.contextGrid}>
+                        <label className="field">
+                          <span>Source cluster name</span>
+                          <input
+                            value={sourceName}
+                            minLength={3}
+                            maxLength={100}
+                            required
+                            onChange={(event) =>
+                              setSourceName(event.target.value)
+                            }
+                            placeholder="retailflow-source"
+                            autoComplete="off"
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Kubernetes distribution</span>
+                          <input
+                            value={sourceDistribution}
+                            maxLength={100}
+                            onChange={(event) =>
+                              setSourceDistribution(event.target.value)
+                            }
+                            placeholder="kubeadm, OpenShift, Rancher…"
+                            autoComplete="off"
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Cluster location</span>
+                          <select
+                            value={sourceLocationType}
+                            onChange={(event) =>
+                              setSourceLocationType(
+                                event.target.value as
+                                  "CLOUD" | "ON_PREMISES" | "OTHER",
+                              )
+                            }
+                          >
+                            <option value="ON_PREMISES">On-premises</option>
+                            <option value="CLOUD">Cloud account</option>
+                            <option value="OTHER">Other location</option>
+                          </select>
+                        </label>
+                        {sourceLocationType === "CLOUD" && (
+                          <label className="field">
+                            <span>Cloud provider</span>
+                            <select
+                              value={sourceCloudProvider}
+                              onChange={(event) =>
+                                setSourceCloudProvider(
+                                  event.target.value as
+                                    "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER",
+                                )
+                              }
+                            >
+                              <option value="AWS">AWS</option>
+                              <option value="AZURE">Microsoft Azure</option>
+                              <option value="GCP">Google Cloud</option>
+                              <option value="OCI">Oracle Cloud</option>
+                              <option value="OTHER">Other cloud</option>
+                            </select>
+                          </label>
+                        )}
+                        <label className="field">
+                          <span>Region or location (optional)</span>
+                          <input
+                            value={sourceRegion}
+                            maxLength={64}
+                            onChange={(event) =>
+                              setSourceRegion(event.target.value)
+                            }
+                            placeholder="Chennai DC or ap-south-1"
+                            autoComplete="off"
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Registration method</span>
+                          <select value="LOCAL_KUBECONFIG" disabled>
+                            <option value="LOCAL_KUBECONFIG">
+                              Local kubeconfig bootstrap — recommended
+                            </option>
+                          </select>
+                          <small>
+                            The kubeconfig remains on this computer and is never
+                            uploaded to Navigan.
+                          </small>
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        disabled={sourceName.trim().length < 3 || sourceBusy}
+                        onClick={() => void registerSourceCluster()}
+                      >
+                        {sourceBusy
+                          ? "Registering source cluster…"
+                          : "Register source cluster"}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
-              {migration?.discoveryConnector && (
+              {migration && selectedSource && (
                 <div className={styles.connectionCard}>
                   <div>
                     <span className={styles.connectedDot} />
-                    <strong>Connector identity prepared</strong>
+                    <strong>Source cluster registered</strong>
                   </div>
                   <dl>
                     <div>
-                      <dt>Migration</dt>
-                      <dd>{migration.migrationId}</dd>
+                      <dt>Source cluster</dt>
+                      <dd>{selectedSource.name}</dd>
                     </div>
                     <div>
-                      <dt>Connector</dt>
-                      <dd>{migration.discoveryConnector.connectorId}</dd>
+                      <dt>Location</dt>
+                      <dd>
+                        {selectedSource.locationType.replaceAll("_", " ")}
+                      </dd>
                     </div>
                     <div>
                       <dt>Status</dt>
                       <dd>
                         {sourceCatalogue
                           ? "Inventory ready"
-                          : "Waiting for connector installation"}
+                          : "Waiting for local connector setup"}
                       </dd>
+                    </div>
+                    <div>
+                      <dt>Migration</dt>
+                      <dd>{migration.migrationId}</dd>
                     </div>
                   </dl>
 
-                  {connectorToken && !sourceCatalogue && (
-                    <div>
-                      <strong>One-time connector token</strong>
+                  {sourceEnrollment && !sourceCatalogue && (
+                    <div className={styles.bootstrapNotice}>
+                      <strong>Secure enrollment prepared</strong>
                       <p>
-                        Copy this token securely. It is kept only in this
-                        browser page and is never stored by Navigan.
+                        Download the short-lived setup file and open it with the
+                        approved Navigan bootstrap helper. The helper uses your
+                        selected kubeconfig locally and deletes the setup file
+                        after installation.
                       </p>
-                      <code>{connectorToken}</code>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        onClick={downloadSourceBootstrap}
+                      >
+                        Download local connector setup
+                      </button>
                     </div>
                   )}
                 </div>
@@ -850,14 +1135,14 @@ export function AssessmentWizard() {
 
           {step === 5 && scopeSaved && (
             <div className={styles.connectionCard}>
-              {!migration?.assessmentConnector && !assessment && (
+              {migration?.status === "INVENTORY_READY" && !assessment && (
                 <>
                   <div>
                     <strong>Ready for detailed assessment</strong>
                   </div>
                   <p>
-                    Start the second one-shot connector to collect detailed
-                    metadata and generate the trusted report.
+                    Assign detailed inventory collection to the connected
+                    read-only source agent and generate the trusted report.
                   </p>
                   <button
                     type="button"
@@ -866,46 +1151,38 @@ export function AssessmentWizard() {
                     onClick={() => void startDetailedAssessment()}
                   >
                     {assessmentBusy
-                      ? "Preparing assessment connector…"
+                      ? "Starting detailed assessment…"
                       : "Start detailed assessment"}
                   </button>
                 </>
               )}
 
-              {migration?.assessmentConnector && !assessment && (
-                <>
-                  <div>
-                    <span className={styles.connectedDot} />
-                    <strong>Assessment connector prepared</strong>
-                  </div>
-                  <dl>
+              {migration &&
+                ["DISCOVERY_PENDING", "DISCOVERING", "ASSESSING"].includes(
+                  migration.status,
+                ) &&
+                !assessment && (
+                  <>
                     <div>
-                      <dt>Connector</dt>
-                      <dd>{migration.assessmentConnector.connectorId}</dd>
+                      <span className={styles.connectedDot} />
+                      <strong>Assessment assigned to source connector</strong>
                     </div>
-                    <div>
-                      <dt>Status</dt>
-                      <dd>
-                        {assessmentQuery.isError
-                          ? "Unable to retrieve report"
-                          : "Waiting for detailed inventory"}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {assessmentToken && (
-                    <div>
-                      <strong>One-time connector token</strong>
-                      <p>
-                        Run the approved one-shot Helm connector using this
-                        identity and token. The token remains only in this
-                        browser page.
-                      </p>
-                      <code>{assessmentToken}</code>
-                    </div>
-                  )}
-                </>
-              )}
+                    <dl>
+                      <div>
+                        <dt>Source cluster</dt>
+                        <dd>{selectedSource?.name ?? sourceClusterId}</dd>
+                      </div>
+                      <div>
+                        <dt>Status</dt>
+                        <dd>
+                          {assessmentQuery.isError
+                            ? "Unable to retrieve report"
+                            : "Waiting for detailed inventory"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </>
+                )}
 
               {assessmentError && <p role="alert">{assessmentError}</p>}
             </div>

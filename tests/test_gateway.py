@@ -123,6 +123,25 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         assert route["AuthorizerId"] == {"Ref": "AuthorizerId"}
         assert route["AuthorizationScopes"] == [{"Ref": "JwtScope"}]
 
+    source_cluster_routes = {
+        key: route
+        for key, route in routes.items()
+        if "/api/v1/source-clusters" in key
+    }
+    assert set(source_cluster_routes) == {
+        "POST /api/v1/source-clusters",
+        "GET /api/v1/source-clusters",
+        "GET /api/v1/source-clusters/{sourceClusterId}",
+        (
+            "POST /api/v1/source-clusters/"
+            "{sourceClusterId}/enrollments"
+        ),
+    }
+    for route in source_cluster_routes.values():
+        assert route["AuthorizationType"] == "JWT"
+        assert route["AuthorizerId"] == {"Ref": "AuthorizerId"}
+        assert route["AuthorizationScopes"] == [{"Ref": "JwtScope"}]
+
     connector_routes = {
         key: route
         for key, route in routes.items()
@@ -134,6 +153,25 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         "POST /api/v1/migration-connectors/{connectorId}/source-inventory",
     }
     for connector_route in connector_routes.values():
+        assert connector_route["AuthorizationType"] == "NONE"
+        assert "AuthorizerId" not in connector_route
+        assert "AuthorizationScopes" not in connector_route
+
+    source_connector_routes = {
+        key: route
+        for key, route in routes.items()
+        if "/api/v1/source-connectors" in key
+    }
+    assert set(source_connector_routes) == {
+        "POST /api/v1/source-connectors/enroll",
+        "GET /api/v1/source-connectors/{connectorId}/assignment",
+        "POST /api/v1/source-connectors/{connectorId}/inventory",
+        (
+            "POST /api/v1/source-connectors/"
+            "{connectorId}/source-inventory"
+        ),
+    }
+    for connector_route in source_connector_routes.values():
         assert connector_route["AuthorizationType"] == "NONE"
         assert "AuthorizerId" not in connector_route
         assert "AuthorizationScopes" not in connector_route

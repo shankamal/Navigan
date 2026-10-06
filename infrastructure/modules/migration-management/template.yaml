@@ -82,6 +82,17 @@ Resources:
       SourceAccount: {Ref: 'AWS::AccountId'}
       SourceArn: {Fn::Sub: 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/migrations*'}
 
+  SourceClusterInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: {Ref: MigrationFunction}
+      Principal: apigateway.amazonaws.com
+      SourceAccount: {Ref: 'AWS::AccountId'}
+      SourceArn:
+        Fn::Sub: >-
+          arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-clusters*
+
   MigrationConnectorIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
@@ -126,6 +137,17 @@ Resources:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/POST/api/v1/migration-connectors/*/source-inventory
 
+  SourceConnectorInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: {Ref: MigrationConnectorFunction}
+      Principal: apigateway.amazonaws.com
+      SourceAccount: {Ref: 'AWS::AccountId'}
+      SourceArn:
+        Fn::Sub: >-
+          arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-connectors*
+
   MigrationConnectorAssignmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationConnectorInvokePermission
@@ -165,6 +187,59 @@ Resources:
           - - integrations
             - {Ref: MigrationConnectorIntegration}
 
+  EnrollSourceConnectorRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceConnectorInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: NONE
+      RouteKey: POST /api/v1/source-connectors/enroll
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationConnectorIntegration}
+
+  SourceConnectorAssignmentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceConnectorInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: NONE
+      RouteKey: GET /api/v1/source-connectors/{connectorId}/assignment
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationConnectorIntegration}
+
+  SourceConnectorInventoryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceConnectorInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: NONE
+      RouteKey: POST /api/v1/source-connectors/{connectorId}/inventory
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationConnectorIntegration}
+
+  SourceConnectorDetailedInventoryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceConnectorInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: NONE
+      RouteKey: >-
+        POST /api/v1/source-connectors/{connectorId}/source-inventory
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationConnectorIntegration}
+
   CreateMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission
@@ -185,6 +260,51 @@ Resources:
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: GET /api/v1/migrations
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  CreateSourceClusterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/source-clusters
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  ListSourceClustersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/source-clusters
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  GetSourceClusterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/source-clusters/{sourceClusterId}
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  CreateSourceClusterEnrollmentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: >-
+        POST /api/v1/source-clusters/{sourceClusterId}/enrollments
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   GetMigrationRoute:

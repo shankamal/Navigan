@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { migrations } from "./service";
+import { migrations, sourceClusters } from "./service";
+
+export const useSourceClusters = (customerId: string) =>
+  useQuery({
+    queryKey: ["source-clusters", customerId],
+    queryFn: () => sourceClusters.list(customerId),
+    enabled: Boolean(customerId),
+    retry: false,
+  });
 
 export const useSourceCatalogue = (migrationId: string) =>
   useQuery({
