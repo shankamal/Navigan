@@ -316,7 +316,7 @@ class SourceConnectorInstaller:
                 TimeoutSeconds=600,
                 Parameters={
                     "commands": [
-                        "set -euo pipefail",
+                        "set -eu",
                         "work=$(mktemp -d /tmp/navigan-source.XXXXXX)",
                         "trap 'rm -rf \"$work\"' EXIT",
                         (

@@ -74,6 +74,8 @@ def test_aws_delivery_uses_approved_role_and_hides_token_from_command(
         ssm.send_command.call_args.kwargs["Parameters"]["commands"]
     )
     assert token not in commands
+    assert commands.startswith("set -eu\n")
+    assert "pipefail" not in commands
     assert "get-parameter --with-decryption" in commands
     assert "delete-parameter" in commands
     assert result["status"] == "INSTALLATION_STARTED"
