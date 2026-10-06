@@ -13,6 +13,11 @@ Parameters:
   RdsCaLayerArn: {Type: String}
   ApiId: {Type: String}
   AuthorizerId: {Type: String}
+  MigrationConnectorImageRepository: {Type: String, Default: ''}
+  MigrationConnectorImageDigest: {Type: String, Default: ''}
+  SourceConnectorDeliveryRoleArn:
+    Type: String
+    Default: arn:aws:iam::000000000000:role/NaviganSourceConnectorDeliveryRole
 
 Globals:
   Function:
@@ -38,6 +43,17 @@ Resources:
     Properties:
       Handler: navigan.modules.migration_management.handler.lambda_handler
       ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          MIGRATION_CONNECTOR_API_BASE_URL:
+            Fn::Sub: >-
+              https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1
+          MIGRATION_CONNECTOR_IMAGE_REPOSITORY:
+            Ref: MigrationConnectorImageRepository
+          MIGRATION_CONNECTOR_IMAGE_DIGEST:
+            Ref: MigrationConnectorImageDigest
+          SOURCE_CONNECTOR_DELIVERY_ROLE_ARN:
+            Ref: SourceConnectorDeliveryRoleArn
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
@@ -47,6 +63,9 @@ Resources:
             - Effect: Allow
               Action: kms:Decrypt
               Resource: {Ref: SecretsKmsKeyArn}
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Resource: {Ref: SourceConnectorDeliveryRoleArn}
 
   MigrationConnectorFunction:
     Type: AWS::Serverless::Function
@@ -316,6 +335,18 @@ Resources:
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: >-
         POST /api/v1/source-clusters/{sourceClusterId}/enrollments
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  InstallSourceClusterConnectorRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: >-
+        POST /api/v1/source-clusters/{sourceClusterId}/install
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   GetMigrationRoute:

@@ -119,3 +119,7 @@ def test_routes_authenticated_source_cluster_registration():
         "POST",
         f"{SOURCE_CLUSTERS_BASE}/{identifier}/enrollments",
     ) == ("source_cluster_enrollment", identifier, None)
+    assert route_of(
+        "POST",
+        f"{SOURCE_CLUSTERS_BASE}/{identifier}/install",
+    ) == ("source_cluster_install", identifier, None)

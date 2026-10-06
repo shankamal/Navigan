@@ -8,6 +8,7 @@ import {
   sourceClusterSchema,
   sourceCatalogueResponseSchema,
   sourceEnrollmentSchema,
+  sourceInstallationSchema,
   type CreateMigrationInput,
   type CreateSourceClusterInput,
   type UpdateMigrationInput,
@@ -61,10 +62,9 @@ export const migrations = {
             connectorToken,
           },
           {
-            headers: writeHeaders({
-              key: crypto.randomUUID(),
-              version,
-            }),
+            headers: {
+              "If-Match": String(version),
+            },
           },
         )
       ).data,
@@ -191,6 +191,26 @@ export const sourceClusters = {
             headers: {
               "If-Match": String(version),
             },
+          },
+        )
+      ).data,
+    ),
+
+  install: async (sourceClusterId: string, version: number) =>
+    parseResponse(
+      sourceInstallationSchema,
+      (
+        await apiClient.post(
+          `${sourceClustersBase}/${sourceClusterId}/install`,
+          {
+            version,
+            reason: "Install read-only source assessment connector",
+          },
+          {
+            headers: writeHeaders({
+              key: crypto.randomUUID(),
+              version,
+            }),
           },
         )
       ).data,

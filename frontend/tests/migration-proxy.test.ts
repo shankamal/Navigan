@@ -32,6 +32,9 @@ describe("Migration API proxy", () => {
       isAllowedRoute("POST", ["source-clusters", sourceId, "enrollments"]),
     ).toBe(true);
     expect(
+      isAllowedRoute("POST", ["source-clusters", sourceId, "install"]),
+    ).toBe(true);
+    expect(
       isAllowedRoute("POST", ["source-clusters", "SRC-invalid", "enrollments"]),
     ).toBe(false);
   });

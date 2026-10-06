@@ -61,6 +61,29 @@ class Repository:
             "version": source_cluster["version"] + 1,
         }
 
+    def create_source_enrollment(
+        self,
+        source_cluster,
+        token,
+        reason,
+        correlation,
+    ):
+        self.enrollment_token = token
+        return {
+            "enrollment_id": "SCE-" + "e" * 32,
+            "source_cluster_id": source_cluster["source_cluster_id"],
+            "status": "ISSUED",
+        }
+
+    def audit_source_cluster(
+        self,
+        identifier,
+        action,
+        correlation,
+        details,
+    ):
+        self.source_audit = (identifier, action, correlation, details)
+
     def save(self, row, old, action, correlation, create=False):
         self.rows[row["migration_id"]] = copy.deepcopy(row)
         self.saved.append((action, correlation, create))
@@ -142,6 +165,34 @@ def test_configures_aws_ssm_source_connector_delivery():
 
     assert result["deliveryMethod"] == "AWS_SSM"
     assert result["version"] == 2
+
+
+def test_starts_automatic_source_connector_installation():
+    repo = Repository()
+    access = Access("creator", {"migration.edit"})
+
+    class Installer:
+        def start(self, source_cluster, token):
+            assert source_cluster["source_cluster_id"].startswith("SRC-")
+            assert token == repo.enrollment_token
+            return {
+                "commandId": "11111111-2222-3333-4444-555555555555",
+                "managedInstanceId": "i-08e28d9b2242cbd53",
+                "status": "INSTALLATION_STARTED",
+            }
+
+    result = Service(repo, access, "corr-install").install_source_connector(
+        "SRC-" + "a" * 32,
+        {
+            "version": 1,
+            "reason": "Install read-only connector",
+        },
+        Installer(),
+    )
+
+    assert result["status"] == "INSTALLATION_STARTED"
+    assert result["enrollmentId"] == "SCE-" + "e" * 32
+    assert repo.source_audit[1] == "SOURCE_CONNECTOR_INSTALLATION_STARTED"
 
 
 def test_creator_cannot_review_own_request():

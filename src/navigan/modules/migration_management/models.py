@@ -179,6 +179,11 @@ class CreateSourceEnrollment(Model):
     reason: str = Field(min_length=3, max_length=2000)
 
 
+class InstallSourceConnector(Model):
+    version: int = Field(gt=0)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
 class EnrollSourceConnector(Model):
     sourceClusterId: str = Field(
         pattern=r"^SRC-[a-f0-9]{32}$",

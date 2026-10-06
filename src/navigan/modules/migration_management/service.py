@@ -177,6 +177,52 @@ class Service:
         result["enrollmentToken"] = token
         return result
 
+    def install_source_connector(self, identifier, body, installer):
+        self.access.require("migration.edit")
+        source_cluster = self.repo.get_source_cluster(
+            identifier,
+            lock=True,
+        )
+        self.access.require_customer(
+            source_cluster["customer_id"],
+            source_cluster["created_by"],
+        )
+        if source_cluster["version"] != body["version"]:
+            raise ApiError(
+                409,
+                "CONCURRENT_UPDATE",
+                "Reload the latest source cluster.",
+            )
+        if source_cluster["status"] == "REVOKED":
+            raise ApiError(
+                409,
+                "SOURCE_CLUSTER_REVOKED",
+                "A revoked source cluster cannot be installed.",
+            )
+
+        token = secrets.token_urlsafe(32)
+        enrollment = self.repo.create_source_enrollment(
+            source_cluster,
+            token,
+            body["reason"],
+            self.correlation,
+        )
+        installation = installer.start(source_cluster, token)
+        self.repo.audit_source_cluster(
+            identifier,
+            "SOURCE_CONNECTOR_INSTALLATION_STARTED",
+            self.correlation,
+            {
+                "commandId": installation["commandId"],
+                "managedInstanceId": installation["managedInstanceId"],
+            },
+        )
+        return {
+            "sourceClusterId": identifier,
+            "enrollmentId": enrollment["enrollment_id"],
+            **installation,
+        }
+
     def update(self, identifier, body):
         self.access.require("migration.edit")
         current = self.repo.get(identifier, lock=True)

@@ -127,6 +127,14 @@ export const sourceEnrollmentSchema = z.object({
   enrollmentToken: z.string().min(43),
 });
 
+export const sourceInstallationSchema = z.object({
+  sourceClusterId: z.string().regex(/^SRC-[a-f0-9]{32}$/),
+  enrollmentId: z.string().regex(/^SCE-[a-f0-9]{32}$/),
+  commandId: z.string().uuid(),
+  managedInstanceId: z.string(),
+  status: z.literal("INSTALLATION_STARTED"),
+});
+
 export const migrationSchema = z
   .object({
     migrationId: z.string(),
@@ -173,6 +181,7 @@ export type Migration = z.infer<typeof migrationSchema>;
 export type MigrationSummary = z.infer<typeof migrationSummarySchema>;
 export type SourceClusterRegistration = z.infer<typeof sourceClusterSchema>;
 export type SourceEnrollment = z.infer<typeof sourceEnrollmentSchema>;
+export type SourceInstallation = z.infer<typeof sourceInstallationSchema>;
 export type Assessment = z.infer<typeof assessmentSchema>;
 export type AssessmentResponse = z.infer<typeof assessmentResponseSchema>;
 export type SourceCatalogueResponse = z.infer<

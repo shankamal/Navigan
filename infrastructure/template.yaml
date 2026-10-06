@@ -47,6 +47,18 @@ Parameters:
     Type: String
     Default: ''
     Description: Immutable image URI for the outbound-only cluster connector
+  MigrationConnectorImageRepository:
+    Type: String
+    Default: ''
+    Description: Repository containing the migration source connector image
+  MigrationConnectorImageDigest:
+    Type: String
+    Default: ''
+    Description: Immutable digest of the migration source connector image
+  SourceConnectorDeliveryRoleArn:
+    Type: String
+    Default: arn:aws:iam::000000000000:role/NaviganSourceConnectorDeliveryRole
+    Description: Explicitly approved customer AWS connector delivery role
   GitHubAppId:
     Type: String
     Default: ''
@@ -196,6 +208,12 @@ Resources:
         RdsCaLayerArn: *id008
         ApiId: *id009
         AuthorizerId: *id010
+        MigrationConnectorImageRepository:
+          Ref: MigrationConnectorImageRepository
+        MigrationConnectorImageDigest:
+          Ref: MigrationConnectorImageDigest
+        SourceConnectorDeliveryRoleArn:
+          Ref: SourceConnectorDeliveryRoleArn
 
   AccessManagement:
     Type: AWS::Serverless::Application

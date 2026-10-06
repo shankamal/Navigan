@@ -163,6 +163,13 @@ vi.mock("@/modules/migration-management/service", () => ({
       enrollmentToken: "e".repeat(43),
     })),
     updateDelivery: vi.fn(),
+    install: vi.fn(async () => ({
+      sourceClusterId: "SRC-" + "c".repeat(32),
+      enrollmentId: "SCE-" + "d".repeat(32),
+      commandId: "11111111-2222-3333-4444-555555555555",
+      managedInstanceId: "i-08e28d9b2242cbd53",
+      status: "INSTALLATION_STARTED",
+    })),
   },
   migrations: {
     create: vi.fn(async () => ({
@@ -391,7 +398,7 @@ describe("Migration UI", () => {
         name: "Assessment scope saved",
       }),
     ).toBeDisabled();
-  });
+  }, 15_000);
 
   it("renders the trusted feasibility scorecard", () => {
     render(

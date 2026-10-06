@@ -7,8 +7,10 @@ import { MigrationDetails } from "@/modules/migration-management/migration-detai
 const state = vi.hoisted(() => ({
   role: "CLOUD_ENGINEER",
   status: "ASSESSMENT_READY",
+  deliveryMethod: "MANUAL_HELM",
   action: vi.fn(),
   enroll: vi.fn(),
+  install: vi.fn(),
 }));
 
 vi.mock("@/shared/auth/auth-provider", () => ({
@@ -56,7 +58,7 @@ vi.mock("@/modules/migration-management/hooks", () => ({
           locationType: "CLOUD",
           cloudProvider: "AWS",
           registrationMethod: "LOCAL_KUBECONFIG",
-          deliveryMethod: "MANUAL_HELM",
+          deliveryMethod: state.deliveryMethod,
           deliveryConfiguration: {},
           status: "PENDING_ENROLLMENT",
           version: 1,
@@ -75,6 +77,7 @@ vi.mock("@/modules/migration-management/service", () => ({
   sourceClusters: {
     enroll: state.enroll,
     updateDelivery: vi.fn(),
+    install: state.install,
   },
 }));
 
@@ -93,6 +96,7 @@ describe("Migration approval gate", () => {
   beforeEach(() => {
     state.role = "CLOUD_ENGINEER";
     state.status = "ASSESSMENT_READY";
+    state.deliveryMethod = "MANUAL_HELM";
     state.action.mockReset();
     state.action.mockResolvedValue({});
     state.enroll.mockReset();
@@ -102,6 +106,14 @@ describe("Migration approval gate", () => {
       status: "ISSUED",
       expiresAt: "2026-10-06T18:30:00Z",
       enrollmentToken: "d".repeat(43),
+    });
+    state.install.mockReset();
+    state.install.mockResolvedValue({
+      sourceClusterId: "SRC-" + "b".repeat(32),
+      enrollmentId: "SCE-" + "c".repeat(32),
+      commandId: "11111111-2222-3333-4444-555555555555",
+      managedInstanceId: "i-08e28d9b2242cbd53",
+      status: "INSTALLATION_STARTED",
     });
   });
 
@@ -121,6 +133,23 @@ describe("Migration approval gate", () => {
         name: "Download connector setup",
       }),
     ).toBeEnabled();
+  });
+
+  it("starts automatic installation for an AWS SSM source", async () => {
+    state.status = "SOURCE_ENROLLMENT_PENDING";
+    state.deliveryMethod = "AWS_SSM";
+    renderDetails();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Install source connector" }),
+    );
+
+    await waitFor(() =>
+      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1),
+    );
+    expect(
+      await screen.findByText("Connector installation started"),
+    ).toBeInTheDocument();
   });
 
   it("allows the Cloud Engineer to submit a completed assessment", async () => {

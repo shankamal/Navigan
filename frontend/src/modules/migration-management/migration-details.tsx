@@ -16,7 +16,11 @@ import {
   useMigrationAssessment,
   useSourceClusters,
 } from "./hooks";
-import type { SourceClusterRegistration, SourceEnrollment } from "./model";
+import type {
+  SourceClusterRegistration,
+  SourceEnrollment,
+  SourceInstallation,
+} from "./model";
 import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
 
@@ -25,6 +29,8 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const cache = useQueryClient();
   const [sourceEnrollment, setSourceEnrollment] =
     useState<SourceEnrollment | null>(null);
+  const [sourceInstallation, setSourceInstallation] =
+    useState<SourceInstallation | null>(null);
   const [registeredSource, setRegisteredSource] =
     useState<SourceClusterRegistration | null>(null);
   const [sourceName, setSourceName] = useState("");
@@ -69,7 +75,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           customerId: migration.customerId,
           name: sourceName.trim(),
           distribution: sourceDistribution.trim() || undefined,
-          registrationMethod: "LOCAL_KUBECONFIG",
+          registrationMethod: "PROVIDER_AUTOMATION",
           location: {
             type: "CLOUD",
             cloudProvider: "AWS",
@@ -161,6 +167,25 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       await cache.invalidateQueries({
         queryKey: ["source-clusters", migration?.customerId],
       });
+    },
+    onError: (error) => {
+      setSourceError(normalizeApiError(error).message);
+    },
+  });
+
+  const automaticInstallation = useMutation({
+    mutationFn: async () => {
+      if (!effectiveSourceCluster) {
+        throw new Error("The registered source cluster is unavailable.");
+      }
+      return sourceClusters.install(
+        effectiveSourceCluster.sourceClusterId,
+        effectiveSourceCluster.version,
+      );
+    },
+    onSuccess: (installation) => {
+      setSourceInstallation(installation);
+      setSourceError("");
     },
     onError: (error) => {
       setSourceError(normalizeApiError(error).message);
@@ -481,12 +506,33 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                   <div>
                     <strong>Source connector setup required</strong>
                     <p className="muted">
-                      Reissue a short-lived setup file for the existing
-                      registered source cluster. This does not create another
-                      source cluster or migration request.
+                      {effectiveSourceCluster?.deliveryMethod === "AWS_SSM"
+                        ? "Install the read-only connector through the approved AWS Systems Manager delivery role."
+                        : "Reissue a short-lived setup file for the existing registered source cluster. This does not create another source cluster or migration request."}
                     </p>
                   </div>
-                  {sourceEnrollment ? (
+                  {sourceInstallation ? (
+                    <div role="status">
+                      <strong>Connector installation started</strong>
+                      <p className="muted">
+                        Systems Manager command {sourceInstallation.commandId}{" "}
+                        is running on {sourceInstallation.managedInstanceId}.
+                      </p>
+                    </div>
+                  ) : effectiveSourceCluster?.deliveryMethod === "AWS_SSM" ? (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={
+                        !canPrepareSource || automaticInstallation.isPending
+                      }
+                      onClick={() => automaticInstallation.mutate()}
+                    >
+                      {automaticInstallation.isPending
+                        ? "Starting secure installation…"
+                        : "Install source connector"}
+                    </button>
+                  ) : sourceEnrollment ? (
                     <button
                       type="button"
                       className="button button-primary"
@@ -515,6 +561,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                       {normalizeApiError(enrollment.error).message}
                     </p>
                   )}
+                  {sourceError && <p role="alert">{sourceError}</p>}
                 </>
               )}
             </section>

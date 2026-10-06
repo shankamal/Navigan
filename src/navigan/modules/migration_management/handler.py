@@ -23,12 +23,14 @@ from .models import (
     CreateSourceCluster,
     CreateSourceEnrollment,
     DiscoveryAction,
+    InstallSourceConnector,
     MigrationAction,
     UpdateSourceClusterDelivery,
     UpdateMigration,
 )
 from .repository import Repository
 from .service import Service, TRANSITIONS
+from .source_connector_installation import SourceConnectorInstaller
 
 
 BASE = "/api/v1/migrations"
@@ -139,6 +141,12 @@ def route_of(method, path):
             and method == "POST"
         ):
             return "source_cluster_enrollment", identifier, None
+        if (
+            len(parts) == 2
+            and parts[1] == "install"
+            and method == "POST"
+        ):
+            return "source_cluster_install", identifier, None
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
 
     if path == BASE:
@@ -198,6 +206,7 @@ def execute(event, principal, correlation):
         "source_cluster_create",
         "source_cluster_update",
         "source_cluster_enrollment",
+        "source_cluster_install",
     }
     idempotent = mutating and route != "source_cluster_enrollment"
 
@@ -249,6 +258,8 @@ def execute(event, principal, correlation):
             model = UpdateSourceClusterDelivery
         elif route == "source_cluster_enrollment":
             model = CreateSourceEnrollment
+        elif route == "source_cluster_install":
+            model = InstallSourceConnector
         elif action in {"discover", "assess"}:
             model = DiscoveryAction
         else:
@@ -344,6 +355,13 @@ def execute(event, principal, correlation):
         elif route == "source_cluster_enrollment":
             value = service.create_source_enrollment(identifier, body)
             status = 201
+        elif route == "source_cluster_install":
+            value = service.install_source_connector(
+                identifier,
+                body,
+                SourceConnectorInstaller(),
+            )
+            status = 202
         elif route == "create":
             value = service.create(body)
             status = 201
