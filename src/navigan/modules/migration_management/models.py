@@ -562,6 +562,12 @@ class AssessmentFinding(Model):
         pattern=r"^[A-Z][A-Z0-9_]*$",
     )
     severity: Literal["INFO", "WARNING", "BLOCKER"]
+    disposition: Literal[
+        "SEAMLESS",
+        "AUTOMATED_CHANGE",
+        "MANUAL_CHANGE",
+        "BLOCKER",
+    ] = "MANUAL_CHANGE"
     category: Literal[
         "KUBERNETES_API",
         "WORKLOAD",

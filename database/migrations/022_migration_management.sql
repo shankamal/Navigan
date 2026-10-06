@@ -179,6 +179,7 @@ DO $$ DECLARE t text; BEGIN
  FOREACH t IN ARRAY ARRAY[
    'migration_versions',
    'migration_source_catalogues',
+   'migration_source_inventories',
    'migration_assessments',
    'migration_status_history',
    'migration_audit_log'
