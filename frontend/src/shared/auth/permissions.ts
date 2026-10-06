@@ -44,6 +44,14 @@ export type PlatformPermission =
   | "cluster.dashboard.view"
   | "cluster.webkubectl.open"
   | "cluster.webkubectl.audit"
+  | "migration.view"
+  | "migration.create"
+  | "migration.edit"
+  | "migration.submit"
+  | "migration.review"
+  | "migration.approve"
+  | "migration.history.view"
+  | "migration.audit.view"
   | "blueprint.view"
   | "remediation.review"
   | "operations.view"
@@ -80,6 +88,11 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "cluster.access.view",
     "cluster.dashboard.view",
     "cluster.webkubectl.open",
+    "migration.view",
+    "migration.create",
+    "migration.edit",
+    "migration.submit",
+    "migration.history.view",
   ],
   PLATFORM_ARCHITECT: [
     "dashboard.platform.view",
@@ -111,6 +124,11 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "cluster.dashboard.view",
     "cluster.webkubectl.open",
     "cluster.webkubectl.audit",
+    "migration.view",
+    "migration.review",
+    "migration.approve",
+    "migration.history.view",
+    "migration.audit.view",
     "blueprint.view",
     "remediation.review",
     "operations.view",
@@ -134,6 +152,8 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "cluster.dashboard.view",
     "cluster.webkubectl.open",
     "cluster.webkubectl.audit",
+    "migration.view",
+    "migration.audit.view",
     "operations.view",
     "operations.logs.view",
     "user.view",
@@ -163,6 +183,13 @@ export function permissionsFor(
     permissions.delete("customer.create");
   }
   return permissions;
+}
+
+export function isMigrationPreviewEnabled(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_MIGRATION_UI_PREVIEW === "true"
+  );
 }
 
 export function hasPermission(

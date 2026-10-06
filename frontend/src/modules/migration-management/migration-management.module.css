@@ -1,0 +1,395 @@
+.securityNotice {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid #cfe0bb;
+  border-radius: 12px;
+  background: #f6faef;
+  color: #29430f;
+}
+
+.securityNotice p {
+  margin: 4px 0 0;
+  color: #587043;
+}
+
+.wizard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-bottom: 1px solid #dfe5d9;
+  background: #f7f9f5;
+}
+
+.step {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 16px 12px;
+  border: 0;
+  border-right: 1px solid #e1e6dc;
+  background: transparent;
+  color: #6b7466;
+  text-align: left;
+}
+
+.step:last-child {
+  border-right: 0;
+}
+
+.step:disabled {
+  cursor: default;
+}
+
+.stepIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e7ece2;
+}
+
+.step small,
+.step strong {
+  display: block;
+}
+
+.step small {
+  margin-bottom: 2px;
+  font-size: 11px;
+}
+
+.step strong {
+  font-size: 13px;
+}
+
+.activeStep {
+  color: #1f360b;
+  background: #fff;
+  box-shadow: inset 0 3px #79b51c;
+}
+
+.activeStep .stepIcon,
+.completeStep .stepIcon {
+  background: #dff0c6;
+  color: #4c8100;
+}
+
+.content {
+  min-height: 520px;
+}
+
+.stepContent {
+  max-width: 900px;
+  min-height: 400px;
+  padding: 34px 38px;
+}
+
+.stepContent header {
+  margin-bottom: 28px;
+}
+
+.stepContent h2 {
+  margin: 5px 0 8px;
+  font-size: 26px;
+}
+
+.stepContent header p {
+  max-width: 720px;
+  margin: 0;
+  color: #697064;
+}
+
+.kicker {
+  color: #5d8f18;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.contextGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.pathGrid {
+  display: grid;
+  grid-template-columns: 1fr 46px 1fr;
+  align-items: end;
+  margin-top: 22px;
+}
+
+.pathArrow {
+  display: grid;
+  height: 44px;
+  place-items: center;
+  color: #70a81e;
+}
+
+.scopeCallout,
+.scopeSummary,
+.finalNotice {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  margin-top: 24px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: #f3f6ef;
+}
+
+.scopeCallout {
+  justify-content: space-between;
+}
+
+.scopeCallout span,
+.scopeSummary span {
+  color: #687062;
+}
+
+.connectionCard {
+  position: relative;
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid #cae1ac;
+  border-radius: 12px;
+  background: #f8fbf4;
+}
+
+.connectionCard > div:first-child {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.connectedDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #78b519;
+  box-shadow: 0 0 0 4px #e3f1ce;
+}
+
+.connectionCard dl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin: 20px 0 0;
+}
+
+.connectionCard dt {
+  margin-bottom: 4px;
+  color: #788172;
+  font-size: 12px;
+}
+
+.connectionCard dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.previewBadge {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #e7eedf;
+  color: #54674a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.protectionList {
+  display: flex;
+  gap: 22px;
+  margin-top: 20px;
+  color: #527322;
+  font-size: 13px;
+}
+
+.namespaceList {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+}
+
+.namespaceList legend {
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.namespaceList label,
+.optionCard,
+.checkCard {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid #dce3d6;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.namespaceList small,
+.optionCard span,
+.checkCard small {
+  display: block;
+  margin-top: 4px;
+  color: #747d6f;
+}
+
+.targetType {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+}
+
+.targetType legend {
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.optionCard {
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.optionCard > input {
+  margin-top: 4px;
+}
+
+.optionCard small {
+  display: block;
+  margin-top: 4px;
+  color: #747d6f;
+}
+
+.disabledOption {
+  opacity: 0.58;
+  background: #f5f6f4;
+}
+
+.checkGrid,
+.reviewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.checkCard input {
+  margin-top: 3px;
+}
+
+.reviewGrid div {
+  padding: 16px;
+  border: 1px solid #e0e5dc;
+  border-radius: 10px;
+  background: #fafbf9;
+}
+
+.reviewGrid span,
+.reviewGrid strong {
+  display: block;
+}
+
+.reviewGrid span {
+  margin-bottom: 5px;
+  color: #737c6e;
+  font-size: 12px;
+}
+
+.finalNotice {
+  align-items: flex-start;
+  background: #f6faef;
+  color: #34520e;
+}
+
+.finalNotice p {
+  margin: 4px 0 0;
+  color: #66765a;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 82px;
+  padding: 16px 28px;
+  border-top: 1px solid #dfe5d9;
+  background: #fafbf9;
+}
+
+.actions > div:last-child {
+  display: flex;
+  gap: 10px;
+}
+
+.actions span,
+.actions small {
+  display: block;
+}
+
+.actions small {
+  margin-top: 3px;
+  color: #747d6f;
+}
+
+@media (max-width: 1000px) {
+  .steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .connectionCard dl {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .steps {
+    display: block;
+  }
+
+  .step:not(.activeStep):not(.completeStep) {
+    display: none;
+  }
+
+  .stepContent {
+    padding: 24px 18px;
+  }
+
+  .contextGrid,
+  .pathGrid,
+  .checkGrid,
+  .reviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pathArrow {
+    transform: rotate(90deg);
+  }
+
+  .protectionList,
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions > div:last-child {
+    justify-content: flex-end;
+  }
+}

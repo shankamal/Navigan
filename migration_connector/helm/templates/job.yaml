@@ -1,0 +1,75 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: navigan-migration-connector
+    app.kubernetes.io/managed-by: Helm
+spec:
+  activeDeadlineSeconds: {{ .Values.job.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.job.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: navigan-migration-connector
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      enableServiceLinks: false
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: connector
+          image: "{{ required "image.repository is required" .Values.image.repository }}@{{ required "image.digest is required" .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: NAVIGAN_API_BASE_URL
+              value: {{ required "navigan.apiBaseUrl is required" .Values.navigan.apiBaseUrl | quote }}
+            - name: NAVIGAN_MIGRATION_CONNECTOR_ID
+              value: {{ required "navigan.connectorId is required" .Values.navigan.connectorId | quote }}
+            - name: NAVIGAN_MIGRATION_CONNECTOR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "navigan.credentialsSecretName is required" .Values.navigan.credentialsSecretName }}
+                  key: {{ .Values.navigan.connectorTokenKey }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: kubernetes-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
+            - name: temporary
+              mountPath: /tmp
+      volumes:
+        - name: kubernetes-api-access
+          projected:
+            defaultMode: 420
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+        - name: temporary
+          emptyDir:
+            sizeLimit: 16Mi

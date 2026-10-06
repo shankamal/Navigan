@@ -55,6 +55,21 @@ GRANT SELECT,INSERT,UPDATE ON
  cluster_management.cluster_runtime_inventories,
  cluster_management.cluster_tool_sessions TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA cluster_management TO navigan_api;
+-- Migration Management is assessment-only in the first release.
+GRANT USAGE ON SCHEMA migration_management TO navigan_api;
+GRANT SELECT,INSERT,UPDATE ON
+ migration_management.migrations,
+ migration_management.migration_connectors TO navigan_api;
+GRANT SELECT,INSERT ON
+ migration_management.migration_versions,
+ migration_management.migration_source_catalogues,
+ migration_management.migration_source_inventories,
+ migration_management.migration_assessments,
+ migration_management.migration_status_history,
+ migration_management.migration_audit_log TO navigan_api;
+GRANT USAGE ON ALL SEQUENCES
+ IN SCHEMA migration_management TO navigan_api;
+
 -- Dynamic access management is the authorization source of truth.
 GRANT USAGE ON SCHEMA access_management TO navigan_api;
 GRANT SELECT ON access_management.users,access_management.roles,

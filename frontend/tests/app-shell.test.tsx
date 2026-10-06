@@ -23,6 +23,7 @@ describe("Application shell permissions", () => {
     identity = engineer;
     pathname = "/customers";
     signOut.mockReset();
+    delete process.env.NEXT_PUBLIC_MIGRATION_UI_PREVIEW;
   });
 
   it("shows one top-level management entry per domain to a Cloud Engineer", () => {
@@ -36,6 +37,10 @@ describe("Application shell permissions", () => {
     expect(
       screen.getByRole("link", { name: "Cluster Management" }),
     ).toHaveAttribute("href", "/clusters");
+    expect(screen.getByRole("link", { name: "Migration" })).toHaveAttribute(
+      "href",
+      "/migrations",
+    );
     expect(screen.queryByText("Customer Directory")).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("New Cluster Request")).not.toBeInTheDocument();
@@ -71,6 +76,9 @@ describe("Application shell permissions", () => {
       screen.getByRole("link", { name: "Cluster Directory" }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("link", { name: "Migration Requests" }),
+    ).toHaveAttribute("href", "/migrations");
+    expect(
       screen.queryByRole("link", { name: "Customer Management" }),
     ).not.toBeInTheDocument();
     expect(
@@ -103,6 +111,23 @@ describe("Application shell permissions", () => {
     expect(screen.getByText("Environment Reviews")).toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("Cluster Directory")).not.toBeInTheDocument();
+  });
+
+  it("supports an explicit non-production migration preview", () => {
+    process.env.NEXT_PUBLIC_MIGRATION_UI_PREVIEW = "true";
+    identity = {
+      ...engineer,
+      roles: [],
+      privileges: ["dashboard.platform.view"],
+    };
+
+    render(<AppShell>Content</AppShell>);
+
+    expect(
+      screen.getByRole("link", {
+        name: "Migration Requests",
+      }),
+    ).toHaveAttribute("href", "/migrations");
   });
 
   it("places sign out inside the top-right account menu", () => {

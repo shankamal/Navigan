@@ -181,6 +181,22 @@ Resources:
           Ref: PlatformToolsGatewayEnabled
         PlatformToolsTunnelEnabled:
           Ref: PlatformToolsTunnelEnabled
+  MigrationManagement:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: modules/migration-management/template.yaml
+      Parameters:
+        JwtScope: *id001
+        DatabaseName: *id002
+        DatabaseProxyHost: *id003
+        ApiDatabaseSecretArn: *id004
+        SecretsKmsKeyArn: *id005
+        PrivateSubnetIds: *id006
+        LambdaSecurityGroupIds: *id007
+        RdsCaLayerArn: *id008
+        ApiId: *id009
+        AuthorizerId: *id010
+
   AccessManagement:
     Type: AWS::Serverless::Application
     Properties:
@@ -272,6 +288,9 @@ Outputs:
       Fn::GetAtt:
       - ClusterManagement
       - Outputs.ConnectorRepositoryUri
+  MigrationManagementStackId:
+    Value:
+      Ref: MigrationManagement
   AccessManagementStackId:
     Value:
       Ref: AccessManagement

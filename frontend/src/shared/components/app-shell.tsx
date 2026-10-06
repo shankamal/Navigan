@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowRightLeft,
   Building2,
   ChevronRight,
   ChevronDown,
@@ -22,6 +23,7 @@ import {
 import { useAuth } from "@/shared/auth/auth-provider";
 import {
   hasPermission,
+  isMigrationPreviewEnabled,
   type PlatformPermission,
 } from "@/shared/auth/permissions";
 import { signOut } from "@/shared/auth/session";
@@ -118,6 +120,17 @@ const navigationGroups: ReadonlyArray<{
       },
     ],
   },
+  {
+    label: "Migration",
+    items: [
+      {
+        href: "/migrations",
+        label: "Migration Requests",
+        icon: ArrowRightLeft,
+        permission: "migration.view",
+      },
+    ],
+  },
 ];
 
 const cloudEngineerNavigationGroups: ReadonlyArray<{
@@ -151,6 +164,12 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         icon: Network,
         permission: "cluster.view",
       },
+      {
+        href: "/migrations",
+        label: "Migration",
+        icon: ArrowRightLeft,
+        permission: "migration.view",
+      },
     ],
   },
 ];
@@ -158,6 +177,16 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
 function isCloudEngineerOnly(identity: ReturnType<typeof useAuth>["identity"]) {
   const humanRoles = identity?.roles.filter((role) => role !== "SERVICE") ?? [];
   return humanRoles.length === 1 && humanRoles[0] === "CLOUD_ENGINEER";
+}
+
+function canViewNavigation(
+  identity: ReturnType<typeof useAuth>["identity"],
+  permission: PlatformPermission,
+) {
+  return (
+    hasPermission(identity, permission) ||
+    (permission === "migration.view" && isMigrationPreviewEnabled())
+  );
 }
 
 function AccountMenu() {
@@ -222,7 +251,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     : navigationGroups;
   const current = activeNavigationGroups
     .flatMap((group) => group.items)
-    .filter((item) => hasPermission(identity, item.permission))
+    .filter((item) => canViewNavigation(identity, item.permission))
     .toSorted((left, right) => right.href.length - left.href.length)
     .find(
       (item) =>
@@ -269,7 +298,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <nav aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
-                  hasPermission(identity, item.permission),
+                  canViewNavigation(identity, item.permission),
                 );
                 if (!items.length) return null;
                 return (
