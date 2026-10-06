@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { normalizeApiError } from "@/shared/api/client";
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -10,17 +11,45 @@ import { hasPermission } from "@/shared/auth/permissions";
 import { PageHeading } from "@/shared/components/ui";
 
 import { AssessmentReportCard } from "./assessment-report";
-import { useMigration, useMigrationAssessment } from "./hooks";
-import { migrations } from "./service";
+import {
+  useMigration,
+  useMigrationAssessment,
+  useSourceClusters,
+} from "./hooks";
+import type { SourceEnrollment } from "./model";
+import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
 
 export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const { identity } = useAuth();
   const cache = useQueryClient();
+  const [sourceEnrollment, setSourceEnrollment] =
+    useState<SourceEnrollment | null>(null);
   const migrationQuery = useMigration(migrationId);
   const migration = migrationQuery.data;
   const assessmentQuery = useMigrationAssessment(migrationId, true);
   const assessment = assessmentQuery.data?.assessment ?? null;
+  const sourceClustersQuery = useSourceClusters(migration?.customerId ?? "");
+  const sourceClusterId =
+    typeof migration?.sourceConfiguration.sourceClusterId === "string"
+      ? migration.sourceConfiguration.sourceClusterId
+      : "";
+  const sourceCluster = sourceClustersQuery.data?.items.find(
+    (item) => item.sourceClusterId === sourceClusterId,
+  );
+
+  const enrollment = useMutation({
+    mutationFn: async () => {
+      if (!sourceCluster) {
+        throw new Error("The registered source cluster is unavailable.");
+      }
+      return sourceClusters.enroll(
+        sourceCluster.sourceClusterId,
+        sourceCluster.version,
+      );
+    },
+    onSuccess: setSourceEnrollment,
+  });
 
   const action = useMutation({
     mutationFn: async ({
@@ -55,6 +84,42 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const canDecide =
     migration?.status === "UNDER_REVIEW" &&
     hasPermission(identity, "migration.approve");
+  const canPrepareSource =
+    migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
+    hasPermission(identity, "migration.edit");
+
+  function downloadSourceBootstrap() {
+    if (!sourceEnrollment || !sourceCluster) return;
+
+    const apiBaseUrl =
+      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
+    const imageRepository =
+      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ?? "";
+    const imageDigest =
+      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST ?? "";
+    if (!apiBaseUrl || !imageRepository || !imageDigest) return;
+
+    const bootstrap = JSON.stringify(
+      {
+        apiBaseUrl,
+        sourceClusterId: sourceCluster.sourceClusterId,
+        enrollmentToken: sourceEnrollment.enrollmentToken,
+        enrollmentExpiresAt: sourceEnrollment.expiresAt,
+        imageRepository,
+        imageDigest,
+      },
+      null,
+      2,
+    );
+    const url = URL.createObjectURL(
+      new Blob([bootstrap], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `navigan-source-${sourceCluster.sourceClusterId}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <>
@@ -78,94 +143,136 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       )}
 
       {migration && (
-        <section className={`panel ${styles.approvalPanel}`}>
-          <div>
-            <span className="status-badge">
-              {migration.status.replaceAll("_", " ")}
-            </span>
-            <h2>Approval gate</h2>
-            <p className="muted">
-              Approval records management authorization for migration planning.
-              It does not execute workload changes.
-            </p>
-          </div>
+        <>
+          {migration.status === "SOURCE_ENROLLMENT_PENDING" && (
+            <section className={`panel ${styles.bootstrapNotice}`}>
+              <div>
+                <strong>Source connector setup required</strong>
+                <p className="muted">
+                  Reissue a short-lived setup file for the existing registered
+                  source cluster. This does not create another source cluster or
+                  migration request.
+                </p>
+              </div>
+              {sourceEnrollment ? (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={downloadSourceBootstrap}
+                >
+                  Download connector setup
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={
+                    !canPrepareSource || !sourceCluster || enrollment.isPending
+                  }
+                  onClick={() => enrollment.mutate()}
+                >
+                  {enrollment.isPending
+                    ? "Preparing connector setup…"
+                    : "Prepare new connector setup"}
+                </button>
+              )}
+              {enrollment.isError && (
+                <p role="alert">
+                  {normalizeApiError(enrollment.error).message}
+                </p>
+              )}
+            </section>
+          )}
 
-          <div className={styles.approvalActions}>
-            {canSubmit && (
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={action.isPending}
-                onClick={() =>
-                  action.mutate({
-                    name: "submit",
-                    reason: "Submit feasibility assessment for review",
-                  })
-                }
-              >
-                <ShieldCheck size={17} />
-                Submit for review
-              </button>
-            )}
-            {canReview && (
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={action.isPending}
-                onClick={() =>
-                  action.mutate({
-                    name: "review",
-                    reason: "Begin independent feasibility review",
-                  })
-                }
-              >
-                <ShieldCheck size={17} />
-                Start review
-              </button>
-            )}
-            {canDecide && (
-              <>
+          <section className={`panel ${styles.approvalPanel}`}>
+            <div>
+              <span className="status-badge">
+                {migration.status.replaceAll("_", " ")}
+              </span>
+              <h2>Approval gate</h2>
+              <p className="muted">
+                Approval records management authorization for migration
+                planning. It does not execute workload changes.
+              </p>
+            </div>
+
+            <div className={styles.approvalActions}>
+              {canSubmit && (
                 <button
                   type="button"
                   className="button button-primary"
                   disabled={action.isPending}
                   onClick={() =>
                     action.mutate({
-                      name: "approve",
-                      reason: "Approve migration for controlled planning",
+                      name: "submit",
+                      reason: "Submit feasibility assessment for review",
                     })
                   }
                 >
-                  <CheckCircle2 size={17} />
-                  Approve
+                  <ShieldCheck size={17} />
+                  Submit for review
                 </button>
+              )}
+              {canReview && (
                 <button
                   type="button"
-                  className="button button-secondary"
+                  className="button button-primary"
                   disabled={action.isPending}
                   onClick={() =>
                     action.mutate({
-                      name: "reject",
-                      reason: "Return migration assessment for remediation",
+                      name: "review",
+                      reason: "Begin independent feasibility review",
                     })
                   }
                 >
-                  <XCircle size={17} />
-                  Reject
+                  <ShieldCheck size={17} />
+                  Start review
                 </button>
-              </>
-            )}
-            {!canSubmit && !canReview && !canDecide && (
-              <span className="muted">
-                No approval action is available for your role at this stage.
-              </span>
-            )}
-          </div>
+              )}
+              {canDecide && (
+                <>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate({
+                        name: "approve",
+                        reason: "Approve migration for controlled planning",
+                      })
+                    }
+                  >
+                    <CheckCircle2 size={17} />
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate({
+                        name: "reject",
+                        reason: "Return migration assessment for remediation",
+                      })
+                    }
+                  >
+                    <XCircle size={17} />
+                    Reject
+                  </button>
+                </>
+              )}
+              {!canSubmit && !canReview && !canDecide && (
+                <span className="muted">
+                  No approval action is available for your role at this stage.
+                </span>
+              )}
+            </div>
 
-          {action.isError && (
-            <p role="alert">{normalizeApiError(action.error).message}</p>
-          )}
-        </section>
+            {action.isError && (
+              <p role="alert">{normalizeApiError(action.error).message}</p>
+            )}
+          </section>
+        </>
       )}
 
       {assessment && <AssessmentReportCard report={assessment} />}
