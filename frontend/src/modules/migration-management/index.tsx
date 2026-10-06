@@ -47,8 +47,7 @@ const capabilities = [
 export function MigrationManagementPage() {
   const { identity } = useAuth();
   const canCreate =
-    hasPermission(identity, "migration.create") ||
-    isMigrationPreviewEnabled();
+    hasPermission(identity, "migration.create") || isMigrationPreviewEnabled();
 
   return (
     <>
@@ -61,10 +60,7 @@ export function MigrationManagementPage() {
         }
         action={
           canCreate && (
-            <Link
-              href="/migrations/new"
-              className="button button-primary"
-            >
+            <Link href="/migrations/new" className="button button-primary">
               <Plus size={18} />
               New migration assessment
             </Link>
@@ -90,8 +86,8 @@ export function MigrationManagementPage() {
           <div>
             <h2>Migration requests</h2>
             <p className="muted">
-              Discover source workloads, review compatibility findings,
-              and govern migration approval.
+              Discover source workloads, review compatibility findings, and
+              govern migration approval.
             </p>
           </div>
           <span className="status-badge">Assessment only</span>
@@ -101,12 +97,12 @@ export function MigrationManagementPage() {
           <Radar size={32} aria-hidden="true" />
           <h3>No migration requests loaded yet</h3>
           <p>
-            Create a migration assessment to select source and target
-            platforms and define the discovery scope.
+            Create a migration assessment to select source and target platforms
+            and define the discovery scope.
           </p>
           <p>
-            Execution remains disabled until dry-run, validation,
-            rollback, and approval controls are implemented.
+            Execution remains disabled until dry-run, validation, rollback, and
+            approval controls are implemented.
           </p>
         </div>
       </section>
@@ -117,6 +113,5 @@ export function MigrationManagementPage() {
 export function MigrationCreatePage() {
   return <AssessmentWizard />;
 }
-
 
 export { AssessmentReportCard } from "./assessment-report";

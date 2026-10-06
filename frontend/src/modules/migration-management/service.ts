@@ -1,8 +1,4 @@
-import {
-  apiClient,
-  parseResponse,
-  writeHeaders,
-} from "@/shared/api/client";
+import { apiClient, parseResponse, writeHeaders } from "@/shared/api/client";
 
 import {
   assessmentResponseSchema,
@@ -80,40 +76,25 @@ export const migrations = {
   assessment: async (migrationId: string) =>
     parseResponse(
       assessmentResponseSchema,
-      (
-        await apiClient.get(
-          `${base}/${migrationId}/assessment`,
-        )
-      ).data,
+      (await apiClient.get(`${base}/${migrationId}/assessment`)).data,
     ),
 
   sourceCatalogue: async (migrationId: string) =>
     parseResponse(
       sourceCatalogueResponseSchema,
-      (
-        await apiClient.get(
-          `${base}/${migrationId}/source-catalogue`,
-        )
-      ).data,
+      (await apiClient.get(`${base}/${migrationId}/source-catalogue`)).data,
     ),
 
-  update: async (
-    migrationId: string,
-    input: UpdateMigrationInput,
-  ) =>
+  update: async (migrationId: string, input: UpdateMigrationInput) =>
     parseResponse(
       migrationSchema,
       (
-        await apiClient.put(
-          `${base}/${migrationId}`,
-          input,
-          {
-            headers: writeHeaders({
-              key: crypto.randomUUID(),
-              version: input.version,
-            }),
-          },
-        )
+        await apiClient.put(`${base}/${migrationId}`, input, {
+          headers: writeHeaders({
+            key: crypto.randomUUID(),
+            version: input.version,
+          }),
+        })
       ).data,
     ),
 };

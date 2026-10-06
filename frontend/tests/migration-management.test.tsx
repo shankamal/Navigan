@@ -183,12 +183,10 @@ describe("Migration UI", () => {
       }),
     ).toBeInTheDocument();
 
-    expect(
-      screen.getByLabelText("Source platform"),
-    ).toHaveValue("SELF_MANAGED_KUBERNETES");
-    expect(
-      screen.getByLabelText("Target platform"),
-    ).toHaveValue("EKS");
+    expect(screen.getByLabelText("Source platform")).toHaveValue(
+      "SELF_MANAGED_KUBERNETES",
+    );
+    expect(screen.getByLabelText("Target platform")).toHaveValue("EKS");
 
     expect(
       screen.getByRole("group", { name: "Target type" }),
@@ -220,12 +218,18 @@ describe("Migration UI", () => {
 
     expect(continueButton()).toBeDisabled();
 
-    fireEvent.change(screen.getByRole("combobox", { name: /Active customer/i }), {
-      target: { value: "CUS-active" },
-    });
-    fireEvent.change(screen.getByRole("combobox", { name: /Target environment/i }), {
-      target: { value: "ENV-active" },
-    });
+    fireEvent.change(
+      screen.getByRole("combobox", { name: /Active customer/i }),
+      {
+        target: { value: "CUS-active" },
+      },
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: /Target environment/i }),
+      {
+        target: { value: "ENV-active" },
+      },
+    );
 
     expect(continueButton()).toBeEnabled();
     fireEvent.click(continueButton());
@@ -361,15 +365,12 @@ describe("Migration UI", () => {
         name: "Migration feasibility report",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Compatibility score"),
-    ).toHaveTextContent("82/100");
+    expect(screen.getByLabelText("Compatibility score")).toHaveTextContent(
+      "82/100",
+    );
     expect(
       screen.getByText("Load balancer translation required."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("AUTOMATED CHANGE"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("AUTOMATED CHANGE")).toBeInTheDocument();
   });
-
 });

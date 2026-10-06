@@ -20,10 +20,7 @@ import { useEnvironments } from "@/modules/environment-management/hooks/queries"
 import { normalizeApiError } from "@/shared/api/client";
 import { PageHeading } from "@/shared/components/ui";
 
-import {
-  useMigrationAssessment,
-  useSourceCatalogue,
-} from "./hooks";
+import { useMigrationAssessment, useSourceCatalogue } from "./hooks";
 import { AssessmentReportCard } from "./assessment-report";
 import type { Migration } from "./model";
 import { migrations } from "./service";
@@ -100,9 +97,7 @@ export function AssessmentWizard() {
     (item) => item.clusterId === targetConnection,
   );
 
-  const catalogueQuery = useSourceCatalogue(
-    migration?.migrationId ?? "",
-  );
+  const catalogueQuery = useSourceCatalogue(migration?.migrationId ?? "");
   const sourceCatalogue = catalogueQuery.data?.catalogue ?? null;
   const assessmentQuery = useMigrationAssessment(
     migration?.migrationId ?? "",
@@ -118,9 +113,7 @@ export function AssessmentWizard() {
 
   useEffect(() => {
     if (sourceCatalogue && namespaces.length === 0) {
-      setNamespaces(
-        sourceCatalogue.namespaces.map((item) => item.name),
-      );
+      setNamespaces(sourceCatalogue.namespaces.map((item) => item.name));
     }
   }, [sourceCatalogue, namespaces.length]);
 
@@ -134,10 +127,7 @@ export function AssessmentWizard() {
     targetConnection !== "",
     true,
     Boolean(
-      migration &&
-      sourceCatalogue &&
-      selectedTarget &&
-      namespaces.length > 0,
+      migration && sourceCatalogue && selectedTarget && namespaces.length > 0,
     ),
   ][step];
 
@@ -174,19 +164,16 @@ export function AssessmentWizard() {
         },
         scope: {
           namespaces: [],
-          excludeNamespaces: [
-            "kube-node-lease",
-            "kube-public",
-            "kube-system",
-          ],
+          excludeNamespaces: ["kube-node-lease", "kube-public", "kube-system"],
           includeClusterScopedResources: false,
           includePersistentData: false,
         },
       });
 
-      const token = (
-        crypto.randomUUID() + crypto.randomUUID()
-      ).replaceAll("-", "");
+      const token = (crypto.randomUUID() + crypto.randomUUID()).replaceAll(
+        "-",
+        "",
+      );
 
       const enrolled = await migrations.discover(
         created.migrationId,
@@ -219,39 +206,31 @@ export function AssessmentWizard() {
     setSourceError("");
 
     try {
-      const updated = await migrations.update(
-        migration.migrationId,
-        {
-          version: catalogueQuery.data.version,
-          source: {
-            platform: "SELF_MANAGED_KUBERNETES",
-            accessMode: "READ_ONLY_CONNECTOR",
-          },
-          target: {
-            platform: "EKS",
-            targetType: "EXISTING_CLUSTER",
-            environmentId: selectedEnvironment.environmentId,
-            environmentApprovedVersion: Number(
-              selectedEnvironment.approvedVersion,
-            ),
-            clusterId: selectedTarget.clusterId,
-            clusterName: selectedTarget.clusterName,
-            endpointAccess: "PRIVATE",
-          },
-          scope: {
-            namespaces,
-            excludeNamespaces: [
-              "kube-node-lease",
-              "kube-public",
-              "kube-system",
-            ],
-            includeClusterScopedResources: false,
-            includePersistentData: false,
-          },
-          changeReason:
-            "Save discovered workload scope and target cluster",
+      const updated = await migrations.update(migration.migrationId, {
+        version: catalogueQuery.data.version,
+        source: {
+          platform: "SELF_MANAGED_KUBERNETES",
+          accessMode: "READ_ONLY_CONNECTOR",
         },
-      );
+        target: {
+          platform: "EKS",
+          targetType: "EXISTING_CLUSTER",
+          environmentId: selectedEnvironment.environmentId,
+          environmentApprovedVersion: Number(
+            selectedEnvironment.approvedVersion,
+          ),
+          clusterId: selectedTarget.clusterId,
+          clusterName: selectedTarget.clusterName,
+          endpointAccess: "PRIVATE",
+        },
+        scope: {
+          namespaces,
+          excludeNamespaces: ["kube-node-lease", "kube-public", "kube-system"],
+          includeClusterScopedResources: false,
+          includePersistentData: false,
+        },
+        changeReason: "Save discovered workload scope and target cluster",
+      });
 
       setMigration(updated);
       setScopeSaved(true);
@@ -276,9 +255,10 @@ export function AssessmentWizard() {
     setAssessmentError("");
 
     try {
-      const token = (
-        crypto.randomUUID() + crypto.randomUUID()
-      ).replaceAll("-", "");
+      const token = (crypto.randomUUID() + crypto.randomUUID()).replaceAll(
+        "-",
+        "",
+      );
 
       const started = await migrations.assess(
         migration.migrationId,
@@ -314,8 +294,8 @@ export function AssessmentWizard() {
         <div>
           <strong>Read-only assessment</strong>
           <p>
-            Navigan will collect sanitized metadata only. Credentials,
-            Secret values and application data are never included.
+            Navigan will collect sanitized metadata only. Credentials, Secret
+            values and application data are never included.
           </p>
         </div>
       </div>
@@ -399,17 +379,14 @@ export function AssessmentWizard() {
                         : "Select an active customer"}
                     </option>
                     {customers.map((item) => (
-                      <option
-                        key={item.customerId}
-                        value={item.customerId}
-                      >
+                      <option key={item.customerId} value={item.customerId}>
                         {item.name} — {item.status}
                       </option>
                     ))}
                   </select>
                   <small>
-                    Only customers available to your signed-in identity
-                    will be shown.
+                    Only customers available to your signed-in identity will be
+                    shown.
                   </small>
                 </label>
 
@@ -441,8 +418,8 @@ export function AssessmentWizard() {
                     ))}
                   </select>
                   <small>
-                    The environment supplies the approved target
-                    configuration and governance baseline.
+                    The environment supplies the approved target configuration
+                    and governance baseline.
                   </small>
                 </label>
               </div>
@@ -484,15 +461,13 @@ export function AssessmentWizard() {
                     name="targetType"
                     value="EXISTING_CLUSTER"
                     checked={targetType === "EXISTING_CLUSTER"}
-                    onChange={(event) =>
-                      setTargetType(event.target.value)
-                    }
+                    onChange={(event) => setTargetType(event.target.value)}
                   />
                   <span>
                     <strong>Existing EKS cluster</strong>
                     <small>
-                      Assess against the actual capabilities of a
-                      registered Amazon EKS cluster.
+                      Assess against the actual capabilities of a registered
+                      Amazon EKS cluster.
                     </small>
                   </span>
                 </label>
@@ -531,8 +506,8 @@ export function AssessmentWizard() {
                 </span>
                 <h2>Connect the source cluster</h2>
                 <p>
-                  Create a short-lived connector identity, install the
-                  one-shot connector, and wait for its sanitized catalogue.
+                  Create a short-lived connector identity, install the one-shot
+                  connector, and wait for its sanitized catalogue.
                 </p>
               </header>
 
@@ -562,9 +537,7 @@ export function AssessmentWizard() {
                     </div>
                     <div>
                       <dt>Connector</dt>
-                      <dd>
-                        {migration.discoveryConnector.connectorId}
-                      </dd>
+                      <dd>{migration.discoveryConnector.connectorId}</dd>
                     </div>
                     <div>
                       <dt>Status</dt>
@@ -598,9 +571,7 @@ export function AssessmentWizard() {
                   <dl>
                     <div>
                       <dt>Kubernetes</dt>
-                      <dd>
-                        {sourceCatalogue.sourceKubernetesVersion}
-                      </dd>
+                      <dd>{sourceCatalogue.sourceKubernetesVersion}</dd>
                     </div>
                     <div>
                       <dt>Nodes</dt>
@@ -622,9 +593,7 @@ export function AssessmentWizard() {
               )}
 
               {catalogueQuery.isError && (
-                <p role="alert">
-                  Unable to retrieve the source catalogue.
-                </p>
+                <p role="alert">Unable to retrieve the source catalogue.</p>
               )}
 
               {sourceError && <p role="alert">{sourceError}</p>}
@@ -678,12 +647,8 @@ export function AssessmentWizard() {
               <div className={styles.scopeSummary}>
                 <FileSearch size={22} />
                 <div>
-                  <strong>
-                    {namespaces.length} namespace selected
-                  </strong>
-                  <span>
-                    Only sanitized metadata will be assessed.
-                  </span>
+                  <strong>{namespaces.length} namespace selected</strong>
+                  <span>Only sanitized metadata will be assessed.</span>
                 </div>
               </div>
             </div>
@@ -705,9 +670,7 @@ export function AssessmentWizard() {
                 <select
                   value={targetConnection}
                   disabled={!targetEnvironment}
-                  onChange={(event) =>
-                    setTargetConnection(event.target.value)
-                  }
+                  onChange={(event) => setTargetConnection(event.target.value)}
                 >
                   <option value="">
                     {!targetEnvironment
@@ -717,10 +680,7 @@ export function AssessmentWizard() {
                         : "Select an eligible EKS cluster"}
                   </option>
                   {targetClusters.map((cluster) => (
-                    <option
-                      key={cluster.clusterId}
-                      value={cluster.clusterId}
-                    >
+                    <option key={cluster.clusterId} value={cluster.clusterId}>
                       {cluster.clusterName} — {cluster.status}
                     </option>
                   ))}
@@ -759,9 +719,7 @@ export function AssessmentWizard() {
                       <dd>Collected when assessment starts</dd>
                     </div>
                   </dl>
-                  <span className={styles.previewBadge}>
-                    Backend record
-                  </span>
+                  <span className={styles.previewBadge}>Backend record</span>
                 </div>
               )}
             </div>
@@ -779,11 +737,26 @@ export function AssessmentWizard() {
 
               <div className={styles.checkGrid}>
                 {[
-                  ["Workloads and Kubernetes APIs", "Versions, controllers and scheduling"],
-                  ["Networking and ingress", "Services, DNS, ports and load balancers"],
-                  ["Storage and data", "Claims, classes and persistence requirements"],
-                  ["Identity and security", "RBAC, service accounts and policy requirements"],
-                  ["Capacity and architecture", "CPU, memory, scaling and image architecture"],
+                  [
+                    "Workloads and Kubernetes APIs",
+                    "Versions, controllers and scheduling",
+                  ],
+                  [
+                    "Networking and ingress",
+                    "Services, DNS, ports and load balancers",
+                  ],
+                  [
+                    "Storage and data",
+                    "Claims, classes and persistence requirements",
+                  ],
+                  [
+                    "Identity and security",
+                    "RBAC, service accounts and policy requirements",
+                  ],
+                  [
+                    "Capacity and architecture",
+                    "CPU, memory, scaling and image architecture",
+                  ],
                   ["Operations", "Health checks, monitoring and availability"],
                 ].map(([title, detail]) => (
                   <label key={title} className={styles.checkCard}>
@@ -810,7 +783,10 @@ export function AssessmentWizard() {
               </header>
 
               <div className={styles.reviewGrid}>
-                <div><span>Assessment</span><strong>{name}</strong></div>
+                <div>
+                  <span>Assessment</span>
+                  <strong>{name}</strong>
+                </div>
                 <div>
                   <span>Customer</span>
                   <strong>{selectedCustomer?.name ?? "Not selected"}</strong>
@@ -849,8 +825,14 @@ export function AssessmentWizard() {
                     {selectedTarget?.clusterName ?? "Not selected"}
                   </strong>
                 </div>
-                <div><span>Namespaces</span><strong>{namespaces.join(", ")}</strong></div>
-                <div><span>Mode</span><strong>Read-only feasibility assessment</strong></div>
+                <div>
+                  <span>Namespaces</span>
+                  <strong>{namespaces.join(", ")}</strong>
+                </div>
+                <div>
+                  <span>Mode</span>
+                  <strong>Read-only feasibility assessment</strong>
+                </div>
               </div>
 
               <div className={styles.finalNotice}>
@@ -874,8 +856,8 @@ export function AssessmentWizard() {
                     <strong>Ready for detailed assessment</strong>
                   </div>
                   <p>
-                    Start the second one-shot connector to collect
-                    detailed metadata and generate the trusted report.
+                    Start the second one-shot connector to collect detailed
+                    metadata and generate the trusted report.
                   </p>
                   <button
                     type="button"
@@ -899,9 +881,7 @@ export function AssessmentWizard() {
                   <dl>
                     <div>
                       <dt>Connector</dt>
-                      <dd>
-                        {migration.assessmentConnector.connectorId}
-                      </dd>
+                      <dd>{migration.assessmentConnector.connectorId}</dd>
                     </div>
                     <div>
                       <dt>Status</dt>
@@ -917,9 +897,9 @@ export function AssessmentWizard() {
                     <div>
                       <strong>One-time connector token</strong>
                       <p>
-                        Run the approved one-shot Helm connector using
-                        this identity and token. The token remains only
-                        in this browser page.
+                        Run the approved one-shot Helm connector using this
+                        identity and token. The token remains only in this
+                        browser page.
                       </p>
                       <code>{assessmentToken}</code>
                     </div>
@@ -927,9 +907,7 @@ export function AssessmentWizard() {
                 </>
               )}
 
-              {assessmentError && (
-                <p role="alert">{assessmentError}</p>
-              )}
+              {assessmentError && <p role="alert">{assessmentError}</p>}
             </div>
           )}
 
@@ -939,7 +917,9 @@ export function AssessmentWizard() {
 
           <footer className={styles.actions}>
             <div>
-              <span>Step {step + 1} of {steps.length}</span>
+              <span>
+                Step {step + 1} of {steps.length}
+              </span>
               <small>Assessment only · execution disabled</small>
             </div>
 

@@ -37,9 +37,10 @@ describe("Application shell permissions", () => {
     expect(
       screen.getByRole("link", { name: "Cluster Management" }),
     ).toHaveAttribute("href", "/clusters");
-    expect(
-      screen.getByRole("link", { name: "Migration" }),
-    ).toHaveAttribute("href", "/migrations");
+    expect(screen.getByRole("link", { name: "Migration" })).toHaveAttribute(
+      "href",
+      "/migrations",
+    );
     expect(screen.queryByText("Customer Directory")).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("New Cluster Request")).not.toBeInTheDocument();

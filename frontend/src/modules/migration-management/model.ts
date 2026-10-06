@@ -53,10 +53,9 @@ export const assessmentSchema = z.object({
   containsBlockers: z.boolean(),
   inventorySummary: z.object({
     resourceCount: z.number().int().nonnegative(),
-    resourceKinds: z.record(
-      z.string(),
-      z.number().int().nonnegative(),
-    ).default({}),
+    resourceKinds: z
+      .record(z.string(), z.number().int().nonnegative())
+      .default({}),
     classification: z.object({
       SEAMLESS: z.number().int().nonnegative(),
       AUTOMATED_CHANGE: z.number().int().nonnegative(),
@@ -83,30 +82,32 @@ export const assessmentResponseSchema = z.object({
   assessment: assessmentSchema.nullable(),
 });
 
-export const discoveryConnectorSchema = z.object({
-  connectorId: z.string(),
-  status: z.string(),
-  expiresAt: z.string().optional(),
-}).passthrough();
+export const discoveryConnectorSchema = z
+  .object({
+    connectorId: z.string(),
+    status: z.string(),
+    expiresAt: z.string().optional(),
+  })
+  .passthrough();
 
-export const migrationSchema = z.object({
-  migrationId: z.string(),
-  customerId: z.string(),
-  name: z.string(),
-  status: z.string(),
-  version: z.number().int().positive(),
-  sourceConfiguration: z.record(z.string(), z.unknown()),
-  targetConfiguration: z.record(z.string(), z.unknown()),
-  migrationScope: z.record(z.string(), z.unknown()),
-  discoveryConnector: discoveryConnectorSchema.optional(),
-  assessmentConnector: discoveryConnectorSchema.optional(),
-}).passthrough();
+export const migrationSchema = z
+  .object({
+    migrationId: z.string(),
+    customerId: z.string(),
+    name: z.string(),
+    status: z.string(),
+    version: z.number().int().positive(),
+    sourceConfiguration: z.record(z.string(), z.unknown()),
+    targetConfiguration: z.record(z.string(), z.unknown()),
+    migrationScope: z.record(z.string(), z.unknown()),
+    discoveryConnector: discoveryConnectorSchema.optional(),
+    assessmentConnector: discoveryConnectorSchema.optional(),
+  })
+  .passthrough();
 
 export type Migration = z.infer<typeof migrationSchema>;
 export type Assessment = z.infer<typeof assessmentSchema>;
-export type AssessmentResponse = z.infer<
-  typeof assessmentResponseSchema
->;
+export type AssessmentResponse = z.infer<typeof assessmentResponseSchema>;
 export type SourceCatalogueResponse = z.infer<
   typeof sourceCatalogueResponseSchema
 >;

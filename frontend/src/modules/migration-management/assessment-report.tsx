@@ -30,23 +30,18 @@ const classifications = [
   },
 ];
 
-export function AssessmentReportCard({
-  report,
-}: {
-  report: Assessment;
-}) {
+export function AssessmentReportCard({ report }: { report: Assessment }) {
   return (
     <section className="panel" aria-labelledby="assessment-report-title">
       <div className="list-heading">
         <div>
           <span className="eyebrow">FEASIBILITY REPORT</span>
-          <h2 id="assessment-report-title">
-            Migration feasibility report
-          </h2>
+          <h2 id="assessment-report-title">Migration feasibility report</h2>
           <p className="muted">
             Trusted analysis against{" "}
             {report.inventorySummary.target.clusterName ??
-              "the selected EKS target"}.
+              "the selected EKS target"}
+            .
           </p>
         </div>
         <strong aria-label="Compatibility score">
@@ -76,8 +71,8 @@ export function AssessmentReportCard({
         <div>
           <h3>Assessment summary</h3>
           <p className="muted">
-            {report.inventorySummary.resourceCount} resources assessed ·
-            target status {report.inventorySummary.target.status}
+            {report.inventorySummary.resourceCount} resources assessed · target
+            status {report.inventorySummary.target.status}
           </p>
         </div>
         <span className="status-badge">
@@ -91,9 +86,7 @@ export function AssessmentReportCard({
         <div className="empty-state">
           <CheckCircle2 size={30} aria-hidden="true" />
           <h3>No compatibility changes identified</h3>
-          <p>
-            All resources match the current EKS portability rules.
-          </p>
+          <p>All resources match the current EKS portability rules.</p>
         </div>
       ) : (
         <div>
@@ -106,16 +99,10 @@ export function AssessmentReportCard({
                 <strong>{finding.message}</strong>
                 <p className="muted">
                   {finding.resourceKind ?? finding.category}
-                  {finding.namespace
-                    ? ` · ${finding.namespace}`
-                    : ""}
-                  {finding.resourceName
-                    ? ` · ${finding.resourceName}`
-                    : ""}
+                  {finding.namespace ? ` · ${finding.namespace}` : ""}
+                  {finding.resourceName ? ` · ${finding.resourceName}` : ""}
                 </p>
-                {finding.remediation && (
-                  <p>{finding.remediation}</p>
-                )}
+                {finding.remediation && <p>{finding.remediation}</p>}
               </div>
               <span className="status-badge">
                 {finding.disposition.replaceAll("_", " ")}

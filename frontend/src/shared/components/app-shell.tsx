@@ -185,8 +185,7 @@ function canViewNavigation(
 ) {
   return (
     hasPermission(identity, permission) ||
-    (permission === "migration.view" &&
-      isMigrationPreviewEnabled())
+    (permission === "migration.view" && isMigrationPreviewEnabled())
   );
 }
 
