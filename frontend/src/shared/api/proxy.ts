@@ -113,7 +113,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   if (path[0] === "source-clusters") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^SRC-[a-f0-9]{32}$/.test(path[1])) return false;
-    if (path.length === 2) return method === "GET";
+    if (path.length === 2) return ["GET", "PUT"].includes(method);
     return path.length === 3 && path[2] === "enrollments" && method === "POST";
   }
 

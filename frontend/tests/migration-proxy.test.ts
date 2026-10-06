@@ -27,6 +27,7 @@ describe("Migration API proxy", () => {
     expect(isAllowedRoute("GET", ["source-clusters"])).toBe(true);
     expect(isAllowedRoute("POST", ["source-clusters"])).toBe(true);
     expect(isAllowedRoute("GET", ["source-clusters", sourceId])).toBe(true);
+    expect(isAllowedRoute("PUT", ["source-clusters", sourceId])).toBe(true);
     expect(
       isAllowedRoute("POST", ["source-clusters", sourceId, "enrollments"]),
     ).toBe(true);
