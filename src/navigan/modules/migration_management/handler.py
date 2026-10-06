@@ -197,7 +197,7 @@ def execute(event, principal, correlation):
             else UpdateMigration
             if route == "update"
             else DiscoveryAction
-            if action == "discover"
+            if action in {"discover", "assess"}
             else MigrationAction
         )
         body = model.model_validate(body).model_dump(

@@ -12,6 +12,11 @@ TRANSITIONS = {
         "SOURCE_ENROLLMENT_PENDING",
         "migration.edit",
     ),
+    "assess": (
+        {"INVENTORY_READY"},
+        "DISCOVERY_PENDING",
+        "migration.edit",
+    ),
     "submit": (
         {"ASSESSMENT_READY"},
         "SUBMITTED",
@@ -170,7 +175,7 @@ class Service:
             )
 
         connector = None
-        if action == "discover":
+        if action in {"discover", "assess"}:
             connector = self.repo.create_discovery_connector(
                 identifier,
                 body["connectorToken"],
@@ -192,6 +197,11 @@ class Service:
 
         result = serialize(row)
         if connector:
-            result["discoveryConnector"] = serialize(connector)
+            connector_field = (
+                "discoveryConnector"
+                if action == "discover"
+                else "assessmentConnector"
+            )
+            result[connector_field] = serialize(connector)
 
         return result

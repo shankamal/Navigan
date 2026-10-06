@@ -9,7 +9,7 @@ from navigan.modules.migration_management.connector_handler import (
     authenticate,
 )
 from navigan.modules.migration_management.models import (
-    AssessmentReport,
+    SourceInventoryReport,
     SourceCatalogueReport,
 )
 from navigan.shared.errors import ApiError
@@ -246,33 +246,46 @@ def test_connector_assignment_rejects_other_methods():
 
     assert error.value.code == "ROUTE_NOT_FOUND"
 
-def assessment_report(migration_version=2):
-    return AssessmentReport.model_validate(
+def source_inventory_report(migration_version=2):
+    resources = [
         {
-            "version": 1,
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "name": "retailflow",
+            "annotationKeys": [],
+        }
+    ]
+    payload = {
+        "schemaVersion": 1,
+        "sensitiveDataIncluded": False,
+        "resources": resources,
+    }
+    digest = hashlib.sha256(
+        __import__("json").dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+    return SourceInventoryReport.model_validate(
+        {
+            **payload,
             "migrationVersion": migration_version,
             "observedAt": "2026-10-05T08:00:00Z",
-            "sourceKubernetesVersion": "1.37.1",
-            "inventoryDigest": "d" * 64,
-            "compatibilityScore": 92,
-            "inventorySummary": {
-                "namespaces": 1,
-                "deployments": 2,
-                "services": 2,
-            },
-            "findings": [],
-            "sensitiveDataIncluded": False,
+            "sourceKubernetesVersion": "v1.37.1",
+            "inventoryDigest": digest,
         }
     )
 
 
-def test_assessment_is_stored_and_completes_connector(
+def test_source_inventory_is_stored_without_connector_score(
     monkeypatch,
 ):
     db = MagicMock()
     db.execute.return_value.fetchone.side_effect = [
         migration_row("DISCOVERING"),
-        {"assessment_version": 1},
+        {"inventory_version": 1},
     ]
     saved = {}
 
@@ -292,43 +305,47 @@ def test_assessment_is_stored_and_completes_connector(
         FakeRepository,
     )
 
-    result = connector_handler.submit_assessment(
+    result = connector_handler.submit_source_inventory(
         db,
         connector(status="ACTIVE"),
-        assessment_report(),
+        source_inventory_report(),
         NOW,
-        "corr-assessment",
+        "corr-source-inventory",
     )
 
-    assert result["status"] == "ASSESSMENT_READY"
+    assert result["status"] == "ASSESSING"
     assert result["migrationVersion"] == 3
-    assert result["assessmentVersion"] == 1
-    assert result["containsBlockers"] is False
+    assert result["inventoryVersion"] == 1
+    assert result["resourceCount"] == 1
     assert saved["principal"] == CONNECTOR_ID
-    assert saved["action"] == "MIGRATION_ASSESSMENT_RECEIVED"
+    assert (
+        saved["action"]
+        == "MIGRATION_SOURCE_INVENTORY_RECEIVED"
+    )
+
     calls = repr(db.execute.call_args_list)
-    assert "migration_assessments" in calls
+    assert "migration_source_inventories" in calls
+    assert "compatibility_score" not in calls
+    assert "findings" not in calls
     assert "COMPLETED" in calls
-    assert "sensitiveDataIncluded" not in calls
 
 
-def test_assessment_rejects_stale_migration_version():
+def test_source_inventory_rejects_stale_migration_version():
     db = MagicMock()
     current = migration_row("DISCOVERING")
     current["version"] = 3
     db.execute.return_value.fetchone.return_value = current
 
     with pytest.raises(ApiError) as error:
-        connector_handler.submit_assessment(
+        connector_handler.submit_source_inventory(
             db,
             connector(status="ACTIVE"),
-            assessment_report(migration_version=2),
+            source_inventory_report(migration_version=2),
             NOW,
             "corr-stale",
         )
 
-    assert error.value.code == "STALE_MIGRATION_ASSESSMENT"
-
+    assert error.value.code == "STALE_MIGRATION_INVENTORY"
 
 def source_catalogue_report(migration_version=2):
     catalogue = {

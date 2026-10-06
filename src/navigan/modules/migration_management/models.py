@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Any, Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -269,6 +269,290 @@ class DiscoveryAction(MigrationAction):
         max_length=128,
         pattern=r"^[A-Za-z0-9_-]+$",
     )
+
+
+SOURCE_INVENTORY_KINDS = {
+    "Node",
+    "Namespace",
+    "Deployment",
+    "StatefulSet",
+    "DaemonSet",
+    "Job",
+    "CronJob",
+    "Service",
+    "Ingress",
+    "PersistentVolumeClaim",
+    "StorageClass",
+    "CustomResourceDefinition",
+    "HorizontalPodAutoscaler",
+    "PodDisruptionBudget",
+    "NetworkPolicy",
+}
+
+COMMON_INVENTORY_KEYS = {
+    "apiVersion",
+    "kind",
+    "namespace",
+    "name",
+    "annotationKeys",
+}
+
+SOURCE_INVENTORY_KEYS = {
+    "Node": {
+        "kubernetesVersion",
+        "operatingSystem",
+        "architecture",
+    },
+    "Namespace": set(),
+    "Deployment": {"replicas", "pod"},
+    "StatefulSet": {"replicas", "pod"},
+    "DaemonSet": {"replicas", "pod"},
+    "Job": {"replicas", "pod"},
+    "CronJob": {"replicas", "pod"},
+    "Service": {"type", "selectorKeys", "ports"},
+    "Ingress": {
+        "ingressClassName",
+        "ruleCount",
+        "tlsEntryCount",
+        "paths",
+    },
+    "PersistentVolumeClaim": {
+        "accessModes",
+        "storageClassName",
+        "volumeMode",
+        "requestedStorage",
+    },
+    "StorageClass": {
+        "provisioner",
+        "reclaimPolicy",
+        "volumeBindingMode",
+    },
+    "CustomResourceDefinition": {
+        "group",
+        "scope",
+        "customKind",
+        "versions",
+    },
+    "HorizontalPodAutoscaler": {
+        "minReplicas",
+        "maxReplicas",
+        "targetKind",
+    },
+    "PodDisruptionBudget": {
+        "minAvailable",
+        "maxUnavailable",
+    },
+    "NetworkPolicy": {
+        "policyTypes",
+        "ingressRuleCount",
+        "egressRuleCount",
+    },
+}
+
+FORBIDDEN_INVENTORY_KEYS = {
+    "args",
+    "binaryData",
+    "command",
+    "data",
+    "host",
+    "hosts",
+    "password",
+    "path",
+    "providerID",
+    "secretName",
+    "stringData",
+    "token",
+    "value",
+}
+
+
+def validate_inventory_value(value: Any, depth: int = 0) -> None:
+    if depth > 12:
+        raise ValueError("Inventory nesting limit exceeded.")
+
+    if isinstance(value, dict):
+        if len(value) > 500:
+            raise ValueError("Inventory object is too large.")
+
+        for key, nested in value.items():
+            if not isinstance(key, str) or len(key) > 253:
+                raise ValueError("Inventory object key is invalid.")
+
+            if key.lower() in {
+                item.lower()
+                for item in FORBIDDEN_INVENTORY_KEYS
+            }:
+                raise ValueError(
+                    f"Sensitive inventory key is forbidden: {key}."
+                )
+
+            validate_inventory_value(nested, depth + 1)
+        return
+
+    if isinstance(value, list):
+        if len(value) > 10_000:
+            raise ValueError("Inventory list is too large.")
+
+        for nested in value:
+            validate_inventory_value(nested, depth + 1)
+        return
+
+    if isinstance(value, str) and len(value) > 4_000:
+        raise ValueError("Inventory text value is too long.")
+
+    if value is not None and not isinstance(
+        value,
+        (str, int, float, bool),
+    ):
+        raise ValueError("Inventory value type is invalid.")
+
+
+class SourceInventoryReport(Model):
+    schemaVersion: int = Field(gt=0)
+    migrationVersion: int = Field(gt=0)
+    observedAt: datetime
+    sourceKubernetesVersion: str = Field(
+        pattern=r"^v?1\.[0-9]{2}(?:\.[0-9]+)?$"
+    )
+    inventoryDigest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    resources: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=25_000,
+    )
+    sensitiveDataIncluded: Literal[False] = False
+
+    @field_validator("observedAt", mode="before")
+    @classmethod
+    def parse_observed_at(cls, value):
+        if isinstance(value, str):
+            normalized = (
+                value[:-1] + "+00:00"
+                if value.endswith("Z")
+                else value
+            )
+            try:
+                value = datetime.fromisoformat(normalized)
+            except ValueError as exc:
+                raise ValueError(
+                    "observedAt must be a valid ISO-8601 timestamp."
+                ) from exc
+
+        if not isinstance(value, datetime) or value.tzinfo is None:
+            raise ValueError(
+                "observedAt must include a timezone."
+            )
+
+        return value
+
+    @field_validator("resources")
+    @classmethod
+    def validate_resources(cls, resources):
+        seen = set()
+
+        for resource in resources:
+            kind = resource.get("kind")
+            if kind not in SOURCE_INVENTORY_KINDS:
+                raise ValueError(
+                    "Unsupported source inventory resource kind."
+                )
+
+            allowed = (
+                COMMON_INVENTORY_KEYS
+                | SOURCE_INVENTORY_KEYS[kind]
+            )
+            unexpected = set(resource) - allowed
+            if unexpected:
+                raise ValueError(
+                    "Unexpected source inventory fields: "
+                    + ", ".join(sorted(unexpected))
+                )
+
+            api_version = resource.get("apiVersion")
+            if (
+                not isinstance(api_version, str)
+                or not api_version
+                or len(api_version) > 100
+            ):
+                raise ValueError(
+                    "Inventory resource apiVersion is invalid."
+                )
+
+            namespace = resource.get("namespace")
+            name = resource.get("name")
+
+            if namespace in SYSTEM_NAMESPACES:
+                raise ValueError(
+                    "System namespaces cannot be assessed."
+                )
+
+            if kind == "Namespace":
+                if name in SYSTEM_NAMESPACES:
+                    raise ValueError(
+                        "System namespaces cannot be assessed."
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ValueError(
+                        "Namespace inventory requires a name."
+                    )
+
+            identity = (
+                kind,
+                namespace or "",
+                name or "",
+                resource.get("architecture") or "",
+                resource.get("kubernetesVersion") or "",
+            )
+            if identity in seen:
+                raise ValueError(
+                    "Duplicate source inventory resource."
+                )
+            seen.add(identity)
+
+            validate_inventory_value(resource)
+
+        canonical = sorted(
+            resources,
+            key=lambda item: (
+                item.get("kind") or "",
+                item.get("namespace") or "",
+                item.get("name") or "",
+            ),
+        )
+        if resources != canonical:
+            raise ValueError(
+                "Source inventory resources must be canonically sorted."
+            )
+
+        return resources
+
+    @model_validator(mode="after")
+    def verify_inventory_digest(self):
+        import hashlib
+        import json
+
+        payload = {
+            "schemaVersion": self.schemaVersion,
+            "sensitiveDataIncluded": False,
+            "resources": self.resources,
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+
+        if len(encoded) > 8 * 1024 * 1024:
+            raise ValueError(
+                "Source inventory payload exceeds the size limit."
+            )
+
+        calculated = hashlib.sha256(encoded).hexdigest()
+        if calculated != self.inventoryDigest:
+            raise ValueError(
+                "Source inventory digest validation failed."
+            )
+
+        return self
 
 
 class AssessmentFinding(Model):

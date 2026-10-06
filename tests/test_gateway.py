@@ -131,7 +131,7 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
     assert set(connector_routes) == {
         "GET /api/v1/migration-connectors/{connectorId}/assignment",
         "POST /api/v1/migration-connectors/{connectorId}/inventory",
-        "POST /api/v1/migration-connectors/{connectorId}/assessment",
+        "POST /api/v1/migration-connectors/{connectorId}/source-inventory",
     }
     for connector_route in connector_routes.values():
         assert connector_route["AuthorizationType"] == "NONE"

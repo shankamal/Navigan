@@ -93,6 +93,33 @@ CREATE TABLE migration_management.migration_source_catalogues (
  PRIMARY KEY(migration_id,catalogue_version)
 );
 
+CREATE TABLE migration_management.migration_source_inventories (
+ migration_id varchar(50) NOT NULL
+   REFERENCES migration_management.migrations(migration_id),
+ inventory_version bigint NOT NULL CHECK(inventory_version > 0),
+ migration_version bigint NOT NULL CHECK(migration_version > 0),
+ schema_version integer NOT NULL CHECK(schema_version > 0),
+ observed_at timestamptz NOT NULL,
+ source_kubernetes_version varchar(30) NOT NULL,
+ inventory_digest varchar(64) NOT NULL
+   CHECK(inventory_digest ~ '^[a-f0-9]{64}$'),
+ resource_count integer NOT NULL CHECK(resource_count > 0),
+ resources jsonb NOT NULL,
+ created_by varchar(100) NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(migration_id,inventory_version)
+);
+
+CREATE UNIQUE INDEX migration_source_inventory_digest_uq
+ ON migration_management.migration_source_inventories(
+   migration_id,
+   inventory_digest
+ );
+
+REVOKE ALL
+ ON migration_management.migration_source_inventories
+ FROM PUBLIC;
+
 CREATE TABLE migration_management.migration_assessments (
  migration_id varchar(50) NOT NULL
    REFERENCES migration_management.migrations(migration_id),

@@ -1,3 +1,4 @@
+from migration_connector import agent
 import hashlib
 import json
 
@@ -304,3 +305,31 @@ def test_run_once_requires_inventory_ready_response():
             collect=lambda observed: report,
             submit=lambda observed: {"status": "FAILED"},
         )
+
+
+def test_run_once_dispatches_detailed_source_inventory():
+    observed = {}
+
+    def fetch():
+        return {
+            "assignmentType": "SOURCE_INVENTORY",
+            "migrationVersion": 4,
+        }
+
+    def collect(assignment):
+        observed["assignment"] = assignment
+        return {"inventoryDigest": "a" * 64}
+
+    def submit(report):
+        observed["report"] = report
+        return {"status": "ASSESSING"}
+
+    result = agent.run_once(
+        fetch=fetch,
+        collect=collect,
+        submit=submit,
+    )
+
+    assert result["status"] == "ASSESSING"
+    assert observed["assignment"]["migrationVersion"] == 4
+    assert observed["report"]["inventoryDigest"] == "a" * 64

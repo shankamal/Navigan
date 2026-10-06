@@ -483,22 +483,92 @@ def submit_source_catalogue(report):
     )
 
 
+def collect_source_inventory(
+    assignment,
+    request=kubernetes_request,
+    observed_at=None,
+):
+    if assignment.get("assignmentType") != "SOURCE_INVENTORY":
+        raise RuntimeError(
+            "Unsupported migration connector assignment."
+        )
+
+    migration_version = assignment.get("migrationVersion")
+    if (
+        not isinstance(migration_version, int)
+        or migration_version < 1
+    ):
+        raise RuntimeError("Migration version is invalid.")
+
+    version_payload = request("/version")
+    kubernetes_version = version_payload.get("gitVersion")
+    if not isinstance(kubernetes_version, str):
+        raise RuntimeError(
+            "Kubernetes version could not be determined."
+        )
+
+    inventory = collect_inventory(assignment, request)
+
+    timestamp = observed_at
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    if isinstance(timestamp, datetime):
+        timestamp = timestamp.isoformat().replace(
+            "+00:00",
+            "Z",
+        )
+    if not isinstance(timestamp, str):
+        raise RuntimeError("Observation timestamp is invalid.")
+
+    return {
+        **inventory,
+        "migrationVersion": migration_version,
+        "observedAt": timestamp,
+        "sourceKubernetesVersion": kubernetes_version,
+    }
+
+
+def submit_source_inventory(report):
+    return navigan_request(
+        required("NAVIGAN_API_BASE_URL"),
+        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
+        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        "source-inventory",
+        method="POST",
+        body=report,
+    )
+
+
 def run_once(
     fetch=fetch_assignment,
-    collect=collect_source_catalogue,
-    submit=submit_source_catalogue,
+    collect=None,
+    submit=None,
 ):
     assignment = fetch()
-    report = collect(assignment)
-    result = submit(report)
+    assignment_type = assignment.get("assignmentType")
 
-    if result.get("status") != "INVENTORY_READY":
+    if assignment_type == "SOURCE_CATALOGUE":
+        collector = collect or collect_source_catalogue
+        submitter = submit or submit_source_catalogue
+        expected_status = "INVENTORY_READY"
+    elif assignment_type == "SOURCE_INVENTORY":
+        collector = collect or collect_source_inventory
+        submitter = submit or submit_source_inventory
+        expected_status = "ASSESSING"
+    else:
         raise RuntimeError(
-            "Navigan did not accept the source catalogue."
+            "Unsupported migration connector assignment."
+        )
+
+    report = collector(assignment)
+    result = submitter(report)
+
+    if result.get("status") != expected_status:
+        raise RuntimeError(
+            "Navigan did not accept the connector evidence."
         )
 
     return result
-
 
 def main():
     run_once()

@@ -358,3 +358,28 @@ def test_inventory_ready_can_save_scope_and_target_selection():
     assert result["targetConfiguration"]["clusterId"] == (
         "CLU-demo"
     )
+
+
+def test_starts_detailed_inventory_after_catalogue():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.edit"})
+    service = Service(repo, access, "corr-assess")
+
+    created = service.create(create_body())
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "INVENTORY_READY"
+
+    result = service.change(
+        identifier,
+        "assess",
+        {
+            "version": 1,
+            "reason": "Collect detailed source inventory",
+            "connectorToken": "a" * 43,
+        },
+    )
+
+    assert result["status"] == "DISCOVERY_PENDING"
+    assert result["version"] == 2
+    assert result["assessmentConnector"]["status"] == "ENROLLED"
+    assert repo.connector_token == "a" * 43

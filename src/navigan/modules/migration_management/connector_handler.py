@@ -15,7 +15,10 @@ from pydantic import ValidationError
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 
-from .models import AssessmentReport, SourceCatalogueReport
+from .models import (
+    SourceCatalogueReport,
+    SourceInventoryReport,
+)
 from .repository import Repository
 
 
@@ -120,10 +123,31 @@ def assignment(db, connector, now, correlation):
     if not migration:
         raise unauthenticated()
 
-    if migration["status"] not in {
-        "SOURCE_ENROLLMENT_PENDING",
-        "INVENTORY_DISCOVERING",
-    }:
+    flows = {
+        "SOURCE_ENROLLMENT_PENDING": {
+            "activeStatus": "INVENTORY_DISCOVERING",
+            "assignmentType": "SOURCE_CATALOGUE",
+            "event": "MIGRATION_INVENTORY_STARTED",
+            "reason": "Source catalogue connector authenticated",
+        },
+        "INVENTORY_DISCOVERING": {
+            "activeStatus": "INVENTORY_DISCOVERING",
+            "assignmentType": "SOURCE_CATALOGUE",
+        },
+        "DISCOVERY_PENDING": {
+            "activeStatus": "DISCOVERING",
+            "assignmentType": "SOURCE_INVENTORY",
+            "event": "MIGRATION_DISCOVERY_STARTED",
+            "reason": "Detailed inventory connector authenticated",
+        },
+        "DISCOVERING": {
+            "activeStatus": "DISCOVERING",
+            "assignmentType": "SOURCE_INVENTORY",
+        },
+    }
+    flow = flows.get(migration["status"])
+
+    if not flow:
         raise ApiError(
             409,
             "MIGRATION_DISCOVERY_NOT_AVAILABLE",
@@ -131,14 +155,12 @@ def assignment(db, connector, now, correlation):
         )
 
     current = migration
-    if migration["status"] == "SOURCE_ENROLLMENT_PENDING":
+    if migration["status"] != flow["activeStatus"]:
         current = copy.deepcopy(migration)
-        current["status"] = "INVENTORY_DISCOVERING"
+        current["status"] = flow["activeStatus"]
         current["version"] += 1
         current["updated_by"] = connector["connector_id"]
-        current["change_reason"] = (
-            "Source catalogue connector authenticated"
-        )
+        current["change_reason"] = flow["reason"]
         current["comments"] = None
 
         Repository(
@@ -147,7 +169,7 @@ def assignment(db, connector, now, correlation):
         ).save(
             current,
             migration,
-            "MIGRATION_INVENTORY_STARTED",
+            flow["event"],
             correlation,
         )
 
@@ -163,13 +185,12 @@ def assignment(db, connector, now, correlation):
         "migrationId": current["migration_id"],
         "migrationVersion": current["version"],
         "executionMode": current["execution_mode"],
-        "assignmentType": "SOURCE_CATALOGUE",
+        "assignmentType": flow["assignmentType"],
         "source": current["source_configuration"],
         "target": current["target_configuration"],
         "scope": current["migration_scope"],
         "status": current["status"],
     }
-
 
 def body_of(event):
     raw = event.get("body") or ""
@@ -180,7 +201,7 @@ def body_of(event):
             validate=True,
         ).decode("utf-8")
 
-    if not raw or len(raw.encode("utf-8")) > 1_048_576:
+    if not raw or len(raw.encode("utf-8")) > 8 * 1024 * 1024:
         raise ApiError(
             413,
             "INVALID_ASSESSMENT_PAYLOAD",
@@ -337,7 +358,7 @@ def submit_catalogue(
     }
 
 
-def submit_assessment(
+def submit_source_inventory(
     db,
     connector,
     report,
@@ -361,59 +382,43 @@ def submit_assessment(
         raise ApiError(
             409,
             "MIGRATION_DISCOVERY_NOT_ACTIVE",
-            "Migration discovery is not active.",
+            "Detailed source inventory discovery is not active.",
         )
 
     if migration["version"] != report.migrationVersion:
         raise ApiError(
             409,
-            "STALE_MIGRATION_ASSESSMENT",
+            "STALE_MIGRATION_INVENTORY",
             "The migration configuration changed during discovery.",
         )
 
-    next_assessment = db.execute(
-        "SELECT coalesce(max(assessment_version),0) + 1 "
-        "AS assessment_version "
-        "FROM migration_management.migration_assessments "
+    next_inventory = db.execute(
+        "SELECT coalesce(max(inventory_version),0) + 1 "
+        "AS inventory_version "
+        "FROM migration_management.migration_source_inventories "
         "WHERE migration_id=%s",
         [migration["migration_id"]],
-    ).fetchone()["assessment_version"]
-
-    contains_blockers = any(
-        finding.severity == "BLOCKER"
-        for finding in report.findings
-    )
+    ).fetchone()["inventory_version"]
 
     db.execute(
-        "INSERT INTO migration_management.migration_assessments("
-        "migration_id,assessment_version,migration_version,"
-        "report_schema_version,source_kubernetes_version,"
-        "observed_at,inventory_digest,compatibility_score,"
-        "contains_blockers,inventory_summary,findings,created_by"
-        ") VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,"
-        "%s::jsonb,%s)",
+        "INSERT INTO "
+        "migration_management.migration_source_inventories("
+        "migration_id,inventory_version,migration_version,"
+        "schema_version,observed_at,source_kubernetes_version,"
+        "inventory_digest,resource_count,resources,created_by"
+        ") VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)",
         [
             migration["migration_id"],
-            next_assessment,
+            next_inventory,
             report.migrationVersion,
-            report.version,
-            report.sourceKubernetesVersion,
+            report.schemaVersion,
             report.observedAt,
+            report.sourceKubernetesVersion,
             report.inventoryDigest,
-            report.compatibilityScore,
-            contains_blockers,
+            len(report.resources),
             json.dumps(
-                report.inventorySummary,
-                separators=(",", ":"),
-            ),
-            json.dumps(
-                [
-                    finding.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-                    for finding in report.findings
-                ],
+                report.resources,
+                sort_keys=True,
                 separators=(",", ":"),
             ),
             connector["connector_id"],
@@ -421,11 +426,11 @@ def submit_assessment(
     )
 
     current = copy.deepcopy(migration)
-    current["status"] = "ASSESSMENT_READY"
+    current["status"] = "ASSESSING"
     current["version"] += 1
     current["updated_by"] = connector["connector_id"]
     current["change_reason"] = (
-        "Sanitized source assessment received"
+        "Sanitized detailed source inventory received"
     )
     current["comments"] = None
 
@@ -435,7 +440,7 @@ def submit_assessment(
     ).save(
         current,
         migration,
-        "MIGRATION_ASSESSMENT_RECEIVED",
+        "MIGRATION_SOURCE_INVENTORY_RECEIVED",
         correlation,
     )
 
@@ -443,23 +448,17 @@ def submit_assessment(
         "UPDATE migration_management.migration_connectors "
         "SET status='COMPLETED',completed_at=%s,last_seen_at=%s "
         "WHERE connector_id=%s",
-        [
-            now,
-            now,
-            connector["connector_id"],
-        ],
+        [now, now, connector["connector_id"]],
     )
 
     return {
         "connectorId": connector["connector_id"],
         "migrationId": migration["migration_id"],
-        "assessmentVersion": next_assessment,
+        "inventoryVersion": next_inventory,
         "migrationVersion": current["version"],
-        "compatibilityScore": report.compatibilityScore,
-        "containsBlockers": contains_blockers,
-        "status": "ASSESSMENT_READY",
+        "resourceCount": len(report.resources),
+        "status": "ASSESSING",
     }
-
 
 def execute(event, correlation):
     method = (
@@ -477,8 +476,8 @@ def execute(event, correlation):
         BASE + r"/(MGC-[0-9a-f]{32})/inventory",
         path,
     )
-    assessment_match = re.fullmatch(
-        BASE + r"/(MGC-[0-9a-f]{32})/assessment",
+    source_inventory_match = re.fullmatch(
+        BASE + r"/(MGC-[0-9a-f]{32})/source-inventory",
         path,
     )
 
@@ -488,9 +487,9 @@ def execute(event, correlation):
     elif inventory_match and method == "POST":
         route = "inventory"
         connector_id = inventory_match.group(1)
-    elif assessment_match and method == "POST":
-        route = "assessment"
-        connector_id = assessment_match.group(1)
+    elif source_inventory_match and method == "POST":
+        route = "source_inventory"
+        connector_id = source_inventory_match.group(1)
     else:
         raise ApiError(
             404,
@@ -503,7 +502,7 @@ def execute(event, correlation):
         for key, value in (event.get("headers") or {}).items()
     }
 
-    if route in {"inventory", "assessment"} and not headers.get(
+    if route in {"inventory", "source_inventory"} and not headers.get(
         "content-type",
         "",
     ).lower().startswith("application/json"):
@@ -543,8 +542,8 @@ def execute(event, correlation):
                 correlation,
             )
 
-        report = AssessmentReport.model_validate(payload)
-        return submit_assessment(
+        report = SourceInventoryReport.model_validate(payload)
+        return submit_source_inventory(
             db,
             connector,
             report,

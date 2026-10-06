@@ -115,7 +115,7 @@ Resources:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/POST/api/v1/migration-connectors/*/inventory
 
-  MigrationConnectorAssessmentInvokePermission:
+  MigrationConnectorSourceInventoryInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
@@ -124,7 +124,7 @@ Resources:
       SourceAccount: {Ref: 'AWS::AccountId'}
       SourceArn:
         Fn::Sub: >-
-          arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/POST/api/v1/migration-connectors/*/assessment
+          arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/POST/api/v1/migration-connectors/*/source-inventory
 
   MigrationConnectorAssignmentRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -152,13 +152,13 @@ Resources:
           - - integrations
             - {Ref: MigrationConnectorIntegration}
 
-  MigrationConnectorAssessmentRoute:
+  MigrationConnectorSourceInventoryRoute:
     Type: AWS::ApiGatewayV2::Route
-    DependsOn: MigrationConnectorAssessmentInvokePermission
+    DependsOn: MigrationConnectorSourceInventoryInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
       AuthorizationType: NONE
-      RouteKey: POST /api/v1/migration-connectors/{connectorId}/assessment
+      RouteKey: POST /api/v1/migration-connectors/{connectorId}/source-inventory
       Target:
         Fn::Join:
           - /
