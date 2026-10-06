@@ -197,6 +197,30 @@ data "aws_iam_policy_document" "bootstrap" {
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.artifacts.arn}/${local.workload_object_key}"]
   }
+
+  dynamic "statement" {
+    for_each = var.migration_connector_repository_arn == null ? [] : [1]
+
+    content {
+      sid       = "AuthenticateToEcr"
+      actions   = ["ecr:GetAuthorizationToken"]
+      resources = ["*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.migration_connector_repository_arn == null ? [] : [1]
+
+    content {
+      sid = "PullMigrationConnectorImage"
+      actions = [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+      ]
+      resources = [var.migration_connector_repository_arn]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "bootstrap" {
