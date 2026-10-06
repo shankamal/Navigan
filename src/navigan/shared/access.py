@@ -141,6 +141,15 @@ LEGACY_ROLE_PRIVILEGES = {
     ),
 }
 
+MIGRATION_ROLLOUT_PRIVILEGES = frozenset(
+    {
+        privilege
+        for privileges in LEGACY_ROLE_PRIVILEGES.values()
+        for privilege in privileges
+        if privilege.startswith("migration.")
+    }
+)
+
 
 @dataclass(frozen=True)
 class Scope:
@@ -244,12 +253,18 @@ class AccessEvaluator:
         effects = self.repository.privilege_effects(principal.user_id)
         allowed = {row["privilege_code"] for row in effects if row["effect"] == "ALLOW"}
         denied = {row["privilege_code"] for row in effects if row["effect"] == "DENY"}
+        rollout_allowed = {
+            privilege
+            for role in principal.roles
+            for privilege in LEGACY_ROLE_PRIVILEGES.get(role, ())
+            if privilege in MIGRATION_ROLLOUT_PRIVILEGES
+        }
         scopes = tuple(Scope(**row) for row in self.repository.scopes(principal.user_id))
         return EffectiveAccess(
             user_id=principal.user_id,
             display_name=user["display_name"],
             authorization_revision=int(user["authorization_revision"]),
-            privileges=frozenset(allowed - denied),
+            privileges=frozenset((allowed | rollout_allowed) - denied),
             scopes=scopes,
         )
 
