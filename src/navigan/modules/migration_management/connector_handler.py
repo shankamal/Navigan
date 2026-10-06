@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 
+from .assessment_engine import assess
 from .models import (
     SourceCatalogueReport,
     SourceInventoryReport,
@@ -358,6 +359,78 @@ def submit_catalogue(
     }
 
 
+def resolve_target_runtime(db, migration, now):
+    target = migration["target_configuration"]
+
+    target_type = target.get(
+        "targetType",
+        "EXISTING_CLUSTER",
+    )
+
+    if (
+        target.get("platform") != "EKS"
+        or target_type != "EXISTING_CLUSTER"
+        or not target.get("clusterId")
+    ):
+        raise ApiError(
+            409,
+            "TARGET_CLUSTER_REQUIRED",
+            "Select an existing EKS target cluster.",
+        )
+
+    cluster_id = target["clusterId"]
+    cluster = db.execute(
+        "SELECT cluster_id,customer_id "
+        "FROM cluster_management.clusters "
+        "WHERE cluster_id=%s AND customer_id=%s "
+        "AND coalesce(workflow->>'ownershipStatus','') "
+        "<> 'ARCHIVED'",
+        [cluster_id, migration["customer_id"]],
+    ).fetchone()
+
+    if not cluster:
+        raise ApiError(
+            409,
+            "TARGET_CLUSTER_NOT_AVAILABLE",
+            "The selected EKS target cluster is not available.",
+        )
+
+    runtime = db.execute(
+        "SELECT status,connector_id,source_revision,resources,"
+        "warning_events,metrics,observed_at,expires_at "
+        "FROM cluster_management.cluster_runtime_inventories "
+        "WHERE cluster_id=%s",
+        [cluster_id],
+    ).fetchone()
+
+    if not runtime:
+        return {
+            "clusterId": cluster_id,
+            "status": "NOT_REPORTED",
+            "resources": [],
+            "warningEvents": [],
+            "metrics": {},
+            "observedAt": None,
+            "expiresAt": None,
+        }
+
+    status = (
+        "STALE"
+        if runtime["expires_at"] <= now
+        else runtime["status"]
+    )
+
+    return {
+        "clusterId": cluster_id,
+        "status": status,
+        "resources": runtime["resources"] or [],
+        "warningEvents": runtime["warning_events"] or [],
+        "metrics": runtime["metrics"] or {},
+        "observedAt": runtime["observed_at"],
+        "expiresAt": runtime["expires_at"],
+    }
+
+
 def submit_source_inventory(
     db,
     connector,
@@ -392,6 +465,12 @@ def submit_source_inventory(
             "The migration configuration changed during discovery.",
         )
 
+    target_runtime = resolve_target_runtime(
+        db,
+        migration,
+        now,
+    )
+
     next_inventory = db.execute(
         "SELECT coalesce(max(inventory_version),0) + 1 "
         "AS inventory_version "
@@ -425,22 +504,96 @@ def submit_source_inventory(
         ],
     )
 
-    current = copy.deepcopy(migration)
-    current["status"] = "ASSESSING"
-    current["version"] += 1
-    current["updated_by"] = connector["connector_id"]
-    current["change_reason"] = (
-        "Sanitized detailed source inventory received"
-    )
-    current["comments"] = None
-
-    Repository(
+    repository = Repository(
         db,
         ConnectorPrincipal(connector["connector_id"]),
-    ).save(
-        current,
+    )
+
+    assessing = copy.deepcopy(migration)
+    assessing["status"] = "ASSESSING"
+    assessing["version"] += 1
+    assessing["updated_by"] = connector["connector_id"]
+    assessing["change_reason"] = (
+        "Sanitized detailed source inventory received"
+    )
+    assessing["comments"] = None
+
+    repository.save(
+        assessing,
         migration,
         "MIGRATION_SOURCE_INVENTORY_RECEIVED",
+        correlation,
+    )
+
+    source_inventory = {
+        "schemaVersion": report.schemaVersion,
+        "sourceKubernetesVersion": (
+            report.sourceKubernetesVersion
+        ),
+        "inventoryDigest": report.inventoryDigest,
+        "resources": report.resources,
+        "sensitiveDataIncluded": False,
+    }
+
+    generated = assess(
+        source_inventory,
+        target_runtime,
+        migration["target_configuration"],
+    )
+
+    next_assessment = db.execute(
+        "SELECT coalesce(max(assessment_version),0) + 1 "
+        "AS assessment_version "
+        "FROM migration_management.migration_assessments "
+        "WHERE migration_id=%s",
+        [migration["migration_id"]],
+    ).fetchone()["assessment_version"]
+
+    db.execute(
+        "INSERT INTO migration_management.migration_assessments("
+        "migration_id,assessment_version,migration_version,"
+        "report_schema_version,source_kubernetes_version,"
+        "observed_at,inventory_digest,compatibility_score,"
+        "contains_blockers,inventory_summary,findings,created_by"
+        ") VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,"
+        "%s::jsonb,%s)",
+        [
+            migration["migration_id"],
+            next_assessment,
+            report.migrationVersion,
+            generated["reportSchemaVersion"],
+            generated["sourceKubernetesVersion"],
+            generated["observedAt"],
+            generated["inventoryDigest"],
+            generated["compatibilityScore"],
+            generated["containsBlockers"],
+            json.dumps(
+                generated["inventorySummary"],
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                generated["findings"],
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            "NAVIGAN_ASSESSMENT_ENGINE",
+        ],
+    )
+
+    completed = copy.deepcopy(assessing)
+    completed["status"] = "ASSESSMENT_READY"
+    completed["version"] += 1
+    completed["updated_by"] = "NAVIGAN_ASSESSMENT_ENGINE"
+    completed["change_reason"] = (
+        "Trusted migration feasibility report generated"
+    )
+    completed["comments"] = None
+
+    repository.save(
+        completed,
+        assessing,
+        "MIGRATION_ASSESSMENT_GENERATED",
         correlation,
     )
 
@@ -455,9 +608,12 @@ def submit_source_inventory(
         "connectorId": connector["connector_id"],
         "migrationId": migration["migration_id"],
         "inventoryVersion": next_inventory,
-        "migrationVersion": current["version"],
+        "assessmentVersion": next_assessment,
+        "migrationVersion": completed["version"],
         "resourceCount": len(report.resources),
-        "status": "ASSESSING",
+        "compatibilityScore": generated["compatibilityScore"],
+        "containsBlockers": generated["containsBlockers"],
+        "status": "ASSESSMENT_READY",
     }
 
 def execute(event, correlation):

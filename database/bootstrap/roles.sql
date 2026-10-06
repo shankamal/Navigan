@@ -63,6 +63,7 @@ GRANT SELECT,INSERT,UPDATE ON
 GRANT SELECT,INSERT ON
  migration_management.migration_versions,
  migration_management.migration_source_catalogues,
+ migration_management.migration_source_inventories,
  migration_management.migration_assessments,
  migration_management.migration_status_history,
  migration_management.migration_audit_log TO navigan_api;

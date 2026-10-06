@@ -279,15 +279,43 @@ def source_inventory_report(migration_version=2):
     )
 
 
-def test_source_inventory_is_stored_without_connector_score(
+def test_source_inventory_generates_trusted_assessment(
     monkeypatch,
 ):
     db = MagicMock()
+    migration = migration_row("DISCOVERING")
+    migration["target_configuration"] = {
+        "platform": "EKS",
+        "targetType": "EXISTING_CLUSTER",
+        "clusterId": "CLU-demo",
+        "clusterName": "demo-eks",
+    }
     db.execute.return_value.fetchone.side_effect = [
-        migration_row("DISCOVERING"),
+        migration,
+        {
+            "cluster_id": "CLU-demo",
+            "customer_id": "CUS-demo",
+        },
+        {
+            "status": "READY",
+            "connector_id": "CON-target",
+            "source_revision": 1,
+            "resources": [],
+            "warning_events": [],
+            "metrics": {
+                "nodeCount": 3,
+                "readyNodeCount": 3,
+            },
+            "observed_at": NOW,
+            "expires_at": NOW.replace(hour=9),
+        },
         {"inventory_version": 1},
+        {"assessment_version": 1},
     ]
-    saved = {}
+    saved = {
+        "actions": [],
+        "statuses": [],
+    }
 
     class FakeRepository:
         def __init__(self, observed_db, principal):
@@ -295,8 +323,8 @@ def test_source_inventory_is_stored_without_connector_score(
             saved["principal"] = principal.user_id
 
         def save(self, row, old, action, correlation):
-            saved["row"] = row
-            saved["action"] = action
+            saved["actions"].append(action)
+            saved["statuses"].append(row["status"])
             saved["correlation"] = correlation
 
     monkeypatch.setattr(
@@ -313,21 +341,55 @@ def test_source_inventory_is_stored_without_connector_score(
         "corr-source-inventory",
     )
 
-    assert result["status"] == "ASSESSING"
-    assert result["migrationVersion"] == 3
+    assert result["status"] == "ASSESSMENT_READY"
+    assert result["migrationVersion"] == 4
     assert result["inventoryVersion"] == 1
+    assert result["assessmentVersion"] == 1
     assert result["resourceCount"] == 1
+    assert result["compatibilityScore"] == 100
+    assert result["containsBlockers"] is False
+
     assert saved["principal"] == CONNECTOR_ID
-    assert (
-        saved["action"]
-        == "MIGRATION_SOURCE_INVENTORY_RECEIVED"
-    )
+    assert saved["statuses"] == [
+        "ASSESSING",
+        "ASSESSMENT_READY",
+    ]
+    assert saved["actions"] == [
+        "MIGRATION_SOURCE_INVENTORY_RECEIVED",
+        "MIGRATION_ASSESSMENT_GENERATED",
+    ]
 
     calls = repr(db.execute.call_args_list)
     assert "migration_source_inventories" in calls
-    assert "compatibility_score" not in calls
-    assert "findings" not in calls
+    assert "migration_assessments" in calls
+    assert "NAVIGAN_ASSESSMENT_ENGINE" in calls
     assert "COMPLETED" in calls
+
+
+def test_source_inventory_rejects_cross_customer_target():
+    db = MagicMock()
+    migration = migration_row("DISCOVERING")
+    migration["target_configuration"] = {
+        "platform": "EKS",
+        "targetType": "EXISTING_CLUSTER",
+        "clusterId": "CLU-demo",
+        "clusterName": "demo-eks",
+    }
+    db.execute.return_value.fetchone.side_effect = [
+        migration,
+        None,
+    ]
+
+    with pytest.raises(ApiError) as error:
+        connector_handler.submit_source_inventory(
+            db,
+            connector(status="ACTIVE"),
+            source_inventory_report(),
+            NOW,
+            "corr-target",
+        )
+
+    assert error.value.code == "TARGET_CLUSTER_NOT_AVAILABLE"
 
 
 def test_source_inventory_rejects_stale_migration_version():
