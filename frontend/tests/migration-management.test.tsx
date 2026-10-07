@@ -444,6 +444,17 @@ describe("Migration UI", () => {
               message: "Load balancer translation required.",
               remediation: "Generate approved AWS annotations.",
             },
+            {
+              code: "LOAD_BALANCER_TRANSLATION",
+              severity: "WARNING",
+              category: "NETWORK",
+              disposition: "AUTOMATED_CHANGE",
+              namespace: "retailflow",
+              resourceKind: "Service",
+              resourceName: "retailflow",
+              message: "A second load balancer translation is required.",
+              remediation: "Generate the second approved AWS annotation set.",
+            },
           ],
           createdBy: "NAVIGAN_ASSESSMENT_ENGINE",
           createdAt: "2026-10-06T08:00:01Z",
@@ -462,6 +473,9 @@ describe("Migration UI", () => {
     expect(
       screen.getByText("Load balancer translation required."),
     ).toBeInTheDocument();
-    expect(screen.getByText("AUTOMATED CHANGE")).toBeInTheDocument();
+    expect(
+      screen.getByText("A second load balancer translation is required."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Automated changes")).toBeInTheDocument();
   });
 });
