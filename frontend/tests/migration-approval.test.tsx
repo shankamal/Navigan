@@ -36,6 +36,7 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
           clusterId: "CLU-active",
           customerId: "CUS-demo",
           environmentId: "ENV-active",
+          environmentApprovedVersion: 16,
           platform: "EKS",
           clusterName: "Active EKS cluster",
           status: "ACTIVE",

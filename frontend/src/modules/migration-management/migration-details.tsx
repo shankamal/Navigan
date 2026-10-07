@@ -82,7 +82,6 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const targetClusters = (clustersQuery.data?.items ?? []).filter(
     (cluster) =>
       cluster.customerId === migration?.customerId &&
-      cluster.environmentId === targetEnvironmentId &&
       cluster.platform === "EKS" &&
       cluster.status === "ACTIVE",
   );
@@ -249,9 +248,12 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         throw new Error("Select workloads and an eligible target cluster.");
       }
       const environmentApprovedVersion = Number(
-        migration.targetConfiguration.environmentApprovedVersion,
+        selectedAssessmentTarget.environmentApprovedVersion,
       );
-      if (!targetEnvironmentId || !environmentApprovedVersion) {
+      if (
+        !selectedAssessmentTarget.environmentId ||
+        !environmentApprovedVersion
+      ) {
         throw new Error("The approved target environment is unavailable.");
       }
 
@@ -265,7 +267,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         target: {
           platform: "EKS",
           targetType: "EXISTING_CLUSTER",
-          environmentId: targetEnvironmentId,
+          environmentId: selectedAssessmentTarget.environmentId,
           environmentApprovedVersion,
           clusterId: selectedAssessmentTarget.clusterId,
           clusterName: selectedAssessmentTarget.clusterName,
