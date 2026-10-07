@@ -67,6 +67,43 @@ CATALOGUE_RESOURCE_PATHS = (
     (NAMESPACED_RESOURCE_PATHS[10], "PodDisruptionBudget"),
 )
 
+RESOURCE_TYPE_BY_PATH = {
+    NAMESPACED_RESOURCE_PATHS[0]: ("apps/v1", "Deployment"),
+    NAMESPACED_RESOURCE_PATHS[1]: ("apps/v1", "StatefulSet"),
+    NAMESPACED_RESOURCE_PATHS[2]: ("apps/v1", "DaemonSet"),
+    NAMESPACED_RESOURCE_PATHS[3]: ("batch/v1", "Job"),
+    NAMESPACED_RESOURCE_PATHS[4]: ("batch/v1", "CronJob"),
+    NAMESPACED_RESOURCE_PATHS[5]: ("v1", "Service"),
+    NAMESPACED_RESOURCE_PATHS[6]: (
+        "v1",
+        "PersistentVolumeClaim",
+    ),
+    NAMESPACED_RESOURCE_PATHS[7]: (
+        "networking.k8s.io/v1",
+        "Ingress",
+    ),
+    NAMESPACED_RESOURCE_PATHS[8]: (
+        "networking.k8s.io/v1",
+        "NetworkPolicy",
+    ),
+    NAMESPACED_RESOURCE_PATHS[9]: (
+        "autoscaling/v2",
+        "HorizontalPodAutoscaler",
+    ),
+    NAMESPACED_RESOURCE_PATHS[10]: (
+        "policy/v1",
+        "PodDisruptionBudget",
+    ),
+    CLUSTER_RESOURCE_PATHS[0]: (
+        "storage.k8s.io/v1",
+        "StorageClass",
+    ),
+    CLUSTER_RESOURCE_PATHS[1]: (
+        "apiextensions.k8s.io/v1",
+        "CustomResourceDefinition",
+    ),
+}
+
 
 class RejectRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(
@@ -247,6 +284,28 @@ def resource_items(payload):
     return items
 
 
+def resource_from_endpoint(resource, api_version, kind):
+    """Restore omitted Kubernetes TypeMeta from an allowlisted endpoint."""
+    if not isinstance(resource, dict):
+        return resource
+
+    observed_api_version = resource.get("apiVersion")
+    observed_kind = resource.get("kind")
+    if observed_api_version not in {None, api_version}:
+        raise UnsafeInventory(
+            "Kubernetes API returned an unexpected resource version."
+        )
+    if observed_kind not in {None, kind}:
+        raise UnsafeInventory(
+            "Kubernetes API returned an unexpected resource kind."
+        )
+
+    typed = dict(resource)
+    typed.setdefault("apiVersion", api_version)
+    typed.setdefault("kind", kind)
+    return typed
+
+
 def selected_namespaces(assignment, request):
     scope = assignment.get("scope")
     if not isinstance(scope, dict):
@@ -303,7 +362,11 @@ def collect_inventory(assignment, request=kubernetes_request):
     sanitized = []
 
     for raw in resource_items(request("/api/v1/nodes")):
-        sanitized.append(sanitize_resource(raw))
+        sanitized.append(
+            sanitize_resource(
+                resource_from_endpoint(raw, "v1", "Node")
+            )
+        )
 
     namespaces = selected_namespaces(assignment, request)
     for namespace in namespaces:
@@ -325,8 +388,17 @@ def collect_inventory(assignment, request=kubernetes_request):
             path = template.format(
                 namespace=encoded_namespace
             )
+            api_version, kind = RESOURCE_TYPE_BY_PATH[template]
             for raw in resource_items(request(path)):
-                sanitized.append(sanitize_resource(raw))
+                sanitized.append(
+                    sanitize_resource(
+                        resource_from_endpoint(
+                            raw,
+                            api_version,
+                            kind,
+                        )
+                    )
+                )
                 if len(sanitized) > MAX_RESOURCES:
                     raise UnsafeInventory(
                         "Inventory resource limit exceeded."
@@ -334,8 +406,17 @@ def collect_inventory(assignment, request=kubernetes_request):
 
     if scope.get("includeClusterScopedResources") is True:
         for path in CLUSTER_RESOURCE_PATHS:
+            api_version, kind = RESOURCE_TYPE_BY_PATH[path]
             for raw in resource_items(request(path)):
-                sanitized.append(sanitize_resource(raw))
+                sanitized.append(
+                    sanitize_resource(
+                        resource_from_endpoint(
+                            raw,
+                            api_version,
+                            kind,
+                        )
+                    )
+                )
                 if len(sanitized) > MAX_RESOURCES:
                     raise UnsafeInventory(
                         "Inventory resource limit exceeded."

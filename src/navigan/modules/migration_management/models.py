@@ -465,13 +465,13 @@ SOURCE_INVENTORY_KEYS = {
         "versions",
     },
     "HorizontalPodAutoscaler": {
-        "minReplicas",
-        "maxReplicas",
+        "minimumReplicas",
+        "maximumReplicas",
         "targetKind",
     },
     "PodDisruptionBudget": {
-        "minAvailable",
-        "maxUnavailable",
+        "minimumAvailable",
+        "maximumUnavailable",
     },
     "NetworkPolicy": {
         "policyTypes",
@@ -628,12 +628,14 @@ class SourceInventoryReport(Model):
 
             identity = (
                 kind,
+                api_version,
                 namespace or "",
                 name or "",
-                resource.get("architecture") or "",
-                resource.get("kubernetesVersion") or "",
             )
-            if identity in seen:
+            # Node names are intentionally omitted from the sanitized
+            # inventory. Multiple nodes may therefore have the same safe
+            # runtime fingerprint and must remain countable.
+            if kind != "Node" and identity in seen:
                 raise ValueError(
                     "Duplicate source inventory resource."
                 )

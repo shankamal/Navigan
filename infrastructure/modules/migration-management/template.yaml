@@ -412,6 +412,17 @@ Resources:
       RouteKey: POST /api/v1/migrations/{migrationId}/discover
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
+  AssessMigrationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/assess
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
   SubmitMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission
