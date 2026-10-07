@@ -3,8 +3,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { useClusters } from "@/modules/cluster-management/hooks/queries";
 import { normalizeApiError } from "@/shared/api/client";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
@@ -14,6 +15,7 @@ import { AssessmentReportCard } from "./assessment-report";
 import {
   useMigration,
   useMigrationAssessment,
+  useSourceCatalogue,
   useSourceClusters,
 } from "./hooks";
 import type {
@@ -43,10 +45,27 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     "/etc/kubernetes/admin.conf",
   );
   const [sourceError, setSourceError] = useState("");
+  const [assessmentNamespaces, setAssessmentNamespaces] = useState<string[]>(
+    [],
+  );
+  const [assessmentTargetClusterId, setAssessmentTargetClusterId] =
+    useState("");
+  const [assessmentScopeSaved, setAssessmentScopeSaved] = useState(false);
+  const [assessmentMigrationVersion, setAssessmentMigrationVersion] = useState<
+    number | null
+  >(null);
+  const [assessmentError, setAssessmentError] = useState("");
   const migrationQuery = useMigration(migrationId);
   const migration = migrationQuery.data;
   const assessmentQuery = useMigrationAssessment(migrationId, true);
   const assessment = assessmentQuery.data?.assessment ?? null;
+  const catalogueQuery = useSourceCatalogue(migrationId);
+  const sourceCatalogue = catalogueQuery.data?.catalogue ?? null;
+  const clustersQuery = useClusters({
+    page: 0,
+    pageSize: 100,
+    status: "ACTIVE",
+  });
   const sourceClustersQuery = useSourceClusters(migration?.customerId ?? "");
   const sourceClusterId =
     typeof migration?.sourceConfiguration.sourceClusterId === "string"
@@ -56,6 +75,33 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     (item) => item.sourceClusterId === sourceClusterId,
   );
   const effectiveSourceCluster = registeredSource ?? sourceCluster;
+  const targetEnvironmentId =
+    typeof migration?.targetConfiguration.environmentId === "string"
+      ? migration.targetConfiguration.environmentId
+      : "";
+  const targetClusters = (clustersQuery.data?.items ?? []).filter(
+    (cluster) =>
+      cluster.customerId === migration?.customerId &&
+      cluster.environmentId === targetEnvironmentId &&
+      cluster.platform === "EKS" &&
+      cluster.status === "ACTIVE",
+  );
+  const selectedAssessmentTarget = targetClusters.find(
+    (cluster) => cluster.clusterId === assessmentTargetClusterId,
+  );
+  const persistedNamespaces = Array.isArray(
+    migration?.migrationScope.namespaces,
+  )
+    ? migration.migrationScope.namespaces.filter(
+        (namespace): namespace is string => typeof namespace === "string",
+      )
+    : [];
+  const persistedTargetClusterId =
+    typeof migration?.targetConfiguration.clusterId === "string"
+      ? migration.targetConfiguration.clusterId
+      : "";
+  const persistedScopeReady =
+    persistedNamespaces.length > 0 && Boolean(persistedTargetClusterId);
   const matchingPendingSource =
     registeredSource ??
     sourceClustersQuery.data?.items.find(
@@ -192,6 +238,85 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     },
   });
 
+  const assessmentScope = useMutation({
+    mutationFn: async () => {
+      if (
+        !migration ||
+        !sourceClusterId ||
+        !selectedAssessmentTarget ||
+        assessmentNamespaces.length === 0
+      ) {
+        throw new Error("Select workloads and an eligible target cluster.");
+      }
+      const environmentApprovedVersion = Number(
+        migration.targetConfiguration.environmentApprovedVersion,
+      );
+      if (!targetEnvironmentId || !environmentApprovedVersion) {
+        throw new Error("The approved target environment is unavailable.");
+      }
+
+      return migrations.update(migration.migrationId, {
+        version: catalogueQuery.data?.version ?? migration.version,
+        source: {
+          platform: "SELF_MANAGED_KUBERNETES",
+          sourceClusterId,
+          accessMode: "READ_ONLY_CONNECTOR",
+        },
+        target: {
+          platform: "EKS",
+          targetType: "EXISTING_CLUSTER",
+          environmentId: targetEnvironmentId,
+          environmentApprovedVersion,
+          clusterId: selectedAssessmentTarget.clusterId,
+          clusterName: selectedAssessmentTarget.clusterName,
+          endpointAccess: "PRIVATE",
+        },
+        scope: {
+          namespaces: assessmentNamespaces,
+          excludeNamespaces: ["kube-node-lease", "kube-public", "kube-system"],
+          includeClusterScopedResources: false,
+          includePersistentData: false,
+        },
+        changeReason: "Save discovered workload scope and target cluster",
+      });
+    },
+    onSuccess: async (updated) => {
+      setAssessmentScopeSaved(true);
+      setAssessmentMigrationVersion(updated.version);
+      setAssessmentError("");
+      await cache.invalidateQueries({
+        queryKey: ["migrations", migrationId],
+      });
+    },
+    onError: (error) => {
+      setAssessmentError(normalizeApiError(error).message);
+    },
+  });
+
+  const detailedAssessment = useMutation({
+    mutationFn: async () => {
+      if (!migration) {
+        throw new Error("Migration is unavailable.");
+      }
+      return migrations.assess(
+        migration.migrationId,
+        assessmentMigrationVersion ?? migration.version,
+      );
+    },
+    onSuccess: async () => {
+      setAssessmentError("");
+      await cache.invalidateQueries({
+        queryKey: ["migrations", migrationId],
+      });
+      await cache.invalidateQueries({
+        queryKey: ["migrations", migrationId, "assessment"],
+      });
+    },
+    onError: (error) => {
+      setAssessmentError(normalizeApiError(error).message);
+    },
+  });
+
   const action = useMutation({
     mutationFn: async ({
       name,
@@ -228,10 +353,32 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const canPrepareSource =
     migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
     hasPermission(identity, "migration.edit");
+  const canEditAssessment = hasPermission(identity, "migration.edit");
   const sourceRegistrationMissing =
     migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
     !sourceClustersQuery.isPending &&
     (!sourceClusterId || !sourceCluster);
+
+  useEffect(() => {
+    if (assessmentNamespaces.length === 0) {
+      if (persistedNamespaces.length > 0) {
+        setAssessmentNamespaces(persistedNamespaces);
+      } else if (sourceCatalogue) {
+        setAssessmentNamespaces(
+          sourceCatalogue.namespaces.map((namespace) => namespace.name),
+        );
+      }
+    }
+    if (!assessmentTargetClusterId && persistedTargetClusterId) {
+      setAssessmentTargetClusterId(persistedTargetClusterId);
+    }
+  }, [
+    assessmentNamespaces.length,
+    assessmentTargetClusterId,
+    persistedNamespaces,
+    persistedTargetClusterId,
+    sourceCatalogue,
+  ]);
 
   function downloadSourceBootstrap() {
     if (!sourceEnrollment || !effectiveSourceCluster) return;
@@ -562,6 +709,119 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                     </p>
                   )}
                   {sourceError && <p role="alert">{sourceError}</p>}
+                </>
+              )}
+            </section>
+          )}
+
+          {migration.status === "INVENTORY_READY" && (
+            <section className={`panel ${styles.connectionCard}`}>
+              <div>
+                <h2>Continue migration assessment</h2>
+                <p className="muted">
+                  Select the discovered workloads and target EKS cluster, then
+                  assign detailed read-only inventory collection.
+                </p>
+              </div>
+
+              {catalogueQuery.isPending && <p>Loading source catalogue…</p>}
+              {catalogueQuery.isError && (
+                <p role="alert">Unable to load the source catalogue.</p>
+              )}
+
+              {sourceCatalogue && (
+                <>
+                  <fieldset className={styles.namespaceList}>
+                    <legend>Workloads to assess</legend>
+                    {sourceCatalogue.namespaces.map((namespace) => (
+                      <label key={namespace.name}>
+                        <input
+                          type="checkbox"
+                          checked={assessmentNamespaces.includes(
+                            namespace.name,
+                          )}
+                          onChange={() =>
+                            setAssessmentNamespaces((current) =>
+                              current.includes(namespace.name)
+                                ? current.filter(
+                                    (item) => item !== namespace.name,
+                                  )
+                                : [...current, namespace.name],
+                            )
+                          }
+                        />
+                        <span>{namespace.name}</span>
+                        <small>
+                          {Object.values(namespace.resourceCounts).reduce(
+                            (total, count) => total + count,
+                            0,
+                          )}{" "}
+                          discovered resources
+                        </small>
+                      </label>
+                    ))}
+                  </fieldset>
+
+                  <label className="field">
+                    <span>Target EKS cluster</span>
+                    <select
+                      value={
+                        assessmentTargetClusterId || persistedTargetClusterId
+                      }
+                      onChange={(event) =>
+                        setAssessmentTargetClusterId(event.target.value)
+                      }
+                    >
+                      <option value="">
+                        Select an eligible target cluster
+                      </option>
+                      {targetClusters.map((cluster) => (
+                        <option
+                          key={cluster.clusterId}
+                          value={cluster.clusterId}
+                        >
+                          {cluster.clusterName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {!assessmentScopeSaved && !persistedScopeReady ? (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={
+                        !canEditAssessment ||
+                        assessmentScope.isPending ||
+                        assessmentNamespaces.length === 0 ||
+                        !assessmentTargetClusterId
+                      }
+                      onClick={() => assessmentScope.mutate()}
+                    >
+                      {assessmentScope.isPending
+                        ? "Saving assessment scope…"
+                        : "Save assessment scope"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={
+                        !canEditAssessment ||
+                        detailedAssessment.isPending ||
+                        detailedAssessment.isSuccess
+                      }
+                      onClick={() => detailedAssessment.mutate()}
+                    >
+                      {detailedAssessment.isPending
+                        ? "Starting detailed assessment…"
+                        : detailedAssessment.isSuccess
+                          ? "Assessment assigned"
+                          : "Start detailed assessment"}
+                    </button>
+                  )}
+
+                  {assessmentError && <p role="alert">{assessmentError}</p>}
                 </>
               )}
             </section>

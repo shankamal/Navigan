@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   status: "ASSESSMENT_READY",
   deliveryMethod: "MANUAL_HELM",
   action: vi.fn(),
+  update: vi.fn(),
+  assess: vi.fn(),
   enroll: vi.fn(),
   install: vi.fn(),
 }));
@@ -26,6 +28,25 @@ vi.mock("@/shared/auth/auth-provider", () => ({
   }),
 }));
 
+vi.mock("@/modules/cluster-management/hooks/queries", () => ({
+  useClusters: () => ({
+    data: {
+      items: [
+        {
+          clusterId: "CLU-active",
+          customerId: "CUS-demo",
+          environmentId: "ENV-active",
+          platform: "EKS",
+          clusterName: "Active EKS cluster",
+          status: "ACTIVE",
+        },
+      ],
+    },
+    isPending: false,
+    isError: false,
+  }),
+}));
+
 vi.mock("@/modules/migration-management/hooks", () => ({
   useMigration: () => ({
     data: {
@@ -37,7 +58,10 @@ vi.mock("@/modules/migration-management/hooks", () => ({
       sourceConfiguration: {
         sourceClusterId: "SRC-" + "b".repeat(32),
       },
-      targetConfiguration: {},
+      targetConfiguration: {
+        environmentId: "ENV-active",
+        environmentApprovedVersion: 16,
+      },
       migrationScope: {},
     },
     isPending: false,
@@ -45,6 +69,32 @@ vi.mock("@/modules/migration-management/hooks", () => ({
   }),
   useMigrationAssessment: () => ({
     data: { assessment: null },
+    isPending: false,
+    isError: false,
+  }),
+  useSourceCatalogue: () => ({
+    data: {
+      migrationId: "MIG-" + "a".repeat(32),
+      version: 7,
+      status: state.status,
+      catalogue: {
+        catalogueVersion: 1,
+        migrationVersion: 6,
+        schemaVersion: 1,
+        observedAt: "2026-10-06T19:29:02Z",
+        sourceKubernetesVersion: "v1.31.0",
+        inventoryDigest: "a".repeat(64),
+        nodeCount: 3,
+        architectures: ["amd64"],
+        namespaces: [
+          {
+            name: "retailflow",
+            resourceCounts: { Deployment: 2, Service: 1 },
+          },
+        ],
+        createdAt: "2026-10-06T19:29:02Z",
+      },
+    },
     isPending: false,
     isError: false,
   }),
@@ -73,6 +123,8 @@ vi.mock("@/modules/migration-management/hooks", () => ({
 vi.mock("@/modules/migration-management/service", () => ({
   migrations: {
     action: state.action,
+    update: state.update,
+    assess: state.assess,
   },
   sourceClusters: {
     enroll: state.enroll,
@@ -99,6 +151,29 @@ describe("Migration approval gate", () => {
     state.deliveryMethod = "MANUAL_HELM";
     state.action.mockReset();
     state.action.mockResolvedValue({});
+    state.update.mockReset();
+    state.update.mockResolvedValue({
+      migrationId: "MIG-" + "a".repeat(32),
+      customerId: "CUS-demo",
+      name: "RetailFlow migration",
+      status: "INVENTORY_READY",
+      version: 8,
+      sourceConfiguration: {
+        sourceClusterId: "SRC-" + "b".repeat(32),
+      },
+      targetConfiguration: {
+        environmentId: "ENV-active",
+        environmentApprovedVersion: 16,
+        clusterId: "CLU-active",
+      },
+      migrationScope: { namespaces: ["retailflow"] },
+    });
+    state.assess.mockReset();
+    state.assess.mockResolvedValue({
+      migrationId: "MIG-" + "a".repeat(32),
+      status: "DISCOVERY_PENDING",
+      version: 9,
+    });
     state.enroll.mockReset();
     state.enroll.mockResolvedValue({
       enrollmentId: "SCE-" + "c".repeat(32),
@@ -150,6 +225,39 @@ describe("Migration approval gate", () => {
     expect(
       await screen.findByText("Connector installation started"),
     ).toBeInTheDocument();
+  });
+
+  it("resumes an inventory-ready migration and starts assessment", async () => {
+    state.status = "INVENTORY_READY";
+    renderDetails();
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Continue migration assessment",
+      }),
+    ).toBeInTheDocument();
+    const workload = screen.getByRole("checkbox", {
+      name: /retailflow/i,
+    });
+    await waitFor(() => expect(workload).toBeChecked());
+
+    fireEvent.change(screen.getByLabelText("Target EKS cluster"), {
+      target: { value: "CLU-active" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save assessment scope" }),
+    );
+
+    await waitFor(() => expect(state.update).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Start detailed assessment",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(state.assess).toHaveBeenCalledWith("MIG-" + "a".repeat(32), 8),
+    );
   });
 
   it("allows the Cloud Engineer to submit a completed assessment", async () => {
