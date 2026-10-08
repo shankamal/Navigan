@@ -493,7 +493,7 @@ describe("Migration UI", () => {
     expect(screen.getByLabelText("Assessment summary")).toBeInTheDocument();
     expect(screen.getByText("Assessed")).toBeInTheDocument();
     expect(screen.getByText("Critical")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Findings (2)" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Findings (2)" }));
     expect(
       screen.getAllByText("Load balancer translation required."),
     ).toHaveLength(1);

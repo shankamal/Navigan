@@ -211,50 +211,63 @@ function findingStatus(finding: Finding) {
 const inventoryTabs: Array<{
   id: ReportTab;
   label: string;
+  icon: typeof CheckCircle2;
   kinds?: string[];
 }> = [
-  { id: "summary", label: "Summary" },
-  { id: "advanced", label: "Advanced readiness" },
-  { id: "coverage", label: "Inventory coverage" },
-  { id: "findings", label: "Findings" },
+  { id: "summary", label: "Summary", icon: FileText },
+  {
+    id: "advanced",
+    label: "Advanced readiness",
+    icon: WandSparkles,
+  },
+  { id: "coverage", label: "Inventory coverage", icon: Database },
+  { id: "findings", label: "Findings", icon: AlertTriangle },
   {
     id: "cluster",
     label: "Nodes & namespaces",
+    icon: Server,
     kinds: ["Node", "Namespace"],
   },
   {
     id: "configuration",
     label: "Configuration & secrets",
+    icon: ClipboardCheck,
     kinds: ["ConfigMap", "Secret"],
   },
   {
     id: "workloads",
     label: "Workloads",
+    icon: Server,
     kinds: ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"],
   },
   {
     id: "networking",
     label: "Networking",
+    icon: Network,
     kinds: ["Service", "Ingress", "NetworkPolicy"],
   },
   {
     id: "storage",
     label: "Storage",
+    icon: Database,
     kinds: ["PersistentVolumeClaim", "StorageClass"],
   },
   {
     id: "scaling",
     label: "Scaling & resilience",
+    icon: Wrench,
     kinds: ["HorizontalPodAutoscaler", "PodDisruptionBudget"],
   },
   {
     id: "images",
     label: "Images & security",
+    icon: ShieldCheck,
     kinds: ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"],
   },
   {
     id: "extensions",
     label: "Extensions & access",
+    icon: UserRound,
     kinds: [
       "CustomResourceDefinition",
       "ServiceAccount",
@@ -266,7 +279,7 @@ const inventoryTabs: Array<{
       "ValidatingWebhookConfiguration",
     ],
   },
-  { id: "evidence", label: "Evidence" },
+  { id: "evidence", label: "Evidence", icon: CheckCircle2 },
 ];
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -869,8 +882,13 @@ export function AssessmentReportCard({
         })}
       </div>
 
-      <nav className="migration-report-tabs" aria-label="Report sections">
+      <nav
+        className="migration-report-tabs"
+        aria-label="Report sections"
+        role="tablist"
+      >
         {inventoryTabs.map((tab) => {
+          const TabIcon = tab.icon;
           const countLabel =
             tab.id === "coverage"
               ? `${report.inventorySummary.resourceCount}`
@@ -889,18 +907,34 @@ export function AssessmentReportCard({
             <button
               type="button"
               className={activeTab === tab.id ? "active" : undefined}
-              aria-current={activeTab === tab.id ? "page" : undefined}
+              id={`migration-report-tab-${tab.id}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls="migration-report-panel"
+              aria-label={`${tab.label}${
+                countLabel !== undefined ? ` (${countLabel})` : ""
+              }`}
               onClick={() => setActiveTab(tab.id)}
               key={tab.id}
             >
-              {tab.label}
-              {countLabel !== undefined ? ` (${countLabel})` : ""}
+              <span className="migration-report-tab-icon" aria-hidden="true">
+                <TabIcon size={18} />
+              </span>
+              <span className="migration-report-tab-label">{tab.label}</span>
+              {countLabel !== undefined && (
+                <span className="migration-report-tab-count">{countLabel}</span>
+              )}
             </button>
           );
         })}
       </nav>
 
-      <div className="migration-report-body">
+      <div
+        className="migration-report-body"
+        id="migration-report-panel"
+        role="tabpanel"
+        aria-labelledby={`migration-report-tab-${activeTab}`}
+      >
         <main>
           {activeTab === "summary" && (
             <>
