@@ -11,14 +11,19 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Building2,
   Check,
   ChevronDown,
+  Clock3,
   CloudCog,
   EllipsisVertical,
   ExternalLink,
+  Filter,
   KeyRound,
+  Layers3,
   Network,
   Plus,
+  RefreshCw,
   Search,
   ShieldCheck,
   Trash2,
@@ -53,6 +58,7 @@ import type {
   ClusterInput,
   ClusterNodeGroupInput,
 } from "./model";
+import "./cluster-directory.css";
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value)
@@ -128,6 +134,26 @@ const statusLabels: Record<string, string> = {
 function clusterStatusLabel(status: string): string {
   return statusLabels[status] || status.replaceAll("_", " ");
 }
+
+const clusterStatusDescriptions: Record<string, string> = {
+  DRAFT: "Configuration in progress",
+  SUBMITTED: "Awaiting architecture review",
+  UNDER_REVIEW: "Architecture review in progress",
+  APPROVED: "Approved for planning",
+  PLAN_RUNNING: "Generating Terraform plan",
+  PLAN_READY: "Certified plan ready to apply",
+  APPLYING: "Provisioning cloud resources",
+  BOOTSTRAPPING: "Installing Navigan platform services",
+  BOOTSTRAP_FAILED: "Platform service installation failed",
+  ACTIVE: "Cluster is operational",
+  STOPPING: "Scaling worker capacity down",
+  STOPPED: "Worker capacity is stopped",
+  STARTING: "Restoring worker capacity",
+  DELETING: "Cluster deletion in progress",
+  DELETED: "Cluster has been removed",
+  FAILED: "Provisioning requires remediation",
+  REJECTED: "Returned for changes",
+};
 
 function identityDisplayName(subject: {
   type: "USER" | "GROUP";
@@ -385,24 +411,88 @@ export function ClusterAdminPage({
   const planReady = useClusterCount("PLAN_READY", mode === "operations");
   const applying = useClusterCount("APPLYING", mode === "operations");
   const failed = useClusterCount("FAILED", mode === "operations");
+  const activeRate =
+    mode === "directory" && total.data
+      ? Math.round(((active.data ?? 0) / total.data) * 100)
+      : 0;
   const metrics =
     mode === "reviews"
       ? [
-          { label: "Submitted", value: submitted.data, icon: ShieldCheck },
-          { label: "Under review", value: underReview.data, icon: Search },
+          {
+            label: "Submitted",
+            value: submitted.data,
+            icon: ShieldCheck,
+            note: "Awaiting review",
+            tone: "blue",
+          },
+          {
+            label: "Under review",
+            value: underReview.data,
+            icon: Search,
+            note: "Decision in progress",
+            tone: "violet",
+          },
         ]
       : mode === "operations"
         ? [
-            { label: "Plan ready", value: planReady.data, icon: ShieldCheck },
-            { label: "Applying", value: applying.data, icon: CloudCog },
-            { label: "Failed", value: failed.data, icon: Network },
-            { label: "Active", value: active.data, icon: Check },
+            {
+              label: "Plan ready",
+              value: planReady.data,
+              icon: ShieldCheck,
+              note: "Certified for apply",
+              tone: "violet",
+            },
+            {
+              label: "Applying",
+              value: applying.data,
+              icon: CloudCog,
+              note: "Terraform in progress",
+              tone: "blue",
+            },
+            {
+              label: "Failed",
+              value: failed.data,
+              icon: Network,
+              note: "Remediation required",
+              tone: "orange",
+            },
+            {
+              label: "Active",
+              value: active.data,
+              icon: Check,
+              note: "Operational clusters",
+              tone: "green",
+            },
           ]
         : [
-            { label: "Total requests", value: total.data, icon: Network },
-            { label: "Active", value: active.data, icon: Check },
-            { label: "Submitted", value: submitted.data, icon: ShieldCheck },
-            { label: "Drafts", value: draft.data, icon: CloudCog },
+            {
+              label: "Total clusters",
+              value: total.data,
+              icon: Network,
+              note: "Across your access scope",
+              tone: "green",
+            },
+            {
+              label: "Active",
+              value: active.data,
+              icon: Check,
+              note: `${activeRate}% of cluster estate`,
+              tone: "green",
+            },
+            {
+              label: "Awaiting review",
+              value: submitted.data,
+              icon: ShieldCheck,
+              note: "Architecture decision required",
+              tone: "blue",
+            },
+            {
+              label: "Draft requests",
+              value: draft.data,
+              icon: CloudCog,
+              note: "Configuration in progress",
+              tone: "violet",
+            },
           ];
   const availableStatuses =
     mode === "reviews"
@@ -439,22 +529,24 @@ export function ClusterAdminPage({
     });
   };
   return (
-    <>
+    <div className={`cluster-directory-page cluster-directory-${mode}`}>
       <PageHeading
-        eyebrow="CONTAINER PROVISIONING"
+        eyebrow={
+          mode === "directory" ? "KUBERNETES ESTATE" : "CONTAINER PROVISIONING"
+        }
         title={
           mode === "reviews"
             ? "Cluster Reviews"
             : mode === "operations"
               ? "Cluster Operations"
-              : "Cluster Setup Requests"
+              : "Cluster Directory"
         }
         description={
           mode === "reviews"
             ? "Review submitted cluster requests and record independent architecture decisions."
             : mode === "operations"
               ? "Monitor Terraform planning, certified plans, apply activity, failures, and active clusters."
-              : "Track cluster setup requests across their complete governed lifecycle."
+              : "Search and manage Kubernetes clusters across customers, approved environments, and governed lifecycle states."
         }
         action={
           mode === "directory" &&
@@ -465,19 +557,25 @@ export function ClusterAdminPage({
           )
         }
       />
-      {actionError && <ErrorNotice error={actionError} />}
-      <div className="metrics-grid">
+      {actionError !== undefined && <ErrorNotice error={actionError} />}
+      <div className="cluster-directory-metrics">
         {metrics.map((metric) => (
-          <div className="metric" key={metric.label}>
-            <div className="metric-label">
-              {metric.label}
+          <div
+            className={`cluster-directory-metric cluster-directory-metric-${metric.tone}`}
+            key={metric.label}
+          >
+            <span className="cluster-directory-metric-icon">
               <metric.icon size={20} aria-hidden="true" />
+            </span>
+            <div>
+              <span>{metric.label}</span>
+              <strong>{metric.value ?? "—"}</strong>
+              <small>{metric.note}</small>
             </div>
-            <strong>{metric.value ?? "—"}</strong>
           </div>
         ))}
       </div>
-      <section className="panel">
+      <section className="panel cluster-directory-panel">
         <div className="list-heading">
           <div>
             <h2>
@@ -495,8 +593,25 @@ export function ClusterAdminPage({
                   : "Requests pinned to an approved environment baseline."}
             </p>
           </div>
+          <div className="cluster-directory-panel-meta">
+            <span className="cluster-directory-live">
+              <i />
+              Live inventory
+            </span>
+            {query.data && (
+              <strong>
+                {query.data.pagination.totalElements} matching{" "}
+                {query.data.pagination.totalElements === 1
+                  ? "cluster"
+                  : "clusters"}
+              </strong>
+            )}
+          </div>
         </div>
-        <div className="filter-bar">
+        <div className="filter-bar cluster-directory-filterbar">
+          <span className="cluster-filter-icon" aria-hidden="true">
+            <Filter size={18} />
+          </span>
           <label className="search-field">
             <Search size={18} aria-hidden="true" />
             <span className="sr-only">Search by cluster name or ID</span>
@@ -525,6 +640,12 @@ export function ClusterAdminPage({
               ))}
             </select>
           </label>
+          {(filters.status || search) && (
+            <Button variant="ghost" onClick={reset}>
+              <RefreshCw size={16} />
+              Reset
+            </Button>
+          )}
         </div>
         {query.isPending ? (
           <Loading label="Loading cluster setup requests…" />
@@ -566,7 +687,7 @@ export function ClusterAdminPage({
         ) : (
           <>
             <div className="table-scroll">
-              <table className="customer-table">
+              <table className="customer-table cluster-directory-table">
                 <caption className="sr-only">
                   Cluster setup requests matching the current filters
                 </caption>
@@ -575,6 +696,7 @@ export function ClusterAdminPage({
                     <th>Cluster</th>
                     <th>Environment</th>
                     <th>Customer</th>
+                    <th>Platform</th>
                     <th>Status</th>
                     <th>Updated</th>
                     <th>
@@ -586,27 +708,73 @@ export function ClusterAdminPage({
                   {query.data.items.map((row) => (
                     <tr key={row.clusterId}>
                       <td>
-                        <Link href={"/clusters/" + row.clusterId}>
-                          <strong>{row.clusterName}</strong>
-                        </Link>
-                      </td>
-                      <td>
-                        {row.environmentName || row.environmentId}
-                        <div className="metadata">
-                          Approved v{row.environmentApprovedVersion}
+                        <div className="cluster-directory-primary-cell">
+                          <span className="cluster-directory-cluster-icon">
+                            <Network size={18} aria-hidden="true" />
+                          </span>
+                          <span>
+                            <Link href={"/clusters/" + row.clusterId}>
+                              <strong>{row.clusterName}</strong>
+                            </Link>
+                            <small>{row.clusterId}</small>
+                          </span>
                         </div>
                       </td>
-                      <td>{row.customerName || row.customerId}</td>
                       <td>
-                        <span
-                          className={
-                            "status-badge status-" + row.status.toLowerCase()
-                          }
-                        >
-                          {clusterStatusLabel(row.status)}
+                        <span className="cluster-directory-related-cell">
+                          <Layers3 size={16} aria-hidden="true" />
+                          <span>
+                            <strong>
+                              {row.environmentName || row.environmentId}
+                            </strong>
+                            <small>
+                              Approved baseline v
+                              {row.environmentApprovedVersion}
+                            </small>
+                          </span>
                         </span>
                       </td>
-                      <td>{formatDate(row.updatedAt)}</td>
+                      <td>
+                        <span className="cluster-directory-related-cell">
+                          <Building2 size={16} aria-hidden="true" />
+                          <span>
+                            <strong>
+                              {row.customerName || row.customerId}
+                            </strong>
+                            <small>Customer estate</small>
+                          </span>
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cluster-platform-badge">
+                          <span className="cluster-aws-wordmark">aws</span>
+                          <span>
+                            <strong>EKS</strong>
+                            <small>Managed Kubernetes</small>
+                          </span>
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cluster-directory-status-cell">
+                          <span
+                            className={
+                              "status-badge status-" + row.status.toLowerCase()
+                            }
+                          >
+                            {clusterStatusLabel(row.status)}
+                          </span>
+                          <small>
+                            {clusterStatusDescriptions[row.status] ??
+                              "Governed cluster lifecycle"}
+                          </small>
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cluster-directory-updated">
+                          <Clock3 size={15} aria-hidden="true" />
+                          {formatDate(row.updatedAt)}
+                        </span>
+                      </td>
                       <td className="cluster-actions-cell">
                         <ClusterActionMenu
                           cluster={row}
@@ -633,7 +801,7 @@ export function ClusterAdminPage({
           </>
         )}
       </section>
-    </>
+    </div>
   );
 }
 

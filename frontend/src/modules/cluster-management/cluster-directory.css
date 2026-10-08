@@ -1,0 +1,399 @@
+.shell-body:has(.cluster-directory-page),
+.content-column:has(.cluster-directory-page) {
+  background: #fff;
+}
+
+.cluster-directory-page {
+  display: grid;
+  gap: 20px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.cluster-directory-page .page-heading {
+  margin-bottom: 0;
+}
+
+.cluster-directory-page .page-heading h1 {
+  font-weight: 700;
+}
+
+.cluster-directory-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cluster-directory-metric {
+  --cluster-metric: #59871d;
+  --cluster-metric-soft: #eef7e4;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  min-width: 0;
+  min-height: 116px;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid #dce2dd;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(19 31 23 / 4%);
+}
+
+.cluster-directory-metric::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--cluster-metric);
+  content: "";
+}
+
+.cluster-directory-metric-blue {
+  --cluster-metric: #177eb7;
+  --cluster-metric-soft: #e9f5fb;
+}
+
+.cluster-directory-metric-violet {
+  --cluster-metric: #7054b8;
+  --cluster-metric-soft: #f1edfb;
+}
+
+.cluster-directory-metric-orange {
+  --cluster-metric: #c86517;
+  --cluster-metric-soft: #fff1e4;
+}
+
+.cluster-directory-metric-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--cluster-metric-soft);
+  color: var(--cluster-metric);
+}
+
+.cluster-directory-metric > div {
+  display: grid;
+  min-width: 0;
+}
+
+.cluster-directory-metric > div > span {
+  overflow: hidden;
+  color: #637067;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-directory-metric strong {
+  margin: 1px 0 3px;
+  color: #17211a;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  letter-spacing: -0.045em;
+}
+
+.cluster-directory-metric small {
+  overflow: hidden;
+  color: #748078;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-directory-panel {
+  overflow: hidden;
+  border: 1px solid #dce2dd;
+  border-radius: 9px;
+  box-shadow: 0 1px 3px rgb(19 31 23 / 4%);
+}
+
+.cluster-directory-panel .list-heading {
+  min-height: 82px;
+  padding: 17px 20px;
+  border-bottom: 1px solid #e6ebe6;
+}
+
+.cluster-directory-panel .list-heading h2 {
+  color: #202a22;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cluster-directory-panel .list-heading p {
+  margin-top: 3px;
+  font-size: 0.75rem;
+}
+
+.cluster-directory-panel-meta {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  flex: none;
+}
+
+.cluster-directory-panel-meta > strong {
+  color: #4f5d52;
+  font-size: 0.75rem;
+}
+
+.cluster-directory-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #52723f;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cluster-directory-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #74a929;
+  box-shadow: 0 0 0 4px #edf5e4;
+}
+
+.cluster-directory-filterbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(260px, 1fr) minmax(190px, 0.32fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e6ebe6;
+  background: #f9fbf8;
+}
+
+.cluster-directory-filterbar .search-field,
+.cluster-directory-filterbar select {
+  min-height: 42px;
+  background: #fff;
+}
+
+.cluster-directory-filterbar .filter-field select {
+  width: 100%;
+}
+
+.cluster-filter-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #60705f;
+}
+
+.cluster-directory-table {
+  min-width: 1180px;
+  table-layout: auto;
+}
+
+.cluster-directory-table th {
+  padding: 11px 14px;
+  background: #f2f5f1;
+  color: #59665c;
+  font-size: 0.65rem;
+  letter-spacing: 0.055em;
+}
+
+.cluster-directory-table td {
+  padding: 13px 14px;
+  vertical-align: middle;
+}
+
+.cluster-directory-table th:first-child,
+.cluster-directory-table td:first-child {
+  padding-left: 20px;
+}
+
+.cluster-directory-table tbody tr {
+  transition: background 120ms ease;
+}
+
+.cluster-directory-table tbody tr:hover {
+  background: #fafcf8;
+  box-shadow: inset 3px 0 #86bc25;
+}
+
+.cluster-directory-primary-cell {
+  display: flex;
+  min-width: 205px;
+  align-items: center;
+  gap: 11px;
+}
+
+.cluster-directory-cluster-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  flex: none;
+  border: 1px solid #d9e6d0;
+  border-radius: 8px;
+  background: #f1f7ea;
+  color: #5c872c;
+}
+
+.cluster-directory-primary-cell > span:last-child,
+.cluster-directory-related-cell > span,
+.cluster-platform-badge > span:last-child,
+.cluster-directory-status-cell {
+  display: grid;
+  min-width: 0;
+}
+
+.cluster-directory-primary-cell a {
+  color: #213223;
+  text-decoration: none;
+}
+
+.cluster-directory-primary-cell a:hover {
+  color: #4e781f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cluster-directory-primary-cell strong,
+.cluster-directory-related-cell strong,
+.cluster-platform-badge strong {
+  overflow: hidden;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-directory-primary-cell small,
+.cluster-directory-related-cell small,
+.cluster-platform-badge small,
+.cluster-directory-status-cell > small {
+  overflow: hidden;
+  color: #77817a;
+  font-size: 0.65rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-directory-primary-cell small {
+  max-width: 185px;
+}
+
+.cluster-directory-related-cell {
+  display: flex;
+  min-width: 160px;
+  align-items: center;
+  gap: 8px;
+}
+
+.cluster-directory-related-cell > svg {
+  flex: none;
+  color: #69776d;
+}
+
+.cluster-platform-badge {
+  display: flex;
+  min-width: 126px;
+  align-items: center;
+  gap: 9px;
+}
+
+.cluster-aws-wordmark {
+  position: relative;
+  display: inline-grid;
+  width: 36px;
+  height: 28px;
+  place-items: center;
+  flex: none;
+  color: #25303a;
+  font-family: Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cluster-aws-wordmark::after {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  left: 5px;
+  height: 5px;
+  border-bottom: 2px solid #f29919;
+  border-radius: 50%;
+  content: "";
+  transform: rotate(3deg);
+}
+
+.cluster-directory-status-cell {
+  min-width: 172px;
+  gap: 5px;
+  justify-items: start;
+}
+
+.cluster-directory-status-cell .status-badge {
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.cluster-directory-updated {
+  display: inline-flex;
+  min-width: 108px;
+  align-items: center;
+  gap: 6px;
+  color: #59665d;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.cluster-directory-updated svg {
+  color: #7a857c;
+}
+
+.cluster-directory-panel .list-footer {
+  padding: 7px 20px;
+  background: #fbfcfa;
+}
+
+.cluster-directory-panel .pagination {
+  width: 100%;
+  padding: 7px 0;
+}
+
+@container (max-width: 1100px) {
+  .cluster-directory-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 700px) {
+  .cluster-directory-panel .list-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cluster-directory-panel-meta {
+    justify-items: start;
+  }
+
+  .cluster-directory-filterbar {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cluster-directory-filterbar .filter-field,
+  .cluster-directory-filterbar .button {
+    grid-column: 2;
+  }
+}
+
+@container (max-width: 470px) {
+  .cluster-directory-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .cluster-directory-metric {
+    min-height: 104px;
+  }
+}
