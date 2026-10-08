@@ -282,6 +282,11 @@ const inventoryTabs: Array<{
   { id: "evidence", label: "Evidence", icon: CheckCircle2 },
 ];
 
+const reportTabGroups = [
+  { label: "Assessment", tabs: inventoryTabs.slice(0, 4) },
+  { label: "Inventory details", tabs: inventoryTabs.slice(4) },
+];
+
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -882,57 +887,63 @@ export function AssessmentReportCard({
         })}
       </div>
 
-      <nav
-        className="migration-report-tabs"
-        aria-label="Report sections"
-        role="tablist"
-      >
-        {inventoryTabs.map((tab) => {
-          const TabIcon = tab.icon;
-          const countLabel =
-            tab.id === "coverage"
-              ? `${report.inventorySummary.resourceCount}`
-              : tab.id === "findings"
-                ? `${report.findings.length}`
-                : tab.id === "evidence"
-                  ? `${evidenceCount}`
-                  : tab.id === "cluster"
-                    ? `${report.inventorySummary.resourceKinds.Node ?? 0} nodes · ${
-                        report.inventorySummary.resourceKinds.Namespace ?? 0
-                      } namespaces`
-                    : tab.kinds
-                      ? `${inventoryCountForKinds(tab.kinds) ?? 0}`
-                      : undefined;
-          return (
-            <button
-              type="button"
-              className={activeTab === tab.id ? "active" : undefined}
-              id={`migration-report-tab-${tab.id}`}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              aria-controls="migration-report-panel"
-              aria-label={`${tab.label}${
-                countLabel !== undefined ? ` (${countLabel})` : ""
-              }`}
-              onClick={() => setActiveTab(tab.id)}
-              key={tab.id}
-            >
-              <span className="migration-report-tab-icon" aria-hidden="true">
-                <TabIcon size={18} />
-              </span>
-              <span className="migration-report-tab-label">{tab.label}</span>
-              {countLabel !== undefined && (
-                <span className="migration-report-tab-count">{countLabel}</span>
-              )}
-            </button>
-          );
-        })}
+      <nav className="migration-report-tabs" aria-label="Report sections">
+        {reportTabGroups.map((group) => (
+          <div className="migration-report-tab-group" key={group.label}>
+            <span className="migration-report-tab-group-label">
+              {group.label}
+            </span>
+            <div className="migration-report-tab-items">
+              {group.tabs.map((tab) => {
+                const TabIcon = tab.icon;
+                const countLabel =
+                  tab.id === "coverage"
+                    ? `${report.inventorySummary.resourceCount}`
+                    : tab.id === "findings"
+                      ? `${report.findings.length}`
+                      : tab.id === "evidence"
+                        ? `${evidenceCount}`
+                        : tab.id === "cluster"
+                          ? `${report.inventorySummary.resourceKinds.Node ?? 0} nodes · ${
+                              report.inventorySummary.resourceKinds.Namespace ??
+                              0
+                            } namespaces`
+                          : tab.kinds
+                            ? `${inventoryCountForKinds(tab.kinds) ?? 0}`
+                            : undefined;
+                return (
+                  <button
+                    type="button"
+                    className={activeTab === tab.id ? "active" : undefined}
+                    id={`migration-report-tab-${tab.id}`}
+                    aria-current={activeTab === tab.id ? "page" : undefined}
+                    aria-controls="migration-report-panel"
+                    aria-label={`${tab.label}${
+                      countLabel !== undefined ? ` (${countLabel})` : ""
+                    }`}
+                    onClick={() => setActiveTab(tab.id)}
+                    key={tab.id}
+                  >
+                    <TabIcon size={15} aria-hidden="true" />
+                    <span className="migration-report-tab-label">
+                      {tab.label}
+                    </span>
+                    {countLabel !== undefined && (
+                      <span className="migration-report-tab-count">
+                        {countLabel}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div
         className="migration-report-body"
         id="migration-report-panel"
-        role="tabpanel"
         aria-labelledby={`migration-report-tab-${activeTab}`}
       >
         <main>
