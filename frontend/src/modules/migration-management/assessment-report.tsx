@@ -26,6 +26,7 @@ type Finding = Assessment["findings"][number];
 type Disposition = Finding["disposition"];
 type ReportTab =
   | "summary"
+  | "advanced"
   | "coverage"
   | "findings"
   | "cluster"
@@ -44,6 +45,19 @@ type SourceSummary = {
   namespaceCount?: number | null;
   namespaces?: string[];
   architectures?: string[];
+};
+
+type AdvancedReadinessStatus = "complete" | "review" | "not-detected";
+
+type AdvancedReadinessCheck = {
+  id: string;
+  title: string;
+  description: string;
+  status: AdvancedReadinessStatus;
+  statusLabel: string;
+  evidence: string[];
+  nextAction: string;
+  icon: typeof CheckCircle2;
 };
 
 const classifications = [
@@ -200,6 +214,7 @@ const inventoryTabs: Array<{
   kinds?: string[];
 }> = [
   { id: "summary", label: "Summary" },
+  { id: "advanced", label: "Advanced readiness" },
   { id: "coverage", label: "Inventory coverage" },
   { id: "findings", label: "Findings" },
   {
@@ -253,6 +268,250 @@ const inventoryTabs: Array<{
   },
   { id: "evidence", label: "Evidence" },
 ];
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function resourceContainers(resource: SourceInventoryResource) {
+  const pod = objectValue(resource.pod);
+  return [...arrayValue(pod.containers), ...arrayValue(pod.initContainers)].map(
+    objectValue,
+  );
+}
+
+function metadataKeys(resource: SourceInventoryResource) {
+  return [
+    ...arrayValue(resource.annotationKeys),
+    ...arrayValue(resource.labelKeys),
+  ].filter((value): value is string => typeof value === "string");
+}
+
+function countResources(resources: SourceInventoryResource[], kinds: string[]) {
+  const acceptedKinds = new Set(kinds);
+  return resources.filter((resource) => acceptedKinds.has(resource.kind))
+    .length;
+}
+
+function advancedReadinessChecks(
+  resources: SourceInventoryResource[],
+  findings: Finding[],
+  source?: SourceSummary,
+): AdvancedReadinessCheck[] {
+  const workloads = resources.filter((resource) =>
+    ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(
+      resource.kind,
+    ),
+  );
+  const containers = workloads.flatMap(resourceContainers);
+  const images = containers
+    .map((container) => container.image)
+    .filter((value): value is string => typeof value === "string" && !!value);
+  const immutableImages = images.filter((image) => image.includes("@sha256:"));
+  const resourceProfiles = containers.filter((container) => {
+    const resourcesValue = objectValue(container.resources);
+    return (
+      Object.keys(objectValue(resourcesValue.requests)).length > 0 ||
+      Object.keys(objectValue(resourcesValue.limits)).length > 0
+    );
+  });
+  const provenanceMarkers = resources.filter((resource) =>
+    metadataKeys(resource).some((key) =>
+      /(helm|argocd|fluxcd|gitops|kustomize)/i.test(key),
+    ),
+  );
+  const dependencyReferences = containers.reduce(
+    (total, container) =>
+      total +
+      arrayValue(container.environment).filter((item) => {
+        const sourceType = objectValue(item).source;
+        return (
+          typeof sourceType === "string" &&
+          sourceType !== "LITERAL" &&
+          sourceType !== "fieldRef" &&
+          sourceType !== "resourceFieldRef"
+        );
+      }).length,
+    0,
+  );
+  const dependencyFindings = findings.filter(
+    (finding) =>
+      finding.category.toUpperCase().includes("DEPEND") ||
+      finding.dependencies?.length,
+  ).length;
+  const addOnCount = countResources(resources, [
+    "CustomResourceDefinition",
+    "MutatingWebhookConfiguration",
+    "ValidatingWebhookConfiguration",
+    "StorageClass",
+  ]);
+  const accessCount = countResources(resources, [
+    "ServiceAccount",
+    "Role",
+    "RoleBinding",
+    "ClusterRole",
+    "ClusterRoleBinding",
+  ]);
+  const privilegedContainers = containers.filter(
+    (container) => objectValue(container.security).privileged === true,
+  ).length;
+  const pvcCount = countResources(resources, ["PersistentVolumeClaim"]);
+  const statefulCount = countResources(resources, ["StatefulSet"]);
+  const schedulingProfiles = workloads.filter((resource) => {
+    const pod = objectValue(resource.pod);
+    return (
+      arrayValue(pod.tolerations).length > 0 ||
+      Object.keys(objectValue(pod.affinity)).length > 0 ||
+      arrayValue(pod.topologySpreadConstraints).length > 0 ||
+      arrayValue(pod.nodeSelectorKeys).length > 0
+    );
+  }).length;
+
+  return [
+    {
+      id: "provenance",
+      title: "Helm & GitOps provenance",
+      description:
+        "Identifies deployment ownership markers without collecting repository credentials or values.",
+      status: provenanceMarkers.length > 0 ? "complete" : "not-detected",
+      statusLabel:
+        provenanceMarkers.length > 0
+          ? `${provenanceMarkers.length} resources detected`
+          : "No markers detected",
+      evidence: [
+        `${provenanceMarkers.length} resources contain Helm, Argo CD, Flux or Kustomize metadata`,
+        "Repository credentials and Helm values remain excluded",
+      ],
+      nextAction:
+        provenanceMarkers.length > 0
+          ? "Confirm the detected release or GitOps owner before artifact collection."
+          : "Record the chart or Git repository manually when the application is managed outside the cluster.",
+      icon: FileText,
+    },
+    {
+      id: "images",
+      title: "Container image portability",
+      description:
+        "Checks image references, immutable digests and source node architecture for target portability.",
+      status:
+        images.length > 0 && immutableImages.length === images.length
+          ? "complete"
+          : "review",
+      statusLabel:
+        images.length === 0
+          ? "No image references"
+          : `${immutableImages.length}/${images.length} digest pinned`,
+      evidence: [
+        `${images.length} container image references across ${workloads.length} workloads`,
+        `Source architecture: ${source?.architectures?.join(", ") || "not reported"}`,
+      ],
+      nextAction:
+        immutableImages.length === images.length && images.length > 0
+          ? "Validate target registry access and retain the immutable digests."
+          : "Resolve image tags to immutable digests and verify target registry access.",
+      icon: Server,
+    },
+    {
+      id: "capacity",
+      title: "Capacity & scheduling",
+      description:
+        "Reviews declared compute profiles and Kubernetes scheduling constraints used for target sizing.",
+      status:
+        containers.length > 0 && resourceProfiles.length === containers.length
+          ? "complete"
+          : "review",
+      statusLabel: `${resourceProfiles.length}/${containers.length} containers sized`,
+      evidence: [
+        `${schedulingProfiles}/${workloads.length} workloads declare scheduling constraints`,
+        "Declared requests and limits are shown; live utilization requires a metrics integration",
+      ],
+      nextAction:
+        resourceProfiles.length === containers.length
+          ? "Compare declared capacity with target node groups before migration planning."
+          : "Add missing CPU and memory requests/limits, then compare them with observed utilization.",
+      icon: WandSparkles,
+    },
+    {
+      id: "dependencies",
+      title: "Application dependencies",
+      description:
+        "Surfaces configuration references and assessment findings that can indicate application dependencies.",
+      status:
+        dependencyReferences + dependencyFindings > 0
+          ? "review"
+          : "not-detected",
+      statusLabel: `${dependencyReferences + dependencyFindings} signals`,
+      evidence: [
+        `${dependencyReferences} Secret or ConfigMap references`,
+        `${dependencyFindings} dependency-related findings`,
+      ],
+      nextAction:
+        "Confirm external databases, DNS, certificates, queues and APIs with the application owner.",
+      icon: Network,
+    },
+    {
+      id: "platform",
+      title: "Platform add-ons & extensions",
+      description:
+        "Reviews cluster extensions that commonly require an EKS-specific replacement or configuration.",
+      status: addOnCount > 0 ? "review" : "not-detected",
+      statusLabel: `${addOnCount} extensions detected`,
+      evidence: [
+        `${countResources(resources, ["CustomResourceDefinition"])} CRD definitions`,
+        `${countResources(resources, ["MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"])} admission webhooks`,
+        `${countResources(resources, ["StorageClass"])} storage classes`,
+      ],
+      nextAction:
+        "Validate CNI, CSI, ingress controllers, operators and admission webhooks against the EKS target.",
+      icon: Wrench,
+    },
+    {
+      id: "identity",
+      title: "Identity & workload security",
+      description:
+        "Summarizes Kubernetes identities and security-context signals needed for EKS IAM planning.",
+      status:
+        accessCount > 0 && privilegedContainers === 0 ? "complete" : "review",
+      statusLabel:
+        privilegedContainers > 0
+          ? `${privilegedContainers} privileged containers`
+          : `${accessCount} access resources`,
+      evidence: [
+        `${accessCount} service-account and RBAC resources`,
+        `${privilegedContainers} privileged containers detected`,
+      ],
+      nextAction:
+        "Map service accounts to approved EKS Pod Identity or IAM roles and review privileged workloads.",
+      icon: ShieldCheck,
+    },
+    {
+      id: "data",
+      title: "Persistent data protection",
+      description:
+        "Identifies stateful workloads and claims that require an approved backup, restore and cutover plan.",
+      status: pvcCount + statefulCount > 0 ? "review" : "complete",
+      statusLabel:
+        pvcCount + statefulCount > 0
+          ? `${pvcCount} claims · ${statefulCount} stateful sets`
+          : "No persistent workloads",
+      evidence: [
+        `${pvcCount} persistent volume claims`,
+        `${statefulCount} StatefulSets`,
+      ],
+      nextAction:
+        pvcCount + statefulCount > 0
+          ? "Document storage mapping, backup validation, RPO/RTO and rollback before artifact collection."
+          : "No data-transfer plan is required for the currently selected scope.",
+      icon: Database,
+    },
+  ];
+}
 
 function inventoryValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
@@ -461,6 +720,19 @@ export function AssessmentReportCard({
     const kinds = new Set(activeInventoryTab.kinds);
     return inventoryResources.filter((resource) => kinds.has(resource.kind));
   }, [activeInventoryTab, inventoryResources]);
+  const advancedChecks = useMemo(
+    () => advancedReadinessChecks(inventoryResources, report.findings, source),
+    [inventoryResources, report.findings, source],
+  );
+  const advancedCompleteCount = advancedChecks.filter(
+    (check) => check.status === "complete",
+  ).length;
+  const advancedReviewCount = advancedChecks.filter(
+    (check) => check.status === "review",
+  ).length;
+  const advancedNotDetectedCount = advancedChecks.filter(
+    (check) => check.status === "not-detected",
+  ).length;
 
   return (
     <section
@@ -946,6 +1218,98 @@ export function AssessmentReportCard({
                     <strong>{count}</strong>
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {activeTab === "advanced" && (
+            <section className="migration-advanced-readiness">
+              <div className="migration-section-heading">
+                <div>
+                  <h3>Advanced Step 1 readiness</h3>
+                  <p>
+                    A demo-ready view of the deeper checks required before
+                    artifact collection or migration execution. Every result is
+                    derived from the sanitized inventory; unavailable
+                    integrations are clearly identified.
+                  </p>
+                </div>
+                <span>{advancedChecks.length} assessment areas</span>
+              </div>
+
+              <div
+                className="migration-advanced-summary"
+                aria-label="Advanced readiness summary"
+              >
+                <div>
+                  <CheckCircle2 size={18} aria-hidden="true" />
+                  <strong>{advancedCompleteCount}</strong>
+                  <span>Complete</span>
+                </div>
+                <div>
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <strong>{advancedReviewCount}</strong>
+                  <span>Needs review</span>
+                </div>
+                <div>
+                  <CircleHelp size={18} aria-hidden="true" />
+                  <strong>{advancedNotDetectedCount}</strong>
+                  <span>Not detected</span>
+                </div>
+                <p>
+                  “Not detected” means the inventory contains no reliable
+                  signal. It does not automatically mean the capability or
+                  dependency is absent.
+                </p>
+              </div>
+
+              <div className="migration-advanced-grid">
+                {advancedChecks.map((check) => {
+                  const CheckIcon = check.icon;
+                  return (
+                    <article
+                      className={`migration-advanced-card migration-advanced-card-${check.status}`}
+                      key={check.id}
+                    >
+                      <header>
+                        <span className="migration-advanced-icon">
+                          <CheckIcon size={19} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <h4>{check.title}</h4>
+                          <span
+                            className={`migration-advanced-status migration-advanced-status-${check.status}`}
+                          >
+                            {check.statusLabel}
+                          </span>
+                        </div>
+                      </header>
+                      <p>{check.description}</p>
+                      <ul>
+                        {check.evidence.map((evidence) => (
+                          <li key={evidence}>{evidence}</li>
+                        ))}
+                      </ul>
+                      <div className="migration-advanced-action">
+                        <strong>Before Step 2</strong>
+                        <p>{check.nextAction}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="migration-advanced-boundary">
+                <ShieldCheck size={21} aria-hidden="true" />
+                <div>
+                  <h4>Assessment security boundary</h4>
+                  <p>
+                    This phase uses read-only metadata. Secret and ConfigMap
+                    values, repository credentials, application data and
+                    persistent-volume contents remain excluded until a
+                    separately approved Step 2 workflow.
+                  </p>
+                </div>
               </div>
             </section>
           )}
