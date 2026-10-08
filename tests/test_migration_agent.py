@@ -143,10 +143,10 @@ def test_collects_only_selected_namespaces_and_safe_resources():
         "configmaps",
         "events",
         "/pods",
-        "roles",
-        "rolebindings",
     ):
         assert forbidden not in requested_paths
+    assert "/roles" in requested_paths
+    assert "/rolebindings" in requested_paths
 
 
 def test_restores_type_metadata_omitted_by_kubernetes_list_responses():

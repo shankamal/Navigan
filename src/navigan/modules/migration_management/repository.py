@@ -260,6 +260,34 @@ class Repository:
             ),
         }
 
+    def get_source_inventory(self, identifier):
+        migration = self.get(identifier)
+
+        inventory = self.db.execute(
+            "SELECT inventory_version,migration_version,"
+            "schema_version,observed_at,"
+            "source_kubernetes_version,inventory_digest,"
+            "resource_count,resources,created_at "
+            "FROM migration_management.migration_source_inventories "
+            "WHERE migration_id=%s "
+            "ORDER BY inventory_version DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+
+        return {
+            "migrationId": identifier,
+            "version": migration["version"],
+            "status": migration["status"],
+            "inventory": (
+                {
+                    **serialize(inventory),
+                    "sensitiveDataIncluded": False,
+                }
+                if inventory
+                else None
+            ),
+        }
+
     def get_assessment(self, identifier):
         migration = self.get(identifier)
 

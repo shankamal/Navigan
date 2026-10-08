@@ -516,3 +516,25 @@ def test_starts_detailed_inventory_after_catalogue():
     assert result["version"] == 2
     assert result["assessmentConnector"]["status"] == "ENROLLED"
     assert repo.connector_token == "a" * 43
+
+
+def test_refreshes_rejected_assessment_with_connected_source():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.edit"})
+    service = Service(repo, access, "corr-refresh")
+
+    created = service.create(create_body())
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "REJECTED"
+
+    result = service.change(
+        identifier,
+        "assess",
+        {
+            "version": 1,
+            "reason": "Refresh detailed source inventory",
+        },
+    )
+
+    assert result["status"] == "DISCOVERY_PENDING"
+    assert result["version"] == 2

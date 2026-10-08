@@ -25,6 +25,37 @@ export const sourceCatalogueResponseSchema = z.object({
   catalogue: sourceCatalogueSchema.nullable(),
 });
 
+export const sourceInventoryResourceSchema = z
+  .object({
+    apiVersion: z.string(),
+    kind: z.string(),
+    namespace: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    annotationKeys: z.array(z.string()).optional(),
+    labelKeys: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+export const sourceInventorySchema = z.object({
+  inventoryVersion: z.number().int().positive(),
+  migrationVersion: z.number().int().positive(),
+  schemaVersion: z.number().int().positive(),
+  observedAt: z.string(),
+  sourceKubernetesVersion: z.string(),
+  inventoryDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  resourceCount: z.number().int().positive(),
+  resources: z.array(sourceInventoryResourceSchema),
+  sensitiveDataIncluded: z.literal(false),
+  createdAt: z.string(),
+});
+
+export const sourceInventoryResponseSchema = z.object({
+  migrationId: z.string(),
+  version: z.number().int().positive(),
+  status: z.string(),
+  inventory: sourceInventorySchema.nullable(),
+});
+
 export const assessmentFindingSchema = z.object({
   code: z.string(),
   severity: z.enum(["INFO", "WARNING", "BLOCKER"]),
@@ -40,6 +71,18 @@ export const assessmentFindingSchema = z.object({
   resourceName: z.string().optional(),
   message: z.string(),
   remediation: z.string().optional(),
+  ruleId: z.string().optional(),
+  affectedWorkloadCount: z.number().int().nonnegative().optional(),
+  evidenceCount: z.number().int().nonnegative().optional(),
+  evidenceReferences: z.array(z.string()).optional(),
+  targetTreatment: z.string().optional(),
+  owner: z.string().optional(),
+  remediationStatus: z.string().optional(),
+  dependencies: z.array(z.string()).optional(),
+  resolutionSteps: z.array(z.string()).optional(),
+  validationSteps: z.array(z.string()).optional(),
+  automationLevel: z.string().optional(),
+  ownerTeam: z.string().optional(),
 });
 
 export const assessmentSchema = z.object({
@@ -68,9 +111,37 @@ export const assessmentSchema = z.object({
       status: z.string(),
       nodeCount: z.number().int().nullable().optional(),
       readyNodeCount: z.number().int().nullable().optional(),
+      podCount: z.number().int().nullable().optional(),
+      readyPodCount: z.number().int().nullable().optional(),
+      containerRestartCount: z.number().int().nullable().optional(),
+      warningEventCount: z.number().int().nullable().optional(),
     }),
   }),
   findings: z.array(assessmentFindingSchema),
+  governance: z
+    .object({
+      checkpoint: z.string().optional(),
+      reviewerName: z.string().optional(),
+      reviewerRole: z.string().optional(),
+      dueDate: z.string().optional(),
+      policyChecks: z.record(z.string(), z.string()).optional(),
+      approvalConditions: z.array(z.string()).optional(),
+    })
+    .optional(),
+  auditMetadata: z
+    .object({
+      reportId: z.string().optional(),
+      reportVersion: z.string().optional(),
+      generatedBy: z.string().optional(),
+    })
+    .optional(),
+  dependencySummary: z
+    .object({
+      total: z.number().int().nonnegative().optional(),
+      external: z.number().int().nonnegative().optional(),
+      unresolved: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
   createdBy: z.string(),
   createdAt: z.string(),
 });
@@ -183,6 +254,10 @@ export type SourceClusterRegistration = z.infer<typeof sourceClusterSchema>;
 export type SourceEnrollment = z.infer<typeof sourceEnrollmentSchema>;
 export type SourceInstallation = z.infer<typeof sourceInstallationSchema>;
 export type Assessment = z.infer<typeof assessmentSchema>;
+export type SourceInventory = z.infer<typeof sourceInventorySchema>;
+export type SourceInventoryResource = z.infer<
+  typeof sourceInventoryResourceSchema
+>;
 export type AssessmentResponse = z.infer<typeof assessmentResponseSchema>;
 export type SourceCatalogueResponse = z.infer<
   typeof sourceCatalogueResponseSchema

@@ -7,6 +7,7 @@ import {
   sourceClusterListSchema,
   sourceClusterSchema,
   sourceCatalogueResponseSchema,
+  sourceInventoryResponseSchema,
   sourceEnrollmentSchema,
   sourceInstallationSchema,
   type CreateMigrationInput,
@@ -102,6 +103,12 @@ export const migrations = {
       (await apiClient.get(`${base}/${migrationId}/source-catalogue`)).data,
     ),
 
+  sourceInventory: async (migrationId: string) =>
+    parseResponse(
+      sourceInventoryResponseSchema,
+      (await apiClient.get(`${base}/${migrationId}/source-inventory`)).data,
+    ),
+
   update: async (migrationId: string, input: UpdateMigrationInput) =>
     parseResponse(
       migrationSchema,
@@ -117,7 +124,7 @@ export const migrations = {
 
   action: async (
     migrationId: string,
-    action: "submit" | "review" | "approve" | "reject",
+    action: "submit" | "review" | "approve" | "reject" | "cancel",
     version: number,
     reason: string,
   ) =>

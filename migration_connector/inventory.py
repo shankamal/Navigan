@@ -8,9 +8,7 @@ MAX_RESOURCES = 10_000
 MAX_INVENTORY_BYTES = 4 * 1024 * 1024
 
 FORBIDDEN_KINDS = {
-    "ConfigMap",
     "Event",
-    "Secret",
 }
 
 WORKLOAD_KINDS = {
@@ -22,16 +20,25 @@ WORKLOAD_KINDS = {
 }
 
 SUPPORTED_KINDS = WORKLOAD_KINDS | {
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "ConfigMap",
     "CustomResourceDefinition",
     "HorizontalPodAutoscaler",
     "Ingress",
+    "MutatingWebhookConfiguration",
     "Namespace",
     "NetworkPolicy",
     "Node",
     "PersistentVolumeClaim",
     "PodDisruptionBudget",
+    "Role",
+    "RoleBinding",
     "Service",
+    "ServiceAccount",
+    "Secret",
     "StorageClass",
+    "ValidatingWebhookConfiguration",
 }
 
 
@@ -59,6 +66,14 @@ def annotation_keys(metadata):
         if limited_text(key, 253)
     )[:200]
 
+def label_keys(metadata):
+    labels = mapping(metadata.get("labels"))
+    return sorted(
+        limited_text(key, 253)
+        for key in labels
+        if limited_text(key, 253)
+    )[:200]
+
 
 def common(resource, include_name=True):
     metadata = mapping(resource.get("metadata"))
@@ -67,6 +82,7 @@ def common(resource, include_name=True):
         "kind": limited_text(resource.get("kind"), 100),
         "namespace": limited_text(metadata.get("namespace"), 63),
         "annotationKeys": annotation_keys(metadata),
+        "labelKeys": label_keys(metadata),
     }
     if include_name:
         value["name"] = limited_text(metadata.get("name"), 253)
@@ -105,13 +121,19 @@ def env_inventory(container):
 def container_inventory(container):
     security = mapping(container.get("securityContext"))
     capabilities = mapping(security.get("capabilities"))
+    resources = mapping(container.get("resources"))
 
     return {
         "name": limited_text(container.get("name"), 253),
         "image": limited_text(container.get("image"), 1000),
+        "imagePullPolicy": limited_text(
+            container.get("imagePullPolicy"),
+            50,
+        ),
         "ports": [
             {
                 "containerPort": port.get("containerPort"),
+                "hostPort": port.get("hostPort"),
                 "protocol": limited_text(
                     port.get("protocol") or "TCP",
                     10,
@@ -119,6 +141,34 @@ def container_inventory(container):
             }
             for port in sequence(container.get("ports"))[:100]
             if isinstance(port, dict)
+        ],
+        "resources": {
+            "requests": {
+                limited_text(key, 100): limited_text(value, 100)
+                if isinstance(value, str)
+                else value
+                for key, value in mapping(resources.get("requests")).items()
+                if limited_text(key, 100)
+                and isinstance(value, (str, int, float))
+            },
+            "limits": {
+                limited_text(key, 100): limited_text(value, 100)
+                if isinstance(value, str)
+                else value
+                for key, value in mapping(resources.get("limits")).items()
+                if limited_text(key, 100)
+                and isinstance(value, (str, int, float))
+            },
+        },
+        "volumeMounts": [
+            {
+                "name": limited_text(mount.get("name"), 253),
+                "mountPath": limited_text(mount.get("mountPath"), 500),
+                "subPath": limited_text(mount.get("subPath"), 500),
+                "readOnly": mount.get("readOnly") is True,
+            }
+            for mount in sequence(container.get("volumeMounts"))[:500]
+            if isinstance(mount, dict)
         ],
         "environment": env_inventory(container),
         "security": {
@@ -196,6 +246,53 @@ def pod_inventory(spec):
             for key in mapping(spec.get("nodeSelector"))
             if limited_text(key, 253)
         )[:200],
+        "priorityClassName": limited_text(
+            spec.get("priorityClassName"),
+            253,
+        ),
+        "runtimeClassName": limited_text(
+            spec.get("runtimeClassName"),
+            253,
+        ),
+        "schedulerName": limited_text(spec.get("schedulerName"), 253),
+        "dnsPolicy": limited_text(spec.get("dnsPolicy"), 100),
+        "terminationGracePeriodSeconds": spec.get(
+            "terminationGracePeriodSeconds"
+        ),
+        "imagePullSecretCount": len(sequence(spec.get("imagePullSecrets"))),
+        "affinity": {
+            "nodeAffinity": bool(
+                mapping(spec.get("affinity")).get("nodeAffinity")
+            ),
+            "podAffinity": bool(
+                mapping(spec.get("affinity")).get("podAffinity")
+            ),
+            "podAntiAffinity": bool(
+                mapping(spec.get("affinity")).get("podAntiAffinity")
+            ),
+        },
+        "tolerations": [
+            {
+                "key": limited_text(item.get("key"), 253),
+                "operator": limited_text(item.get("operator"), 50),
+                "effect": limited_text(item.get("effect"), 50),
+            }
+            for item in sequence(spec.get("tolerations"))[:200]
+            if isinstance(item, dict)
+        ],
+        "topologySpreadConstraints": [
+            {
+                "topologyKey": limited_text(item.get("topologyKey"), 253),
+                "whenUnsatisfiable": limited_text(
+                    item.get("whenUnsatisfiable"),
+                    100,
+                ),
+            }
+            for item in sequence(
+                spec.get("topologySpreadConstraints")
+            )[:200]
+            if isinstance(item, dict)
+        ],
         "containers": [
             container_inventory(item)
             for item in sequence(spec.get("containers"))[:200]
@@ -228,6 +325,11 @@ def sanitize_workload(resource):
     spec = mapping(resource.get("spec"))
     result = common(resource)
     result["replicas"] = spec.get("replicas")
+    result["strategyType"] = limited_text(
+        mapping(spec.get("strategy")).get("type")
+        or mapping(spec.get("updateStrategy")).get("type"),
+        100,
+    )
     result["pod"] = pod_inventory(workload_pod_spec(resource))
     return result
 
@@ -273,11 +375,47 @@ def sanitize_resource(resource):
     if kind == "Namespace":
         return common(resource)
 
+    if kind == "ConfigMap":
+        return {
+            **common(resource),
+            "immutable": resource.get("immutable") is True,
+            "dataKeyNames": sorted(
+                limited_text(key, 253)
+                for key in mapping(resource.get("data"))
+                if limited_text(key, 253)
+            )[:500],
+            "binaryDataKeyNames": sorted(
+                limited_text(key, 253)
+                for key in mapping(resource.get("binaryData"))
+                if limited_text(key, 253)
+            )[:500],
+        }
+
+    if kind == "Secret":
+        return {
+            **common(resource),
+            "secretType": limited_text(resource.get("type"), 253),
+            "immutable": resource.get("immutable") is True,
+            "dataKeyNames": sorted(
+                limited_text(key, 253)
+                for key in mapping(resource.get("data"))
+                if limited_text(key, 253)
+            )[:500],
+        }
+
     if kind == "Service":
         return {
             **common(resource),
             "type": limited_text(
                 spec.get("type") or "ClusterIP",
+                50,
+            ),
+            "externalTrafficPolicy": limited_text(
+                spec.get("externalTrafficPolicy"),
+                50,
+            ),
+            "sessionAffinity": limited_text(
+                spec.get("sessionAffinity"),
                 50,
             ),
             "selectorKeys": sorted(
@@ -346,6 +484,10 @@ def sanitize_resource(resource):
                 requests.get("storage"),
                 50,
             ),
+            "dataSourceKind": limited_text(
+                mapping(spec.get("dataSource")).get("kind"),
+                100,
+            ),
         }
 
     if kind == "StorageClass":
@@ -411,6 +553,96 @@ def sanitize_resource(resource):
             ),
             "ingressRuleCount": len(sequence(spec.get("ingress"))),
             "egressRuleCount": len(sequence(spec.get("egress"))),
+        }
+
+    if kind == "ServiceAccount":
+        return {
+            **common(resource),
+            "automountServiceAccountToken": resource.get(
+                "automountServiceAccountToken"
+            ),
+            "imagePullSecretCount": len(
+                sequence(resource.get("imagePullSecrets"))
+            ),
+        }
+
+    if kind in {"Role", "ClusterRole"}:
+        return {
+            **common(resource),
+            "rules": [
+                {
+                    "apiGroups": sorted(
+                        limited_text(value, 253)
+                        for value in sequence(rule.get("apiGroups"))
+                        if limited_text(value, 253)
+                    ),
+                    "resources": sorted(
+                        limited_text(value, 253)
+                        for value in sequence(rule.get("resources"))
+                        if limited_text(value, 253)
+                    ),
+                    "verbs": sorted(
+                        limited_text(value, 50)
+                        for value in sequence(rule.get("verbs"))
+                        if limited_text(value, 50)
+                    ),
+                }
+                for rule in sequence(resource.get("rules"))[:500]
+                if isinstance(rule, dict)
+            ],
+        }
+
+    if kind in {"RoleBinding", "ClusterRoleBinding"}:
+        role_ref = mapping(resource.get("roleRef"))
+        return {
+            **common(resource),
+            "roleRef": {
+                "kind": limited_text(role_ref.get("kind"), 100),
+                "name": limited_text(role_ref.get("name"), 253),
+            },
+            "subjects": [
+                {
+                    "kind": limited_text(subject.get("kind"), 100),
+                    "name": limited_text(subject.get("name"), 253),
+                    "namespace": limited_text(
+                        subject.get("namespace"),
+                        63,
+                    ),
+                }
+                for subject in sequence(resource.get("subjects"))[:500]
+                if isinstance(subject, dict)
+            ],
+        }
+
+    if kind in {
+        "MutatingWebhookConfiguration",
+        "ValidatingWebhookConfiguration",
+    }:
+        return {
+            **common(resource),
+            "webhooks": [
+                {
+                    "name": limited_text(webhook.get("name"), 253),
+                    "failurePolicy": limited_text(
+                        webhook.get("failurePolicy"),
+                        50,
+                    ),
+                    "sideEffects": limited_text(
+                        webhook.get("sideEffects"),
+                        50,
+                    ),
+                    "admissionReviewVersions": [
+                        limited_text(value, 50)
+                        for value in sequence(
+                            webhook.get("admissionReviewVersions")
+                        )
+                        if limited_text(value, 50)
+                    ][:20],
+                    "ruleCount": len(sequence(webhook.get("rules"))),
+                }
+                for webhook in sequence(resource.get("webhooks"))[:200]
+                if isinstance(webhook, dict)
+            ],
         }
 
     raise UnsafeInventory("Unsupported Kubernetes resource kind.")

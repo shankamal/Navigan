@@ -14,7 +14,7 @@ TRANSITIONS = {
         "migration.edit",
     ),
     "assess": (
-        {"INVENTORY_READY"},
+        {"INVENTORY_READY", "REJECTED"},
         "DISCOVERY_PENDING",
         "migration.edit",
     ),

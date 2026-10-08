@@ -418,16 +418,113 @@
   color: #747d6f;
 }
 
+.assessmentHeading {
+  position: relative;
+  z-index: 0;
+  margin-bottom: 14px;
+  padding: 2px 0 12px;
+  overflow: visible;
+  border: 0;
+  border-bottom: 1px solid #dfe6dc;
+  border-radius: 0;
+  background: transparent;
+}
+
+.assessmentHeading::after {
+  display: none;
+}
+
+.assessmentHeading h1 {
+  font-size: 1.42rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+}
+
+.assessmentHeading :global(.eyebrow) {
+  font-size: 0.72rem;
+}
+
+.assessmentHeading :global(.muted) {
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
 .approvalPanel {
+  position: relative;
+  z-index: 1;
   display: flex;
-  gap: 24px;
+  gap: 28px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin: 0 0 22px;
+  padding: 18px 20px;
+  border: 1px solid #d8e3d2;
+  border-left: 4px solid #72b719;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 12px 32px rgb(31 55 25 / 10%);
+}
+
+.approvalPanelBlocked {
+  border-color: #f0c8c8;
+  border-left-color: #df4040;
+  background: #fffafa;
+}
+
+.approvalPanelBlocked .approvalIcon {
+  border-color: #f0c4c4;
+  color: #fff;
+  background: #df4040;
 }
 
 .approvalPanel h2 {
-  margin: 10px 0 5px;
+  margin: 6px 0 4px;
+  font-size: 0.98rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.approvalSummary {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.approvalSummary p {
+  max-width: 760px;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.approvalIcon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+  border: 1px solid #d3e8bc;
+  border-radius: 13px;
+  color: #4f8211;
+  background: linear-gradient(145deg, #eff9e3, #e2f2cd);
+}
+
+.approvalStatusLine {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: #6c7867;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.approvalStatusLine > span:last-child {
+  padding-left: 10px;
+  border-left: 1px solid #dce4d7;
 }
 
 .approvalActions {
@@ -438,40 +535,711 @@
   flex-wrap: wrap;
 }
 
-.migrationList {
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
+.approvalActions .button {
+  white-space: nowrap;
 }
 
-.migrationRow {
+.rejectAction {
+  color: #98413d;
+  border-color: #e4c9c6;
+  background: #fffafa;
+}
+
+.rejectAction:hover {
+  border-color: #c98f89;
+  background: #fff3f1;
+}
+
+.approvalUnavailable {
+  max-width: 290px;
+  color: #687265;
+  font-size: 0.84rem;
+  text-align: right;
+}
+
+.reportApprovalActions {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) 1fr 1fr auto;
-  gap: 16px;
+  gap: 8px;
+}
+
+.reportApprovalActions .button {
+  width: 100%;
+}
+
+.reportApprovalActions .approvalUnavailable {
+  max-width: none;
+  text-align: left;
+}
+
+.migrationContextBar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 130px minmax(220px, 1fr) auto;
+  gap: 14px;
   align-items: center;
-  padding: 16px;
-  border: 1px solid #dfe5d9;
-  border-radius: 10px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid #dedfdb;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgb(24 40 29 / 5%);
+}
+
+.migrationContextCluster {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.migrationContextCluster > div {
+  display: grid;
+  min-width: 0;
+}
+
+.migrationContextCluster span,
+.migrationContextMeta small {
+  color: #707d74;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.migrationContextCluster strong {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #243028;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.migrationContextCluster small {
+  margin-top: 2px;
+  color: #69756d;
+  font-size: 0.66rem;
+}
+
+.migrationContextPath {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  color: #639d20;
+}
+
+.migrationContextPath span {
+  color: #5f6c63;
+  font-size: 0.68rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.migrationContextMeta {
+  display: grid;
+  justify-items: end;
+  min-width: 150px;
+}
+
+.migrationContextMeta small {
+  margin-top: 7px;
+}
+
+.migrationContextMeta strong {
+  margin-top: 2px;
+  color: #4c5850;
+  font-size: 0.68rem;
+}
+
+.reportDecisionBar {
+  position: sticky;
+  z-index: 20;
+  bottom: 12px;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d9dad6;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 10px 30px rgb(24 40 29 / 14%);
+  backdrop-filter: blur(10px);
+}
+
+.reportDecisionBar > div:first-child {
+  display: grid;
+}
+
+.reportDecisionBar > div:first-child strong {
+  color: #263229;
+  font-size: 0.84rem;
+}
+
+.reportDecisionBar > div:first-child span {
+  margin-top: 3px;
+  color: #69756d;
+  font-size: 0.68rem;
+}
+
+.reportDecisionActions {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.reportDecisionActions .approvalUnavailable {
+  max-width: 360px;
+}
+
+.lifecycle {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-bottom: 22px;
+  padding: 20px 24px;
+  border: 1px solid #dfe6dc;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(20 32 25 / 4%);
+}
+
+.lifecycleStep {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.lifecycleIcon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.lifecycleStep > div:nth-child(2) {
+  position: relative;
+  z-index: 1;
+  padding-right: 8px;
+  background: #fff;
+}
+
+.lifecycleStep span,
+.lifecycleStep strong {
+  display: block;
+}
+
+.lifecycleStep > div:nth-child(2) > span {
+  color: #56625a;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.lifecycleStep > div:nth-child(2) > strong {
+  margin-top: 2px;
+  color: #18221b;
+  font-size: 0.9rem;
+}
+
+.lifecycleLine {
+  position: absolute;
+  z-index: 0;
+  top: 19px;
+  right: 8px;
+  left: 42px;
+  height: 2px;
+  background: #dce3da;
+}
+
+.draft {
+  background: #edf0ed;
+  color: #66716a;
+}
+
+.discovery {
+  background: #ddecff;
+  color: #2176cc;
+}
+
+.assessment {
+  background: #fff0c8;
+  color: #c67e00;
+}
+
+.review {
+  background: #eee2ff;
+  color: #7e40c5;
+}
+
+.approved {
+  background: #ddf2d1;
+  color: #4e941d;
+}
+
+.blocked {
+  background: #ffe0e0;
+  color: #d43b3b;
+}
+
+.portfolioLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 16px;
+  align-items: start;
+}
+
+.portfolioPanel {
+  min-width: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgb(20 32 25 / 5%),
+    0 8px 24px rgb(20 32 25 / 5%);
+}
+
+.portfolioHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px 16px;
+}
+
+.portfolioHeading h2 {
+  color: #172019;
+  font-size: 1rem;
+}
+
+.portfolioHeading p {
+  margin-top: 4px;
+  color: #6b766e;
+  font-size: 0.76rem;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(140px, 0.8fr));
+  gap: 10px;
+  padding: 0 22px 18px;
+  border-bottom: 1px solid #e2e7e0;
+}
+
+.filters label > span {
+  display: block;
+  margin-bottom: 6px;
+  color: #536057;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.filters select,
+.search > div {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #ccd5ca;
+  border-radius: 7px;
+  background: #fcfdfc;
+}
+
+.filters select {
+  padding: 0 30px 0 10px;
+  color: #344038;
+  font-size: 0.75rem;
+}
+
+.search > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: #78837b;
+}
+
+.search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #263129;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.tableScroller {
+  overflow: visible;
+}
+
+.portfolioTable {
+  width: 100%;
+  min-width: 880px;
+  border-collapse: collapse;
+}
+
+.portfolioTable th {
+  padding: 10px 13px;
+  border-bottom: 1px solid #dde3db;
+  background: #f4f6f3;
+  color: #5a665e;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.portfolioTable td {
+  padding: 13px;
+  border-bottom: 1px solid #e6eae4;
+  color: #38433b;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+.portfolioTable tbody tr {
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.portfolioTable tbody tr:hover {
+  background: #f8fbf5;
+  box-shadow: inset 3px 0 #80b928;
+}
+
+.portfolioTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.portfolioTable td:first-child a {
   color: inherit;
   text-decoration: none;
 }
 
-.migrationRow:hover {
-  border-color: #8cbf43;
-  background: #f8fbf4;
-}
-
-.migrationRow span,
-.migrationRow strong {
+.portfolioTable td:first-child strong,
+.portfolioTable td:first-child span {
   display: block;
 }
 
-.migrationRow span {
-  color: #737c6e;
-  font-size: 12px;
+.portfolioTable td:first-child strong {
+  color: #1e2921;
+  font-size: 0.78rem;
+}
+
+.portfolioTable td:first-child span {
+  max-width: 190px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #7a857d;
+  font-size: 0.65rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platformPath {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-transform: capitalize;
+}
+
+.platformPath > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 145px;
+  padding: 4px 7px 4px 4px;
+  overflow: hidden;
+  border-radius: 5px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourcePlatform {
+  background: #e8edf1;
+  color: #455661;
+}
+
+.targetPlatform {
+  background: #fff0d5;
+  color: #8b620f;
+}
+
+.stageBadge {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.stageDraft {
+  background: #edf0ed;
+  color: #59655d;
+}
+
+.stageDiscovery {
+  background: #ddecff;
+  color: #1d6fbd;
+}
+
+.stageAssessment {
+  background: #fff0c8;
+  color: #966000;
+}
+
+.stageReview {
+  background: #eee2ff;
+  color: #7138b3;
+}
+
+.stageApproved {
+  background: #ddf2d1;
+  color: #3f8015;
+}
+
+.stageBlocked {
+  background: #ffe0e0;
+  color: #b82d2d;
+}
+
+.updated {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #68746c;
+  font-size: 0.67rem;
+  white-space: nowrap;
+}
+
+.rowMenu {
+  position: relative;
+}
+
+.rowMenu[open] {
+  z-index: 50;
+}
+
+.rowMenu > summary {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #5e6a62;
+  cursor: pointer;
+  list-style: none;
+}
+
+.rowMenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rowMenu > summary:hover,
+.rowMenu[open] > summary {
+  border-color: #89b94a;
+  background: #eff7e8;
+  color: #52792f;
+}
+
+.rowMenu > div {
+  position: absolute;
+  z-index: 100;
+  top: 34px;
+  right: 0;
+  display: grid;
+  width: 220px;
+  overflow: hidden;
+  border: 1px solid #d7ded5;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(20 32 25 / 16%);
+}
+
+.rowMenu > div > a,
+.rowMenu > div > button {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #edf0ec;
+  background: #fff;
+  color: #344038;
+  font: inherit;
+  font-size: 0.72rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rowMenu > div > :last-child {
+  border-bottom: 0;
+}
+
+.rowMenu > div > a:hover,
+.rowMenu > div > button:hover {
+  background: #f5f8f3;
+}
+
+.rowMenu > div > button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.rowMenu .cancelAction {
+  color: #b22c2c;
+}
+
+.rowMenu .cancelAction:hover {
+  background: #fff3f3;
+}
+
+.attentionPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.attentionHeading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 2px;
+  color: #5b6a60;
+}
+
+.attentionHeading > svg {
+  color: #d08b0e;
+}
+
+.attentionHeading h2 {
+  color: #18221b;
+  font-size: 0.95rem;
+}
+
+.attentionHeading p {
+  margin-top: 2px;
+  color: #758078;
+  font-size: 0.68rem;
+}
+
+.attentionCard {
+  overflow: hidden;
+  border: 1px solid #dfe5dc;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgb(20 32 25 / 4%);
+}
+
+.attentionCard header {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 13px;
+}
+
+.attentionCard header > div {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attentionCard header strong {
+  font-size: 0.75rem;
+}
+
+.attentionCard header span {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 75%);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.attentionReview {
+  background: #f1eaff;
+  color: #6f39ac;
+}
+
+.attentionBlocked {
+  background: #fff0f0;
+  color: #c93434;
+}
+
+.attentionCard > a {
+  display: block;
+  padding: 11px 13px;
+  border-top: 1px solid #e7ebe5;
+  color: inherit;
+  text-decoration: none;
+}
+
+.attentionCard > a:hover {
+  background: #f8faf7;
+}
+
+.attentionCard > a strong,
+.attentionCard > a span {
+  display: block;
+}
+
+.attentionCard > a strong {
+  color: #2b352e;
+  font-size: 0.72rem;
+}
+
+.attentionCard > a span {
+  margin-top: 3px;
+  color: #788279;
+  font-size: 0.65rem;
+  text-transform: capitalize;
+}
+
+.attentionEmpty {
+  padding: 14px;
+  border-top: 1px solid #e7ebe5;
+  color: #7a857d;
+  font-size: 0.7rem;
 }
 
 @media (max-width: 1000px) {
+  .migrationContextBar {
+    grid-template-columns: minmax(0, 1fr) 100px minmax(0, 1fr);
+  }
+
+  .migrationContextMeta {
+    grid-column: 1 / -1;
+    grid-template-columns: auto auto 1fr;
+    gap: 10px;
+    align-items: center;
+    justify-items: start;
+    min-width: 0;
+    padding-top: 10px;
+    border-top: 1px solid #e5eae3;
+  }
+
+  .migrationContextMeta small {
+    margin-top: 0;
+  }
+
   .steps {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -479,9 +1247,74 @@
   .connectionCard dl {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .lifecycle {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .lifecycleLine {
+    display: none;
+  }
+
+  .portfolioLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .attentionPanel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attentionHeading {
+    grid-column: 1 / -1;
+  }
+
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tableScroller {
+    overflow-x: auto;
+    padding-bottom: 150px;
+    margin-bottom: -150px;
+  }
 }
 
 @media (max-width: 700px) {
+  .migrationContextBar {
+    grid-template-columns: 1fr;
+  }
+
+  .migrationContextPath {
+    justify-content: flex-start;
+    padding-left: 42px;
+  }
+
+  .migrationContextPath svg {
+    transform: rotate(90deg);
+  }
+
+  .migrationContextMeta {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .reportDecisionBar {
+    align-items: stretch;
+    flex-direction: column;
+    bottom: 8px;
+  }
+
+  .reportDecisionActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reportDecisionActions .button {
+    width: 100%;
+  }
+
   .steps {
     display: block;
   }
@@ -516,7 +1349,32 @@
     justify-content: flex-end;
   }
 
-  .migrationRow {
+  .assessmentHeading {
+    padding: 22px 20px;
+  }
+
+  .approvalPanel {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .approvalActions {
+    justify-content: flex-start;
+    padding-left: 60px;
+  }
+
+  .approvalUnavailable {
+    max-width: none;
+    text-align: left;
+  }
+
+  .lifecycle,
+  .filters,
+  .attentionPanel {
     grid-template-columns: 1fr;
+  }
+
+  .attentionHeading {
+    grid-column: auto;
   }
 }

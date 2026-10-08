@@ -980,7 +980,7 @@ export function AssessmentWizard() {
               {sourceError && <p role="alert">{sourceError}</p>}
 
               <div className={styles.protectionList}>
-                <span>✓ No Secret or ConfigMap access</span>
+                <span>✓ Secret and ConfigMap values are excluded</span>
                 <span>✓ No workload changes</span>
                 <span>✓ No application data</span>
               </div>
@@ -1285,7 +1285,16 @@ export function AssessmentWizard() {
           )}
 
           {step === 5 && assessment && (
-            <AssessmentReportCard report={assessment} />
+            <AssessmentReportCard
+              report={assessment}
+              source={{
+                name: selectedSource?.name,
+                nodeCount: sourceCatalogue?.nodeCount,
+                namespaceCount: sourceCatalogue?.namespaces.length,
+                namespaces,
+                architectures: sourceCatalogue?.architectures,
+              }}
+            />
           )}
 
           <footer className={styles.actions}>

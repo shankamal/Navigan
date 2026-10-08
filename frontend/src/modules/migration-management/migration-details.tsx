@@ -1,7 +1,13 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -17,12 +23,14 @@ import {
   useMigrationAssessment,
   useSourceCatalogue,
   useSourceClusters,
+  useSourceInventory,
 } from "./hooks";
 import type {
   SourceClusterRegistration,
   SourceEnrollment,
   SourceInstallation,
 } from "./model";
+import { PlatformIcon } from "./platform-icon";
 import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
 
@@ -59,6 +67,14 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const migration = migrationQuery.data;
   const assessmentQuery = useMigrationAssessment(migrationId, true);
   const assessment = assessmentQuery.data?.assessment ?? null;
+  const criticalFindingCount =
+    assessment?.findings.filter((finding) => finding.severity === "BLOCKER")
+      .length ?? 0;
+  const sourceInventoryQuery = useSourceInventory(
+    migrationId,
+    Boolean(assessment),
+  );
+  const sourceInventory = sourceInventoryQuery.data?.inventory ?? null;
   const catalogueQuery = useSourceCatalogue(migrationId);
   const sourceCatalogue = catalogueQuery.data?.catalogue ?? null;
   const clustersQuery = useClusters({
@@ -415,12 +431,94 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     URL.revokeObjectURL(url);
   }
 
+  const approvalControls = (
+    <>
+      {canSubmit && (
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={action.isPending}
+          onClick={() =>
+            action.mutate({
+              name: "submit",
+              reason: "Submit feasibility assessment for review",
+            })
+          }
+        >
+          <ShieldCheck size={17} />
+          Submit for review
+        </button>
+      )}
+      {canReview && (
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={action.isPending}
+          onClick={() =>
+            action.mutate({
+              name: "review",
+              reason: "Begin independent feasibility review",
+            })
+          }
+        >
+          <ShieldCheck size={17} />
+          Start review
+        </button>
+      )}
+      {canDecide && (
+        <>
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={action.isPending}
+            onClick={() =>
+              action.mutate({
+                name: "approve",
+                reason: "Approve migration for controlled planning",
+              })
+            }
+          >
+            <CheckCircle2 size={17} />
+            Approve assessment
+          </button>
+          <button
+            type="button"
+            className={`button button-secondary ${styles.rejectAction}`}
+            disabled={action.isPending}
+            onClick={() =>
+              action.mutate({
+                name: "reject",
+                reason: "Return migration assessment for remediation",
+              })
+            }
+          >
+            <XCircle size={17} />
+            Return for changes
+          </button>
+        </>
+      )}
+      {!canSubmit && !canReview && !canDecide && (
+        <span className={styles.approvalUnavailable}>
+          No approval action is available for your role at this stage.
+        </span>
+      )}
+    </>
+  );
+
   return (
     <>
       <PageHeading
         eyebrow="MIGRATION"
         title={migration?.name ?? "Migration assessment"}
-        description="Review the trusted feasibility report and govern approval independently from the request creator."
+        description={
+          assessment
+            ? `Self-managed Kubernetes (${effectiveSourceCluster?.name ?? "source cluster"}) → Amazon EKS (${
+                assessment.inventorySummary.target.clusterName ??
+                "target cluster"
+              }) · ${migration?.status.replaceAll("_", " ").toLowerCase()}`
+            : "Review the trusted feasibility report and govern approval independently from the request creator."
+        }
+        className={migration ? styles.assessmentHeading : undefined}
         action={
           <Link href="/migrations" className="button button-secondary">
             <ArrowLeft size={17} />
@@ -436,8 +534,132 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         </div>
       )}
 
+      {assessment && (
+        <section
+          className={styles.migrationContextBar}
+          aria-label="Migration source and target"
+        >
+          <div className={styles.migrationContextCluster}>
+            <PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium" />
+            <div>
+              <span>Source cluster</span>
+              <strong>
+                {effectiveSourceCluster?.name ?? "Self-managed Kubernetes"}
+              </strong>
+              <small>
+                Kubernetes {assessment.sourceKubernetesVersion} ·{" "}
+                {sourceCatalogue?.nodeCount ?? "—"} nodes
+              </small>
+            </div>
+          </div>
+
+          <div className={styles.migrationContextPath}>
+            <span>
+              {persistedNamespaces.length > 0
+                ? `${persistedNamespaces.length} namespaces`
+                : "Selected workloads"}
+            </span>
+            <ArrowRight size={20} aria-hidden="true" />
+          </div>
+
+          <div className={styles.migrationContextCluster}>
+            <PlatformIcon platform="EKS" size="medium" />
+            <div>
+              <span>Target cluster</span>
+              <strong>
+                {assessment.inventorySummary.target.clusterName ?? "Amazon EKS"}
+              </strong>
+              <small>
+                Amazon EKS ·{" "}
+                {assessment.inventorySummary.target.readyNodeCount ?? "—"} /{" "}
+                {assessment.inventorySummary.target.nodeCount ?? "—"} nodes
+                ready
+              </small>
+            </div>
+          </div>
+
+          <div className={styles.migrationContextMeta}>
+            <span className="status-badge">
+              {migration?.status.replaceAll("_", " ")}
+            </span>
+            <small>Report generated</small>
+            <strong>{new Date(assessment.createdAt).toLocaleString()}</strong>
+          </div>
+        </section>
+      )}
+
       {migration && (
         <>
+          {!assessment && (
+            <section className={`panel ${styles.approvalPanel}`}>
+              <div className={styles.approvalSummary}>
+                <div className={styles.approvalIcon} aria-hidden="true">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <div className={styles.approvalStatusLine}>
+                    <span className="status-badge">
+                      {migration.status.replaceAll("_", " ")}
+                    </span>
+                    <span>Independent governance checkpoint</span>
+                  </div>
+                  <h2>
+                    {canDecide
+                      ? "Management decision required"
+                      : canReview
+                        ? "Assessment ready for independent review"
+                        : canSubmit
+                          ? "Assessment ready to submit"
+                          : "Approval gate"}
+                  </h2>
+                  <p className="muted">
+                    Review feasibility, blockers, and remediation evidence
+                    before authorizing migration planning. Approval does not
+                    change either cluster.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.approvalActions}>{approvalControls}</div>
+
+              {action.isError && (
+                <p role="alert">{normalizeApiError(action.error).message}</p>
+              )}
+            </section>
+          )}
+
+          {migration.status === "REJECTED" && canEditAssessment && (
+            <section className={`panel ${styles.connectionCard}`}>
+              <div>
+                <h2>Refresh migration assessment</h2>
+                <p className="muted">
+                  Reuse the connected source cluster, saved workload scope, and
+                  selected target cluster to collect a new inventory and
+                  generate the next assessment version.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={
+                  detailedAssessment.isPending ||
+                  migration.sourceConfiguration.sourceClusterId == null ||
+                  !persistedScopeReady
+                }
+                onClick={() => detailedAssessment.mutate()}
+              >
+                {detailedAssessment.isPending
+                  ? "Refreshing assessment…"
+                  : "Refresh assessment"}
+              </button>
+              {detailedAssessment.isError && (
+                <p role="alert">
+                  {normalizeApiError(detailedAssessment.error).message}
+                </p>
+              )}
+            </section>
+          )}
+
           {migration.status === "SOURCE_ENROLLMENT_PENDING" && (
             <section
               className={`panel ${styles.bootstrapNotice} ${
@@ -828,99 +1050,54 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
               )}
             </section>
           )}
-
-          <section className={`panel ${styles.approvalPanel}`}>
-            <div>
-              <span className="status-badge">
-                {migration.status.replaceAll("_", " ")}
-              </span>
-              <h2>Approval gate</h2>
-              <p className="muted">
-                Approval records management authorization for migration
-                planning. It does not execute workload changes.
-              </p>
-            </div>
-
-            <div className={styles.approvalActions}>
-              {canSubmit && (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={action.isPending}
-                  onClick={() =>
-                    action.mutate({
-                      name: "submit",
-                      reason: "Submit feasibility assessment for review",
-                    })
-                  }
-                >
-                  <ShieldCheck size={17} />
-                  Submit for review
-                </button>
-              )}
-              {canReview && (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={action.isPending}
-                  onClick={() =>
-                    action.mutate({
-                      name: "review",
-                      reason: "Begin independent feasibility review",
-                    })
-                  }
-                >
-                  <ShieldCheck size={17} />
-                  Start review
-                </button>
-              )}
-              {canDecide && (
-                <>
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    disabled={action.isPending}
-                    onClick={() =>
-                      action.mutate({
-                        name: "approve",
-                        reason: "Approve migration for controlled planning",
-                      })
-                    }
-                  >
-                    <CheckCircle2 size={17} />
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    disabled={action.isPending}
-                    onClick={() =>
-                      action.mutate({
-                        name: "reject",
-                        reason: "Return migration assessment for remediation",
-                      })
-                    }
-                  >
-                    <XCircle size={17} />
-                    Reject
-                  </button>
-                </>
-              )}
-              {!canSubmit && !canReview && !canDecide && (
-                <span className="muted">
-                  No approval action is available for your role at this stage.
-                </span>
-              )}
-            </div>
-
-            {action.isError && (
-              <p role="alert">{normalizeApiError(action.error).message}</p>
-            )}
-          </section>
         </>
       )}
 
-      {assessment && <AssessmentReportCard report={assessment} />}
+      {assessment && (
+        <AssessmentReportCard
+          report={assessment}
+          inventory={sourceInventory}
+          inventoryLoading={sourceInventoryQuery.isPending}
+          inventoryError={sourceInventoryQuery.isError}
+          source={{
+            name: effectiveSourceCluster?.name,
+            nodeCount: sourceCatalogue?.nodeCount,
+            namespaceCount: sourceCatalogue?.namespaces.length,
+            namespaces:
+              persistedNamespaces.length > 0
+                ? persistedNamespaces
+                : sourceCatalogue?.namespaces.map(
+                    (namespace) => namespace.name,
+                  ),
+            architectures: sourceCatalogue?.architectures,
+          }}
+          governance={{
+            status: migration?.status,
+          }}
+        />
+      )}
+      {assessment && (
+        <section className={styles.reportDecisionBar}>
+          <div>
+            <strong>
+              {criticalFindingCount > 0
+                ? "Approval requires remediation"
+                : "Management decision required"}
+            </strong>
+            <span>
+              {criticalFindingCount > 0
+                ? `Resolve ${criticalFindingCount} critical finding${
+                    criticalFindingCount === 1 ? "" : "s"
+                  } before approval.`
+                : "Review the findings, evidence, target mappings, and approval conditions."}
+            </span>
+          </div>
+          <div className={styles.reportDecisionActions}>{approvalControls}</div>
+          {action.isError && (
+            <p role="alert">{normalizeApiError(action.error).message}</p>
+          )}
+        </section>
+      )}
       {migration && !assessment && !assessmentQuery.isPending && (
         <section className="panel">
           <p className="muted">

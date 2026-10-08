@@ -46,11 +46,20 @@ NAMESPACED_RESOURCE_PATHS = (
     "/apis/networking.k8s.io/v1/namespaces/{namespace}/networkpolicies",
     "/apis/autoscaling/v2/namespaces/{namespace}/horizontalpodautoscalers",
     "/apis/policy/v1/namespaces/{namespace}/poddisruptionbudgets",
+    "/api/v1/namespaces/{namespace}/serviceaccounts",
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/roles",
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings",
+    "/api/v1/namespaces/{namespace}/configmaps",
+    "/api/v1/namespaces/{namespace}/secrets",
 )
 
 CLUSTER_RESOURCE_PATHS = (
     "/apis/storage.k8s.io/v1/storageclasses",
     "/apis/apiextensions.k8s.io/v1/customresourcedefinitions",
+    "/apis/rbac.authorization.k8s.io/v1/clusterroles",
+    "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings",
+    "/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations",
+    "/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations",
 )
 
 CATALOGUE_RESOURCE_PATHS = (
@@ -94,6 +103,17 @@ RESOURCE_TYPE_BY_PATH = {
         "policy/v1",
         "PodDisruptionBudget",
     ),
+    NAMESPACED_RESOURCE_PATHS[11]: ("v1", "ServiceAccount"),
+    NAMESPACED_RESOURCE_PATHS[12]: (
+        "rbac.authorization.k8s.io/v1",
+        "Role",
+    ),
+    NAMESPACED_RESOURCE_PATHS[13]: (
+        "rbac.authorization.k8s.io/v1",
+        "RoleBinding",
+    ),
+    NAMESPACED_RESOURCE_PATHS[14]: ("v1", "ConfigMap"),
+    NAMESPACED_RESOURCE_PATHS[15]: ("v1", "Secret"),
     CLUSTER_RESOURCE_PATHS[0]: (
         "storage.k8s.io/v1",
         "StorageClass",
@@ -101,6 +121,22 @@ RESOURCE_TYPE_BY_PATH = {
     CLUSTER_RESOURCE_PATHS[1]: (
         "apiextensions.k8s.io/v1",
         "CustomResourceDefinition",
+    ),
+    CLUSTER_RESOURCE_PATHS[2]: (
+        "rbac.authorization.k8s.io/v1",
+        "ClusterRole",
+    ),
+    CLUSTER_RESOURCE_PATHS[3]: (
+        "rbac.authorization.k8s.io/v1",
+        "ClusterRoleBinding",
+    ),
+    CLUSTER_RESOURCE_PATHS[4]: (
+        "admissionregistration.k8s.io/v1",
+        "MutatingWebhookConfiguration",
+    ),
+    CLUSTER_RESOURCE_PATHS[5]: (
+        "admissionregistration.k8s.io/v1",
+        "ValidatingWebhookConfiguration",
     ),
 }
 

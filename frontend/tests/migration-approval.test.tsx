@@ -62,14 +62,21 @@ vi.mock("@/modules/migration-management/hooks", () => ({
       targetConfiguration: {
         environmentId: "ENV-active",
         environmentApprovedVersion: 16,
+        ...(state.status === "REJECTED" ? { clusterId: "CLU-active" } : {}),
       },
-      migrationScope: {},
+      migrationScope:
+        state.status === "REJECTED" ? { namespaces: ["retailflow"] } : {},
     },
     isPending: false,
     isError: false,
   }),
   useMigrationAssessment: () => ({
     data: { assessment: null },
+    isPending: false,
+    isError: false,
+  }),
+  useSourceInventory: () => ({
+    data: { inventory: null },
     isPending: false,
     isError: false,
   }),
@@ -275,8 +282,19 @@ describe("Migration approval gate", () => {
       ),
     );
     expect(
-      screen.queryByRole("button", { name: "Approve" }),
+      screen.queryByRole("button", { name: "Approve assessment" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("allows the Cloud Engineer to refresh a rejected assessment", async () => {
+    state.status = "REJECTED";
+    renderDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh assessment" }));
+
+    await waitFor(() =>
+      expect(state.assess).toHaveBeenCalledWith("MIG-" + "a".repeat(32), 7),
+    );
   });
 
   it("allows only the Platform Architect to approve an active review", async () => {
@@ -284,7 +302,7 @@ describe("Migration approval gate", () => {
     state.status = "UNDER_REVIEW";
     renderDetails();
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve assessment" }));
 
     await waitFor(() =>
       expect(state.action).toHaveBeenCalledWith(

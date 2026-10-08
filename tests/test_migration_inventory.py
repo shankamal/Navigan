@@ -74,7 +74,7 @@ def deployment():
     }
 
 
-@pytest.mark.parametrize("kind", ["Secret", "ConfigMap", "Event"])
+@pytest.mark.parametrize("kind", ["Event"])
 def test_forbids_sensitive_resource_kinds(kind):
     with pytest.raises(UnsafeInventory):
         sanitize_resource(
@@ -85,6 +85,49 @@ def test_forbids_sensitive_resource_kinds(kind):
                 "data": {"password": "secret"},
             }
         )
+
+
+def test_secret_and_configmap_inventory_keeps_metadata_not_values():
+    secret = sanitize_resource(
+        {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name": "retailflow-database",
+                "namespace": "retailflow",
+            },
+            "type": "Opaque",
+            "immutable": True,
+            "data": {
+                "username": "encoded-user",
+                "password": "encoded-password",
+            },
+            "stringData": {"token": "plain-secret"},
+        }
+    )
+    config_map = sanitize_resource(
+        {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "retailflow-config",
+                "namespace": "retailflow",
+            },
+            "data": {"LOG_LEVEL": "debug"},
+            "binaryData": {"truststore": "encoded-binary"},
+        }
+    )
+    encoded = json.dumps([secret, config_map])
+
+    assert secret["dataKeyNames"] == ["password", "username"]
+    assert secret["secretType"] == "Opaque"
+    assert secret["immutable"] is True
+    assert config_map["dataKeyNames"] == ["LOG_LEVEL"]
+    assert config_map["binaryDataKeyNames"] == ["truststore"]
+    assert "encoded-password" not in encoded
+    assert "plain-secret" not in encoded
+    assert "debug" not in encoded
+    assert "encoded-binary" not in encoded
 
 
 def test_workload_inventory_removes_secret_values_and_commands():

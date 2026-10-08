@@ -405,6 +405,9 @@ class DiscoveryAction(MigrationAction):
 SOURCE_INVENTORY_KINDS = {
     "Node",
     "Namespace",
+    "ConfigMap",
+    "Secret",
+    "ServiceAccount",
     "Deployment",
     "StatefulSet",
     "DaemonSet",
@@ -418,6 +421,12 @@ SOURCE_INVENTORY_KINDS = {
     "HorizontalPodAutoscaler",
     "PodDisruptionBudget",
     "NetworkPolicy",
+    "Role",
+    "RoleBinding",
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "MutatingWebhookConfiguration",
+    "ValidatingWebhookConfiguration",
 }
 
 COMMON_INVENTORY_KEYS = {
@@ -426,6 +435,7 @@ COMMON_INVENTORY_KEYS = {
     "namespace",
     "name",
     "annotationKeys",
+    "labelKeys",
 }
 
 SOURCE_INVENTORY_KEYS = {
@@ -435,12 +445,32 @@ SOURCE_INVENTORY_KEYS = {
         "architecture",
     },
     "Namespace": set(),
-    "Deployment": {"replicas", "pod"},
-    "StatefulSet": {"replicas", "pod"},
-    "DaemonSet": {"replicas", "pod"},
-    "Job": {"replicas", "pod"},
-    "CronJob": {"replicas", "pod"},
-    "Service": {"type", "selectorKeys", "ports"},
+    "ConfigMap": {
+        "immutable",
+        "dataKeyNames",
+        "binaryDataKeyNames",
+    },
+    "Secret": {
+        "secretType",
+        "immutable",
+        "dataKeyNames",
+    },
+    "ServiceAccount": {
+        "automountServiceAccountToken",
+        "imagePullSecretCount",
+    },
+    "Deployment": {"replicas", "strategyType", "pod"},
+    "StatefulSet": {"replicas", "strategyType", "pod"},
+    "DaemonSet": {"replicas", "strategyType", "pod"},
+    "Job": {"replicas", "strategyType", "pod"},
+    "CronJob": {"replicas", "strategyType", "pod"},
+    "Service": {
+        "type",
+        "externalTrafficPolicy",
+        "sessionAffinity",
+        "selectorKeys",
+        "ports",
+    },
     "Ingress": {
         "ingressClassName",
         "ruleCount",
@@ -452,6 +482,7 @@ SOURCE_INVENTORY_KEYS = {
         "storageClassName",
         "volumeMode",
         "requestedStorage",
+        "dataSourceKind",
     },
     "StorageClass": {
         "provisioner",
@@ -478,6 +509,12 @@ SOURCE_INVENTORY_KEYS = {
         "ingressRuleCount",
         "egressRuleCount",
     },
+    "Role": {"rules"},
+    "ClusterRole": {"rules"},
+    "RoleBinding": {"roleRef", "subjects"},
+    "ClusterRoleBinding": {"roleRef", "subjects"},
+    "MutatingWebhookConfiguration": {"webhooks"},
+    "ValidatingWebhookConfiguration": {"webhooks"},
 }
 
 FORBIDDEN_INVENTORY_KEYS = {
@@ -715,6 +752,15 @@ class AssessmentFinding(Model):
     resourceName: str | None = Field(default=None, max_length=253)
     message: str = Field(min_length=1, max_length=4000)
     remediation: str | None = Field(default=None, max_length=4000)
+    targetTreatment: str | None = Field(default=None, max_length=4000)
+    resolutionSteps: list[str] = Field(default_factory=list, max_length=20)
+    validationSteps: list[str] = Field(default_factory=list, max_length=20)
+    automationLevel: Literal[
+        "AUTOMATED",
+        "ASSISTED",
+        "MANUAL",
+    ] | None = None
+    ownerTeam: str | None = Field(default=None, max_length=100)
 
 
 class AssessmentReport(Model):

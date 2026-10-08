@@ -78,6 +78,10 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 }));
 
 vi.mock("@/modules/migration-management/hooks", () => ({
+  useCancelMigration: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
   useMigrations: () => ({
     data: {
       items: [],
@@ -103,6 +107,11 @@ vi.mock("@/modules/migration-management/hooks", () => ({
   }),
   useMigrationAssessment: () => ({
     data: undefined,
+    isError: false,
+    isPending: false,
+  }),
+  useSourceInventory: () => ({
+    data: { inventory: null },
     isError: false,
     isPending: false,
   }),
@@ -216,7 +225,7 @@ describe("Migration UI", () => {
     render(<MigrationManagementPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Migrations" }),
+      screen.getByRole("heading", { name: "Migration portfolio" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Assessment only")).toBeInTheDocument();
     expect(
@@ -403,6 +412,12 @@ describe("Migration UI", () => {
   it("renders the trusted feasibility scorecard", () => {
     render(
       <AssessmentReportCard
+        source={{
+          name: "navigan-migration-lab",
+          nodeCount: 3,
+          namespaceCount: 8,
+          architectures: ["amd64"],
+        }}
         report={{
           assessmentVersion: 1,
           migrationVersion: 6,
@@ -464,18 +479,27 @@ describe("Migration UI", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Migration feasibility report",
+        name: "Migration feasibility overview",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Compatibility score")).toHaveTextContent(
-      "82/100",
-    );
     expect(
-      screen.getByText("Load balancer translation required."),
-    ).toBeInTheDocument();
+      screen.getByRole("img", {
+        name: "Compatibility score 82 out of 100",
+      }),
+    ).toHaveTextContent("82%");
     expect(
-      screen.getByText("A second load balancer translation is required."),
+      screen.getByText("Migration assessment is ready"),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Assessment summary")).toBeInTheDocument();
+    expect(screen.getByText("Assessed")).toBeInTheDocument();
+    expect(screen.getByText("Critical")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Findings (2)" }));
+    expect(
+      screen.getAllByText("Load balancer translation required."),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByText("A second load balancer translation is required."),
+    ).toHaveLength(1);
     expect(screen.getByText("Automated changes")).toBeInTheDocument();
   });
 });

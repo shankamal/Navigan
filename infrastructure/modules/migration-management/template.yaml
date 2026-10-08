@@ -375,6 +375,21 @@ Resources:
           - - integrations
             - {Ref: MigrationIntegration}
 
+  GetMigrationSourceInventoryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/source-inventory
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationIntegration}
+
   GetMigrationAssessmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission

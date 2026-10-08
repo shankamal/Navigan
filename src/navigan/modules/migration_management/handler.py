@@ -177,6 +177,13 @@ def route_of(method, path):
 
     if (
         len(parts) == 2
+        and parts[1] == "source-inventory"
+        and method == "GET"
+    ):
+        return "source_inventory", identifier, None
+
+    if (
+        len(parts) == 2
         and parts[1] == "assessment"
         and method == "GET"
     ):
@@ -308,6 +315,8 @@ def execute(event, principal, correlation):
                 value = repo.list(query_of(event))
             elif route == "source_catalogue":
                 value = repo.get_source_catalogue(identifier)
+            elif route == "source_inventory":
+                value = repo.get_source_inventory(identifier)
             elif route == "assessment":
                 value = repo.get_assessment(identifier)
             else:

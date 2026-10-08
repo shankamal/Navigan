@@ -11,6 +11,9 @@ describe("Migration API proxy", () => {
     expect(isAllowedRoute("GET", ["migrations", id, "source-catalogue"])).toBe(
       true,
     );
+    expect(isAllowedRoute("GET", ["migrations", id, "source-inventory"])).toBe(
+      true,
+    );
     expect(isAllowedRoute("GET", ["migrations", id, "assessment"])).toBe(true);
   });
 

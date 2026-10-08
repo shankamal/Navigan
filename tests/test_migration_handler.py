@@ -82,6 +82,18 @@ def test_routes_authenticated_source_catalogue_read():
         None,
     )
 
+def test_routes_authenticated_source_inventory_read():
+    identifier = "MIG-" + "c" * 32
+
+    assert route_of(
+        "GET",
+        f"{BASE}/{identifier}/source-inventory",
+    ) == (
+        "source_inventory",
+        identifier,
+        None,
+    )
+
 
 def test_routes_to_latest_trusted_assessment():
     identifier = "MIG-" + "c" * 32
