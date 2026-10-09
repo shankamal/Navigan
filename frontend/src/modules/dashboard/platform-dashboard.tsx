@@ -7,6 +7,10 @@ import {
   ArrowRight,
   ArrowUpRight,
   Boxes,
+  Bell,
+  Settings2,
+  LayoutGrid,
+  FileText,
   Building2,
   CheckCircle2,
   ChevronRight,
@@ -441,40 +445,74 @@ export function PlatformDashboard() {
         </div>
       </section>
 
-      <section className="pd-kpis" aria-label="Navigan platform KPIs">
-        {kpis.map((kpi) => (
-          <Link
-            className={`pd-kpi pd-kpi-${kpi.tone} ${kpi.total !== undefined ? "pd-kpi-with-ring" : ""}`}
-            href={kpi.href}
-            key={kpi.label}
-          >
-            {kpi.total !== undefined ? (
-              <span className="pd-kpi-ring">
-                <DonutChart
-                  title={`${kpi.label}: ${display(kpi.value)} of ${kpi.total} (${percent(kpi.value, kpi.total)}%)`}
-                  value={display(kpi.value)}
-                  subtitle={
-                    kpi.total
-                      ? `${percent(kpi.value, kpi.total)}%`
-                      : "No records"
-                  }
-                  segments={[
-                    { value: percent(kpi.value, kpi.total), color: "#23845B" },
-                  ]}
-                />
-              </span>
-            ) : (
-              <span className="pd-kpi-icon">
-                <kpi.icon size={20} />
-              </span>
-            )}
-            <span className="pd-kpi-copy">
-              <span>{kpi.label}</span>
-              <strong>{display(kpi.value)}</strong>
-              <small>{kpi.detail}</small>
-            </span>
-            <span className="pd-kpi-note">{kpi.note}</span>
-          </Link>
+      <section
+        className="pd-overview-groups"
+        aria-label="Navigan platform KPIs"
+      >
+        {[
+          {
+            title: "Estate coverage",
+            description:
+              "Customer, environment, and cluster coverage across your estate.",
+            icon: LayoutGrid,
+            items: kpis.slice(0, 3),
+            estate: true,
+          },
+          {
+            title: "Operations",
+            description:
+              "Current activity and workflow status across governed environments.",
+            icon: Settings2,
+            items: kpis.slice(3),
+            estate: false,
+          },
+        ].map((group) => (
+          <article className="pd-overview-panel" key={group.title}>
+            <header className="pd-overview-heading">
+              <group.icon size={28} aria-hidden="true" />
+              <div>
+                <h2>{group.title}</h2>
+                <p>{group.description}</p>
+              </div>
+            </header>
+            <div className="pd-overview-columns">
+              {group.items.map((kpi) => (
+                <Link
+                  className="pd-overview-metric"
+                  href={kpi.href}
+                  key={kpi.label}
+                >
+                  <span className="pd-overview-label">{kpi.label}</span>
+                  <span className="pd-overview-visual">
+                    {group.estate ? (
+                      <DonutChart
+                        title={`${kpi.label}: ${display(kpi.value)} of ${display(kpi.total)} (${percent(kpi.value, kpi.total)}%)`}
+                        value={
+                          kpi.total ? `${percent(kpi.value, kpi.total)}%` : "—"
+                        }
+                        subtitle=""
+                        segments={[
+                          {
+                            value: percent(kpi.value, kpi.total),
+                            color: "#568c3e",
+                          },
+                        ]}
+                      />
+                    ) : kpi.label === "Provisioning now" ? (
+                      <FileText size={36} aria-hidden="true" />
+                    ) : (
+                      <kpi.icon size={36} aria-hidden="true" />
+                    )}
+                  </span>
+                  <strong className="pd-overview-value">
+                    {display(kpi.value)}
+                  </strong>
+                  <span className="pd-overview-detail">{kpi.detail}</span>
+                  <span className="pd-overview-detail">{kpi.note}</span>
+                </Link>
+              ))}
+            </div>
+          </article>
         ))}
       </section>
 
@@ -482,7 +520,7 @@ export function PlatformDashboard() {
         <header className="pd-card-heading">
           <div>
             <span className="pd-card-icon pd-attention-icon">
-              <AlertTriangle size={19} />
+              <Bell size={21} />
             </span>
             <div>
               <h2>
@@ -501,78 +539,105 @@ export function PlatformDashboard() {
             </Link>
           )}
         </header>
-        <div
-          className="pd-governance-inline"
-          aria-label="Pending governance by module"
-        >
-          {[
-            {
-              label: "Customers",
-              path: "/customers",
-              submitted: submittedCustomers.data,
-              reviewing: reviewCustomers.data,
-            },
-            {
-              label: "Environments",
-              path: "/environments",
-              submitted: submittedEnvironments.data,
-              reviewing: reviewEnvironments.data,
-            },
-            {
-              label: "Clusters",
-              path: "/clusters",
-              submitted: submittedClusters.data,
-              reviewing: reviewClusters.data,
-            },
-          ].map((item) => (
-            <span key={item.path}>
-              <strong>{item.label}</strong>{" "}
-              <Link href={`${item.path}?status=SUBMITTED`}>
-                Submitted {display(item.submitted)}
-              </Link>
-              {" · "}
-              <Link href={`${item.path}?status=UNDER_REVIEW`}>
-                Under review {display(item.reviewing)}
-              </Link>
-            </span>
-          ))}
-        </div>
-        <p className="pd-preview-count">
-          Showing {attentionItems.length} submitted requests. {awaitingAction}{" "}
-          records are submitted or under review.
-        </p>
-        <div className="pd-attention-list">
-          {pendingCustomers.isPending ||
-          pendingEnvironments.isPending ||
-          pendingClusters.isPending ? (
-            <Loading label="Loading attention queue…" />
-          ) : attentionItems.length ? (
-            attentionItems.map((item) => (
-              <Link
-                className="pd-attention-row"
-                href={item.href}
-                key={`${item.id}-${item.href}`}
-              >
-                <span
-                  className={`pd-attention-row-icon pd-attention-${item.tone}`}
-                >
-                  <item.icon size={17} />
-                </span>
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.meta}</small>
-                </span>
-                <span className="pd-review-action">
-                  View request <ArrowRight size={16} />
-                </span>
-              </Link>
-            ))
-          ) : (
-            <div className="pd-empty pd-empty-success">
-              <CheckCircle2 size={20} />
-              No newly submitted requests require attention.
+        <div className="pd-attention-workspace">
+          <section
+            className="pd-pending-module"
+            aria-labelledby="pd-pending-title"
+          >
+            <h3 id="pd-pending-title">Pending by module</h3>
+            <table className="pd-pending-table">
+              <thead>
+                <tr>
+                  <th scope="col">Module</th>
+                  <th scope="col">Submitted</th>
+                  <th scope="col">Under review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    label: "Customers",
+                    path: "/customers",
+                    submitted: submittedCustomers.data,
+                    reviewing: reviewCustomers.data,
+                  },
+                  {
+                    label: "Environments",
+                    path: "/environments",
+                    submitted: submittedEnvironments.data,
+                    reviewing: reviewEnvironments.data,
+                  },
+                  {
+                    label: "Clusters",
+                    path: "/clusters",
+                    submitted: submittedClusters.data,
+                    reviewing: reviewClusters.data,
+                  },
+                ].map((item) => (
+                  <tr key={item.path}>
+                    <th scope="row">
+                      <Link href={item.path}>{item.label}</Link>
+                    </th>
+                    <td>
+                      <Link
+                        aria-label={`${item.label}: ${display(item.submitted)} submitted`}
+                        href={`${item.path}?status=SUBMITTED`}
+                      >
+                        {display(item.submitted)}
+                      </Link>
+                    </td>
+                    <td>
+                      <Link
+                        aria-label={`${item.label}: ${display(item.reviewing)} under review`}
+                        href={`${item.path}?status=UNDER_REVIEW`}
+                      >
+                        {display(item.reviewing)}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+          <div className="pd-submitted-queue">
+            <p className="pd-preview-count">
+              Showing {attentionItems.length} submitted requests.{" "}
+              {awaitingAction} records are submitted or under review.
+            </p>
+            <div className="pd-attention-list">
+              {pendingCustomers.isPending ||
+              pendingEnvironments.isPending ||
+              pendingClusters.isPending ? (
+                <Loading label="Loading attention queue…" />
+              ) : attentionItems.length ? (
+                attentionItems.map((item) => (
+                  <Link
+                    className="pd-attention-row"
+                    href={item.href}
+                    key={`${item.id}-${item.href}`}
+                  >
+                    <span
+                      className={`pd-attention-row-icon pd-attention-${item.tone}`}
+                    >
+                      <item.icon size={17} />
+                    </span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.meta}</small>
+                    </span>
+                    <span className="pd-review-action">
+                      View request <ArrowRight size={16} />
+                    </span>
+                  </Link>
+                ))
+              ) : (
+                <div className="pd-empty pd-empty-success">
+                  <CheckCircle2 size={20} />
+                  No newly submitted requests require attention.
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </section>
 
