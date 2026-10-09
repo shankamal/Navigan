@@ -1,4 +1,5 @@
 "use client";
+import "./environment-workspace.css";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -114,7 +115,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
     (step) => step.status === lifecycleStatus,
   );
   return (
-    <>
+    <div className="environment-workspace environment-details-workspace">
       <Link className="back-link" href="/environments">
         ← All environments
       </Link>
@@ -414,9 +415,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
           {Object.entries(env.configuration).map(([key, value]) => (
             <details key={key} open className="environment-config-section">
               <summary>{key}</summary>
-              <pre className="environment-json">
-                {JSON.stringify(value, null, 2)}
-              </pre>
+              <ConfigurationSummary value={value} />
             </details>
           ))}
           {!Object.keys(env.configuration).length && (
@@ -491,6 +490,42 @@ export function EnvironmentDetails({ id }: { id: string }) {
           )}
         </Modal>
       )}
-    </>
+    </div>
+  );
+}
+
+function ConfigurationSummary({ value }: { value: unknown }) {
+  if (value === null || typeof value !== "object") {
+    return (
+      <p className="environment-config-value">
+        {value === null ? "Not set" : String(value)}
+      </p>
+    );
+  }
+  if (Array.isArray(value)) {
+    if (!value.length) return <p className="muted">No entries</p>;
+    return (
+      <ul className="environment-config-items">
+        {value.map((item, index) => (
+          <li key={index}>
+            <ConfigurationSummary value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <dl className="environment-config-values">
+      {Object.entries(value).map(([key, item]) => (
+        <div key={key}>
+          <dt>
+            {key.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2")}
+          </dt>
+          <dd>
+            <ConfigurationSummary value={item} />
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

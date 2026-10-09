@@ -1,4 +1,5 @@
 "use client";
+import "./environment-workspace.css";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -318,7 +319,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     });
   };
   return (
-    <>
+    <div className="environment-workspace environment-form-workspace">
       <Link className="back-link" href="/environments">
         <ArrowLeft size={16} />
         Back to environments
@@ -803,6 +804,6 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
           </div>
         </div>
       </form>
-    </>
+    </div>
   );
 }

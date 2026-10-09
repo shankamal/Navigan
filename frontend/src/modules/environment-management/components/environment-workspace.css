@@ -1,0 +1,280 @@
+.app-shell:has(.environment-workspace),
+.app-shell:has(.environment-workspace) .app-main,
+.app-shell:has(.environment-workspace) .app-content {
+  background: #fff;
+}
+.app-shell:has(.environment-workspace) .app-header {
+  background: #334155;
+}
+.environment-workspace {
+  color: #172033;
+  --brand: #65a449;
+  --brand-hover: #568c3e;
+}
+.environment-workspace .panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.environment-workspace .page-heading h1 {
+  font-size: 26px;
+  letter-spacing: -0.5px;
+}
+.environment-workspace h2 {
+  font-size: 17px;
+}
+.environment-workspace .button-primary {
+  background: #65a449;
+  border-color: #65a449;
+  color: #143322;
+}
+.environment-workspace .button-primary:hover {
+  background: #568c3e;
+}
+.environment-workspace .metrics-grid {
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.environment-workspace .metric {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+.environment-workspace .metric strong {
+  font-size: 28px;
+}
+.environment-workspace .metric p {
+  font-size: 12px;
+  color: #64748b;
+}
+.environment-workspace meter {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin: 6px 0;
+  accent-color: #65a449;
+}
+.environment-workspace meter::-webkit-meter-bar {
+  background: #eef2f6;
+  border: none;
+}
+.environment-workspace meter::-webkit-meter-optimum-value {
+  background: #65a449;
+}
+.environment-workspace .environment-list-filters {
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.environment-workspace .environment-filter-grid {
+  gap: 12px;
+}
+.environment-view-switch {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+.environment-view-switch button {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  color: #475569;
+}
+.environment-view-switch button.selected {
+  background: #eef5e9;
+  border-color: #65a449;
+  color: #315522;
+}
+.environment-workspace :is(button, a, input, select, summary):focus-visible {
+  outline: 2px solid #568c3e;
+  outline-offset: 3px;
+}
+.environment-workspace th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+}
+.environment-workspace td {
+  font-size: 13px;
+  padding: 12px 16px;
+}
+.environment-workspace .provider-badges,
+.environment-workspace .provider-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.environment-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  align-items: start;
+}
+.environment-board-column {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+.environment-board-column h3 {
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.environment-board-column h3 span {
+  color: #64748b;
+  font-weight: 400;
+}
+.environment-board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.environment-board-card p {
+  margin: 0;
+  color: #475569;
+}
+.environment-board-card small {
+  color: #64748b;
+}
+.environment-open-link {
+  color: #315522;
+  font-weight: 600;
+  border-top: 1px solid #eef2f6;
+  padding-top: 10px;
+}
+.environment-workspace .environment-stepper {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 18px;
+}
+.environment-workspace .environment-stepper .active span {
+  background: #65a449;
+  color: #143322;
+}
+.environment-workspace .environment-fieldset {
+  padding: 20px;
+}
+.environment-workspace .environment-form-heading {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 18px;
+}
+.environment-workspace .environment-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 14px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 -4px 16px #17203308;
+}
+.environment-workspace .environment-command-center {
+  padding: 20px;
+}
+.environment-workspace .environment-tabs {
+  gap: 18px;
+  border-bottom: 1px solid #e2e8f0;
+  margin: 18px 0;
+}
+.environment-workspace .environment-tabs button {
+  border-radius: 0;
+  text-transform: capitalize;
+  border-bottom: 3px solid transparent;
+  padding: 12px 4px;
+}
+.environment-workspace .environment-tabs button.selected {
+  background: #fff;
+  color: #315522;
+  border-bottom-color: #65a449;
+}
+.environment-workspace .environment-config-section {
+  border: 1px solid #e2e8f0;
+  padding: 14px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+}
+.environment-workspace .environment-config-section summary {
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: capitalize;
+}
+.environment-workspace .environment-json {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 420px;
+  overflow: auto;
+}
+@media (max-width: 800px) {
+  .environment-workspace .metrics-grid,
+  .environment-workspace .environment-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .environment-workspace .environment-tabs {
+    overflow-x: auto;
+    gap: 10px;
+  }
+  .environment-workspace .environment-tabs button {
+    white-space: nowrap;
+  }
+  .environment-workspace .environment-save-bar {
+    position: static;
+  }
+}
+@media (max-width: 480px) {
+  .environment-workspace .environment-filter-grid,
+  .environment-board {
+    grid-template-columns: 1fr;
+  }
+}
+.environment-config-values {
+  margin: 14px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 22px;
+}
+.environment-config-values dt {
+  color: #64748b;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.environment-config-values dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.environment-config-value {
+  margin: 0;
+}
+.environment-config-items {
+  padding-left: 18px;
+  margin: 10px 0;
+}
+.environment-config-items li {
+  margin: 8px 0;
+}
+@media (max-width: 650px) {
+  .environment-config-values {
+    grid-template-columns: 1fr;
+  }
+}

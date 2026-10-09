@@ -1,4 +1,5 @@
 "use client";
+import "./environment-workspace.css";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -24,6 +25,7 @@ import {
   useEnvironments,
   useMetadata,
 } from "../hooks/queries";
+import { ProviderBadges } from "@/modules/customer-management/components/customer-badges";
 import type { Filters } from "../model/types";
 
 interface EnvironmentListProps {
@@ -54,6 +56,7 @@ export function EnvironmentList({
     window.addEventListener("popstate", syncStatus);
     return () => window.removeEventListener("popstate", syncStatus);
   }, [mode]);
+  const [view, setView] = useState<"list" | "board">("list");
   const query = useEnvironments(filters);
   const metadata = useMetadata();
   const total = useEnvironmentCount(undefined, mode === "directory");
@@ -131,11 +134,11 @@ export function EnvironmentList({
   const set = (key: string, value: string) =>
     setFilters((f) => ({ ...f, page: 0, [key]: value || undefined }));
   return (
-    <>
+    <div className="environment-workspace environment-list-workspace">
       <PageHeading
         eyebrow="ENVIRONMENT MANAGEMENT"
         title={
-          mode === "reviews" ? "Environment Reviews" : "Environment Dashboard"
+          mode === "reviews" ? "Environment Reviews" : "Environment Management"
         }
         description={
           mode === "reviews"
@@ -160,6 +163,16 @@ export function EnvironmentList({
               <metric.icon size={20} aria-hidden="true" />
             </div>
             <strong>{metric.value ?? "—"}</strong>
+            {metric.value !== undefined &&
+              total.data !== undefined &&
+              mode === "directory" && (
+                <meter
+                  min={0}
+                  max={Math.max(total.data, metric.value, 1)}
+                  value={metric.value}
+                  aria-label={`${metric.label}: ${metric.value} of ${total.data}`}
+                />
+              )}
             <p>{metric.note}</p>
           </div>
         ))}
@@ -178,6 +191,28 @@ export function EnvironmentList({
                 : "Search and manage environment baselines across every lifecycle status."}
             </p>
           </div>
+        </div>
+        <div
+          className="environment-view-switch"
+          role="group"
+          aria-label="Environment display"
+        >
+          <button
+            type="button"
+            className={view === "list" ? "selected" : ""}
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+          >
+            List view
+          </button>
+          <button
+            type="button"
+            className={view === "board" ? "selected" : ""}
+            aria-pressed={view === "board"}
+            onClick={() => setView("board")}
+          >
+            Board view
+          </button>
         </div>
         <div className="environment-filter-grid">
           <label className="field">
@@ -266,49 +301,109 @@ export function EnvironmentList({
       ) : (
         query.data && (
           <section className="panel">
-            <div className="table-scroll">
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Environment</th>
-                    <th>Customer</th>
-                    <th>Distribution</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {query.data.items.map((row) => (
-                    <tr key={row.environmentId}>
-                      <td>
-                        <Link href={`/environments/${row.environmentId}`}>
-                          <strong>{row.environmentName}</strong>
-                        </Link>
-                        <div className="metadata">Version {row.version}</div>
-                      </td>
-                      <td>
-                        <Link href={`/customers/${row.customerId}`}>
-                          {row.customerName}
-                        </Link>
-                      </td>
-                      <td>
-                        {row.cloudProvider} / {row.kubernetesDistribution}
-                      </td>
-                      <td>{row.environmentType}</td>
-                      <td>
-                        <span
-                          className={`status-badge status-${row.status.toLowerCase()}`}
-                        >
-                          {row.status.replaceAll("_", " ")}
+            {view === "board" ? (
+              <div
+                className="environment-board"
+                aria-label="Environments grouped by lifecycle status"
+              >
+                {availableStatuses
+                  .filter((status) =>
+                    query.data!.items.some((row) => row.status === status),
+                  )
+                  .map((status) => (
+                    <section className="environment-board-column" key={status}>
+                      <h3>
+                        {status.replaceAll("_", " ")}{" "}
+                        <span>
+                          {
+                            query.data!.items.filter(
+                              (row) => row.status === status,
+                            ).length
+                          }{" "}
+                          on this page
                         </span>
-                      </td>
-                      <td>{formatDate(row.updatedAt || row.createdAt)}</td>
-                    </tr>
+                      </h3>
+                      {query
+                        .data!.items.filter((row) => row.status === status)
+                        .map((row) => (
+                          <article
+                            className="environment-board-card"
+                            key={row.environmentId}
+                          >
+                            <Link href={`/environments/${row.environmentId}`}>
+                              <strong>{row.environmentName}</strong>
+                            </Link>
+                            <Link href={`/customers/${row.customerId}`}>
+                              {row.customerName}
+                            </Link>
+                            <ProviderBadges codes={[row.cloudProvider]} />
+                            <p>
+                              {row.kubernetesDistribution} ·{" "}
+                              {row.environmentType} · Version {row.version}
+                            </p>
+                            <small>
+                              Updated{" "}
+                              {formatDate(row.updatedAt || row.createdAt)}
+                            </small>
+                            <Link
+                              className="environment-open-link"
+                              href={`/environments/${row.environmentId}`}
+                            >
+                              Open environment →
+                            </Link>
+                          </article>
+                        ))}
+                    </section>
                   ))}
-                </tbody>
-              </table>
-            </div>
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table className="customer-table">
+                  <thead>
+                    <tr>
+                      <th>Environment</th>
+                      <th>Customer</th>
+                      <th>Distribution</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {query.data.items.map((row) => (
+                      <tr key={row.environmentId}>
+                        <td>
+                          <Link href={`/environments/${row.environmentId}`}>
+                            <strong>{row.environmentName}</strong>
+                          </Link>
+                          <div className="metadata">Version {row.version}</div>
+                        </td>
+                        <td>
+                          <Link href={`/customers/${row.customerId}`}>
+                            {row.customerName}
+                          </Link>
+                        </td>
+                        <td>
+                          <ProviderBadges codes={[row.cloudProvider]} />
+                          <span className="metadata">
+                            {row.kubernetesDistribution}
+                          </span>
+                        </td>
+                        <td>{row.environmentType}</td>
+                        <td>
+                          <span
+                            className={`status-badge status-${row.status.toLowerCase()}`}
+                          >
+                            {row.status.replaceAll("_", " ")}
+                          </span>
+                        </td>
+                        <td>{formatDate(row.updatedAt || row.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <Pagination
               {...query.data.pagination}
               onChange={(page) => setFilters((f) => ({ ...f, page }))}
@@ -316,6 +411,6 @@ export function EnvironmentList({
           </section>
         )
       )}
-    </>
+    </div>
   );
 }
