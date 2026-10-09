@@ -1188,14 +1188,14 @@
 }
 .dashboard-shell .button-primary,
 .dashboard-shell .pd-review-action {
-  background: #4ade80;
-  border-color: #4ade80;
+  background: #65a449;
+  border-color: #65a449;
   color: #143322;
 }
 .dashboard-shell .button-primary:hover,
 .dashboard-shell .pd-attention-row:hover .pd-review-action {
-  background: #22c55e;
-  border-color: #22c55e;
+  background: #568c3e;
+  border-color: #568c3e;
 }
 .dashboard-shell .pd-review-action svg {
   color: currentColor;
