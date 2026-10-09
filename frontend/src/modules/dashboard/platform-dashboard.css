@@ -1406,3 +1406,85 @@
 #dashboard-provisioning {
   scroll-margin-top: 90px;
 }
+
+/* Quiet, consistent typography for the compact KPI and attention areas. */
+.dashboard-shell .pd-kpi {
+  align-content: start;
+  align-items: start;
+  padding: 14px 12px;
+}
+.dashboard-shell .pd-kpi-copy {
+  align-content: start;
+}
+.dashboard-shell .pd-kpi-copy > span {
+  min-height: 36px;
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #475569;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.dashboard-shell .pd-kpi-copy > strong,
+.dashboard-shell .pd-kpi-ring .pd-donut-center strong {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #263447;
+}
+.dashboard-shell .pd-kpi-copy small,
+.dashboard-shell .pd-kpi-note {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #64748b;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.dashboard-shell .pd-kpi-copy small {
+  min-height: 36px;
+}
+.dashboard-shell .pd-kpi-note {
+  min-height: 36px;
+  align-self: end;
+  margin: 0;
+}
+.dashboard-shell .pd-kpi-ring,
+.dashboard-shell .pd-kpi-icon {
+  align-self: start;
+}
+.dashboard-shell .pd-card-heading h2 {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.dashboard-shell .pd-governance-inline,
+.dashboard-shell .pd-preview-count {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #64748b;
+}
+.dashboard-shell .pd-governance-inline {
+  align-items: baseline;
+  gap: 6px 20px;
+}
+.dashboard-shell .pd-governance-inline strong {
+  font-weight: 600;
+  color: #475569;
+}
+.dashboard-shell .pd-preview-count {
+  margin: 0;
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
