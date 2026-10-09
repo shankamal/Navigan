@@ -1,4 +1,5 @@
 "use client";
+import "./environment-workspace.css";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +12,12 @@ import {
   Pencil,
   ShieldCheck,
   XCircle,
+  Network,
+  KeyRound,
+  Cloud,
+  ArrowUpRight,
+  Code2,
+  Tags,
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { ApiError } from "@/shared/api/client";
@@ -26,6 +33,7 @@ import {
 import { useEnvironment } from "../hooks/queries";
 import { allowedActions, labels } from "../model/policy";
 import { environments } from "../services/environments";
+import { ProviderBadges } from "@/modules/customer-management/components/customer-badges";
 import type { Action, HistoryKind } from "../model/types";
 
 const lifecycle = [
@@ -114,7 +122,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
     (step) => step.status === lifecycleStatus,
   );
   return (
-    <>
+    <div className="environment-workspace environment-details-workspace">
       <Link className="back-link" href="/environments">
         ← All environments
       </Link>
@@ -156,233 +164,21 @@ export function EnvironmentDetails({ id }: { id: string }) {
           )
         }
       />
-      <section className="panel environment-command-center">
-        <header className="environment-command-header">
-          <div>
-            <span className={`status-badge status-${env.status.toLowerCase()}`}>
-              {env.status.replaceAll("_", " ")}
-            </span>
-            <h2>Environment lifecycle</h2>
-            <p className="muted">
-              Review the approved infrastructure baseline and complete the next
-              governance action.
-            </p>
-          </div>
-          <ShieldCheck size={26} aria-hidden="true" />
-        </header>
-        <ol className="lifecycle-track" aria-label="Environment lifecycle">
-          {lifecycle.map((step, index) => {
-            const complete = lifecycleIndex > index;
-            const current = lifecycleIndex === index;
-            return (
-              <li
-                className={`${complete ? "complete" : ""} ${current ? "current" : ""}`}
-                aria-current={current ? "step" : undefined}
-                key={step.status}
-              >
-                <span className="lifecycle-marker" aria-hidden="true">
-                  {complete ? (
-                    <Check size={15} />
-                  ) : current ? (
-                    <Clock3 size={15} />
-                  ) : (
-                    <Circle size={12} />
-                  )}
-                </span>
-                <strong>{step.label}</strong>
-              </li>
-            );
-          })}
-        </ol>
-        <div className="environment-overview-grid">
-          <div>
-            <span className="muted">Customer</span>
-            <p>
-              <Link href={`/customers/${env.customerId}`}>
-                {env.customerName}
-              </Link>
-            </p>
-          </div>
-          <div>
-            <span className="muted">Type / version</span>
-            <p>
-              {env.environmentType} · v{env.version}
-            </p>
-          </div>
-          <div>
-            <span className="muted">Approved baseline</span>
-            <p>
-              {env.approvedVersion ? (
-                <Button
-                  variant="ghost"
-                  onClick={() => setVersion(env.approvedVersion!)}
-                >
-                  Version {env.approvedVersion}
-                </Button>
-              ) : (
-                "Awaiting approval"
-              )}
-            </p>
-          </div>
-          <div>
-            <span className="muted">Baseline availability</span>
-            <p>{env.approvedStatus || "Not active yet"}</p>
-          </div>
-          <div>
-            <span className="muted">Last updated</span>
-            <p>{formatDateTime(env.updatedAt || env.createdAt)}</p>
-          </div>
-        </div>
-        {!!decisionActions.length && (
-          <div className="environment-decision-bar">
-            <div>
-              <strong>Next action</strong>
-              <p className="muted">
-                Actions remain fully audited and follow the existing permission
-                rules.
-              </p>
-            </div>
-            <div className="environment-actions">
-              {decisionActions.map((a) => (
-                <Button
-                  key={a}
-                  variant={
-                    ["reject", "suspend", "deactivate"].includes(a)
-                      ? "danger"
-                      : action === a
-                        ? "primary"
-                        : "secondary"
-                  }
-                  aria-pressed={action === a}
-                  onClick={() => {
-                    setAction(action === a ? null : a);
-                    setReason("");
-                    setComments("");
-                    mutation.reset();
-                  }}
-                >
-                  {a === "approve" && <CheckCircle2 size={17} />}
-                  {a === "reject" && <XCircle size={17} />}
-                  {labels[a]}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-        {env.approvedVersion &&
-          env.approvedStatus === "ACTIVE" &&
-          env.status !== "ACTIVE" && (
-            <div className="environment-availability-note">
-              <ShieldCheck size={18} aria-hidden="true" />
-              <p>
-                Approved baseline version {env.approvedVersion} remains active
-                while revision version {env.version} completes review.
-              </p>
-            </div>
-          )}
-        {action && (
-          <form
-            className="environment-decision-panel"
-            onSubmit={(event) => {
-              event.preventDefault();
-              mutation.mutate();
-            }}
-          >
-            <div className="environment-decision-copy">
-              <span className="decision-icon" aria-hidden="true">
-                <MessageSquareText size={19} />
-              </span>
-              <div>
-                <h3>{labels[action]}</h3>
-                <p>{actionGuidance[action]}</p>
-              </div>
-            </div>
-            {["reject", "suspend", "deactivate"].includes(action) && (
-              <label className="field">
-                Reason *
-                <textarea
-                  required
-                  maxLength={2000}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Explain what must change or why this action is required."
-                />
-              </label>
-            )}
-            <label className="field">
-              Review comments <span className="optional-label">Optional</span>
-              <textarea
-                maxLength={4000}
-                value={comments}
-                onChange={(event) => setComments(event.target.value)}
-                placeholder="Add context for the audit history and other reviewers."
-              />
-            </label>
-            {mutation.error && <ErrorNotice error={mutation.error} />}
-            {mutation.error instanceof ApiError &&
-              Array.isArray(mutation.error.details?.fields) && (
-                <ul className="field-error-list">
-                  {(
-                    mutation.error.details.fields as {
-                      field?: string;
-                      message?: string;
-                    }[]
-                  ).map((field, index) => (
-                    <li key={index}>
-                      {field.field}: {field.message}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            <div className="decision-actions">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={mutation.isPending}
-                onClick={() => setAction(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant={
-                  ["reject", "suspend", "deactivate"].includes(action)
-                    ? "danger"
-                    : "primary"
-                }
-                disabled={mutation.isPending}
-              >
-                {mutation.isPending
-                  ? "Applying…"
-                  : `Confirm ${labels[action].toLowerCase()}`}
-              </Button>
-            </div>
-          </form>
-        )}
-        {env.approvedStatus !== "ACTIVE" && (
-          <div className="environment-availability-note">
-            <Clock3 size={18} aria-hidden="true" />
-            <p>
-              New cluster provisioning requires an active environment and an
-              active parent customer.
-            </p>
-          </div>
-        )}
-      </section>
-      {Object.entries(env.workflow).map(
-        ([key, value]) =>
-          (value.reason || value.comments) && (
-            <div
-              className="panel panel-padding environment-workflow-note"
-              key={key}
-            >
-              <strong>
-                {key.replaceAll("_", " ")} · {formatDateTime(value.at)}
-              </strong>
-              {value.reason && <p>{value.reason}</p>}
-              {value.comments && <p>{value.comments}</p>}
-            </div>
-          ),
-      )}
+      <div className="environment-detail-context">
+        <span className={`status-badge status-${env.status.toLowerCase()}`}>
+          {env.status.replaceAll("_", " ")}
+        </span>
+        <Link href={`/customers/${env.customerId}`}>{env.customerName}</Link>
+        <ProviderBadges codes={[env.cloudProvider]} compact />
+        <span>
+          {env.kubernetesDistribution} · {env.environmentType}
+        </span>
+        <span>
+          {env.approvedVersion
+            ? `Approved baseline v${env.approvedVersion}`
+            : "Awaiting approval"}
+        </span>
+      </div>
       <nav className="environment-tabs" aria-label="Environment records">
         {(
           [
@@ -409,20 +205,351 @@ export function EnvironmentDetails({ id }: { id: string }) {
           </Button>
         ))}
       </nav>
-      {tab === "configuration" ? (
-        <section className="panel panel-padding">
-          {Object.entries(env.configuration).map(([key, value]) => (
-            <details key={key} open className="environment-config-section">
-              <summary>{key}</summary>
-              <pre className="environment-json">
-                {JSON.stringify(value, null, 2)}
-              </pre>
-            </details>
-          ))}
-          {!Object.keys(env.configuration).length && (
-            <p>Configuration has not been entered yet.</p>
+      <details className="environment-governance-controls" open={!!action}>
+        <summary>Lifecycle and governance actions</summary>{" "}
+        <section className="panel environment-command-center">
+          <header className="environment-command-header">
+            <div>
+              <span
+                className={`status-badge status-${env.status.toLowerCase()}`}
+              >
+                {env.status.replaceAll("_", " ")}
+              </span>
+              <h2>Environment lifecycle</h2>
+              <p className="muted">
+                Review the approved infrastructure baseline and complete the
+                next governance action.
+              </p>
+            </div>
+            <ShieldCheck size={26} aria-hidden="true" />
+          </header>
+          <ol className="lifecycle-track" aria-label="Environment lifecycle">
+            {lifecycle.map((step, index) => {
+              const complete = lifecycleIndex > index;
+              const current = lifecycleIndex === index;
+              return (
+                <li
+                  className={`${complete ? "complete" : ""} ${current ? "current" : ""}`}
+                  aria-current={current ? "step" : undefined}
+                  key={step.status}
+                >
+                  <span className="lifecycle-marker" aria-hidden="true">
+                    {complete ? (
+                      <Check size={15} />
+                    ) : current ? (
+                      <Clock3 size={15} />
+                    ) : (
+                      <Circle size={12} />
+                    )}
+                  </span>
+                  <strong>{step.label}</strong>
+                </li>
+              );
+            })}
+          </ol>
+          <div className="environment-overview-grid">
+            <div>
+              <span className="muted">Customer</span>
+              <p>
+                <Link href={`/customers/${env.customerId}`}>
+                  {env.customerName}
+                </Link>
+              </p>
+            </div>
+            <div>
+              <span className="muted">Type / version</span>
+              <p>
+                {env.environmentType} · v{env.version}
+              </p>
+            </div>
+            <div>
+              <span className="muted">Approved baseline</span>
+              <p>
+                {env.approvedVersion ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setVersion(env.approvedVersion!)}
+                  >
+                    Version {env.approvedVersion}
+                  </Button>
+                ) : (
+                  "Awaiting approval"
+                )}
+              </p>
+            </div>
+            <div>
+              <span className="muted">Baseline availability</span>
+              <p>{env.approvedStatus || "Not active yet"}</p>
+            </div>
+            <div>
+              <span className="muted">Last updated</span>
+              <p>{formatDateTime(env.updatedAt || env.createdAt)}</p>
+            </div>
+          </div>
+          {!!decisionActions.length && (
+            <div className="environment-decision-bar">
+              <div>
+                <strong>Next action</strong>
+                <p className="muted">
+                  Actions remain fully audited and follow the existing
+                  permission rules.
+                </p>
+              </div>
+              <div className="environment-actions">
+                {decisionActions.map((a) => (
+                  <Button
+                    key={a}
+                    variant={
+                      ["reject", "suspend", "deactivate"].includes(a)
+                        ? "danger"
+                        : action === a
+                          ? "primary"
+                          : "secondary"
+                    }
+                    aria-pressed={action === a}
+                    onClick={() => {
+                      setAction(action === a ? null : a);
+                      setReason("");
+                      setComments("");
+                      mutation.reset();
+                    }}
+                  >
+                    {a === "approve" && <CheckCircle2 size={17} />}
+                    {a === "reject" && <XCircle size={17} />}
+                    {labels[a]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          {env.approvedVersion &&
+            env.approvedStatus === "ACTIVE" &&
+            env.status !== "ACTIVE" && (
+              <div className="environment-availability-note">
+                <ShieldCheck size={18} aria-hidden="true" />
+                <p>
+                  Approved baseline version {env.approvedVersion} remains active
+                  while revision version {env.version} completes review.
+                </p>
+              </div>
+            )}
+          {action && (
+            <form
+              className="environment-decision-panel"
+              onSubmit={(event) => {
+                event.preventDefault();
+                mutation.mutate();
+              }}
+            >
+              <div className="environment-decision-copy">
+                <span className="decision-icon" aria-hidden="true">
+                  <MessageSquareText size={19} />
+                </span>
+                <div>
+                  <h3>{labels[action]}</h3>
+                  <p>{actionGuidance[action]}</p>
+                </div>
+              </div>
+              {["reject", "suspend", "deactivate"].includes(action) && (
+                <label className="field">
+                  Reason *
+                  <textarea
+                    required
+                    maxLength={2000}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Explain what must change or why this action is required."
+                  />
+                </label>
+              )}
+              <label className="field">
+                Review comments <span className="optional-label">Optional</span>
+                <textarea
+                  maxLength={4000}
+                  value={comments}
+                  onChange={(event) => setComments(event.target.value)}
+                  placeholder="Add context for the audit history and other reviewers."
+                />
+              </label>
+              {mutation.error && <ErrorNotice error={mutation.error} />}
+              {mutation.error instanceof ApiError &&
+                Array.isArray(mutation.error.details?.fields) && (
+                  <ul className="field-error-list">
+                    {(
+                      mutation.error.details.fields as {
+                        field?: string;
+                        message?: string;
+                      }[]
+                    ).map((field, index) => (
+                      <li key={index}>
+                        {field.field}: {field.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              <div className="decision-actions">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={mutation.isPending}
+                  onClick={() => setAction(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant={
+                    ["reject", "suspend", "deactivate"].includes(action)
+                      ? "danger"
+                      : "primary"
+                  }
+                  disabled={mutation.isPending}
+                >
+                  {mutation.isPending
+                    ? "Applying…"
+                    : `Confirm ${labels[action].toLowerCase()}`}
+                </Button>
+              </div>
+            </form>
+          )}
+          {env.approvedStatus !== "ACTIVE" && (
+            <div className="environment-availability-note">
+              <Clock3 size={18} aria-hidden="true" />
+              <p>
+                New cluster provisioning requires an active environment and an
+                active parent customer.
+              </p>
+            </div>
           )}
         </section>
+      </details>
+      {tab === "configuration" ? (
+        <div className="environment-details-layout">
+          <section className="panel environment-baseline-panel">
+            <header>
+              <h2>Infrastructure baseline</h2>
+              <p className="muted">
+                Saved environment configuration · Version {env.version}
+                {env.approvedVersion && env.approvedVersion !== env.version
+                  ? ` · Approved baseline v${env.approvedVersion}`
+                  : ""}
+              </p>
+            </header>
+            {Object.entries(env.configuration).map(([key, value]) => {
+              const icons: Record<string, typeof Cloud> = {
+                account: Cloud,
+                location: Cloud,
+                network: Network,
+                security: ShieldCheck,
+                iam: KeyRound,
+                encryption: KeyRound,
+                connectivity: ArrowUpRight,
+                tags: Tags,
+                extensions: Code2,
+              };
+              const Icon = icons[key] ?? Code2;
+              const names: Record<string, string> = {
+                account: "Cloud account",
+                location: "Region",
+                network: "VPC and subnets",
+                security: "Security groups",
+                iam: "IAM roles",
+                encryption: "KMS encryption",
+                connectivity: "Outbound access",
+                tags: "Governance tags",
+                extensions: "Discovery and provisioning",
+              };
+              return (
+                <div className="environment-baseline-row" key={key}>
+                  <div className="environment-baseline-label">
+                    <Icon size={22} />
+                    <h3>{names[key] ?? key}</h3>
+                  </div>
+                  <ConfigurationSummary value={value} />
+                </div>
+              );
+            })}
+            {!Object.keys(env.configuration).length && (
+              <p>Configuration has not been entered yet.</p>
+            )}
+          </section>
+          <aside className="environment-details-sidebar">
+            <section className="panel panel-padding">
+              <h2>Environment status</h2>
+              <dl className="environment-status-details">
+                {[
+                  { label: "Status", value: env.status.replaceAll("_", " ") },
+                  { label: "Environment type", value: env.environmentType },
+                  { label: "Customer", value: env.customerName },
+                  {
+                    label: "Cloud provider",
+                    value: `${env.cloudProvider} / ${env.kubernetesDistribution}`,
+                  },
+                  {
+                    label: "Approved baseline",
+                    value: env.approvedVersion
+                      ? `Version ${env.approvedVersion}`
+                      : "Not yet approved",
+                  },
+                  { label: "Created", value: formatDateTime(env.createdAt) },
+                  {
+                    label: "Last updated",
+                    value: formatDateTime(env.updatedAt || env.createdAt),
+                  },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <section className="panel panel-padding">
+              <h2>Approval and workflow</h2>
+              <ul className="environment-approval-lineage">
+                {Object.entries(env.workflow).map(([key, value]) => (
+                  <li key={key}>
+                    <CheckCircle2 size={19} />
+                    <div>
+                      <strong>{key.replaceAll("_", " ")}</strong>
+                      <p>{formatDateTime(value.at)}</p>
+                      <small>{value.by}</small>
+                      {value.reason && <p>{value.reason}</p>}
+                      {value.comments && <p>{value.comments}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {!Object.keys(env.workflow).length && (
+                <p className="muted">No workflow events recorded.</p>
+              )}
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setTab("reviews");
+                  setPage(0);
+                }}
+              >
+                View review history →
+              </Button>
+            </section>
+            <section className="panel panel-padding">
+              <h2>Baseline availability</h2>
+              <p>
+                {env.approvedStatus === "ACTIVE"
+                  ? `Approved baseline v${env.approvedVersion} is active for cluster requests.`
+                  : "An active approved baseline is required for new cluster requests."}
+              </p>
+              {env.approvedVersion && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setVersion(env.approvedVersion!)}
+                >
+                  View approved version →
+                </Button>
+              )}
+            </section>
+          </aside>
+        </div>
       ) : records.isPending ? (
         <Loading label="Loading history…" />
       ) : records.error ? (
@@ -491,6 +618,42 @@ export function EnvironmentDetails({ id }: { id: string }) {
           )}
         </Modal>
       )}
-    </>
+    </div>
+  );
+}
+
+function ConfigurationSummary({ value }: { value: unknown }) {
+  if (value === null || typeof value !== "object") {
+    return (
+      <p className="environment-config-value">
+        {value === null ? "Not set" : String(value)}
+      </p>
+    );
+  }
+  if (Array.isArray(value)) {
+    if (!value.length) return <p className="muted">No entries</p>;
+    return (
+      <ul className="environment-config-items">
+        {value.map((item, index) => (
+          <li key={index}>
+            <ConfigurationSummary value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <dl className="environment-config-values">
+      {Object.entries(value).map(([key, item]) => (
+        <div key={key}>
+          <dt>
+            {key.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2")}
+          </dt>
+          <dd>
+            <ConfigurationSummary value={item} />
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

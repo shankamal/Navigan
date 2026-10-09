@@ -1,4 +1,5 @@
 "use client";
+import "./environment-workspace.css";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -318,19 +319,18 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     });
   };
   return (
-    <>
+    <div className="environment-workspace environment-form-workspace">
       <Link className="back-link" href="/environments">
         <ArrowLeft size={16} />
         Back to environments
       </Link>
       <PageHeading
-        eyebrow="Environment Management"
         title={
           environment
             ? `Edit ${environment.environmentName} revision`
             : input.cloudProvider === "AWS"
-              ? "Create AWS environment profile"
-              : "Create environment profile"
+              ? "Create environment"
+              : "Create environment"
         }
         description={
           environment
@@ -368,21 +368,75 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
             : "Environment profile creation progress"
         }
       >
-        {["Connection", "Discovery", "Resource selection", "Review"].map(
-          (label, index) => (
-            <li
-              key={label}
-              className={index <= (hasDiscovery ? 2 : 0) ? "active" : ""}
-              aria-current={
-                index === (hasDiscovery ? 2 : 0) ? "step" : undefined
+        {[
+          "Identity",
+          "Cloud connection",
+          "Infrastructure",
+          "Configuration",
+          "Review",
+        ].map((label, index) => (
+          <li
+            key={label}
+            className={
+              index <= (reviewing ? 4 : hasDiscovery ? 3 : discovery ? 2 : 0)
+                ? "active"
+                : ""
+            }
+            aria-current={
+              index === (reviewing ? 4 : hasDiscovery ? 3 : discovery ? 2 : 0)
+                ? "step"
+                : undefined
+            }
+          >
+            <span>{index + 1}</span>
+            <strong>{label}</strong>
+            <small>
+              {
+                [
+                  "Customer and details",
+                  "Account and access",
+                  "Discover and select",
+                  "Settings and tags",
+                  "Validate and submit",
+                ][index]
               }
-            >
-              <span>{index + 1}</span>
-              <strong>{label}</strong>
-            </li>
-          ),
-        )}
+            </small>
+          </li>
+        ))}
       </ol>
+      <section
+        className="panel environment-form-context"
+        aria-label="Environment context"
+      >
+        <div>
+          <small>Customer</small>
+          <strong>
+            {environment?.customerName ||
+              customers.data?.items.find(
+                (c) => c.customerId === input.customerId,
+              )?.name ||
+              "Select customer"}
+          </strong>
+        </div>
+        <div>
+          <small>Cloud / Distribution</small>
+          <strong>
+            {input.cloudProvider} / {input.kubernetesDistribution}
+          </strong>
+        </div>
+        <div>
+          <small>AWS account</small>
+          <strong>{discovery?.account.accountId || "Not connected"}</strong>
+        </div>
+        <div>
+          <small>Region</small>
+          <strong>{discovery?.regions[0]?.region || "Not discovered"}</strong>
+        </div>
+        <div>
+          <small>Environment version</small>
+          <strong>v{environment?.version || 1} · Draft</strong>
+        </div>
+      </section>
       <form
         ref={form}
         className="environment-form"
@@ -803,6 +857,6 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
           </div>
         </div>
       </form>
-    </>
+    </div>
   );
 }

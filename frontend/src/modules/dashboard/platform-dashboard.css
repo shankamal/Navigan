@@ -980,3 +980,511 @@
     height: 54px;
   }
 }
+
+/* Approved forest-green dashboard theme. */
+.command-dashboard {
+  gap: 18px;
+  color: #17251e;
+}
+.pd-heading h1 {
+  font-size: 28px;
+  line-height: 1.25;
+}
+.pd-heading .muted {
+  font-size: 14px;
+  max-width: 900px;
+}
+.pd-date {
+  font-size: 13px;
+  color: #64748b;
+}
+.pd-kpi {
+  --pd-tone: #237448;
+  --pd-tone-soft: #f0f5f2;
+  padding: 16px 14px;
+}
+.pd-kpi strong {
+  color: #17251e;
+  font-size: 28px;
+}
+.pd-kpi-copy > span {
+  font-size: 13px;
+}
+.pd-kpi-copy small,
+.pd-kpi-note {
+  font-size: 12px;
+  white-space: normal;
+}
+.pd-card-heading h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.pd-card-heading p {
+  font-size: 13px;
+  color: #64748b;
+}
+.pd-card-icon {
+  background: #f0f5f2;
+  color: #237448;
+}
+.pd-primary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.pd-primary-grid > article {
+  display: flex;
+  flex-direction: column;
+}
+.pd-primary-grid .pd-posture {
+  grid-template-columns: 110px minmax(0, 1fr);
+  padding: 20px 16px;
+  gap: 14px;
+}
+.pd-primary-grid .pd-gauge {
+  width: 110px;
+  height: 110px;
+}
+.pd-primary-grid .pd-gauge strong {
+  font-size: 25px;
+}
+.pd-primary-grid .pd-footprint {
+  grid-template-columns: 1fr;
+  padding: 20px 18px;
+}
+.pd-primary-grid .pd-footprint .pd-donut {
+  display: none;
+}
+.pd-primary-grid .pd-workflow {
+  display: block;
+  padding: 24px 18px;
+}
+.pd-workflow-bar {
+  display: flex;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 6px;
+  margin: 10px 0 20px;
+}
+.pd-workflow-bar span {
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 700;
+  min-width: 22px;
+}
+.pd-workflow-legend > div {
+  padding: 7px 0;
+}
+.pd-brand-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.pd-provider {
+  gap: 10px;
+}
+.pd-card-link,
+.pd-row-action {
+  color: #237448;
+  font-size: 13px;
+}
+.pd-attention-row {
+  padding: 16px 20px;
+}
+.pd-attention-row strong {
+  font-size: 14px;
+}
+.pd-attention-row small {
+  font-size: 13px;
+}
+.pd-review-action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  background: #237448;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pd-attention-row .pd-review-action svg {
+  color: white;
+}
+.pd-activity-table th {
+  font-size: 12px;
+}
+.pd-activity-table td {
+  font-size: 14px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.pd-tool-strip {
+  background: white;
+}
+.pd-tools span {
+  font-size: 13px;
+  gap: 8px;
+}
+.pd-governance-summary .pd-governance-rings {
+  padding: 14px 20px;
+}
+.pd-governance-summary .pd-mini-ring {
+  width: auto;
+  height: auto;
+  background: none;
+}
+.pd-governance-summary .pd-mini-ring::before {
+  display: none;
+}
+.pd-governance-summary .pd-mini-ring strong {
+  position: static;
+  font-size: 24px;
+}
+.pd-governance-summary .pd-governance-note {
+  background: #f5f6f7;
+}
+.pd-signal {
+  background: #f7f9f8;
+  border-color: #dde4df;
+  font-size: 12px;
+}
+@media (max-width: 1150px) {
+  .pd-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pd-primary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .pd-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pd-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .pd-review-action {
+    padding: 7px;
+  }
+  .pd-attention-row {
+    padding: 12px;
+  }
+}
+
+.pd-preview-count {
+  padding: 10px 20px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* Compact Dev dashboard with approved slate/emerald palette. */
+.dashboard-shell .topbar {
+  background: #334155;
+  border-bottom-color: #475569;
+}
+.dashboard-shell .button-primary,
+.dashboard-shell .pd-review-action {
+  background: #65a449;
+  border-color: #65a449;
+  color: #143322;
+}
+.dashboard-shell .button-primary:hover,
+.dashboard-shell .pd-attention-row:hover .pd-review-action {
+  background: #568c3e;
+  border-color: #568c3e;
+}
+.dashboard-shell .pd-review-action svg {
+  color: currentColor;
+}
+.signed-in-user {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+  line-height: 1.3;
+}
+.signed-in-user strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.signed-in-user span {
+  font-size: 12px;
+  color: #e2e8f0;
+}
+.command-dashboard {
+  gap: 12px;
+}
+.pd-heading {
+  gap: 12px;
+}
+.pd-heading h1 {
+  font-size: 26px;
+}
+.pd-heading .muted {
+  margin-top: 4px;
+}
+.pd-date {
+  margin-bottom: 2px;
+}
+.pd-kpi {
+  min-height: 96px;
+  padding: 12px;
+  column-gap: 9px;
+  row-gap: 4px;
+  align-content: center;
+}
+.pd-kpi-with-ring {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+.pd-kpi-with-ring .pd-kpi-copy > strong {
+  display: none;
+}
+.pd-kpi-ring {
+  grid-row: 1 / 3;
+  align-self: center;
+}
+.pd-kpi-ring .pd-donut {
+  width: 52px;
+  height: 52px;
+}
+.pd-kpi-ring .pd-donut-center strong {
+  font-size: 17px;
+  line-height: 1.1;
+}
+.pd-kpi-ring .pd-donut-center span {
+  font-size: 10px;
+}
+.pd-kpi-with-ring .pd-kpi-note {
+  grid-column: 2;
+}
+.pd-kpi-copy small,
+.pd-kpi-note {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.pd-card-heading {
+  padding: 12px 16px;
+}
+.pd-card-heading h2 {
+  font-size: 16px;
+}
+.pd-card-heading p {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.pd-card-icon {
+  width: 30px;
+  height: 30px;
+}
+.pd-attention-row {
+  padding: 9px 16px;
+  min-height: 52px;
+}
+.pd-attention-row strong {
+  font-size: 13px;
+}
+.pd-attention-row small {
+  font-size: 12px;
+}
+.pd-preview-count {
+  padding: 4px 16px;
+  font-size: 12px;
+}
+.pd-governance-inline {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 16px 0;
+  font-size: 12px;
+  color: #526174;
+}
+.pd-governance-inline a {
+  display: inline-flex;
+  gap: 6px;
+}
+.pd-governance-inline a:hover {
+  text-decoration: underline;
+}
+.pd-primary-grid {
+  gap: 12px;
+}
+.pd-primary-grid .pd-posture {
+  padding: 12px 14px;
+}
+.pd-primary-grid .pd-footprint {
+  padding: 10px 14px;
+}
+.pd-primary-grid .pd-workflow {
+  padding: 12px 14px;
+}
+.pd-legend > div {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.pd-card-footer-link {
+  margin: auto 14px 10px;
+}
+.pd-workflow-bar {
+  height: 28px;
+  margin: 4px 0 8px;
+}
+.pd-workflow-legend > div {
+  padding: 4px 0;
+}
+.pd-signal {
+  margin: 0 12px 10px;
+  padding: 6px 8px;
+}
+.pd-activity-table td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  font-size: 13px;
+}
+.pd-activity-table th {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.pd-tool-strip {
+  padding: 10px 14px;
+  gap: 12px;
+}
+.pd-tool-strip p {
+  display: none;
+}
+.pd-tools {
+  gap: 14px;
+}
+.pd-tools .pd-brand-logo {
+  width: 24px;
+  height: 24px;
+}
+.dashboard-shell main {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.dashboard-shell .app-footer {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+@media (max-width: 600px) {
+  .signed-in-user {
+    max-width: 160px;
+  }
+  .signed-in-user strong {
+    font-size: 12px;
+  }
+  .signed-in-user span {
+    font-size: 11px;
+  }
+  .pd-kpi {
+    padding: 10px;
+  }
+}
+.pd-freshness,
+.pd-data-label {
+  color: #64748b;
+  font-size: 12px;
+}
+.pd-provisioning-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px 0;
+  color: #237448;
+  font-size: 12px;
+}
+.pd-provisioning-links a:hover {
+  text-decoration: underline;
+}
+.pd-governance-inline span a {
+  display: inline;
+}
+#dashboard-attention,
+#dashboard-provisioning {
+  scroll-margin-top: 90px;
+}
+
+/* Quiet, consistent typography for the compact KPI and attention areas. */
+.dashboard-shell .pd-kpi {
+  align-content: start;
+  align-items: start;
+  padding: 14px 12px;
+}
+.dashboard-shell .pd-kpi-copy {
+  align-content: start;
+}
+.dashboard-shell .pd-kpi-copy > span {
+  min-height: 36px;
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #475569;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.dashboard-shell .pd-kpi-copy > strong,
+.dashboard-shell .pd-kpi-ring .pd-donut-center strong {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #263447;
+}
+.dashboard-shell .pd-kpi-copy small,
+.dashboard-shell .pd-kpi-note {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #64748b;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.dashboard-shell .pd-kpi-copy small {
+  min-height: 36px;
+}
+.dashboard-shell .pd-kpi-note {
+  min-height: 36px;
+  align-self: end;
+  margin: 0;
+}
+.dashboard-shell .pd-kpi-ring,
+.dashboard-shell .pd-kpi-icon {
+  align-self: start;
+}
+.dashboard-shell .pd-card-heading h2 {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.dashboard-shell .pd-governance-inline,
+.dashboard-shell .pd-preview-count {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #64748b;
+}
+.dashboard-shell .pd-governance-inline {
+  align-items: baseline;
+  gap: 6px 20px;
+}
+.dashboard-shell .pd-governance-inline strong {
+  font-weight: 600;
+  color: #475569;
+}
+.dashboard-shell .pd-preview-count {
+  margin: 0;
+  padding-top: 6px;
+  padding-bottom: 8px;
+}

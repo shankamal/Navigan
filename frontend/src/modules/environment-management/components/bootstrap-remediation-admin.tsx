@@ -85,7 +85,6 @@ export function BootstrapRemediationQueue() {
   return (
     <>
       <PageHeading
-        eyebrow="GOVERNED REMEDIATION"
         title="Bootstrap Approvals"
         description="Review customer-account resource creation requests before Terraform planning begins."
       />
@@ -93,6 +92,7 @@ export function BootstrapRemediationQueue() {
         <div className="list-heading">
           <div>
             <h2>Remediation request queue</h2>
+            <p className="muted">Governed remediation</p>
             <p className="muted">
               Approval authorizes plan generation only. It never applies AWS
               changes.
