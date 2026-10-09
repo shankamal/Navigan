@@ -568,3 +568,12 @@
     grid-template-columns: repeat(4, 220px);
   }
 }
+
+/* White canvas for Customer Management, including breadcrumb and page gutters. */
+.app-shell:has(.customer-workspace),
+.app-shell:has(.customer-workspace) .shell-body,
+.app-shell:has(.customer-workspace) .content-column,
+.app-shell:has(.customer-workspace) main,
+.customer-workspace {
+  background: #fff;
+}
