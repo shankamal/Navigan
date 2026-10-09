@@ -84,7 +84,7 @@ export function LoginForm() {
       : undefined;
   const title =
     mode === "login"
-      ? "Sign in to your workspace"
+      ? "Welcome to Navigan"
       : mode === "forgot"
         ? "Reset your password"
         : newPassword
@@ -233,7 +233,7 @@ export function LoginForm() {
       </h2>
       <p className="muted">
         {mode === "login"
-          ? "Access your customers and cloud environments securely."
+          ? "Sign in to your cloud and container workspace."
           : mode === "forgot"
             ? "Enter your account email or username to request a reset code."
             : delivery
