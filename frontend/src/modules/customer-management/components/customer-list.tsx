@@ -86,36 +86,40 @@ export function CustomerListView() {
     setFilters((old) => ({ ...old, ...values, page: 0 }));
   return (
     <div className="customer-workspace">
-      <PageHeading
-        eyebrow="CUSTOMER MANAGEMENT"
-        title="Customers"
-        description="Onboard customers and manage their journey across your cloud platform."
-        action={
-          <>
-            <Button
-              variant="secondary"
-              aria-label="Refresh customer directory"
-              disabled={customers.isFetching}
-              onClick={() => {
-                void customers.refetch();
-                metricQueries.forEach((query) => void query.refetch());
-              }}
-            >
-              <RefreshCw
-                size={17}
-                className={customers.isFetching ? "animate-spin" : ""}
-              />
-              Refresh
-            </Button>
-            {canCreate(identity) && (
-              <Link href="/customers/new" className="button button-primary">
-                <Plus size={18} />
-                Create customer
-              </Link>
-            )}
-          </>
-        }
-      />
+      <div className="customer-page-header">
+        <span className="customer-heading-icon" aria-hidden="true">
+          <Building2 size={25} />
+        </span>
+        <PageHeading
+          title="Customer Management"
+          description="Manage onboarding, approvals, and cloud provider associations."
+          action={
+            <>
+              <Button
+                variant="secondary"
+                aria-label="Refresh customer directory"
+                disabled={customers.isFetching}
+                onClick={() => {
+                  void customers.refetch();
+                  metricQueries.forEach((query) => void query.refetch());
+                }}
+              >
+                <RefreshCw
+                  size={17}
+                  className={customers.isFetching ? "animate-spin" : ""}
+                />
+                Refresh
+              </Button>
+              {canCreate(identity) && (
+                <Link href="/customers/new" className="button button-primary">
+                  <Plus size={18} />
+                  Create customer
+                </Link>
+              )}
+            </>
+          }
+        />
+      </div>
       <CustomerMetrics
         total={total.data}
         active={active.data}
