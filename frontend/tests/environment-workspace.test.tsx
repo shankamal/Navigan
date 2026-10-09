@@ -67,6 +67,29 @@ describe("Environment UI preserves existing interactions", () => {
       screen.getByRole("combobox", { name: "Cloud provider" }),
     ).toHaveValue("AZURE");
   });
+  it("renders the reference portfolio sections and routes attention to existing status filters", () => {
+    render(<EnvironmentList />);
+    expect(
+      screen.getByRole("heading", { name: "Environments by lifecycle" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Environments by cloud provider" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("complementary", {
+        name: "Environment attention queue",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Under review.*environments/ }),
+    );
+    expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue(
+      "UNDER_REVIEW",
+    );
+    expect(
+      screen.getByRole("link", { name: "Open AWS baseline" }),
+    ).toHaveAttribute("href", "/environments/env-active");
+  });
   it("retains the restricted review queue and status filters", () => {
     render(<EnvironmentList mode="reviews" />);
     expect(

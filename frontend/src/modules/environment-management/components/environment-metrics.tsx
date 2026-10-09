@@ -1,14 +1,16 @@
 const colors = ["#65a449", "#94a3b8", "#b68c45", "#64748b", "#cbd5e1"];
-function Ring({
+export function EnvironmentRing({
   values,
   total,
   center,
   label,
+  caption,
 }: {
   values: number[];
   total: number;
   center: string;
   label: string;
+  caption?: string;
 }) {
   let offset = 0;
   return (
@@ -45,7 +47,9 @@ function Ring({
       </svg>
       <div>
         <strong>{center}</strong>
-        <span>{label.startsWith("Active") ? "of " + total : "Total"}</span>
+        <span>
+          {caption ?? (label.startsWith("Active") ? "of " + total : "Total")}
+        </span>
       </div>
     </div>
   );
@@ -105,7 +109,7 @@ export function EnvironmentMetrics({
       <div className="environment-lifecycle">
         <h2>Environment lifecycle</h2>
         <div className="environment-chart-content">
-          <Ring
+          <EnvironmentRing
             values={values}
             total={count}
             center={String(count)}
@@ -132,7 +136,7 @@ export function EnvironmentMetrics({
       <div className="environment-active">
         <h2>Approved for cluster requests</h2>
         <div className="environment-chart-content">
-          <Ring
+          <EnvironmentRing
             values={[active!]}
             total={count}
             center={String(active)}
