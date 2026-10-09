@@ -84,16 +84,44 @@
   border-radius: 10px;
   padding: 14px 18px;
   box-shadow: none;
+  min-height: 120px;
+  box-sizing: border-box;
+  align-items: center;
+  position: sticky;
+  top: calc(var(--workspace-topbar-height, 72px) + 8px);
+  z-index: 20;
+  align-self: start;
 }
 .app-shell[class] main#main-content .customer-page-header .page-heading {
   background: transparent;
   border: 0;
   padding: 0;
+  min-height: 0;
+  position: static;
+  z-index: auto;
 }
 .app-shell[class] main#main-content .environment-portfolio-heading .page-heading {
   background: transparent;
   border: 0;
   padding: 0;
+  min-height: 0;
+  position: static;
+  z-index: auto;
+}
+@media (max-width: 767px), (max-height: 600px) {
+  .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .customer-page-header,
+  .app-shell[class] main#main-content .environment-portfolio-heading,
+  .app-shell[class] main#main-content .pd-heading {
+    min-height: 0;
+    position: static;
+  }
+}
+@media print {
+  .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .customer-page-header,
+  .app-shell[class] main#main-content .environment-portfolio-heading,
+  .app-shell[class] main#main-content .pd-heading { position: static; }
 }
 .page-heading-copy { position: relative; padding-left: 48px; min-width: 0; }
 .page-heading-symbol {

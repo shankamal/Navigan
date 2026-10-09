@@ -268,6 +268,21 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }, []);
   const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
+  useEffect(() => {
+    const header = document.querySelector<HTMLElement>(".app-shell > header.topbar");
+    const shell = header?.parentElement;
+    if (!header || !shell) return;
+    const updateHeight = () => {
+      shell.style.setProperty("--workspace-topbar-height", `${header.getBoundingClientRect().height}px`);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      shell.style.removeProperty("--workspace-topbar-height");
+    };
+  }, []);
   return (
     <div
       className={`app-shell ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""}`}
