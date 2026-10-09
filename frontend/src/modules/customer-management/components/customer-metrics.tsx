@@ -57,6 +57,8 @@ export function CustomerMetrics({
   submitted,
   review,
   failed,
+  providerCounts,
+  providerFailed = false,
 }: {
   total?: number;
   active?: number;
@@ -64,6 +66,8 @@ export function CustomerMetrics({
   submitted?: number;
   review?: number;
   failed: boolean;
+  providerCounts?: (number | undefined)[];
+  providerFailed?: boolean;
 }) {
   if (failed)
     return (
@@ -129,40 +133,45 @@ export function CustomerMetrics({
           </ul>
         </div>
       </div>
-      <div className="customer-approvals">
-        <h2>Approval workload</h2>
-        <p className="customer-workload-total">
-          <strong>{submitted! + review!}</strong> awaiting action
-        </p>
-        <div
-          className="customer-stacked-bar"
-          role="img"
-          aria-label={`Approval workload: ${submitted} submitted, ${review} under review, ${draft} drafts`}
-        >
-          {[submitted!, review!, draft!].map((value, index) => (
-            <span
-              key={index}
-              style={{
-                width: `${submitted! + review! + draft! ? (value / (submitted! + review! + draft!)) * 100 : 0}%`,
-                backgroundColor: [colors[2], colors[3], colors[1]][index],
-              }}
-            />
-          ))}
-        </div>
-        <ul className="customer-approval-legend">
-          {[submitted!, review!, draft!].map((value, index) => (
-            <li key={index}>
-              <span
-                className="customer-chart-dot"
-                style={{
-                  backgroundColor: [colors[2], colors[3], colors[1]][index],
-                }}
-              />
-              <span>{["Submitted", "Under review", "Drafts"][index]}</span>
-              <strong>{value}</strong>
-            </li>
-          ))}
-        </ul>
+      <div className="customer-cloud-footprint">
+        <h2>Cloud provider footprint</h2>
+        <p className="customer-cloud-caption">Customer associations by cloud</p>
+        {providerFailed ? (
+          <p role="status">Cloud metrics unavailable. Refresh to retry.</p>
+        ) : !providerCounts ||
+          providerCounts.some((value) => value === undefined) ? (
+          <p role="status">Loading cloud footprint…</p>
+        ) : (
+          <ul className="customer-cloud-bars">
+            {["AWS", "Azure", "Google Cloud", "OCI"].map((name, index) => {
+              const value = providerCounts[index]!;
+              const max = Math.max(
+                1,
+                ...providerCounts.map((value) => value ?? 0),
+              );
+              return (
+                <li key={name}>
+                  <img
+                    src={`/logos/${["amazonwebservices", "microsoftazure", "googlecloud", "oracle"][index]}.svg`}
+                    alt=""
+                    width={24}
+                    height={24}
+                  />
+                  <span>{name}</span>
+                  <div
+                    className="customer-cloud-bar"
+                    role="img"
+                    aria-label={`${name}: ${value} customer associations`}
+                  >
+                    <span style={{ width: `${(value / max) * 100}%` }} />
+                  </div>
+                  <strong>{value}</strong>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <small>Customers can use multiple clouds.</small>
       </div>
       <div className="customer-active">
         <h2>Active customers</h2>

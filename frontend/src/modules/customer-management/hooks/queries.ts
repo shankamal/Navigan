@@ -24,13 +24,22 @@ export const useCustomerProviders = (id: string) =>
     queryKey: ["customers", id, "providers"],
     queryFn: ({ signal }) => customersService.providers(id, signal),
   });
-export const useCustomerCount = (status?: CustomerStatus) =>
+export const useCustomerCount = (
+  status?: CustomerStatus,
+  cloudProvider?: string,
+) =>
   useQuery({
-    queryKey: ["customers", "count", status],
+    queryKey: ["customers", "count", status, cloudProvider],
     queryFn: async ({ signal }) =>
       (
         await customersService.list(
-          { page: 0, pageSize: 1, sort: "createdAt,desc", status },
+          {
+            page: 0,
+            pageSize: 1,
+            sort: "createdAt,desc",
+            status,
+            cloudProvider,
+          },
           signal,
         )
       ).pagination.totalElements,

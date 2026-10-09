@@ -71,8 +71,20 @@ export function CustomerListView() {
   const submitted = useCustomerCount("SUBMITTED");
   const review = useCustomerCount("UNDER_REVIEW");
   const draft = useCustomerCount("DRAFT");
+  const awsCount = useCustomerCount(undefined, "AWS");
+  const azureCount = useCustomerCount(undefined, "AZURE");
+  const gcpCount = useCustomerCount(undefined, "GCP");
+  const ociCount = useCustomerCount(undefined, "OCI");
+  const providerQueries = [awsCount, azureCount, gcpCount, ociCount];
   const [view, setView] = useState<"list" | "board">("list");
-  const metricQueries = [total, active, submitted, review, draft];
+  const metricQueries = [
+    total,
+    active,
+    submitted,
+    review,
+    draft,
+    ...providerQueries,
+  ];
   const boardStatuses = statuses.filter(
     (status) =>
       ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "ACTIVE"].includes(status) ||
@@ -126,7 +138,16 @@ export function CustomerListView() {
         draft={draft.data}
         submitted={submitted.data}
         review={review.data}
-        failed={metricQueries.some((query) => query.isError)}
+        providerCounts={[
+          awsCount.data,
+          azureCount.data,
+          gcpCount.data,
+          ociCount.data,
+        ]}
+        providerFailed={providerQueries.some((query) => query.isError)}
+        failed={[total, active, submitted, review, draft].some(
+          (query) => query.isError,
+        )}
       />
       <section className="panel">
         <div className="customer-directory-toolbar">

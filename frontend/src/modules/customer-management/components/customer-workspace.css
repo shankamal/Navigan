@@ -747,3 +747,38 @@
 .customer-progress {
   width: 100%;
 }
+
+.customer-cloud-caption {
+  font-size: 14px;
+  color: #64748b;
+  margin: -8px 0 16px;
+}
+.customer-metrics .customer-cloud-bars {
+  display: grid;
+  gap: 12px;
+}
+.customer-metrics .customer-cloud-bars li {
+  display: grid;
+  grid-template-columns: 24px 92px minmax(0, 1fr) 26px;
+  gap: 8px;
+}
+.customer-cloud-bars img {
+  object-fit: contain;
+}
+.customer-cloud-bar {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.customer-cloud-bar span {
+  display: block;
+  height: 100%;
+  background: #65a449;
+}
+.customer-cloud-footprint small {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 14px;
+}
