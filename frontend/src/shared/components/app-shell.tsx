@@ -287,8 +287,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           {expanded ? <X /> : <Menu />}
         </Button>
         <Link href="/dashboard" className="brand" aria-label="Navigan home">
-          {logo && (
+          {logo ? (
             <img src={logo} alt="Corporate logo" className="corporate-logo" />
+          ) : (
+            <span className="corporate-wordmark" aria-label="Deloitte">
+              Deloitte<span aria-hidden="true">.</span>
+            </span>
           )}
           <span>Navigan</span>
         </Link>
