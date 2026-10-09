@@ -36,6 +36,16 @@ export function CustomerListView() {
     pageSize: 20,
     sort: "createdAt,desc",
   });
+  useEffect(() => {
+    const syncStatus = () => {
+      const value = new URLSearchParams(window.location.search).get("status");
+      const status = statuses.find((item) => item === value);
+      setFilters((old) => ({ ...old, page: 0, status }));
+    };
+    syncStatus();
+    window.addEventListener("popstate", syncStatus);
+    return () => window.removeEventListener("popstate", syncStatus);
+  }, []);
   const [search, setSearch] = useState("");
   useEffect(() => {
     const timeout = setTimeout(

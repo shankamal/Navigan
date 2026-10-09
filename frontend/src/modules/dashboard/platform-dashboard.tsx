@@ -16,6 +16,7 @@ import {
   Gauge,
   Layers3,
   Plus,
+  RefreshCw,
   ServerCog,
   ShieldCheck,
   Workflow,
@@ -122,6 +123,8 @@ function DonutChart({
 export function PlatformDashboard() {
   const { identity } = useAuth();
   const [currentDate, setCurrentDate] = useState("");
+  const [refreshError, setRefreshError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
 
   useEffect(() => {
     const updateDate = () =>
@@ -193,6 +196,37 @@ export function PlatformDashboard() {
     applyingClusters,
     failedClusters,
   ];
+  const dashboardQueries = [
+    ...countQueries,
+    environments,
+    pendingCustomers,
+    pendingEnvironments,
+    pendingClusters,
+    recentClusters,
+  ];
+  const refreshing = dashboardQueries.some((query) => query.isFetching);
+  const hasPartialError = dashboardQueries.some((query) => query.error);
+  const oldestUpdate = Math.min(
+    ...dashboardQueries.map((query) => query.dataUpdatedAt || 0),
+  );
+  useEffect(() => {
+    setLastUpdated(
+      oldestUpdate
+        ? new Date(oldestUpdate).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        : "",
+    );
+  }, [oldestUpdate]);
+  async function refreshDashboard() {
+    setRefreshError(false);
+    const results = await Promise.allSettled(
+      dashboardQueries.map((query) => query.refetch({ throwOnError: true })),
+    );
+    setRefreshError(results.some((result) => result.status === "rejected"));
+  }
   const failedQuery = countQueries.find((query) => query.error);
   const awaitingAction = sum(
     submittedCustomers.data,
@@ -305,7 +339,7 @@ export function PlatformDashboard() {
       detail: `${display(totalCustomers.data)} total in your scope`,
       note: `${sum(submittedCustomers.data, reviewCustomers.data)} in onboarding`,
       icon: Building2,
-      href: "/customers",
+      href: "/customers?status=ACTIVE",
       tone: "green",
     },
     {
@@ -315,7 +349,7 @@ export function PlatformDashboard() {
       detail: `${display(totalEnvironments.data)} environment profiles`,
       note: `${providerTotal} mapped to cloud providers`,
       icon: Layers3,
-      href: "/environments",
+      href: "/environments?status=ACTIVE",
       tone: "blue",
     },
     {
@@ -325,7 +359,7 @@ export function PlatformDashboard() {
       detail: `${display(totalClusters.data)} cluster requests`,
       note: `${clusterHealth}% active estate`,
       icon: ServerCog,
-      href: "/clusters",
+      href: "/clusters?status=ACTIVE",
       tone: "green",
     },
     {
@@ -335,7 +369,7 @@ export function PlatformDashboard() {
       detail: `${display(planReadyClusters.data)} plan ready`,
       note: `${display(applyingClusters.data)} Terraform applies`,
       icon: Workflow,
-      href: "/clusters",
+      href: "#dashboard-provisioning",
       tone: "violet",
     },
     {
@@ -345,7 +379,7 @@ export function PlatformDashboard() {
       detail: "Submitted or under review",
       note: "Across governed workflows",
       icon: ShieldCheck,
-      href: canReview ? "/clusters/reviews" : "/environments",
+      href: "#dashboard-attention",
       tone: "teal",
     },
     {
@@ -355,7 +389,7 @@ export function PlatformDashboard() {
       detail: "Cluster workflows requiring action",
       note: failedClusters.data ? "Remediation required" : "No active failures",
       icon: AlertTriangle,
-      href: "/clusters",
+      href: "/clusters?status=FAILED",
       tone: "orange",
     },
   ] as const;
@@ -372,6 +406,23 @@ export function PlatformDashboard() {
           </p>
         </div>
         <div className="pd-actions">
+          <span className="pd-freshness" role="status" aria-live="polite">
+            {refreshing
+              ? "Refreshing…"
+              : refreshError || hasPartialError
+                ? "Some data could not be refreshed"
+                : lastUpdated
+                  ? `Updated ${lastUpdated}`
+                  : "Loading data…"}
+          </span>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => void refreshDashboard()}
+            disabled={refreshing}
+          >
+            <RefreshCw size={15} /> Refresh
+          </button>
           {canCreateEnvironment && (
             <Link className="button button-secondary" href="/environments/new">
               <Plus size={17} /> New environment
@@ -427,7 +478,7 @@ export function PlatformDashboard() {
         ))}
       </section>
 
-      <section className="pd-card">
+      <section className="pd-card" id="dashboard-attention">
         <header className="pd-card-heading">
           <div>
             <span className="pd-card-icon pd-attention-icon">
@@ -454,22 +505,37 @@ export function PlatformDashboard() {
           className="pd-governance-inline"
           aria-label="Pending governance by module"
         >
-          <Link href="/customers">
-            Customers{" "}
-            <strong>
-              {sum(submittedCustomers.data, reviewCustomers.data)}
-            </strong>
-          </Link>
-          <Link href="/environments">
-            Environments{" "}
-            <strong>
-              {sum(submittedEnvironments.data, reviewEnvironments.data)}
-            </strong>
-          </Link>
-          <Link href="/clusters">
-            Clusters{" "}
-            <strong>{sum(submittedClusters.data, reviewClusters.data)}</strong>
-          </Link>
+          {[
+            {
+              label: "Customers",
+              path: "/customers",
+              submitted: submittedCustomers.data,
+              reviewing: reviewCustomers.data,
+            },
+            {
+              label: "Environments",
+              path: "/environments",
+              submitted: submittedEnvironments.data,
+              reviewing: reviewEnvironments.data,
+            },
+            {
+              label: "Clusters",
+              path: "/clusters",
+              submitted: submittedClusters.data,
+              reviewing: reviewClusters.data,
+            },
+          ].map((item) => (
+            <span key={item.path}>
+              <strong>{item.label}</strong>{" "}
+              <Link href={`${item.path}?status=SUBMITTED`}>
+                Submitted {display(item.submitted)}
+              </Link>
+              {" · "}
+              <Link href={`${item.path}?status=UNDER_REVIEW`}>
+                Under review {display(item.reviewing)}
+              </Link>
+            </span>
+          ))}
         </div>
         <p className="pd-preview-count">
           Showing {attentionItems.length} submitted requests. {awaitingAction}{" "}
@@ -579,10 +645,7 @@ export function PlatformDashboard() {
                 </p>
               </div>
             </div>
-            <span className="pd-live">
-              <i />
-              Live
-            </span>
+            <span className="pd-data-label">Current records</span>
           </header>
           <div className="pd-posture">
             <div className="pd-gauge">
@@ -656,11 +719,19 @@ export function PlatformDashboard() {
                 <Workflow size={19} />
               </span>
               <div>
-                <h2>Cluster workflow state</h2>
+                <h2 id="dashboard-provisioning">Cluster workflow state</h2>
                 <p>Current lifecycle position of Navigan cluster requests.</p>
               </div>
             </div>
           </header>
+          <div className="pd-provisioning-links">
+            <Link href="/clusters?status=PLAN_READY">
+              Plan ready {display(planReadyClusters.data)}
+            </Link>
+            <Link href="/clusters?status=APPLYING">
+              Applying {display(applyingClusters.data)}
+            </Link>
+          </div>
           {workflowTotal === 0 ? (
             <p className="pd-empty">No cluster requests are available.</p>
           ) : (

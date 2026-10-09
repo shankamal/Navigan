@@ -1383,3 +1383,26 @@
     padding: 10px;
   }
 }
+.pd-freshness,
+.pd-data-label {
+  color: #64748b;
+  font-size: 12px;
+}
+.pd-provisioning-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px 0;
+  color: #237448;
+  font-size: 12px;
+}
+.pd-provisioning-links a:hover {
+  text-decoration: underline;
+}
+.pd-governance-inline span a {
+  display: inline;
+}
+#dashboard-attention,
+#dashboard-provisioning {
+  scroll-margin-top: 90px;
+}

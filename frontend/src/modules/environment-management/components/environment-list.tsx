@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -40,6 +40,20 @@ export function EnvironmentList({
     sort: "createdAt,desc",
     status: mode === "reviews" ? "SUBMITTED" : undefined,
   });
+  useEffect(() => {
+    const syncStatus = () => {
+      const value = new URLSearchParams(window.location.search).get("status");
+      const status = statuses.find((item) => item === value);
+      setFilters((old) => ({
+        ...old,
+        page: 0,
+        status: status ?? (mode === "reviews" ? "SUBMITTED" : undefined),
+      }));
+    };
+    syncStatus();
+    window.addEventListener("popstate", syncStatus);
+    return () => window.removeEventListener("popstate", syncStatus);
+  }, [mode]);
   const query = useEnvironments(filters);
   const metadata = useMetadata();
   const total = useEnvironmentCount(undefined, mode === "directory");
