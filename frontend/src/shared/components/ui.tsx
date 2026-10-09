@@ -126,7 +126,9 @@ export function PageHeading({
   return (
     <div className={["page-heading", className].filter(Boolean).join(" ")}>
       <div className="page-heading-copy">
-        <span className="page-heading-symbol" aria-hidden="true"><HeadingIcon /></span>
+        <span className="page-heading-symbol" aria-hidden="true">
+          <HeadingIcon />
+        </span>
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         {description && <p className="muted">{description}</p>}

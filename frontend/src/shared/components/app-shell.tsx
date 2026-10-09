@@ -269,16 +269,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
   const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
   useEffect(() => {
-    const header = document.querySelector<HTMLElement>(".app-shell > header.topbar");
+    const header = document.querySelector<HTMLElement>(
+      ".app-shell > header.topbar",
+    );
     const shell = header?.parentElement;
     if (!header || !shell) return;
     const updateHeight = () => {
-      shell.style.setProperty("--workspace-topbar-height", `${header.getBoundingClientRect().height}px`);
+      shell.style.setProperty(
+        "--workspace-topbar-height",
+        `${header.getBoundingClientRect().height}px`,
+      );
     };
     updateHeight();
-    const observer = typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver(updateHeight)
-      : undefined;
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateHeight)
+        : undefined;
     observer?.observe(header);
     window.addEventListener("resize", updateHeight);
     return () => {
