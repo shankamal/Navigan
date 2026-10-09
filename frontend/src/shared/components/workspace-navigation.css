@@ -1,0 +1,45 @@
+/* Shared breadcrumb presentation across all workspace routes. */
+.app-shell .breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #475569;
+}
+.app-shell .breadcrumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #94a3b8;
+  text-underline-offset: 4px;
+}
+.app-shell .breadcrumb a:hover {
+  background: #f1f5f9;
+  color: #172033;
+  text-decoration-color: currentColor;
+}
+.app-shell .breadcrumb a:focus-visible {
+  outline: 2px solid #568c3e;
+  outline-offset: 2px;
+}
+.app-shell .breadcrumb > svg {
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+  flex: none;
+}
+.app-shell .breadcrumb > span:last-child {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}

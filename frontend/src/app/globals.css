@@ -8694,3 +8694,112 @@ td {
     justify-content: flex-start;
   }
 }
+
+/* Dashboard shell: neutral surfaces and forest-green branding. */
+.dashboard-shell {
+  --green: #237448;
+  --green-deep: #163d2a;
+  --green-surface: #f0f5f2;
+  --page-bg: #f5f6f7;
+  --surface: #f5f6f7;
+  --brand-lime: #237448;
+  --brand-lime-soft: #f0f5f2;
+  font-size: 14px;
+  background: #f5f6f7;
+}
+.dashboard-shell .topbar {
+  background: #163d2a;
+  border-color: #163d2a;
+}
+.dashboard-shell .platform-title,
+.dashboard-shell .topbar-account {
+  color: #edf4f0;
+}
+.dashboard-shell .shell-body,
+.dashboard-shell .content-column,
+.dashboard-shell main {
+  background: #f5f6f7;
+}
+.dashboard-shell .sidebar {
+  background: white;
+  box-shadow: none;
+}
+.dashboard-shell .nav-item.selected {
+  background: #f1f4f2;
+  color: #163d2a;
+  box-shadow: inset 3px 0 #237448;
+}
+.dashboard-shell .nav-item.selected svg {
+  color: #237448;
+}
+.dashboard-shell .nav-item {
+  font-size: 14px;
+}
+.dashboard-shell .nav-section {
+  font-size: 11px;
+  color: #64748b;
+}
+.dashboard-shell .button-primary {
+  background: #237448;
+  border-color: #237448;
+  color: white;
+  box-shadow: none;
+}
+.dashboard-shell .button-primary:hover {
+  background: #195c37;
+}
+.dashboard-shell .workspace-card {
+  background: white;
+}
+.dashboard-shell .avatar {
+  background: #237448;
+  color: white;
+}
+.sidebar-collapse {
+  display: flex;
+  margin: 0 0 12px auto;
+  padding: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #536159;
+  cursor: pointer;
+}
+.sidebar-collapse:hover {
+  background: #f1f4f2;
+}
+.workspace-environment {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #237448;
+  color: white;
+}
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+@media (min-width: 901px) {
+  .navigation-collapsed .sidebar {
+    width: 76px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .navigation-collapsed .nav-item {
+    justify-content: center;
+    padding: 12px;
+  }
+  .navigation-collapsed .nav-item span,
+  .navigation-collapsed .nav-section,
+  .navigation-collapsed .sidebar-footer {
+    display: none;
+  }
+  .navigation-collapsed .clustered-nav-group {
+    margin-bottom: 12px;
+  }
+}
+@media (max-width: 900px) {
+  .sidebar-collapse {
+    display: none;
+  }
+}

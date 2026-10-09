@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -15,6 +16,7 @@ import {
   Gauge,
   Layers3,
   Plus,
+  RefreshCw,
   ServerCog,
   ShieldCheck,
   Workflow,
@@ -59,40 +61,19 @@ function ProviderLogo({
     OCI: "OCI",
   };
 
+  const assets: Record<Provider, string> = {
+    AWS: "amazonwebservices",
+    AZURE: "microsoftazure",
+    GCP: "googlecloud",
+    OCI: "oracle",
+  };
   return (
     <span className={`pd-provider pd-provider-${provider.toLowerCase()}`}>
-      <span className="pd-provider-mark" aria-hidden="true">
-        {provider === "AWS" && (
-          <svg viewBox="0 0 32 24">
-            <text x="1" y="15">
-              aws
-            </text>
-            <path d="M5 18c6 4 14 4 21 0" />
-            <path d="m23 17 4 1-2 3" />
-          </svg>
-        )}
-        {provider === "AZURE" && (
-          <svg viewBox="0 0 28 24">
-            <path d="M11 2 3 20h7l4-8 5 8h6L16 2z" />
-          </svg>
-        )}
-        {provider === "GCP" && (
-          <svg viewBox="0 0 30 24">
-            <path
-              className="pd-gcp-blue"
-              d="M10 21h11a7 7 0 0 0 1-14A10 10 0 0 0 5 9"
-            />
-            <path className="pd-gcp-red" d="M5 9a8 8 0 0 0 5 12" />
-            <path className="pd-gcp-yellow" d="M5 9a10 10 0 0 1 4-5" />
-            <path className="pd-gcp-green" d="M9 4a10 10 0 0 1 13 3" />
-          </svg>
-        )}
-        {provider === "OCI" && (
-          <svg viewBox="0 0 32 24">
-            <path d="M8 6h16a6 6 0 0 1 0 12H8A6 6 0 0 1 8 6Zm1 4a2 2 0 0 0 0 4h14a2 2 0 0 0 0-4Z" />
-          </svg>
-        )}
-      </span>
+      <img
+        className="pd-brand-logo"
+        src={`/logos/${assets[provider]}.svg`}
+        alt={label ? "" : names[provider]}
+      />
       {label && <span>{names[provider]}</span>}
     </span>
   );
@@ -141,6 +122,24 @@ function DonutChart({
 
 export function PlatformDashboard() {
   const { identity } = useAuth();
+  const [currentDate, setCurrentDate] = useState("");
+  const [refreshError, setRefreshError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
+
+  useEffect(() => {
+    const updateDate = () =>
+      setCurrentDate(
+        new Intl.DateTimeFormat("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(new Date()),
+      );
+    updateDate();
+    const interval = window.setInterval(updateDate, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
   const totalCustomers = useCustomerCount();
   const activeCustomers = useCustomerCount("ACTIVE");
   const submittedCustomers = useCustomerCount("SUBMITTED");
@@ -178,7 +177,7 @@ export function PlatformDashboard() {
     pageSize: 3,
     status: "SUBMITTED",
   });
-  const recentClusters = useClusters({ page: 0, pageSize: 5 });
+  const recentClusters = useClusters({ page: 0, pageSize: 3 });
 
   const countQueries = [
     totalCustomers,
@@ -197,6 +196,37 @@ export function PlatformDashboard() {
     applyingClusters,
     failedClusters,
   ];
+  const dashboardQueries = [
+    ...countQueries,
+    environments,
+    pendingCustomers,
+    pendingEnvironments,
+    pendingClusters,
+    recentClusters,
+  ];
+  const refreshing = dashboardQueries.some((query) => query.isFetching);
+  const hasPartialError = dashboardQueries.some((query) => query.error);
+  const oldestUpdate = Math.min(
+    ...dashboardQueries.map((query) => query.dataUpdatedAt || 0),
+  );
+  useEffect(() => {
+    setLastUpdated(
+      oldestUpdate
+        ? new Date(oldestUpdate).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        : "",
+    );
+  }, [oldestUpdate]);
+  async function refreshDashboard() {
+    setRefreshError(false);
+    const results = await Promise.allSettled(
+      dashboardQueries.map((query) => query.refetch({ throwOnError: true })),
+    );
+    setRefreshError(results.some((result) => result.status === "rejected"));
+  }
   const failedQuery = countQueries.find((query) => query.error);
   const awaitingAction = sum(
     submittedCustomers.data,
@@ -287,7 +317,7 @@ export function PlatformDashboard() {
       icon: ServerCog,
       tone: "success",
     })),
-  ].slice(0, 6);
+  ].slice(0, 2);
 
   if (countQueries.some((query) => query.isPending)) {
     return <Loading label="Loading platform dashboard…" />;
@@ -304,56 +334,62 @@ export function PlatformDashboard() {
   const kpis = [
     {
       label: "Onboarded customers",
+      total: totalCustomers.data,
       value: activeCustomers.data,
       detail: `${display(totalCustomers.data)} total in your scope`,
       note: `${sum(submittedCustomers.data, reviewCustomers.data)} in onboarding`,
       icon: Building2,
-      href: "/customers",
+      href: "/customers?status=ACTIVE",
       tone: "green",
     },
     {
       label: "Governed environments",
+      total: totalEnvironments.data,
       value: activeEnvironments.data,
       detail: `${display(totalEnvironments.data)} environment profiles`,
       note: `${providerTotal} mapped to cloud providers`,
       icon: Layers3,
-      href: "/environments",
+      href: "/environments?status=ACTIVE",
       tone: "blue",
     },
     {
       label: "Active clusters",
+      total: totalClusters.data,
       value: activeClusters.data,
       detail: `${display(totalClusters.data)} cluster requests`,
       note: `${clusterHealth}% active estate`,
       icon: ServerCog,
-      href: "/clusters",
+      href: "/clusters?status=ACTIVE",
       tone: "green",
     },
     {
       label: "Provisioning now",
+      total: undefined,
       value: provisioningNow,
       detail: `${display(planReadyClusters.data)} plan ready`,
       note: `${display(applyingClusters.data)} Terraform applies`,
       icon: Workflow,
-      href: "/clusters",
+      href: "#dashboard-provisioning",
       tone: "violet",
     },
     {
       label: "Awaiting action",
+      total: undefined,
       value: awaitingAction,
       detail: "Submitted or under review",
       note: "Across governed workflows",
       icon: ShieldCheck,
-      href: canReview ? "/clusters/reviews" : "/environments",
+      href: "#dashboard-attention",
       tone: "teal",
     },
     {
       label: "Failed operations",
+      total: undefined,
       value: failedClusters.data,
       detail: "Cluster workflows requiring action",
       note: failedClusters.data ? "Remediation required" : "No active failures",
       icon: AlertTriangle,
-      href: "/clusters",
+      href: "/clusters?status=FAILED",
       tone: "orange",
     },
   ] as const;
@@ -362,14 +398,31 @@ export function PlatformDashboard() {
     <div className="platform-dashboard command-dashboard">
       <section className="pd-heading">
         <div>
-          <p className="pd-date">Thursday, 8 October 2026</p>
+          <p className="pd-date">{currentDate}</p>
           <h1>Platform command center</h1>
           <p className="muted">
-            Live governance, provisioning, and operational health across the
+            Live governance, provisioning, and lifecycle status across the
             Navigan-managed Kubernetes estate.
           </p>
         </div>
         <div className="pd-actions">
+          <span className="pd-freshness" role="status" aria-live="polite">
+            {refreshing
+              ? "Refreshing…"
+              : refreshError || hasPartialError
+                ? "Some data could not be refreshed"
+                : lastUpdated
+                  ? `Updated ${lastUpdated}`
+                  : "Loading data…"}
+          </span>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => void refreshDashboard()}
+            disabled={refreshing}
+          >
+            <RefreshCw size={15} /> Refresh
+          </button>
           {canCreateEnvironment && (
             <Link className="button button-secondary" href="/environments/new">
               <Plus size={17} /> New environment
@@ -391,13 +444,30 @@ export function PlatformDashboard() {
       <section className="pd-kpis" aria-label="Navigan platform KPIs">
         {kpis.map((kpi) => (
           <Link
-            className={`pd-kpi pd-kpi-${kpi.tone}`}
+            className={`pd-kpi pd-kpi-${kpi.tone} ${kpi.total !== undefined ? "pd-kpi-with-ring" : ""}`}
             href={kpi.href}
             key={kpi.label}
           >
-            <span className="pd-kpi-icon">
-              <kpi.icon size={20} />
-            </span>
+            {kpi.total !== undefined ? (
+              <span className="pd-kpi-ring">
+                <DonutChart
+                  title={`${kpi.label}: ${display(kpi.value)} of ${kpi.total} (${percent(kpi.value, kpi.total)}%)`}
+                  value={display(kpi.value)}
+                  subtitle={
+                    kpi.total
+                      ? `${percent(kpi.value, kpi.total)}%`
+                      : "No records"
+                  }
+                  segments={[
+                    { value: percent(kpi.value, kpi.total), color: "#23845B" },
+                  ]}
+                />
+              </span>
+            ) : (
+              <span className="pd-kpi-icon">
+                <kpi.icon size={20} />
+              </span>
+            )}
             <span className="pd-kpi-copy">
               <span>{kpi.label}</span>
               <strong>{display(kpi.value)}</strong>
@@ -408,88 +478,105 @@ export function PlatformDashboard() {
         ))}
       </section>
 
-      <section className="pd-primary-grid">
-        <article className="pd-card">
-          <header className="pd-card-heading">
+      <section className="pd-card" id="dashboard-attention">
+        <header className="pd-card-heading">
+          <div>
+            <span className="pd-card-icon pd-attention-icon">
+              <AlertTriangle size={19} />
+            </span>
             <div>
-              <span className="pd-card-icon">
-                <Gauge size={19} />
-              </span>
-              <div>
-                <h2>Operational posture</h2>
-                <p>Active estate coverage across Navigan-managed resources.</p>
-              </div>
+              <h2>
+                Needs your attention{" "}
+                <span className="pd-count">{awaitingAction}</span>
+              </h2>
+              <p>
+                Navigan approvals, provisioning exceptions, and requests
+                requiring action.
+              </p>
             </div>
-            <span className="pd-live">
-              <i />
-              Live
+          </div>
+          {canReview && (
+            <Link className="pd-card-link" href="/customers">
+              Customer directory <ChevronRight size={15} />
+            </Link>
+          )}
+        </header>
+        <div
+          className="pd-governance-inline"
+          aria-label="Pending governance by module"
+        >
+          {[
+            {
+              label: "Customers",
+              path: "/customers",
+              submitted: submittedCustomers.data,
+              reviewing: reviewCustomers.data,
+            },
+            {
+              label: "Environments",
+              path: "/environments",
+              submitted: submittedEnvironments.data,
+              reviewing: reviewEnvironments.data,
+            },
+            {
+              label: "Clusters",
+              path: "/clusters",
+              submitted: submittedClusters.data,
+              reviewing: reviewClusters.data,
+            },
+          ].map((item) => (
+            <span key={item.path}>
+              <strong>{item.label}</strong>{" "}
+              <Link href={`${item.path}?status=SUBMITTED`}>
+                Submitted {display(item.submitted)}
+              </Link>
+              {" · "}
+              <Link href={`${item.path}?status=UNDER_REVIEW`}>
+                Under review {display(item.reviewing)}
+              </Link>
             </span>
-          </header>
-          <div className="pd-posture">
-            <div className="pd-gauge">
-              <svg
-                viewBox="0 0 180 180"
-                role="img"
-                aria-label={`Overall operational posture ${overallPosture}%`}
+          ))}
+        </div>
+        <p className="pd-preview-count">
+          Showing {attentionItems.length} submitted requests. {awaitingAction}{" "}
+          records are submitted or under review.
+        </p>
+        <div className="pd-attention-list">
+          {pendingCustomers.isPending ||
+          pendingEnvironments.isPending ||
+          pendingClusters.isPending ? (
+            <Loading label="Loading attention queue…" />
+          ) : attentionItems.length ? (
+            attentionItems.map((item) => (
+              <Link
+                className="pd-attention-row"
+                href={item.href}
+                key={`${item.id}-${item.href}`}
               >
-                <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
-                <circle
-                  className="pd-gauge-value"
-                  cx="90"
-                  cy="90"
-                  r="70"
-                  pathLength="100"
-                  strokeDasharray={`${overallPosture} 100`}
-                />
-              </svg>
-              <div>
-                <strong>{overallPosture}%</strong>
-                <span>Active</span>
-              </div>
+                <span
+                  className={`pd-attention-row-icon pd-attention-${item.tone}`}
+                >
+                  <item.icon size={17} />
+                </span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.meta}</small>
+                </span>
+                <span className="pd-review-action">
+                  View request <ArrowRight size={16} />
+                </span>
+              </Link>
+            ))
+          ) : (
+            <div className="pd-empty pd-empty-success">
+              <CheckCircle2 size={20} />
+              No newly submitted requests require attention.
             </div>
-            <div className="pd-posture-metrics">
-              <div>
-                <span>
-                  <i className="pd-dot-green" />
-                  Customers
-                </span>
-                <strong>{customerHealth}%</strong>
-                <small>Active onboarding records</small>
-              </div>
-              <div>
-                <span>
-                  <i className="pd-dot-blue" />
-                  Environments
-                </span>
-                <strong>{environmentHealth}%</strong>
-                <small>Active governed profiles</small>
-              </div>
-              <div>
-                <span>
-                  <i className="pd-dot-teal" />
-                  Clusters
-                </span>
-                <strong>{clusterHealth}%</strong>
-                <small>Active Kubernetes estate</small>
-              </div>
-            </div>
-          </div>
-          <div
-            className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
-          >
-            {(failedClusters.data ?? 0) > 0 ? (
-              <AlertTriangle size={17} />
-            ) : (
-              <CheckCircle2 size={17} />
-            )}
-            <span>
-              {(failedClusters.data ?? 0) > 0
-                ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
-                : "No failed cluster operations are active in your access scope."}
-            </span>
-          </div>
-        </article>
+          )}
+        </div>
+      </section>
 
+      <section className="pd-primary-grid">
         <article className="pd-card">
           <header className="pd-card-heading">
             <div>
@@ -543,9 +630,88 @@ export function PlatformDashboard() {
             View environment directory <ArrowRight size={15} />
           </Link>
         </article>
-      </section>
 
-      <section className="pd-insights-grid">
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <Gauge size={19} />
+              </span>
+              <div>
+                <h2>Active record coverage</h2>
+                <p>
+                  Average active-record percentage across customers,
+                  environments, and clusters. This is not runtime health.
+                </p>
+              </div>
+            </div>
+            <span className="pd-data-label">Current records</span>
+          </header>
+          <div className="pd-posture">
+            <div className="pd-gauge">
+              <svg
+                viewBox="0 0 180 180"
+                role="img"
+                aria-label={`Average active record coverage ${overallPosture}%`}
+              >
+                <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
+                <circle
+                  className="pd-gauge-value"
+                  cx="90"
+                  cy="90"
+                  r="70"
+                  pathLength="100"
+                  strokeDasharray={`${overallPosture} 100`}
+                />
+              </svg>
+              <div>
+                <strong>{overallPosture}%</strong>
+                <span>Active</span>
+              </div>
+            </div>
+            <div className="pd-posture-metrics">
+              <div>
+                <span>
+                  <i className="pd-dot-green" />
+                  Customers
+                </span>
+                <strong>{customerHealth}%</strong>
+                <small>Active onboarding records</small>
+              </div>
+              <div>
+                <span>
+                  <i className="pd-dot-blue" />
+                  Environments
+                </span>
+                <strong>{environmentHealth}%</strong>
+                <small>Active governed profiles</small>
+              </div>
+              <div>
+                <span>
+                  <i className="pd-dot-teal" />
+                  Clusters
+                </span>
+                <strong>{clusterHealth}%</strong>
+                <small>Active cluster records</small>
+              </div>
+            </div>
+          </div>
+          <div
+            className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
+          >
+            {(failedClusters.data ?? 0) > 0 ? (
+              <AlertTriangle size={17} />
+            ) : (
+              <CheckCircle2 size={17} />
+            )}
+            <span>
+              {(failedClusters.data ?? 0) > 0
+                ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
+                : "No failed cluster operations are active in your access scope."}
+            </span>
+          </div>
+        </article>
+
         <article className="pd-card">
           <header className="pd-card-heading">
             <div>
@@ -553,38 +719,56 @@ export function PlatformDashboard() {
                 <Workflow size={19} />
               </span>
               <div>
-                <h2>Cluster workflow state</h2>
+                <h2 id="dashboard-provisioning">Cluster workflow state</h2>
                 <p>Current lifecycle position of Navigan cluster requests.</p>
               </div>
             </div>
           </header>
+          <div className="pd-provisioning-links">
+            <Link href="/clusters?status=PLAN_READY">
+              Plan ready {display(planReadyClusters.data)}
+            </Link>
+            <Link href="/clusters?status=APPLYING">
+              Applying {display(applyingClusters.data)}
+            </Link>
+          </div>
           {workflowTotal === 0 ? (
             <p className="pd-empty">No cluster requests are available.</p>
           ) : (
             <div className="pd-workflow">
-              <DonutChart
-                title="Cluster requests by workflow state"
-                value={workflowTotal}
-                subtitle="requests"
-                segments={[
+              <div
+                className="pd-workflow-bar"
+                aria-label="Cluster lifecycle distribution"
+              >
+                {[
                   {
-                    value: percent(activeClusters.data, workflowTotal),
-                    color: "#557f18",
+                    label: "Active",
+                    value: activeClusters.data ?? 0,
+                    color: "#65A449",
                   },
                   {
-                    value: percent(workflowInProgress, workflowTotal),
-                    color: "#1689d4",
+                    label: "In delivery",
+                    value: workflowInProgress,
+                    color: "#237448",
                   },
                   {
-                    value: percent(failedClusters.data, workflowTotal),
-                    color: "#c84835",
+                    label: "Failed",
+                    value: failedClusters.data ?? 0,
+                    color: "#C84835",
                   },
-                  {
-                    value: percent(workflowOther, workflowTotal),
-                    color: "#d7a21b",
-                  },
-                ]}
-              />
+                  { label: "Other", value: workflowOther, color: "#94A3B8" },
+                ]
+                  .filter((item) => item.value > 0)
+                  .map((item) => (
+                    <span
+                      key={item.label}
+                      title={`${item.label}: ${item.value}`}
+                      style={{ flex: item.value, background: item.color }}
+                    >
+                      {item.value}
+                    </span>
+                  ))}
+              </div>
               <div className="pd-legend pd-workflow-legend">
                 <div>
                   <span>
@@ -622,119 +806,6 @@ export function PlatformDashboard() {
             </div>
           )}
         </article>
-
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <ShieldCheck size={19} />
-              </span>
-              <div>
-                <h2>Governance workload</h2>
-                <p>Open decisions across platform approval workflows.</p>
-              </div>
-            </div>
-          </header>
-          <div className="pd-governance-rings">
-            {[
-              {
-                label: "Customers",
-                value: sum(submittedCustomers.data, reviewCustomers.data),
-                total: totalCustomers.data,
-                tone: "green",
-              },
-              {
-                label: "Environments",
-                value: sum(submittedEnvironments.data, reviewEnvironments.data),
-                total: totalEnvironments.data,
-                tone: "blue",
-              },
-              {
-                label: "Clusters",
-                value: sum(submittedClusters.data, reviewClusters.data),
-                total: totalClusters.data,
-                tone: "violet",
-              },
-            ].map((item) => {
-              const ratio = percent(item.value, item.total);
-              return (
-                <div key={item.label}>
-                  <div
-                    className={`pd-mini-ring pd-ring-${item.tone}`}
-                    style={{ "--progress": `${ratio}%` } as React.CSSProperties}
-                  >
-                    <strong>{item.value}</strong>
-                  </div>
-                  <span>{item.label}</span>
-                  <small>{ratio}% of records</small>
-                </div>
-              );
-            })}
-          </div>
-          <div className="pd-governance-note">
-            <Clock3 size={16} />
-            <span>
-              <strong>{awaitingAction}</strong> records are submitted or under
-              review in your access scope.
-            </span>
-          </div>
-        </article>
-      </section>
-
-      <section className="pd-card">
-        <header className="pd-card-heading">
-          <div>
-            <span className="pd-card-icon pd-attention-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <div>
-              <h2>
-                Needs your attention{" "}
-                <span className="pd-count">{awaitingAction}</span>
-              </h2>
-              <p>
-                Navigan approvals, provisioning exceptions, and requests
-                requiring action.
-              </p>
-            </div>
-          </div>
-          {canReview && (
-            <Link className="pd-card-link" href="/clusters/reviews">
-              Review queue <ChevronRight size={15} />
-            </Link>
-          )}
-        </header>
-        <div className="pd-attention-list">
-          {pendingCustomers.isPending ||
-          pendingEnvironments.isPending ||
-          pendingClusters.isPending ? (
-            <Loading label="Loading attention queue…" />
-          ) : attentionItems.length ? (
-            attentionItems.map((item) => (
-              <Link
-                className="pd-attention-row"
-                href={item.href}
-                key={`${item.id}-${item.href}`}
-              >
-                <span
-                  className={`pd-attention-row-icon pd-attention-${item.tone}`}
-                >
-                  <item.icon size={17} />
-                </span>
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.meta}</small>
-                </span>
-                <ArrowRight size={16} />
-              </Link>
-            ))
-          ) : (
-            <div className="pd-empty pd-empty-success">
-              <CheckCircle2 size={20} />
-              No newly submitted requests require attention.
-            </div>
-          )}
-        </div>
       </section>
 
       <section className="pd-card">
@@ -764,28 +835,27 @@ export function PlatformDashboard() {
             <table className="pd-activity-table">
               <thead>
                 <tr>
-                  <th>Updated</th>
-                  <th>Customer</th>
                   <th>Cluster</th>
+                  <th>Customer</th>
                   <th>Platform</th>
                   <th>State</th>
+                  <th>Updated</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {(recentClusters.data?.items ?? []).map((cluster) => (
                   <tr key={cluster.clusterId}>
-                    <td>{formatDateTime(cluster.updatedAt)}</td>
-                    <td>
-                      <strong>
-                        {cluster.customerName ?? cluster.customerId}
-                      </strong>
-                    </td>
                     <td>
                       <span className="pd-resource">
                         <Container size={15} />
                         {cluster.clusterName}
                       </span>
+                    </td>
+                    <td>
+                      <strong>
+                        {cluster.customerName ?? cluster.customerId}
+                      </strong>
                     </td>
                     <td>
                       <span className="pd-platform">
@@ -800,12 +870,13 @@ export function PlatformDashboard() {
                         {cluster.status.replaceAll("_", " ")}
                       </span>
                     </td>
+                    <td>{formatDateTime(cluster.updatedAt)}</td>
                     <td>
                       <Link
                         className="pd-row-action"
                         href={`/clusters/${cluster.clusterId}`}
                       >
-                        Open <ArrowUpRight size={14} />
+                        View cluster <ArrowUpRight size={14} />
                       </Link>
                     </td>
                   </tr>
@@ -837,30 +908,23 @@ export function PlatformDashboard() {
           </div>
         </div>
         <div className="pd-tools">
-          <span>
-            <i className="pd-tool-terraform">T</i>Terraform
-          </span>
-          <span>
-            <i className="pd-tool-kubernetes">K8s</i>Kubernetes
-          </span>
-          <span>
-            <i className="pd-tool-docker">
-              <Container size={14} />
-            </i>
-            Containers
-          </span>
-          <span>
-            <i className="pd-tool-prometheus">P</i>Prometheus
-          </span>
-          <span>
-            <i className="pd-tool-grafana">G</i>Grafana
-          </span>
-          <span>
-            <i className="pd-tool-argocd">
-              <Boxes size={14} />
-            </i>
-            Argo CD
-          </span>
+          {[
+            ["terraform", "Terraform"],
+            ["kubernetes", "Kubernetes"],
+            ["docker", "Containers"],
+            ["prometheus", "Prometheus"],
+            ["grafana", "Grafana"],
+            ["argo", "Argo CD"],
+          ].map(([asset, name]) => (
+            <span key={asset}>
+              <img
+                className="pd-brand-logo"
+                src={`/logos/${asset}.svg`}
+                alt=""
+              />
+              {name}
+            </span>
+          ))}
         </div>
         <Link href="/clusters" aria-label="Open cluster operations">
           <ArrowUpRight size={18} />
