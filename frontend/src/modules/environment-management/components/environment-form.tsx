@@ -1,12 +1,14 @@
 "use client";
 import "./environment-workspace.css";
 import Link from "next/link";
+import { ProviderBadges } from "@/modules/customer-management/components/customer-badges";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CloudCog,
+  ClipboardList,
   Eye,
   GitBranch,
   Save,
@@ -404,459 +406,469 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
           </li>
         ))}
       </ol>
-      <section
-        className="panel environment-form-context"
-        aria-label="Environment context"
-      >
-        <div>
-          <small>Customer</small>
-          <strong>
-            {environment?.customerName ||
-              customers.data?.items.find(
-                (c) => c.customerId === input.customerId,
-              )?.name ||
-              "Select customer"}
-          </strong>
-        </div>
-        <div>
-          <small>Cloud / Distribution</small>
-          <strong>
-            {input.cloudProvider} / {input.kubernetesDistribution}
-          </strong>
-        </div>
-        <div>
-          <small>AWS account</small>
-          <strong>{discovery?.account.accountId || "Not connected"}</strong>
-        </div>
-        <div>
-          <small>Region</small>
-          <strong>{discovery?.regions[0]?.region || "Not discovered"}</strong>
-        </div>
-        <div>
-          <small>Environment version</small>
-          <strong>v{environment?.version || 1} · Draft</strong>
-        </div>
-      </section>
-      <form
-        ref={form}
-        className="environment-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          mutation.mutate({ submitAfterSave: reviewing });
-        }}
-      >
-        <fieldset
-          disabled={mutation.isPending}
-          className="panel panel-padding environment-fieldset"
+      <div className="environment-creation-layout">
+        <section
+          className="panel environment-form-context"
+          aria-label="Environment context"
         >
-          <legend className="sr-only">Environment identity</legend>
-          <div className="section-heading environment-form-heading">
-            <span className="section-number">
-              <CloudCog size={17} aria-hidden="true" />
-            </span>
-            <div>
-              <h2>Environment identity</h2>
-              <p className="muted">
-                Choose the customer, platform, ownership and billing context
-                before discovering cloud resources.
-              </p>
-            </div>
+          <h2>
+            <ClipboardList size={20} aria-hidden="true" />
+            Environment summary
+          </h2>
+          <div>
+            <small>Customer</small>
+            <strong>
+              {environment?.customerName ||
+                customers.data?.items.find(
+                  (c) => c.customerId === input.customerId,
+                )?.name ||
+                "Select customer"}
+            </strong>
           </div>
-          <div className="environment-identity-grid">
-            {!environment && (
-              <label className="field">
-                Find customer
-                <input
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setCustomerPage(0);
-                  }}
-                  placeholder="Search customers by name"
-                />
-              </label>
-            )}
-            <label className="field">
-              Customer *
-              <select
-                required
-                disabled={!!environment}
-                value={input.customerId}
-                onChange={(e) => {
-                  const customer = customers.data?.items.find(
-                    (c) => c.customerId === e.target.value,
-                  );
-                  const allowed =
-                    customer?.cloudProviders.filter(
-                      (p) => p in distributions,
-                    ) || [];
-                  setProviders(allowed);
-                  const provider = (
-                    allowed.includes("AWS") ? "AWS" : allowed[0] || "AWS"
-                  ) as Provider;
-                  setInput((v) => ({
-                    ...v,
-                    customerId: e.target.value,
-                    cloudProvider: provider,
-                    kubernetesDistribution: distributions[provider],
-                    configuration: {},
-                  }));
-                }}
-              >
-                <option value="">Select customer</option>
-                {environment ? (
-                  <option value={environment.customerId}>
-                    {environment.customerName}
-                  </option>
-                ) : (
-                  customers.data?.items.map((c) => (
-                    <option key={c.customerId} value={c.customerId}>
-                      {c.name} · {c.status}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
-            {!environment &&
-              customers.data &&
-              customers.data.pagination.totalPages > 1 && (
-                <div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={!customerPage}
-                    onClick={() => setCustomerPage((p) => p - 1)}
-                  >
-                    Previous customers
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={
-                      customerPage + 1 >= customers.data.pagination.totalPages
-                    }
-                    onClick={() => setCustomerPage((p) => p + 1)}
-                  >
-                    More customers
-                  </Button>
-                </div>
-              )}
-            <label className="field">
-              Container distribution *
-              <select
-                disabled={!!environment}
-                value={`${input.cloudProvider}/${input.kubernetesDistribution}`}
-                onChange={(e) => {
-                  if (e.target.value !== "AWS/EKS") return;
-                  setInput((v) => ({
-                    ...v,
-                    cloudProvider: "AWS",
-                    kubernetesDistribution: "EKS",
-                    configuration: {},
-                  }));
-                }}
-              >
-                {containerPlatformCatalogue.map((category) => (
-                  <optgroup key={category.group} label={category.group}>
-                    {category.options.map((option) => (
-                      <option
-                        key={option.value}
-                        value={option.value}
-                        disabled={
-                          !option.supported ||
-                          (option.value === "AWS/EKS" &&
-                            providers.length > 0 &&
-                            !providers.includes("AWS"))
-                        }
-                      >
-                        {option.label}
-                        {option.supported ? " · Available" : " · Coming soon"}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <small>
-                AWS EKS is currently available for discovery and provisioning.
-                Other container platforms are shown as the product roadmap.
-              </small>
-            </label>
-            <label className="field">
-              Environment name *
-              <input
-                required
-                maxLength={150}
-                value={input.environmentName}
-                onChange={(e) => change("environmentName", e.target.value)}
-              />
-            </label>
-            <label className="field">
-              Environment type *
-              <select
-                required
-                value={input.environmentType}
-                onChange={(e) => change("environmentType", e.target.value)}
-              >
-                <option value="">Select type</option>
-                {metadata.data?.environmentTypes.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Cost center *
-              <input
-                required
-                maxLength={1024}
-                value={costCenter}
-                onChange={(e) => changeCostCenter(e.target.value)}
-                placeholder="Enter approved billing or project code"
-              />
-              <small>Required governance tag for provisioning.</small>
-            </label>
-            <label className="field">
-              Description
-              <textarea
-                rows={3}
-                maxLength={4000}
-                value={input.description}
-                onChange={(e) => change("description", e.target.value)}
-              />
-            </label>
+          <div>
+            <small>Cloud / Distribution</small>
+            <strong>
+              <ProviderBadges codes={[input.cloudProvider]} compact /> /{" "}
+              {input.kubernetesDistribution}
+            </strong>
           </div>
-        </fieldset>
-        {customers.error && <ErrorNotice error={customers.error} />}{" "}
-        {metadata.error && (
-          <ErrorNotice
-            error={metadata.error}
-            onRetry={() => metadata.refetch()}
-          />
-        )}
-        {isEks && identity?.roles.includes("CLOUD_ENGINEER") && (
-          <AwsDiscoveryPanel
-            customerId={input.customerId}
-            environmentType={input.environmentType}
-            owner={identity.displayName}
-            costCenter={costCenter}
+          <div>
+            <small>AWS account</small>
+            <strong>{discovery?.account.accountId || "Not connected"}</strong>
+          </div>
+          <div>
+            <small>Region</small>
+            <strong>{discovery?.regions[0]?.region || "Not discovered"}</strong>
+          </div>
+          <div>
+            <small>Environment version</small>
+            <strong>v{environment?.version || 1} · Draft</strong>
+          </div>
+        </section>
+        <form
+          ref={form}
+          className="environment-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            mutation.mutate({ submitAfterSave: reviewing });
+          }}
+        >
+          <fieldset
             disabled={mutation.isPending}
-            onApply={(configuration) => {
-              setHasDiscovery(true);
-              setInput((current) => ({
-                ...current,
-                configuration: {
-                  ...current.configuration,
-                  ...configuration,
-                },
-              }));
-            }}
-            onDiscovered={setDiscovery}
-          />
-        )}
-        {isEks ? (
-          <>
-            <section className="panel panel-padding environment-config-summary">
-              <h2>EKS environment profile baseline</h2>
-              <p className="muted">
-                {hasDiscovery
-                  ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
-                  : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
-              </p>
-              <span
-                className={
-                  hasDiscovery ? "security-chip" : "security-chip needs-review"
-                }
-              >
-                {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
-              </span>
-            </section>
-          </>
-        ) : (
-          <section className="panel panel-padding environment-config">
-            <h2>Container distribution not yet available</h2>
-            <p className="muted">
-              Navigan currently provisions AWS EKS environments. The selected
-              container platform will receive its own discovery, bootstrap,
-              environment configuration, and provisioning workflow in a future
-              release.
-            </p>
-            <span className="security-chip needs-review">Coming soon</span>
-          </section>
-        )}
-        {mutation.error && <ErrorNotice error={mutation.error} />}{" "}
-        {mutation.error instanceof ApiError &&
-          Array.isArray(mutation.error.details?.fields) && (
-            <ul className="notice notice-error">
-              {(
-                mutation.error.details.fields as {
-                  field?: string;
-                  message?: string;
-                }[]
-              ).map((v, i) => (
-                <li key={i}>
-                  {v.field}: {v.message}
-                </li>
-              ))}
-            </ul>
-          )}
-        {reviewing && (
-          <section
-            className="panel panel-padding environment-review-panel"
-            aria-label="Review environment before submission"
+            className="panel panel-padding environment-fieldset"
           >
-            <div className="section-heading">
+            <legend className="sr-only">Environment identity</legend>
+            <div className="section-heading environment-form-heading">
               <span className="section-number">
-                <Eye size={17} aria-hidden="true" />
+                <CloudCog size={17} aria-hidden="true" />
               </span>
               <div>
-                <span className="eyebrow">REVIEW AND SUBMIT</span>
-                <h2>Confirm the environment baseline</h2>
+                <h2>Environment identity</h2>
                 <p className="muted">
-                  Review the ownership and approved AWS resource selections.
-                  Submitting sends this revision to a Platform Architect.
+                  Choose the customer, platform, ownership and billing context
+                  before discovering cloud resources.
                 </p>
               </div>
             </div>
-            <dl className="details-grid">
-              <div>
-                <dt>Environment</dt>
-                <dd>{input.environmentName || "Not provided"}</dd>
-              </div>
-              <div>
-                <dt>Environment type</dt>
-                <dd>{input.environmentType || "Not provided"}</dd>
-              </div>
-              <div>
-                <dt>Container distribution</dt>
-                <dd>
-                  {input.cloudProvider} / {input.kubernetesDistribution}
-                </dd>
-              </div>
-              <div>
-                <dt>Cost center</dt>
-                <dd>{costCenter || "Not provided"}</dd>
-              </div>
-              <div>
-                <dt>AWS account</dt>
-                <dd>
-                  {String(
-                    (
-                      input.configuration.account as
-                        Record<string, unknown> | undefined
-                    )?.accountId || "Not selected",
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Baseline</dt>
-                <dd>
-                  {hasDiscovery ? "Verified and attached" : "Not applied"}
-                </dd>
-              </div>
-            </dl>
-          </section>
-        )}
-        <div className="environment-actions environment-save-bar">
-          <div>
-            <strong>
-              {reviewing
-                ? "Submit environment for review"
-                : environment
-                  ? "Save revision draft"
-                  : "Save environment draft"}
-            </strong>
-            <p className="muted">
-              {reviewing
-                ? "A Platform Architect will review this immutable revision before approval and activation."
-                : "Drafts can be completed later and are not available for cluster setup until reviewed, approved and activated."}
-            </p>
-          </div>
-          <div className="environment-save-buttons">
-            {reviewing && (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={mutation.isPending}
-                onClick={() => setReviewing(false)}
-              >
-                <ArrowLeft size={17} aria-hidden="true" />
-                Back to edit
-              </Button>
-            )}
-            <Link
-              className="button button-secondary"
-              href={
-                environment
-                  ? `/environments/${environment.environmentId}`
-                  : "/environments"
-              }
-            >
-              Cancel
-            </Link>
-            {!reviewing && (
-              <>
-                <Button
-                  type="button"
-                  disabled={
-                    mutation.isPending ||
-                    !schema.data ||
-                    !metadata.data ||
-                    !input.customerId ||
-                    !input.environmentName ||
-                    !input.environmentType ||
-                    !providers.length ||
-                    !isEks
-                  }
-                  onClick={() => mutation.mutate({ submitAfterSave: false })}
-                >
-                  <Save size={17} aria-hidden="true" />
-                  {mutation.isPending
-                    ? "Saving…"
-                    : environment
-                      ? "Save revision"
-                      : "Save as Draft"}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={
-                    mutation.isPending ||
-                    !schema.data ||
-                    !metadata.data ||
-                    !input.customerId ||
-                    !input.environmentName ||
-                    !input.environmentType ||
-                    !costCenter.trim() ||
-                    !hasDiscovery ||
-                    !providers.length ||
-                    !isEks
-                  }
-                  onClick={() => {
-                    if (form.current?.reportValidity()) {
-                      setReviewing(true);
-                      requestAnimationFrame(() =>
-                        document
-                          .querySelector(".environment-review-panel")
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "center",
-                          }),
-                      );
-                    }
+            <div className="environment-identity-grid">
+              {!environment && (
+                <label className="field">
+                  Find customer
+                  <input
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setCustomerPage(0);
+                    }}
+                    placeholder="Search customers by name"
+                  />
+                </label>
+              )}
+              <label className="field">
+                Customer *
+                <select
+                  required
+                  disabled={!!environment}
+                  value={input.customerId}
+                  onChange={(e) => {
+                    const customer = customers.data?.items.find(
+                      (c) => c.customerId === e.target.value,
+                    );
+                    const allowed =
+                      customer?.cloudProviders.filter(
+                        (p) => p in distributions,
+                      ) || [];
+                    setProviders(allowed);
+                    const provider = (
+                      allowed.includes("AWS") ? "AWS" : allowed[0] || "AWS"
+                    ) as Provider;
+                    setInput((v) => ({
+                      ...v,
+                      customerId: e.target.value,
+                      cloudProvider: provider,
+                      kubernetesDistribution: distributions[provider],
+                      configuration: {},
+                    }));
                   }}
                 >
+                  <option value="">Select customer</option>
+                  {environment ? (
+                    <option value={environment.customerId}>
+                      {environment.customerName}
+                    </option>
+                  ) : (
+                    customers.data?.items.map((c) => (
+                      <option key={c.customerId} value={c.customerId}>
+                        {c.name} · {c.status}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+              {!environment &&
+                customers.data &&
+                customers.data.pagination.totalPages > 1 && (
+                  <div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={!customerPage}
+                      onClick={() => setCustomerPage((p) => p - 1)}
+                    >
+                      Previous customers
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={
+                        customerPage + 1 >= customers.data.pagination.totalPages
+                      }
+                      onClick={() => setCustomerPage((p) => p + 1)}
+                    >
+                      More customers
+                    </Button>
+                  </div>
+                )}
+              <label className="field">
+                Container distribution *
+                <select
+                  disabled={!!environment}
+                  value={`${input.cloudProvider}/${input.kubernetesDistribution}`}
+                  onChange={(e) => {
+                    if (e.target.value !== "AWS/EKS") return;
+                    setInput((v) => ({
+                      ...v,
+                      cloudProvider: "AWS",
+                      kubernetesDistribution: "EKS",
+                      configuration: {},
+                    }));
+                  }}
+                >
+                  {containerPlatformCatalogue.map((category) => (
+                    <optgroup key={category.group} label={category.group}>
+                      {category.options.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          disabled={
+                            !option.supported ||
+                            (option.value === "AWS/EKS" &&
+                              providers.length > 0 &&
+                              !providers.includes("AWS"))
+                          }
+                        >
+                          {option.label}
+                          {option.supported ? " · Available" : " · Coming soon"}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <small>
+                  AWS EKS is currently available for discovery and provisioning.
+                  Other container platforms are shown as the product roadmap.
+                </small>
+              </label>
+              <label className="field">
+                Environment name *
+                <input
+                  required
+                  maxLength={150}
+                  value={input.environmentName}
+                  onChange={(e) => change("environmentName", e.target.value)}
+                />
+              </label>
+              <label className="field">
+                Environment type *
+                <select
+                  required
+                  value={input.environmentType}
+                  onChange={(e) => change("environmentType", e.target.value)}
+                >
+                  <option value="">Select type</option>
+                  {metadata.data?.environmentTypes.map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Cost center *
+                <input
+                  required
+                  maxLength={1024}
+                  value={costCenter}
+                  onChange={(e) => changeCostCenter(e.target.value)}
+                  placeholder="Enter approved billing or project code"
+                />
+                <small>Required governance tag for provisioning.</small>
+              </label>
+              <label className="field">
+                Description
+                <textarea
+                  rows={3}
+                  maxLength={4000}
+                  value={input.description}
+                  onChange={(e) => change("description", e.target.value)}
+                />
+              </label>
+            </div>
+          </fieldset>
+          {customers.error && <ErrorNotice error={customers.error} />}{" "}
+          {metadata.error && (
+            <ErrorNotice
+              error={metadata.error}
+              onRetry={() => metadata.refetch()}
+            />
+          )}
+          {isEks && identity?.roles.includes("CLOUD_ENGINEER") && (
+            <AwsDiscoveryPanel
+              customerId={input.customerId}
+              environmentType={input.environmentType}
+              owner={identity.displayName}
+              costCenter={costCenter}
+              disabled={mutation.isPending}
+              onApply={(configuration) => {
+                setHasDiscovery(true);
+                setInput((current) => ({
+                  ...current,
+                  configuration: {
+                    ...current.configuration,
+                    ...configuration,
+                  },
+                }));
+              }}
+              onDiscovered={setDiscovery}
+            />
+          )}
+          {isEks ? (
+            <>
+              <section className="panel panel-padding environment-config-summary">
+                <h2>EKS environment profile baseline</h2>
+                <p className="muted">
+                  {hasDiscovery
+                    ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
+                    : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
+                </p>
+                <span
+                  className={
+                    hasDiscovery
+                      ? "security-chip"
+                      : "security-chip needs-review"
+                  }
+                >
+                  {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
+                </span>
+              </section>
+            </>
+          ) : (
+            <section className="panel panel-padding environment-config">
+              <h2>Container distribution not yet available</h2>
+              <p className="muted">
+                Navigan currently provisions AWS EKS environments. The selected
+                container platform will receive its own discovery, bootstrap,
+                environment configuration, and provisioning workflow in a future
+                release.
+              </p>
+              <span className="security-chip needs-review">Coming soon</span>
+            </section>
+          )}
+          {mutation.error && <ErrorNotice error={mutation.error} />}{" "}
+          {mutation.error instanceof ApiError &&
+            Array.isArray(mutation.error.details?.fields) && (
+              <ul className="notice notice-error">
+                {(
+                  mutation.error.details.fields as {
+                    field?: string;
+                    message?: string;
+                  }[]
+                ).map((v, i) => (
+                  <li key={i}>
+                    {v.field}: {v.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          {reviewing && (
+            <section
+              className="panel panel-padding environment-review-panel"
+              aria-label="Review environment before submission"
+            >
+              <div className="section-heading">
+                <span className="section-number">
                   <Eye size={17} aria-hidden="true" />
-                  Review and Submit
+                </span>
+                <div>
+                  <span className="eyebrow">REVIEW AND SUBMIT</span>
+                  <h2>Confirm the environment baseline</h2>
+                  <p className="muted">
+                    Review the ownership and approved AWS resource selections.
+                    Submitting sends this revision to a Platform Architect.
+                  </p>
+                </div>
+              </div>
+              <dl className="details-grid">
+                <div>
+                  <dt>Environment</dt>
+                  <dd>{input.environmentName || "Not provided"}</dd>
+                </div>
+                <div>
+                  <dt>Environment type</dt>
+                  <dd>{input.environmentType || "Not provided"}</dd>
+                </div>
+                <div>
+                  <dt>Container distribution</dt>
+                  <dd>
+                    <ProviderBadges codes={[input.cloudProvider]} compact /> /{" "}
+                    {input.kubernetesDistribution}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Cost center</dt>
+                  <dd>{costCenter || "Not provided"}</dd>
+                </div>
+                <div>
+                  <dt>AWS account</dt>
+                  <dd>
+                    {String(
+                      (
+                        input.configuration.account as
+                          Record<string, unknown> | undefined
+                      )?.accountId || "Not selected",
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Baseline</dt>
+                  <dd>
+                    {hasDiscovery ? "Verified and attached" : "Not applied"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+          <div className="environment-actions environment-save-bar">
+            <div>
+              <strong>
+                {reviewing
+                  ? "Submit environment for review"
+                  : environment
+                    ? "Save revision draft"
+                    : "Save environment draft"}
+              </strong>
+              <p className="muted">
+                {reviewing
+                  ? "A Platform Architect will review this immutable revision before approval and activation."
+                  : "Drafts can be completed later and are not available for cluster setup until reviewed, approved and activated."}
+              </p>
+            </div>
+            <div className="environment-save-buttons">
+              {reviewing && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={mutation.isPending}
+                  onClick={() => setReviewing(false)}
+                >
+                  <ArrowLeft size={17} aria-hidden="true" />
+                  Back to edit
                 </Button>
-              </>
-            )}
-            {reviewing && (
-              <Button type="submit" disabled={mutation.isPending}>
-                <Send size={17} aria-hidden="true" />
-                {mutation.isPending ? "Submitting…" : "Submit for Review"}
-              </Button>
-            )}
+              )}
+              <Link
+                className="button button-secondary"
+                href={
+                  environment
+                    ? `/environments/${environment.environmentId}`
+                    : "/environments"
+                }
+              >
+                Cancel
+              </Link>
+              {!reviewing && (
+                <>
+                  <Button
+                    type="button"
+                    disabled={
+                      mutation.isPending ||
+                      !schema.data ||
+                      !metadata.data ||
+                      !input.customerId ||
+                      !input.environmentName ||
+                      !input.environmentType ||
+                      !providers.length ||
+                      !isEks
+                    }
+                    onClick={() => mutation.mutate({ submitAfterSave: false })}
+                  >
+                    <Save size={17} aria-hidden="true" />
+                    {mutation.isPending
+                      ? "Saving…"
+                      : environment
+                        ? "Save revision"
+                        : "Save as Draft"}
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={
+                      mutation.isPending ||
+                      !schema.data ||
+                      !metadata.data ||
+                      !input.customerId ||
+                      !input.environmentName ||
+                      !input.environmentType ||
+                      !costCenter.trim() ||
+                      !hasDiscovery ||
+                      !providers.length ||
+                      !isEks
+                    }
+                    onClick={() => {
+                      if (form.current?.reportValidity()) {
+                        setReviewing(true);
+                        requestAnimationFrame(() =>
+                          document
+                            .querySelector(".environment-review-panel")
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "center",
+                            }),
+                        );
+                      }
+                    }}
+                  >
+                    <Eye size={17} aria-hidden="true" />
+                    Review and Submit
+                  </Button>
+                </>
+              )}
+              {reviewing && (
+                <Button type="submit" disabled={mutation.isPending}>
+                  <Send size={17} aria-hidden="true" />
+                  {mutation.isPending ? "Submitting…" : "Submit for Review"}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

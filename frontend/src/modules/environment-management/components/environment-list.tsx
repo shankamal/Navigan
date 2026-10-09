@@ -318,6 +318,51 @@ export function EnvironmentList({
                 </div>
               ))}
             </div>
+            <div className="environment-active-coverage">
+              <h2>Active environments</h2>
+              {total.isError || active.isError ? (
+                <p role="status">Metrics unavailable. Refresh to retry.</p>
+              ) : total.data === undefined || active.data === undefined ? (
+                <p role="status">Loading active coverage…</p>
+              ) : (
+                <>
+                  <div className="environment-coverage-value">
+                    <strong>{active.data}</strong>
+                    <span>of {total.data}</span>
+                    <strong>
+                      {total.data
+                        ? Math.round((active.data / total.data) * 100)
+                        : 0}
+                      %
+                    </strong>
+                  </div>
+                  <div
+                    className="environment-coverage-bar"
+                    role="progressbar"
+                    aria-label="Active environment profile coverage"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={
+                      total.data
+                        ? Math.round((active.data / total.data) * 100)
+                        : 0
+                    }
+                  >
+                    <span
+                      style={{
+                        width: `${total.data ? Math.min(100, (active.data / total.data) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="environment-coverage-scale">
+                    <span>0%</span>
+                    <span>50%</span>
+                    <span>100%</span>
+                  </div>
+                  <p>Active profile status</p>
+                </>
+              )}
+            </div>
           </section>
           <aside
             className="panel environment-attention"

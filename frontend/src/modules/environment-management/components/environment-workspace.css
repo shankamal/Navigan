@@ -956,3 +956,267 @@
     grid-template-columns: 38px 82px 20px minmax(40px, 1fr);
   }
 }
+
+/* Environment overview and creation: shared Navigan card treatment. */
+.environment-workspace .environment-portfolio-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.environment-workspace .environment-portfolio-charts {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 1fr;
+  gap: 16px;
+  background: transparent;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+.environment-portfolio-charts > div {
+  background: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 9px;
+  padding: 20px;
+  min-width: 0;
+}
+.environment-workspace .environment-provider-distribution {
+  border: 1px solid #dce3ec;
+}
+.environment-portfolio-charts h2,
+.environment-form-context h2 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  margin: 0 0 16px;
+  color: #243247;
+}
+.environment-workspace .environment-chart-legend li {
+  font-size: 14px;
+}
+.environment-coverage-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 28px 0 18px;
+  color: #64748b;
+}
+.environment-coverage-value strong {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.environment-coverage-value strong:last-child {
+  margin-left: auto;
+  color: #568c3e;
+}
+.environment-coverage-bar {
+  height: 16px;
+  background: #e2e8f0;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.environment-coverage-bar > span {
+  display: block;
+  height: 100%;
+  background: #65a449;
+}
+.environment-coverage-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 8px;
+}
+.environment-active-coverage p {
+  font-size: 14px;
+  color: #64748b;
+  margin-top: 20px;
+}
+.environment-workspace .environment-attention {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 20px;
+  padding: 16px 20px;
+}
+.environment-attention > header {
+  grid-column: 1 / -1;
+}
+.environment-creation-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+.environment-creation-layout > .environment-form {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.environment-creation-layout > .environment-form-context {
+  grid-column: 2;
+  grid-row: 1;
+  position: sticky;
+  top: calc(var(--workspace-topbar-height, 64px) + 140px);
+  display: block;
+  padding: 20px;
+}
+.environment-creation-layout .environment-form-context > div {
+  padding: 14px 0;
+  border-right: 0;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.environment-form-context small {
+  font-size: 14px;
+}
+.environment-form-context strong {
+  overflow-wrap: anywhere;
+}
+.environment-form-workspace .environment-stepper {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px 20px;
+}
+.environment-form-workspace .environment-fieldset {
+  padding: 20px;
+}
+.environment-form-workspace .environment-fieldset .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 1250px) {
+  .environment-workspace .environment-portfolio-charts {
+    grid-template-columns: 1fr;
+  }
+  .environment-creation-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+}
+@media (max-width: 1000px) {
+  .environment-creation-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .environment-creation-layout > .environment-form-context {
+    position: static;
+    width: 100%;
+  }
+  .environment-creation-layout > .environment-form {
+    width: 100%;
+  }
+}
+@media (max-width: 720px) {
+  .environment-workspace .environment-attention {
+    grid-template-columns: 1fr;
+  }
+  .environment-form-workspace .environment-fieldset .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.environment-creation-layout .discovery-selection {
+  grid-template-columns: minmax(0, 1fr);
+}
+.environment-creation-layout .discovery-selection > .baseline-review {
+  grid-column: 1;
+  grid-row: auto;
+}
+.environment-workspace .environment-portfolio-lifecycle {
+  border: 1px solid #dce3ec;
+}
+.environment-creation-layout .environment-form-context h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.environment-creation-layout .environment-form-context h2 svg {
+  flex: none;
+}
+
+.environment-creation-layout .environment-identity-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.environment-creation-layout .environment-form-context strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.environment-creation-layout .environment-save-bar {
+  width: calc(100% + 320px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.environment-creation-layout .environment-save-bar p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.environment-creation-layout .environment-save-buttons {
+  flex: none;
+}
+@media (max-width: 1250px) {
+  .environment-creation-layout .environment-save-bar {
+    width: calc(100% + 280px);
+  }
+}
+@media (max-width: 1000px) {
+  .environment-creation-layout .environment-save-bar {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 720px) {
+  .environment-creation-layout .environment-identity-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.environment-creation-layout .environment-save-bar {
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+.environment-creation-layout .environment-save-bar > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+.environment-creation-layout .environment-save-buttons {
+  justify-content: flex-end;
+}
+@media (max-width: 1000px) {
+  .environment-creation-layout .environment-save-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.environment-creation-layout
+  .aws-discovery-panel
+  > .environment-section-heading {
+  padding-left: 54px;
+  background: url("/logos/amazonwebservices.svg") left 12px / 40px 32px
+    no-repeat;
+}
+.environment-creation-layout .resource-strategy-panel {
+  background: #fff;
+  border-color: #dce3ec;
+}
+.environment-creation-layout .account-setup-option {
+  background: #fff;
+  border-color: #dce3ec;
+}
+.environment-creation-layout .account-setup-option.selected {
+  background: #f8fafc;
+  border-color: #475569;
+}
+.environment-creation-layout .field {
+  font-size: 14px;
+}
+.environment-creation-layout .field > input,
+.environment-creation-layout .field > select,
+.environment-creation-layout .field > textarea {
+  font-size: 14px;
+}
