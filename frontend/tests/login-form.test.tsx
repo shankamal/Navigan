@@ -145,4 +145,19 @@ describe("Custom Cognito login", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveValue("");
   });
+  it.each(["/login", "/customers/new"])("lands on Dashboard after sign-in from %s", async (pathname) => {
+    const replace = vi.fn();
+    const browserWindow = Object.create(window);
+    Object.defineProperty(browserWindow, "location", { value: { pathname, replace } });
+    vi.mocked(signIn).mockResolvedValue({ isSignedIn: true, nextStep: { signInStep: "DONE" } });
+    render(<LoginForm />);
+    vi.stubGlobal("window", browserWindow);
+    try {
+      login();
+      await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
 });

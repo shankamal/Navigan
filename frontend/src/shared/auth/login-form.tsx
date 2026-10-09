@@ -112,12 +112,7 @@ export function LoginForm() {
   async function next(result: SignInOutput) {
     if (result.isSignedIn) {
       // A document navigation clears transient password/challenge state and restores the provider.
-      const path = window.location.pathname;
-      window.location.replace(
-        /^\/customers(?:\/CUS-[A-Za-z0-9-]+(?:\/edit)?|\/new)?$/.test(path)
-          ? path
-          : "/customers",
-      );
+      window.location.replace("/dashboard");
       return;
     }
     if (result.nextStep.signInStep === "RESET_PASSWORD") {

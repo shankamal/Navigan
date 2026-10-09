@@ -7,8 +7,8 @@ export default function Login() {
       <AuthGate>
         <div className="empty-state">
           <h1>You’re signed in</h1>
-          <Link className="button button-primary" href="/customers">
-            Open customers
+          <Link className="button button-primary" href="/dashboard">
+            Open dashboard
           </Link>
         </div>
       </AuthGate>
