@@ -31,6 +31,35 @@
   color: #86bc25;
 }
 @media (max-width: 640px) {
+  .app-shell[class] > header.topbar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .app-shell[class] > header.topbar .brand {
+    gap: 12px;
+    min-width: 0;
+  }
+  .app-shell[class] > header.topbar .topbar-account {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+  .app-shell[class] > header.topbar .signed-in-user {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .app-shell[class] .sidebar.expanded {
+    top: var(--workspace-topbar-height, 64px);
+  }
+  .app-shell[class]
+    main#main-content
+    .environment-portfolio-heading
+    .page-heading {
+    min-width: 0;
+    width: auto;
+    flex: 1;
+  }
   .app-shell[class] > header.topbar .corporate-wordmark {
     font-size: 18px;
     padding-right: 8px;
