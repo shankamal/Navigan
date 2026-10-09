@@ -7,12 +7,26 @@ export function StatusBadge({ status }: { status: CustomerStatus }) {
     </span>
   );
 }
+const providerLogos: Record<string, string> = {
+  AWS: "amazonwebservices",
+  AZURE: "microsoftazure",
+  GCP: "googlecloud",
+  OCI: "oracle",
+};
 export function ProviderBadges({ codes }: { codes: string[] }) {
   return (
     <div className="provider-badges">
       {codes.length ? (
         codes.map((code) => (
           <span key={code} className="provider-badge">
+            {providerLogos[code] && (
+              <img
+                src={`/logos/${providerLogos[code]}.svg`}
+                alt=""
+                width={22}
+                height={22}
+              />
+            )}
             {cloudProviders.find((p) => p.code === code)?.shortName ?? code}
           </span>
         ))

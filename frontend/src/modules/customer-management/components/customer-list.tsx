@@ -5,8 +5,8 @@ import {
   ArrowUpRight,
   Building2,
   CheckCircle2,
-  ClipboardList,
-  FilePenLine,
+  Columns3,
+  List,
   Plus,
   RefreshCw,
   Search,
@@ -28,12 +28,14 @@ import {
   type CustomerFilters,
   type CustomerStatus,
 } from "../model/types";
+import "./customer-workspace.css";
+import { CustomerMetrics } from "./customer-metrics";
 import { ProviderBadges, StatusBadge } from "./customer-badges";
 export function CustomerListView() {
   const { identity } = useAuth();
   const [filters, setFilters] = useState<CustomerFilters>({
     page: 0,
-    pageSize: 20,
+    pageSize: 5,
     sort: "createdAt,desc",
   });
   useEffect(() => {
@@ -65,43 +67,21 @@ export function CustomerListView() {
   const submitted = useCustomerCount("SUBMITTED");
   const review = useCustomerCount("UNDER_REVIEW");
   const draft = useCustomerCount("DRAFT");
-  const metrics = [
-    {
-      label: "Total customers",
-      value: total.data,
-      icon: Building2,
-      note: "Within your access scope",
-    },
-    {
-      label: "Active",
-      value: active.data,
-      icon: CheckCircle2,
-      note: "Ready for platform services",
-    },
-    {
-      label: "Awaiting approval",
-      value:
-        submitted.data !== undefined && review.data !== undefined
-          ? submitted.data + review.data
-          : undefined,
-      icon: ClipboardList,
-      note: "Submitted and under review",
-    },
-    {
-      label: "Drafts",
-      value: draft.data,
-      icon: FilePenLine,
-      note: "Onboarding in progress",
-    },
-  ];
+  const [view, setView] = useState<"list" | "board">("list");
+  const metricQueries = [total, active, submitted, review, draft];
+  const boardStatuses = statuses.filter(
+    (status) =>
+      ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "ACTIVE"].includes(status) ||
+      customers.data?.items.some((customer) => customer.status === status),
+  );
   const reset = () => {
     setSearch("");
-    setFilters({ page: 0, pageSize: 20, sort: "createdAt,desc" });
+    setFilters({ page: 0, pageSize: 5, sort: "createdAt,desc" });
   };
   const filter = (values: Partial<CustomerFilters>) =>
     setFilters((old) => ({ ...old, ...values, page: 0 }));
   return (
-    <>
+    <div className="customer-workspace">
       <PageHeading
         eyebrow="CUSTOMER MANAGEMENT"
         title="Customers"
@@ -115,18 +95,14 @@ export function CustomerListView() {
           )
         }
       />
-      <div className="metrics-grid">
-        {metrics.map((metric) => (
-          <div className="metric" key={metric.label}>
-            <div className="metric-label">
-              {metric.label}
-              <metric.icon size={20} aria-hidden="true" />
-            </div>
-            <strong>{metric.value ?? "—"}</strong>
-            <p>{metric.note}</p>
-          </div>
-        ))}
-      </div>
+      <CustomerMetrics
+        total={total.data}
+        active={active.data}
+        draft={draft.data}
+        submitted={submitted.data}
+        review={review.data}
+        failed={metricQueries.some((query) => query.isError)}
+      />
       <section className="panel">
         <div className="list-heading">
           <div>
@@ -153,6 +129,28 @@ export function CustomerListView() {
               className={customers.isFetching ? "animate-spin" : ""}
             />
             <span>Refresh</span>
+          </Button>
+        </div>
+        <div
+          className="customer-view-toggle"
+          role="group"
+          aria-label="Customer view"
+        >
+          <Button
+            variant="secondary"
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+          >
+            <List size={17} />
+            List
+          </Button>
+          <Button
+            variant="secondary"
+            aria-pressed={view === "board"}
+            onClick={() => setView("board")}
+          >
+            <Columns3 size={17} />
+            Board
           </Button>
         </div>
         <div className="filter-bar">
@@ -264,69 +262,147 @@ export function CustomerListView() {
           </EmptyState>
         ) : (
           <>
-            <div className="table-scroll">
-              <table className="customer-table">
-                <caption className="sr-only">
-                  Customers matching the current filters
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Customer</th>
-                    <th scope="col">Cloud providers</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Created</th>
-                    <th scope="col">Last updated</th>
-                    <th scope="col">
-                      <span className="sr-only">Open customer</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customers.data.items.map((customer) => (
-                    <tr key={customer.customerId}>
-                      <td>
-                        <div className="customer-cell">
-                          <span className="customer-avatar" aria-hidden="true">
-                            {customer.name.substring(0, 2).toUpperCase()}
-                          </span>
-                          <div>
-                            <Link
-                              href={`/customers/${customer.customerId}`}
-                              className="customer-name"
+            {view === "board" ? (
+              <>
+                <p className="customer-board-note">
+                  Board shows customers on this page. Status changes follow the
+                  approval workflow.
+                </p>
+                <div className="customer-board">
+                  {boardStatuses.map((status) => {
+                    const items = customers.data.items.filter(
+                      (customer) => customer.status === status,
+                    );
+                    return (
+                      <section
+                        className={`customer-board-column board-${status.toLowerCase()}`}
+                        key={status}
+                        aria-label={`${statusLabels[status]} customers`}
+                      >
+                        <header>
+                          <h3>{statusLabels[status]}</h3>
+                          <span>{items.length} on this page</span>
+                        </header>
+                        {items.length === 0 ? (
+                          <p className="customer-board-empty">
+                            No customers on this page
+                          </p>
+                        ) : (
+                          items.map((customer) => (
+                            <article
+                              className="customer-board-card"
+                              key={customer.customerId}
                             >
-                              {customer.name}
-                            </Link>
-                            <p
-                              className="customer-id"
-                              title={customer.customerId}
-                            >
-                              {customer.customerId}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <ProviderBadges codes={customer.cloudProviders} />
-                      </td>
-                      <td>
-                        <StatusBadge status={customer.status} />
-                      </td>
-                      <td>{formatDate(customer.createdAt)}</td>
-                      <td>{formatDate(customer.updatedAt)}</td>
-                      <td>
-                        <Link
-                          href={`/customers/${customer.customerId}`}
-                          className="icon-link"
-                          aria-label={`View ${customer.name}`}
-                        >
-                          <ArrowUpRight size={19} />
-                        </Link>
-                      </td>
+                              <div className="customer-cell">
+                                <span
+                                  className="customer-avatar"
+                                  aria-hidden="true"
+                                >
+                                  {customer.name.substring(0, 2).toUpperCase()}
+                                </span>
+                                <div>
+                                  <Link
+                                    className="customer-name"
+                                    href={`/customers/${customer.customerId}`}
+                                  >
+                                    {customer.name}
+                                  </Link>
+                                  <p
+                                    className="customer-id"
+                                    title={customer.customerId}
+                                  >
+                                    {customer.customerId}
+                                  </p>
+                                </div>
+                              </div>
+                              <ProviderBadges codes={customer.cloudProviders} />
+                              <footer>
+                                <span>
+                                  Updated {formatDate(customer.updatedAt)}
+                                </span>
+                                <Link
+                                  href={`/customers/${customer.customerId}`}
+                                  aria-label={`View ${customer.name}`}
+                                >
+                                  Open <ArrowUpRight size={16} />
+                                </Link>
+                              </footer>
+                            </article>
+                          ))
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="table-scroll">
+                <table className="customer-table">
+                  <caption className="sr-only">
+                    Customers matching the current filters
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Customer</th>
+                      <th scope="col">Cloud providers</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Created</th>
+                      <th scope="col">Last updated</th>
+                      <th scope="col">
+                        <span className="sr-only">Open customer</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {customers.data.items.map((customer) => (
+                      <tr key={customer.customerId}>
+                        <td>
+                          <div className="customer-cell">
+                            <span
+                              className="customer-avatar"
+                              aria-hidden="true"
+                            >
+                              {customer.name.substring(0, 2).toUpperCase()}
+                            </span>
+                            <div>
+                              <Link
+                                href={`/customers/${customer.customerId}`}
+                                className="customer-name"
+                              >
+                                {customer.name}
+                              </Link>
+                              <p
+                                className="customer-id"
+                                title={customer.customerId}
+                              >
+                                {customer.customerId}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <ProviderBadges codes={customer.cloudProviders} />
+                        </td>
+                        <td>
+                          <StatusBadge status={customer.status} />
+                        </td>
+                        <td>{formatDate(customer.createdAt)}</td>
+                        <td>{formatDate(customer.updatedAt)}</td>
+                        <td>
+                          <Link
+                            href={`/customers/${customer.customerId}`}
+                            className="icon-link"
+                            aria-label={`View ${customer.name}`}
+                          >
+                            <ArrowUpRight size={19} />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="list-footer">
               <label>
                 Rows per page
@@ -337,7 +413,7 @@ export function CustomerListView() {
                     filter({ pageSize: Number(event.target.value) })
                   }
                 >
-                  {[10, 20, 50, 100].map((size) => (
+                  {[5, 10, 20, 50, 100].map((size) => (
                     <option key={size}>{size}</option>
                   ))}
                 </select>
@@ -351,6 +427,6 @@ export function CustomerListView() {
           </>
         )}
       </section>
-    </>
+    </div>
   );
 }
