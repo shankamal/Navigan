@@ -1,0 +1,112 @@
+/* Shared workspace canvas; white panels retain their existing contrast. */
+.app-shell[class] .shell-body > .content-column {
+  background-color: #f7f9fc;
+  background-image:
+    radial-gradient(
+      ellipse at 100% 0%,
+      rgb(148 163 184 / 11%),
+      transparent 48%
+    ),
+    radial-gradient(ellipse at 0% 90%, rgb(203 213 225 / 16%), transparent 50%),
+    linear-gradient(rgb(148 163 184 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 5%) 1px, transparent 1px);
+  background-size:
+    100% 700px,
+    100% 900px,
+    64px 64px,
+    64px 64px;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+}
+.app-shell[class] main#main-content {
+  background: transparent;
+}
+.app-shell[class] .shell-body > .content-column > .breadcrumb,
+.app-shell[class] .shell-body > .content-column > .app-footer {
+  background: transparent;
+}
+.app-shell[class] .shell-body > .content-column .panel {
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 3%);
+}
+@media (forced-colors: active) {
+  .app-shell[class] .shell-body > .content-column {
+    background-image: none;
+    background-color: Canvas;
+  }
+}
+@media print {
+  .app-shell[class] .shell-body > .content-column {
+    background: #fff;
+  }
+}
+.app-shell[class] .sidebar .nav-item:focus-visible {
+  outline: 2px solid #475569;
+  outline-offset: 2px;
+}
+.app-shell[class] main#main-content > .customer-workspace {
+  background: transparent;
+}
+/* Midnight-grey sidebar paired with the unified slate workspace canvas. */
+.app-shell[class] .sidebar {
+  background: #1e252f;
+  border-color: #344152;
+  color: #cbd5e1;
+}
+.app-shell[class] .sidebar .nav-item,
+.app-shell[class] .sidebar .nav-subitem {
+  color: #cbd5e1;
+}
+.app-shell[class] .sidebar .nav-item svg,
+.app-shell[class] .sidebar .nav-subitem svg {
+  color: #a9b8ca;
+}
+.app-shell[class] .sidebar .nav-section {
+  color: #94a3b8;
+}
+.app-shell[class] .sidebar .nav-item.selected,
+.app-shell[class] .sidebar .nav-subitem.selected {
+  background: #334155;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: inset 3px 0 #aebed0;
+  font-weight: 600;
+}
+.app-shell[class] .sidebar .nav-item.selected svg,
+.app-shell[class] .sidebar .nav-subitem.selected svg {
+  color: #f1f5f9;
+}
+.app-shell[class] .sidebar .nav-item:hover:not(.selected),
+.app-shell[class] .sidebar .nav-subitem:hover:not(.selected) {
+  background: #293544;
+  color: #f1f5f9;
+}
+.app-shell[class] .sidebar .nav-item:focus-visible,
+.app-shell[class] .sidebar .nav-subitem:focus-visible {
+  outline-color: #cbd5e1;
+}
+.app-shell[class] .sidebar .sidebar-footer {
+  border-color: #344152;
+}
+.app-shell[class] .sidebar .workspace-card {
+  background: #263140;
+  border-color: #3b495d;
+  color: #f1f5f9;
+}
+.app-shell[class] .sidebar .workspace-card strong {
+  color: #f1f5f9;
+}
+.app-shell[class] .sidebar .workspace-card p {
+  color: #b3c0d0;
+}
+.app-shell[class] .sidebar .workspace-symbol {
+  background: #3b495d;
+  color: #f1f5f9;
+}
+.app-shell[class] .sidebar .sidebar-collapse {
+  background: #263140;
+  color: #cbd5e1;
+  border-color: #3b495d;
+}
+.app-shell[class] .sidebar .nav-submenu {
+  border-color: #3b495d;
+}
