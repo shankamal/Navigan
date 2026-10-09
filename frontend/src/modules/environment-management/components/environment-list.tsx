@@ -1,5 +1,6 @@
 "use client";
 import "./environment-workspace.css";
+import { EnvironmentMetrics } from "./environment-metrics";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -155,28 +156,31 @@ export function EnvironmentList({
           )
         }
       />
-      <div className="metrics-grid">
-        {metrics.map((metric) => (
-          <div className="metric" key={metric.label}>
-            <div className="metric-label">
-              {metric.label}
-              <metric.icon size={20} aria-hidden="true" />
+      {mode === "directory" ? (
+        <EnvironmentMetrics
+          total={total.data}
+          active={active.data}
+          draft={draft.data}
+          submitted={submitted.data}
+          review={review.data}
+          failed={[total, active, draft, submitted, review].some(
+            (item) => item.isError,
+          )}
+        />
+      ) : (
+        <div className="metrics-grid">
+          {metrics.map((metric) => (
+            <div className="metric" key={metric.label}>
+              <div className="metric-label">
+                {metric.label}
+                <metric.icon size={20} aria-hidden="true" />
+              </div>
+              <strong>{metric.value ?? "—"}</strong>
+              <p>{metric.note}</p>
             </div>
-            <strong>{metric.value ?? "—"}</strong>
-            {metric.value !== undefined &&
-              total.data !== undefined &&
-              mode === "directory" && (
-                <meter
-                  min={0}
-                  max={Math.max(total.data, metric.value, 1)}
-                  value={metric.value}
-                  aria-label={`${metric.label}: ${metric.value} of ${total.data}`}
-                />
-              )}
-            <p>{metric.note}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       <section className="panel panel-padding environment-list-filters">
         <div className="environment-section-heading">
           <div>
