@@ -293,8 +293,22 @@ export function AppShell({ children }: { children: ReactNode }) {
         <span className="brand-divider" />
         <span className="platform-title">Container Management Platform</span>
         <div className="topbar-account">
-          <ShieldCheck size={18} aria-hidden="true" />
-          <span>{identity ? "Enterprise workspace" : "Secure access"}</span>
+          <div className="signed-in-user">
+            <strong>{identity?.displayName ?? "Secure access"}</strong>
+            {identity && (
+              <span>
+                {identity.roles
+                  .filter((role) => role !== "SERVICE")
+                  .map((role) =>
+                    role
+                      .replaceAll("_", " ")
+                      .toLowerCase()
+                      .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+                  )
+                  .join(" · ") || "No platform role"}
+              </span>
+            )}
+          </div>
           {isLocalDev && <span className="workspace-environment">DEV</span>}
           <AccountMenu />
         </div>

@@ -174,7 +174,7 @@ export function PlatformDashboard() {
     pageSize: 3,
     status: "SUBMITTED",
   });
-  const recentClusters = useClusters({ page: 0, pageSize: 5 });
+  const recentClusters = useClusters({ page: 0, pageSize: 3 });
 
   const countQueries = [
     totalCustomers,
@@ -283,7 +283,7 @@ export function PlatformDashboard() {
       icon: ServerCog,
       tone: "success",
     })),
-  ].slice(0, 6);
+  ].slice(0, 2);
 
   if (countQueries.some((query) => query.isPending)) {
     return <Loading label="Loading platform dashboard…" />;
@@ -300,6 +300,7 @@ export function PlatformDashboard() {
   const kpis = [
     {
       label: "Onboarded customers",
+      total: totalCustomers.data,
       value: activeCustomers.data,
       detail: `${display(totalCustomers.data)} total in your scope`,
       note: `${sum(submittedCustomers.data, reviewCustomers.data)} in onboarding`,
@@ -309,6 +310,7 @@ export function PlatformDashboard() {
     },
     {
       label: "Governed environments",
+      total: totalEnvironments.data,
       value: activeEnvironments.data,
       detail: `${display(totalEnvironments.data)} environment profiles`,
       note: `${providerTotal} mapped to cloud providers`,
@@ -318,6 +320,7 @@ export function PlatformDashboard() {
     },
     {
       label: "Active clusters",
+      total: totalClusters.data,
       value: activeClusters.data,
       detail: `${display(totalClusters.data)} cluster requests`,
       note: `${clusterHealth}% active estate`,
@@ -327,6 +330,7 @@ export function PlatformDashboard() {
     },
     {
       label: "Provisioning now",
+      total: undefined,
       value: provisioningNow,
       detail: `${display(planReadyClusters.data)} plan ready`,
       note: `${display(applyingClusters.data)} Terraform applies`,
@@ -336,6 +340,7 @@ export function PlatformDashboard() {
     },
     {
       label: "Awaiting action",
+      total: undefined,
       value: awaitingAction,
       detail: "Submitted or under review",
       note: "Across governed workflows",
@@ -345,6 +350,7 @@ export function PlatformDashboard() {
     },
     {
       label: "Failed operations",
+      total: undefined,
       value: failedClusters.data,
       detail: "Cluster workflows requiring action",
       note: failedClusters.data ? "Remediation required" : "No active failures",
@@ -387,13 +393,30 @@ export function PlatformDashboard() {
       <section className="pd-kpis" aria-label="Navigan platform KPIs">
         {kpis.map((kpi) => (
           <Link
-            className={`pd-kpi pd-kpi-${kpi.tone}`}
+            className={`pd-kpi pd-kpi-${kpi.tone} ${kpi.total !== undefined ? "pd-kpi-with-ring" : ""}`}
             href={kpi.href}
             key={kpi.label}
           >
-            <span className="pd-kpi-icon">
-              <kpi.icon size={20} />
-            </span>
+            {kpi.total !== undefined ? (
+              <span className="pd-kpi-ring">
+                <DonutChart
+                  title={`${kpi.label}: ${display(kpi.value)} of ${kpi.total} (${percent(kpi.value, kpi.total)}%)`}
+                  value={display(kpi.value)}
+                  subtitle={
+                    kpi.total
+                      ? `${percent(kpi.value, kpi.total)}%`
+                      : "No records"
+                  }
+                  segments={[
+                    { value: percent(kpi.value, kpi.total), color: "#23845B" },
+                  ]}
+                />
+              </span>
+            ) : (
+              <span className="pd-kpi-icon">
+                <kpi.icon size={20} />
+              </span>
+            )}
             <span className="pd-kpi-copy">
               <span>{kpi.label}</span>
               <strong>{display(kpi.value)}</strong>
@@ -427,6 +450,27 @@ export function PlatformDashboard() {
             </Link>
           )}
         </header>
+        <div
+          className="pd-governance-inline"
+          aria-label="Pending governance by module"
+        >
+          <Link href="/customers">
+            Customers{" "}
+            <strong>
+              {sum(submittedCustomers.data, reviewCustomers.data)}
+            </strong>
+          </Link>
+          <Link href="/environments">
+            Environments{" "}
+            <strong>
+              {sum(submittedEnvironments.data, reviewEnvironments.data)}
+            </strong>
+          </Link>
+          <Link href="/clusters">
+            Clusters{" "}
+            <strong>{sum(submittedClusters.data, reviewClusters.data)}</strong>
+          </Link>
+        </div>
         <p className="pd-preview-count">
           Showing {attentionItems.length} submitted requests. {awaitingAction}{" "}
           records are submitted or under review.
@@ -690,65 +734,6 @@ export function PlatformDashboard() {
               </div>
             </div>
           )}
-        </article>
-      </section>
-
-      <section className="pd-governance-summary">
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <ShieldCheck size={19} />
-              </span>
-              <div>
-                <h2>Governance workload</h2>
-                <p>Open decisions across platform approval workflows.</p>
-              </div>
-            </div>
-          </header>
-          <div className="pd-governance-rings">
-            {[
-              {
-                label: "Customers",
-                value: sum(submittedCustomers.data, reviewCustomers.data),
-                total: totalCustomers.data,
-                tone: "green",
-              },
-              {
-                label: "Environments",
-                value: sum(submittedEnvironments.data, reviewEnvironments.data),
-                total: totalEnvironments.data,
-                tone: "blue",
-              },
-              {
-                label: "Clusters",
-                value: sum(submittedClusters.data, reviewClusters.data),
-                total: totalClusters.data,
-                tone: "violet",
-              },
-            ].map((item) => {
-              const ratio = percent(item.value, item.total);
-              return (
-                <div key={item.label}>
-                  <div
-                    className={`pd-mini-ring pd-ring-${item.tone}`}
-                    style={{ "--progress": `${ratio}%` } as React.CSSProperties}
-                  >
-                    <strong>{item.value}</strong>
-                  </div>
-                  <span>{item.label}</span>
-                  <small>{ratio}% of records</small>
-                </div>
-              );
-            })}
-          </div>
-          <div className="pd-governance-note">
-            <Clock3 size={16} />
-            <span>
-              <strong>{awaitingAction}</strong> records are submitted or under
-              review in your access scope.
-            </span>
-          </div>
         </article>
       </section>
 
