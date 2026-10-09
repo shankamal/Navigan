@@ -928,3 +928,31 @@
 .environment-workspace .environment-validation-score .environment-ring strong {
   font-size: 20px;
 }
+
+/* Use the shared AWS wordmark directly, without a duplicate AWS text badge. */
+.environment-workspace .provider-badge.provider-logo {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.environment-workspace .provider-badge.provider-logo img {
+  width: 28px;
+  height: 24px;
+  object-fit: contain;
+}
+.environment-workspace
+  .provider-badge.provider-logo
+  img[src*="amazonwebservices"] {
+  width: 36px;
+  height: 24px;
+  max-width: none;
+}
+.environment-workspace .environment-provider-row {
+  grid-template-columns: 38px 100px 24px minmax(55px, 1fr);
+}
+@media (max-width: 1200px) {
+  .environment-workspace .environment-provider-row {
+    grid-template-columns: 38px 82px 20px minmax(40px, 1fr);
+  }
+}

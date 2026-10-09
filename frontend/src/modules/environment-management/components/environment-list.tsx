@@ -545,7 +545,10 @@ export function EnvironmentList({
                               <Link href={`/customers/${row.customerId}`}>
                                 {row.customerName}
                               </Link>
-                              <ProviderBadges codes={[row.cloudProvider]} />
+                              <ProviderBadges
+                                codes={[row.cloudProvider]}
+                                compact
+                              />
                               <p>
                                 {row.kubernetesDistribution} ·{" "}
                                 {row.environmentType} · Version {row.version}
@@ -597,7 +600,10 @@ export function EnvironmentList({
                             </Link>
                           </td>
                           <td>
-                            <ProviderBadges codes={[row.cloudProvider]} />
+                            <ProviderBadges
+                              codes={[row.cloudProvider]}
+                              compact
+                            />
                             <span className="metadata">
                               {row.kubernetesDistribution}
                             </span>

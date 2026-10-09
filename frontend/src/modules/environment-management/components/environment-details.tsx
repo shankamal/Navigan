@@ -169,7 +169,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
           {env.status.replaceAll("_", " ")}
         </span>
         <Link href={`/customers/${env.customerId}`}>{env.customerName}</Link>
-        <ProviderBadges codes={[env.cloudProvider]} />
+        <ProviderBadges codes={[env.cloudProvider]} compact />
         <span>
           {env.kubernetesDistribution} · {env.environmentType}
         </span>
