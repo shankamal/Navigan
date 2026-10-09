@@ -12,6 +12,8 @@ import {
   FileText,
   FileChartColumn,
   ListChecks,
+  List,
+  Columns3,
   MoreVertical,
   Plus,
   Search,
@@ -104,6 +106,7 @@ export function MigrationManagementPage() {
   const { identity } = useAuth();
   const migrationsQuery = useMigrations();
   const migrationItems = migrationsQuery.data?.items ?? [];
+  const [view, setView] = useState<"LIST" | "BOARD">("LIST");
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState("ACTIVE");
   const [source, setSource] = useState("ALL");
@@ -149,11 +152,42 @@ export function MigrationManagementPage() {
     ["REJECTED"].includes(migration.status),
   );
 
+  const lifecycleCounts = lifecycle.map((item) => ({
+    ...item,
+    count: migrationItems.filter((migration) =>
+      item.statuses.includes(migration.status),
+    ).length,
+  }));
+  const approvedCount = migrationItems.filter(
+    (item) => item.status === "APPROVED",
+  ).length;
+  const pathCounts = [
+    ...new Set(
+      migrationItems.map(
+        (item) => `${item.sourcePlatform}|${item.targetPlatform}`,
+      ),
+    ),
+  ]
+    .map((path) => {
+      const [sourcePlatform, targetPlatform] = path.split("|");
+      return {
+        path,
+        sourcePlatform,
+        targetPlatform,
+        count: migrationItems.filter(
+          (item) =>
+            item.sourcePlatform === sourcePlatform &&
+            item.targetPlatform === targetPlatform,
+        ).length,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+
   return (
-    <>
+    <div className={styles.migrationWorkspace}>
       <PageHeading
         eyebrow="MIGRATION"
-        title="Migration portfolio"
+        title="Migration Overview"
         description={
           "Discover workloads, assess compatibility, and govern migration " +
           "approval across Kubernetes and cloud platforms."
@@ -168,31 +202,111 @@ export function MigrationManagementPage() {
         }
       />
 
-      <section className={styles.lifecycle} aria-label="Migration lifecycle">
-        {lifecycle.map((step, index) => {
-          const Icon = step.icon;
-          const count = migrationItems.filter((migration) =>
-            step.statuses.includes(migration.status),
-          ).length;
-          return (
-            <div className={styles.lifecycleStep} key={step.label}>
-              <div
-                className={`${styles.lifecycleIcon} ${styles[step.tone]}`}
-                aria-hidden="true"
-              >
-                <Icon size={20} />
-              </div>
-              <div>
-                <span>{step.label}</span>
-                <strong>{count}</strong>
-              </div>
-              {index < lifecycle.length - 1 && (
-                <span className={styles.lifecycleLine} aria-hidden="true" />
-              )}
-            </div>
-          );
-        })}
+      <section
+        className={styles.portfolioMetrics}
+        aria-label="Migration portfolio metrics"
+      >
+        <article className={styles.metricCard}>
+          <h2>Assessment lifecycle</h2>
+          <p>
+            {migrationsQuery.isPending
+              ? "Loading assessments…"
+              : migrationsQuery.isError
+                ? "Metrics unavailable"
+                : `${migrationItems.length} assessments in this portfolio`}
+          </p>
+          <div
+            className={styles.stackedLifecycle}
+            role="img"
+            aria-label={lifecycleCounts
+              .map((item) => `${item.label}: ${item.count}`)
+              .join(", ")}
+          >
+            {lifecycleCounts
+              .filter((item) => item.count > 0)
+              .map((item) => (
+                <span
+                  key={item.label}
+                  className={styles[`segment${item.tone}`]}
+                  style={{ flex: item.count }}
+                  title={`${item.label}: ${item.count}`}
+                >
+                  {item.count}
+                </span>
+              ))}
+          </div>
+          <ul className={styles.metricLegend}>
+            {lifecycleCounts.map((item) => (
+              <li key={item.label}>
+                <span className={styles[`segment${item.tone}`]} />
+                {item.label}
+                <strong>{item.count}</strong>
+              </li>
+            ))}
+          </ul>
+        </article>
+        <article className={styles.metricCard}>
+          <h2>Approved assessments</h2>
+          <p>Approval coverage of the portfolio</p>
+          <strong className={styles.coverageValue}>
+            {approvedCount}
+            <small> of {migrationItems.length}</small>
+          </strong>
+          <progress
+            className={styles.coverageProgress}
+            max={Math.max(1, migrationItems.length)}
+            value={approvedCount}
+            aria-label="Approved assessments within portfolio"
+          />
+          <span className={styles.metricHint}>
+            {migrationItems.length
+              ? Math.round((approvedCount / migrationItems.length) * 100)
+              : 0}
+            % approved
+          </span>
+        </article>
+        <article className={styles.metricCard}>
+          <h2>Migration paths</h2>
+          <p>Source and destination footprint</p>
+          <div className={styles.pathMetrics}>
+            {pathCounts.length ? (
+              pathCounts.map((item) => (
+                <div key={item.path}>
+                  <div className={styles.pathMetricLabel}>
+                    <PlatformIcon platform={item.sourcePlatform} />
+                    <span>{platformLabel(item.sourcePlatform)}</span>
+                    <ArrowRight size={14} aria-hidden="true" />
+                    <PlatformIcon platform={item.targetPlatform} />
+                    <span>{platformLabel(item.targetPlatform)}</span>
+                    <strong>{item.count}</strong>
+                  </div>
+                  <progress
+                    max={Math.max(1, migrationItems.length)}
+                    value={item.count}
+                    aria-label={`${platformLabel(item.sourcePlatform)} to ${platformLabel(item.targetPlatform)} assessments`}
+                  />
+                </div>
+              ))
+            ) : (
+              <span className={styles.metricHint}>
+                No migration paths to display.
+              </span>
+            )}
+          </div>
+        </article>
       </section>
+      <div
+        className={styles.attentionStrip}
+        aria-label="Assessment attention queue"
+      >
+        <CircleAlert size={18} aria-hidden="true" />
+        <strong>Attention required</strong>
+        <span>{awaitingReview.length} reports awaiting review</span>
+        <span>{blocked.length} rejected assessments</span>
+        <a href="#migration-attention">
+          View queue <ArrowRight size={14} />
+        </a>
+      </div>
 
       <div className={styles.portfolioLayout}>
         <section className={`panel ${styles.portfolioPanel}`}>
@@ -203,7 +317,29 @@ export function MigrationManagementPage() {
                 Track source discovery, compatibility analysis and approval.
               </p>
             </div>
-            <span className="status-badge">Assessment only</span>
+            <span className={styles.assessmentOnly}>Assessment only</span>
+            <div
+              className={styles.viewToggle}
+              role="group"
+              aria-label="Assessment display"
+            >
+              <button
+                type="button"
+                aria-pressed={view === "LIST"}
+                onClick={() => setView("LIST")}
+              >
+                <List size={16} />
+                List
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "BOARD"}
+                onClick={() => setView("BOARD")}
+              >
+                <Columns3 size={16} />
+                Board
+              </button>
+            </div>
           </div>
 
           <div className={styles.filters}>
@@ -292,7 +428,7 @@ export function MigrationManagementPage() {
               <p>Clear or change the filters to see other assessments.</p>
             </div>
           )}
-          {filteredMigrations.length > 0 && (
+          {filteredMigrations.length > 0 && view === "LIST" && (
             <div className={styles.tableScroller}>
               <table className={styles.portfolioTable}>
                 <thead>
@@ -427,9 +563,66 @@ export function MigrationManagementPage() {
               </table>
             </div>
           )}
+          {filteredMigrations.length > 0 && view === "BOARD" && (
+            <div
+              className={styles.assessmentBoard}
+              aria-label="Assessment workflow board"
+            >
+              {lifecycle.map((item) => {
+                const items = filteredMigrations.filter((migration) =>
+                  item.statuses.includes(migration.status),
+                );
+                return (
+                  <section
+                    className={styles.boardColumn}
+                    key={item.label}
+                    aria-label={`${item.label} assessments`}
+                  >
+                    <header className={styles[item.tone]}>
+                      <strong>{item.label}</strong>
+                      <span>{items.length}</span>
+                    </header>
+                    {items.length ? (
+                      items.map((migration) => (
+                        <article
+                          className={styles.boardCard}
+                          key={migration.migrationId}
+                        >
+                          <h3>{migration.name}</h3>
+                          <p>{migration.customerName}</p>
+                          <div className={styles.platformPath}>
+                            <PlatformIcon platform={migration.sourcePlatform} />
+                            <span>
+                              {platformLabel(migration.sourcePlatform)}
+                            </span>
+                            <ArrowRight size={14} />
+                            <PlatformIcon platform={migration.targetPlatform} />
+                            <span>
+                              {platformLabel(migration.targetPlatform)}
+                            </span>
+                          </div>
+                          <span
+                            className={`${styles.stageBadge} ${statusTone(migration.status)}`}
+                          >
+                            {statusLabel(migration.status)}
+                          </span>
+                          <small>{formatUpdated(migration.updatedAt)}</small>
+                          <Link href={`/migrations/${migration.migrationId}`}>
+                            View assessment <ArrowRight size={14} />
+                          </Link>
+                        </article>
+                      ))
+                    ) : (
+                      <p className={styles.boardEmpty}>No assessments</p>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          )}
         </section>
 
-        <aside className={styles.attentionPanel}>
+        <aside id="migration-attention" className={styles.attentionPanel}>
           <div className={styles.attentionHeading}>
             <CircleAlert size={20} aria-hidden="true" />
             <div>
@@ -485,7 +678,7 @@ export function MigrationManagementPage() {
           </section>
         </aside>
       </div>
-    </>
+    </div>
   );
 }
 

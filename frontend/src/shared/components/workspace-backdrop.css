@@ -432,3 +432,35 @@
     font-size: 16px;
   }
 }
+
+/* Shared reference-inspired cloud network illustration, clear of account controls. */
+.app-shell[class] > header.topbar {
+  position: sticky;
+  isolation: isolate;
+  background-image: none;
+}
+.app-shell[class] > header.topbar::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  top: 0;
+  bottom: 0;
+  right: 280px;
+  width: clamp(240px, 34vw, 510px);
+  background: url("/graphics/header-cloud-network-v2.webp") center / 100% auto
+    no-repeat;
+  opacity: 0.42;
+}
+@media (max-width: 1200px) {
+  .app-shell[class] > header.topbar::after {
+    right: 245px;
+    width: 280px;
+    opacity: 0.3;
+  }
+}
+@media (max-width: 1000px), (forced-colors: active) {
+  .app-shell[class] > header.topbar::after {
+    display: none;
+  }
+}

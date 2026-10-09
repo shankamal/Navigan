@@ -225,7 +225,7 @@ describe("Migration UI", () => {
     render(<MigrationManagementPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Migration portfolio" }),
+      screen.getByRole("heading", { name: "Migration Overview" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Assessment only")).toBeInTheDocument();
     expect(
@@ -370,7 +370,7 @@ describe("Migration UI", () => {
       target: { value: "CLU-active" },
     });
 
-    expect(screen.getByText("Active EKS cluster")).toBeInTheDocument();
+    expect(screen.getAllByText("Active EKS cluster").length).toBeGreaterThan(0);
     expect(
       screen.getByText("Collected when assessment starts"),
     ).toBeInTheDocument();
@@ -393,7 +393,7 @@ describe("Migration UI", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("RetailFlow migration feasibility"),
+      screen.getAllByText("RetailFlow migration feasibility")[0],
     ).toBeInTheDocument();
     const saveButton = screen.getByRole("button", {
       name: "Save assessment scope",

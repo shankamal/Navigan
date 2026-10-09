@@ -1,4 +1,4 @@
-import { Boxes, Cloud, Server } from "lucide-react";
+import { Cloud, Server } from "lucide-react";
 
 import styles from "./platform-icon.module.css";
 
@@ -19,76 +19,28 @@ export function PlatformIcon({ platform, size = "small" }: PlatformIconProps) {
   const normalized = normalizedPlatform(platform);
   const sizeClass = size === "medium" ? styles.medium : styles.small;
 
-  if (["EKS", "AWS", "AMAZON_EKS"].includes(normalized)) {
+  const asset = ["EKS", "AWS", "AMAZON_EKS"].includes(normalized)
+    ? "amazonwebservices"
+    : ["AKS", "AZURE", "AZURE_AKS"].includes(normalized)
+      ? "microsoftazure"
+      : ["GKE", "GCP", "GOOGLE_CLOUD"].includes(normalized)
+        ? "googlecloud"
+        : ["OKE", "OCI", "ORACLE_CLOUD"].includes(normalized)
+          ? "oracle"
+          : normalized.includes("SELF_MANAGED") ||
+              ["KUBERNETES", "K8S"].includes(normalized)
+            ? "kubernetes"
+            : null;
+  if (asset) {
     return (
       <span
-        className={`${styles.logo} ${styles.aws} ${sizeClass}`}
+        className={`${styles.logo} ${styles.imageLogo} ${sizeClass}`}
         aria-hidden="true"
       >
-        aws
+        <img src={`/logos/${asset}.svg`} alt="" />
       </span>
     );
   }
-
-  if (["AKS", "AZURE", "AZURE_AKS"].includes(normalized)) {
-    return (
-      <span
-        className={`${styles.logo} ${styles.azure} ${sizeClass}`}
-        aria-hidden="true"
-      >
-        <span />
-      </span>
-    );
-  }
-
-  if (["GKE", "GCP", "GOOGLE_CLOUD"].includes(normalized)) {
-    return (
-      <span
-        className={`${styles.logo} ${styles.google} ${sizeClass}`}
-        aria-hidden="true"
-      >
-        G
-      </span>
-    );
-  }
-
-  if (["OKE", "OCI", "ORACLE_CLOUD"].includes(normalized)) {
-    return (
-      <span
-        className={`${styles.logo} ${styles.oracle} ${sizeClass}`}
-        aria-hidden="true"
-      >
-        <span />
-      </span>
-    );
-  }
-
-  if (normalized.includes("OPENSHIFT")) {
-    return (
-      <span
-        className={`${styles.logo} ${styles.openshift} ${sizeClass}`}
-        aria-hidden="true"
-      >
-        <span />
-      </span>
-    );
-  }
-
-  if (
-    normalized.includes("SELF_MANAGED") ||
-    normalized === "KUBERNETES" ||
-    normalized === "K8S"
-  ) {
-    return (
-      <span
-        className={`${styles.logo} ${styles.kubernetes} ${sizeClass}`}
-        aria-hidden="true"
-      >
-        <Boxes />
-      </span>
-    );
-  }
-
   if (normalized.includes("ON_PREM") || normalized.includes("DATACENTER")) {
     return (
       <span

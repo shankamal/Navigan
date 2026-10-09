@@ -133,3 +133,15 @@
   background: #edf3f6;
   color: #527184;
 }
+
+.imageLogo {
+  background: #fff;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+.imageLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}

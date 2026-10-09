@@ -9,6 +9,10 @@ import {
   ClipboardCheck,
   Cloud,
   FileSearch,
+  Network,
+  Database,
+  Cpu,
+  Settings,
   Radar,
   Server,
   ShieldCheck,
@@ -33,6 +37,7 @@ import type {
 } from "./model";
 import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
+import { PlatformIcon } from "./platform-icon";
 
 const steps = [
   { title: "Migration path", icon: Cloud },
@@ -397,7 +402,7 @@ export function AssessmentWizard() {
   }
 
   return (
-    <>
+    <div className={styles.migrationWorkspace}>
       <PageHeading
         eyebrow="MIGRATION"
         title="New migration assessment"
@@ -410,18 +415,7 @@ export function AssessmentWizard() {
         }
       />
 
-      <div className={styles.securityNotice}>
-        <ShieldCheck size={21} aria-hidden="true" />
-        <div>
-          <strong>Read-only assessment</strong>
-          <p>
-            Navigan will collect sanitized metadata only. Credentials, Secret
-            values and application data are never included.
-          </p>
-        </div>
-      </div>
-
-      <section className={`panel ${styles.wizard}`}>
+      <section className={styles.wizard}>
         <nav className={styles.steps} aria-label="Assessment steps">
           {steps.map((item, index) => {
             const Icon = item.icon;
@@ -450,899 +444,1022 @@ export function AssessmentWizard() {
           })}
         </nav>
 
-        <form
-          className={styles.content}
-          aria-label="New migration assessment"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void saveAssessmentScope();
-          }}
-        >
-          {step === 0 && (
-            <div className={styles.stepContent}>
-              <header>
-                <span className={styles.kicker}>Define the journey</span>
-                <h2>What do you want to assess?</h2>
-                <p>
-                  Select the source and destination platforms. Only validated
-                  migration paths can be selected.
-                </p>
-              </header>
+        <div className={styles.wizardBody}>
+          <form
+            id="migration-assessment-form"
+            className={styles.content}
+            aria-label="New migration assessment"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveAssessmentScope();
+            }}
+          >
+            {step === 0 && (
+              <div className={styles.stepContent}>
+                <header>
+                  <span className={styles.kicker}>Define the journey</span>
+                  <h2>What do you want to assess?</h2>
+                  <p>
+                    Select the source and destination platforms. Only validated
+                    migration paths can be selected.
+                  </p>
+                </header>
 
-              <label className="field">
-                <span>Assessment name</span>
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="RetailFlow migration feasibility"
-                  minLength={8}
-                  maxLength={100}
-                  required
-                  aria-describedby="assessment-name-help"
-                  aria-invalid={name.length > 0 && name.trim().length < 8}
-                  autoComplete="off"
-                />
-                <small id="assessment-name-help">
-                  {name.length > 0 && name.trim().length < 8
-                    ? `Enter at least 8 characters (${name.trim().length}/8).`
-                    : `${name.length}/100 characters. Use a name that identifies the application and destination.`}
-                </small>
-              </label>
-
-              <div className={styles.contextGrid}>
                 <label className="field">
-                  <span>Active customer</span>
-                  <select
-                    value={customer}
-                    onChange={(event) => {
-                      setCustomer(event.target.value);
-                      setTargetEnvironment("");
-                      setTargetConnection("");
-                    }}
-                  >
-                    <option value="">
-                      {customersQuery.isPending
-                        ? "Loading active customers…"
-                        : "Select an active customer"}
-                    </option>
-                    {customers.map((item) => (
-                      <option key={item.customerId} value={item.customerId}>
-                        {item.name} — {item.status}
-                      </option>
-                    ))}
-                  </select>
-                  <small>
-                    Only customers available to your signed-in identity will be
-                    shown.
+                  <span>Assessment name</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="RetailFlow migration feasibility"
+                    minLength={8}
+                    maxLength={100}
+                    required
+                    aria-describedby="assessment-name-help"
+                    aria-invalid={name.length > 0 && name.trim().length < 8}
+                    autoComplete="off"
+                  />
+                  <small id="assessment-name-help">
+                    {name.length > 0 && name.trim().length < 8
+                      ? `Enter at least 8 characters (${name.trim().length}/8).`
+                      : `${name.length}/100 characters. Use a name that identifies the application and destination.`}
                   </small>
                 </label>
 
-                <label className="field">
-                  <span>Target environment</span>
-                  <select
-                    value={targetEnvironment}
-                    disabled={!customer}
-                    onChange={(event) => {
-                      setTargetEnvironment(event.target.value);
-                      setTargetConnection("");
-                    }}
-                  >
-                    <option value="">
-                      {!customer
-                        ? "Select a customer first"
-                        : environmentsQuery.isPending
-                          ? "Loading approved environments…"
-                          : "Select an approved EKS environment"}
-                    </option>
-                    {environments.map((environment) => (
-                      <option
-                        key={environment.environmentId}
-                        value={environment.environmentId}
-                      >
-                        {environment.environmentName} — approved version{" "}
-                        {environment.approvedVersion}
+                <div className={styles.contextGrid}>
+                  <label className="field">
+                    <span>Active customer</span>
+                    <select
+                      value={customer}
+                      onChange={(event) => {
+                        setCustomer(event.target.value);
+                        setTargetEnvironment("");
+                        setTargetConnection("");
+                      }}
+                    >
+                      <option value="">
+                        {customersQuery.isPending
+                          ? "Loading active customers…"
+                          : "Select an active customer"}
                       </option>
-                    ))}
-                  </select>
-                  <small>
-                    The environment supplies the approved target configuration
-                    and governance baseline.
-                  </small>
-                </label>
-              </div>
+                      {customers.map((item) => (
+                        <option key={item.customerId} value={item.customerId}>
+                          {item.name} — {item.status}
+                        </option>
+                      ))}
+                    </select>
+                    <small>
+                      Only customers available to your signed-in identity will
+                      be shown.
+                    </small>
+                  </label>
 
-              <div className={styles.pathGrid}>
-                <label className="field">
-                  <span>Source platform</span>
-                  <select defaultValue="SELF_MANAGED_KUBERNETES">
-                    <option value="SELF_MANAGED_KUBERNETES">
-                      Self-managed Kubernetes
-                    </option>
-                    <option disabled>Amazon EKS — planned</option>
-                    <option disabled>Azure AKS — planned</option>
-                    <option disabled>Google GKE — planned</option>
-                  </select>
-                </label>
-
-                <div className={styles.pathArrow}>
-                  <ArrowRight size={23} />
+                  <label className="field">
+                    <span>Target environment</span>
+                    <select
+                      value={targetEnvironment}
+                      disabled={!customer}
+                      onChange={(event) => {
+                        setTargetEnvironment(event.target.value);
+                        setTargetConnection("");
+                      }}
+                    >
+                      <option value="">
+                        {!customer
+                          ? "Select a customer first"
+                          : environmentsQuery.isPending
+                            ? "Loading approved environments…"
+                            : "Select an approved EKS environment"}
+                      </option>
+                      {environments.map((environment) => (
+                        <option
+                          key={environment.environmentId}
+                          value={environment.environmentId}
+                        >
+                          {environment.environmentName} — approved version{" "}
+                          {environment.approvedVersion}
+                        </option>
+                      ))}
+                    </select>
+                    <small>
+                      The environment supplies the approved target configuration
+                      and governance baseline.
+                    </small>
+                  </label>
                 </div>
 
-                <label className="field">
-                  <span>Target platform</span>
-                  <select defaultValue="EKS">
-                    <option value="EKS">Amazon EKS</option>
-                    <option disabled>Amazon ECS — planned</option>
-                    <option disabled>Azure AKS — planned</option>
-                    <option disabled>Google GKE — planned</option>
-                  </select>
-                </label>
+                <div className={styles.pathGrid}>
+                  <label className="field">
+                    <span className={styles.platformFieldTitle}>
+                      <PlatformIcon platform="KUBERNETES" size="medium" />{" "}
+                      Source platform
+                    </span>
+                    <select defaultValue="SELF_MANAGED_KUBERNETES">
+                      <option value="SELF_MANAGED_KUBERNETES">
+                        Self-managed Kubernetes
+                      </option>
+                      <option disabled>Amazon EKS — planned</option>
+                      <option disabled>Azure AKS — planned</option>
+                      <option disabled>Google GKE — planned</option>
+                    </select>
+                  </label>
+
+                  <div className={styles.pathArrow}>
+                    <ArrowRight size={23} />
+                  </div>
+
+                  <label className="field">
+                    <span className={styles.platformFieldTitle}>
+                      <PlatformIcon platform="EKS" size="medium" /> Target
+                      platform
+                    </span>
+                    <select defaultValue="EKS">
+                      <option value="EKS">Amazon EKS</option>
+                      <option disabled>Amazon ECS — planned</option>
+                      <option disabled>Azure AKS — planned</option>
+                      <option disabled>Google GKE — planned</option>
+                    </select>
+                  </label>
+                </div>
+
+                <fieldset className={styles.targetType}>
+                  <legend>Target type</legend>
+
+                  <label className={styles.optionCard}>
+                    <input
+                      type="radio"
+                      name="targetType"
+                      value="EXISTING_CLUSTER"
+                      checked={targetType === "EXISTING_CLUSTER"}
+                      onChange={(event) => setTargetType(event.target.value)}
+                    />
+                    <span>
+                      <strong>Existing EKS cluster</strong>
+                      <small>
+                        Assess against the actual capabilities of a registered
+                        Amazon EKS cluster.
+                      </small>
+                    </span>
+                  </label>
+
+                  <label
+                    className={`${styles.optionCard} ${styles.disabledOption}`}
+                  >
+                    <input
+                      type="radio"
+                      name="targetType"
+                      value="PLANNED_EKS"
+                      disabled
+                    />
+                    <span>
+                      <strong>Planned EKS platform</strong>
+                      <small>
+                        Assess against a proposed target design — future
+                        capability.
+                      </small>
+                    </span>
+                  </label>
+                </fieldset>
+
+                <div className={styles.scopeCallout}>
+                  <strong>Supported assessment path</strong>
+                  <span>Self-managed Kubernetes → existing Amazon EKS</span>
+                </div>
               </div>
+            )}
 
-              <fieldset className={styles.targetType}>
-                <legend>Target type</legend>
-
-                <label className={styles.optionCard}>
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="EXISTING_CLUSTER"
-                    checked={targetType === "EXISTING_CLUSTER"}
-                    onChange={(event) => setTargetType(event.target.value)}
-                  />
-                  <span>
-                    <strong>Existing EKS cluster</strong>
-                    <small>
-                      Assess against the actual capabilities of a registered
-                      Amazon EKS cluster.
-                    </small>
+            {step === 1 && (
+              <div className={styles.stepContent}>
+                <header>
+                  <span className={styles.kicker}>
+                    Establish read-only access
                   </span>
-                </label>
+                  <h2>Connect the source cluster</h2>
+                  <p>
+                    Select a previously connected source or register any
+                    Kubernetes cluster in AWS, Azure, GCP, OCI, on-premises, or
+                    another location.
+                  </p>
+                </header>
 
-                <label
-                  className={`${styles.optionCard} ${styles.disabledOption}`}
-                >
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="PLANNED_EKS"
-                    disabled
-                  />
-                  <span>
-                    <strong>Planned EKS platform</strong>
-                    <small>
-                      Assess against a proposed target design — future
-                      capability.
-                    </small>
-                  </span>
-                </label>
-              </fieldset>
-
-              <div className={styles.scopeCallout}>
-                <strong>Supported assessment path</strong>
-                <span>Self-managed Kubernetes → existing Amazon EKS</span>
-              </div>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div className={styles.stepContent}>
-              <header>
-                <span className={styles.kicker}>
-                  Establish read-only access
-                </span>
-                <h2>Connect the source cluster</h2>
-                <p>
-                  Select a previously connected source or register any
-                  Kubernetes cluster in AWS, Azure, GCP, OCI, on-premises, or
-                  another location.
-                </p>
-              </header>
-
-              {!migration && (
-                <>
-                  <fieldset className={styles.targetType}>
-                    <legend>Source cluster</legend>
-                    <label className={styles.optionCard}>
-                      <input
-                        type="radio"
-                        name="sourceMode"
-                        value="REGISTER"
-                        checked={sourceMode === "REGISTER"}
-                        onChange={() => setSourceMode("REGISTER")}
-                      />
-                      <span>
-                        <strong>Register a new source cluster</strong>
-                        <small>
-                          Recommended when the cluster is not yet connected to
-                          Navigan.
-                        </small>
-                      </span>
-                    </label>
-                    <label className={styles.optionCard}>
-                      <input
-                        type="radio"
-                        name="sourceMode"
-                        value="EXISTING"
-                        checked={sourceMode === "EXISTING"}
-                        onChange={() => setSourceMode("EXISTING")}
-                      />
-                      <span>
-                        <strong>Use a connected source cluster</strong>
-                        <small>
-                          Reuse a read-only connector that was registered
-                          earlier.
-                        </small>
-                      </span>
-                    </label>
-                  </fieldset>
-
-                  {sourceMode === "EXISTING" && (
-                    <div className={styles.sourceRegistration}>
-                      <label className="field">
-                        <span>Connected source cluster</span>
-                        <select
-                          value={sourceClusterId}
-                          onChange={(event) =>
-                            setSourceClusterId(event.target.value)
-                          }
-                        >
-                          <option value="">
-                            {sourceClustersQuery.isPending
-                              ? "Loading source clusters…"
-                              : "Select a source cluster"}
-                          </option>
-                          {availableSourceClusters.map((source) => (
-                            <option
-                              key={source.sourceClusterId}
-                              value={source.sourceClusterId}
-                              disabled={source.status === "REVOKED"}
-                            >
-                              {source.name} —{" "}
-                              {source.status.replaceAll("_", " ")}
-                            </option>
-                          ))}
-                        </select>
+                {!migration && (
+                  <>
+                    <fieldset className={styles.targetType}>
+                      <legend>Source cluster</legend>
+                      <label className={styles.optionCard}>
+                        <input
+                          type="radio"
+                          name="sourceMode"
+                          value="REGISTER"
+                          checked={sourceMode === "REGISTER"}
+                          onChange={() => setSourceMode("REGISTER")}
+                        />
+                        <span>
+                          <strong>Register a new source cluster</strong>
+                          <small>
+                            Recommended when the cluster is not yet connected to
+                            Navigan.
+                          </small>
+                        </span>
                       </label>
-                      <button
-                        type="button"
-                        className="button button-primary"
-                        disabled={!sourceClusterId || sourceBusy}
-                        onClick={() => void useExistingSourceCluster()}
-                      >
-                        {sourceBusy
-                          ? "Preparing assessment…"
-                          : "Use selected source cluster"}
-                      </button>
-                    </div>
-                  )}
+                      <label className={styles.optionCard}>
+                        <input
+                          type="radio"
+                          name="sourceMode"
+                          value="EXISTING"
+                          checked={sourceMode === "EXISTING"}
+                          onChange={() => setSourceMode("EXISTING")}
+                        />
+                        <span>
+                          <strong>Use a connected source cluster</strong>
+                          <small>
+                            Reuse a read-only connector that was registered
+                            earlier.
+                          </small>
+                        </span>
+                      </label>
+                    </fieldset>
 
-                  {sourceMode === "REGISTER" && (
-                    <div className={styles.sourceRegistration}>
-                      <div className={styles.contextGrid}>
+                    {sourceMode === "EXISTING" && (
+                      <div className={styles.sourceRegistration}>
                         <label className="field">
-                          <span>Source cluster name</span>
-                          <input
-                            value={sourceName}
-                            minLength={3}
-                            maxLength={100}
-                            required
-                            onChange={(event) =>
-                              setSourceName(event.target.value)
-                            }
-                            placeholder="retailflow-source"
-                            autoComplete="off"
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Kubernetes distribution</span>
-                          <input
-                            value={sourceDistribution}
-                            maxLength={100}
-                            onChange={(event) =>
-                              setSourceDistribution(event.target.value)
-                            }
-                            placeholder="kubeadm, OpenShift, Rancher…"
-                            autoComplete="off"
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Cluster location</span>
+                          <span>Connected source cluster</span>
                           <select
-                            value={sourceLocationType}
+                            value={sourceClusterId}
                             onChange={(event) =>
-                              setSourceLocationType(
-                                event.target.value as
-                                  "CLOUD" | "ON_PREMISES" | "OTHER",
-                              )
+                              setSourceClusterId(event.target.value)
                             }
                           >
-                            <option value="ON_PREMISES">On-premises</option>
-                            <option value="CLOUD">Cloud account</option>
-                            <option value="OTHER">Other location</option>
+                            <option value="">
+                              {sourceClustersQuery.isPending
+                                ? "Loading source clusters…"
+                                : "Select a source cluster"}
+                            </option>
+                            {availableSourceClusters.map((source) => (
+                              <option
+                                key={source.sourceClusterId}
+                                value={source.sourceClusterId}
+                                disabled={source.status === "REVOKED"}
+                              >
+                                {source.name} —{" "}
+                                {source.status.replaceAll("_", " ")}
+                              </option>
+                            ))}
                           </select>
                         </label>
-                        {sourceLocationType === "CLOUD" && (
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          disabled={!sourceClusterId || sourceBusy}
+                          onClick={() => void useExistingSourceCluster()}
+                        >
+                          {sourceBusy
+                            ? "Preparing assessment…"
+                            : "Use selected source cluster"}
+                        </button>
+                      </div>
+                    )}
+
+                    {sourceMode === "REGISTER" && (
+                      <div className={styles.sourceRegistration}>
+                        <div className={styles.contextGrid}>
                           <label className="field">
-                            <span>Cloud provider</span>
-                            <select
-                              value={sourceCloudProvider}
+                            <span>Source cluster name</span>
+                            <input
+                              value={sourceName}
+                              minLength={3}
+                              maxLength={100}
+                              required
                               onChange={(event) =>
-                                setSourceCloudProvider(
+                                setSourceName(event.target.value)
+                              }
+                              placeholder="retailflow-source"
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Kubernetes distribution</span>
+                            <input
+                              value={sourceDistribution}
+                              maxLength={100}
+                              onChange={(event) =>
+                                setSourceDistribution(event.target.value)
+                              }
+                              placeholder="kubeadm, OpenShift, Rancher…"
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Cluster location</span>
+                            <select
+                              value={sourceLocationType}
+                              onChange={(event) =>
+                                setSourceLocationType(
                                   event.target.value as
-                                    "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER",
+                                    "CLOUD" | "ON_PREMISES" | "OTHER",
                                 )
                               }
                             >
-                              <option value="AWS">AWS</option>
-                              <option value="AZURE">Microsoft Azure</option>
-                              <option value="GCP">Google Cloud</option>
-                              <option value="OCI">Oracle Cloud</option>
-                              <option value="OTHER">Other cloud</option>
+                              <option value="ON_PREMISES">On-premises</option>
+                              <option value="CLOUD">Cloud account</option>
+                              <option value="OTHER">Other location</option>
                             </select>
                           </label>
-                        )}
-                        <label className="field">
-                          <span>Region or location (optional)</span>
-                          <input
-                            value={sourceRegion}
-                            maxLength={64}
-                            onChange={(event) =>
-                              setSourceRegion(event.target.value)
-                            }
-                            placeholder="Chennai DC or ap-south-1"
-                            autoComplete="off"
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Connector delivery</span>
-                          <select
-                            value={sourceDeliveryMethod}
-                            onChange={(event) =>
-                              setSourceDeliveryMethod(
-                                event.target.value as
-                                  "MANUAL_HELM" | "AWS_SSM" | "GITOPS",
-                              )
-                            }
-                          >
-                            <option value="AWS_SSM">
-                              AWS Systems Manager — no SSH
-                            </option>
-                            <option value="MANUAL_HELM">
-                              Download Helm setup
-                            </option>
-                            <option value="GITOPS">GitOps delivery</option>
-                          </select>
-                          <small>
-                            Navigan never uploads or stores your kubeconfig.
-                          </small>
-                        </label>
-                        {sourceDeliveryMethod === "AWS_SSM" && (
-                          <>
+                          {sourceLocationType === "CLOUD" && (
                             <label className="field">
-                              <span>AWS account ID</span>
-                              <input
-                                value={sourceAwsAccountId}
-                                inputMode="numeric"
-                                minLength={12}
-                                maxLength={12}
-                                placeholder="123456789012"
+                              <span>Cloud provider</span>
+                              <select
+                                value={sourceCloudProvider}
                                 onChange={(event) =>
-                                  setSourceAwsAccountId(event.target.value)
+                                  setSourceCloudProvider(
+                                    event.target.value as
+                                      "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER",
+                                  )
                                 }
-                              />
+                              >
+                                <option value="AWS">AWS</option>
+                                <option value="AZURE">Microsoft Azure</option>
+                                <option value="GCP">Google Cloud</option>
+                                <option value="OCI">Oracle Cloud</option>
+                                <option value="OTHER">Other cloud</option>
+                              </select>
                             </label>
-                            <label className="field">
-                              <span>Control-plane managed instance ID</span>
-                              <input
-                                value={sourceManagedInstanceId}
-                                placeholder="i-0123456789abcdef0"
-                                onChange={(event) =>
-                                  setSourceManagedInstanceId(event.target.value)
-                                }
-                              />
-                            </label>
-                            <label className="field">
-                              <span>Cross-account role ARN (optional)</span>
-                              <input
-                                value={sourceRoleArn}
-                                placeholder="Leave blank for this AWS account"
-                                onChange={(event) =>
-                                  setSourceRoleArn(event.target.value)
-                                }
-                              />
-                            </label>
-                            <label className="field">
-                              <span>Kubeconfig path</span>
-                              <input
-                                value={sourceKubeconfigPath}
-                                onChange={(event) =>
-                                  setSourceKubeconfigPath(event.target.value)
-                                }
-                              />
-                            </label>
-                          </>
-                        )}
+                          )}
+                          <label className="field">
+                            <span>Region or location (optional)</span>
+                            <input
+                              value={sourceRegion}
+                              maxLength={64}
+                              onChange={(event) =>
+                                setSourceRegion(event.target.value)
+                              }
+                              placeholder="Chennai DC or ap-south-1"
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Connector delivery</span>
+                            <select
+                              value={sourceDeliveryMethod}
+                              onChange={(event) =>
+                                setSourceDeliveryMethod(
+                                  event.target.value as
+                                    "MANUAL_HELM" | "AWS_SSM" | "GITOPS",
+                                )
+                              }
+                            >
+                              <option value="AWS_SSM">
+                                AWS Systems Manager — no SSH
+                              </option>
+                              <option value="MANUAL_HELM">
+                                Download Helm setup
+                              </option>
+                              <option value="GITOPS">GitOps delivery</option>
+                            </select>
+                            <small>
+                              Navigan never uploads or stores your kubeconfig.
+                            </small>
+                          </label>
+                          {sourceDeliveryMethod === "AWS_SSM" && (
+                            <>
+                              <label className="field">
+                                <span>AWS account ID</span>
+                                <input
+                                  value={sourceAwsAccountId}
+                                  inputMode="numeric"
+                                  minLength={12}
+                                  maxLength={12}
+                                  placeholder="123456789012"
+                                  onChange={(event) =>
+                                    setSourceAwsAccountId(event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="field">
+                                <span>Control-plane managed instance ID</span>
+                                <input
+                                  value={sourceManagedInstanceId}
+                                  placeholder="i-0123456789abcdef0"
+                                  onChange={(event) =>
+                                    setSourceManagedInstanceId(
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label className="field">
+                                <span>Cross-account role ARN (optional)</span>
+                                <input
+                                  value={sourceRoleArn}
+                                  placeholder="Leave blank for this AWS account"
+                                  onChange={(event) =>
+                                    setSourceRoleArn(event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="field">
+                                <span>Kubeconfig path</span>
+                                <input
+                                  value={sourceKubeconfigPath}
+                                  onChange={(event) =>
+                                    setSourceKubeconfigPath(event.target.value)
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          disabled={
+                            sourceName.trim().length < 3 ||
+                            sourceBusy ||
+                            (sourceDeliveryMethod === "AWS_SSM" &&
+                              (sourceLocationType !== "CLOUD" ||
+                                sourceCloudProvider !== "AWS" ||
+                                !/^\d{12}$/.test(sourceAwsAccountId.trim()) ||
+                                !/^(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)$/.test(
+                                  sourceManagedInstanceId.trim(),
+                                ) ||
+                                sourceRegion.trim().length < 3 ||
+                                !sourceKubeconfigPath.trim().startsWith("/")))
+                          }
+                          onClick={() => void registerSourceCluster()}
+                        >
+                          {sourceBusy
+                            ? "Registering source cluster…"
+                            : "Register source cluster"}
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="button button-primary"
-                        disabled={
-                          sourceName.trim().length < 3 ||
-                          sourceBusy ||
-                          (sourceDeliveryMethod === "AWS_SSM" &&
-                            (sourceLocationType !== "CLOUD" ||
-                              sourceCloudProvider !== "AWS" ||
-                              !/^\d{12}$/.test(sourceAwsAccountId.trim()) ||
-                              !/^(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)$/.test(
-                                sourceManagedInstanceId.trim(),
-                              ) ||
-                              sourceRegion.trim().length < 3 ||
-                              !sourceKubeconfigPath.trim().startsWith("/")))
-                        }
-                        onClick={() => void registerSourceCluster()}
-                      >
-                        {sourceBusy
-                          ? "Registering source cluster…"
-                          : "Register source cluster"}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
+                    )}
+                  </>
+                )}
 
-              {migration && selectedSource && (
-                <div className={styles.connectionCard}>
-                  <div>
-                    <span className={styles.connectedDot} />
-                    <strong>Source cluster registered</strong>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>Source cluster</dt>
-                      <dd>{selectedSource.name}</dd>
-                    </div>
-                    <div>
-                      <dt>Location</dt>
-                      <dd>
-                        {selectedSource.locationType.replaceAll("_", " ")}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Status</dt>
-                      <dd>
-                        {sourceCatalogue
-                          ? "Inventory ready"
-                          : "Waiting for local connector setup"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Migration</dt>
-                      <dd>{migration.migrationId}</dd>
-                    </div>
-                  </dl>
-
-                  {sourceEnrollment && !sourceCatalogue && (
-                    <div className={styles.bootstrapNotice}>
-                      <strong>Secure enrollment prepared</strong>
-                      <p>
-                        Download the short-lived setup file and open it with the
-                        approved Navigan bootstrap helper. The helper uses your
-                        selected kubeconfig locally and deletes the setup file
-                        after installation.
-                      </p>
-                      <button
-                        type="button"
-                        className="button button-primary"
-                        onClick={downloadSourceBootstrap}
-                      >
-                        Download local connector setup
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {sourceCatalogue && (
-                <div className={styles.connectionCard}>
-                  <div>
-                    <span className={styles.connectedDot} />
-                    <strong>Source catalogue received</strong>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>Kubernetes</dt>
-                      <dd>{sourceCatalogue.sourceKubernetesVersion}</dd>
-                    </div>
-                    <div>
-                      <dt>Nodes</dt>
-                      <dd>{sourceCatalogue.nodeCount}</dd>
-                    </div>
-                    <div>
-                      <dt>Architectures</dt>
-                      <dd>
-                        {sourceCatalogue.architectures.join(", ") ||
-                          "Not reported"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Namespaces</dt>
-                      <dd>{sourceCatalogue.namespaces.length}</dd>
-                    </div>
-                  </dl>
-                </div>
-              )}
-
-              {catalogueQuery.isError && (
-                <p role="alert">Unable to retrieve the source catalogue.</p>
-              )}
-
-              {sourceError && <p role="alert">{sourceError}</p>}
-
-              <div className={styles.protectionList}>
-                <span>✓ Secret and ConfigMap values are excluded</span>
-                <span>✓ No workload changes</span>
-                <span>✓ No application data</span>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className={styles.stepContent}>
-              <header>
-                <span className={styles.kicker}>
-                  Choose the discovered scope
-                </span>
-                <h2>Select workloads to assess</h2>
-                <p>
-                  These namespaces came from the sanitized source catalogue.
-                  Select only the workloads intended for assessment.
-                </p>
-              </header>
-
-              <fieldset className={styles.namespaceList}>
-                <legend>Discovered namespaces</legend>
-                {(sourceCatalogue?.namespaces ?? []).map((item) => {
-                  const detail = Object.entries(item.resourceCounts)
-                    .map(([kind, count]) => `${count} ${kind}`)
-                    .join(" · ");
-
-                  return (
-                    <label key={item.name}>
-                      <input
-                        type="checkbox"
-                        checked={namespaces.includes(item.name)}
-                        onChange={() => toggleNamespace(item.name)}
-                      />
-                      <span>
-                        <strong>{item.name}</strong>
-                        <small>
-                          {detail || "No supported resources reported"}
-                        </small>
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-
-              <div className={styles.scopeSummary}>
-                <FileSearch size={22} />
-                <div>
-                  <strong>{namespaces.length} namespace selected</strong>
-                  <span>Only sanitized metadata will be assessed.</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className={styles.stepContent}>
-              <header>
-                <span className={styles.kicker}>Inspect the destination</span>
-                <h2>Select the target EKS cluster</h2>
-                <p>
-                  Eligible clusters are filtered by customer, approved
-                  environment, platform status and connector health.
-                </p>
-              </header>
-
-              <label className="field">
-                <span>Eligible target EKS cluster</span>
-                <select
-                  value={targetConnection}
-                  disabled={!targetEnvironment}
-                  onChange={(event) => setTargetConnection(event.target.value)}
-                >
-                  <option value="">
-                    {!targetEnvironment
-                      ? "Select the target environment first"
-                      : clustersQuery.isPending
-                        ? "Loading eligible EKS clusters…"
-                        : "Select an eligible EKS cluster"}
-                  </option>
-                  {targetClusters.map((cluster) => (
-                    <option key={cluster.clusterId} value={cluster.clusterId}>
-                      {cluster.clusterName} — {cluster.status}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {selectedTarget && selectedEnvironment && (
-                <div className={styles.connectionCard}>
-                  <div>
-                    <span className={styles.connectedDot} />
-                    <strong>Eligible active EKS cluster</strong>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>Cluster</dt>
-                      <dd>{selectedTarget.clusterName}</dd>
-                    </div>
-                    <div>
-                      <dt>Platform</dt>
-                      <dd>Amazon EKS</dd>
-                    </div>
-                    <div>
-                      <dt>Environment</dt>
-                      <dd>{selectedEnvironment.environmentName}</dd>
-                    </div>
-                    <div>
-                      <dt>Approved version</dt>
-                      <dd>{selectedEnvironment.approvedVersion}</dd>
-                    </div>
-                    <div>
-                      <dt>Cluster status</dt>
-                      <dd>{selectedTarget.status}</dd>
-                    </div>
-                    <div>
-                      <dt>Capability data</dt>
-                      <dd>Collected when assessment starts</dd>
-                    </div>
-                  </dl>
-                  <span className={styles.previewBadge}>Backend record</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className={styles.stepContent}>
-              <header>
-                <span className={styles.kicker}>Configure assessment</span>
-                <h2>Select compatibility checks</h2>
-                <p>
-                  All recommended checks are enabled for the first assessment.
-                </p>
-              </header>
-
-              <div className={styles.checkGrid}>
-                {[
-                  [
-                    "Workloads and Kubernetes APIs",
-                    "Versions, controllers and scheduling",
-                  ],
-                  [
-                    "Networking and ingress",
-                    "Services, DNS, ports and load balancers",
-                  ],
-                  [
-                    "Storage and data",
-                    "Claims, classes and persistence requirements",
-                  ],
-                  [
-                    "Identity and security",
-                    "RBAC, service accounts and policy requirements",
-                  ],
-                  [
-                    "Capacity and architecture",
-                    "CPU, memory, scaling and image architecture",
-                  ],
-                  ["Operations", "Health checks, monitoring and availability"],
-                ].map(([title, detail]) => (
-                  <label key={title} className={styles.checkCard}>
-                    <input type="checkbox" defaultChecked />
-                    <span>
-                      <strong>{title}</strong>
-                      <small>{detail}</small>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className={styles.stepContent}>
-              <header>
-                <span className={styles.kicker}>Confirm the assessment</span>
-                <h2>Review before discovery starts</h2>
-                <p>
-                  Verify the assessment scope. No deployment or configuration
-                  change will be performed.
-                </p>
-              </header>
-
-              <div className={styles.reviewGrid}>
-                <div>
-                  <span>Assessment</span>
-                  <strong>{name}</strong>
-                </div>
-                <div>
-                  <span>Customer</span>
-                  <strong>{selectedCustomer?.name ?? "Not selected"}</strong>
-                </div>
-                <div>
-                  <span>Target environment</span>
-                  <strong>
-                    {selectedEnvironment
-                      ? `${selectedEnvironment.environmentName} — approved version ${selectedEnvironment.approvedVersion}`
-                      : "Not selected"}
-                  </strong>
-                </div>
-                <div>
-                  <span>Migration path</span>
-                  <strong>Self-managed Kubernetes → EKS</strong>
-                </div>
-                <div>
-                  <span>Target type</span>
-                  <strong>
-                    {targetType === "EXISTING_CLUSTER"
-                      ? "Existing EKS cluster"
-                      : "Planned EKS platform"}
-                  </strong>
-                </div>
-                <div>
-                  <span>Source</span>
-                  <strong>
-                    {sourceCatalogue
-                      ? `${sourceCatalogue.sourceKubernetesVersion} · ${sourceCatalogue.nodeCount} nodes`
-                      : "Not connected"}
-                  </strong>
-                </div>
-                <div>
-                  <span>Target</span>
-                  <strong>
-                    {selectedTarget?.clusterName ?? "Not selected"}
-                  </strong>
-                </div>
-                <div>
-                  <span>Namespaces</span>
-                  <strong>{namespaces.join(", ")}</strong>
-                </div>
-                <div>
-                  <span>Mode</span>
-                  <strong>Read-only feasibility assessment</strong>
-                </div>
-              </div>
-
-              <div className={styles.finalNotice}>
-                <ShieldCheck size={24} />
-                <div>
-                  <strong>Safe to assess</strong>
-                  <p>
-                    The source and target connectors receive read-only
-                    assignments and submit sanitized, versioned snapshots.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 5 && scopeSaved && (
-            <div className={styles.connectionCard}>
-              {migration?.status === "INVENTORY_READY" && !assessment && (
-                <>
-                  <div>
-                    <strong>Ready for detailed assessment</strong>
-                  </div>
-                  <p>
-                    Assign detailed inventory collection to the connected
-                    read-only source agent and generate the trusted report.
-                  </p>
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    disabled={assessmentBusy}
-                    onClick={() => void startDetailedAssessment()}
-                  >
-                    {assessmentBusy
-                      ? "Starting detailed assessment…"
-                      : "Start detailed assessment"}
-                  </button>
-                </>
-              )}
-
-              {migration &&
-                ["DISCOVERY_PENDING", "DISCOVERING", "ASSESSING"].includes(
-                  migration.status,
-                ) &&
-                !assessment && (
-                  <>
+                {migration && selectedSource && (
+                  <div className={styles.connectionCard}>
                     <div>
                       <span className={styles.connectedDot} />
-                      <strong>Assessment assigned to source connector</strong>
+                      <strong>Source cluster registered</strong>
                     </div>
                     <dl>
                       <div>
                         <dt>Source cluster</dt>
-                        <dd>{selectedSource?.name ?? sourceClusterId}</dd>
+                        <dd>{selectedSource.name}</dd>
+                      </div>
+                      <div>
+                        <dt>Location</dt>
+                        <dd>
+                          {selectedSource.locationType.replaceAll("_", " ")}
+                        </dd>
                       </div>
                       <div>
                         <dt>Status</dt>
                         <dd>
-                          {assessmentQuery.isError
-                            ? "Unable to retrieve report"
-                            : "Waiting for detailed inventory"}
+                          {sourceCatalogue
+                            ? "Inventory ready"
+                            : "Waiting for local connector setup"}
                         </dd>
                       </div>
+                      <div>
+                        <dt>Migration</dt>
+                        <dd>{migration.migrationId}</dd>
+                      </div>
                     </dl>
+
+                    {sourceEnrollment && !sourceCatalogue && (
+                      <div className={styles.bootstrapNotice}>
+                        <strong>Secure enrollment prepared</strong>
+                        <p>
+                          Download the short-lived setup file and open it with
+                          the approved Navigan bootstrap helper. The helper uses
+                          your selected kubeconfig locally and deletes the setup
+                          file after installation.
+                        </p>
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          onClick={downloadSourceBootstrap}
+                        >
+                          Download local connector setup
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {sourceCatalogue && (
+                  <div className={styles.connectionCard}>
+                    <div>
+                      <span className={styles.connectedDot} />
+                      <PlatformIcon platform="KUBERNETES" size="medium" />
+                      <strong>Source catalogue received</strong>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>Kubernetes</dt>
+                        <dd>{sourceCatalogue.sourceKubernetesVersion}</dd>
+                      </div>
+                      <div>
+                        <dt>Nodes</dt>
+                        <dd>{sourceCatalogue.nodeCount}</dd>
+                      </div>
+                      <div>
+                        <dt>Architectures</dt>
+                        <dd>
+                          {sourceCatalogue.architectures.join(", ") ||
+                            "Not reported"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Namespaces</dt>
+                        <dd>{sourceCatalogue.namespaces.length}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
+
+                {catalogueQuery.isError && (
+                  <p role="alert">Unable to retrieve the source catalogue.</p>
+                )}
+
+                {sourceError && <p role="alert">{sourceError}</p>}
+
+                <div className={styles.protectionList}>
+                  <span>✓ Secret and ConfigMap values are excluded</span>
+                  <span>✓ No workload changes</span>
+                  <span>✓ No application data</span>
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className={styles.stepContent}>
+                <header>
+                  <span className={styles.kicker}>
+                    Choose the discovered scope
+                  </span>
+                  <h2>Select workloads to assess</h2>
+                  <p>
+                    These namespaces came from the sanitized source catalogue.
+                    Select only the workloads intended for assessment.
+                  </p>
+                </header>
+
+                <fieldset className={styles.namespaceList}>
+                  <legend>Discovered namespaces</legend>
+                  {(sourceCatalogue?.namespaces ?? []).map((item) => {
+                    const detail = Object.entries(item.resourceCounts)
+                      .map(([kind, count]) => `${count} ${kind}`)
+                      .join(" · ");
+
+                    return (
+                      <label key={item.name}>
+                        <input
+                          type="checkbox"
+                          checked={namespaces.includes(item.name)}
+                          onChange={() => toggleNamespace(item.name)}
+                        />
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {detail || "No supported resources reported"}
+                          </small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+
+                <div className={styles.scopeSummary}>
+                  <FileSearch size={22} />
+                  <div>
+                    <strong>
+                      {namespaces.length}{" "}
+                      {namespaces.length === 1 ? "namespace" : "namespaces"}{" "}
+                      selected
+                    </strong>
+                    <span>Only sanitized metadata will be assessed.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className={styles.stepContent}>
+                <header>
+                  <span className={styles.kicker}>Inspect the destination</span>
+                  <h2>Select the target EKS cluster</h2>
+                  <p>
+                    Eligible clusters are filtered by customer, approved
+                    environment, platform status and connector health.
+                  </p>
+                </header>
+
+                <label className="field">
+                  <span>Eligible target EKS cluster</span>
+                  <select
+                    value={targetConnection}
+                    disabled={!targetEnvironment}
+                    onChange={(event) =>
+                      setTargetConnection(event.target.value)
+                    }
+                  >
+                    <option value="">
+                      {!targetEnvironment
+                        ? "Select the target environment first"
+                        : clustersQuery.isPending
+                          ? "Loading eligible EKS clusters…"
+                          : "Select an eligible EKS cluster"}
+                    </option>
+                    {targetClusters.map((cluster) => (
+                      <option key={cluster.clusterId} value={cluster.clusterId}>
+                        {cluster.clusterName} — {cluster.status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {selectedTarget && selectedEnvironment && (
+                  <div className={styles.connectionCard}>
+                    <div>
+                      <span className={styles.connectedDot} />
+                      <PlatformIcon platform="EKS" size="medium" />
+                      <strong>Eligible active EKS cluster</strong>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>Cluster</dt>
+                        <dd>{selectedTarget.clusterName}</dd>
+                      </div>
+                      <div>
+                        <dt>Platform</dt>
+                        <dd>Amazon EKS</dd>
+                      </div>
+                      <div>
+                        <dt>Environment</dt>
+                        <dd>{selectedEnvironment.environmentName}</dd>
+                      </div>
+                      <div>
+                        <dt>Approved version</dt>
+                        <dd>{selectedEnvironment.approvedVersion}</dd>
+                      </div>
+                      <div>
+                        <dt>Cluster status</dt>
+                        <dd>{selectedTarget.status}</dd>
+                      </div>
+                      <div>
+                        <dt>Capability data</dt>
+                        <dd>Collected when assessment starts</dd>
+                      </div>
+                    </dl>
+                    <span className={styles.previewBadge}>
+                      Registered cluster
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className={styles.stepContent}>
+                <header>
+                  <span className={styles.kicker}>Configure assessment</span>
+                  <h2>Select compatibility checks</h2>
+                  <p>
+                    All recommended checks are enabled for the first assessment.
+                  </p>
+                </header>
+
+                <div className={styles.checkGrid}>
+                  {[
+                    [
+                      "Workloads and Kubernetes APIs",
+                      "Versions, controllers and scheduling",
+                    ],
+                    [
+                      "Networking and ingress",
+                      "Services, DNS, ports and load balancers",
+                    ],
+                    [
+                      "Storage and data",
+                      "Claims, classes and persistence requirements",
+                    ],
+                    [
+                      "Identity and security",
+                      "RBAC, service accounts and policy requirements",
+                    ],
+                    [
+                      "Capacity and architecture",
+                      "CPU, memory, scaling and image architecture",
+                    ],
+                    [
+                      "Operations",
+                      "Health checks, monitoring and availability",
+                    ],
+                  ].map(([title, detail], index) => {
+                    const Icon = [
+                      Radar,
+                      Network,
+                      Database,
+                      ShieldCheck,
+                      Cpu,
+                      Settings,
+                    ][index];
+                    return (
+                      <label key={title} className={styles.checkCard}>
+                        <input type="checkbox" defaultChecked />
+                        <Icon size={20} aria-hidden="true" />
+                        <span>
+                          <strong>{title}</strong>
+                          <small>{detail}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {step === 5 && (
+              <div className={styles.stepContent}>
+                <header>
+                  <span className={styles.kicker}>Confirm the assessment</span>
+                  <h2>Review before discovery starts</h2>
+                  <p>
+                    Verify the assessment scope. No deployment or configuration
+                    change will be performed.
+                  </p>
+                </header>
+
+                <div className={styles.reviewGrid}>
+                  <div>
+                    <span>Assessment</span>
+                    <strong>{name}</strong>
+                  </div>
+                  <div>
+                    <span>Customer</span>
+                    <strong>{selectedCustomer?.name ?? "Not selected"}</strong>
+                  </div>
+                  <div>
+                    <span>Target environment</span>
+                    <strong>
+                      {selectedEnvironment
+                        ? `${selectedEnvironment.environmentName} — approved version ${selectedEnvironment.approvedVersion}`
+                        : "Not selected"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Migration path</span>
+                    <strong>Self-managed Kubernetes → EKS</strong>
+                  </div>
+                  <div>
+                    <span>Target type</span>
+                    <strong>
+                      {targetType === "EXISTING_CLUSTER"
+                        ? "Existing EKS cluster"
+                        : "Planned EKS platform"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Source</span>
+                    <strong>
+                      {sourceCatalogue
+                        ? `${sourceCatalogue.sourceKubernetesVersion} · ${sourceCatalogue.nodeCount} nodes`
+                        : "Not connected"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Target</span>
+                    <strong>
+                      {selectedTarget?.clusterName ?? "Not selected"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Namespaces</span>
+                    <strong>{namespaces.join(", ")}</strong>
+                  </div>
+                  <div>
+                    <span>Mode</span>
+                    <strong>Read-only feasibility assessment</strong>
+                  </div>
+                </div>
+
+                <div className={styles.finalNotice}>
+                  <ShieldCheck size={24} />
+                  <div>
+                    <strong>Safe to assess</strong>
+                    <p>
+                      The source and target connectors receive read-only
+                      assignments and submit sanitized, versioned snapshots.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 5 && scopeSaved && (
+              <div className={styles.connectionCard}>
+                {migration?.status === "INVENTORY_READY" && !assessment && (
+                  <>
+                    <div>
+                      <strong>Ready for detailed assessment</strong>
+                    </div>
+                    <p>
+                      Assign detailed inventory collection to the connected
+                      read-only source agent and generate the trusted report.
+                    </p>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={assessmentBusy}
+                      onClick={() => void startDetailedAssessment()}
+                    >
+                      {assessmentBusy
+                        ? "Starting detailed assessment…"
+                        : "Start detailed assessment"}
+                    </button>
                   </>
                 )}
 
-              {assessmentError && <p role="alert">{assessmentError}</p>}
-            </div>
-          )}
+                {migration &&
+                  ["DISCOVERY_PENDING", "DISCOVERING", "ASSESSING"].includes(
+                    migration.status,
+                  ) &&
+                  !assessment && (
+                    <>
+                      <div>
+                        <span className={styles.connectedDot} />
+                        <strong>Assessment assigned to source connector</strong>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Source cluster</dt>
+                          <dd>{selectedSource?.name ?? sourceClusterId}</dd>
+                        </div>
+                        <div>
+                          <dt>Status</dt>
+                          <dd>
+                            {assessmentQuery.isError
+                              ? "Unable to retrieve report"
+                              : "Waiting for detailed inventory"}
+                          </dd>
+                        </div>
+                      </dl>
+                    </>
+                  )}
 
-          {step === 5 && assessment && (
-            <AssessmentReportCard
-              report={assessment}
-              source={{
-                name: selectedSource?.name,
-                nodeCount: sourceCatalogue?.nodeCount,
-                namespaceCount: sourceCatalogue?.namespaces.length,
-                namespaces,
-                architectures: sourceCatalogue?.architectures,
-              }}
-            />
-          )}
+                {assessmentError && <p role="alert">{assessmentError}</p>}
+              </div>
+            )}
 
-          <footer className={styles.actions}>
-            <div>
+            {step === 5 && assessment && (
+              <AssessmentReportCard
+                report={assessment}
+                source={{
+                  name: selectedSource?.name,
+                  nodeCount: sourceCatalogue?.nodeCount,
+                  namespaceCount: sourceCatalogue?.namespaces.length,
+                  namespaces,
+                  architectures: sourceCatalogue?.architectures,
+                }}
+              />
+            )}
+          </form>
+          <aside
+            className={styles.requestSummary}
+            aria-label="Assessment summary"
+          >
+            <header>
+              <ClipboardCheck size={20} aria-hidden="true" />
+              <h2>Assessment summary</h2>
+            </header>
+            <dl>
+              <div>
+                <dt>Assessment</dt>
+                <dd>{name || "Not entered"}</dd>
+              </div>
+              <div>
+                <dt>Customer</dt>
+                <dd>{selectedCustomer?.name ?? "Not selected"}</dd>
+              </div>
+              <div>
+                <dt>Environment</dt>
+                <dd>
+                  {selectedEnvironment
+                    ? `${selectedEnvironment.environmentName} · approved v${selectedEnvironment.approvedVersion}`
+                    : "Not selected"}
+                </dd>
+              </div>
+            </dl>
+            <div className={styles.summaryPath}>
               <span>
-                Step {step + 1} of {steps.length}
+                <PlatformIcon platform="KUBERNETES" size="medium" /> Kubernetes
               </span>
-              <small>Assessment only · execution disabled</small>
+              <ArrowRight size={16} aria-hidden="true" />
+              <span>
+                <PlatformIcon platform="EKS" size="medium" /> Amazon EKS
+              </span>
             </div>
-
-            <div>
-              {step > 0 && (
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  onClick={() => setStep((current) => current - 1)}
-                >
-                  Back
-                </button>
-              )}
-
-              {step < steps.length - 1 ? (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={!canContinue}
-                  onClick={() => setStep((current) => current + 1)}
-                >
-                  Continue
-                  <ArrowRight size={17} />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="button button-primary"
-                  disabled={!canContinue || sourceBusy || scopeSaved}
-                >
-                  {scopeSaved
-                    ? "Assessment scope saved"
-                    : sourceBusy
-                      ? "Saving assessment scope…"
-                      : "Save assessment scope"}
-                </button>
-              )}
+            <dl>
+              <div>
+                <dt>Source</dt>
+                <dd>{selectedSource?.name ?? "Not connected"}</dd>
+              </div>
+              <div>
+                <dt>Catalogue</dt>
+                <dd>
+                  {sourceCatalogue
+                    ? `${sourceCatalogue.sourceKubernetesVersion} · ${sourceCatalogue.nodeCount} nodes`
+                    : "Awaiting connection"}
+                </dd>
+              </div>
+              <div>
+                <dt>Scope</dt>
+                <dd>
+                  {namespaces.length
+                    ? `${namespaces.length} namespaces selected`
+                    : "Not selected"}
+                </dd>
+              </div>
+              <div>
+                <dt>Target</dt>
+                <dd>{selectedTarget?.clusterName ?? "Not selected"}</dd>
+              </div>
+            </dl>
+            <section
+              className={styles.summaryProgress}
+              aria-label="Assessment progress"
+            >
+              <h3>Assessment progress</h3>
+              <progress
+                max={steps.length}
+                value={step + 1}
+                aria-label="Current assessment step"
+              />
+              <p>
+                Step {step + 1} of {steps.length} · {steps[step].title}
+              </p>
+            </section>
+            <div className={styles.securityNotice}>
+              <ShieldCheck size={21} aria-hidden="true" />
+              <div>
+                <strong>Read-only assessment</strong>
+                <p>
+                  Navigan will collect sanitized metadata only. Credentials,
+                  Secret values and application data are never included.
+                </p>
+              </div>
             </div>
-          </footer>
-        </form>
+          </aside>
+        </div>
+        <footer className={styles.actions}>
+          <div>
+            <span>
+              Step {step + 1} of {steps.length}
+            </span>
+            <small>Assessment only · execution disabled</small>
+          </div>
+
+          <div>
+            {step > 0 && (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setStep((current) => current - 1)}
+              >
+                Back
+              </button>
+            )}
+
+            {step < steps.length - 1 ? (
+              <button
+                key="continue-step"
+                type="button"
+                className="button button-primary"
+                disabled={!canContinue}
+                onClick={() => setStep((current) => current + 1)}
+              >
+                Continue
+                <ArrowRight size={17} />
+              </button>
+            ) : (
+              <button
+                key="save-scope"
+                type="submit"
+                form="migration-assessment-form"
+                className="button button-primary"
+                disabled={!canContinue || sourceBusy || scopeSaved}
+              >
+                {scopeSaved
+                  ? "Assessment scope saved"
+                  : sourceBusy
+                    ? "Saving assessment scope…"
+                    : "Save assessment scope"}
+              </button>
+            )}
+          </div>
+        </footer>
       </section>
-    </>
+    </div>
   );
 }
