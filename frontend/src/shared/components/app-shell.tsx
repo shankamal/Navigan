@@ -1,4 +1,5 @@
 "use client";
+import "./workspace-navigation.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -373,7 +374,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
         <div className="content-column">
-          <div className="breadcrumb">
+          <nav className="breadcrumb" aria-label="Breadcrumb">
             <Link href="/dashboard">Home</Link>
             <ChevronRight size={14} />
             <Link
@@ -400,7 +401,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </span>
               </>
             )}
-          </div>
+          </nav>
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>

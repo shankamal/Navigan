@@ -173,7 +173,6 @@ export function EnvironmentList({
       <div className="environment-portfolio-heading">
         <Layers3 size={32} aria-hidden="true" />
         <PageHeading
-          eyebrow="ENVIRONMENT MANAGEMENT"
           title={
             mode === "reviews"
               ? "Environment Reviews"

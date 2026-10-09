@@ -325,7 +325,6 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         Back to environments
       </Link>
       <PageHeading
-        eyebrow="Environment Management"
         title={
           environment
             ? `Edit ${environment.environmentName} revision`
