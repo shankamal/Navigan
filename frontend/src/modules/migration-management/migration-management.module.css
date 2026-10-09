@@ -2351,3 +2351,24 @@
 .migrationWorkspace .actions {
   width: 100%;
 }
+
+/* Neutral portfolio hover, aligned with the slate workspace navigation. */
+.migrationWorkspace .portfolioTable tbody tr:hover,
+.migrationWorkspace .portfolioTable tbody tr:focus-within {
+  background: #eef2f7;
+  box-shadow: inset 3px 0 #64748b;
+}
+.migrationWorkspace .portfolioTable tbody tr:hover td,
+.migrationWorkspace .portfolioTable tbody tr:focus-within td {
+  background: #eef2f7;
+}
+
+.approvedStatus, .migrationWorkspace .approved {background:#a8d86e; border-color:#96c65c; color:#17351d; font-weight:600;}
+.migrationWorkspace .stageApproved,
+.migrationContextMeta .approvedStatus,
+.approvalStatusLine .approvedStatus {
+  background: #a8d86e;
+  border-color: #96c65c;
+  color: #17351d;
+  font-weight: 600;
+}

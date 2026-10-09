@@ -1,0 +1,194 @@
+.migration-report-workspace .migration-report-tabs {
+  gap: 12px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-color: #dce3ec;
+}
+.migration-report-workspace .migration-report-tab-group {
+  display: block;
+  padding: 0;
+}
+.migration-report-workspace
+  .migration-report-tab-group
+  + .migration-report-tab-group {
+  padding-top: 12px;
+  border-color: #dce3ec;
+}
+.migration-report-workspace .migration-report-tab-group-label {
+  display: block;
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 11px;
+  color: #64748b;
+  letter-spacing: 0.06em;
+}
+.migration-report-workspace .migration-report-tab-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+.migration-report-workspace .migration-report-tabs button {
+  width: 100%;
+  min-height: 42px;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #dce3ec;
+  border-radius: 6px;
+  color: #334155;
+  background: white;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+}
+.migration-report-workspace .migration-report-tab-label {
+  white-space: normal;
+  flex: 1;
+}
+.migration-report-workspace .migration-report-tabs button svg {
+  color: #64748b;
+}
+.migration-report-workspace .migration-report-tab-count {
+  flex-shrink: 0;
+  max-width: 92px;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: normal;
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #475569;
+}
+.migration-report-workspace .migration-report-tabs button:hover {
+  background: #eef2f7;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+.migration-report-workspace .migration-report-tabs button.active {
+  background: #475569;
+  border-color: #475569;
+  color: white;
+  box-shadow: inset 3px 0 #a8d86e;
+}
+.migration-report-workspace .migration-report-tabs button.active svg {
+  color: white;
+}
+.migration-report-workspace
+  .migration-report-tabs
+  button.active
+  .migration-report-tab-count {
+  color: white;
+  background: #64748b;
+  border-color: #94a3b8;
+}
+.migration-report-workspace .migration-report-tabs button:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 3px;
+}
+.migration-report-workspace .migration-report-body {
+  background: #f3f5f9;
+}
+.migration-report-reading-guide {
+  margin: 16px 20px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+}
+.migration-report-reading-guide > summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  list-style: none;
+}
+.migration-report-reading-guide > summary::after {
+  content: "+";
+  margin-left: auto;
+  font-size: 20px;
+  color: #64748b;
+}
+.migration-report-reading-guide[open] > summary::after {
+  content: "-";
+}
+.migration-report-reading-guide > summary:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}
+.migration-report-reading-guide .migration-report-guide-hint {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 400;
+  margin-left: auto;
+}
+.migration-report-guide-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 0 16px 16px;
+  border-top: 1px solid #e2e8f0;
+}
+.migration-report-guide-columns h3 {
+  font-size: 14px;
+  margin: 16px 0 10px;
+  color: #1e293b;
+}
+.migration-report-guide-columns ol {
+  padding-left: 20px;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.migration-report-guide-columns li,
+.migration-report-current-action {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #475569;
+}
+.migration-report-current-action {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  border-left: 3px solid #64748b;
+}
+.migration-report-workspace .migration-report-sidebar {
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .migration-report-workspace .migration-report-tab-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .migration-report-workspace .migration-report-tabs button {
+    flex-wrap: wrap;
+  }
+  .migration-report-guide-columns {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .migration-report-reading-guide .migration-report-guide-hint {
+    display: none;
+  }
+  .migration-report-reading-guide {
+    margin: 12px;
+  }
+}
+@media (max-width: 380px) {
+  .migration-report-workspace .migration-report-tab-items {
+    grid-template-columns: 1fr;
+  }
+}
+
+.migration-report-workspace
+  .migration-governance-status[data-status="APPROVED"] {
+  background: #a8d86e;
+  border-color: #96c65c;
+  color: #17351d;
+  font-weight: 600;
+}
+
+.migration-report-reading-guide > summary, .migration-report-reading-guide > summary svg {color: #334155;}

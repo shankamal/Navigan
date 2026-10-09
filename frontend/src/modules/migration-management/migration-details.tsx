@@ -579,7 +579,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           </div>
 
           <div className={styles.migrationContextMeta}>
-            <span className="status-badge">
+            <span className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}>
               {migration?.status.replaceAll("_", " ")}
             </span>
             <small>Report generated</small>
@@ -598,7 +598,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                 </div>
                 <div>
                   <div className={styles.approvalStatusLine}>
-                    <span className="status-badge">
+                    <span className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}>
                       {migration.status.replaceAll("_", " ")}
                     </span>
                     <span>Independent governance checkpoint</span>

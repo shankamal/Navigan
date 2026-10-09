@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import "./assessment-report.css";
+
 import type {
   Assessment,
   SourceInventory,
@@ -887,6 +889,75 @@ export function AssessmentReportCard({
         })}
       </div>
 
+      <details className="migration-report-reading-guide">
+        <summary>
+          <CircleHelp size={18} aria-hidden="true" />
+          <span>How to read this report &amp; next steps</span>
+          <span className="migration-report-guide-hint">
+            Assessment → review → migration planning
+          </span>
+        </summary>
+        <div className="migration-report-guide-columns">
+          <section>
+            <h3>How to read this assessment</h3>
+            <ol>
+              <li>
+                <strong>Verify scope and evidence.</strong> Check Inventory
+                coverage and Evidence for resource counts, inventory version and
+                collection time. Missing metadata is not proof that a dependency
+                is absent.
+              </li>
+              <li>
+                <strong>Interpret readiness.</strong> Ready means no
+                compatibility change detected; Automated needs target
+                translation; Remediate needs engineering work; Blocked must be
+                resolved. The compatibility score is not migration progress.
+              </li>
+              <li>
+                <strong>Inspect the details.</strong> Use Findings for evidence,
+                owners and recommended actions, then review the related
+                inventory sections and Advanced readiness.
+              </li>
+            </ol>
+          </section>
+          <section>
+            <h3>Next steps toward migration</h3>
+            <p className="migration-report-current-action">
+              <strong>Next action:</strong>{" "}
+              {criticalFindingCount > 0
+                ? "Resolve blockers, confirm remediation owners and refresh the assessment before review."
+                : governance?.status === "APPROVED"
+                  ? "Confirm the approved scope and prepare the migration plan with the application and platform owners."
+                  : governance?.status === "UNDER_REVIEW" ||
+                      governance?.status === "SUBMITTED"
+                    ? "Complete the independent review using the existing approval controls."
+                    : governance?.status === "REJECTED"
+                      ? "Address the review feedback and refresh the assessment before resubmitting."
+                      : "Review planned changes and approval conditions, then submit for independent review using the existing controls."}
+            </p>
+            <ol>
+              <li>
+                <strong>Close readiness gaps.</strong> Confirm target mappings,
+                application dependencies, image access, storage, identity and
+                remediation ownership.
+              </li>
+              <li>
+                <strong>Obtain assessment approval.</strong> Follow the existing
+                independent review workflow. Approval records a readiness
+                decision; it does not deploy workloads.
+              </li>
+              <li>
+                <strong>Plan and authorize execution.</strong> Agree migration
+                waves, artifact collection, data transfer, validation, cutover
+                and rollback. Start migration only through a separately approved
+                execution workflow; this report does not start or track
+                execution.
+              </li>
+            </ol>
+          </section>
+        </div>
+      </details>
+
       <nav className="migration-report-tabs" aria-label="Report sections">
         {reportTabGroups.map((group) => (
           <div className="migration-report-tab-group" key={group.label}>
@@ -949,67 +1020,6 @@ export function AssessmentReportCard({
         <main>
           {activeTab === "summary" && (
             <>
-              <section className="migration-review-guide">
-                <div className="migration-section-heading">
-                  <div>
-                    <h3>
-                      How to review this self-managed Kubernetes → Amazon EKS
-                      assessment
-                    </h3>
-                    <p>
-                      Use these checks to decide whether the selected workloads
-                      are ready for migration planning.
-                    </p>
-                  </div>
-                </div>
-                <div className="migration-review-steps">
-                  <article>
-                    <span>1</span>
-                    <div>
-                      <strong>Confirm inventory coverage</strong>
-                      <p>
-                        {assessedCount} resources across{" "}
-                        {source?.namespaces?.length ??
-                          source?.namespaceCount ??
-                          "the selected"}{" "}
-                        namespaces were assessed from Kubernetes{" "}
-                        {report.sourceKubernetesVersion}.
-                      </p>
-                    </div>
-                  </article>
-                  <article>
-                    <span>2</span>
-                    <div>
-                      <strong>Review target treatment</strong>
-                      <p>
-                        Green is ready, blue can be automated, amber needs an
-                        engineering change, and red must be resolved before
-                        approval.
-                      </p>
-                    </div>
-                  </article>
-                  <article>
-                    <span>3</span>
-                    <div>
-                      <strong>Validate approval conditions</strong>
-                      <p>
-                        Confirm critical findings are closed, remediation has an
-                        owner, evidence is sufficient, and every workload has an
-                        EKS target mapping.
-                      </p>
-                    </div>
-                  </article>
-                </div>
-                <div className="migration-path-considerations">
-                  <strong>Path-specific considerations</strong>
-                  <span>Persistent storage and CSI mapping</span>
-                  <span>Ingress and load balancer translation</span>
-                  <span>RBAC and AWS IAM integration</span>
-                  <span>Node architecture and scheduling</span>
-                  <span>Container image accessibility</span>
-                </div>
-              </section>
-
               <section className="migration-priority-section">
                 <div className="migration-section-heading">
                   <div>
@@ -1448,7 +1458,10 @@ export function AssessmentReportCard({
               <ShieldCheck size={18} aria-hidden="true" />
             </div>
             {governance?.status && (
-              <span className="migration-governance-status">
+              <span
+                className="migration-governance-status"
+                data-status={governance.status}
+              >
                 {governance.status.replaceAll("_", " ")}
               </span>
             )}
@@ -1513,23 +1526,16 @@ export function AssessmentReportCard({
             <h3>Recommended next action</h3>
             <p>
               {criticalFindingCount > 0
-                ? `Resolve ${criticalFindingCount} blocker${criticalFindingCount === 1 ? "" : "s"}, confirm the remediation owners, and rerun the assessment.`
-                : changeCount > 0
-                  ? `Review ${changeCount} planned change${changeCount === 1 ? "" : "s"} and submit the report for approval.`
-                  : "Submit this assessment for independent architecture approval."}
+                ? `Resolve ${criticalFindingCount} blocker${criticalFindingCount === 1 ? "" : "s"}, confirm remediation owners and refresh the assessment.`
+                : governance?.status === "APPROVED"
+                  ? "Prepare the migration plan for the approved scope. Confirm waves, validation, cutover and rollback before separately authorized execution."
+                  : governance?.status === "UNDER_REVIEW" ||
+                      governance?.status === "SUBMITTED"
+                    ? "Complete the independent assessment review using the existing approval controls."
+                    : governance?.status === "REJECTED"
+                      ? "Address the review feedback and refresh the assessment before resubmitting."
+                      : "Review planned changes and approval conditions, then submit for independent review."}
             </p>
-          </section>
-
-          <section>
-            <h3>Inventory coverage</h3>
-            <div className="migration-resource-list">
-              {resourceKinds.map(([kind, count]) => (
-                <div key={kind}>
-                  <span>{kind}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))}
-            </div>
           </section>
 
           <section>
@@ -1563,18 +1569,6 @@ export function AssessmentReportCard({
                 <dd>{reportDate(report.createdAt)}</dd>
               </div>
             </dl>
-          </section>
-
-          <section className="migration-report-help">
-            <CircleHelp size={20} aria-hidden="true" />
-            <div>
-              <h3>How to read this report</h3>
-              <p>
-                Review inventory coverage first, then resolve critical findings,
-                assign remediation owners, verify the EKS target treatment, and
-                confirm supporting evidence before approval.
-              </p>
-            </div>
           </section>
         </aside>
       </div>
