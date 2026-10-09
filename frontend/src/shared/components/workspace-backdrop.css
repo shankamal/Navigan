@@ -3,7 +3,7 @@
 .app-shell[class] > header.topbar {
   background-color: #1e252f;
   background-image:
-    url('/graphics/header-green-facets.svg');
+    url('/graphics/header-cloud-network.svg');
   background-position: right center;
   background-size: 55% 100%;
   background-repeat: no-repeat;
@@ -77,8 +77,9 @@
 /* Shared quiet heading surfaces and controls, without changing their layout. */
 .app-shell[class] main#main-content .page-heading,
 .app-shell[class] main#main-content .customer-page-header,
+.app-shell[class] main#main-content .environment-portfolio-heading,
 .app-shell[class] main#main-content .pd-heading {
-  background: #edf1f6;
+  background: linear-gradient(110deg, #dfe5ec, #edf1f6);
   border: 1px solid #e0e6ee;
   border-radius: 10px;
   padding: 14px 18px;
@@ -88,6 +89,43 @@
   background: transparent;
   border: 0;
   padding: 0;
+}
+.app-shell[class] main#main-content .environment-portfolio-heading .page-heading {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.page-heading-copy { position: relative; padding-left: 48px; min-width: 0; }
+.page-heading-symbol {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+}
+.page-heading-symbol svg { width: 28px; height: 28px; stroke-width: 1.7; }
+/* These directories already have their own module icon beside the title. */
+.customer-page-header .page-heading-symbol,
+.environment-portfolio-heading .page-heading-symbol { display: none; }
+.customer-page-header .page-heading-copy,
+.environment-portfolio-heading .page-heading-copy { padding-left: 0; }
+.app-shell[class] main#main-content .pd-heading > div:first-child {
+  position: relative;
+  padding-left: 48px;
+}
+.app-shell[class] main#main-content .pd-heading > div:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 28px;
+  height: 28px;
+  background: #475569;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7'%3E%3Crect x='3' y='3' width='7' height='7' rx='1'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1'/%3E%3Crect x='14' y='14' width='7' height='7' rx='1'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 .app-shell[class] main#main-content .page-heading h1,
 .app-shell[class] main#main-content .pd-heading h1 {
