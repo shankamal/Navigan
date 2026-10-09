@@ -60,40 +60,19 @@ function ProviderLogo({
     OCI: "OCI",
   };
 
+  const assets: Record<Provider, string> = {
+    AWS: "amazonwebservices",
+    AZURE: "microsoftazure",
+    GCP: "googlecloud",
+    OCI: "oracle",
+  };
   return (
     <span className={`pd-provider pd-provider-${provider.toLowerCase()}`}>
-      <span className="pd-provider-mark" aria-hidden="true">
-        {provider === "AWS" && (
-          <svg viewBox="0 0 32 24">
-            <text x="1" y="15">
-              aws
-            </text>
-            <path d="M5 18c6 4 14 4 21 0" />
-            <path d="m23 17 4 1-2 3" />
-          </svg>
-        )}
-        {provider === "AZURE" && (
-          <svg viewBox="0 0 28 24">
-            <path d="M11 2 3 20h7l4-8 5 8h6L16 2z" />
-          </svg>
-        )}
-        {provider === "GCP" && (
-          <svg viewBox="0 0 30 24">
-            <path
-              className="pd-gcp-blue"
-              d="M10 21h11a7 7 0 0 0 1-14A10 10 0 0 0 5 9"
-            />
-            <path className="pd-gcp-red" d="M5 9a8 8 0 0 0 5 12" />
-            <path className="pd-gcp-yellow" d="M5 9a10 10 0 0 1 4-5" />
-            <path className="pd-gcp-green" d="M9 4a10 10 0 0 1 13 3" />
-          </svg>
-        )}
-        {provider === "OCI" && (
-          <svg viewBox="0 0 32 24">
-            <path d="M8 6h16a6 6 0 0 1 0 12H8A6 6 0 0 1 8 6Zm1 4a2 2 0 0 0 0 4h14a2 2 0 0 0 0-4Z" />
-          </svg>
-        )}
-      </span>
+      <img
+        className="pd-brand-logo"
+        src={`/logos/${assets[provider]}.svg`}
+        alt={label ? "" : names[provider]}
+      />
       {label && <span>{names[provider]}</span>}
     </span>
   );
@@ -425,7 +404,123 @@ export function PlatformDashboard() {
         ))}
       </section>
 
+      <section className="pd-card">
+        <header className="pd-card-heading">
+          <div>
+            <span className="pd-card-icon pd-attention-icon">
+              <AlertTriangle size={19} />
+            </span>
+            <div>
+              <h2>
+                Needs your attention{" "}
+                <span className="pd-count">{awaitingAction}</span>
+              </h2>
+              <p>
+                Navigan approvals, provisioning exceptions, and requests
+                requiring action.
+              </p>
+            </div>
+          </div>
+          {canReview && (
+            <Link className="pd-card-link" href="/customers">
+              Customer directory <ChevronRight size={15} />
+            </Link>
+          )}
+        </header>
+        <p className="pd-preview-count">
+          Showing {attentionItems.length} submitted requests. {awaitingAction}{" "}
+          records are submitted or under review.
+        </p>
+        <div className="pd-attention-list">
+          {pendingCustomers.isPending ||
+          pendingEnvironments.isPending ||
+          pendingClusters.isPending ? (
+            <Loading label="Loading attention queue…" />
+          ) : attentionItems.length ? (
+            attentionItems.map((item) => (
+              <Link
+                className="pd-attention-row"
+                href={item.href}
+                key={`${item.id}-${item.href}`}
+              >
+                <span
+                  className={`pd-attention-row-icon pd-attention-${item.tone}`}
+                >
+                  <item.icon size={17} />
+                </span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.meta}</small>
+                </span>
+                <span className="pd-review-action">
+                  View request <ArrowRight size={16} />
+                </span>
+              </Link>
+            ))
+          ) : (
+            <div className="pd-empty pd-empty-success">
+              <CheckCircle2 size={20} />
+              No newly submitted requests require attention.
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="pd-primary-grid">
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <Cloud size={19} />
+              </span>
+              <div>
+                <h2>Cloud footprint</h2>
+                <p>Environment profiles by cloud provider.</p>
+              </div>
+            </div>
+          </header>
+          {environments.isPending ? (
+            <Loading label="Loading cloud footprint…" />
+          ) : environments.error ? (
+            <ErrorNotice
+              error={environments.error}
+              onRetry={() => environments.refetch()}
+            />
+          ) : providerTotal === 0 ? (
+            <p className="pd-empty">No environment profiles are available.</p>
+          ) : (
+            <div className="pd-footprint">
+              <DonutChart
+                title="Environment profiles by cloud provider"
+                value={providerTotal}
+                subtitle="environments"
+                segments={providerOrder.map((provider) => ({
+                  value:
+                    ((providerCounts[provider] ?? 0) / providerTotal) * 100,
+                  color: providerColors[provider],
+                }))}
+              />
+              <div className="pd-legend pd-provider-legend">
+                {providerOrder.map((provider) => (
+                  <div key={provider}>
+                    <ProviderLogo provider={provider} />
+                    <strong>{providerCounts[provider] ?? 0}</strong>
+                    <span>
+                      {percent(providerCounts[provider], providerTotal)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <Link
+            className="pd-card-link pd-card-footer-link"
+            href="/environments"
+          >
+            View environment directory <ArrowRight size={15} />
+          </Link>
+        </article>
+
         <article className="pd-card">
           <header className="pd-card-heading">
             <div>
@@ -514,62 +609,6 @@ export function PlatformDashboard() {
           <header className="pd-card-heading">
             <div>
               <span className="pd-card-icon">
-                <Cloud size={19} />
-              </span>
-              <div>
-                <h2>Cloud footprint</h2>
-                <p>Environment profiles by cloud provider.</p>
-              </div>
-            </div>
-          </header>
-          {environments.isPending ? (
-            <Loading label="Loading cloud footprint…" />
-          ) : environments.error ? (
-            <ErrorNotice
-              error={environments.error}
-              onRetry={() => environments.refetch()}
-            />
-          ) : providerTotal === 0 ? (
-            <p className="pd-empty">No environment profiles are available.</p>
-          ) : (
-            <div className="pd-footprint">
-              <DonutChart
-                title="Environment profiles by cloud provider"
-                value={providerTotal}
-                subtitle="environments"
-                segments={providerOrder.map((provider) => ({
-                  value:
-                    ((providerCounts[provider] ?? 0) / providerTotal) * 100,
-                  color: providerColors[provider],
-                }))}
-              />
-              <div className="pd-legend pd-provider-legend">
-                {providerOrder.map((provider) => (
-                  <div key={provider}>
-                    <ProviderLogo provider={provider} />
-                    <strong>{providerCounts[provider] ?? 0}</strong>
-                    <span>
-                      {percent(providerCounts[provider], providerTotal)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <Link
-            className="pd-card-link pd-card-footer-link"
-            href="/environments"
-          >
-            View environment directory <ArrowRight size={15} />
-          </Link>
-        </article>
-      </section>
-
-      <section className="pd-insights-grid">
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
                 <Workflow size={19} />
               </span>
               <div>
@@ -582,29 +621,39 @@ export function PlatformDashboard() {
             <p className="pd-empty">No cluster requests are available.</p>
           ) : (
             <div className="pd-workflow">
-              <DonutChart
-                title="Cluster requests by workflow state"
-                value={workflowTotal}
-                subtitle="requests"
-                segments={[
+              <div
+                className="pd-workflow-bar"
+                aria-label="Cluster lifecycle distribution"
+              >
+                {[
                   {
-                    value: percent(activeClusters.data, workflowTotal),
-                    color: "#557f18",
+                    label: "Active",
+                    value: activeClusters.data ?? 0,
+                    color: "#65A449",
                   },
                   {
-                    value: percent(workflowInProgress, workflowTotal),
-                    color: "#1689d4",
+                    label: "In delivery",
+                    value: workflowInProgress,
+                    color: "#237448",
                   },
                   {
-                    value: percent(failedClusters.data, workflowTotal),
-                    color: "#c84835",
+                    label: "Failed",
+                    value: failedClusters.data ?? 0,
+                    color: "#C84835",
                   },
-                  {
-                    value: percent(workflowOther, workflowTotal),
-                    color: "#d7a21b",
-                  },
-                ]}
-              />
+                  { label: "Other", value: workflowOther, color: "#94A3B8" },
+                ]
+                  .filter((item) => item.value > 0)
+                  .map((item) => (
+                    <span
+                      key={item.label}
+                      title={`${item.label}: ${item.value}`}
+                      style={{ flex: item.value, background: item.color }}
+                    >
+                      {item.value}
+                    </span>
+                  ))}
+              </div>
               <div className="pd-legend pd-workflow-legend">
                 <div>
                   <span>
@@ -642,7 +691,9 @@ export function PlatformDashboard() {
             </div>
           )}
         </article>
+      </section>
 
+      <section className="pd-governance-summary">
         <article className="pd-card">
           <header className="pd-card-heading">
             <div>
@@ -704,62 +755,6 @@ export function PlatformDashboard() {
       <section className="pd-card">
         <header className="pd-card-heading">
           <div>
-            <span className="pd-card-icon pd-attention-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <div>
-              <h2>
-                Needs your attention{" "}
-                <span className="pd-count">{awaitingAction}</span>
-              </h2>
-              <p>
-                Navigan approvals, provisioning exceptions, and requests
-                requiring action.
-              </p>
-            </div>
-          </div>
-          {canReview && (
-            <Link className="pd-card-link" href="/clusters/reviews">
-              Review queue <ChevronRight size={15} />
-            </Link>
-          )}
-        </header>
-        <div className="pd-attention-list">
-          {pendingCustomers.isPending ||
-          pendingEnvironments.isPending ||
-          pendingClusters.isPending ? (
-            <Loading label="Loading attention queue…" />
-          ) : attentionItems.length ? (
-            attentionItems.map((item) => (
-              <Link
-                className="pd-attention-row"
-                href={item.href}
-                key={`${item.id}-${item.href}`}
-              >
-                <span
-                  className={`pd-attention-row-icon pd-attention-${item.tone}`}
-                >
-                  <item.icon size={17} />
-                </span>
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.meta}</small>
-                </span>
-                <ArrowRight size={16} />
-              </Link>
-            ))
-          ) : (
-            <div className="pd-empty pd-empty-success">
-              <CheckCircle2 size={20} />
-              No newly submitted requests require attention.
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="pd-card">
-        <header className="pd-card-heading">
-          <div>
             <span className="pd-card-icon">
               <Clock3 size={19} />
             </span>
@@ -784,28 +779,27 @@ export function PlatformDashboard() {
             <table className="pd-activity-table">
               <thead>
                 <tr>
-                  <th>Updated</th>
-                  <th>Customer</th>
                   <th>Cluster</th>
+                  <th>Customer</th>
                   <th>Platform</th>
                   <th>State</th>
+                  <th>Updated</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {(recentClusters.data?.items ?? []).map((cluster) => (
                   <tr key={cluster.clusterId}>
-                    <td>{formatDateTime(cluster.updatedAt)}</td>
-                    <td>
-                      <strong>
-                        {cluster.customerName ?? cluster.customerId}
-                      </strong>
-                    </td>
                     <td>
                       <span className="pd-resource">
                         <Container size={15} />
                         {cluster.clusterName}
                       </span>
+                    </td>
+                    <td>
+                      <strong>
+                        {cluster.customerName ?? cluster.customerId}
+                      </strong>
                     </td>
                     <td>
                       <span className="pd-platform">
@@ -820,12 +814,13 @@ export function PlatformDashboard() {
                         {cluster.status.replaceAll("_", " ")}
                       </span>
                     </td>
+                    <td>{formatDateTime(cluster.updatedAt)}</td>
                     <td>
                       <Link
                         className="pd-row-action"
                         href={`/clusters/${cluster.clusterId}`}
                       >
-                        Open <ArrowUpRight size={14} />
+                        View cluster <ArrowUpRight size={14} />
                       </Link>
                     </td>
                   </tr>
@@ -857,30 +852,23 @@ export function PlatformDashboard() {
           </div>
         </div>
         <div className="pd-tools">
-          <span>
-            <i className="pd-tool-terraform">T</i>Terraform
-          </span>
-          <span>
-            <i className="pd-tool-kubernetes">K8s</i>Kubernetes
-          </span>
-          <span>
-            <i className="pd-tool-docker">
-              <Container size={14} />
-            </i>
-            Containers
-          </span>
-          <span>
-            <i className="pd-tool-prometheus">P</i>Prometheus
-          </span>
-          <span>
-            <i className="pd-tool-grafana">G</i>Grafana
-          </span>
-          <span>
-            <i className="pd-tool-argocd">
-              <Boxes size={14} />
-            </i>
-            Argo CD
-          </span>
+          {[
+            ["terraform", "Terraform"],
+            ["kubernetes", "Kubernetes"],
+            ["docker", "Containers"],
+            ["prometheus", "Prometheus"],
+            ["grafana", "Grafana"],
+            ["argo", "Argo CD"],
+          ].map(([asset, name]) => (
+            <span key={asset}>
+              <img
+                className="pd-brand-logo"
+                src={`/logos/${asset}.svg`}
+                alt=""
+              />
+              {name}
+            </span>
+          ))}
         </div>
         <Link href="/clusters" aria-label="Open cluster operations">
           <ArrowUpRight size={18} />

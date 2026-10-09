@@ -246,6 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const activeNavigationGroups = isCloudEngineerOnly(identity)
     ? cloudEngineerNavigationGroups
     : navigationGroups;
@@ -258,9 +259,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         pathname === item.href ||
         (item.href !== "/" && pathname.startsWith(item.href + "/")),
     );
+  const [isLocalDev, setIsLocalDev] = useState(false);
+  useEffect(() => {
+    setIsLocalDev(
+      ["localhost", "127.0.0.1"].includes(window.location.hostname),
+    );
+  }, []);
   const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""}`}
+    >
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -286,6 +295,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="topbar-account">
           <ShieldCheck size={18} aria-hidden="true" />
           <span>{identity ? "Enterprise workspace" : "Secure access"}</span>
+          {isLocalDev && <span className="workspace-environment">DEV</span>}
           <AccountMenu />
         </div>
       </header>
@@ -295,6 +305,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           className={`sidebar ${expanded ? "expanded" : ""}`}
         >
           <div>
+            <button
+              type="button"
+              className="sidebar-collapse"
+              aria-label={
+                collapsed ? "Expand navigation" : "Collapse navigation"
+              }
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <Menu size={18} />
+            </button>
             <nav aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
@@ -311,6 +332,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           key={`${group.label}-${item.label}`}
                           href={item.href}
                           className={`nav-item ${selected ? "selected" : ""}`}
+                          title={item.label}
                           aria-current={selected ? "page" : undefined}
                           onClick={() => setExpanded(false)}
                         >
@@ -338,9 +360,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </aside>
         <div className="content-column">
           <div className="breadcrumb">
-            <span>Workspace</span>
+            <Link href="/dashboard">Home</Link>
             <ChevronRight size={14} />
-            <span>{current?.label ?? "Access"}</span>
+            <Link
+              aria-label={`Back to ${current?.label ?? "dashboard"}`}
+              href={current?.href ?? "/dashboard"}
+            >
+              {current?.label ?? "Access"}
+            </Link>
             {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
               <>
                 <ChevronRight size={14} />
