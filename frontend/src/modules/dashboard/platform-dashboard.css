@@ -1407,59 +1407,87 @@
   scroll-margin-top: 90px;
 }
 
-/* Quiet, consistent typography for the compact KPI and attention areas. */
+/* Shared metric positions keep counts aligned across chart and icon cards. */
 .dashboard-shell .pd-kpi {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   align-items: start;
-  padding: 14px 12px;
+  min-height: 0;
+  padding: 12px 14px;
+  gap: 8px;
 }
 .dashboard-shell .pd-kpi-copy {
+  display: grid;
+  grid-template-rows: 40px 32px auto;
+  gap: 2px;
   align-content: start;
 }
 .dashboard-shell .pd-kpi-copy > span {
-  min-height: 36px;
+  padding-right: 48px;
+  min-height: 0;
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #334155;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: normal;
+}
+.dashboard-shell .pd-kpi-copy > strong {
+  display: block;
+  margin: 0;
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #1e293b;
+}
+.dashboard-shell .pd-kpi-copy small,
+.dashboard-shell .pd-kpi-note {
+  min-height: 0;
   font-family: "Open Sans", Arial, sans-serif;
   font-size: 13px;
   font-weight: 400;
-  line-height: 18px;
+  line-height: 19px;
   color: #475569;
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
-  overflow-wrap: anywhere;
-}
-.dashboard-shell .pd-kpi-copy > strong,
-.dashboard-shell .pd-kpi-ring .pd-donut-center strong {
-  font-family: "Open Sans", Arial, sans-serif;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: #263447;
-}
-.dashboard-shell .pd-kpi-copy small,
-.dashboard-shell .pd-kpi-note {
-  font-family: "Open Sans", Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-  color: #64748b;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .dashboard-shell .pd-kpi-copy small {
-  min-height: 36px;
+  min-height: 0;
 }
 .dashboard-shell .pd-kpi-note {
-  min-height: 36px;
-  align-self: end;
+  grid-column: 1;
+  align-self: start;
   margin: 0;
+  padding-top: 7px;
+  border-top: 1px solid #e2e8f0;
 }
 .dashboard-shell .pd-kpi-ring,
 .dashboard-shell .pd-kpi-icon {
-  align-self: start;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  grid-row: auto;
+}
+.dashboard-shell .pd-kpi-ring .pd-donut {
+  width: 42px;
+  height: 42px;
+}
+.dashboard-shell .pd-kpi-ring .pd-donut-center strong {
+  display: none;
+}
+.dashboard-shell .pd-kpi-ring .pd-donut-center span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
 }
 .dashboard-shell .pd-card-heading h2 {
   font-family: "Open Sans", Arial, sans-serif;
@@ -1487,4 +1515,36 @@
   margin: 0;
   padding-top: 6px;
   padding-bottom: 8px;
+}
+
+/* Approval summaries use distinct groups instead of one dense sentence. */
+.dashboard-shell .pd-governance-inline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 16px 6px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.dashboard-shell .pd-governance-inline > span {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.dashboard-shell .pd-governance-inline strong {
+  display: block;
+  font-size: 13px;
+  color: #334155;
+}
+.dashboard-shell .pd-governance-inline a,
+.dashboard-shell .pd-preview-count {
+  font-size: 13px;
+  line-height: 20px;
+  color: #475569;
+}
+@media (max-width: 767px) {
+  .dashboard-shell .pd-governance-inline {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
