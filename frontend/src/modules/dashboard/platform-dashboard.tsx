@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -141,6 +142,22 @@ function DonutChart({
 
 export function PlatformDashboard() {
   const { identity } = useAuth();
+  const [currentDate, setCurrentDate] = useState("");
+
+  useEffect(() => {
+    const updateDate = () =>
+      setCurrentDate(
+        new Intl.DateTimeFormat("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(new Date()),
+      );
+    updateDate();
+    const interval = window.setInterval(updateDate, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
   const totalCustomers = useCustomerCount();
   const activeCustomers = useCustomerCount("ACTIVE");
   const submittedCustomers = useCustomerCount("SUBMITTED");
@@ -362,10 +379,10 @@ export function PlatformDashboard() {
     <div className="platform-dashboard command-dashboard">
       <section className="pd-heading">
         <div>
-          <p className="pd-date">Thursday, 8 October 2026</p>
+          <p className="pd-date">{currentDate}</p>
           <h1>Platform command center</h1>
           <p className="muted">
-            Live governance, provisioning, and operational health across the
+            Live governance, provisioning, and lifecycle status across the
             Navigan-managed Kubernetes estate.
           </p>
         </div>
@@ -416,8 +433,11 @@ export function PlatformDashboard() {
                 <Gauge size={19} />
               </span>
               <div>
-                <h2>Operational posture</h2>
-                <p>Active estate coverage across Navigan-managed resources.</p>
+                <h2>Active record coverage</h2>
+                <p>
+                  Average active-record percentage across customers,
+                  environments, and clusters. This is not runtime health.
+                </p>
               </div>
             </div>
             <span className="pd-live">
@@ -430,7 +450,7 @@ export function PlatformDashboard() {
               <svg
                 viewBox="0 0 180 180"
                 role="img"
-                aria-label={`Overall operational posture ${overallPosture}%`}
+                aria-label={`Average active record coverage ${overallPosture}%`}
               >
                 <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
                 <circle
@@ -470,7 +490,7 @@ export function PlatformDashboard() {
                   Clusters
                 </span>
                 <strong>{clusterHealth}%</strong>
-                <small>Active Kubernetes estate</small>
+                <small>Active cluster records</small>
               </div>
             </div>
           </div>
