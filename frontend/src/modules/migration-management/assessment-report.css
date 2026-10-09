@@ -191,4 +191,334 @@
   font-weight: 600;
 }
 
-.migration-report-reading-guide > summary, .migration-report-reading-guide > summary svg {color: #334155;}
+.migration-report-reading-guide > summary,
+.migration-report-reading-guide > summary svg {
+  color: #334155;
+}
+
+/* Advanced readiness uses the same compact slate report language. */
+.migration-report-workspace .migration-advanced-readiness {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.migration-report-workspace
+  .migration-advanced-readiness
+  > .migration-section-heading {
+  padding: 0;
+}
+.migration-report-workspace .migration-advanced-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: white;
+}
+.migration-report-workspace .migration-advanced-summary > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #475569;
+  font-size: 12px;
+}
+.migration-report-workspace .migration-advanced-summary strong {
+  font-size: 22px;
+  color: #1e293b;
+  font-weight: 600;
+}
+.migration-report-workspace .migration-advanced-summary > div:first-child svg {
+  color: #55833d;
+}
+.migration-report-workspace .migration-advanced-summary > div:nth-child(2) svg {
+  color: #a87915;
+}
+.migration-report-workspace .migration-advanced-summary > p {
+  grid-column: 1/-1;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+}
+.migration-report-workspace .migration-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.migration-report-workspace .migration-advanced-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: white;
+}
+.migration-report-workspace .migration-advanced-card > header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.migration-report-workspace .migration-advanced-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  height: 34px;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #475569;
+}
+.migration-report-workspace .migration-advanced-card h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #1e293b;
+  font-weight: 600;
+}
+.migration-report-workspace .migration-advanced-status {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.migration-report-workspace .migration-advanced-status-complete {
+  background: #e9f2e5;
+  color: #3d652c;
+}
+.migration-report-workspace .migration-advanced-status-review {
+  background: #fff3db;
+  color: #805b10;
+}
+.migration-report-workspace .migration-advanced-status-not-detected {
+  background: #eef2f7;
+  color: #475569;
+}
+.migration-report-workspace .migration-advanced-card > p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+}
+.migration-report-workspace .migration-advanced-card > ul {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 4px;
+  padding-left: 18px;
+  color: #64748b;
+  font-size: 12px;
+}
+.migration-report-workspace .migration-advanced-action {
+  margin-top: auto;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.migration-report-workspace .migration-advanced-action strong {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+}
+.migration-report-workspace .migration-advanced-action p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #475569;
+}
+.migration-report-workspace .migration-advanced-boundary {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+}
+.migration-report-workspace .migration-advanced-boundary > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.migration-report-workspace .migration-advanced-boundary h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+.migration-report-workspace .migration-advanced-boundary p {
+  margin: 0;
+  font-size: 12px;
+}
+.migration-report-workspace .migration-report-sidebar .migration-next-action {
+  border-color: #dce3ec !important;
+  background: #f1f5f9 !important;
+  box-shadow: inset 3px 0 #64748b;
+}
+.migration-report-workspace .migration-next-action h3 {
+  color: #334155;
+}
+.migration-report-workspace .migration-next-action p {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.65;
+}
+@media (max-width: 1100px) {
+  .migration-report-workspace .migration-advanced-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 550px) {
+  .migration-report-workspace .migration-advanced-summary {
+    grid-template-columns: 1fr;
+  }
+  .migration-report-workspace .migration-advanced-summary > p {
+    grid-column: auto;
+  }
+}
+
+/* Coverage and findings share the advanced report spacing and typography. */
+.migration-report-workspace .migration-inventory-panel,
+.migration-report-workspace .migration-findings-section {
+  min-width: 0;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: white;
+  color: #334155;
+}
+.migration-report-workspace .migration-section-heading {
+  gap: 12px;
+  padding: 16px;
+}
+.migration-report-workspace .migration-section-heading h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #1e293b;
+}
+.migration-report-workspace .migration-section-heading p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #64748b;
+}
+.migration-report-workspace .migration-section-heading > span {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #475569;
+}
+.migration-report-workspace .migration-resource-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+.migration-report-workspace .migration-resource-list > div {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+.migration-report-workspace .migration-resource-list strong {
+  flex-shrink: 0;
+  color: #1e293b;
+  font-weight: 600;
+}
+.migration-report-workspace .migration-finding-groups {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+.migration-report-workspace .migration-finding-group {
+  margin: 0;
+  border: 1px solid #dce3ec;
+  border-radius: 7px;
+  overflow: hidden;
+  background: white;
+}
+.migration-report-workspace .migration-finding-group > summary {
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  color: #334155;
+  border-bottom: 1px solid #e2e8f0;
+  cursor: pointer;
+}
+.migration-report-workspace .migration-finding-group > summary:hover {
+  background: #eef2f7;
+}
+.migration-report-workspace .migration-finding-group > summary h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.migration-report-workspace .migration-finding-group > summary p {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.6;
+}
+.migration-report-workspace .migration-finding {
+  gap: 16px;
+  padding: 16px;
+  border-color: #e2e8f0;
+}
+.migration-report-workspace .migration-finding h5 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #1e293b;
+}
+.migration-report-workspace .migration-finding-description > div,
+.migration-report-workspace .migration-finding-description > p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
+}
+.migration-report-workspace .migration-finding-action {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.migration-report-workspace .migration-finding-action > span {
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+.migration-report-workspace .migration-finding-action p,
+.migration-report-workspace .migration-resolution-guide li {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #475569;
+}
+@media (max-width: 700px) {
+  .migration-report-workspace .migration-resource-list {
+    grid-template-columns: 1fr;
+  }
+  .migration-report-workspace .migration-finding {
+    grid-template-columns: 1fr;
+  }
+}
+.migration-report-workspace .migration-finding-group > summary::after {
+  content: "+";
+  color: #64748b;
+}
+.migration-report-workspace .migration-finding-group[open] > summary::after {
+  content: "-";
+}
