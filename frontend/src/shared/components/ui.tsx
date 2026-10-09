@@ -12,6 +12,11 @@ import {
   ArrowRight,
   LoaderCircle,
   X,
+  Users,
+  Layers3,
+  Boxes,
+  Workflow,
+  PanelTop,
 } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 export function Button({
@@ -109,9 +114,19 @@ export function PageHeading({
   action?: ReactNode;
   className?: string;
 }) {
+  const HeadingIcon = /customer/i.test(title)
+    ? Users
+    : /environment/i.test(title)
+      ? Layers3
+      : /cluster/i.test(title)
+        ? Boxes
+        : /migration/i.test(title)
+          ? Workflow
+          : PanelTop;
   return (
     <div className={["page-heading", className].filter(Boolean).join(" ")}>
-      <div>
+      <div className="page-heading-copy">
+        <span className="page-heading-symbol" aria-hidden="true"><HeadingIcon /></span>
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         {description && <p className="muted">{description}</p>}

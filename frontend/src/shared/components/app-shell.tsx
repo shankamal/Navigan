@@ -1,4 +1,6 @@
 "use client";
+import "./workspace-navigation.css";
+import "./workspace-backdrop.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -246,6 +248,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const activeNavigationGroups = isCloudEngineerOnly(identity)
     ? cloudEngineerNavigationGroups
     : navigationGroups;
@@ -258,9 +261,36 @@ export function AppShell({ children }: { children: ReactNode }) {
         pathname === item.href ||
         (item.href !== "/" && pathname.startsWith(item.href + "/")),
     );
+  const [isLocalDev, setIsLocalDev] = useState(false);
+  useEffect(() => {
+    setIsLocalDev(
+      ["localhost", "127.0.0.1"].includes(window.location.hostname),
+    );
+  }, []);
   const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
+  useEffect(() => {
+    const header = document.querySelector<HTMLElement>(".app-shell > header.topbar");
+    const shell = header?.parentElement;
+    if (!header || !shell) return;
+    const updateHeight = () => {
+      shell.style.setProperty("--workspace-topbar-height", `${header.getBoundingClientRect().height}px`);
+    };
+    updateHeight();
+    const observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(updateHeight)
+      : undefined;
+    observer?.observe(header);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      shell.style.removeProperty("--workspace-topbar-height");
+    };
+  }, []);
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""}`}
+    >
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -276,16 +306,35 @@ export function AppShell({ children }: { children: ReactNode }) {
           {expanded ? <X /> : <Menu />}
         </Button>
         <Link href="/dashboard" className="brand" aria-label="Navigan home">
-          {logo && (
+          {logo ? (
             <img src={logo} alt="Corporate logo" className="corporate-logo" />
+          ) : (
+            <span className="corporate-wordmark" aria-label="Deloitte">
+              Deloitte<span aria-hidden="true">.</span>
+            </span>
           )}
           <span>Navigan</span>
         </Link>
         <span className="brand-divider" />
         <span className="platform-title">Container Management Platform</span>
         <div className="topbar-account">
-          <ShieldCheck size={18} aria-hidden="true" />
-          <span>{identity ? "Enterprise workspace" : "Secure access"}</span>
+          <div className="signed-in-user">
+            <strong>{identity?.displayName ?? "Secure access"}</strong>
+            {identity && (
+              <span>
+                {identity.roles
+                  .filter((role) => role !== "SERVICE")
+                  .map((role) =>
+                    role
+                      .replaceAll("_", " ")
+                      .toLowerCase()
+                      .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+                  )
+                  .join(" · ") || "No platform role"}
+              </span>
+            )}
+          </div>
+          {isLocalDev && <span className="workspace-environment">DEV</span>}
           <AccountMenu />
         </div>
       </header>
@@ -295,6 +344,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           className={`sidebar ${expanded ? "expanded" : ""}`}
         >
           <div>
+            <button
+              type="button"
+              className="sidebar-collapse"
+              aria-label={
+                collapsed ? "Expand navigation" : "Collapse navigation"
+              }
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <Menu size={18} />
+            </button>
             <nav aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
@@ -311,6 +371,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           key={`${group.label}-${item.label}`}
                           href={item.href}
                           className={`nav-item ${selected ? "selected" : ""}`}
+                          title={item.label}
                           aria-current={selected ? "page" : undefined}
                           onClick={() => setExpanded(false)}
                         >
@@ -337,10 +398,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
         <div className="content-column">
-          <div className="breadcrumb">
-            <span>Workspace</span>
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            <Link href="/dashboard">Home</Link>
             <ChevronRight size={14} />
-            <span>{current?.label ?? "Access"}</span>
+            <Link
+              aria-label={`Back to ${current?.label ?? "dashboard"}`}
+              href={current?.href ?? "/dashboard"}
+            >
+              {current?.label ?? "Access"}
+            </Link>
             {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
               <>
                 <ChevronRight size={14} />
@@ -359,7 +425,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </span>
               </>
             )}
-          </div>
+          </nav>
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>

@@ -1,5 +1,6 @@
 "use client";
 
+import { EnvironmentRing } from "./environment-metrics";
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -1690,7 +1691,21 @@ export function AwsDiscoveryPanel({
                 )}
               </div>
             )}
-            <div className="baseline-review">
+            <aside
+              className="baseline-review"
+              aria-label="Infrastructure validation"
+            >
+              <div className="environment-validation-score">
+                <EnvironmentRing
+                  values={[
+                    readiness.checks.filter((item) => item.passed).length,
+                  ]}
+                  total={readiness.checks.length}
+                  center={`${readiness.checks.filter((item) => item.passed).length} / ${readiness.checks.length}`}
+                  caption="Checks passed"
+                  label="Infrastructure validation checks"
+                />
+              </div>
               <div>
                 <h4>Provisioning readiness</h4>
                 <p className="muted">
@@ -1750,7 +1765,7 @@ export function AwsDiscoveryPanel({
                   <strong>Review and Submit</strong>.
                 </p>
               )}
-            </div>
+            </aside>
           </section>
           <details className="discovery-inventory-details">
             <summary>
