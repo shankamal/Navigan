@@ -429,8 +429,8 @@ export function ClusterAdminPage({
   const draft = useClusterCount("DRAFT", mode === "directory");
   const submitted = useClusterCount("SUBMITTED", mode !== "operations");
   const underReview = useClusterCount("UNDER_REVIEW", mode !== "operations");
-  const planReady = useClusterCount("PLAN_READY", mode === "operations");
-  const applying = useClusterCount("APPLYING", mode === "operations");
+  const planReady = useClusterCount("PLAN_READY", mode !== "reviews");
+  const applying = useClusterCount("APPLYING", mode !== "reviews");
   const failed = useClusterCount("FAILED", mode !== "reviews");
   const activeRate =
     mode === "directory" && total.data
@@ -602,6 +602,9 @@ export function ClusterAdminPage({
           submitted={submitted.data}
           review={underReview.data}
           failed={failed.data}
+          planReady={planReady.data}
+          applying={applying.data}
+          provisioningError={[planReady, applying, failed].some((q) => q.isError)}
           error={[total, active, draft, submitted, underReview, failed].some(
             (q) => q.isError,
           )}

@@ -9,6 +9,9 @@ export function ClusterMetrics({
   review,
   failed,
   error,
+  planReady,
+  applying,
+  provisioningError = false,
   onFilter,
 }: {
   total?: number;
@@ -18,6 +21,9 @@ export function ClusterMetrics({
   review?: number;
   failed?: number;
   error: boolean;
+  planReady?: number;
+  applying?: number;
+  provisioningError?: boolean;
   onFilter: (status: string) => void;
 }) {
   const values = [active, draft, submitted, review];
@@ -64,14 +70,90 @@ export function ClusterMetrics({
                   </li>
                 ))}
             </ul>
-            <div className="cluster-active-summary">
-              <strong>
-                {total ? Math.round((active! / total) * 100) : 0}%
-              </strong>
-              <span>Active clusters</span>
-              <small>Within your access scope</small>
-            </div>
           </div>
+        )}
+      </section>
+      <section className="panel cluster-active-chart">
+        <h2>Active clusters</h2>
+        {error ? (
+          <p role="status">Active metrics unavailable. Refresh to retry.</p>
+        ) : total === undefined || active === undefined ? (
+          <p role="status">Loading active metrics…</p>
+        ) : (
+          <>
+            <div className="cluster-coverage-value">
+              <strong>
+                {active} of {total}
+              </strong>
+              <strong>{total ? Math.round((active / total) * 100) : 0}%</strong>
+            </div>
+            <progress
+              max={100}
+              value={total ? Math.min(100, (active / total) * 100) : 0}
+              aria-label="Active cluster lifecycle coverage"
+            />
+            <div className="cluster-coverage-scale">
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
+            </div>
+            <p>Active lifecycle status</p>
+          </>
+        )}
+      </section>
+      <section className="panel cluster-provisioning-chart">
+        <h2>Provisioning status</h2>
+        {provisioningError ? (
+          <p role="status">
+            Provisioning metrics unavailable. Refresh to retry.
+          </p>
+        ) : [planReady, applying, failed].some((v) => v === undefined) ? (
+          <p role="status">Loading provisioning metrics…</p>
+        ) : (
+          <>
+            {[
+              {
+                label: "Plan ready",
+                status: "PLAN_READY",
+                value: planReady!,
+                color: "#8298ae",
+              },
+              {
+                label: "Applying",
+                status: "APPLYING",
+                value: applying!,
+                color: "#65a449",
+              },
+              {
+                label: "Failed",
+                status: "FAILED",
+                value: failed!,
+                color: "#bf6666",
+              },
+            ].map((item) => (
+              <button
+                type="button"
+                className="cluster-provisioning-row"
+                key={item.status}
+                onClick={() => onFilter(item.status)}
+              >
+                <span>{item.label}</span>
+                <meter
+                  min={0}
+                  max={Math.max(1, planReady!, applying!, failed!)}
+                  value={item.value}
+                  aria-label={`${item.label} requests`}
+                  style={
+                    {
+                      "--cluster-bar-color": item.color,
+                    } as import("react").CSSProperties
+                  }
+                />
+                <strong>{item.value}</strong>
+              </button>
+            ))}
+            <p>Current request states</p>
+          </>
         )}
       </section>
       <aside

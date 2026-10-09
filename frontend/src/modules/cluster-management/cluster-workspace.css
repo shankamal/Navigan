@@ -473,3 +473,140 @@
   color: #64748b;
   font-size: 12px;
 }
+
+/* Cluster overview: approved lifecycle, coverage and provisioning cards. */
+.cluster-ui .cluster-portfolio {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 16px;
+}
+.cluster-ui .cluster-portfolio > .panel {
+  padding: 20px;
+  border: 1px solid #dce3ec;
+  border-radius: 9px;
+  background: #fff;
+}
+.cluster-ui .cluster-portfolio h2 {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  color: #243247;
+}
+.cluster-ui .cluster-chart-content {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.cluster-ui .cluster-chart-content ul {
+  min-width: 0;
+  flex: 1;
+}
+.cluster-ui .cluster-chart-content li {
+  font-size: 14px;
+}
+.cluster-coverage-value {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 30px 0 18px;
+  font-size: 24px;
+  color: #243247;
+}
+.cluster-active-chart progress {
+  width: 100%;
+  height: 16px;
+  appearance: none;
+  border: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+.cluster-active-chart progress::-webkit-progress-bar {
+  background: #e2e8f0;
+}
+.cluster-active-chart progress::-webkit-progress-value {
+  background: #65a449;
+}
+.cluster-active-chart progress::-moz-progress-bar {
+  background: #65a449;
+}
+.cluster-coverage-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 8px;
+}
+.cluster-active-chart p,
+.cluster-provisioning-chart p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 20px 0 0;
+}
+.cluster-provisioning-row {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 24px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 12px 0;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  color: #334155;
+}
+.cluster-provisioning-row meter {
+  width: 100%;
+  height: 16px;
+}
+.cluster-provisioning-row meter::-webkit-meter-bar {
+  border: 0;
+  background: #e2e8f0;
+}
+.cluster-provisioning-row meter::-webkit-meter-optimum-value {
+  background: var(--cluster-bar-color);
+}
+.cluster-provisioning-row meter::-moz-meter-bar {
+  background: var(--cluster-bar-color);
+}
+.cluster-provisioning-row strong {
+  text-align: right;
+}
+.cluster-ui .cluster-attention {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 20px;
+}
+.cluster-ui .cluster-attention > header {
+  grid-column: 1/-1;
+}
+.cluster-provisioning-row:focus-visible {
+  outline: 2px solid #568c3e;
+  outline-offset: 3px;
+}
+@media (max-width: 1250px) {
+  .cluster-ui .cluster-portfolio {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cluster-ui .cluster-lifecycle-chart {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 900px) {
+  .cluster-ui .cluster-attention {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .cluster-ui .cluster-portfolio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cluster-ui .cluster-attention {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
