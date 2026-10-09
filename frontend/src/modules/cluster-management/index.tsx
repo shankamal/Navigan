@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
+  Github,
   Check,
   ChevronDown,
   Clock3,
@@ -1231,11 +1232,18 @@ export function NewClusterPage() {
       <Link className="back-link" href="/clusters">
         ← Back to clusters
       </Link>
+      <nav className="cluster-setup-section-nav" aria-label="Cluster setup sections">
+        <a href="#cluster-approved-baseline"><span>1</span>Approved baseline</a>
+        <a href="#cluster-configuration"><span>2</span>Cluster configuration</a>
+        <a href="#cluster-system-workers"><span>3</span>System workers</a>
+        <a href="#cluster-repository-access"><span>4</span>Repository &amp; access</a>
+      </nav>
       <div className="cluster-setup-layout">
         <form
-          className="panel panel-padding cluster-setup-form"
+          className="cluster-setup-form"
           onSubmit={submit}
         >
+          <section className="panel panel-padding cluster-creation-section" id="cluster-approved-baseline">
           <div className="cluster-setup-heading">
             <div>
               <span className="eyebrow">APPROVED BASELINE</span>
@@ -1246,9 +1254,7 @@ export function NewClusterPage() {
                 request.
               </p>
             </div>
-            <span className="cluster-setup-heading-icon">
-              <ShieldCheck aria-hidden="true" />
-            </span>
+            <ProviderBadges codes={["AWS"]} compact />
           </div>
           <div className="cluster-setup-grid">
             <label className="field cluster-field-span">
@@ -1397,6 +1403,11 @@ export function NewClusterPage() {
                 )}
               </div>
             )}
+          </div>
+          </section>
+          <section className="panel panel-padding cluster-creation-section" id="cluster-configuration">
+            <div className="cluster-creation-section-heading"><CloudCog size={22} aria-hidden="true" /><div><h2>Cluster configuration</h2><p>Define this cluster using the approved environment policy.</p></div></div>
+            <div className="cluster-setup-grid">
             <div className="cluster-baseline-card cluster-field-span">
               <strong>Approved cluster configuration</strong>
               <p className="metadata">
@@ -1520,48 +1531,10 @@ export function NewClusterPage() {
                 }
               />
             </label>
-            <fieldset className="cluster-field-span blueprint-section">
-              <legend>System repository</legend>
-              <p className="muted">
-                Navigan creates one private GitOps repository for this cluster’s
-                approved platform services. Organization authorization is
-                completed through the Navigan GitHub App after the request is
-                approved.
-              </p>
-              <div className="cluster-setup-grid">
-                <label className="field">
-                  GitHub organization *
-                  <input
-                    required
-                    maxLength={39}
-                    pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
-                    value={value.githubOrganization}
-                    placeholder="customer-github-org"
-                    onChange={(event) =>
-                      setValue({
-                        ...value,
-                        githubOrganization: event.target.value,
-                      })
-                    }
-                  />
-                  <small>
-                    Do not enter a token. An organization owner installs the
-                    GitHub App using GitHub’s authorization screen.
-                  </small>
-                </label>
-                <div className="cluster-baseline-card">
-                  <strong>Private repository</strong>
-                  <p className="metadata">
-                    The repository name is derived from the customer and
-                    cluster, ending in <code>-system</code>.
-                  </p>
-                  <span className="security-chip">
-                    Short-lived GitHub App credentials
-                  </span>
-                </div>
-              </div>
-            </fieldset>
-            <fieldset className="cluster-field-span blueprint-section">
+          </div>
+          </section>
+
+            <fieldset className="panel panel-padding cluster-creation-section blueprint-section" id="cluster-system-workers">
               <legend>System node group</legend>
               <p className="muted">
                 Every cluster starts with one protected, on-demand worker pool
@@ -1697,10 +1670,56 @@ export function NewClusterPage() {
                       </label>
                     ))}
                   </div>
+                  <div className="cluster-worker-capacity-view" aria-label={`Configured capacity for ${group.name || "system workers"}`}>
+                    <span>Configured scaling range</span>
+                    <progress max={Math.max(1, group.maxSize)} value={Math.max(0, Math.min(group.desiredSize, group.maxSize))} aria-label="Desired nodes within configured maximum" />
+                    <dl><div><dt>Minimum</dt><dd>{group.minSize}</dd></div><div><dt>Desired</dt><dd>{group.desiredSize}</dd></div><div><dt>Maximum</dt><dd>{group.maxSize}</dd></div></dl>
+                  </div>
                 </div>
               ))}
             </fieldset>
-            <fieldset className="cluster-field-span blueprint-section">
+            <fieldset className="panel panel-padding cluster-creation-section blueprint-section" id="cluster-repository-access">
+              <legend><Github size={20} aria-hidden="true" />System repository</legend>
+              <p className="muted">
+                Navigan creates one private GitOps repository for this cluster’s
+                approved platform services. Organization authorization is
+                completed through the Navigan GitHub App after the request is
+                approved.
+              </p>
+              <div className="cluster-setup-grid">
+                <label className="field">
+                  GitHub organization *
+                  <input
+                    required
+                    maxLength={39}
+                    pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
+                    value={value.githubOrganization}
+                    placeholder="customer-github-org"
+                    onChange={(event) =>
+                      setValue({
+                        ...value,
+                        githubOrganization: event.target.value,
+                      })
+                    }
+                  />
+                  <small>
+                    Do not enter a token. An organization owner installs the
+                    GitHub App using GitHub’s authorization screen.
+                  </small>
+                </label>
+                <div className="cluster-baseline-card">
+                  <strong>Private repository</strong>
+                  <p className="metadata">
+                    The repository name is derived from the customer and
+                    cluster, ending in <code>-system</code>.
+                  </p>
+                  <span className="security-chip">
+                    Short-lived GitHub App credentials
+                  </span>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset className="panel panel-padding cluster-creation-section blueprint-section">
               <legend>Provisioning access</legend>
               <div className="cluster-setup-grid">
                 <label className="field">
@@ -1764,8 +1783,9 @@ export function NewClusterPage() {
                 </label>
               </div>
             </fieldset>
-          </div>
           <div className="form-actions cluster-setup-actions">
+            <div className="cluster-setup-save-copy"><strong>Draft setup request</strong><small>Save your configuration for the existing review and approval workflow.</small></div>
+            <div className="cluster-setup-save-buttons">
             <Link className="button button-secondary" href="/clusters">
               Cancel
             </Link>
@@ -1790,14 +1810,15 @@ export function NewClusterPage() {
             >
               {saving ? "Saving…" : "Save setup request draft"}
             </button>
+            </div>
           </div>
         </form>
         <aside className="cluster-setup-sidebar">
           <section className="panel panel-padding">
-            <h2>Request context</h2>
+            <h2>Request summary</h2>
             <div className="cluster-cloud">
               <ProviderBadges codes={["AWS"]} compact />
-              <strong>Amazon EKS</strong>
+              <img src="/logos/kubernetes.svg" width="28" height="28" alt="Kubernetes" /><strong>Amazon EKS</strong>
             </div>
             <dl>
               {[
@@ -1823,6 +1844,8 @@ export function NewClusterPage() {
                 { label: "AWS account", value: textValue(account.accountId) },
                 { label: "Region", value: textValue(location.region) },
                 { label: "VPC", value: textValue(vpc.vpcId) },
+                { label: "Cluster name", value: value.clusterName || "Not named" },
+                { label: "Kubernetes", value: value.kubernetesVersion || "Not selected" },
               ].map((item) => (
                 <div key={item.label}>
                   <dt>{item.label}</dt>
