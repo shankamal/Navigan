@@ -1,6 +1,6 @@
 apiVersion: v2
 name: navigan-migration-connector
-description: One-shot read-only Navigan migration assessment connector
+description: Persistent read-only Navigan source assessment connector
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"

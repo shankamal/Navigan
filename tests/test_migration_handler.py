@@ -4,6 +4,7 @@ import pytest
 
 from navigan.modules.migration_management.handler import (
     BASE,
+    SOURCE_CLUSTERS_BASE,
     body_of,
     query_of,
     response,
@@ -81,6 +82,18 @@ def test_routes_authenticated_source_catalogue_read():
         None,
     )
 
+def test_routes_authenticated_source_inventory_read():
+    identifier = "MIG-" + "c" * 32
+
+    assert route_of(
+        "GET",
+        f"{BASE}/{identifier}/source-inventory",
+    ) == (
+        "source_inventory",
+        identifier,
+        None,
+    )
+
 
 def test_routes_to_latest_trusted_assessment():
     identifier = "MIG-" + "c" * 32
@@ -89,3 +102,36 @@ def test_routes_to_latest_trusted_assessment():
         "GET",
         f"{BASE}/{identifier}/assessment",
     ) == ("assessment", identifier, None)
+
+
+def test_routes_authenticated_source_cluster_registration():
+    identifier = "SRC-" + "d" * 32
+
+    assert route_of("GET", SOURCE_CLUSTERS_BASE) == (
+        "source_cluster_list",
+        None,
+        None,
+    )
+    assert route_of("POST", SOURCE_CLUSTERS_BASE) == (
+        "source_cluster_create",
+        None,
+        None,
+    )
+    assert route_of("GET", f"{SOURCE_CLUSTERS_BASE}/{identifier}") == (
+        "source_cluster_get",
+        identifier,
+        None,
+    )
+    assert route_of("PUT", f"{SOURCE_CLUSTERS_BASE}/{identifier}") == (
+        "source_cluster_update",
+        identifier,
+        None,
+    )
+    assert route_of(
+        "POST",
+        f"{SOURCE_CLUSTERS_BASE}/{identifier}/enrollments",
+    ) == ("source_cluster_enrollment", identifier, None)
+    assert route_of(
+        "POST",
+        f"{SOURCE_CLUSTERS_BASE}/{identifier}/install",
+    ) == ("source_cluster_install", identifier, None)

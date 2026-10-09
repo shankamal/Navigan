@@ -78,8 +78,40 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 }));
 
 vi.mock("@/modules/migration-management/hooks", () => ({
+  useCancelMigration: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useMigrations: () => ({
+    data: {
+      items: [],
+      pagination: {
+        page: 0,
+        pageSize: 100,
+        totalElements: 0,
+        totalPages: 0,
+      },
+    },
+    isPending: false,
+    isError: false,
+  }),
+  useMigration: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+  }),
+  useSourceClusters: () => ({
+    data: { items: [] },
+    isPending: false,
+    isError: false,
+  }),
   useMigrationAssessment: () => ({
     data: undefined,
+    isError: false,
+    isPending: false,
+  }),
+  useSourceInventory: () => ({
+    data: { inventory: null },
     isError: false,
     isPending: false,
   }),
@@ -116,6 +148,38 @@ vi.mock("@/modules/migration-management/hooks", () => ({
 }));
 
 vi.mock("@/modules/migration-management/service", () => ({
+  sourceClusters: {
+    create: vi.fn(async () => ({
+      sourceClusterId: "SRC-" + "c".repeat(32),
+      customerId: "CUS-active",
+      customerName: "Active customer",
+      name: "retailflow-source",
+      distribution: "kubeadm",
+      locationType: "ON_PREMISES",
+      cloudProvider: null,
+      region: "Chennai DC",
+      registrationMethod: "LOCAL_KUBECONFIG",
+      deliveryMethod: "MANUAL_HELM",
+      deliveryConfiguration: {},
+      status: "PENDING_ENROLLMENT",
+      version: 1,
+    })),
+    enroll: vi.fn(async () => ({
+      enrollmentId: "SCE-" + "d".repeat(32),
+      sourceClusterId: "SRC-" + "c".repeat(32),
+      status: "ISSUED",
+      expiresAt: "2026-10-06T15:15:00Z",
+      enrollmentToken: "e".repeat(43),
+    })),
+    updateDelivery: vi.fn(),
+    install: vi.fn(async () => ({
+      sourceClusterId: "SRC-" + "c".repeat(32),
+      enrollmentId: "SCE-" + "d".repeat(32),
+      commandId: "11111111-2222-3333-4444-555555555555",
+      managedInstanceId: "i-08e28d9b2242cbd53",
+      status: "INSTALLATION_STARTED",
+    })),
+  },
   migrations: {
     create: vi.fn(async () => ({
       migrationId: "MIG-" + "a".repeat(32),
@@ -161,7 +225,7 @@ describe("Migration UI", () => {
     render(<MigrationManagementPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Migrations" }),
+      screen.getByRole("heading", { name: "Migration portfolio" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Assessment only")).toBeInTheDocument();
     expect(
@@ -240,15 +304,51 @@ describe("Migration UI", () => {
       }),
     ).toBeInTheDocument();
 
+    expect(
+      screen.getByRole("radio", {
+        name: /Register a new source cluster/i,
+      }),
+    ).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Source cluster name"), {
+      target: { value: "retailflow-source" },
+    });
+    fireEvent.change(screen.getByLabelText("Kubernetes distribution"), {
+      target: { value: "kubeadm" },
+    });
+    fireEvent.change(screen.getByLabelText("Cluster location"), {
+      target: { value: "CLOUD" },
+    });
+    fireEvent.change(screen.getByLabelText("Region or location (optional)"), {
+      target: { value: "ap-south-1" },
+    });
+    fireEvent.change(screen.getByLabelText("AWS account ID"), {
+      target: { value: "905418045935" },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Control-plane managed instance ID"),
+      {
+        target: { value: "i-08e28d9b2242cbd53" },
+      },
+    );
+    expect(
+      screen.getByRole("combobox", { name: /Connector delivery/i }),
+    ).toHaveValue("AWS_SSM");
+    expect(
+      screen.getByText(/never uploads or stores your kubeconfig/i),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Kubeconfig path"), {
+      target: { value: "/etc/kubernetes/admin.conf" },
+    });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Prepare secure source connector",
+        name: "Register source cluster",
       }),
     );
 
     expect(
       await screen.findByText("Source catalogue received"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("e".repeat(43))).not.toBeInTheDocument();
     fireEvent.click(continueButton());
 
     expect(
@@ -307,11 +407,17 @@ describe("Migration UI", () => {
         name: "Assessment scope saved",
       }),
     ).toBeDisabled();
-  });
+  }, 15_000);
 
   it("renders the trusted feasibility scorecard", () => {
     render(
       <AssessmentReportCard
+        source={{
+          name: "navigan-migration-lab",
+          nodeCount: 3,
+          namespaceCount: 8,
+          architectures: ["amd64"],
+        }}
         report={{
           assessmentVersion: 1,
           migrationVersion: 6,
@@ -353,6 +459,17 @@ describe("Migration UI", () => {
               message: "Load balancer translation required.",
               remediation: "Generate approved AWS annotations.",
             },
+            {
+              code: "LOAD_BALANCER_TRANSLATION",
+              severity: "WARNING",
+              category: "NETWORK",
+              disposition: "AUTOMATED_CHANGE",
+              namespace: "retailflow",
+              resourceKind: "Service",
+              resourceName: "retailflow",
+              message: "A second load balancer translation is required.",
+              remediation: "Generate the second approved AWS annotation set.",
+            },
           ],
           createdBy: "NAVIGAN_ASSESSMENT_ENGINE",
           createdAt: "2026-10-06T08:00:01Z",
@@ -362,15 +479,27 @@ describe("Migration UI", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Migration feasibility report",
+        name: "Migration feasibility overview",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Compatibility score")).toHaveTextContent(
-      "82/100",
-    );
     expect(
-      screen.getByText("Load balancer translation required."),
+      screen.getByRole("img", {
+        name: "Compatibility score 82 out of 100",
+      }),
+    ).toHaveTextContent("82%");
+    expect(
+      screen.getByText("Migration assessment is ready"),
     ).toBeInTheDocument();
-    expect(screen.getByText("AUTOMATED CHANGE")).toBeInTheDocument();
+    expect(screen.getByLabelText("Assessment summary")).toBeInTheDocument();
+    expect(screen.getByText("Assessed")).toBeInTheDocument();
+    expect(screen.getByText("Critical")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Findings (2)" }));
+    expect(
+      screen.getAllByText("Load balancer translation required."),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByText("A second load balancer translation is required."),
+    ).toHaveLength(1);
+    expect(screen.getByText("Automated changes")).toBeInTheDocument();
   });
 });

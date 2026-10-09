@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from navigan.modules.migration_management.models import (
     AssessmentReport,
     CreateMigration,
+    CreateSourceCluster,
     SourceCatalogueReport,
 )
 
@@ -73,6 +74,119 @@ def test_rejects_embedded_kubeconfig_or_credentials():
 
     with pytest.raises(ValidationError, match="Extra inputs"):
         CreateMigration.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("location", "method"),
+    [
+        (
+            {"type": "CLOUD", "cloudProvider": "AWS", "region": "ap-south-1"},
+            "PROVIDER_AUTOMATION",
+        ),
+        (
+            {"type": "CLOUD", "cloudProvider": "AZURE", "region": "centralindia"},
+            "LOCAL_KUBECONFIG",
+        ),
+        (
+            {"type": "CLOUD", "cloudProvider": "GCP", "region": "asia-south1"},
+            "GITOPS",
+        ),
+        (
+            {"type": "CLOUD", "cloudProvider": "OCI", "region": "ap-hyderabad-1"},
+            "LOCAL_KUBECONFIG",
+        ),
+        ({"type": "ON_PREMISES", "region": "Chennai DC"}, "LOCAL_KUBECONFIG"),
+        ({"type": "OTHER"}, "LOCAL_KUBECONFIG"),
+    ],
+)
+def test_accepts_cloud_neutral_source_cluster_registration(location, method):
+    value = CreateSourceCluster.model_validate(
+        {
+            "customerId": "CUS-demo",
+            "name": "retailflow-source",
+            "distribution": "kubeadm",
+            "registrationMethod": method,
+            "location": location,
+        }
+    )
+
+    assert value.location.type == location["type"]
+    assert value.registrationMethod == method
+
+
+@pytest.mark.parametrize("field", ["kubeconfig", "token", "password", "credentials"])
+def test_source_registration_rejects_credentials(field):
+    payload = {
+        "customerId": "CUS-demo",
+        "name": "retailflow-source",
+        "registrationMethod": "LOCAL_KUBECONFIG",
+        "location": {"type": "ON_PREMISES"},
+        field: "must-not-leave-source-machine",
+    }
+
+    with pytest.raises(ValidationError, match="Extra inputs"):
+        CreateSourceCluster.model_validate(payload)
+
+
+def test_cloud_source_registration_requires_provider():
+    with pytest.raises(ValidationError, match="require a cloud provider"):
+        CreateSourceCluster.model_validate(
+            {
+                "customerId": "CUS-demo",
+                "name": "retailflow-source",
+                "location": {"type": "CLOUD"},
+            }
+        )
+
+
+def test_accepts_aws_systems_manager_connector_delivery():
+    value = CreateSourceCluster.model_validate(
+        {
+            "customerId": "CUS-demo",
+            "name": "navigan-migration-lab",
+            "distribution": "kubeadm",
+            "registrationMethod": "PROVIDER_AUTOMATION",
+            "location": {
+                "type": "CLOUD",
+                "cloudProvider": "AWS",
+                "region": "ap-south-1",
+            },
+            "delivery": {
+                "method": "AWS_SSM",
+                "awsSsm": {
+                    "accountId": "905418045935",
+                    "region": "ap-south-1",
+                    "managedInstanceId": "i-08e28d9b2242cbd53",
+                    "kubeconfigPath": "/etc/kubernetes/admin.conf",
+                },
+            },
+        }
+    )
+
+    assert value.delivery.method == "AWS_SSM"
+    assert value.delivery.awsSsm.managedInstanceId == "i-08e28d9b2242cbd53"
+
+
+def test_rejects_aws_delivery_for_non_aws_source():
+    with pytest.raises(
+        ValidationError,
+        match="requires an AWS cloud location",
+    ):
+        CreateSourceCluster.model_validate(
+            {
+                "customerId": "CUS-demo",
+                "name": "on-prem-source",
+                "location": {"type": "ON_PREMISES"},
+                "delivery": {
+                    "method": "AWS_SSM",
+                    "awsSsm": {
+                        "accountId": "905418045935",
+                        "region": "ap-south-1",
+                        "managedInstanceId": "i-08e28d9b2242cbd53",
+                    },
+                },
+            }
+        )
 
 
 def test_accepts_sanitized_assessment():

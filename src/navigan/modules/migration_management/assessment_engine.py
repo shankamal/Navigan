@@ -23,6 +23,317 @@ DEPRECATED_APIS = {
 
 SUPPORTED_ARCHITECTURES = {"amd64", "arm64"}
 
+RUNBOOKS = {
+    "TARGET_NODES_NOT_READY": {
+        "targetTreatment": "Healthy target node group with every node reporting Ready.",
+        "resolutionSteps": [
+            "Identify the target nodes that are NotReady and review their conditions and events.",
+            "Correct node-group capacity, networking, IAM, bootstrap, disk, or kubelet failures.",
+            "Replace an unrecoverable node through the managed node group.",
+        ],
+        "validationSteps": [
+            "Confirm every target node reports Ready.",
+            "Refresh the target connector inventory and rerun the assessment.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Platform operations",
+    },
+    "HOST_NAMESPACE_USAGE": {
+        "targetTreatment": "Pod isolation compatible with the target security baseline.",
+        "resolutionSteps": [
+            "Determine whether the resource is an application workload or a source platform add-on.",
+            "Exclude source CNI and platform add-ons that have a target-managed replacement.",
+            "For application workloads, remove host namespace use or document an approved exception.",
+        ],
+        "validationSteps": [
+            "Confirm the translated pod specification no longer requests unapproved host namespaces.",
+            "Validate the workload against the target admission and pod-security policies.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Platform security",
+    },
+    "SERVICE_ACCOUNT_MAPPING_REQUIRED": {
+        "targetTreatment": "Kubernetes service account mapped to approved target workload identity.",
+        "resolutionSteps": [
+            "Identify the cloud and Kubernetes permissions used by the service account.",
+            "Create a least-privilege target IAM policy and EKS Pod Identity or IRSA association.",
+            "Update the target service account and workload references.",
+        ],
+        "validationSteps": [
+            "Verify the pod receives only the intended AWS identity.",
+            "Run an application authorization test without static cloud credentials.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Identity and access",
+    },
+    "HOST_PATH_STORAGE_REDESIGN": {
+        "targetTreatment": "EBS, EFS, object storage, or another approved managed storage service.",
+        "resolutionSteps": [
+            "Determine whether the path contains persistent data, cache data, or platform state.",
+            "Select EBS for single-writer block storage or EFS for shared file storage.",
+            "Create the target StorageClass and PersistentVolumeClaim mapping.",
+        ],
+        "validationSteps": [
+            "Verify the target claim binds and mounts successfully.",
+            "Test data integrity, permissions, performance, backup, and restore.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Data platform",
+    },
+    "NFS_TARGET_VALIDATION_REQUIRED": {
+        "targetTreatment": "Reachable and approved EFS or NFS service with equivalent access semantics.",
+        "resolutionSteps": [
+            "Document the source export, access mode, capacity, performance, and network requirements.",
+            "Provision or select the target file service and CSI configuration.",
+            "Plan data replication and update the target PersistentVolume definition.",
+        ],
+        "validationSteps": [
+            "Mount the target volume from representative workloads.",
+            "Validate permissions, throughput, failover, backup, and restore.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Data platform",
+    },
+    "CONFIGURATION_RECREATION_REQUIRED": {
+        "targetTreatment": "Configuration recreated through an approved target configuration and secret-management process.",
+        "resolutionSteps": [
+            "Inventory required Secret and ConfigMap names and consuming workloads without reading values.",
+            "Identify the approved source of truth for each configuration item.",
+            "Create target configuration through GitOps, External Secrets, Secrets Manager, or the approved delivery process.",
+        ],
+        "validationSteps": [
+            "Confirm every referenced key exists in the target.",
+            "Test application startup while ensuring sensitive values remain absent from Navigan evidence.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Application team",
+    },
+    "EXTERNAL_CONFIGURATION_REQUIRED": {
+        "targetTreatment": "Target-side Secret and ConfigMap references available before workload deployment.",
+        "resolutionSteps": [
+            "Map every environment reference to its approved target source.",
+            "Create the target objects or external-secret definitions.",
+            "Sequence configuration delivery before dependent workloads.",
+        ],
+        "validationSteps": [
+            "Verify all references resolve without exposing values.",
+            "Confirm the workload starts successfully with target configuration.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Application team",
+    },
+    "PERSISTENT_STORAGE_MAPPING": {
+        "targetTreatment": "Approved EKS CSI StorageClass and a separately governed data-transfer plan.",
+        "resolutionSteps": [
+            "Classify the volume by access mode, capacity, performance, retention, and recovery requirements.",
+            "Map the claim to an approved EBS or EFS CSI StorageClass.",
+            "Define snapshot, replication, backup/restore, or application-level data transfer.",
+        ],
+        "validationSteps": [
+            "Provision and mount a target test claim.",
+            "Validate data consistency and recovery before cutover.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Data platform",
+    },
+    "LOAD_BALANCER_TRANSLATION": {
+        "targetTreatment": "AWS Load Balancer Controller-compatible Service configuration.",
+        "resolutionSteps": [
+            "Select ALB or NLB based on protocol, traffic, TLS, and source-IP requirements.",
+            "Generate approved controller annotations and security-group settings.",
+            "Map DNS, certificates, health checks, and traffic policies.",
+        ],
+        "validationSteps": [
+            "Confirm the target load balancer is healthy and reachable.",
+            "Validate TLS, DNS, health checks, and client source-IP behavior.",
+        ],
+        "automationLevel": "AUTOMATED",
+        "ownerTeam": "Networking",
+    },
+    "INGRESS_TRANSLATION": {
+        "targetTreatment": "Approved EKS ingress controller, Gateway API, or ALB configuration.",
+        "resolutionSteps": [
+            "Inventory ingress classes, routes, TLS references, rewrites, and controller-specific annotations.",
+            "Translate them to the approved target ingress implementation.",
+            "Map certificates, DNS records, WAF, and external traffic dependencies.",
+        ],
+        "validationSteps": [
+            "Test every hostname and route in a non-production target environment.",
+            "Verify TLS, redirects, timeouts, health checks, and policy enforcement.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Networking",
+    },
+    "UNSUPPORTED_KUBERNETES_API": {
+        "targetTreatment": "Manifest using an API version served by the target Kubernetes version.",
+        "resolutionSteps": [
+            "Identify the replacement API and review schema changes.",
+            "Convert the manifest or Helm template to the supported API.",
+            "Test server-side validation against the target cluster.",
+        ],
+        "validationSteps": [
+            "Run a server-side dry run against the target.",
+            "Confirm the deprecated API is absent from generated manifests.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Application platform",
+    },
+    "UNSUPPORTED_NODE_ARCHITECTURE": {
+        "targetTreatment": "Multi-architecture or target-architecture image running on an approved node group.",
+        "resolutionSteps": [
+            "Identify workloads tied to the unsupported source architecture.",
+            "Build and publish amd64, arm64, or multi-architecture images.",
+            "Select compatible target node groups and scheduling labels.",
+        ],
+        "validationSteps": [
+            "Inspect the image manifest for the required architectures.",
+            "Deploy and execute the workload on each intended target architecture.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Application team",
+    },
+    "PRIVILEGED_WORKLOAD_REVIEW": {
+        "targetTreatment": "Restricted container security context approved by target policy.",
+        "resolutionSteps": [
+            "Remove privileged mode, unnecessary Linux capabilities, and privilege escalation.",
+            "Set a non-root user, read-only root filesystem, and least-privilege seccomp profile.",
+            "Request a documented exception only when the workload cannot be redesigned.",
+        ],
+        "validationSteps": [
+            "Validate the manifest against target pod-security and admission policies.",
+            "Run the workload and confirm required functionality without elevated privileges.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Platform security",
+    },
+    "RESOURCE_REQUIREMENTS_MISSING": {
+        "targetTreatment": "Explicit CPU and memory requests and limits sized for the target.",
+        "resolutionSteps": [
+            "Collect representative CPU and memory utilization and peak demand.",
+            "Set requests for scheduling and limits according to the target reliability policy.",
+            "Review autoscaling thresholds after applying the new resource profile.",
+        ],
+        "validationSteps": [
+            "Confirm pods schedule without excessive throttling or eviction.",
+            "Observe utilization and autoscaling under representative load.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Application team",
+    },
+    "MUTABLE_IMAGE_REFERENCE": {
+        "targetTreatment": "Immutable image digest available from an approved target registry.",
+        "resolutionSteps": [
+            "Resolve the deployed image to its immutable digest.",
+            "Scan the image and copy or replicate it to the approved target registry.",
+            "Update the target manifest to reference the digest.",
+        ],
+        "validationSteps": [
+            "Verify every target node architecture can pull and run the image.",
+            "Confirm vulnerability, signature, provenance, and policy checks pass.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Application security",
+    },
+    "SCHEDULING_CONSTRAINT_REVIEW": {
+        "targetTreatment": "Scheduling rules mapped to target labels, zones, capacity types, and node groups.",
+        "resolutionSteps": [
+            "Review node selectors, affinity, tolerations, topology spread, priority, and runtime class.",
+            "Map source labels and taints to approved target node groups.",
+            "Remove constraints that reference source-only infrastructure.",
+        ],
+        "validationSteps": [
+            "Run a server-side dry run and scheduling test on the target.",
+            "Verify replicas distribute across the required zones and failure domains.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Platform engineering",
+    },
+    "RBAC_TARGET_MAPPING_REQUIRED": {
+        "targetTreatment": "Least-privilege Kubernetes RBAC and target cloud identity mapping.",
+        "resolutionSteps": [
+            "Review roles, bindings, subjects, and service-account usage.",
+            "Remove broad permissions and map cloud access through target workload identity.",
+            "Generate target Roles, ClusterRoles, bindings, and identity associations.",
+        ],
+        "validationSteps": [
+            "Test allowed and denied actions for every migrated identity.",
+            "Confirm no source cloud credentials or obsolete subjects remain.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Identity and access",
+    },
+    "ADMISSION_WEBHOOK_REVIEW_REQUIRED": {
+        "targetTreatment": "Compatible, highly available admission policy or target-native replacement.",
+        "resolutionSteps": [
+            "Identify the owning controller, certificates, failure policy, and intercepted resources.",
+            "Install a compatible target version or map the policy to a target-native control.",
+            "Sequence webhook activation after its controller and certificate dependencies are ready.",
+        ],
+        "validationSteps": [
+            "Verify admission requests succeed during controller availability and failure tests.",
+            "Confirm the webhook does not block target bootstrap or migration workloads.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Platform security",
+    },
+    "STORAGE_CLASS_TRANSLATION": {
+        "targetTreatment": "Approved target CSI provisioner and StorageClass policy.",
+        "resolutionSteps": [
+            "Map source provisioner, binding mode, reclaim policy, encryption, and expansion behavior.",
+            "Select or create the equivalent EBS or EFS CSI StorageClass.",
+            "Associate dependent claims with the target class.",
+        ],
+        "validationSteps": [
+            "Provision, expand, snapshot, restore, and delete a test claim.",
+            "Confirm availability-zone binding and reclaim behavior.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Data platform",
+    },
+    "CUSTOM_RESOURCE_OPERATOR_REQUIRED": {
+        "targetTreatment": "Compatible operator and CRDs installed before custom resources.",
+        "resolutionSteps": [
+            "Identify the CRD owner, operator version, installation method, and dependencies.",
+            "Confirm compatibility with the target Kubernetes version and security baseline.",
+            "Install the operator before restoring its custom resources.",
+        ],
+        "validationSteps": [
+            "Confirm CRDs are Established and the operator is healthy.",
+            "Create or reconcile a representative custom resource.",
+        ],
+        "automationLevel": "MANUAL",
+        "ownerTeam": "Application platform",
+    },
+    "TARGET_RUNTIME_UNAVAILABLE": {
+        "targetTreatment": "Fresh authenticated target runtime inventory.",
+        "resolutionSteps": [
+            "Restore the target connector and verify outbound API connectivity.",
+            "Confirm its credential is active and its Kubernetes RBAC is valid.",
+            "Collect a new target runtime snapshot.",
+        ],
+        "validationSteps": [
+            "Confirm the target inventory timestamp is within the freshness policy.",
+            "Rerun assessment with a READY target runtime.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Platform operations",
+    },
+    "TARGET_RUNTIME_DEGRADED": {
+        "targetTreatment": "Target cluster and required platform services reporting healthy.",
+        "resolutionSteps": [
+            "Review target node, pod, connector, and warning-event health.",
+            "Correct degraded platform services and capacity constraints.",
+            "Refresh the runtime inventory.",
+        ],
+        "validationSteps": [
+            "Confirm the target status reports READY.",
+            "Rerun the assessment and verify the warning is cleared.",
+        ],
+        "automationLevel": "ASSISTED",
+        "ownerTeam": "Platform operations",
+    },
+}
+
 
 def finding(
     code,
@@ -43,6 +354,8 @@ def finding(
 
     if remediation:
         result["remediation"] = remediation
+
+    result.update(RUNBOOKS.get(code, {}))
 
     if resource:
         if resource.get("namespace"):
@@ -247,6 +560,8 @@ def assess_resource(index, resource, findings, dispositions):
 
         privileged = False
         external_configuration = False
+        resource_requirements_missing = False
+        mutable_image_reference = False
 
         for container in pod_containers(pod):
             security = container.get("security") or {}
@@ -262,6 +577,52 @@ def assess_resource(index, resource, findings, dispositions):
                     "configMapKeyRef",
                 }:
                     external_configuration = True
+
+            requirements = container.get("resources") or {}
+            if not requirements.get("requests") or not requirements.get(
+                "limits"
+            ):
+                resource_requirements_missing = True
+
+            image = container.get("image")
+            if isinstance(image, str) and "@sha256:" not in image:
+                mutable_image_reference = True
+
+        if resource_requirements_missing:
+            add_resource_finding(
+                findings,
+                dispositions,
+                index,
+                resource,
+                code="RESOURCE_REQUIREMENTS_MISSING",
+                severity="WARNING",
+                category="WORKLOAD",
+                disposition="MANUAL_CHANGE",
+                message=(
+                    "Container CPU or memory requests and limits are incomplete."
+                ),
+                remediation=(
+                    "Size explicit CPU and memory requests and limits using "
+                    "representative utilization data."
+                ),
+            )
+
+        if mutable_image_reference:
+            add_resource_finding(
+                findings,
+                dispositions,
+                index,
+                resource,
+                code="MUTABLE_IMAGE_REFERENCE",
+                severity="WARNING",
+                category="SECURITY",
+                disposition="MANUAL_CHANGE",
+                message="Container image is not pinned to an immutable digest.",
+                remediation=(
+                    "Resolve, scan, replicate, and deploy the image by digest "
+                    "from an approved target registry."
+                ),
+            )
 
         if privileged:
             add_resource_finding(
@@ -300,6 +661,34 @@ def assess_resource(index, resource, findings, dispositions):
                 remediation=(
                     "Bootstrap the required target configuration "
                     "before workload deployment."
+                ),
+            )
+
+        affinity = pod.get("affinity") or {}
+        if (
+            pod.get("nodeSelectorKeys")
+            or pod.get("tolerations")
+            or pod.get("topologySpreadConstraints")
+            or any(affinity.values())
+            or pod.get("priorityClassName")
+            or pod.get("runtimeClassName")
+        ):
+            add_resource_finding(
+                findings,
+                dispositions,
+                index,
+                resource,
+                code="SCHEDULING_CONSTRAINT_REVIEW",
+                severity="WARNING",
+                category="WORKLOAD",
+                disposition="MANUAL_CHANGE",
+                message=(
+                    "Workload scheduling constraints require target node-group "
+                    "and failure-domain mapping."
+                ),
+                remediation=(
+                    "Map selectors, affinity, tolerations, topology spread, "
+                    "priority, and runtime class to the target."
                 ),
             )
 
@@ -406,6 +795,49 @@ def assess_resource(index, resource, findings, dispositions):
             remediation=(
                 "Install and validate a compatible operator before "
                 "migrating custom resources."
+            ),
+        )
+
+    elif kind in {
+        "ServiceAccount",
+        "Role",
+        "RoleBinding",
+        "ClusterRole",
+        "ClusterRoleBinding",
+    }:
+        add_resource_finding(
+            findings,
+            dispositions,
+            index,
+            resource,
+            code="RBAC_TARGET_MAPPING_REQUIRED",
+            severity="WARNING",
+            category="IDENTITY",
+            disposition="MANUAL_CHANGE",
+            message="Kubernetes access configuration requires target mapping.",
+            remediation=(
+                "Review and recreate least-privilege Kubernetes RBAC and "
+                "target workload identity associations."
+            ),
+        )
+
+    elif kind in {
+        "MutatingWebhookConfiguration",
+        "ValidatingWebhookConfiguration",
+    }:
+        add_resource_finding(
+            findings,
+            dispositions,
+            index,
+            resource,
+            code="ADMISSION_WEBHOOK_REVIEW_REQUIRED",
+            severity="WARNING",
+            category="SECURITY",
+            disposition="MANUAL_CHANGE",
+            message="Admission webhook requires a compatible target deployment.",
+            remediation=(
+                "Install or replace the owning controller and validate its "
+                "certificates, availability, rules, and failure policy."
             ),
         )
 
@@ -548,6 +980,12 @@ def assess(source_inventory, target_runtime, target_configuration):
                 "status": target_status,
                 "nodeCount": node_count,
                 "readyNodeCount": ready_nodes,
+                "podCount": metrics.get("podCount"),
+                "readyPodCount": metrics.get("readyPodCount"),
+                "containerRestartCount": metrics.get(
+                    "containerRestartCount"
+                ),
+                "warningEventCount": metrics.get("warningEventCount"),
             },
         },
         "findings": findings,

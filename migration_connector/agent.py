@@ -6,6 +6,7 @@ import json
 import os
 import re
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -45,11 +46,20 @@ NAMESPACED_RESOURCE_PATHS = (
     "/apis/networking.k8s.io/v1/namespaces/{namespace}/networkpolicies",
     "/apis/autoscaling/v2/namespaces/{namespace}/horizontalpodautoscalers",
     "/apis/policy/v1/namespaces/{namespace}/poddisruptionbudgets",
+    "/api/v1/namespaces/{namespace}/serviceaccounts",
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/roles",
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings",
+    "/api/v1/namespaces/{namespace}/configmaps",
+    "/api/v1/namespaces/{namespace}/secrets",
 )
 
 CLUSTER_RESOURCE_PATHS = (
     "/apis/storage.k8s.io/v1/storageclasses",
     "/apis/apiextensions.k8s.io/v1/customresourcedefinitions",
+    "/apis/rbac.authorization.k8s.io/v1/clusterroles",
+    "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings",
+    "/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations",
+    "/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations",
 )
 
 CATALOGUE_RESOURCE_PATHS = (
@@ -65,6 +75,70 @@ CATALOGUE_RESOURCE_PATHS = (
     (NAMESPACED_RESOURCE_PATHS[9], "HorizontalPodAutoscaler"),
     (NAMESPACED_RESOURCE_PATHS[10], "PodDisruptionBudget"),
 )
+
+RESOURCE_TYPE_BY_PATH = {
+    NAMESPACED_RESOURCE_PATHS[0]: ("apps/v1", "Deployment"),
+    NAMESPACED_RESOURCE_PATHS[1]: ("apps/v1", "StatefulSet"),
+    NAMESPACED_RESOURCE_PATHS[2]: ("apps/v1", "DaemonSet"),
+    NAMESPACED_RESOURCE_PATHS[3]: ("batch/v1", "Job"),
+    NAMESPACED_RESOURCE_PATHS[4]: ("batch/v1", "CronJob"),
+    NAMESPACED_RESOURCE_PATHS[5]: ("v1", "Service"),
+    NAMESPACED_RESOURCE_PATHS[6]: (
+        "v1",
+        "PersistentVolumeClaim",
+    ),
+    NAMESPACED_RESOURCE_PATHS[7]: (
+        "networking.k8s.io/v1",
+        "Ingress",
+    ),
+    NAMESPACED_RESOURCE_PATHS[8]: (
+        "networking.k8s.io/v1",
+        "NetworkPolicy",
+    ),
+    NAMESPACED_RESOURCE_PATHS[9]: (
+        "autoscaling/v2",
+        "HorizontalPodAutoscaler",
+    ),
+    NAMESPACED_RESOURCE_PATHS[10]: (
+        "policy/v1",
+        "PodDisruptionBudget",
+    ),
+    NAMESPACED_RESOURCE_PATHS[11]: ("v1", "ServiceAccount"),
+    NAMESPACED_RESOURCE_PATHS[12]: (
+        "rbac.authorization.k8s.io/v1",
+        "Role",
+    ),
+    NAMESPACED_RESOURCE_PATHS[13]: (
+        "rbac.authorization.k8s.io/v1",
+        "RoleBinding",
+    ),
+    NAMESPACED_RESOURCE_PATHS[14]: ("v1", "ConfigMap"),
+    NAMESPACED_RESOURCE_PATHS[15]: ("v1", "Secret"),
+    CLUSTER_RESOURCE_PATHS[0]: (
+        "storage.k8s.io/v1",
+        "StorageClass",
+    ),
+    CLUSTER_RESOURCE_PATHS[1]: (
+        "apiextensions.k8s.io/v1",
+        "CustomResourceDefinition",
+    ),
+    CLUSTER_RESOURCE_PATHS[2]: (
+        "rbac.authorization.k8s.io/v1",
+        "ClusterRole",
+    ),
+    CLUSTER_RESOURCE_PATHS[3]: (
+        "rbac.authorization.k8s.io/v1",
+        "ClusterRoleBinding",
+    ),
+    CLUSTER_RESOURCE_PATHS[4]: (
+        "admissionregistration.k8s.io/v1",
+        "MutatingWebhookConfiguration",
+    ),
+    CLUSTER_RESOURCE_PATHS[5]: (
+        "admissionregistration.k8s.io/v1",
+        "ValidatingWebhookConfiguration",
+    ),
+}
 
 
 class RejectRedirects(urllib.request.HTTPRedirectHandler):
@@ -178,7 +252,11 @@ def navigan_request(
 ):
     base_url = secure_base_url(base_url)
 
-    if not re.fullmatch(r"MGC-[0-9a-f]{32}", connector_id):
+    if re.fullmatch(r"MGC-[0-9a-f]{32}", connector_id):
+        connector_path = "migration-connectors"
+    elif re.fullmatch(r"SCC-[0-9a-f]{32}", connector_id):
+        connector_path = "source-connectors"
+    else:
         raise RuntimeError("Migration connector ID is invalid.")
 
     if method not in {"GET", "POST"}:
@@ -209,7 +287,7 @@ def navigan_request(
 
     request = urllib.request.Request(
         (
-            f"{base_url}/migration-connectors/"
+            f"{base_url}/{connector_path}/"
             f"{connector_id}/{path.lstrip('/')}"
         ),
         data=encoded_body,
@@ -240,6 +318,28 @@ def resource_items(payload):
             "Kubernetes resource list limit exceeded."
         )
     return items
+
+
+def resource_from_endpoint(resource, api_version, kind):
+    """Restore omitted Kubernetes TypeMeta from an allowlisted endpoint."""
+    if not isinstance(resource, dict):
+        return resource
+
+    observed_api_version = resource.get("apiVersion")
+    observed_kind = resource.get("kind")
+    if observed_api_version not in {None, api_version}:
+        raise UnsafeInventory(
+            "Kubernetes API returned an unexpected resource version."
+        )
+    if observed_kind not in {None, kind}:
+        raise UnsafeInventory(
+            "Kubernetes API returned an unexpected resource kind."
+        )
+
+    typed = dict(resource)
+    typed.setdefault("apiVersion", api_version)
+    typed.setdefault("kind", kind)
+    return typed
 
 
 def selected_namespaces(assignment, request):
@@ -298,7 +398,11 @@ def collect_inventory(assignment, request=kubernetes_request):
     sanitized = []
 
     for raw in resource_items(request("/api/v1/nodes")):
-        sanitized.append(sanitize_resource(raw))
+        sanitized.append(
+            sanitize_resource(
+                resource_from_endpoint(raw, "v1", "Node")
+            )
+        )
 
     namespaces = selected_namespaces(assignment, request)
     for namespace in namespaces:
@@ -320,8 +424,17 @@ def collect_inventory(assignment, request=kubernetes_request):
             path = template.format(
                 namespace=encoded_namespace
             )
+            api_version, kind = RESOURCE_TYPE_BY_PATH[template]
             for raw in resource_items(request(path)):
-                sanitized.append(sanitize_resource(raw))
+                sanitized.append(
+                    sanitize_resource(
+                        resource_from_endpoint(
+                            raw,
+                            api_version,
+                            kind,
+                        )
+                    )
+                )
                 if len(sanitized) > MAX_RESOURCES:
                     raise UnsafeInventory(
                         "Inventory resource limit exceeded."
@@ -329,8 +442,17 @@ def collect_inventory(assignment, request=kubernetes_request):
 
     if scope.get("includeClusterScopedResources") is True:
         for path in CLUSTER_RESOURCE_PATHS:
+            api_version, kind = RESOURCE_TYPE_BY_PATH[path]
             for raw in resource_items(request(path)):
-                sanitized.append(sanitize_resource(raw))
+                sanitized.append(
+                    sanitize_resource(
+                        resource_from_endpoint(
+                            raw,
+                            api_version,
+                            kind,
+                        )
+                    )
+                )
                 if len(sanitized) > MAX_RESOURCES:
                     raise UnsafeInventory(
                         "Inventory resource limit exceeded."
@@ -342,8 +464,8 @@ def collect_inventory(assignment, request=kubernetes_request):
 def fetch_assignment():
     return navigan_request(
         required("NAVIGAN_API_BASE_URL"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        required("NAVIGAN_SOURCE_CONNECTOR_ID"),
+        required("NAVIGAN_SOURCE_CONNECTOR_TOKEN"),
         "assignment",
     )
 
@@ -475,8 +597,8 @@ def collect_source_catalogue(
 def submit_source_catalogue(report):
     return navigan_request(
         required("NAVIGAN_API_BASE_URL"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        required("NAVIGAN_SOURCE_CONNECTOR_ID"),
+        required("NAVIGAN_SOURCE_CONNECTOR_TOKEN"),
         "inventory",
         method="POST",
         body=report,
@@ -531,8 +653,8 @@ def collect_source_inventory(
 def submit_source_inventory(report):
     return navigan_request(
         required("NAVIGAN_API_BASE_URL"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_ID"),
-        required("NAVIGAN_MIGRATION_CONNECTOR_TOKEN"),
+        required("NAVIGAN_SOURCE_CONNECTOR_ID"),
+        required("NAVIGAN_SOURCE_CONNECTOR_TOKEN"),
         "source-inventory",
         method="POST",
         body=report,
@@ -547,6 +669,11 @@ def run_once(
     assignment = fetch()
     assignment_type = assignment.get("assignmentType")
 
+    if assignment_type == "NONE":
+        return {
+            **assignment,
+            "status": assignment.get("status", "IDLE"),
+        }
     if assignment_type == "SOURCE_CATALOGUE":
         collector = collect or collect_source_catalogue
         submitter = submit or submit_source_catalogue
@@ -554,7 +681,7 @@ def run_once(
     elif assignment_type == "SOURCE_INVENTORY":
         collector = collect or collect_source_inventory
         submitter = submit or submit_source_inventory
-        expected_status = "ASSESSING"
+        expected_status = "ASSESSMENT_READY"
     else:
         raise RuntimeError(
             "Unsupported migration connector assignment."
@@ -570,8 +697,45 @@ def run_once(
 
     return result
 
+
+def run_forever(
+    run=run_once,
+    sleep=time.sleep,
+    poll_seconds=None,
+):
+    interval = poll_seconds
+    if interval is None:
+        raw_interval = os.environ.get("NAVIGAN_POLL_SECONDS", "30")
+        try:
+            interval = int(raw_interval)
+        except ValueError as exc:
+            raise RuntimeError(
+                "NAVIGAN_POLL_SECONDS must be an integer."
+            ) from exc
+    if not 5 <= interval <= 300:
+        raise RuntimeError(
+            "NAVIGAN_POLL_SECONDS must be between 5 and 300."
+        )
+
+    while True:
+        try:
+            run()
+        except Exception as error:
+            print(
+                json.dumps(
+                    {
+                        "level": "error",
+                        "event": "connector_cycle_failed",
+                        "errorType": type(error).__name__,
+                    }
+                ),
+                flush=True,
+            )
+        sleep(interval)
+
+
 def main():
-    run_once()
+    run_forever()
 
 
 if __name__ == "__main__":

@@ -32,11 +32,13 @@ def test_chart_does_not_create_or_accept_plaintext_credentials():
     assert "credentialsSecretName:" in values
 
 
-def test_job_has_restricted_runtime_security():
-    job = read(CHART / "templates/job.yaml")
+def test_persistent_deployment_has_restricted_runtime_security():
+    deployment = read(CHART / "templates/deployment.yaml")
 
     for required in (
-        "kind: Job",
+        "kind: Deployment",
+        "replicas: 1",
+        "type: Recreate",
         "automountServiceAccountToken: false",
         "runAsNonRoot: true",
         "allowPrivilegeEscalation: false",
@@ -44,15 +46,17 @@ def test_job_has_restricted_runtime_security():
         "seccompProfile:",
         "drop:",
         "- ALL",
-        "restartPolicy: Never",
-        "activeDeadlineSeconds:",
+        "restartPolicy: Always",
+        "NAVIGAN_SOURCE_CONNECTOR_ID",
+        "NAVIGAN_SOURCE_CONNECTOR_TOKEN",
+        "NAVIGAN_POLL_SECONDS",
         "sizeLimit: 16Mi",
     ):
-        assert required in job
+        assert required in deployment
 
-    assert "image.digest is required" in job
-    assert "hostNetwork: true" not in job
-    assert "privileged: true" not in job
+    assert "image.digest is required" in deployment
+    assert "hostNetwork: true" not in deployment
+    assert "privileged: true" not in deployment
 
 
 def test_rbac_is_read_only_and_excludes_sensitive_resources():
@@ -100,8 +104,21 @@ def test_service_account_uses_explicit_projected_token():
     service_account = read(
         CHART / "templates/serviceaccount.yaml"
     )
-    job = read(CHART / "templates/job.yaml")
+    deployment = read(CHART / "templates/deployment.yaml")
 
     assert "automountServiceAccountToken: false" in service_account
-    assert "serviceAccountToken:" in job
-    assert "expirationSeconds: 3600" in job
+    assert "serviceAccountToken:" in deployment
+    assert "expirationSeconds: 3600" in deployment
+
+
+def test_bootstrap_keeps_kubeconfig_local_and_secret_out_of_process_args():
+    bootstrap = read(PACKAGE / "bootstrap.ps1")
+
+    assert "Get-Content -LiteralPath $resolvedBootstrap" in bootstrap
+    assert "/source-connectors/enroll" in bootstrap
+    assert "kubectl @kubectlArgs apply -f -" in bootstrap
+    assert "connector-token=$" not in bootstrap
+    assert "--kubeconfig" not in bootstrap.lower()
+    assert "Get-Content -LiteralPath $Kube" not in bootstrap
+    assert "Clear-Content -LiteralPath $resolvedBootstrap" in bootstrap
+    assert "Remove-Item -LiteralPath $resolvedBootstrap" in bootstrap

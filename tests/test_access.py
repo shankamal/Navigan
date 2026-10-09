@@ -49,6 +49,52 @@ class AccessEvaluatorTest(unittest.TestCase):
         self.assertTrue(access.can_access_customer("CUS-one"))
         self.assertFalse(access.can_access_customer("CUS-two"))
 
+    def test_dynamic_cloud_engineer_receives_migration_rollout_privileges(self):
+        repository = MagicMock()
+        repository.user.return_value = {
+            "user_id": "user-1",
+            "display_name": "User One",
+            "status": "ACTIVE",
+            "authorization_revision": 4,
+        }
+        repository.privilege_effects.return_value = [
+            {"privilege_code": "customer.view", "effect": "ALLOW"},
+        ]
+        repository.scopes.return_value = [
+            {
+                "scope_type": "CUSTOMER",
+                "customer_id": "CUS-one",
+                "resource_type": None,
+                "resource_id": None,
+            }
+        ]
+
+        access = AccessEvaluator(repository).evaluate(principal())
+
+        self.assertTrue(access.has("migration.view"))
+        self.assertTrue(access.has("migration.create"))
+        self.assertTrue(access.has("migration.edit"))
+        self.assertTrue(access.has("migration.submit"))
+        self.assertFalse(access.has("migration.review"))
+
+    def test_dynamic_deny_overrides_migration_rollout_privilege(self):
+        repository = MagicMock()
+        repository.user.return_value = {
+            "user_id": "user-1",
+            "display_name": "User One",
+            "status": "ACTIVE",
+            "authorization_revision": 4,
+        }
+        repository.privilege_effects.return_value = [
+            {"privilege_code": "migration.create", "effect": "DENY"},
+        ]
+        repository.scopes.return_value = []
+
+        access = AccessEvaluator(repository).evaluate(principal())
+
+        self.assertFalse(access.has("migration.create"))
+        self.assertTrue(access.has("migration.edit"))
+
     def test_disabled_dynamic_user_is_rejected(self):
         repository = MagicMock()
         repository.user.return_value = {

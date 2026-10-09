@@ -47,6 +47,11 @@ class Model(BaseModel):
 
 class SourceCluster(Model):
     platform: Platform
+    sourceClusterId: str | None = Field(
+        default=None,
+        pattern=r"^SRC-[a-f0-9]{32}$",
+        max_length=50,
+    )
     clusterName: str | None = Field(
         default=None,
         min_length=1,
@@ -64,6 +69,131 @@ class SourceCluster(Model):
         max_length=50,
     )
     accessMode: Literal["READ_ONLY_CONNECTOR"] = "READ_ONLY_CONNECTOR"
+
+
+class SourceClusterLocation(Model):
+    type: Literal["CLOUD", "ON_PREMISES", "OTHER"]
+    cloudProvider: Literal["AWS", "AZURE", "GCP", "OCI", "OTHER"] | None = None
+    region: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._ -]*$",
+    )
+
+    @model_validator(mode="after")
+    def provider_matches_location(self):
+        if self.type == "CLOUD" and self.cloudProvider is None:
+            raise ValueError("Cloud source clusters require a cloud provider.")
+        if self.type != "CLOUD" and self.cloudProvider is not None:
+            raise ValueError(
+                "Cloud provider is only valid for cloud source clusters."
+            )
+        return self
+
+
+class AwsSsmDelivery(Model):
+    accountId: str = Field(pattern=r"^[0-9]{12}$")
+    region: str = Field(
+        min_length=3,
+        max_length=30,
+        pattern=r"^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]+$",
+    )
+    managedInstanceId: str = Field(
+        min_length=3,
+        max_length=64,
+        pattern=r"^(?:i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)$",
+    )
+    roleArn: str | None = Field(
+        default=None,
+        max_length=2048,
+        pattern=(
+            r"^arn:(?:aws|aws-us-gov|aws-cn):iam::[0-9]{12}:"
+            r"role/[A-Za-z0-9+=,.@_/-]+$"
+        ),
+    )
+    kubeconfigPath: str = Field(
+        default="/etc/kubernetes/admin.conf",
+        min_length=2,
+        max_length=512,
+        pattern=r"^/[A-Za-z0-9._/-]+$",
+    )
+
+
+class SourceConnectorDelivery(Model):
+    method: Literal["MANUAL_HELM", "AWS_SSM", "GITOPS"] = "MANUAL_HELM"
+    awsSsm: AwsSsmDelivery | None = None
+
+    @model_validator(mode="after")
+    def configuration_matches_method(self):
+        if self.method == "AWS_SSM" and self.awsSsm is None:
+            raise ValueError("AWS Systems Manager delivery details are required.")
+        if self.method != "AWS_SSM" and self.awsSsm is not None:
+            raise ValueError(
+                "AWS Systems Manager details are only valid for AWS delivery."
+            )
+        return self
+
+
+class CreateSourceCluster(Model):
+    customerId: str = Field(
+        pattern=r"^CUS-[A-Za-z0-9-]+$",
+        max_length=50,
+    )
+    name: str = Field(
+        min_length=3,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._ -]*$",
+    )
+    distribution: str | None = Field(default=None, max_length=100)
+    registrationMethod: Literal[
+        "LOCAL_KUBECONFIG",
+        "GITOPS",
+        "PROVIDER_AUTOMATION",
+    ] = "LOCAL_KUBECONFIG"
+    location: SourceClusterLocation
+    delivery: SourceConnectorDelivery = Field(
+        default_factory=SourceConnectorDelivery
+    )
+
+    @model_validator(mode="after")
+    def aws_delivery_matches_location(self):
+        if self.delivery.method == "AWS_SSM" and (
+            self.location.type != "CLOUD"
+            or self.location.cloudProvider != "AWS"
+        ):
+            raise ValueError(
+                "AWS Systems Manager delivery requires an AWS cloud location."
+            )
+        return self
+
+
+class UpdateSourceClusterDelivery(Model):
+    version: int = Field(gt=0)
+    delivery: SourceConnectorDelivery
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class CreateSourceEnrollment(Model):
+    version: int = Field(gt=0)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class InstallSourceConnector(Model):
+    version: int = Field(gt=0)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class EnrollSourceConnector(Model):
+    sourceClusterId: str = Field(
+        pattern=r"^SRC-[a-f0-9]{32}$",
+        max_length=50,
+    )
+    enrollmentToken: str = Field(
+        min_length=43,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
 
 
 class EksTarget(Model):
@@ -231,7 +361,7 @@ class CreateMigration(Model):
         pattern=r"^CUS-[A-Za-z0-9-]+$",
         max_length=50,
     )
-    name: str = Field(min_length=3, max_length=100)
+    name: str = Field(min_length=8, max_length=100)
     description: str | None = Field(default=None, max_length=4000)
     source: SourceCluster
     target: EksTarget
@@ -249,7 +379,7 @@ class CreateMigration(Model):
 
 class UpdateMigration(Model):
     version: int = Field(gt=0)
-    name: str | None = Field(default=None, min_length=3, max_length=100)
+    name: str | None = Field(default=None, min_length=8, max_length=100)
     description: str | None = Field(default=None, max_length=4000)
     source: SourceCluster | None = None
     target: EksTarget | None = None
@@ -264,7 +394,8 @@ class MigrationAction(Model):
 
 
 class DiscoveryAction(MigrationAction):
-    connectorToken: str = Field(
+    connectorToken: str | None = Field(
+        default=None,
         min_length=43,
         max_length=128,
         pattern=r"^[A-Za-z0-9_-]+$",
@@ -274,6 +405,9 @@ class DiscoveryAction(MigrationAction):
 SOURCE_INVENTORY_KINDS = {
     "Node",
     "Namespace",
+    "ConfigMap",
+    "Secret",
+    "ServiceAccount",
     "Deployment",
     "StatefulSet",
     "DaemonSet",
@@ -287,6 +421,12 @@ SOURCE_INVENTORY_KINDS = {
     "HorizontalPodAutoscaler",
     "PodDisruptionBudget",
     "NetworkPolicy",
+    "Role",
+    "RoleBinding",
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "MutatingWebhookConfiguration",
+    "ValidatingWebhookConfiguration",
 }
 
 COMMON_INVENTORY_KEYS = {
@@ -295,6 +435,7 @@ COMMON_INVENTORY_KEYS = {
     "namespace",
     "name",
     "annotationKeys",
+    "labelKeys",
 }
 
 SOURCE_INVENTORY_KEYS = {
@@ -304,12 +445,32 @@ SOURCE_INVENTORY_KEYS = {
         "architecture",
     },
     "Namespace": set(),
-    "Deployment": {"replicas", "pod"},
-    "StatefulSet": {"replicas", "pod"},
-    "DaemonSet": {"replicas", "pod"},
-    "Job": {"replicas", "pod"},
-    "CronJob": {"replicas", "pod"},
-    "Service": {"type", "selectorKeys", "ports"},
+    "ConfigMap": {
+        "immutable",
+        "dataKeyNames",
+        "binaryDataKeyNames",
+    },
+    "Secret": {
+        "secretType",
+        "immutable",
+        "dataKeyNames",
+    },
+    "ServiceAccount": {
+        "automountServiceAccountToken",
+        "imagePullSecretCount",
+    },
+    "Deployment": {"replicas", "strategyType", "pod"},
+    "StatefulSet": {"replicas", "strategyType", "pod"},
+    "DaemonSet": {"replicas", "strategyType", "pod"},
+    "Job": {"replicas", "strategyType", "pod"},
+    "CronJob": {"replicas", "strategyType", "pod"},
+    "Service": {
+        "type",
+        "externalTrafficPolicy",
+        "sessionAffinity",
+        "selectorKeys",
+        "ports",
+    },
     "Ingress": {
         "ingressClassName",
         "ruleCount",
@@ -321,6 +482,7 @@ SOURCE_INVENTORY_KEYS = {
         "storageClassName",
         "volumeMode",
         "requestedStorage",
+        "dataSourceKind",
     },
     "StorageClass": {
         "provisioner",
@@ -334,19 +496,25 @@ SOURCE_INVENTORY_KEYS = {
         "versions",
     },
     "HorizontalPodAutoscaler": {
-        "minReplicas",
-        "maxReplicas",
+        "minimumReplicas",
+        "maximumReplicas",
         "targetKind",
     },
     "PodDisruptionBudget": {
-        "minAvailable",
-        "maxUnavailable",
+        "minimumAvailable",
+        "maximumUnavailable",
     },
     "NetworkPolicy": {
         "policyTypes",
         "ingressRuleCount",
         "egressRuleCount",
     },
+    "Role": {"rules"},
+    "ClusterRole": {"rules"},
+    "RoleBinding": {"roleRef", "subjects"},
+    "ClusterRoleBinding": {"roleRef", "subjects"},
+    "MutatingWebhookConfiguration": {"webhooks"},
+    "ValidatingWebhookConfiguration": {"webhooks"},
 }
 
 FORBIDDEN_INVENTORY_KEYS = {
@@ -497,12 +665,14 @@ class SourceInventoryReport(Model):
 
             identity = (
                 kind,
+                api_version,
                 namespace or "",
                 name or "",
-                resource.get("architecture") or "",
-                resource.get("kubernetesVersion") or "",
             )
-            if identity in seen:
+            # Node names are intentionally omitted from the sanitized
+            # inventory. Multiple nodes may therefore have the same safe
+            # runtime fingerprint and must remain countable.
+            if kind != "Node" and identity in seen:
                 raise ValueError(
                     "Duplicate source inventory resource."
                 )
@@ -582,6 +752,15 @@ class AssessmentFinding(Model):
     resourceName: str | None = Field(default=None, max_length=253)
     message: str = Field(min_length=1, max_length=4000)
     remediation: str | None = Field(default=None, max_length=4000)
+    targetTreatment: str | None = Field(default=None, max_length=4000)
+    resolutionSteps: list[str] = Field(default_factory=list, max_length=20)
+    validationSteps: list[str] = Field(default_factory=list, max_length=20)
+    automationLevel: Literal[
+        "AUTOMATED",
+        "ASSISTED",
+        "MANUAL",
+    ] | None = None
+    ownerTeam: str | None = Field(default=None, max_length=100)
 
 
 class AssessmentReport(Model):

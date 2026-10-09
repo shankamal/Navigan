@@ -8,6 +8,7 @@ from migration_connector.agent import (
     collect_inventory,
     collect_source_catalogue,
     navigan_request,
+    run_forever,
     run_once,
     secure_base_url,
 )
@@ -142,10 +143,53 @@ def test_collects_only_selected_namespaces_and_safe_resources():
         "configmaps",
         "events",
         "/pods",
-        "roles",
-        "rolebindings",
     ):
         assert forbidden not in requested_paths
+    assert "/roles" in requested_paths
+    assert "/rolebindings" in requested_paths
+
+
+def test_restores_type_metadata_omitted_by_kubernetes_list_responses():
+    def request(path):
+        if path == "/api/v1/nodes":
+            value = node()
+            value.pop("apiVersion")
+            value.pop("kind")
+            return {"items": [value]}
+        if path == "/api/v1/namespaces":
+            return {"items": [{"metadata": {"name": "retailflow"}}]}
+        if path.endswith("/deployments"):
+            value = deployment()
+            value.pop("apiVersion")
+            value.pop("kind")
+            return {"items": [value]}
+        return {"items": []}
+
+    result = collect_inventory(assignment(), request)
+
+    assert {
+        (resource["apiVersion"], resource["kind"])
+        for resource in result["resources"]
+    } >= {
+        ("v1", "Node"),
+        ("v1", "Namespace"),
+        ("apps/v1", "Deployment"),
+    }
+
+
+def test_rejects_type_metadata_conflicting_with_api_endpoint():
+    def request(path):
+        if path == "/api/v1/nodes":
+            value = node()
+            value["kind"] = "Service"
+            return {"items": [value]}
+        return {"items": []}
+
+    with pytest.raises(
+        agent.UnsafeInventory,
+        match="unexpected resource kind",
+    ):
+        collect_inventory(assignment(), request)
 
 
 def test_rejects_missing_requested_namespace():
@@ -322,7 +366,7 @@ def test_run_once_dispatches_detailed_source_inventory():
 
     def submit(report):
         observed["report"] = report
-        return {"status": "ASSESSING"}
+        return {"status": "ASSESSMENT_READY"}
 
     result = agent.run_once(
         fetch=fetch,
@@ -330,6 +374,33 @@ def test_run_once_dispatches_detailed_source_inventory():
         submit=submit,
     )
 
-    assert result["status"] == "ASSESSING"
+    assert result["status"] == "ASSESSMENT_READY"
     assert observed["assignment"]["migrationVersion"] == 4
     assert observed["report"]["inventoryDigest"] == "a" * 64
+
+
+def test_run_once_treats_no_assignment_as_idle():
+    result = run_once(fetch=lambda: {"assignmentType": "NONE"})
+
+    assert result["status"] == "IDLE"
+
+
+def test_persistent_connector_polls_repeatedly():
+    calls = []
+    run_count = 0
+
+    def run():
+        nonlocal run_count
+        run_count += 1
+        calls.append("run")
+        if run_count == 3:
+            raise KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        run_forever(
+            run=run,
+            sleep=lambda seconds: calls.append(seconds),
+            poll_seconds=5,
+        )
+
+    assert calls == ["run", 5, "run", 5, "run"]

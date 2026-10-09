@@ -116,9 +116,34 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         or key.startswith("POST /api/v1/migrations")
         or key.startswith("PUT /api/v1/migrations")
     }
-    assert len(human_routes) == 12
+    assert len(human_routes) == 13
+    assert (
+        "POST /api/v1/migrations/{migrationId}/assess"
+        in human_routes
+    )
 
     for route in human_routes.values():
+        assert route["AuthorizationType"] == "JWT"
+        assert route["AuthorizerId"] == {"Ref": "AuthorizerId"}
+        assert route["AuthorizationScopes"] == [{"Ref": "JwtScope"}]
+
+    source_cluster_routes = {
+        key: route
+        for key, route in routes.items()
+        if "/api/v1/source-clusters" in key
+    }
+    assert set(source_cluster_routes) == {
+        "POST /api/v1/source-clusters",
+        "GET /api/v1/source-clusters",
+        "GET /api/v1/source-clusters/{sourceClusterId}",
+        "PUT /api/v1/source-clusters/{sourceClusterId}",
+        (
+            "POST /api/v1/source-clusters/"
+            "{sourceClusterId}/enrollments"
+        ),
+        "POST /api/v1/source-clusters/{sourceClusterId}/install",
+    }
+    for route in source_cluster_routes.values():
         assert route["AuthorizationType"] == "JWT"
         assert route["AuthorizerId"] == {"Ref": "AuthorizerId"}
         assert route["AuthorizationScopes"] == [{"Ref": "JwtScope"}]
@@ -138,6 +163,25 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         assert "AuthorizerId" not in connector_route
         assert "AuthorizationScopes" not in connector_route
 
+    source_connector_routes = {
+        key: route
+        for key, route in routes.items()
+        if "/api/v1/source-connectors" in key
+    }
+    assert set(source_connector_routes) == {
+        "POST /api/v1/source-connectors/enroll",
+        "GET /api/v1/source-connectors/{connectorId}/assignment",
+        "POST /api/v1/source-connectors/{connectorId}/inventory",
+        (
+            "POST /api/v1/source-connectors/"
+            "{connectorId}/source-inventory"
+        ),
+    }
+    for connector_route in source_connector_routes.values():
+        assert connector_route["AuthorizationType"] == "NONE"
+        assert "AuthorizerId" not in connector_route
+        assert "AuthorizationScopes" not in connector_route
+
     for function_name in (
         "MigrationFunction",
         "MigrationConnectorFunction",
@@ -147,11 +191,21 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         ]
         assert policies[0] == "AWSLambdaVPCAccessExecutionRole"
 
-        actions = {
-            statement["Action"]
-            for statement in policies[1]["Statement"]
-        }
-        assert actions == {
+        statements = policies[1]["Statement"]
+        actions = {statement["Action"] for statement in statements}
+        expected_actions = {
             "secretsmanager:GetSecretValue",
             "kms:Decrypt",
         }
+        if function_name == "MigrationFunction":
+            expected_actions.add("sts:AssumeRole")
+            assume_role = next(
+                statement
+                for statement in statements
+                if statement["Action"] == "sts:AssumeRole"
+            )
+            assert assume_role["Resource"] == {
+                "Ref": "SourceConnectorDeliveryRoleArn"
+            }
+
+        assert actions == expected_actions

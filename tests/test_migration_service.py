@@ -38,6 +38,52 @@ class Repository:
     def get(self, identifier, lock=False):
         return copy.deepcopy(self.rows[identifier])
 
+    def get_source_cluster(self, identifier, lock=False):
+        return {
+            "source_cluster_id": identifier,
+            "customer_id": "CUS-demo",
+            "created_by": self.principal.user_id,
+            "status": "PENDING_ENROLLMENT",
+            "version": 1,
+        }
+
+    def update_source_cluster_delivery(
+        self,
+        source_cluster,
+        delivery,
+        reason,
+        correlation,
+    ):
+        return {
+            **source_cluster,
+            "delivery_method": delivery["method"],
+            "delivery_configuration": delivery.get("awsSsm") or {},
+            "version": source_cluster["version"] + 1,
+        }
+
+    def create_source_enrollment(
+        self,
+        source_cluster,
+        token,
+        reason,
+        correlation,
+    ):
+        self.enrollment_token = token
+        return {
+            "enrollment_id": "SCE-" + "e" * 32,
+            "source_cluster_id": source_cluster["source_cluster_id"],
+            "status": "ISSUED",
+        }
+
+    def audit_source_cluster(
+        self,
+        identifier,
+        action,
+        correlation,
+        details,
+    ):
+        self.source_audit = (identifier, action, correlation, details)
+
     def save(self, row, old, action, correlation, create=False):
         self.rows[row["migration_id"]] = copy.deepcopy(row)
         self.saved.append((action, correlation, create))
@@ -94,6 +140,59 @@ def test_creates_assessment_only_migration():
     assert result["executionMode"] == "ASSESSMENT_ONLY"
     assert result["status"] == "DRAFT"
     assert repo.saved == [("MIGRATION_CREATED", "corr-1", True)]
+
+
+def test_configures_aws_ssm_source_connector_delivery():
+    repo = Repository()
+    access = Access("creator", {"migration.edit"})
+
+    result = Service(repo, access, "corr-source").update_source_cluster_delivery(
+        "SRC-" + "a" * 32,
+        {
+            "version": 1,
+            "delivery": {
+                "method": "AWS_SSM",
+                "awsSsm": {
+                    "accountId": "905418045935",
+                    "region": "ap-south-1",
+                    "managedInstanceId": "i-08e28d9b2242cbd53",
+                    "kubeconfigPath": "/etc/kubernetes/admin.conf",
+                },
+            },
+            "reason": "Configure secure delivery",
+        },
+    )
+
+    assert result["deliveryMethod"] == "AWS_SSM"
+    assert result["version"] == 2
+
+
+def test_starts_automatic_source_connector_installation():
+    repo = Repository()
+    access = Access("creator", {"migration.edit"})
+
+    class Installer:
+        def start(self, source_cluster, token):
+            assert source_cluster["source_cluster_id"].startswith("SRC-")
+            assert token == repo.enrollment_token
+            return {
+                "commandId": "11111111-2222-3333-4444-555555555555",
+                "managedInstanceId": "i-08e28d9b2242cbd53",
+                "status": "INSTALLATION_STARTED",
+            }
+
+    result = Service(repo, access, "corr-install").install_source_connector(
+        "SRC-" + "a" * 32,
+        {
+            "version": 1,
+            "reason": "Install read-only connector",
+        },
+        Installer(),
+    )
+
+    assert result["status"] == "INSTALLATION_STARTED"
+    assert result["enrollmentId"] == "SCE-" + "e" * 32
+    assert repo.source_audit[1] == "SOURCE_CONNECTOR_INSTALLATION_STARTED"
 
 
 def test_creator_cannot_review_own_request():
@@ -360,6 +459,40 @@ def test_inventory_ready_can_save_scope_and_target_selection():
     )
 
 
+def test_pending_migration_can_recover_missing_source_registration():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.edit"})
+    created = Service(repo, access, "corr-create").create(
+        minimal_create_body()
+    )
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "SOURCE_ENROLLMENT_PENDING"
+    repo.rows[identifier]["source_configuration"].pop(
+        "sourceClusterId",
+        None,
+    )
+
+    result = Service(repo, access, "corr-recover").update(
+        identifier,
+        {
+            "version": 1,
+            "source": {
+                "platform": "SELF_MANAGED_KUBERNETES",
+                "sourceClusterId": "SRC-" + "a" * 32,
+                "clusterName": "migration-lab",
+                "accessMode": "READ_ONLY_CONNECTOR",
+            },
+            "changeReason": "Attach registered source cluster",
+        },
+    )
+
+    assert result["status"] == "SOURCE_ENROLLMENT_PENDING"
+    assert result["version"] == 2
+    assert result["sourceConfiguration"]["sourceClusterId"] == (
+        "SRC-" + "a" * 32
+    )
+
+
 def test_starts_detailed_inventory_after_catalogue():
     repo = Repository()
     access = Access("creator", {"migration.create", "migration.edit"})
@@ -383,3 +516,25 @@ def test_starts_detailed_inventory_after_catalogue():
     assert result["version"] == 2
     assert result["assessmentConnector"]["status"] == "ENROLLED"
     assert repo.connector_token == "a" * 43
+
+
+def test_refreshes_rejected_assessment_with_connected_source():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.edit"})
+    service = Service(repo, access, "corr-refresh")
+
+    created = service.create(create_body())
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "REJECTED"
+
+    result = service.change(
+        identifier,
+        "assess",
+        {
+            "version": 1,
+            "reason": "Refresh detailed source inventory",
+        },
+    )
+
+    assert result["status"] == "DISCOVERY_PENDING"
+    assert result["version"] == 2

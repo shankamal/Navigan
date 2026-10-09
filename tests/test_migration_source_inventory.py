@@ -41,6 +41,57 @@ def source_inventory():
                     },
                 },
             },
+            {
+                "apiVersion": "autoscaling/v2",
+                "kind": "HorizontalPodAutoscaler",
+                "metadata": {
+                    "name": "api",
+                    "namespace": "retailflow",
+                },
+                "spec": {
+                    "minReplicas": 2,
+                    "maxReplicas": 8,
+                    "scaleTargetRef": {
+                        "kind": "Deployment",
+                        "name": "api",
+                    },
+                },
+            },
+            {
+                "apiVersion": "policy/v1",
+                "kind": "PodDisruptionBudget",
+                "metadata": {
+                    "name": "api",
+                    "namespace": "retailflow",
+                },
+                "spec": {
+                    "minAvailable": 1,
+                },
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Node",
+                "metadata": {"name": "worker-1"},
+                "status": {
+                    "nodeInfo": {
+                        "kubeletVersion": "v1.30.1",
+                        "operatingSystem": "linux",
+                        "architecture": "amd64",
+                    }
+                },
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Node",
+                "metadata": {"name": "worker-2"},
+                "status": {
+                    "nodeInfo": {
+                        "kubeletVersion": "v1.30.1",
+                        "operatingSystem": "linux",
+                        "architecture": "amd64",
+                    }
+                },
+            },
         ]
     )
     return {
@@ -57,8 +108,25 @@ def test_accepts_connector_generated_sanitized_inventory():
     )
 
     assert report.schemaVersion == 1
-    assert len(report.resources) == 2
+    assert len(report.resources) == 6
     assert report.sensitiveDataIncluded is False
+    hpa = next(
+        resource
+        for resource in report.resources
+        if resource["kind"] == "HorizontalPodAutoscaler"
+    )
+    pdb = next(
+        resource
+        for resource in report.resources
+        if resource["kind"] == "PodDisruptionBudget"
+    )
+    assert hpa["minimumReplicas"] == 2
+    assert hpa["maximumReplicas"] == 8
+    assert pdb["minimumAvailable"] == 1
+    assert sum(
+        resource["kind"] == "Node"
+        for resource in report.resources
+    ) == 2
 
 
 def resource_by_kind(payload, kind):

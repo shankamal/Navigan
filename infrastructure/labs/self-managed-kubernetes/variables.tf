@@ -106,3 +106,21 @@ variable "ssh_key_name" {
   type        = string
   default     = null
 }
+
+variable "migration_connector_repository_arn" {
+  description = "Optional existing ECR repository that lab nodes may read for the Navigan migration connector."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.migration_connector_repository_arn == null ||
+      can(regex(
+        "^arn:aws:ecr:[a-z0-9-]+:[0-9]{12}:repository/[A-Za-z0-9._/-]+$",
+        var.migration_connector_repository_arn,
+      ))
+    )
+    error_message = "migration_connector_repository_arn must be a valid ECR repository ARN or null."
+  }
+}

@@ -59,14 +59,18 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA cluster_management TO navigan_api;
 GRANT USAGE ON SCHEMA migration_management TO navigan_api;
 GRANT SELECT,INSERT,UPDATE ON
  migration_management.migrations,
- migration_management.migration_connectors TO navigan_api;
+ migration_management.migration_connectors,
+ migration_management.source_clusters,
+ migration_management.source_cluster_enrollments,
+ migration_management.source_cluster_connectors TO navigan_api;
 GRANT SELECT,INSERT ON
  migration_management.migration_versions,
  migration_management.migration_source_catalogues,
  migration_management.migration_source_inventories,
  migration_management.migration_assessments,
  migration_management.migration_status_history,
- migration_management.migration_audit_log TO navigan_api;
+ migration_management.migration_audit_log,
+ migration_management.source_cluster_audit_log TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES
  IN SCHEMA migration_management TO navigan_api;
 

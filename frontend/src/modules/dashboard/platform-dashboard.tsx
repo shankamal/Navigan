@@ -4,16 +4,25 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  ArrowUpRight,
+  Boxes,
   Building2,
   CheckCircle2,
+  ChevronRight,
+  Clock3,
   Cloud,
+  Container,
+  Gauge,
   Layers3,
+  Plus,
   ServerCog,
   ShieldCheck,
+  Workflow,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
-import { ErrorNotice, Loading, PageHeading } from "@/shared/components/ui";
+import { ErrorNotice, Loading, formatDateTime } from "@/shared/components/ui";
 import {
   useCustomerCount,
   useCustomers,
@@ -26,23 +35,126 @@ import {
   useClusterCount,
   useClusters,
 } from "@/modules/cluster-management/hooks/queries";
+import "./platform-dashboard.css";
 
-const display = (number?: number) => number ?? "—";
+type Provider = "AWS" | "AZURE" | "GCP" | "OCI";
+
+const display = (value?: number) => value ?? "—";
+const sum = (...values: Array<number | undefined>) =>
+  values.reduce<number>((total, value) => total + (value ?? 0), 0);
+const percent = (value?: number, total?: number) =>
+  total ? Math.round(((value ?? 0) / total) * 100) : 0;
+
+function ProviderLogo({
+  provider,
+  label = true,
+}: {
+  provider: Provider;
+  label?: boolean;
+}) {
+  const names: Record<Provider, string> = {
+    AWS: "AWS",
+    AZURE: "Azure",
+    GCP: "Google Cloud",
+    OCI: "OCI",
+  };
+
+  return (
+    <span className={`pd-provider pd-provider-${provider.toLowerCase()}`}>
+      <span className="pd-provider-mark" aria-hidden="true">
+        {provider === "AWS" && (
+          <svg viewBox="0 0 32 24">
+            <text x="1" y="15">
+              aws
+            </text>
+            <path d="M5 18c6 4 14 4 21 0" />
+            <path d="m23 17 4 1-2 3" />
+          </svg>
+        )}
+        {provider === "AZURE" && (
+          <svg viewBox="0 0 28 24">
+            <path d="M11 2 3 20h7l4-8 5 8h6L16 2z" />
+          </svg>
+        )}
+        {provider === "GCP" && (
+          <svg viewBox="0 0 30 24">
+            <path
+              className="pd-gcp-blue"
+              d="M10 21h11a7 7 0 0 0 1-14A10 10 0 0 0 5 9"
+            />
+            <path className="pd-gcp-red" d="M5 9a8 8 0 0 0 5 12" />
+            <path className="pd-gcp-yellow" d="M5 9a10 10 0 0 1 4-5" />
+            <path className="pd-gcp-green" d="M9 4a10 10 0 0 1 13 3" />
+          </svg>
+        )}
+        {provider === "OCI" && (
+          <svg viewBox="0 0 32 24">
+            <path d="M8 6h16a6 6 0 0 1 0 12H8A6 6 0 0 1 8 6Zm1 4a2 2 0 0 0 0 4h14a2 2 0 0 0 0-4Z" />
+          </svg>
+        )}
+      </span>
+      {label && <span>{names[provider]}</span>}
+    </span>
+  );
+}
+
+function DonutChart({
+  title,
+  value,
+  subtitle,
+  segments,
+}: {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  segments: Array<{ value: number; color: string }>;
+}) {
+  let offset = 0;
+  return (
+    <div className="pd-donut">
+      <svg viewBox="0 0 42 42" role="img" aria-label={title}>
+        <circle className="pd-donut-track" cx="21" cy="21" r="15.9155" />
+        {segments.map((segment, index) => {
+          const dashOffset = 25 - offset;
+          offset += segment.value;
+          return (
+            <circle
+              key={`${segment.color}-${index}`}
+              className="pd-donut-segment"
+              cx="21"
+              cy="21"
+              r="15.9155"
+              stroke={segment.color}
+              strokeDasharray={`${segment.value} ${100 - segment.value}`}
+              strokeDashoffset={dashOffset}
+            />
+          );
+        })}
+      </svg>
+      <div className="pd-donut-center">
+        <strong>{value}</strong>
+        <span>{subtitle}</span>
+      </div>
+    </div>
+  );
+}
 
 export function PlatformDashboard() {
   const { identity } = useAuth();
   const totalCustomers = useCustomerCount();
   const activeCustomers = useCustomerCount("ACTIVE");
-  const totalEnvironments = useEnvironmentCount();
-  const activeEnvironments = useEnvironmentCount("ACTIVE");
-  const totalClusters = useClusterCount();
-  const activeClusters = useClusterCount("ACTIVE");
   const submittedCustomers = useCustomerCount("SUBMITTED");
   const reviewCustomers = useCustomerCount("UNDER_REVIEW");
+  const totalEnvironments = useEnvironmentCount();
+  const activeEnvironments = useEnvironmentCount("ACTIVE");
   const submittedEnvironments = useEnvironmentCount("SUBMITTED");
   const reviewEnvironments = useEnvironmentCount("UNDER_REVIEW");
+  const totalClusters = useClusterCount();
+  const activeClusters = useClusterCount("ACTIVE");
   const submittedClusters = useClusterCount("SUBMITTED");
   const reviewClusters = useClusterCount("UNDER_REVIEW");
+  const planReadyClusters = useClusterCount("PLAN_READY");
+  const applyingClusters = useClusterCount("APPLYING");
   const failedClusters = useClusterCount("FAILED");
   const environments = useEnvironments({
     page: 0,
@@ -55,39 +167,46 @@ export function PlatformDashboard() {
     status: "SUBMITTED",
     sort: "updatedAt,desc",
   });
+  const pendingEnvironments = useEnvironments({
+    page: 0,
+    pageSize: 3,
+    status: "SUBMITTED",
+    sort: "updatedAt,desc",
+  });
   const pendingClusters = useClusters({
     page: 0,
     pageSize: 3,
     status: "SUBMITTED",
   });
+  const recentClusters = useClusters({ page: 0, pageSize: 5 });
 
   const countQueries = [
     totalCustomers,
     activeCustomers,
-    totalEnvironments,
-    activeEnvironments,
-    totalClusters,
-    activeClusters,
     submittedCustomers,
     reviewCustomers,
+    totalEnvironments,
+    activeEnvironments,
     submittedEnvironments,
     reviewEnvironments,
+    totalClusters,
+    activeClusters,
     submittedClusters,
     reviewClusters,
+    planReadyClusters,
+    applyingClusters,
     failedClusters,
   ];
   const failedQuery = countQueries.find((query) => query.error);
-  const actionCounts = [
+  const awaitingAction = sum(
     submittedCustomers.data,
     reviewCustomers.data,
     submittedEnvironments.data,
     reviewEnvironments.data,
     submittedClusters.data,
     reviewClusters.data,
-  ];
-  const awaitingAction = actionCounts.every((item) => item !== undefined)
-    ? actionCounts.reduce((sum, item) => sum + (item ?? 0), 0)
-    : undefined;
+  );
+  const provisioningNow = sum(planReadyClusters.data, applyingClusters.data);
   const providerCounts = (environments.data?.items ?? []).reduce<
     Record<string, number>
   >((counts, environment) => {
@@ -96,15 +215,79 @@ export function PlatformDashboard() {
     return counts;
   }, {});
   const providerTotal = Object.values(providerCounts).reduce(
-    (sum, count) => sum + count,
+    (total, value) => total + value,
     0,
   );
+  const providerOrder: Provider[] = ["AWS", "AZURE", "GCP", "OCI"];
+  const providerColors: Record<Provider, string> = {
+    AWS: "#f59e0b",
+    AZURE: "#1689d4",
+    GCP: "#4f7fe9",
+    OCI: "#d43b2f",
+  };
+  const customerHealth = percent(activeCustomers.data, totalCustomers.data);
+  const environmentHealth = percent(
+    activeEnvironments.data,
+    totalEnvironments.data,
+  );
+  const clusterHealth = percent(activeClusters.data, totalClusters.data);
+  const postureValues = [
+    totalCustomers.data ? customerHealth : undefined,
+    totalEnvironments.data ? environmentHealth : undefined,
+    totalClusters.data ? clusterHealth : undefined,
+  ].filter((value): value is number => value !== undefined);
+  const overallPosture = postureValues.length
+    ? Math.round(
+        postureValues.reduce((total, value) => total + value, 0) /
+          postureValues.length,
+      )
+    : 0;
+  const workflowInProgress = sum(
+    submittedClusters.data,
+    reviewClusters.data,
+    planReadyClusters.data,
+    applyingClusters.data,
+  );
+  const workflowKnown = sum(
+    activeClusters.data,
+    workflowInProgress,
+    failedClusters.data,
+  );
+  const workflowOther = Math.max(0, (totalClusters.data ?? 0) - workflowKnown);
+  const workflowTotal = totalClusters.data ?? 0;
   const canCreateEnvironment = hasPermission(identity, "environment.create");
   const canCreateCluster = hasPermission(identity, "cluster.create");
   const canReview =
     hasPermission(identity, "customer.review") ||
     hasPermission(identity, "environment.review") ||
     hasPermission(identity, "cluster.review");
+
+  const attentionItems = [
+    ...(pendingCustomers.data?.items ?? []).map((customer) => ({
+      id: customer.customerId,
+      title: customer.name,
+      meta: `Customer onboarding · ${customer.status.replaceAll("_", " ")}`,
+      href: `/customers/${customer.customerId}`,
+      icon: Building2,
+      tone: "info",
+    })),
+    ...(pendingEnvironments.data?.items ?? []).map((environment) => ({
+      id: environment.environmentId,
+      title: environment.environmentName,
+      meta: `${environment.cloudProvider} environment · ${environment.status.replaceAll("_", " ")}`,
+      href: `/environments/${environment.environmentId}`,
+      icon: Layers3,
+      tone: "warning",
+    })),
+    ...(pendingClusters.data?.items ?? []).map((cluster) => ({
+      id: cluster.clusterId,
+      title: cluster.clusterName,
+      meta: `${cluster.customerName ?? "Customer"} · cluster request · ${cluster.status.replaceAll("_", " ")}`,
+      href: `/clusters/${cluster.clusterId}`,
+      icon: ServerCog,
+      tone: "success",
+    })),
+  ].slice(0, 6);
 
   if (countQueries.some((query) => query.isPending)) {
     return <Loading label="Loading platform dashboard…" />;
@@ -118,205 +301,571 @@ export function PlatformDashboard() {
     );
   }
 
-  const metrics = [
+  const kpis = [
     {
-      label: "Active customers",
+      label: "Onboarded customers",
       value: activeCustomers.data,
-      total: totalCustomers.data,
+      detail: `${display(totalCustomers.data)} total in your scope`,
+      note: `${sum(submittedCustomers.data, reviewCustomers.data)} in onboarding`,
       icon: Building2,
       href: "/customers",
+      tone: "green",
     },
     {
-      label: "Active environments",
+      label: "Governed environments",
       value: activeEnvironments.data,
-      total: totalEnvironments.data,
+      detail: `${display(totalEnvironments.data)} environment profiles`,
+      note: `${providerTotal} mapped to cloud providers`,
       icon: Layers3,
       href: "/environments",
+      tone: "blue",
     },
     {
       label: "Active clusters",
       value: activeClusters.data,
-      total: totalClusters.data,
+      detail: `${display(totalClusters.data)} cluster requests`,
+      note: `${clusterHealth}% active estate`,
       icon: ServerCog,
       href: "/clusters",
+      tone: "green",
+    },
+    {
+      label: "Provisioning now",
+      value: provisioningNow,
+      detail: `${display(planReadyClusters.data)} plan ready`,
+      note: `${display(applyingClusters.data)} Terraform applies`,
+      icon: Workflow,
+      href: "/clusters",
+      tone: "violet",
     },
     {
       label: "Awaiting action",
       value: awaitingAction,
-      total: undefined,
+      detail: "Submitted or under review",
+      note: "Across governed workflows",
       icon: ShieldCheck,
-      href: canReview ? "/clusters" : "/environments",
+      href: canReview ? "/clusters/reviews" : "/environments",
+      tone: "teal",
     },
-  ];
+    {
+      label: "Failed operations",
+      value: failedClusters.data,
+      detail: "Cluster workflows requiring action",
+      note: failedClusters.data ? "Remediation required" : "No active failures",
+      icon: AlertTriangle,
+      href: "/clusters",
+      tone: "orange",
+    },
+  ] as const;
 
   return (
-    <div className="platform-dashboard">
-      <PageHeading
-        eyebrow="PLATFORM OVERVIEW"
-        title="Dashboard"
-        description="A live view of your customers, cloud environments, Kubernetes estate and work requiring attention."
-        action={
-          <div className="dashboard-actions">
-            {canCreateEnvironment && (
-              <Link
-                className="button button-secondary"
-                href="/environments/new"
-              >
-                New environment
-              </Link>
-            )}
-            {canCreateCluster && (
-              <Link className="button button-primary" href="/clusters/new">
-                New cluster request
-              </Link>
-            )}
-            {canReview && (
-              <Link className="button button-primary" href="/clusters">
-                Open review queue
-              </Link>
-            )}
-          </div>
-        }
-      />
+    <div className="platform-dashboard command-dashboard">
+      <section className="pd-heading">
+        <div>
+          <p className="pd-date">Thursday, 8 October 2026</p>
+          <h1>Platform command center</h1>
+          <p className="muted">
+            Live governance, provisioning, and operational health across the
+            Navigan-managed Kubernetes estate.
+          </p>
+        </div>
+        <div className="pd-actions">
+          {canCreateEnvironment && (
+            <Link className="button button-secondary" href="/environments/new">
+              <Plus size={17} /> New environment
+            </Link>
+          )}
+          {canCreateCluster && (
+            <Link className="button button-primary" href="/clusters/new">
+              <Plus size={17} /> New cluster request
+            </Link>
+          )}
+          {canReview && (
+            <Link className="button button-primary" href="/clusters/reviews">
+              Open review queue
+            </Link>
+          )}
+        </div>
+      </section>
 
-      <div className="dashboard-metrics">
-        {metrics.map((metric) => (
+      <section className="pd-kpis" aria-label="Navigan platform KPIs">
+        {kpis.map((kpi) => (
           <Link
-            className="dashboard-metric"
-            href={metric.href}
-            key={metric.label}
+            className={`pd-kpi pd-kpi-${kpi.tone}`}
+            href={kpi.href}
+            key={kpi.label}
           >
-            <span className="dashboard-metric-icon">
-              <metric.icon size={21} />
+            <span className="pd-kpi-icon">
+              <kpi.icon size={20} />
             </span>
-            <span>{metric.label}</span>
-            <strong>{display(metric.value)}</strong>
-            <small>
-              {metric.total === undefined
-                ? "Across your access scope"
-                : `of ${metric.total ?? "—"} total`}
-            </small>
+            <span className="pd-kpi-copy">
+              <span>{kpi.label}</span>
+              <strong>{display(kpi.value)}</strong>
+              <small>{kpi.detail}</small>
+            </span>
+            <span className="pd-kpi-note">{kpi.note}</span>
           </Link>
         ))}
-      </div>
+      </section>
 
-      <div className="dashboard-layout">
-        <section className="panel dashboard-panel">
-          <div className="dashboard-panel-heading">
+      <section className="pd-primary-grid">
+        <article className="pd-card">
+          <header className="pd-card-heading">
             <div>
-              <p className="eyebrow">PLATFORM ESTATE</p>
-              <h2>Cloud distribution</h2>
-              <p className="muted">Environment profiles grouped by provider.</p>
+              <span className="pd-card-icon">
+                <Gauge size={19} />
+              </span>
+              <div>
+                <h2>Operational posture</h2>
+                <p>Active estate coverage across Navigan-managed resources.</p>
+              </div>
             </div>
-            <Cloud size={24} />
+            <span className="pd-live">
+              <i />
+              Live
+            </span>
+          </header>
+          <div className="pd-posture">
+            <div className="pd-gauge">
+              <svg
+                viewBox="0 0 180 180"
+                role="img"
+                aria-label={`Overall operational posture ${overallPosture}%`}
+              >
+                <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
+                <circle
+                  className="pd-gauge-value"
+                  cx="90"
+                  cy="90"
+                  r="70"
+                  pathLength="100"
+                  strokeDasharray={`${overallPosture} 100`}
+                />
+              </svg>
+              <div>
+                <strong>{overallPosture}%</strong>
+                <span>Active</span>
+              </div>
+            </div>
+            <div className="pd-posture-metrics">
+              <div>
+                <span>
+                  <i className="pd-dot-green" />
+                  Customers
+                </span>
+                <strong>{customerHealth}%</strong>
+                <small>Active onboarding records</small>
+              </div>
+              <div>
+                <span>
+                  <i className="pd-dot-blue" />
+                  Environments
+                </span>
+                <strong>{environmentHealth}%</strong>
+                <small>Active governed profiles</small>
+              </div>
+              <div>
+                <span>
+                  <i className="pd-dot-teal" />
+                  Clusters
+                </span>
+                <strong>{clusterHealth}%</strong>
+                <small>Active Kubernetes estate</small>
+              </div>
+            </div>
           </div>
+          <div
+            className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
+          >
+            {(failedClusters.data ?? 0) > 0 ? (
+              <AlertTriangle size={17} />
+            ) : (
+              <CheckCircle2 size={17} />
+            )}
+            <span>
+              {(failedClusters.data ?? 0) > 0
+                ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
+                : "No failed cluster operations are active in your access scope."}
+            </span>
+          </div>
+        </article>
+
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <Cloud size={19} />
+              </span>
+              <div>
+                <h2>Cloud footprint</h2>
+                <p>Environment profiles by cloud provider.</p>
+              </div>
+            </div>
+          </header>
           {environments.isPending ? (
-            <Loading label="Loading cloud distribution…" />
+            <Loading label="Loading cloud footprint…" />
           ) : environments.error ? (
             <ErrorNotice
               error={environments.error}
               onRetry={() => environments.refetch()}
             />
           ) : providerTotal === 0 ? (
-            <p className="dashboard-empty">
-              No environment profiles are available.
-            </p>
+            <p className="pd-empty">No environment profiles are available.</p>
           ) : (
-            <div className="provider-bars">
-              {["AWS", "AZURE", "GCP", "OCI"].map((provider) => {
-                const count = providerCounts[provider] ?? 0;
-                const percent = Math.round((count / providerTotal) * 100);
-                return (
-                  <div className="provider-row" key={provider}>
-                    <div>
-                      <strong>{provider}</strong>
-                      <span>{count} environments</span>
-                    </div>
-                    <div className="provider-track">
-                      <span style={{ width: `${percent}%` }} />
-                    </div>
-                    <b>{percent}%</b>
+            <div className="pd-footprint">
+              <DonutChart
+                title="Environment profiles by cloud provider"
+                value={providerTotal}
+                subtitle="environments"
+                segments={providerOrder.map((provider) => ({
+                  value:
+                    ((providerCounts[provider] ?? 0) / providerTotal) * 100,
+                  color: providerColors[provider],
+                }))}
+              />
+              <div className="pd-legend pd-provider-legend">
+                {providerOrder.map((provider) => (
+                  <div key={provider}>
+                    <ProviderLogo provider={provider} />
+                    <strong>{providerCounts[provider] ?? 0}</strong>
+                    <span>
+                      {percent(providerCounts[provider], providerTotal)}%
+                    </span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
           )}
-          <Link className="dashboard-text-link" href="/environments">
-            View all environments <ArrowRight size={16} />
+          <Link
+            className="pd-card-link pd-card-footer-link"
+            href="/environments"
+          >
+            View environment directory <ArrowRight size={15} />
           </Link>
-        </section>
+        </article>
+      </section>
 
-        <section className="panel dashboard-panel">
-          <div className="dashboard-panel-heading">
+      <section className="pd-insights-grid">
+        <article className="pd-card">
+          <header className="pd-card-heading">
             <div>
-              <p className="eyebrow">OPERATIONS</p>
-              <h2>Attention queue</h2>
-              <p className="muted">
-                Items that may require a decision or action.
+              <span className="pd-card-icon">
+                <Workflow size={19} />
+              </span>
+              <div>
+                <h2>Cluster workflow state</h2>
+                <p>Current lifecycle position of Navigan cluster requests.</p>
+              </div>
+            </div>
+          </header>
+          {workflowTotal === 0 ? (
+            <p className="pd-empty">No cluster requests are available.</p>
+          ) : (
+            <div className="pd-workflow">
+              <DonutChart
+                title="Cluster requests by workflow state"
+                value={workflowTotal}
+                subtitle="requests"
+                segments={[
+                  {
+                    value: percent(activeClusters.data, workflowTotal),
+                    color: "#557f18",
+                  },
+                  {
+                    value: percent(workflowInProgress, workflowTotal),
+                    color: "#1689d4",
+                  },
+                  {
+                    value: percent(failedClusters.data, workflowTotal),
+                    color: "#c84835",
+                  },
+                  {
+                    value: percent(workflowOther, workflowTotal),
+                    color: "#d7a21b",
+                  },
+                ]}
+              />
+              <div className="pd-legend pd-workflow-legend">
+                <div>
+                  <span>
+                    <i className="pd-legend-active" />
+                    Active
+                  </span>
+                  <strong>{display(activeClusters.data)}</strong>
+                  <small>{percent(activeClusters.data, workflowTotal)}%</small>
+                </div>
+                <div>
+                  <span>
+                    <i className="pd-legend-progress" />
+                    In delivery
+                  </span>
+                  <strong>{workflowInProgress}</strong>
+                  <small>{percent(workflowInProgress, workflowTotal)}%</small>
+                </div>
+                <div>
+                  <span>
+                    <i className="pd-legend-failed" />
+                    Failed
+                  </span>
+                  <strong>{display(failedClusters.data)}</strong>
+                  <small>{percent(failedClusters.data, workflowTotal)}%</small>
+                </div>
+                <div>
+                  <span>
+                    <i className="pd-legend-other" />
+                    Other states
+                  </span>
+                  <strong>{workflowOther}</strong>
+                  <small>{percent(workflowOther, workflowTotal)}%</small>
+                </div>
+              </div>
+            </div>
+          )}
+        </article>
+
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <ShieldCheck size={19} />
+              </span>
+              <div>
+                <h2>Governance workload</h2>
+                <p>Open decisions across platform approval workflows.</p>
+              </div>
+            </div>
+          </header>
+          <div className="pd-governance-rings">
+            {[
+              {
+                label: "Customers",
+                value: sum(submittedCustomers.data, reviewCustomers.data),
+                total: totalCustomers.data,
+                tone: "green",
+              },
+              {
+                label: "Environments",
+                value: sum(submittedEnvironments.data, reviewEnvironments.data),
+                total: totalEnvironments.data,
+                tone: "blue",
+              },
+              {
+                label: "Clusters",
+                value: sum(submittedClusters.data, reviewClusters.data),
+                total: totalClusters.data,
+                tone: "violet",
+              },
+            ].map((item) => {
+              const ratio = percent(item.value, item.total);
+              return (
+                <div key={item.label}>
+                  <div
+                    className={`pd-mini-ring pd-ring-${item.tone}`}
+                    style={{ "--progress": `${ratio}%` } as React.CSSProperties}
+                  >
+                    <strong>{item.value}</strong>
+                  </div>
+                  <span>{item.label}</span>
+                  <small>{ratio}% of records</small>
+                </div>
+              );
+            })}
+          </div>
+          <div className="pd-governance-note">
+            <Clock3 size={16} />
+            <span>
+              <strong>{awaitingAction}</strong> records are submitted or under
+              review in your access scope.
+            </span>
+          </div>
+        </article>
+      </section>
+
+      <section className="pd-card">
+        <header className="pd-card-heading">
+          <div>
+            <span className="pd-card-icon pd-attention-icon">
+              <AlertTriangle size={19} />
+            </span>
+            <div>
+              <h2>
+                Needs your attention{" "}
+                <span className="pd-count">{awaitingAction}</span>
+              </h2>
+              <p>
+                Navigan approvals, provisioning exceptions, and requests
+                requiring action.
               </p>
             </div>
-            {(failedClusters.data ?? 0) > 0 ? (
-              <AlertTriangle className="dashboard-warning" size={24} />
-            ) : (
-              <CheckCircle2 className="dashboard-ok" size={24} />
-            )}
           </div>
-          <div className="attention-summary">
-            <div>
-              <strong>{display(awaitingAction)}</strong>
-              <span>Submitted or under review</span>
-            </div>
-            <div>
-              <strong>{display(failedClusters.data)}</strong>
-              <span>Failed cluster operations</span>
-            </div>
-          </div>
-          <div className="attention-list">
-            {(pendingCustomers.data?.items ?? []).map((customer) => (
+          {canReview && (
+            <Link className="pd-card-link" href="/clusters/reviews">
+              Review queue <ChevronRight size={15} />
+            </Link>
+          )}
+        </header>
+        <div className="pd-attention-list">
+          {pendingCustomers.isPending ||
+          pendingEnvironments.isPending ||
+          pendingClusters.isPending ? (
+            <Loading label="Loading attention queue…" />
+          ) : attentionItems.length ? (
+            attentionItems.map((item) => (
               <Link
-                href={`/customers/${customer.customerId}`}
-                key={customer.customerId}
+                className="pd-attention-row"
+                href={item.href}
+                key={`${item.id}-${item.href}`}
               >
+                <span
+                  className={`pd-attention-row-icon pd-attention-${item.tone}`}
+                >
+                  <item.icon size={17} />
+                </span>
                 <span>
-                  <Building2 size={17} />
-                  <span>
-                    <strong>{customer.name}</strong>
-                    <small>
-                      Customer request · {customer.status.replaceAll("_", " ")}
-                    </small>
-                  </span>
+                  <strong>{item.title}</strong>
+                  <small>{item.meta}</small>
                 </span>
                 <ArrowRight size={16} />
               </Link>
-            ))}
-            {(pendingClusters.data?.items ?? []).map((cluster) => (
-              <Link
-                href={`/clusters/${cluster.clusterId}`}
-                key={cluster.clusterId}
-              >
-                <span>
-                  <ServerCog size={17} />
-                  <span>
-                    <strong>{cluster.clusterName}</strong>
-                    <small>
-                      Cluster request · {cluster.status.replaceAll("_", " ")}
-                    </small>
-                  </span>
-                </span>
-                <ArrowRight size={16} />
-              </Link>
-            ))}
-            {!pendingCustomers.isPending &&
-              !pendingClusters.isPending &&
-              !(pendingCustomers.data?.items.length ?? 0) &&
-              !(pendingClusters.data?.items.length ?? 0) && (
-                <p className="dashboard-empty">
-                  No newly submitted requests in your access scope.
-                </p>
-              )}
+            ))
+          ) : (
+            <div className="pd-empty pd-empty-success">
+              <CheckCircle2 size={20} />
+              No newly submitted requests require attention.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="pd-card">
+        <header className="pd-card-heading">
+          <div>
+            <span className="pd-card-icon">
+              <Clock3 size={19} />
+            </span>
+            <div>
+              <h2>Recent cluster activity</h2>
+              <p>Latest Kubernetes cluster requests in your access scope.</p>
+            </div>
           </div>
-        </section>
-      </div>
+          <Link className="pd-card-link" href="/clusters">
+            View cluster directory <ChevronRight size={15} />
+          </Link>
+        </header>
+        {recentClusters.isPending ? (
+          <Loading label="Loading cluster activity…" />
+        ) : recentClusters.error ? (
+          <ErrorNotice
+            error={recentClusters.error}
+            onRetry={() => recentClusters.refetch()}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="pd-activity-table">
+              <thead>
+                <tr>
+                  <th>Updated</th>
+                  <th>Customer</th>
+                  <th>Cluster</th>
+                  <th>Platform</th>
+                  <th>State</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(recentClusters.data?.items ?? []).map((cluster) => (
+                  <tr key={cluster.clusterId}>
+                    <td>{formatDateTime(cluster.updatedAt)}</td>
+                    <td>
+                      <strong>
+                        {cluster.customerName ?? cluster.customerId}
+                      </strong>
+                    </td>
+                    <td>
+                      <span className="pd-resource">
+                        <Container size={15} />
+                        {cluster.clusterName}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="pd-platform">
+                        <ProviderLogo provider="AWS" label={false} />
+                        EKS
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`pd-status pd-status-${cluster.status.toLowerCase()}`}
+                      >
+                        {cluster.status.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td>
+                      <Link
+                        className="pd-row-action"
+                        href={`/clusters/${cluster.clusterId}`}
+                      >
+                        Open <ArrowUpRight size={14} />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {!(recentClusters.data?.items.length ?? 0) && (
+                  <tr>
+                    <td colSpan={6} className="pd-empty">
+                      No cluster requests are available.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section
+        className="pd-tool-strip"
+        aria-label="Navigan platform toolchain"
+      >
+        <div>
+          <span className="pd-card-icon">
+            <Wrench size={18} />
+          </span>
+          <div>
+            <strong>Platform toolchain</strong>
+            <p>Capabilities managed through Navigan cluster operations.</p>
+          </div>
+        </div>
+        <div className="pd-tools">
+          <span>
+            <i className="pd-tool-terraform">T</i>Terraform
+          </span>
+          <span>
+            <i className="pd-tool-kubernetes">K8s</i>Kubernetes
+          </span>
+          <span>
+            <i className="pd-tool-docker">
+              <Container size={14} />
+            </i>
+            Containers
+          </span>
+          <span>
+            <i className="pd-tool-prometheus">P</i>Prometheus
+          </span>
+          <span>
+            <i className="pd-tool-grafana">G</i>Grafana
+          </span>
+          <span>
+            <i className="pd-tool-argocd">
+              <Boxes size={14} />
+            </i>
+            Argo CD
+          </span>
+        </div>
+        <Link href="/clusters" aria-label="Open cluster operations">
+          <ArrowUpRight size={18} />
+        </Link>
+      </section>
     </div>
   );
 }

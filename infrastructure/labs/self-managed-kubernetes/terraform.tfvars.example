@@ -11,3 +11,7 @@ calico_version              = "3.32.2"
 enable_ssh  = false
 admin_cidr  = "203.0.113.10/32"
 ssh_key_name = null
+
+# Optional: allow the lab nodes to pull the Navigan migration connector from
+# one existing private ECR repository.
+migration_connector_repository_arn = null

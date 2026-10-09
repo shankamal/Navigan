@@ -1,14 +1,17 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: {{ .Release.Name }}
   labels:
     app.kubernetes.io/name: navigan-migration-connector
     app.kubernetes.io/managed-by: Helm
 spec:
-  activeDeadlineSeconds: {{ .Values.job.activeDeadlineSeconds }}
-  backoffLimit: {{ .Values.job.backoffLimit }}
-  ttlSecondsAfterFinished: {{ .Values.job.ttlSecondsAfterFinished }}
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: navigan-migration-connector
   template:
     metadata:
       labels:
@@ -16,7 +19,7 @@ spec:
     spec:
       serviceAccountName: {{ .Release.Name }}
       automountServiceAccountToken: false
-      restartPolicy: Never
+      restartPolicy: Always
       enableServiceLinks: false
       hostNetwork: false
       hostPID: false
@@ -42,13 +45,15 @@ spec:
           env:
             - name: NAVIGAN_API_BASE_URL
               value: {{ required "navigan.apiBaseUrl is required" .Values.navigan.apiBaseUrl | quote }}
-            - name: NAVIGAN_MIGRATION_CONNECTOR_ID
+            - name: NAVIGAN_SOURCE_CONNECTOR_ID
               value: {{ required "navigan.connectorId is required" .Values.navigan.connectorId | quote }}
-            - name: NAVIGAN_MIGRATION_CONNECTOR_TOKEN
+            - name: NAVIGAN_SOURCE_CONNECTOR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ required "navigan.credentialsSecretName is required" .Values.navigan.credentialsSecretName }}
                   key: {{ .Values.navigan.connectorTokenKey }}
+            - name: NAVIGAN_POLL_SECONDS
+              value: {{ .Values.navigan.pollSeconds | quote }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
           volumeMounts:

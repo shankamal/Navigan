@@ -1,6 +1,52 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { migrations } from "./service";
+import { migrations, sourceClusters } from "./service";
+
+export const useSourceClusters = (customerId: string) =>
+  useQuery({
+    queryKey: ["source-clusters", customerId],
+    queryFn: () => sourceClusters.list(customerId),
+    enabled: Boolean(customerId),
+    retry: false,
+  });
+
+export const useMigrations = () =>
+  useQuery({
+    queryKey: ["migrations"],
+    queryFn: () => migrations.list(),
+    retry: false,
+  });
+
+export const useCancelMigration = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      migrationId,
+      version,
+    }: {
+      migrationId: string;
+      version: number;
+    }) =>
+      migrations.action(
+        migrationId,
+        "cancel",
+        version,
+        "Cancel and archive migration assessment",
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["migrations"],
+      }),
+  });
+};
+
+export const useMigration = (migrationId: string) =>
+  useQuery({
+    queryKey: ["migrations", migrationId],
+    queryFn: () => migrations.get(migrationId),
+    enabled: Boolean(migrationId),
+    retry: false,
+  });
 
 export const useSourceCatalogue = (migrationId: string) =>
   useQuery({
@@ -11,11 +57,26 @@ export const useSourceCatalogue = (migrationId: string) =>
     refetchInterval: (query) => (query.state.data?.catalogue ? false : 5_000),
   });
 
+export const useSourceInventory = (migrationId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["migrations", migrationId, "source-inventory"],
+    queryFn: () => migrations.sourceInventory(migrationId),
+    enabled: Boolean(migrationId) && enabled,
+    retry: 2,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+
 export const useMigrationAssessment = (migrationId: string, enabled: boolean) =>
   useQuery({
     queryKey: ["migrations", migrationId, "assessment"],
     queryFn: () => migrations.assessment(migrationId),
     enabled: Boolean(migrationId) && enabled,
     retry: false,
-    refetchInterval: (query) => (query.state.data?.assessment ? false : 5_000),
+    refetchInterval: (query) =>
+      ["DISCOVERY_PENDING", "DISCOVERING", "ASSESSING"].includes(
+        query.state.data?.status ?? "",
+      ) || !query.state.data?.assessment
+        ? 5_000
+        : false,
   });
