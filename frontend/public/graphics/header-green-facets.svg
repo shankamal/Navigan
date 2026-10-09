@@ -1,14 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="100" viewBox="0 0 760 100">
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="100" viewBox="0 0 680 100">
   <defs>
-    <linearGradient id="fade"><stop stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff"/></linearGradient>
-    <linearGradient id="face" x2="1" y2="1"><stop stop-color="#86bc25" stop-opacity=".24"/><stop offset="1" stop-color="#65a449" stop-opacity=".06"/></linearGradient>
-    <mask id="edge"><path fill="url(#fade)" d="M0 0h760v100H0z"/></mask>
-    <pattern id="facets" width="120" height="100" patternUnits="userSpaceOnUse" patternTransform="skewX(-28)">
-      <path fill="url(#face)" d="M8 0h72v70H8z"/>
-      <path fill="#86bc25" fill-opacity=".10" d="M80 0l20 16v70L80 70z"/>
-      <path fill="#224936" fill-opacity=".3" d="M8 70h72l20 16H28z"/>
-      <path fill="none" stroke="#a5ce6d" stroke-opacity=".18" d="M8 0v70h72V0"/>
-    </pattern>
+    <linearGradient id="fade"><stop stop-color="white" stop-opacity="0"/><stop offset=".48" stop-color="white" stop-opacity=".65"/><stop offset="1" stop-color="white"/></linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#a9d260" stop-opacity=".28"/>
+      <stop offset=".48" stop-color="#65a449" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#284b37" stop-opacity=".04"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b7dd7b" stop-opacity=".35"/><stop offset="1" stop-color="#65a449" stop-opacity="0"/></linearGradient>
+    <mask id="soft"><path fill="url(#fade)" d="M0 0h680v100H0z"/></mask>
   </defs>
-  <path fill="url(#facets)" mask="url(#edge)" d="M0 0h760v100H0z"/>
+  <g mask="url(#soft)">
+    <path fill="url(#ribbon)" d="M190-20h90L160 120H70zM370-20h90L340 120h-90zM550-20h90L520 120h-90zM730-20h90L700 120h-90z"/>
+    <path fill="#142d20" fill-opacity=".18" d="M280-20h14L174 120h-14zM460-20h14L354 120h-14zM640-20h14L534 120h-14z"/>
+    <path fill="none" stroke="url(#edge)" stroke-width="1.5" d="M190-20L70 120M370-20L250 120M550-20L430 120M730-20L610 120"/>
+  </g>
 </svg>

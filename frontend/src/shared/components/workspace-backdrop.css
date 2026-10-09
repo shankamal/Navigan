@@ -89,8 +89,8 @@
 }
 /* Slate sidebar paired with the midnight-grey title bar. */
 .app-shell[class] .sidebar {
-  background: #334155;
-  border-color: #475569;
+  background: #293647;
+  border-color: #3b4a5e;
   color: #cbd5e1;
 }
 .app-shell[class] .sidebar .nav-item,
@@ -118,7 +118,7 @@
 }
 .app-shell[class] .sidebar .nav-item:hover:not(.selected),
 .app-shell[class] .sidebar .nav-subitem:hover:not(.selected) {
-  background: #3e5067;
+  background: #35465b;
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .nav-item:focus-visible,
