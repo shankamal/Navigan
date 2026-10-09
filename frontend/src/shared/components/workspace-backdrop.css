@@ -1,11 +1,13 @@
 /* Shared workspace canvas; white panels retain their existing contrast. */
 /* Higher specificity keeps module styles from changing the shared header. */
 .app-shell[class] > header.topbar {
-  background-color: #334155;
+  background-color: #1e252f;
   background-image:
-    radial-gradient(ellipse at 80% 0%, rgb(148 163 184 / 14%), transparent 55%),
-    repeating-linear-gradient(120deg, transparent 0 75px, rgb(226 232 240 / 4%) 76px 77px, transparent 78px 150px);
-  border-bottom-color: #475569;
+    url('/graphics/header-green-facets.svg');
+  background-position: right center;
+  background-size: auto 100%;
+  background-repeat: no-repeat;
+  border-bottom-color: #344152;
   color: #fff;
 }
 .app-shell[class] > header.topbar .brand,
@@ -85,10 +87,10 @@
 .app-shell[class] main#main-content > .customer-workspace {
   background: transparent;
 }
-/* Midnight-grey sidebar paired with the unified slate workspace canvas. */
+/* Slate sidebar paired with the midnight-grey title bar. */
 .app-shell[class] .sidebar {
-  background: #1e252f;
-  border-color: #344152;
+  background: #334155;
+  border-color: #475569;
   color: #cbd5e1;
 }
 .app-shell[class] .sidebar .nav-item,
@@ -100,11 +102,11 @@
   color: #a9b8ca;
 }
 .app-shell[class] .sidebar .nav-section {
-  color: #94a3b8;
+  color: #c0ccdb;
 }
 .app-shell[class] .sidebar .nav-item.selected,
 .app-shell[class] .sidebar .nav-subitem.selected {
-  background: #334155;
+  background: #1e252f;
   color: #fff;
   border-color: transparent;
   box-shadow: inset 3px 0 #aebed0;
@@ -116,7 +118,7 @@
 }
 .app-shell[class] .sidebar .nav-item:hover:not(.selected),
 .app-shell[class] .sidebar .nav-subitem:hover:not(.selected) {
-  background: #293544;
+  background: #3e5067;
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .nav-item:focus-visible,
@@ -124,7 +126,7 @@
   outline-color: #cbd5e1;
 }
 .app-shell[class] .sidebar .sidebar-footer {
-  border-color: #344152;
+  border-color: #475569;
 }
 .app-shell[class] .sidebar .workspace-card {
   background: #263140;
