@@ -386,3 +386,50 @@
     font-size: 24px;
   }
 }
+
+/* Fit the desktop login into the viewport, including header and footer. */
+@media (min-width: 701px) {
+  .login-public-shell .signin-layout.navigan-signin {
+    height: calc(100dvh - 120px);
+    min-height: 0;
+  }
+  .login-public-shell .navigan-signin .login-introduction {
+    min-height: 0;
+    grid-template-rows: 82px minmax(0, 1fr) auto;
+    padding: 30px 34px 22px;
+    gap: 12px 0;
+  }
+  .login-public-shell .navigan-signin .login-estate-illustration {
+    min-height: 0;
+    max-height: 100%;
+  }
+  .login-public-shell .navigan-signin .login-access-panel {
+    min-height: 0;
+    padding: 24px 30px;
+  }
+  .login-public-shell .navigan-signin .login-access-card {
+    max-height: calc(100dvh - 168px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+@media (min-width: 701px) and (max-height: 800px) {
+  .login-public-shell .navigan-signin .login-introduction {
+    padding: 22px 28px 16px;
+    grid-template-rows: 65px minmax(0, 1fr) auto;
+    grid-template-columns: 52% 48%;
+  }
+  .login-public-shell .navigan-signin .login-product-brand strong {font-size: 25px;}
+  .login-public-shell .navigan-signin .login-hero-copy h1 {font-size: 32px;}
+  .login-public-shell .navigan-signin .login-hero-copy p {margin-top: 16px;font-size: 14px;line-height: 1.65;}
+  .login-public-shell .navigan-signin .login-ecosystem h2 {margin-bottom: 4px;}
+  .login-public-shell .navigan-signin .login-ecosystem-row {padding: 6px 0;gap: 8px;}
+  .login-public-shell .navigan-signin .login-access-card {padding: 24px;}
+  .login-public-shell .navigan-signin .login-form {gap: 10px;}
+  .login-public-shell .navigan-signin .login-fields {gap: 10px;}
+}
+@media (min-width: 701px) and (max-width: 1050px) {
+  .login-public-shell .navigan-signin .login-introduction {grid-template-columns: 1fr;grid-template-rows: 65px minmax(0, 1fr) auto;}
+  .login-public-shell .navigan-signin .login-estate-illustration {display: none;}
+  .login-public-shell .navigan-signin .login-ecosystem {grid-row: 3;}
+}
