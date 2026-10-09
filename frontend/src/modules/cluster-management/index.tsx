@@ -1004,7 +1004,9 @@ export function NewClusterPage() {
         status: "ACTIVE",
         search: customerSearch || undefined,
       }),
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: false,
   });
   const envs = useQuery({
     queryKey: ["active-eks-environments", customerId],
@@ -1018,7 +1020,9 @@ export function NewClusterPage() {
         customerId,
       }),
     enabled: Boolean(customerId),
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: false,
   });
   const selectedEnvironment = useQuery({
     queryKey: [
@@ -1033,12 +1037,14 @@ export function NewClusterPage() {
       ),
     enabled: Boolean(value.environmentId && value.environmentApprovedVersion),
     staleTime: 60000,
+    retry: false,
   });
   const liveProvisioningOptions = useQuery({
     queryKey: ["cluster-provisioning-options", value.environmentId],
     queryFn: () => environments.provisioningOptions(value.environmentId),
     enabled: Boolean(value.environmentId),
     staleTime: 60000,
+    retry: false,
   });
   const baseline = objectValue(selectedEnvironment.data?.configuration);
   const account = objectValue(baseline.account);
@@ -1282,7 +1288,7 @@ export function NewClusterPage() {
               Active environment *
               <select
                 required
-                disabled={!customerId}
+                disabled={!customerId || envs.isFetching}
                 value={value.environmentId}
                 onChange={(event) => {
                   const env = envs.data?.items.find(
@@ -1301,9 +1307,13 @@ export function NewClusterPage() {
                 }}
               >
                 <option value="">
-                  {customerId
-                    ? "Select ACTIVE EKS environment"
-                    : "Select a customer first"}
+                  {!customerId
+                    ? "Select a customer first"
+                    : envs.isFetching
+                      ? "Loading active environments…"
+                      : envs.isError
+                        ? "Environment loading failed"
+                        : "Select ACTIVE EKS environment"}
                 </option>
                 {envs.data?.items.map((env) => (
                   <option value={env.environmentId} key={env.environmentId}>
@@ -1314,7 +1324,19 @@ export function NewClusterPage() {
                   </option>
                 ))}
               </select>
+              {customerId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={envs.isFetching}
+                  onClick={() => void envs.refetch()}
+                >
+                  <RefreshCw size={14} />
+                  Reload active environments
+                </Button>
+              )}
               {customerId &&
+                !envs.error &&
                 !envs.isPending &&
                 envs.data?.items.length === 0 && (
                   <small className="muted">
@@ -1423,20 +1445,52 @@ export function NewClusterPage() {
               <select
                 required
                 disabled={
-                  !value.blueprintName || kubernetesVersions.length === 0
+                  selectedEnvironment.isFetching ||
+                  !value.blueprintName ||
+                  kubernetesVersions.length === 0
                 }
                 value={value.kubernetesVersion}
                 onChange={(event) =>
                   setValue({ ...value, kubernetesVersion: event.target.value })
                 }
               >
-                <option value="">Select an available EKS version</option>
+                <option value="">
+                  {!value.environmentId
+                    ? "Select an active environment first"
+                    : selectedEnvironment.isFetching
+                      ? "Loading approved Kubernetes versions…"
+                      : selectedEnvironment.isError
+                        ? "Approved baseline loading failed"
+                        : "Select an available EKS version"}
+                </option>
                 {kubernetesVersions.map((version) => (
                   <option value={version} key={version}>
                     {version}
                   </option>
                 ))}
               </select>
+              {value.environmentId &&
+                !selectedEnvironment.isPending &&
+                !selectedEnvironment.error &&
+                kubernetesVersions.length === 0 && (
+                  <small className="field-error">
+                    Approved environment v{value.environmentApprovedVersion} has
+                    no supported Kubernetes versions in its provisioning
+                    contract. Update and approve the environment profile to make
+                    versions available.
+                  </small>
+                )}
+              {value.environmentId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={selectedEnvironment.isFetching}
+                  onClick={() => void selectedEnvironment.refetch()}
+                >
+                  <RefreshCw size={14} />
+                  Reload approved baseline
+                </Button>
+              )}
             </label>
             <div className="field">
               <span>API endpoint policy</span>
