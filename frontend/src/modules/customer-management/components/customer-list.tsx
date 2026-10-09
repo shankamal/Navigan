@@ -5,6 +5,11 @@ import {
   ArrowUpRight,
   Building2,
   CheckCircle2,
+  FilePenLine,
+  Send,
+  Clock3,
+  ArrowLeft,
+  ArrowRight,
   Columns3,
   List,
   Plus,
@@ -18,7 +23,6 @@ import {
   ErrorNotice,
   Loading,
   PageHeading,
-  Pagination,
   formatDate,
 } from "@/shared/components/ui";
 import { useCustomerCount, useCustomers } from "../hooks/queries";
@@ -87,12 +91,29 @@ export function CustomerListView() {
         title="Customers"
         description="Onboard customers and manage their journey across your cloud platform."
         action={
-          canCreate(identity) && (
-            <Link href="/customers/new" className="button button-primary">
-              <Plus size={18} />
-              Create customer
-            </Link>
-          )
+          <>
+            <Button
+              variant="secondary"
+              aria-label="Refresh customer directory"
+              disabled={customers.isFetching}
+              onClick={() => {
+                void customers.refetch();
+                metricQueries.forEach((query) => void query.refetch());
+              }}
+            >
+              <RefreshCw
+                size={17}
+                className={customers.isFetching ? "animate-spin" : ""}
+              />
+              Refresh
+            </Button>
+            {canCreate(identity) && (
+              <Link href="/customers/new" className="button button-primary">
+                <Plus size={18} />
+                Create customer
+              </Link>
+            )}
+          </>
         }
       />
       <CustomerMetrics
@@ -104,120 +125,131 @@ export function CustomerListView() {
         failed={metricQueries.some((query) => query.isError)}
       />
       <section className="panel">
-        <div className="list-heading">
-          <div>
-            <h2>Customer directory</h2>
-            <p className="muted">
-              Customer records, provider associations, and onboarding status.
-            </p>
+        <div className="customer-directory-toolbar">
+          <div className="filter-bar">
+            <label className="search-field">
+              <Search size={18} aria-hidden="true" />
+              <span className="sr-only">Search customers by name or ID</span>
+              <input
+                value={search}
+                maxLength={255}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by customer name or ID"
+                type="search"
+              />
+            </label>
+            <label className="filter-field">
+              <span className="sr-only">Filter by status</span>
+              <select
+                aria-label="Filter by status"
+                value={filters.status ?? ""}
+                onChange={(event) =>
+                  filter({
+                    status: (event.target.value || undefined) as
+                      CustomerStatus | undefined,
+                  })
+                }
+              >
+                <option value="">All statuses</option>
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-field">
+              <span className="sr-only">Filter by cloud provider</span>
+              <select
+                value={filters.cloudProvider ?? ""}
+                onChange={(event) =>
+                  filter({ cloudProvider: event.target.value || undefined })
+                }
+              >
+                <option value="">All cloud providers</option>
+                {cloudProviders.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.shortName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-field">
+              <span className="sr-only">Sort customers</span>
+              <select
+                value={filters.sort}
+                onChange={(event) =>
+                  filter({
+                    sort: event.target.value as CustomerFilters["sort"],
+                  })
+                }
+              >
+                <option value="createdAt,desc">Newest first</option>
+                <option value="createdAt,asc">Oldest first</option>
+                <option value="name,asc">Name A–Z</option>
+                <option value="name,desc">Name Z–A</option>
+                <option value="updatedAt,desc">Recently updated</option>
+                <option value="status,asc">Status A–Z</option>
+              </select>
+            </label>
           </div>
-          <Button
-            variant="ghost"
-            aria-label="Refresh customer directory"
-            disabled={customers.isFetching}
-            onClick={() => {
-              void customers.refetch();
-              void total.refetch();
-              void active.refetch();
-              void submitted.refetch();
-              void review.refetch();
-              void draft.refetch();
-            }}
+          <div
+            className="customer-view-toggle"
+            role="group"
+            aria-label="Customer view"
           >
-            <RefreshCw
-              size={18}
-              className={customers.isFetching ? "animate-spin" : ""}
-            />
-            <span>Refresh</span>
-          </Button>
+            <Button
+              variant="secondary"
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+            >
+              <List size={17} />
+              List
+            </Button>
+            <Button
+              variant="secondary"
+              aria-pressed={view === "board"}
+              onClick={() => setView("board")}
+            >
+              <Columns3 size={17} />
+              Board
+            </Button>
+          </div>
         </div>
-        <div
-          className="customer-view-toggle"
-          role="group"
-          aria-label="Customer view"
-        >
-          <Button
-            variant="secondary"
-            aria-pressed={view === "list"}
-            onClick={() => setView("list")}
+        {view === "list" && (
+          <div
+            className="customer-quick-filters"
+            role="group"
+            aria-label="Customer status shortcuts"
           >
-            <List size={17} />
-            List
-          </Button>
-          <Button
-            variant="secondary"
-            aria-pressed={view === "board"}
-            onClick={() => setView("board")}
-          >
-            <Columns3 size={17} />
-            Board
-          </Button>
-        </div>
-        <div className="filter-bar">
-          <label className="search-field">
-            <Search size={18} aria-hidden="true" />
-            <span className="sr-only">Search customers by name or ID</span>
-            <input
-              value={search}
-              maxLength={255}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by customer name or ID"
-              type="search"
-            />
-          </label>
-          <label className="filter-field">
-            <span className="sr-only">Filter by status</span>
-            <select
-              aria-label="Filter by status"
-              value={filters.status ?? ""}
-              onChange={(event) =>
-                filter({
-                  status: (event.target.value || undefined) as
-                    CustomerStatus | undefined,
-                })
-              }
-            >
-              <option value="">All statuses</option>
-              {statuses.map((status) => (
-                <option key={status} value={status}>
-                  {statusLabels[status]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span className="sr-only">Filter by cloud provider</span>
-            <select
-              value={filters.cloudProvider ?? ""}
-              onChange={(event) =>
-                filter({ cloudProvider: event.target.value || undefined })
-              }
-            >
-              <option value="">All cloud providers</option>
-              {cloudProviders.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.shortName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span className="sr-only">Sort customers</span>
-            <select
-              value={filters.sort}
-              onChange={(event) =>
-                filter({ sort: event.target.value as CustomerFilters["sort"] })
-              }
-            >
-              <option value="createdAt,desc">Newest first</option>
-              <option value="createdAt,asc">Oldest first</option>
-              <option value="name,asc">Name A–Z</option>
-              <option value="name,desc">Name Z–A</option>
-              <option value="updatedAt,desc">Recently updated</option>
-              <option value="status,asc">Status A–Z</option>
-            </select>
-          </label>
-        </div>
+            {(
+              [
+                { label: "All", status: undefined, count: total.data },
+                { label: "Active", status: "ACTIVE", count: active.data },
+                {
+                  label: "Submitted",
+                  status: "SUBMITTED",
+                  count: submitted.data,
+                },
+                {
+                  label: "Under review",
+                  status: "UNDER_REVIEW",
+                  count: review.data,
+                },
+                { label: "Drafts", status: "DRAFT", count: draft.data },
+              ] as const
+            ).map((item) => (
+              <Button
+                key={item.label}
+                variant="secondary"
+                aria-pressed={filters.status === item.status}
+                onClick={() => filter({ status: item.status })}
+              >
+                {item.label} ({item.count ?? "—"})
+              </Button>
+            ))}
+          </div>
+        )}
         {(filters.status || filters.cloudProvider || search) && (
           <div className="filter-summary">
             <span>Filters applied</span>
@@ -280,8 +312,35 @@ export function CustomerListView() {
                         aria-label={`${statusLabels[status]} customers`}
                       >
                         <header>
-                          <h3>{statusLabels[status]}</h3>
-                          <span>{items.length} on this page</span>
+                          <div className="customer-board-title">
+                            {status === "ACTIVE" ? (
+                              <CheckCircle2 size={20} />
+                            ) : status === "DRAFT" ? (
+                              <FilePenLine size={20} />
+                            ) : status === "SUBMITTED" ? (
+                              <Send size={20} />
+                            ) : (
+                              <Clock3 size={20} />
+                            )}
+                            <div>
+                              <h3>{statusLabels[status]}</h3>
+                              <small>
+                                {status === "DRAFT"
+                                  ? "In preparation before submission"
+                                  : status === "SUBMITTED"
+                                    ? "Submitted and awaiting review"
+                                    : status === "UNDER_REVIEW"
+                                      ? "Under review by platform team"
+                                      : status === "ACTIVE"
+                                        ? "Onboarded and active"
+                                        : "Customer lifecycle status"}
+                              </small>
+                            </div>
+                          </div>
+                          <span>
+                            {items.length}
+                            <span className="sr-only"> on this page</span>
+                          </span>
                         </header>
                         {items.length === 0 ? (
                           <p className="customer-board-empty">
@@ -315,7 +374,10 @@ export function CustomerListView() {
                                   </p>
                                 </div>
                               </div>
-                              <ProviderBadges codes={customer.cloudProviders} />
+                              <ProviderBadges
+                                codes={customer.cloudProviders}
+                                compact
+                              />
                               <footer>
                                 <span>
                                   Updated {formatDate(customer.updatedAt)}
@@ -344,13 +406,12 @@ export function CustomerListView() {
                   <thead>
                     <tr>
                       <th scope="col">Customer</th>
+                      <th scope="col">Customer ID</th>
                       <th scope="col">Cloud providers</th>
                       <th scope="col">Status</th>
                       <th scope="col">Created</th>
                       <th scope="col">Last updated</th>
-                      <th scope="col">
-                        <span className="sr-only">Open customer</span>
-                      </th>
+                      <th scope="col">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -371,17 +432,22 @@ export function CustomerListView() {
                               >
                                 {customer.name}
                               </Link>
-                              <p
-                                className="customer-id"
-                                title={customer.customerId}
-                              >
-                                {customer.customerId}
-                              </p>
                             </div>
                           </div>
                         </td>
                         <td>
-                          <ProviderBadges codes={customer.cloudProviders} />
+                          <span
+                            className="customer-table-id"
+                            title={customer.customerId}
+                          >
+                            {customer.customerId}
+                          </span>
+                        </td>
+                        <td>
+                          <ProviderBadges
+                            codes={customer.cloudProviders}
+                            compact
+                          />
                         </td>
                         <td>
                           <StatusBadge status={customer.status} />
@@ -391,10 +457,10 @@ export function CustomerListView() {
                         <td>
                           <Link
                             href={`/customers/${customer.customerId}`}
-                            className="icon-link"
+                            className="customer-open-link"
                             aria-label={`View ${customer.name}`}
                           >
-                            <ArrowUpRight size={19} />
+                            Open <ArrowUpRight size={15} />
                           </Link>
                         </td>
                       </tr>
@@ -418,7 +484,7 @@ export function CustomerListView() {
                   ))}
                 </select>
               </label>
-              <Pagination
+              <CustomerPagination
                 {...customers.data.pagination}
                 onChange={(page) => setFilters((old) => ({ ...old, page }))}
                 disabled={customers.isFetching}
@@ -427,6 +493,67 @@ export function CustomerListView() {
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+function CustomerPagination({
+  page,
+  pageSize,
+  totalElements,
+  totalPages,
+  onChange,
+  disabled,
+}: {
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+  disabled: boolean;
+}) {
+  const start = Math.max(0, Math.min(page - 2, totalPages - 5));
+  const pages = Array.from(
+    { length: Math.min(5, totalPages) },
+    (_, index) => start + index,
+  );
+  return (
+    <div className="customer-pagination">
+      <p>
+        {totalElements
+          ? `Showing ${page * pageSize + 1}–${Math.min((page + 1) * pageSize, totalElements)} of ${totalElements} customers`
+          : "0 customers"}
+      </p>
+      <nav aria-label="Pagination">
+        <Button
+          variant="secondary"
+          aria-label="Previous page"
+          disabled={disabled || page === 0}
+          onClick={() => onChange(page - 1)}
+        >
+          <ArrowLeft size={15} />
+        </Button>
+        {pages.map((value) => (
+          <Button
+            key={value}
+            variant="secondary"
+            aria-label={`Page ${value + 1}`}
+            aria-current={value === page ? "page" : undefined}
+            disabled={disabled}
+            onClick={() => onChange(value)}
+          >
+            {value + 1}
+          </Button>
+        ))}
+        <Button
+          variant="secondary"
+          aria-label="Next page"
+          disabled={disabled || page + 1 >= totalPages}
+          onClick={() => onChange(page + 1)}
+        >
+          <ArrowRight size={15} />
+        </Button>
+      </nav>
     </div>
   );
 }

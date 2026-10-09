@@ -352,3 +352,219 @@
     min-width: 140px;
   }
 }
+/* Align the selected directory and board mockup without changing shared pages. */
+.customer-workspace .page-heading h1 {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #142231;
+}
+.customer-workspace .page-heading .muted {
+  font-size: 14px;
+  max-width: none;
+  margin-top: 6px;
+}
+.customer-workspace .eyebrow {
+  color: #64748b;
+  letter-spacing: 0.08em;
+}
+.customer-workspace .heading-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.customer-directory-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px 10px;
+}
+.customer-workspace .customer-directory-toolbar .filter-bar {
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+}
+.customer-workspace .customer-directory-toolbar .search-field {
+  min-width: 200px;
+  flex: 1.5;
+}
+.customer-workspace .customer-directory-toolbar .filter-field {
+  min-width: 120px;
+  flex: 1;
+}
+.customer-workspace .customer-directory-toolbar select {
+  width: 100%;
+  font-size: 13px;
+  min-height: 38px;
+}
+.customer-workspace .customer-directory-toolbar input {
+  font-size: 13px;
+  min-height: 38px;
+}
+.customer-workspace .customer-view-toggle {
+  position: static;
+  padding: 0;
+  flex: none;
+}
+.customer-quick-filters {
+  display: flex;
+  gap: 6px;
+  padding: 0 18px 12px;
+  flex-wrap: wrap;
+}
+.customer-quick-filters .button {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 6px 12px;
+}
+.customer-quick-filters [aria-pressed="true"] {
+  background: #65a449;
+  border-color: #65a449;
+  color: #143322;
+}
+.customer-workspace .customer-table-id {
+  display: block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #64748b;
+}
+.customer-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #dde3e8;
+  border-radius: 5px;
+  color: #334155;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.customer-open-link:hover {
+  background: #f5f7f9;
+}
+.customer-workspace .provider-logo {
+  padding: 2px;
+  background: transparent;
+}
+.customer-workspace .provider-logo img {
+  width: 28px;
+  height: 26px;
+}
+.customer-lifecycle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.customer-active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.customer-workspace .customer-board {
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  padding: 0 18px 14px;
+}
+.customer-board-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #526177;
+  min-width: 0;
+}
+.customer-board-title small {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+.board-active .customer-board-title {
+  color: #385c28;
+}
+.board-submitted .customer-board-title {
+  color: #836429;
+}
+.customer-workspace .customer-board-column > header {
+  min-height: 72px;
+  align-items: flex-start;
+}
+.customer-workspace .customer-board-card {
+  gap: 10px;
+  padding: 12px;
+}
+.customer-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+.customer-pagination p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+.customer-pagination nav {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.customer-pagination .button {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 6px;
+  font-size: 12px;
+}
+.customer-pagination [aria-current="page"] {
+  background: #65a449;
+  border-color: #65a449;
+  color: #143322;
+}
+.customer-workspace .list-footer {
+  padding: 12px 18px;
+  gap: 16px;
+}
+.customer-workspace .list-footer > label {
+  font-size: 12px;
+  order: 2;
+}
+@media (max-width: 1100px) {
+  .customer-directory-toolbar {
+    flex-wrap: wrap;
+  }
+  .customer-workspace .customer-directory-toolbar .filter-bar {
+    flex-basis: 100%;
+  }
+  .customer-workspace .customer-view-toggle {
+    margin-left: auto;
+  }
+  .customer-workspace .customer-table {
+    min-width: 850px;
+  }
+}
+@media (max-width: 720px) {
+  .customer-workspace .page-heading h1 {
+    font-size: 24px;
+  }
+  .customer-lifecycle,
+  .customer-active {
+    align-items: flex-start;
+  }
+  .customer-pagination {
+    flex-wrap: wrap;
+  }
+  .customer-workspace .list-footer {
+    flex-wrap: wrap;
+  }
+  .customer-workspace .customer-directory-toolbar .filter-field {
+    min-width: 140px;
+  }
+  .customer-workspace .customer-board {
+    grid-template-columns: repeat(4, 220px);
+  }
+}

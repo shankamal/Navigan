@@ -53,6 +53,27 @@ describe("Customer workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "List" }));
     expect(screen.getByRole("table")).toBeInTheDocument();
   });
+  it("uses status shortcuts and exposes labelled record navigation", () => {
+    render(<CustomerListView />);
+    fireEvent.click(screen.getByRole("button", { name: "Drafts (1)" }));
+    expect(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+    ).toHaveValue("DRAFT");
+    expect(
+      screen.getByRole("columnheader", { name: "Customer ID" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "View Example Corporation" }),
+    ).toHaveTextContent("Open");
+    expect(screen.getByRole("button", { name: "Page 1" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    expect(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+    ).toHaveValue("DRAFT");
+  });
   it("accounts for statuses beyond the main four in the chart", () => {
     render(
       <CustomerMetrics
