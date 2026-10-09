@@ -632,3 +632,118 @@
     font-size: 23px;
   }
 }
+
+/* Shared dashboard typography applied to the customer overview. */
+.customer-metrics {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  gap: 16px;
+}
+.customer-metrics > div {
+  min-width: 0;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 9px;
+}
+.customer-metrics h2 {
+  font-size: 16px;
+  line-height: 24px;
+  margin-bottom: 16px;
+}
+.customer-chart-content {
+  gap: 16px;
+}
+.customer-metrics ul {
+  min-width: 0;
+  flex: 1;
+  gap: 8px;
+}
+.customer-metrics li,
+.customer-metrics li strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+.customer-workload-total {
+  margin: 0 0 16px;
+  color: #475569;
+  font-size: 14px;
+}
+.customer-workload-total strong {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-right: 6px;
+}
+.customer-stacked-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #e2e8f0;
+  margin-bottom: 16px;
+}
+.customer-stacked-bar span {
+  height: 100%;
+}
+.customer-active-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 20px 0;
+  color: #64748b;
+  font-size: 18px;
+}
+.customer-active-summary strong {
+  color: #1e293b;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+}
+.customer-active-summary .customer-active-percent {
+  margin-left: auto;
+  color: #568c3e;
+}
+.customer-progress {
+  height: 14px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.customer-progress span {
+  display: block;
+  height: 100%;
+  background: #65a449;
+}
+.customer-active small {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+}
+@media (max-width: 1400px) {
+  .customer-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .customer-lifecycle {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 720px) {
+  .customer-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-chart-content {
+    flex-wrap: wrap;
+  }
+}
+
+.customer-metrics > div {
+  display: block;
+}
+.customer-progress {
+  width: 100%;
+}

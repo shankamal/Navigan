@@ -129,23 +129,63 @@ export function CustomerMetrics({
           </ul>
         </div>
       </div>
+      <div className="customer-approvals">
+        <h2>Approval workload</h2>
+        <p className="customer-workload-total">
+          <strong>{submitted! + review!}</strong> awaiting action
+        </p>
+        <div
+          className="customer-stacked-bar"
+          role="img"
+          aria-label={`Approval workload: ${submitted} submitted, ${review} under review, ${draft} drafts`}
+        >
+          {[submitted!, review!, draft!].map((value, index) => (
+            <span
+              key={index}
+              style={{
+                width: `${submitted! + review! + draft! ? (value / (submitted! + review! + draft!)) * 100 : 0}%`,
+                backgroundColor: [colors[2], colors[3], colors[1]][index],
+              }}
+            />
+          ))}
+        </div>
+        <ul className="customer-approval-legend">
+          {[submitted!, review!, draft!].map((value, index) => (
+            <li key={index}>
+              <span
+                className="customer-chart-dot"
+                style={{
+                  backgroundColor: [colors[2], colors[3], colors[1]][index],
+                }}
+              />
+              <span>{["Submitted", "Under review", "Drafts"][index]}</span>
+              <strong>{value}</strong>
+            </li>
+          ))}
+        </ul>
+      </div>
       <div className="customer-active">
         <h2>Active customers</h2>
-        <div className="customer-chart-content">
-          <Ring
-            values={[active!]}
-            total={count}
-            center={String(active)}
-            label={`Active customers: ${active} of ${count}`}
-          />
-          <div>
-            <strong className="customer-active-percent">
-              {percent(active!)}%
-            </strong>
-            <p>Active</p>
-            <small>Within your access scope</small>
-          </div>
+        <div className="customer-active-summary">
+          <strong>{active}</strong>
+          <span>of {count}</span>
+          <strong className="customer-active-percent">
+            {percent(active!)}%
+          </strong>
         </div>
+        <div
+          className="customer-progress"
+          role="progressbar"
+          aria-label={`Active customers: ${active} of ${count}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent(active!)}
+          aria-valuetext={`${active} of ${count} customers active`}
+        >
+          <span style={{ width: `${Math.min(100, percent(active!))}%` }} />
+        </div>
+        <p>Active customer coverage</p>
+        <small>Within your access scope</small>
       </div>
     </section>
   );

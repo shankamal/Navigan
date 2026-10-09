@@ -87,7 +87,7 @@ describe("Customer workspace", () => {
     );
     expect(screen.getByText("Other statuses")).toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "Active customers: 1 of 3" }),
+      screen.getByRole("progressbar", { name: "Active customers: 1 of 3" }),
     ).toBeInTheDocument();
   });
   it("renders zero totals without invalid graph values", () => {
