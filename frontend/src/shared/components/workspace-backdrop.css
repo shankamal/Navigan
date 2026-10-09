@@ -25,7 +25,7 @@
   white-space: nowrap;
   padding-right: 16px;
   margin-right: 2px;
-  border-right: 1px solid rgb(226 232 240 / 25%);
+  border-right: 0;
 }
 .app-shell[class] > header.topbar .corporate-wordmark > span {
   color: #86bc25;
@@ -356,4 +356,79 @@
 }
 .app-shell[class] .sidebar .nav-submenu {
   border-color: #3b495d;
+}
+
+/* Portal identity and sticky navigation branding. */
+.app-shell[class] > header.topbar .platform-title {
+  font-family: "Open Sans", Arial, sans-serif;
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #f8fafc;
+}
+.app-shell[class] .sidebar {
+  top: var(--workspace-topbar-height, 64px);
+  height: calc(100dvh - var(--workspace-topbar-height, 64px));
+  padding-top: 0;
+}
+.app-shell[class] .sidebar-brand-panel {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  margin-bottom: 16px;
+  background: #293647;
+  border-bottom: 1px solid #475569;
+}
+.app-shell[class] .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.app-shell[class] .sidebar-brand svg {
+  flex-shrink: 0;
+  color: #a8d86e;
+}
+.app-shell[class] .sidebar-brand-panel .sidebar-collapse {
+  flex-shrink: 0;
+  margin: 0;
+}
+.app-shell[class] .sidebar-brand:focus-visible,
+.app-shell[class] .sidebar-collapse:focus-visible {
+  outline: 2px solid #cbd5e1;
+  outline-offset: 4px;
+}
+@media (min-width: 901px) {
+  .app-shell.navigation-collapsed .sidebar-brand-panel {
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    padding-block: 14px;
+  }
+  .app-shell.navigation-collapsed .sidebar-brand-name {
+    display: none;
+  }
+}
+@media (max-width: 1200px) {
+  .app-shell[class] > header.topbar .platform-title {
+    font-size: 18px;
+  }
+}
+@media (max-width: 640px) {
+  .app-shell[class] > header.topbar .platform-title {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+  }
 }

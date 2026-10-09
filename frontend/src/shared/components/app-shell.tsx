@@ -311,7 +311,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {expanded ? <X /> : <Menu />}
         </Button>
-        <Link href="/dashboard" className="brand" aria-label="Navigan home">
+        <Link href="/dashboard" className="brand" aria-label="Deloitte home">
           {logo ? (
             <img src={logo} alt="Corporate logo" className="corporate-logo" />
           ) : (
@@ -319,7 +319,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               Deloitte<span aria-hidden="true">.</span>
             </span>
           )}
-          <span>Navigan</span>
         </Link>
         <span className="brand-divider" />
         <span className="platform-title">Container Management Platform</span>
@@ -350,17 +349,28 @@ export function AppShell({ children }: { children: ReactNode }) {
           className={`sidebar ${expanded ? "expanded" : ""}`}
         >
           <div>
-            <button
-              type="button"
-              className="sidebar-collapse"
-              aria-label={
-                collapsed ? "Expand navigation" : "Collapse navigation"
-              }
-              aria-expanded={!collapsed}
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <Menu size={18} />
-            </button>
+            <div className="sidebar-brand-panel">
+              <Link
+                href="/dashboard"
+                className="sidebar-brand"
+                aria-label="Navigan home"
+                title="Navigan home"
+              >
+                <Network size={24} aria-hidden="true" />
+                <span className="sidebar-brand-name">Navigan</span>
+              </Link>
+              <button
+                type="button"
+                className="sidebar-collapse"
+                aria-label={
+                  collapsed ? "Expand navigation" : "Collapse navigation"
+                }
+                aria-expanded={!collapsed}
+                onClick={() => setCollapsed(!collapsed)}
+              >
+                <Menu size={18} />
+              </button>
+            </div>
             <nav aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
