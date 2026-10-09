@@ -276,10 +276,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       shell.style.setProperty("--workspace-topbar-height", `${header.getBoundingClientRect().height}px`);
     };
     updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(header);
+    const observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(updateHeight)
+      : undefined;
+    observer?.observe(header);
+    window.addEventListener("resize", updateHeight);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeight);
       shell.style.removeProperty("--workspace-topbar-height");
     };
   }, []);
