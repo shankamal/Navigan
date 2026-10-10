@@ -28,3 +28,14 @@ serviceAccount:
 clusterRoleBinding:
   create: false
 
+# Prefer spreading replicas without blocking single-node clusters.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: navigan-dashboard
+              app.kubernetes.io/name: headlamp
