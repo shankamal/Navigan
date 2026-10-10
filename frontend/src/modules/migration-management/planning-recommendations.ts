@@ -45,25 +45,32 @@ export function recommendDependencies(
   resources: (SourceInventoryResource & { name: string })[],
 ): PlanningRecommendation[] {
   const data = workload as Record<string, unknown>;
-  const pod = (data.pod && typeof data.pod === "object" ? data.pod : {}) as Record<string, unknown>;
   const explicit = new Set<string>();
-  const visit = (node: unknown, key?: string) => {
+  // Connector v2: allowlisted kind/name references without secret contents.
+  for (const entry of Array.isArray(data.dependencyReferences) ? data.dependencyReferences : []) {
+    if (!entry || typeof entry !== "object") continue;
+    const item = entry as Record<string, unknown>;
+    if (["ConfigMap", "Secret", "ServiceAccount", "PersistentVolumeClaim"].includes(String(item.kind)) && typeof item.name === "string") {
+      explicit.add(item.kind + ":" + item.name);
+    }
+  }
+  // Legacy sanitized inventories only support serviceAccountName and do not
+  // provide complete dependency evidence.
+  const pod = (data.pod && typeof data.pod === "object" ? data.pod : {}) as Record<string, unknown>;
+  if (typeof pod.serviceAccountName === "string" && pod.serviceAccountName !== "default") {
+    explicit.add("ServiceAccount:" + pod.serviceAccountName);
+  }
+  // Test/older enriched inventories may contain direct reference objects.
+  const visit = (node: unknown) => {
     if (!node || typeof node !== "object") return;
-    if (Array.isArray(node)) { for (const item of node) visit(item); return; }
-    for (const [field, value] of Object.entries(node as Record<string, unknown>)) {
-      if (["configMapRef", "configMapKeyRef", "configMap"].includes(field) && value && typeof value === "object") {
-        const name = (value as Record<string, unknown>).name;
-        if (typeof name === "string") explicit.add("ConfigMap:" + name);
-      }
-      if (["secretRef", "secretKeyRef", "secret", "imagePullSecrets"].includes(field)) {
-        if (Array.isArray(value)) value.forEach((item) => visit({secret: item}));
-        else if (value && typeof value === "object") {
-          const name = (value as Record<string, unknown>).name;
-          if (typeof name === "string") explicit.add("Secret:" + name);
-        }
-      }
-      if (field === "serviceAccountName" && typeof value === "string") explicit.add("ServiceAccount:" + value);
-      if (field !== "metadata" && field !== "annotations") visit(value, field);
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const value = node as Record<string, unknown>;
+    for (const [field, child] of Object.entries(value)) {
+      if (["configMapRef", "configMapKeyRef", "configMap"].includes(field) && child && typeof child === "object" && typeof (child as Record<string, unknown>).name === "string")
+        explicit.add("ConfigMap:" + (child as Record<string, unknown>).name);
+      if (["secretRef", "secretKeyRef"].includes(field) && child && typeof child === "object" && typeof (child as Record<string, unknown>).name === "string")
+        explicit.add("Secret:" + (child as Record<string, unknown>).name);
+      if (!["metadata", "annotations"].includes(field)) visit(child);
     }
   };
   visit(pod);
