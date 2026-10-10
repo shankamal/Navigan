@@ -227,3 +227,18 @@ def test_connector_retains_reference_names_without_secret_values():
     assert "password" not in str(inventory)
     assert "PASSWORD" in str(inventory)  # Existing metadata retains variable names only.
 
+
+def test_rejects_unexpected_dependency_reference_fields():
+    payload = source_inventory()
+    deployment = resource_by_kind(payload, "Deployment")
+    deployment["dependencyReferences"] = [{"kind": "Secret", "name": "db", "value": "forbidden"}]
+    with pytest.raises(ValidationError, match="Invalid inventory dependency reference"):
+        SourceInventoryReport.model_validate(payload)
+
+
+def test_rejects_unsupported_dependency_reference_kinds():
+    payload = source_inventory()
+    deployment = resource_by_kind(payload, "Deployment")
+    deployment["dependencyReferences"] = [{"kind": "Node", "name": "worker"}]
+    with pytest.raises(ValidationError, match="Unsupported inventory dependency kind"):
+        SourceInventoryReport.model_validate(payload)
