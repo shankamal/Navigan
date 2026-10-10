@@ -13,7 +13,8 @@ import {
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useWorkspacePage } from "@/shared/components/workspace-page-context";
 
 import { normalizeApiError } from "@/shared/api/client";
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -127,6 +128,17 @@ export function PlanningEditor({
       : emptyDraft(assessment),
   );
   const [tab, setTab] = useState<"scope" | "remediate" | "review">("scope");
+  const { setLabel } = useWorkspacePage();
+  useEffect(() => {
+    setLabel(
+      tab === "scope"
+        ? "Scope & target"
+        : tab === "remediate"
+          ? "Remediation & target mapping"
+          : "Review migration draft",
+    );
+    return () => setLabel("");
+  }, [tab, setLabel]);
   const [namespace, setNamespace] = useState("");
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("ALL");
@@ -768,6 +780,10 @@ export function PlanningEditor({
                     className={styles.fields}
                     disabled={!canEdit || stale || save.isPending}
                   >
+                    <p className={styles.caption}>
+                      Draft fields may remain incomplete. Evidence reference is
+                      required when Work status is Evidence attached.
+                    </p>
                     <label>
                       Treatment
                       <select
@@ -800,7 +816,7 @@ export function PlanningEditor({
                         onChange={(e) =>
                           changeRemediation({ owner: e.target.value })
                         }
-                        placeholder="Application or platform owner"
+                        placeholder="Optional: person or team responsible"
                       />
                     </label>
                     <label>
@@ -812,7 +828,7 @@ export function PlanningEditor({
                         onChange={(e) =>
                           changeRemediation({ targetMapping: e.target.value })
                         }
-                        placeholder="Target storage class, ingress, identity, or replacement decision"
+                        placeholder="Optional: proposed EKS storage, ingress, identity or replacement mapping"
                       />
                     </label>
                     <label>
@@ -825,7 +841,7 @@ export function PlanningEditor({
                             evidenceReference: e.target.value,
                           })
                         }
-                        placeholder="Artifact ID or reference; no credentials"
+                        placeholder="Required for Evidence attached: artifact ID or report reference"
                       />
                     </label>
                     <label>
@@ -932,9 +948,12 @@ export function PlanningEditor({
           Back
         </button>
         <p>
-          {dirty
-            ? "Unsaved planning changes"
-            : `Assessment v${assessment.assessmentVersion} · Draft only`}
+          {save.isPending
+            ? "Saving draft…"
+            : message ||
+              (dirty
+                ? "Unsaved planning changes"
+                : `Assessment v${assessment.assessmentVersion} · Draft only`)}
         </p>
         <button
           className="button button-secondary"

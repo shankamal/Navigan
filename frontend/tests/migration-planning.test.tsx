@@ -104,9 +104,11 @@ describe("migration planning", () => {
     expect(input.planningDraft.resources[1].dependency).toBe(true);
     expect(input.planningDraft.dataStrategy).toBe("BACKUP_RESTORE");
     expect(
-      await screen.findByText(
-        "Planning draft saved. No cluster changes were applied.",
-      ),
+      (
+        await screen.findAllByText(
+          "Planning draft saved. No cluster changes were applied.",
+        )
+      )[0],
     ).toBeVisible();
   });
   it("captures remediation evidence without exposing verification or execution actions", () => {
@@ -187,9 +189,7 @@ describe("migration planning", () => {
     expect(
       screen.getByLabelText("Include StatefulSet retailflow/postgres"),
     ).not.toBeChecked();
-    expect(
-      screen.queryByRole("link", { name: "Assess" }),
-    ).toBeNull();
+    expect(screen.queryByRole("link", { name: "Assess" })).toBeNull();
   });
   it("shows save failures prominently and retains edits", async () => {
     mock.update.mockRejectedValue(new Error("Dev backend unavailable"));
