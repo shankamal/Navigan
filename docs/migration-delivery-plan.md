@@ -54,7 +54,7 @@ Dates and effort estimates will be added after the actual pilot scope and access
 
 ### M0 — baseline
 - [x] Review assessment-to-approval code and identify execution gaps.
-- [ ] Verify current main against inspected code and run relevant backend/frontend regression tests.
+- [x] Verify current main against inspected migration code and run targeted regression tests (results below; baseline is not green).
 - [ ] Obtain the real report's finding codes and resource references without secrets.
 - [ ] Select one low-risk stateless Dev application, target cluster/namespace and artifact repository.
 - [ ] Confirm target connectivity, approved deployment identity, test endpoints and operational owners.
@@ -118,3 +118,33 @@ No production changes or workload migration have been performed under this plan.
 ## Definition of done
 
 A selected workload has been remediated, validated, packaged, migrated and accepted in the target under recorded approvals; rollback/recovery is demonstrated; production outcomes and handover are evidenced. Shipping a UI, an assessment score or an APPROVED record alone does not complete this goal.
+
+## Phase 0 baseline check — 2026-10-10
+
+Status: IN_PROGRESS. No application changes, infrastructure changes or live migration actions.
+
+Remote main remains 561eb0584089ed6390d7bf2e21cf9b1f3db13358. Compared the local migration service, models, assessment engine, connector handler, report/detail UI and the failing tests plus connector agent/inventory/RBAC against remote commit contents: exact matches. Tests were run in the working checkout, not an isolated full release checkout; a full release check remains necessary before deployment.
+
+Frontend targeted suite:
+- migration-management.test.tsx, migration-approval.test.tsx, migration-proxy.test.ts
+- 3 test files, 12 tests passed.
+
+Backend targeted suite:
+- Service, models, handler, connector, agent, inventory, source inventory, assessment engine, repository and packaging.
+- 103 passed, 3 failed. No live Aurora integration or target execution verified.
+
+Failures requiring resolution:
+1. test_refreshes_rejected_assessment_with_connected_source: fixture does not supply sourceClusterId or connector token; service requires one. Verify connected-source and legacy-token behaviours and correct fixture/contract with meaningful regression coverage.
+2. test_collects_only_selected_namespaces_and_safe_resources: test forbids Secret/ConfigMap API collection; agent currently collects them for sanitized metadata.
+3. test_rbac_is_read_only_and_excludes_sensitive_resources: test expects Secret/ConfigMap/RBAC resources excluded; current chart grants list access. Sanitizer excludes Secret values from reported inventory, but Kubernetes list permission still permits reading full Secret objects. Do not treat output sanitization as metadata-only authorization. Choose collection policy and namespace scope explicitly before changing tests or permissions.
+
+Required pilot intake from Dev:
+- Migration ID, assessment timestamp/version, source cluster and selected namespace.
+- Finding codes, severities, resource references and target treatments (redact confidential identifiers if needed; do not supply secret values).
+- Target EKS cluster/environment and whether runtime inventory is fresh/READY.
+- One stateless application; identify PVCs, databases and external dependencies if present.
+- Git repository/chart/path and revision used to deploy it.
+- Application acceptance endpoint/tests and test owner.
+- Confirm target execution access is available without sharing credentials.
+
+Next: resolve baseline discrepancies; obtain pilot intake; record application and target acceptance criteria. Phase 0 is not complete until both code baseline and real pilot readiness are evidenced.
