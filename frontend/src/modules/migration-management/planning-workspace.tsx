@@ -165,7 +165,8 @@ export function PlanningEditor({
   );
   const selected = new Map(draft.resources.map((r) => [resourceKey(r), r]));
   const displayedRecommendations = filtered.map((r) => recommendResource(r));
-  const pendingRecommendations = displayedRecommendations.filter((r) => !selected.has(resourceKey(r.resource)));
+  const pendingRecommendations = displayedRecommendations.filter((r) => r.safeToBulkAdd && !selected.has(resourceKey(r.resource)));
+  const managedRecommendations = displayedRecommendations.filter((r) => r.classification === "PLATFORM_MANAGED").length;
   const reviewRecommendations = displayedRecommendations.filter((r) => r.resource.treatment === "REVIEW").length;
   const recommendations = new Map(resources.map((r) => [resourceKey({ ...r, namespace: r.namespace ?? null }), recommendResource(r)]));
   const unaccounted = resources.filter(
@@ -437,10 +438,10 @@ export function PlanningEditor({
             </div>
             <div className={styles.notice}>
               <strong>Navigan analysis — {namespace || "all assessed namespaces"}</strong>
-              <p>{filtered.length} resources in view · {pendingRecommendations.length} not yet selected · {reviewRecommendations} requiring explicit review.</p>
-              <p>Suggested treatments are based on resource kind, not verified EKS readiness. Dependencies are proposed only when an explicit reference is present in source metadata.</p>
+              <p>{filtered.length} resources in view · {pendingRecommendations.length} not yet selected · {reviewRecommendations} requiring explicit review · {managedRecommendations} platform-managed or generated.</p>
+              <p>Only primary workload candidates can be bulk-added. Supporting resources require explicit dependencies; platform-managed resources are excluded from automated inclusion. Suggestions are not verified EKS readiness.</p>
               <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || pendingRecommendations.length === 0} onClick={() => change({ ...draft, resources: [...draft.resources, ...pendingRecommendations.map((r) => r.resource)] })}>
-                Add {pendingRecommendations.length} recommended resources to draft
+                Add {pendingRecommendations.length} workload candidates to draft
               </button>
             </div>
             <div className={styles.filters}>
@@ -599,7 +600,7 @@ export function PlanningEditor({
                         <td>
                           <strong>{recommendations.get(key)?.resource.treatment}</strong>
                           <small>{recommendations.get(key)?.reason}</small>
-                          <small>Confidence: {recommendations.get(key)?.confidence}</small>
+                          <small>Confidence: {recommendations.get(key)?.confidence} · {recommendations.get(key)?.classification.replaceAll("_", " ")}</small>
                         </td>
                         <td>
                           <input
