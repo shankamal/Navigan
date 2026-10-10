@@ -41,6 +41,22 @@ describe("migration planning recommendations", () => {
     expect(recommendResource(resource("Deployment", "api")).safeToBulkAdd).toBe(true);
     expect(recommendResource(resource("ConfigMap", "app-config")).safeToBulkAdd).toBe(false);
   });
+  it("uses connector allowlisted dependency references without inventing relationships", () => {
+    const workload = resource("Deployment", "api", {
+      dependencyReferences: [
+        { kind: "ConfigMap", name: "app-config" },
+        { kind: "Secret", name: "db-auth" },
+        { kind: "PersistentVolumeClaim", name: "db-data" },
+      ],
+    });
+    const matches = recommendDependencies(workload, [
+      resource("ConfigMap", "app-config"), resource("Secret", "db-auth"),
+      resource("PersistentVolumeClaim", "db-data"),
+      resource("Secret", "unrelated"),
+    ]);
+    expect(matches.map((r) => r.resource.name).sort()).toEqual(["app-config", "db-auth", "db-data"]);
+    expect(matches.every((r) => r.resource.dependency)).toBe(true);
+  });
   it("provides planned remediation with no fictitious evidence or verification", () => {
     const assessment = {findings:[{category:"Storage",code:"STORAGE_MAPPING",message:"Map persistent storage"}]} as Assessment;
     expect(recommendFinding(assessment,0)).toMatchObject({
