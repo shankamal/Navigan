@@ -111,6 +111,15 @@ describe("migration planning", () => {
       )[0],
     ).toBeVisible();
   });
+  it("shows namespace recommendations before selection and applies only the filtered recommendations", () => {
+    open();
+    fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
+    expect(screen.getByText(/Navigan analysis/)).toBeVisible();
+    expect(screen.getByText(/2 resources in view/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 recommended resources to draft" }));
+    expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
+    expect(screen.getByLabelText("Treatment postgres")).toHaveValue("REVIEW");
+  });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
