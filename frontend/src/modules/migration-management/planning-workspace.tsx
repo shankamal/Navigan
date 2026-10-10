@@ -164,6 +164,9 @@ export function PlanningEditor({
       `${r.name} ${r.kind}`.toLowerCase().includes(search.toLowerCase()),
   );
   const selected = new Map(draft.resources.map((r) => [resourceKey(r), r]));
+  const displayedRecommendations = filtered.map((r) => recommendResource(r));
+  const pendingRecommendations = displayedRecommendations.filter((r) => !selected.has(resourceKey(r.resource)));
+  const reviewRecommendations = displayedRecommendations.filter((r) => r.resource.treatment === "REVIEW").length;
   const recommendations = new Map(resources.map((r) => [resourceKey({ ...r, namespace: r.namespace ?? null }), recommendResource(r)]));
   const unaccounted = resources.filter(
     (r) =>
@@ -432,6 +435,14 @@ export function PlanningEditor({
                 </button>
               )}
             </div>
+            <div className={styles.notice}>
+              <strong>Navigan analysis — {namespace || "all assessed namespaces"}</strong>
+              <p>{filtered.length} resources in view · {pendingRecommendations.length} not yet selected · {reviewRecommendations} requiring explicit review.</p>
+              <p>Suggested treatments are based on resource kind, not verified EKS readiness. Dependencies are proposed only when an explicit reference is present in source metadata.</p>
+              <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || pendingRecommendations.length === 0} onClick={() => change({ ...draft, resources: [...draft.resources, ...pendingRecommendations.map((r) => r.resource)] })}>
+                Add {pendingRecommendations.length} recommended resources to draft
+              </button>
+            </div>
             <div className={styles.filters}>
               <label>
                 Namespace
@@ -517,6 +528,7 @@ export function PlanningEditor({
                     <th>Name / kind</th>
                     <th>Namespace</th>
                     <th>Treatment</th>
+                    <th>Navigan recommendation</th>
                     <th>Dependency</th>
                   </tr>
                 </thead>
@@ -583,6 +595,11 @@ export function PlanningEditor({
                           ) : (
                             "Not selected"
                           )}
+                        </td>
+                        <td>
+                          <strong>{recommendations.get(key)?.resource.treatment}</strong>
+                          <small>{recommendations.get(key)?.reason}</small>
+                          <small>Confidence: {recommendations.get(key)?.confidence}</small>
                         </td>
                         <td>
                           <input
