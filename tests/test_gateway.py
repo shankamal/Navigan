@@ -116,7 +116,22 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         or key.startswith("POST /api/v1/migrations")
         or key.startswith("PUT /api/v1/migrations")
     }
-    assert len(human_routes) == 13
+    assert set(human_routes) == {
+        "POST /api/v1/migrations",
+        "GET /api/v1/migrations",
+        "GET /api/v1/migrations/{migrationId}",
+        "GET /api/v1/migrations/{migrationId}/source-catalogue",
+        "GET /api/v1/migrations/{migrationId}/source-inventory",
+        "GET /api/v1/migrations/{migrationId}/assessment",
+        "PUT /api/v1/migrations/{migrationId}",
+        *{
+            f"POST /api/v1/migrations/{{migrationId}}/{action}"
+            for action in (
+                "discover", "assess", "submit", "review",
+                "approve", "reject", "cancel",
+            )
+        },
+    }
     assert (
         "POST /api/v1/migrations/{migrationId}/assess"
         in human_routes

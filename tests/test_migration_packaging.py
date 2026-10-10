@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).parents[1]
 PACKAGE = ROOT / "migration_connector"
@@ -59,36 +61,43 @@ def test_persistent_deployment_has_restricted_runtime_security():
     assert "privileged: true" not in deployment
 
 
-def test_rbac_is_read_only_and_excludes_sensitive_resources():
-    rbac = read(CHART / "templates/rbac.yaml").lower()
-
-    for forbidden_resource in (
-        "secrets",
-        "configmaps",
-        "pods",
-        "events",
-        "roles",
-        "rolebindings",
-        "clusterroles",
-        "clusterrolebindings",
-    ):
-        assert f"- {forbidden_resource}\n" not in rbac
-
-    for forbidden_verb in (
-        "create",
-        "update",
-        "patch",
-        "delete",
-        "watch",
-        "bind",
-        "escalate",
-        "impersonate",
-    ):
-        assert f'"{forbidden_verb}"' not in rbac
-
-    assert 'verbs: ["list"]' in rbac
-    assert 'verbs: ["get"]' in rbac
-    assert 'nonresourceurls: ["/version"]' in rbac
+def test_rbac_is_read_only_and_limits_assessment_resources():
+    rendered = read(CHART / "templates/rbac.yaml").replace(
+        "{{ .Release.Name }}", "test-connector"
+    ).replace("{{ .Release.Namespace }}", "test-namespace")
+    role, binding = list(yaml.safe_load_all(rendered))
+    assert role["kind"] == "ClusterRole"
+    assert binding["roleRef"]["name"] == role["metadata"]["name"]
+    expected = {
+        "": {"nodes", "namespaces", "services", "persistentvolumeclaims",
+             "serviceaccounts", "configmaps", "secrets"},
+        "apps": {"deployments", "statefulsets", "daemonsets"},
+        "batch": {"jobs", "cronjobs"},
+        "networking.k8s.io": {"ingresses", "networkpolicies"},
+        "autoscaling": {"horizontalpodautoscalers"},
+        "policy": {"poddisruptionbudgets"},
+        "rbac.authorization.k8s.io": {
+            "roles", "rolebindings", "clusterroles", "clusterrolebindings"},
+        "admissionregistration.k8s.io": {
+            "mutatingwebhookconfigurations", "validatingwebhookconfigurations"},
+        "storage.k8s.io": {"storageclasses"},
+        "apiextensions.k8s.io": {"customresourcedefinitions"},
+    }
+    observed = {}
+    version_rules = []
+    for rule in role["rules"]:
+        if "nonResourceURLs" in rule:
+            version_rules.append(rule)
+            continue
+        assert rule["verbs"] == ["list"]
+        assert len(rule["apiGroups"]) == 1
+        group = rule["apiGroups"][0]
+        assert group not in observed
+        observed[group] = set(rule["resources"])
+    assert observed == expected
+    assert version_rules == [{"nonResourceURLs": ["/version"], "verbs": ["get"]}]
+    # Secret/ConfigMap list permission is existing read access, not metadata-only
+    # RBAC. Agent/inventory tests verify values are excluded from reports.
 
 
 def test_kubernetes_object_names_are_release_scoped():
