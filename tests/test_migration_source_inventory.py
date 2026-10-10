@@ -212,7 +212,7 @@ def test_connector_retains_reference_names_without_secret_values():
                 "env": [{"name": "PASSWORD", "valueFrom": {"secretKeyRef": {"name": "database-secret", "key": "password"}}}],
                 "envFrom": [{"configMapRef": {"name": "runtime-config"}}],
             }],
-        }}}},
+        }}},
     }
     inventory = sanitize_resource(resource)
     assert inventory["dependencyReferences"] == [
