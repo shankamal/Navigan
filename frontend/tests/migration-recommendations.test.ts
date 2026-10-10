@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Assessment, SourceInventoryResource } from "@/modules/migration-management/model";
 import { recommendDependencies, recommendFinding, recommendResource } from "@/modules/migration-management/planning-recommendations";
 
-const resource = (kind: string, name: string, extras = {}): SourceInventoryResource => ({
+const resource = (kind: string, name: string, extras: Record<string, unknown> = {}): SourceInventoryResource & { name: string } => ({
   apiVersion: "v1", kind, name, namespace: "demo", ...extras,
 });
 
