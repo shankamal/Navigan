@@ -193,3 +193,37 @@ def test_migration_schema_has_immutable_source_inventory_table():
         " ON migration_management.migration_source_inventories"
         in sql
     )
+
+def test_connector_retains_reference_names_without_secret_values():
+    from migration_connector.inventory import sanitize_resource
+
+    resource = {
+        "apiVersion": "apps/v1", "kind": "Deployment",
+        "metadata": {"name": "api", "namespace": "retailflow"},
+        "spec": {"template": {"spec": {
+            "serviceAccountName": "api-sa",
+            "imagePullSecrets": [{"name": "registry-auth"}],
+            "volumes": [
+                {"name": "config", "configMap": {"name": "api-config"}},
+                {"name": "data", "persistentVolumeClaim": {"claimName": "data-pvc"}},
+                {"name": "secret", "secret": {"secretName": "app-cert"}},
+            ],
+            "containers": [{"name": "api", "image": "example:1",
+                "env": [{"name": "PASSWORD", "valueFrom": {"secretKeyRef": {"name": "database-secret", "key": "password"}}}],
+                "envFrom": [{"configMapRef": {"name": "runtime-config"}}],
+            }],
+        }}}},
+    }
+    inventory = sanitize_resource(resource)
+    assert inventory["dependencyReferences"] == [
+        {"kind": "ConfigMap", "name": "api-config"},
+        {"kind": "ConfigMap", "name": "runtime-config"},
+        {"kind": "PersistentVolumeClaim", "name": "data-pvc"},
+        {"kind": "Secret", "name": "app-cert"},
+        {"kind": "Secret", "name": "database-secret"},
+        {"kind": "Secret", "name": "registry-auth"},
+        {"kind": "ServiceAccount", "name": "api-sa"},
+    ]
+    assert "password" not in str(inventory)
+    assert "PASSWORD" in str(inventory)  # Existing metadata retains variable names only.
+
