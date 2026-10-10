@@ -314,6 +314,22 @@ class Repository:
             ),
         }
 
+    def require_planning_configuration(self, identifier, assessment_version, current):
+        snapshot = self.db.execute(
+            "SELECT snapshot FROM migration_management.migration_versions "
+            "WHERE migration_id=%s AND version=%s",
+            [identifier, assessment_version],
+        ).fetchone()
+        if not snapshot or any(
+            snapshot["snapshot"].get(camel(column)) != current[column]
+            for column in ("source_configuration", "target_configuration", "migration_scope")
+        ):
+            raise ApiError(
+                409,
+                "PLANNING_REASSESSMENT_REQUIRED",
+                "Source, target, or assessment scope changed. Run a fresh assessment before planning.",
+            )
+
     def list(self, query):
         scope, params = scope_clause(self.principal)
         conditions = [scope]
@@ -407,7 +423,7 @@ class Repository:
                 "name=%s,description=%s,source_platform=%s,"
                 "target_platform=%s,source_configuration=%s::jsonb,"
                 "target_configuration=%s::jsonb,"
-                "migration_scope=%s::jsonb,status=%s,version=%s,"
+                "migration_scope=%s::jsonb,planning_draft=%s::jsonb,status=%s,version=%s,"
                 "updated_by=%s,updated_at=now() "
                 "WHERE migration_id=%s",
                 [
@@ -418,6 +434,7 @@ class Repository:
                     json_text(row["source_configuration"]),
                     json_text(row["target_configuration"]),
                     json_text(row["migration_scope"]),
+                    json_text(row.get("planning_draft", {})),
                     row["status"],
                     row["version"],
                     row["updated_by"],
