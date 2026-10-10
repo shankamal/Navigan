@@ -441,7 +441,7 @@ export function PlanningEditor({
               <p>{filtered.length} resources in view · {pendingRecommendations.length} not yet selected · {reviewRecommendations} requiring explicit review · {managedRecommendations} platform-managed or generated.</p>
               <p>Only primary workload candidates can be bulk-added. Supporting resources require explicit dependencies; platform-managed resources are excluded from automated inclusion. Suggestions are not verified EKS readiness.</p>
               <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || pendingRecommendations.length === 0} onClick={() => change({ ...draft, resources: [...draft.resources, ...pendingRecommendations.map((r) => r.resource)] })}>
-                Add {pendingRecommendations.length} workload candidates to draft
+                Add {pendingRecommendations.length} workload candidate{pendingRecommendations.length === 1 ? "" : "s"} to draft
               </button>
             </div>
             <div className={styles.filters}>
@@ -494,7 +494,7 @@ export function PlanningEditor({
                   change({ ...draft, resources: [...next.values()] });
                 }}
               >
-                Select all filtered resources
+                Select all filtered resources (manual override)
               </button>
               <button
                 className="button button-secondary"
