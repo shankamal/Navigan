@@ -260,10 +260,6 @@ export function PlanningEditor({
           <Boxes size={17} />
           Scope & target
         </button>
-        <Link href={`/migrations/${migration.migrationId}`}>
-          <ClipboardCheck size={17} />
-          Assess
-        </Link>
         <button
           aria-current={tab === "remediate" ? "step" : undefined}
           onClick={() => setTab("remediate")}
@@ -282,6 +278,15 @@ export function PlanningEditor({
           Review draft
         </button>
       </nav>
+      {(message || save.isPending) && (
+        <div
+          className={save.isError ? styles.warning : styles.notice}
+          role={save.isError ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {save.isPending ? "Saving draft…" : message}
+        </div>
+      )}
       {stale && (
         <div className={styles.warning} role="alert">
           Assessment evidence has changed. This draft cannot be saved.{" "}
@@ -424,6 +429,58 @@ export function PlanningEditor({
                   />
                 </div>
               </label>
+            </div>
+            <div className={styles.toolbar}>
+              <button
+                className="button button-secondary"
+                disabled={
+                  !canEdit || stale || save.isPending || !filtered.length
+                }
+                onClick={() => {
+                  const next = new Map(
+                    draft.resources.map((r) => [resourceKey(r), r]),
+                  );
+                  for (const r of filtered) {
+                    const item: PlannedResource = {
+                      apiVersion: r.apiVersion,
+                      kind: r.kind,
+                      namespace: r.namespace ?? null,
+                      name: r.name,
+                      treatment: r.kind === "Node" ? "REVIEW" : "MIGRATE",
+                      dependency: false,
+                    };
+                    if (!next.has(resourceKey(item)))
+                      next.set(resourceKey(item), item);
+                  }
+                  change({ ...draft, resources: [...next.values()] });
+                }}
+              >
+                Select all filtered resources
+              </button>
+              <button
+                className="button button-secondary"
+                disabled={
+                  !canEdit || stale || save.isPending || !filtered.length
+                }
+                onClick={() => {
+                  const keys = new Set(
+                    filtered.map((r) =>
+                      resourceKey({ ...r, namespace: r.namespace ?? null }),
+                    ),
+                  );
+                  change({
+                    ...draft,
+                    resources: draft.resources.filter(
+                      (r) => !keys.has(resourceKey(r)),
+                    ),
+                  });
+                }}
+              >
+                Clear filtered selection
+              </button>
+              <span>
+                {filtered.length} resources shown · Dependencies require review
+              </span>
             </div>
             <div className={styles.tableScroll}>
               <table>
@@ -874,11 +931,10 @@ export function PlanningEditor({
           <ArrowLeft size={16} />
           Back
         </button>
-        <p role={save.isError ? "alert" : "status"}>
-          {message ||
-            (dirty
-              ? "Unsaved planning changes"
-              : `Assessment v${assessment.assessmentVersion} · Draft only`)}
+        <p>
+          {dirty
+            ? "Unsaved planning changes"
+            : `Assessment v${assessment.assessmentVersion} · Draft only`}
         </p>
         <button
           className="button button-secondary"

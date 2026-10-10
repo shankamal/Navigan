@@ -164,6 +164,47 @@ describe("migration planning", () => {
     const treatment = screen.getByLabelText("Treatment source-node");
     expect(treatment.querySelector('option[value="MIGRATE"]')).toBeNull();
   });
+  it("selects and clears only filtered resources", () => {
+    open();
+    fireEvent.change(screen.getByLabelText("Search resources"), {
+      target: { value: "postgres" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select all filtered resources" }),
+    );
+    expect(
+      screen.getByLabelText("Include StatefulSet retailflow/postgres"),
+    ).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Search resources"), {
+      target: { value: "" },
+    });
+    expect(
+      screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
+    ).not.toBeChecked();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filtered selection" }),
+    );
+    expect(
+      screen.getByLabelText("Include StatefulSet retailflow/postgres"),
+    ).not.toBeChecked();
+    expect(
+      screen.queryByRole("link", { name: "Assess" }),
+    ).toBeNull();
+  });
+  it("shows save failures prominently and retains edits", async () => {
+    mock.update.mockRejectedValue(new Error("Dev backend unavailable"));
+    open();
+    fireEvent.click(
+      screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "An unexpected response was received. Please try again.",
+    );
+    expect(
+      screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
+    ).toBeChecked();
+  });
   it("keeps users without edit permission read-only", () => {
     mock.canEdit = false;
     open();
