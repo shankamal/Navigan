@@ -321,6 +321,41 @@ def workload_pod_spec(resource):
     return mapping(mapping(spec.get("template")).get("spec"))
 
 
+def dependency_references(resource):
+    """Only names and exact references, never configuration values or tokens."""
+    spec = workload_pod_spec(resource)
+    references = set()
+    sa = limited_text(spec.get("serviceAccountName"), 253)
+    if sa and sa != "default":
+        references.add(("ServiceAccount", sa))
+    for entry in sequence(spec.get("imagePullSecrets"))[:100]:
+        name = limited_text(mapping(entry).get("name"), 253)
+        if name:
+            references.add(("Secret", name))
+    for volume in sequence(spec.get("volumes"))[:500]:
+        item = mapping(volume)
+        for field, kind in (("configMap", "ConfigMap"), ("secret", "Secret"), ("persistentVolumeClaim", "PersistentVolumeClaim")):
+            value = mapping(item.get(field))
+            name = limited_text(value.get("claimName" if field == "persistentVolumeClaim" else "name" if field == "configMap" else "secretName"), 253)
+            if name:
+                references.add((kind, name))
+    for container in sequence(spec.get("containers"))[:200] + sequence(spec.get("initContainers"))[:100]:
+        item = mapping(container)
+        for entry in sequence(item.get("env"))[:500]:
+            source = mapping(mapping(entry).get("valueFrom"))
+            for field, kind in (("configMapKeyRef", "ConfigMap"), ("secretKeyRef", "Secret")):
+                name = limited_text(mapping(source.get(field)).get("name"), 253)
+                if name:
+                    references.add((kind, name))
+        for entry in sequence(item.get("envFrom"))[:200]:
+            source = mapping(entry)
+            for field, kind in (("configMapRef", "ConfigMap"), ("secretRef", "Secret")):
+                name = limited_text(mapping(source.get(field)).get("name"), 253)
+                if name:
+                    references.add((kind, name))
+    return [{"kind": kind, "name": name} for kind, name in sorted(references)[:500]]
+
+
 def sanitize_workload(resource):
     spec = mapping(resource.get("spec"))
     result = common(resource)
@@ -331,6 +366,7 @@ def sanitize_workload(resource):
         100,
     )
     result["pod"] = pod_inventory(workload_pod_spec(resource))
+    result["dependencyReferences"] = dependency_references(resource)
     return result
 
 
