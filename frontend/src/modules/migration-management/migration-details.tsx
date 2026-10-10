@@ -579,7 +579,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           </div>
 
           <div className={styles.migrationContextMeta}>
-            <span className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}>
+            <span
+              className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}
+            >
               {migration?.status.replaceAll("_", " ")}
             </span>
             <small>Report generated</small>
@@ -598,7 +600,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                 </div>
                 <div>
                   <div className={styles.approvalStatusLine}>
-                    <span className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}>
+                    <span
+                      className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}
+                    >
                       {migration.status.replaceAll("_", " ")}
                     </span>
                     <span>Independent governance checkpoint</span>
@@ -1053,6 +1057,25 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         </>
       )}
 
+      {assessment && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Plan migration</h2>
+              <p>
+                Choose workloads and track remediation against this assessment.
+                Assessment approval does not authorize execution.
+              </p>
+            </div>
+            <Link
+              href={`/migrations/${migrationId}/plan`}
+              className="button button-primary"
+            >
+              Open migration workspace <ArrowRight size={17} />
+            </Link>
+          </div>
+        </section>
+      )}
       {assessment && (
         <AssessmentReportCard
           report={assessment}

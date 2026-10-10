@@ -377,6 +377,49 @@ class CreateMigration(Model):
         return self
 
 
+class PlannedResource(Model):
+    apiVersion: str = Field(min_length=1, max_length=100)
+    kind: str = Field(min_length=1, max_length=100)
+    namespace: Namespace | None = None
+    name: str = Field(min_length=1, max_length=253)
+    treatment: Literal["MIGRATE", "RECREATE", "REPLACE", "RETIRE", "REVIEW"] = "REVIEW"
+    dependency: bool = False
+
+
+class RemediationDraft(Model):
+    findingIndex: int = Field(ge=0, le=4999)
+    treatment: Literal["RECONFIGURE", "RECREATE", "REPLACE", "RETIRE", "REVIEW"] = "REVIEW"
+    owner: str = Field(default="", max_length=150)
+    targetMapping: str = Field(default="", max_length=1000)
+    evidenceReference: str = Field(default="", max_length=1000)
+    status: Literal["PLANNED", "IN_PROGRESS", "EVIDENCE_ATTACHED"] = "PLANNED"
+
+    @model_validator(mode="after")
+    def evidence_required(self):
+        if self.status == "EVIDENCE_ATTACHED" and not self.evidenceReference.strip():
+            raise ValueError("An evidence reference is required.")
+        return self
+
+
+class MigrationPlanningDraft(Model):
+    schemaVersion: Literal[1] = 1
+    mode: Literal["SELECTED_WORKLOADS", "FULL_CLUSTER"]
+    assessmentVersion: int = Field(gt=0)
+    inventoryDigest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    resources: list[PlannedResource] = Field(default_factory=list, max_length=2000)
+    remediations: list[RemediationDraft] = Field(default_factory=list, max_length=500)
+    dataStrategy: Literal["UNDECIDED", "BACKUP_RESTORE", "REPLICATION", "NO_PERSISTENT_DATA"] = "UNDECIDED"
+    notes: str = Field(default="", max_length=2000)
+
+    @model_validator(mode="after")
+    def unique_entries(self):
+        keys = [(r.apiVersion, r.kind, r.namespace, r.name) for r in self.resources]
+        findings = [r.findingIndex for r in self.remediations]
+        if len(keys) != len(set(keys)) or len(findings) != len(set(findings)):
+            raise ValueError("Resource and finding entries must be unique.")
+        return self
+
+
 class UpdateMigration(Model):
     version: int = Field(gt=0)
     name: str | None = Field(default=None, min_length=8, max_length=100)
@@ -384,6 +427,7 @@ class UpdateMigration(Model):
     source: SourceCluster | None = None
     target: EksTarget | None = None
     scope: MigrationScope | None = None
+    planningDraft: MigrationPlanningDraft | None = None
     changeReason: str = Field(min_length=3, max_length=2000)
 
 
