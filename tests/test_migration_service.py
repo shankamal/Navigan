@@ -523,7 +523,9 @@ def test_refreshes_rejected_assessment_with_connected_source():
     access = Access("creator", {"migration.create", "migration.edit"})
     service = Service(repo, access, "corr-refresh")
 
-    created = service.create(create_body())
+    body = create_body()
+    body["source"]["sourceClusterId"] = "SRC-" + "a" * 32
+    created = service.create(body)
     identifier = created["migrationId"]
     repo.rows[identifier]["status"] = "REJECTED"
 
@@ -538,3 +540,23 @@ def test_refreshes_rejected_assessment_with_connected_source():
 
     assert result["status"] == "DISCOVERY_PENDING"
     assert result["version"] == 2
+
+
+def test_rejected_assessment_refresh_requires_source_cluster():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.edit"})
+    service = Service(repo, access, "corr-refresh-missing-source")
+    created = service.create(create_body())
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "REJECTED"
+    saved_count = len(repo.saved)
+
+    with pytest.raises(ApiError) as error:
+        service.change(identifier, "assess", {
+            "version": 1, "reason": "Refresh detailed source inventory",
+        })
+
+    assert error.value.code == "SOURCE_CLUSTER_REQUIRED"
+    assert repo.rows[identifier]["status"] == "REJECTED"
+    assert repo.rows[identifier]["version"] == 1
+    assert len(repo.saved) == saved_count
