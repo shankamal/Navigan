@@ -35,6 +35,7 @@ import type {
   SourceInventoryResource,
 } from "./model";
 import { PlatformIcon } from "./platform-icon";
+import { recommendResource, recommendDependencies, recommendFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
 
@@ -163,6 +164,7 @@ export function PlanningEditor({
       `${r.name} ${r.kind}`.toLowerCase().includes(search.toLowerCase()),
   );
   const selected = new Map(draft.resources.map((r) => [resourceKey(r), r]));
+  const recommendations = new Map(resources.map((r) => [resourceKey({ ...r, namespace: r.namespace ?? null }), recommendResource(r)]));
   const unaccounted = resources.filter(
     (r) =>
       !selected.has(resourceKey({ ...r, namespace: r.namespace ?? null })) ||
@@ -173,6 +175,11 @@ export function PlanningEditor({
   const blockers = assessment.findings.filter(
     (f) => f.severity === "BLOCKER",
   ).length;
+  const suggestions = draft.resources.filter((r) => !r.dependency && ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind)).flatMap((r) => {
+    const source = resources.find((x) => resourceKey({ ...x, namespace: x.namespace ?? null }) === resourceKey(r));
+    return source ? recommendDependencies(source, resources) : [];
+  }).filter((suggestion) => !selected.has(resourceKey(suggestion.resource)));
+  const uniqueSuggestions = [...new Map(suggestions.map((r) => [resourceKey(r.resource), r])).values()];
   const findings = assessment.findings
     .map((finding, index) => ({ finding, index }))
     .filter(
@@ -209,7 +216,7 @@ export function PlanningEditor({
       kind: resource.kind,
       namespace: resource.namespace ?? null,
       name: resource.name,
-      treatment: resource.kind === "Node" ? "REVIEW" : "MIGRATE",
+      treatment: recommendResource(resource).resource.treatment,
       dependency: false,
     };
     change({
@@ -417,6 +424,14 @@ export function PlanningEditor({
                 ? "This inventory may exclude system namespaces or cluster-scoped resources. Full-estate coverage must be confirmed before execution planning."
                 : "Inventory contains sanitized metadata, not deployment manifests or data. Dependency names are incomplete; confirm them with the application owner."}
             </p>
+            <div className={styles.notice}>
+              Navigan suggests resource treatments from the inventoried kind. Review recommendations before saving; uncertain resources default to review.
+              {uniqueSuggestions.length > 0 && (
+                <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => change({ ...draft, resources: [...draft.resources, ...uniqueSuggestions.map((r) => r.resource)] })}>
+                  Include {uniqueSuggestions.length} explicitly referenced dependencies
+                </button>
+              )}
+            </div>
             <div className={styles.filters}>
               <label>
                 Namespace
@@ -458,7 +473,7 @@ export function PlanningEditor({
                       kind: r.kind,
                       namespace: r.namespace ?? null,
                       name: r.name,
-                      treatment: r.kind === "Node" ? "REVIEW" : "MIGRATE",
+                      treatment: recommendResource(r).resource.treatment,
                       dependency: false,
                     };
                     if (!next.has(resourceKey(item)))
@@ -764,6 +779,14 @@ export function PlanningEditor({
             <aside className={styles.detail}>
               {finding ? (
                 <>
+                  {!draft.remediations.some((r) => r.findingIndex === findingIndex) && (
+                    <div className={styles.notice}>
+                      <p>Navigan has a proposed target mapping; review and accept it before saving.</p>
+                      <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => { const proposed = recommendFinding(assessment, findingIndex); if (proposed) changeRemediation(proposed); }}>
+                        Use suggested remediation
+                      </button>
+                    </div>
+                  )}
                   <h2>
                     <Wrench size={20} />
                     {finding.code
