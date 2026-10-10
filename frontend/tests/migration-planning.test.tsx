@@ -116,9 +116,9 @@ describe("migration planning", () => {
     fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
     expect(screen.getByText(/Navigan analysis/)).toBeVisible();
     expect(screen.getByText(/2 resources in view/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Add 2 recommended resources to draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 1 workload candidates to draft" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
-    expect(screen.getByLabelText("Treatment postgres")).toHaveValue("REVIEW");
+    expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
   });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
