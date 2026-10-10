@@ -125,6 +125,20 @@ def test_collects_only_selected_namespaces_and_safe_resources():
             }
         if path.endswith("/deployments"):
             return {"items": [deployment()]}
+        if path.endswith("/secrets"):
+            return {"items": [{
+                "metadata": {"name": "app-secret", "namespace": "retailflow",
+                             "annotations": {"private": "annotation-private-value"}},
+                "type": "Opaque",
+                "data": {"password": "secret-base64-private-value"},
+                "stringData": {"token": "secret-plaintext-private-value"},
+            }]}
+        if path.endswith("/configmaps"):
+            return {"items": [{
+                "metadata": {"name": "app-config", "namespace": "retailflow"},
+                "data": {"MODE": "config-private-value"},
+                "binaryData": {"truststore": "binary-private-value"},
+            }]}
         return {"items": []}
 
     result = collect_inventory(assignment(), request)
@@ -139,14 +153,28 @@ def test_collects_only_selected_namespaces_and_safe_resources():
 
     requested_paths = " ".join(observed).lower()
     for forbidden in (
-        "secrets",
-        "configmaps",
         "events",
         "/pods",
     ):
         assert forbidden not in requested_paths
     assert "/roles" in requested_paths
     assert "/rolebindings" in requested_paths
+
+    assert "/api/v1/namespaces/retailflow/secrets" in observed
+    assert "/api/v1/namespaces/retailflow/configmaps" in observed
+    secret = next(r for r in result["resources"] if r["kind"] == "Secret")
+    config_map = next(r for r in result["resources"] if r["kind"] == "ConfigMap")
+    assert secret["dataKeyNames"] == ["password"]
+    assert secret["secretType"] == "Opaque"
+    assert config_map["dataKeyNames"] == ["MODE"]
+    assert config_map["binaryDataKeyNames"] == ["truststore"]
+    for resource in (secret, config_map):
+        assert not {"data", "stringData", "binaryData"} & resource.keys()
+    for sensitive_value in (
+        "secret-base64-private-value", "secret-plaintext-private-value",
+        "config-private-value", "binary-private-value", "annotation-private-value",
+    ):
+        assert sensitive_value not in encoded
 
 
 def test_restores_type_metadata_omitted_by_kubernetes_list_responses():

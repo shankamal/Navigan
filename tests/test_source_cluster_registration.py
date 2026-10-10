@@ -2,6 +2,7 @@ import hashlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from navigan.modules.migration_management.models import CreateSourceCluster
 from navigan.modules.migration_management.repository import Repository
 from navigan.modules.migration_management.service import Service
 
@@ -67,7 +68,7 @@ def test_registers_cloud_neutral_customer_scoped_source_cluster():
     )
 
     result = service.create_source_cluster(
-        {
+        CreateSourceCluster.model_validate({
             "customerId": "CUS-demo",
             "name": "retailflow-source",
             "distribution": "kubeadm",
@@ -76,10 +77,12 @@ def test_registers_cloud_neutral_customer_scoped_source_cluster():
                 "type": "ON_PREMISES",
                 "region": "Chennai DC",
             },
-        }
+        }).model_dump(mode="json")
     )
 
     assert result["sourceClusterId"].startswith("SRC-")
+    assert repository.created["delivery_method"] == "MANUAL_HELM"
+    assert repository.created["delivery_configuration"] == {}
     assert repository.created["cloud_provider"] is None
     assert repository.created["status"] == "PENDING_ENROLLMENT"
 
