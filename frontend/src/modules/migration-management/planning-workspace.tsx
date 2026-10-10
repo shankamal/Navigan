@@ -225,6 +225,15 @@ export function PlanningEditor({
   return (
     <div className={styles.workspace}>
       <PageHeading
+        icon={
+          tab === "remediate" ? (
+            <Wrench />
+          ) : tab === "review" ? (
+            <ShieldCheck />
+          ) : (
+            <Boxes />
+          )
+        }
         eyebrow="MIGRATION PLANNING"
         title={
           tab === "remediate"
@@ -688,7 +697,10 @@ export function PlanningEditor({
                 <>
                   <h2>
                     <Wrench size={20} />
-                    {finding.code.replaceAll("_", " ")}
+                    {finding.code
+                      .replaceAll("_", " ")
+                      .toLowerCase()
+                      .replace(/^./, (letter) => letter.toUpperCase())}
                   </h2>
                   <p>{finding.message}</p>
                   <p className={styles.caption}>

@@ -20,7 +20,7 @@ pytestmark = [
 
 
 def call(method, path, body=None, version=None, key=None):
-    headers = {"Idempotency-Key": key or str(uuid.uuid4())}
+    headers = {"Content-Type": "application/json", "Idempotency-Key": key or str(uuid.uuid4())}
     if version:
         headers["If-Match"] = str(version)
     event = {

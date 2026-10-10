@@ -12,6 +12,9 @@
   margin: 0 0 12px;
   font-weight: 700;
 }
+.workspace :global(.page-heading) {
+  margin-bottom: 0;
+}
 .workspace p {
   line-height: 1.55;
 }

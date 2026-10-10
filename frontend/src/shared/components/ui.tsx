@@ -107,12 +107,14 @@ export function PageHeading({
   description,
   action,
   className,
+  icon,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
   className?: string;
+  icon?: ReactNode;
 }) {
   const HeadingIcon = /customer/i.test(title)
     ? Users
@@ -127,7 +129,7 @@ export function PageHeading({
     <div className={["page-heading", className].filter(Boolean).join(" ")}>
       <div className="page-heading-copy">
         <span className="page-heading-symbol" aria-hidden="true">
-          <HeadingIcon />
+          {icon ?? <HeadingIcon />}
         </span>
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
