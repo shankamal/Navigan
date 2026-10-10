@@ -32,6 +32,15 @@ describe("migration planning recommendations", () => {
     expect(selected.map((x) => x.resource.name).sort()).toEqual(["api-sa", "app-config"]);
     expect(selected.every((x) => x.resource.dependency)).toBe(true);
   });
+  it("excludes generated namespace configuration and default identity from bulk recommendations", () => {
+    const ca = recommendResource(resource("ConfigMap", "kube-root-ca.crt"));
+    expect(ca.classification).toBe("PLATFORM_MANAGED");
+    expect(ca.safeToBulkAdd).toBe(false);
+    expect(ca.resource.treatment).toBe("REVIEW");
+    expect(recommendResource(resource("ServiceAccount", "default")).classification).toBe("PLATFORM_MANAGED");
+    expect(recommendResource(resource("Deployment", "api")).safeToBulkAdd).toBe(true);
+    expect(recommendResource(resource("ConfigMap", "app-config")).safeToBulkAdd).toBe(false);
+  });
   it("provides planned remediation with no fictitious evidence or verification", () => {
     const assessment = {findings:[{category:"Storage",code:"STORAGE_MAPPING",message:"Map persistent storage"}]} as Assessment;
     expect(recommendFinding(assessment,0)).toMatchObject({
