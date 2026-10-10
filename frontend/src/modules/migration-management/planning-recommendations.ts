@@ -4,34 +4,37 @@ export type PlanningRecommendation = {
   resource: PlannedResource;
   confidence: "HIGH" | "MEDIUM" | "REVIEW";
   reason: string;
+  classification: "APPLICATION" | "SUPPORTING" | "PLATFORM_MANAGED" | "REQUIRES_REVIEW";
+  safeToBulkAdd: boolean;
 };
 
 // Conservative recommendations: the source inventory is metadata-only and cannot
 // establish application-to-application dependencies or prove target readiness.
 export function recommendResource(resource: SourceInventoryResource & { name: string }): PlanningRecommendation {
-  const kind = resource.kind;
-  const uncertain = ["StatefulSet", "PersistentVolumeClaim", "PersistentVolume", "StorageClass", "DaemonSet", "CustomResourceDefinition", "Node"].includes(kind);
+  const { kind, name } = resource;
+  const platformManaged = (kind === "ConfigMap" && name === "kube-root-ca.crt")
+    || (kind === "ServiceAccount" && name === "default")
+    || (kind === "Secret" && /^default-token-|^sh\.helm\.release\.v\d+\./.test(name))
+    || (kind === "Service" && name === "kubernetes")
+    || (resource.namespace ?? "").startsWith("kube-");
+  const workload = ["Deployment", "ReplicaSet", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod"].includes(kind);
+  const uncertain = ["StatefulSet", "PersistentVolumeClaim", "PersistentVolume", "StorageClass", "DaemonSet", "CustomResourceDefinition", "Node", "Job", "CronJob", "Pod", "ReplicaSet"].includes(kind);
   const recreate = ["Secret", "ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "Ingress", "Service"].includes(kind);
-  const treatment: PlannedResource["treatment"] =
-    uncertain ? "REVIEW" : recreate ? "RECREATE" : ["Job", "CronJob"].includes(kind) ? "REVIEW" : "MIGRATE";
-  const reason = uncertain
-    ? "Requires explicit target, data, or platform compatibility review"
-    : recreate
-      ? "Recreate or reconcile target-specific configuration and credentials on EKS"
-      : treatment === "REVIEW"
-        ? "Confirm whether historical or scheduled work must run on the destination"
-        : "Standard Kubernetes resource candidate; validate images, policies and configuration";
+  const treatment: PlannedResource["treatment"] = platformManaged || uncertain ? "REVIEW" : recreate ? "RECREATE" : "MIGRATE";
+  const classification: PlanningRecommendation["classification"] = platformManaged
+    ? "PLATFORM_MANAGED" : uncertain ? "REQUIRES_REVIEW" : workload ? "APPLICATION" : "SUPPORTING";
+  const reason = platformManaged
+    ? "Kubernetes-managed or controller-generated resource; do not copy automatically. Confirm whether target recreates it."
+    : uncertain ? "Requires explicit lifecycle, storage, ownership or target compatibility review"
+    : recreate ? "Recreate or reconcile target-specific configuration securely on EKS"
+    : workload ? "Workload candidate; validate runtime configuration, images and policies"
+    : "Supporting resource candidate; include only when required by the selected application";
   return {
-    resource: {
-      apiVersion: resource.apiVersion,
-      kind,
-      namespace: resource.namespace ?? null,
-      name: resource.name,
-      treatment,
-      dependency: false,
-    },
-    confidence: uncertain || treatment === "REVIEW" ? "REVIEW" : "MEDIUM",
+    resource: { apiVersion: resource.apiVersion, kind, namespace: resource.namespace ?? null, name, treatment, dependency: false },
+    confidence: platformManaged || uncertain ? "REVIEW" : "MEDIUM",
     reason,
+    classification,
+    safeToBulkAdd: classification === "APPLICATION" && treatment === "MIGRATE",
   };
 }
 
@@ -66,7 +69,7 @@ export function recommendDependencies(
   visit(pod);
   const namespace = workload.namespace ?? null;
   return resources.filter((r) =>
-    (r.namespace ?? null) === namespace && explicit.has(r.kind + ":" + r.name)
+    (r.namespace ?? null) === namespace && explicit.has(r.kind + ":" + r.name) && recommendResource(r).classification !== "PLATFORM_MANAGED"
   ).map((r) => ({
     ...recommendResource(r),
     resource: { ...recommendResource(r).resource, dependency: true },
