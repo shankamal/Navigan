@@ -503,11 +503,11 @@ SOURCE_INVENTORY_KEYS = {
         "automountServiceAccountToken",
         "imagePullSecretCount",
     },
-    "Deployment": {"replicas", "strategyType", "pod"},
-    "StatefulSet": {"replicas", "strategyType", "pod"},
-    "DaemonSet": {"replicas", "strategyType", "pod"},
-    "Job": {"replicas", "strategyType", "pod"},
-    "CronJob": {"replicas", "strategyType", "pod"},
+    "Deployment": {"replicas", "strategyType", "pod", "dependencyReferences"},
+    "StatefulSet": {"replicas", "strategyType", "pod", "dependencyReferences"},
+    "DaemonSet": {"replicas", "strategyType", "pod", "dependencyReferences"},
+    "Job": {"replicas", "strategyType", "pod", "dependencyReferences"},
+    "CronJob": {"replicas", "strategyType", "pod", "dependencyReferences"},
     "Service": {
         "type",
         "externalTrafficPolicy",
@@ -678,6 +678,25 @@ class SourceInventoryReport(Model):
                     "Unexpected source inventory fields: "
                     + ", ".join(sorted(unexpected))
                 )
+
+            if kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}:
+                references = resource.get("dependencyReferences", [])
+                if not isinstance(references, list) or len(references) > 500:
+                    raise ValueError("Invalid inventory dependency references.")
+                seen_references = set()
+                for reference in references:
+                    if not isinstance(reference, dict) or set(reference) != {"kind", "name"}:
+                        raise ValueError("Invalid inventory dependency reference.")
+                    reference_kind = reference["kind"]
+                    reference_name = reference["name"]
+                    if reference_kind not in {"ConfigMap", "Secret", "ServiceAccount", "PersistentVolumeClaim"}:
+                        raise ValueError("Unsupported inventory dependency kind.")
+                    if not isinstance(reference_name, str) or not 0 < len(reference_name) <= 253:
+                        raise ValueError("Invalid inventory dependency name.")
+                    pair = (reference_kind, reference_name)
+                    if pair in seen_references:
+                        raise ValueError("Duplicate inventory dependency reference.")
+                    seen_references.add(pair)
 
             api_version = resource.get("apiVersion")
             if (
