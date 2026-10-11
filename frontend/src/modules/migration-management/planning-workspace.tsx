@@ -37,6 +37,7 @@ import type {
 import { PlatformIcon } from "./platform-icon";
 import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
+import { evaluateStorageCompatibility } from "./storage-validation";
 import { recommendResource, recommendDependencies, recommendFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
@@ -293,6 +294,17 @@ export function PlanningEditor({
     draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace &&
       item.kind === "PersistentVolumeClaim" && item.name === r.name)
   ));
+  // Until a target adapter supplies verified StorageClass evidence, no class
+  // can be certified by a provider-level naming recommendation.
+  const storageCompatibility = evaluateStorageCompatibility(
+    scopedStorageClaims.map((pvc) => ({
+      namespace: pvc.namespace ?? null,
+      name: pvc.name,
+      requestedStorage: typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : null,
+    })),
+    (draft.storageMappings ?? []).length ? draft.storageMappings ?? [] : scopedStorageClaims.map((pvc) => suggestedMapping(pvc)),
+    null,
+  );
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
@@ -900,6 +912,10 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
+            <section className={styles.notice} aria-label="Storage compatibility findings">
+              <strong>Target storage compatibility · {storageCompatibility.length} checks</strong>
+              {storageCompatibility.length ? <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul> : <p>No scoped storage compatibility issues detected in available evidence. Target verification and approval remain separate.</p>}
+            </section>
             <section className={styles.notice} aria-label="Scope readiness assessment">
               <strong>Scope readiness · {readiness.state === "INCOMPLETE" ? "Decisions outstanding" : "Manual validation required"}</strong>
               <p>{readiness.selectedWorkloads} primary resources selected · {readiness.confirmedDependencies} confirmed dependencies · {readiness.issues.length} open planning checks</p>
@@ -1043,6 +1059,11 @@ export function PlanningEditor({
               <p>No workloads have been included in the planning draft. Return to Scope &amp; target, select your workloads, and confirm required dependencies before remediation.</p>
             )}
           </div>
+          <section className={styles.notice} aria-label="Storage compatibility issues for remediation">
+            <strong>Target storage checks · {storageCompatibility.length}</strong>
+            {storageCompatibility.length > 0 && <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.detail}</li>)}</ul>}
+            <p>Actual target StorageClass evidence has not been collected; class recommendations remain unverified.</p>
+          </section>
           <section className={styles.notice} aria-label="Planning readiness issues for remediation">
             <strong>Outstanding migration intelligence checks · {readiness.issues.length}</strong>
             {readiness.issues.length === 0 ? <p>No detected scope gaps; migration and target readiness still require approval.</p> : (
