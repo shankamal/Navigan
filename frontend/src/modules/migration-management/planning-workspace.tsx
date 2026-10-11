@@ -1127,7 +1127,7 @@ export function PlanningEditor({
                 {namespaces.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </label>
-            <strong>{findings.filter(({ finding }) => finding.severity === "BLOCKER").length} visible blockers</strong>
+            <strong>{categorizedFindings.filter(({ finding }) => finding.severity === "BLOCKER").length} assessment blockers in view · {readiness.issues.length} outstanding planning checks</strong>
             <span>
               {draft.remediations.filter((r) => r.evidenceReference).length}{" "}
               evidence references · verification pending
@@ -1363,18 +1363,11 @@ export function PlanningEditor({
                     requires a separate authorized action.
                   </p>
                   <div className={styles.detailActions}>
-                    <button
-                      disabled
-                      title="Target action runner not implemented"
-                    >
-                      Apply change
+                    <button className="button button-secondary" disabled={!canEdit || stale || !dirty || save.isPending}
+                      onClick={() => save.mutate()}>
+                      {save.isPending ? "Saving…" : "Save remediation decision"}
                     </button>
-                    <button
-                      disabled
-                      title="Target verification runner not implemented"
-                    >
-                      Verify remediation
-                    </button>
+                    <span className={styles.caption}>Saves the entire planning draft, including this decision. No cluster changes.</span>
                   </div>
                 </>
               ) : (
