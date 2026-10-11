@@ -1281,6 +1281,17 @@ export function PlanningEditor({
                       </>
                     )}
                   </div>
+                  <section className={styles.notice} aria-label="Source to target remediation comparison">
+                    <strong>Source → Target decision</strong>
+                    <div className={styles.guideStats}>
+                      <span><strong>Source</strong> {finding.namespace ?? "Cluster"} / {finding.resourceKind ?? finding.category} / {finding.resourceName ?? "Shared finding"}</span>
+                      <span><strong>Destination</strong> {targetPlatform} · {targetCapability.status === "CURRENT" ? "Evidence available" : "Capabilities unverified"}</span>
+                    </div>
+                    <p><strong>Source finding:</strong> {finding.message}</p>
+                    <p><strong>Proposed treatment:</strong> {suggestedRemediation?.treatment ?? "Manual review"}</p>
+                    <p><strong>Suggested target mapping:</strong> {suggestedRemediation?.targetMapping || "No evidence-backed target mapping available. Complete manually."}</p>
+                    <p className={styles.caption}>This is a rule-based proposal from assessment findings, not an AI-generated or independently verified target configuration.</p>
+                  </section>
                   <h2>
                     <Wrench size={20} />
                     {finding.code
