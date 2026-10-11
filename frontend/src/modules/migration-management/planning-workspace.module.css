@@ -552,3 +552,11 @@
 .remediationBulkBar button{padding:7px 11px;font-size:12px}
 .remediationBulkBar .caption:last-child{margin-left:auto}
 @media(max-width:800px){.remediationBulkBar .caption:last-child{margin-left:0;flex-basis:100%}}
+
+.remediationFilterBar{display:flex;align-items:end;gap:10px;flex-wrap:nowrap;margin:10px 0 12px;padding:8px 10px;border:1px solid #e2e8ee;background:#f8fafb}
+.remediationFilterBar label{min-width:0;display:flex;flex:1 1 0;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:#4c5c6f}
+.remediationFilterBar label:first-child{flex:1.35 1 0}
+.remediationFilterBar select{width:100%;min-width:0;height:34px;padding:5px 8px;font-size:12px}
+.remediationFilterCount{white-space:nowrap;align-self:center;color:#42566c;font-size:12px;font-weight:600}
+@media(max-width:950px){.remediationFilterBar{flex-wrap:wrap}.remediationFilterBar label{flex:1 1 42%}.remediationFilterBar label:first-child{flex:1 1 42%}}
+@media(max-width:600px){.remediationFilterBar label{flex:1 1 100%}.remediationFilterBar label:first-child{flex:1 1 100%}}
