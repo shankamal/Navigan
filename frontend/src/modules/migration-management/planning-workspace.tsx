@@ -1208,51 +1208,32 @@ export function PlanningEditor({
             </section>
           )}
           {remediationView === "FIXES" && (<>
-          <div className={styles.toolbar}>
-            <label>
-              Findings view
+          <div className={styles.remediationFilterBar} aria-label="Remediation filters">
+            <label>Scope
               <select aria-label="Findings view" value={findingView} onChange={(e) => setFindingView(e.target.value as "SCOPE" | "SHARED" | "ALL")}>
-                <option value="SCOPE">Selected migration scope</option>
-                <option value="SHARED">Shared and unassigned risks</option>
-                <option value="ALL">All assessment findings</option>
+                <option value="SCOPE">Selected resources</option>
+                <option value="SHARED">Shared risks</option>
+                <option value="ALL">Entire assessment</option>
               </select>
             </label>
-            <label>
-              Namespace
+            <label>Namespace
               <select aria-label="Remediation namespace" value={namespace} disabled={findingView === "SCOPE"} onChange={(e) => setNamespace(e.target.value)}>
-                <option value="">All assessed namespaces</option>
-                {namespaces.map((item) => <option key={item} value={item}>{item}</option>)}
+                <option value="">All namespaces</option>
+                {namespaces.map(item => <option key={item} value={item}>{item}</option>)}
               </select>
             </label>
-            <strong>{categorizedFindings.filter(({ finding }) => finding.severity === "BLOCKER").length} assessment blockers in view · {readiness.issues.length} outstanding planning checks</strong>
-            <span>
-              {draft.remediations.filter((r) => r.evidenceReference).length}{" "}
-              evidence references · verification pending
-            </span>
-            <label>
-              Category
-              <select aria-label="Finding category" value={remediationCategory} onChange={(e) => setRemediationCategory(e.target.value)}>
-                {["ALL","Storage","Networking","Security","Configuration","Other"].map((item) => <option key={item} value={item}>{item === "ALL" ? "All categories" : item}</option>)}
+            <label>Category
+              <select aria-label="Finding category" value={remediationCategory} onChange={e => setRemediationCategory(e.target.value)}>
+                {["ALL","Storage","Networking","Security","Configuration","Other"].map(item => <option key={item} value={item}>{item === "ALL" ? "All categories" : item}</option>)}
               </select>
             </label>
-            <label>
-              Severity
-              <select
-                aria-label="Finding severity"
-                value={severity}
-                onChange={(e) => setSeverity(e.target.value)}
-              >
-                <option value="ALL">All findings</option>
-                <option value="BLOCKER">Blockers</option>
-                <option value="WARNING">Warnings</option>
-                <option value="INFO">Information</option>
+            <label>Severity
+              <select aria-label="Finding severity" value={severity} onChange={e => setSeverity(e.target.value)}>
+                <option value="ALL">All severities</option><option value="BLOCKER">Blockers</option><option value="WARNING">Warnings</option><option value="INFO">Information</option>
               </select>
             </label>
+            <span className={styles.remediationFilterCount}>{categorizedFindings.length} findings</span>
           </div>
-          <p className={styles.caption}>
-            {categorizedFindings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
-            {findingView === "SCOPE" ? " Only findings for exact selected resources are shown. No findings does not imply readiness; dependencies may be incomplete." : " Full assessment evidence is preserved; filtering does not resolve findings."}
-          </p>
           {categorizedFindings.some(({index}) => selectedFindingIds.includes(index)) && (
             <div className={styles.remediationBulkBar} aria-label="Remediation bulk actions">
               <strong>{categorizedFindings.filter(({index}) => selectedFindingIds.includes(index)).length} findings selected</strong>
