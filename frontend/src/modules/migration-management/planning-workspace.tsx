@@ -523,7 +523,7 @@ export function PlanningEditor({
           Review draft
         </button>
       </nav>
-      <section className={styles.guide} aria-label="Migration planning guide" style={tab === "remediate" ? {padding:"10px 16px",marginBottom:"8px"} : undefined}>
+      {tab !== "remediate" && <section className={styles.guide} aria-label="Migration planning guide" style={tab === "remediate" ? {padding:"10px 16px",marginBottom:"8px"} : undefined}>
         <div className={styles.guideHeading}>
           <strong>{tab === "scope" ? "1 · Define application scope" : tab === "remediate" ? "2 · Resolve relevant findings" : "3 · Review planning readiness"}</strong>
           <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
@@ -539,7 +539,7 @@ export function PlanningEditor({
           <span><strong>{draft.remediations.length}</strong> remediation decisions</span>
           <span><strong>{draft.dataStrategy === "UNDECIDED" ? "Pending" : "Chosen"}</strong> data strategy</span>
         </div>
-      </section>
+      </section>}
       {(message || save.isPending) && (
         <div
           className={save.isError ? styles.warning : styles.notice}
@@ -1208,6 +1208,7 @@ export function PlanningEditor({
             </section>
           )}
           {remediationView === "FIXES" && (<>
+          <p className={styles.remediationInfoLine}>Review findings, customize or record decisions, then save the draft. No changes are applied to infrastructure.</p>
           <div className={styles.remediationFilterBar} aria-label="Remediation filters">
             <label>Scope
               <select aria-label="Findings view" value={findingView} onChange={(e) => setFindingView(e.target.value as "SCOPE" | "SHARED" | "ALL")}>
