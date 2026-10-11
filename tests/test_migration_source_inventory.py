@@ -242,3 +242,40 @@ def test_rejects_unsupported_dependency_reference_kinds():
     deployment["dependencyReferences"] = [{"kind": "Node", "name": "worker"}]
     with pytest.raises(ValidationError, match="Unsupported inventory dependency kind"):
         SourceInventoryReport.model_validate(payload)
+
+
+def test_service_selector_relationships_preserve_privacy_and_namespace():
+    from migration_connector.inventory import build_inventory
+
+    def deployment(namespace, labels):
+        return {
+            "apiVersion": "apps/v1", "kind": "Deployment",
+            "metadata": {"name": "api", "namespace": namespace},
+            "spec": {"template": {
+                "metadata": {"labels": labels},
+                "spec": {"containers": [{"name": "app", "image": "example:1"}]},
+            }},
+        }
+
+    def service(namespace, name, selector):
+        return {
+            "apiVersion": "v1", "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {"selector": selector},
+        }
+
+    inventory = build_inventory([
+        deployment("retailflow", {"app": "retail-api", "sensitive-label": "not-exported"}),
+        service("retailflow", "api-svc", {"app": "retail-api"}),
+        service("retailflow", "headless", {}),
+        service("another", "api-svc", {"app": "retail-api"}),
+    ])
+    workload = resource_by_kind(inventory, "Deployment")
+    assert {"kind": "Service", "name": "api-svc"} in workload["dependencyReferences"]
+    assert {"kind": "Service", "name": "headless"} not in workload["dependencyReferences"]
+    assert "not-exported" not in str(inventory)
+    SourceInventoryReport.model_validate({
+        **inventory, "migrationVersion": 4,
+        "observedAt": "2026-10-11T12:00:00Z",
+        "sourceKubernetesVersion": "v1.37.1",
+    })
