@@ -177,6 +177,32 @@ def test_collects_only_selected_namespaces_and_safe_resources():
         assert sensitive_value not in encoded
 
 
+def test_statefulset_claim_templates_are_sanitized_names_only():
+    def request(path):
+        if path == "/api/v1/nodes":
+            return {"items": [node()]}
+        if path == "/api/v1/namespaces":
+            return {"items": [{"metadata": {"name": "retailflow"}}]}
+        if path.endswith("/statefulsets"):
+            return {"items": [{
+                "metadata": {"name": "postgres", "namespace": "retailflow"},
+                "spec": {
+                    "volumeClaimTemplates": [{
+                        "metadata": {"name": "data"},
+                        "spec": {"storageClassName": "internal-only", "resources": {
+                            "requests": {"storage": "10Gi"}
+                        }},
+                    }]
+                },
+            }]}
+        return {"items": []}
+
+    result = collect_inventory(assignment(), request)
+    statefulset = next(r for r in result["resources"] if r["kind"] == "StatefulSet")
+    assert statefulset["volumeClaimTemplateNames"] == ["data"]
+    assert "internal-only" not in json.dumps(statefulset)
+
+
 def test_restores_type_metadata_omitted_by_kubernetes_list_responses():
     def request(path):
         if path == "/api/v1/nodes":
