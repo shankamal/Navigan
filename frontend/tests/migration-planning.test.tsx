@@ -249,6 +249,7 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
+    expect(screen.getByLabelText("Remediation decision coverage")).toBeVisible();
     expect(screen.getByRole("button", { name: "Back to scope" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Continue to review draft" }));
     expect(screen.getByRole("button", { name: "Back to remediation" })).toBeEnabled();
