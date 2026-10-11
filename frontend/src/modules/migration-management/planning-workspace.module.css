@@ -444,3 +444,7 @@
 .reviewChecklist p { margin: 0; font-size: 13px; color: #47596c; }
 
 .navigationAnchor { scroll-margin-top: 200px; height: 0; }
+
+.intelligencePanel { border: 1px solid #d9e5d2; border-left: 3px solid #86bc25; background: #f7fbf4; padding: 16px; margin-bottom: 20px; display: grid; gap: 10px; }
+.intelligencePanel h2, .intelligencePanel p { margin: 0; }
+.intelligencePanel > button { width: 100%; justify-content: center; }
