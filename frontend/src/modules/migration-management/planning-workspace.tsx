@@ -1299,15 +1299,13 @@ export function PlanningEditor({
                     <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
                     <ul><li>Treatment {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
                   </details>
-                  <div className={styles.remediationFormHeading}><strong>Customize decision</strong><span>Assign ownership and edit the proposed mapping below</span></div>
+                  <div className={styles.remediationFormHeading}><strong>Customize decision</strong><span>Change the proposal and record ownership or evidence</span></div>
                   {(customizeFinding || acceptedSuggestion) && <fieldset
                     className={styles.fields}
                     disabled={!canEdit || stale || save.isPending}
                   >
-                    <p className={styles.caption}>
-                      Draft fields may remain incomplete. Evidence reference is
-                      required when Work status is Evidence attached.
-                    </p>
+
+                    <div className={styles.remediationFormGrid}>
                     <label>
                       Treatment
                       <select
@@ -1343,6 +1341,7 @@ export function PlanningEditor({
                         placeholder="Optional: person or team responsible"
                       />
                     </label>
+                    </div>
                     <label>
                       Target mapping
                       <textarea
@@ -1355,6 +1354,7 @@ export function PlanningEditor({
                         placeholder="Optional: proposed EKS storage, ingress, identity or replacement mapping"
                       />
                     </label>
+                    <div className={styles.remediationFormGrid}>
                     <label>
                       Evidence reference
                       <input
@@ -1386,6 +1386,8 @@ export function PlanningEditor({
                         </option>
                       </select>
                     </label>
+                    </div>
+                    <p className={styles.caption}>Evidence references are not independent verification.</p>
                   </fieldset>}
                   <p className={styles.notice}>
                     Evidence attachment is not verification. Target preparation
