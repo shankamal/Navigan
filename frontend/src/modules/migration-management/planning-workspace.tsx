@@ -1068,7 +1068,7 @@ export function PlanningEditor({
           disabled={tab === "scope"}
         >
           <ArrowLeft size={16} />
-          {tab === "scope" ? "Scope & target" : tab === "remediate" ? "Back to scope" : "Back to remediation"}
+          {tab === "scope" ? "Previous step" : tab === "remediate" ? "Back to scope" : "Back to remediation"}
         </button>
         <p>
           {save.isPending
