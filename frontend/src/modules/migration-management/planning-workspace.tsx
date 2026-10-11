@@ -158,6 +158,7 @@ export function PlanningEditor({
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
   const [remediationCategory, setRemediationCategory] = useState("ALL");
+  const [remediationCategory, setRemediationCategory] = useState("ALL");
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
@@ -350,6 +351,17 @@ export function PlanningEditor({
     category,
     items: findings.filter(({finding}) => findingCategory(finding.category) === category),
   })).filter((group) => group.items.length > 0);
+  const categorizedFindings = findings.filter(({finding}) => {
+    if (remediationCategory === "ALL") return true;
+    const raw = (finding.category ?? "").toLowerCase();
+    const matched = remediationCategory === "Storage" ? /stor|volume|persist|data/.test(raw) :
+      remediationCategory === "Networking" ? /network|ingress|route|service/.test(raw) :
+      remediationCategory === "Security" ? /secur|identity|iam|secret|policy/.test(raw) :
+      remediationCategory === "Configuration" ? /config|api|deploy/.test(raw) : false;
+    return remediationCategory === "Other"
+      ? !/stor|volume|persist|data|network|ingress|route|service|secur|identity|iam|secret|policy|config|api|deploy/.test(raw)
+      : matched;
+  });
   const remediationDecisionChecks = (item: RemediationDraft | undefined) => ({
     treatment: Boolean(item && item.treatment !== "REVIEW"),
     owner: Boolean(item?.owner.trim()),
@@ -357,9 +369,9 @@ export function PlanningEditor({
     evidence: Boolean(item?.evidenceReference.trim()),
   });
   // The previous selection may no longer be visible after filtering.
-  const activeFindingIndex = findings.some(({ index }) => index === findingIndex)
+  const activeFindingIndex = categorizedFindings.some(({ index }) => index === findingIndex)
     ? findingIndex
-    : (findings[0]?.index ?? -1);
+    : (categorizedFindings[0]?.index ?? -1);
   const finding = activeFindingIndex >= 0 ? assessment.findings[activeFindingIndex] : undefined;
   const suggestedRemediation = activeFindingIndex >= 0 ? recommendFinding(assessment, activeFindingIndex) : null;
   const acceptedSuggestion = draft.remediations.some((r) => r.findingIndex === activeFindingIndex);
@@ -1129,6 +1141,12 @@ export function PlanningEditor({
               </select>
             </label>
             <label>
+              Category
+              <select aria-label="Finding category" value={remediationCategory} onChange={(e) => setRemediationCategory(e.target.value)}>
+                {["ALL","Storage","Networking","Security","Configuration","Other"].map((item) => <option key={item} value={item}>{item === "ALL" ? "All categories" : item}</option>)}
+              </select>
+            </label>
+            <label>
               Severity
               <select
                 aria-label="Finding severity"
@@ -1143,7 +1161,7 @@ export function PlanningEditor({
             </label>
           </div>
           <p className={styles.caption}>
-            {findings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
+            {categorizedFindings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
             {findingView === "SCOPE" ? " Only findings for exact selected resources are shown. No findings does not imply readiness; dependencies may be incomplete." : " Full assessment evidence is preserved; filtering does not resolve findings."}
           </p>
           <section className={styles.notice} aria-label="Remediation decision coverage">
@@ -1167,12 +1185,13 @@ export function PlanningEditor({
                     <th>Finding</th>
                     <th>Affected resource</th>
                     <th>Decision progress</th>
+                    <th>Treatment</th>
                     <th>Owner</th>
-                    <th>Evidence status</th>
+                    <th>Mapping / Evidence</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {findings.map(({ finding: f, index }) => {
+                  {categorizedFindings.map(({ finding: f, index }) => {
                     const item = draft.remediations.find(
                       (r) => r.findingIndex === index,
                     );
@@ -1211,12 +1230,9 @@ export function PlanningEditor({
                           const checks = remediationDecisionChecks(item);
                           return [checks.treatment,checks.owner,checks.mapping,checks.evidence].filter(Boolean).length + "/4 documented";
                         })()}</td>
+                        <td>{item?.treatment ?? "Review pending"}</td>
                         <td>{item?.owner || "Unassigned"}</td>
-                        <td>
-                          {item?.evidenceReference
-                            ? "Evidence attached; not verified"
-                            : "Not verified"}
-                        </td>
+                        <td>{item?.targetMapping ? "Mapping proposed" : "Mapping required"} · {item?.evidenceReference ? "Evidence attached (unverified)" : "Evidence pending"}</td>
                       </tr>
                     );
                   })}
