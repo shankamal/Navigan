@@ -6,7 +6,7 @@ export interface ReadinessSelection {
   name: string;
   dependency?: boolean;
 }
-export type ReadinessIssueType = "MISSING_INVENTORY" | "NOT_SELECTED" | "COVERAGE_UNKNOWN" | "DATA_STRATEGY_REQUIRED";
+export type ReadinessIssueType = "MISSING_INVENTORY" | "NOT_SELECTED" | "COVERAGE_UNKNOWN" | "DATA_STRATEGY_REQUIRED" | "PVC_OWNERSHIP_UNVERIFIED";
 export interface ReadinessIssue { type: ReadinessIssueType; detail: string; resourceId?: string }
 export interface ScopeReadiness {
   state: "INCOMPLETE" | "REVIEW_REQUIRED";
@@ -20,6 +20,7 @@ export function evaluateScopeReadiness(
   selection: ReadinessSelection[],
   dataStrategy: string,
   persistentDataPresent: boolean,
+  unverifiedPvcOwnership = 0,
 ): ScopeReadiness {
   const primary = selection.filter((item) => !item.dependency);
   const chosen = new Set(selection.map((item) => migrationNodeId(item.kind, item.namespace, item.name)));
@@ -38,6 +39,9 @@ export function evaluateScopeReadiness(
     } else if (!chosen.has(edge.to)) {
       issues.push({type:"NOT_SELECTED",resourceId:edge.to,detail:`${edge.kind} ${edge.name} is present in inventory but not included in the migration draft.`});
     }
+  }
+  if (unverifiedPvcOwnership > 0) {
+    issues.push({type:"PVC_OWNERSHIP_UNVERIFIED",detail:`${unverifiedPvcOwnership} PVC ownership relationship(s) need explicit source evidence before storage readiness can be established.`});
   }
   if (persistentDataPresent && dataStrategy === "UNDECIDED") {
     issues.push({type:"DATA_STRATEGY_REQUIRED",detail:"Persistent storage is inventoried; select and validate a data migration strategy."});
