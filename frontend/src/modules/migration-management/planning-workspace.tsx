@@ -262,7 +262,8 @@ export function PlanningEditor({
   const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
-    resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace)))
+    resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
+    workloadRelationships.filter((entry) => entry.selected).reduce((count, entry) => count + entry.observedClaimCandidates.length, 0)
   );
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
@@ -968,6 +969,13 @@ export function PlanningEditor({
               <p>No workloads have been included in the planning draft. Return to Scope &amp; target, select your workloads, and confirm required dependencies before remediation.</p>
             )}
           </div>
+          <section className={styles.notice} aria-label="Planning readiness issues for remediation">
+            <strong>Outstanding migration intelligence checks · {readiness.issues.length}</strong>
+            {readiness.issues.length === 0 ? <p>No detected scope gaps; migration and target readiness still require approval.</p> : (
+              <ul>{readiness.issues.map((issue, index) => <li key={index}>{issue.type.replaceAll("_", " ")} — {issue.detail}</li>)}</ul>
+            )}
+            <p>These checks are planning prerequisites, not assessment findings. Resolve dependency selection in Scope &amp; Target and document data decisions before approving a migration plan.</p>
+          </section>
           <div className={styles.toolbar}>
             <label>
               Findings view
