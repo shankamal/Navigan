@@ -93,10 +93,13 @@ export function recommendFinding(
   if (!finding) return null;
   const evidence = [finding.category, finding.code, finding.message].join(" ").toLowerCase();
   const treatment: RemediationDraft["treatment"] =
+    /mutable.image|image.tag|image.digest|not pinned|immutable digest/.test(evidence) ? "RECONFIGURE" :
     /storage|volume|pvc|persistent/.test(evidence) ? "REVIEW" :
     /ingress|controller|cni|network|identity|iam|service.account/.test(evidence) ? "RECONFIGURE" :
     /deprecated|api.version|unsupported/.test(evidence) ? "REPLACE" : "REVIEW";
-  const mapping = /storage|volume|pvc|persistent/.test(evidence)
+  const mapping = /mutable.image|image.tag|image.digest|not pinned|immutable digest/.test(evidence)
+    ? "Resolve the exact approved image digest, scan and sign the artifact as required, then pin the deployment reference to repository@sha256:<verified-digest>. Record the artifact and rollout validation evidence."
+    : /storage|volume|pvc|persistent/.test(evidence)
     ? "Confirm destination EKS StorageClass/CSI driver and data backup, restore or replication plan."
     : /ingress|controller/.test(evidence)
     ? "Validate the chosen EKS ingress controller, ingress class, DNS, TLS and annotations."
