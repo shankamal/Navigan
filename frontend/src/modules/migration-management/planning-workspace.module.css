@@ -487,3 +487,11 @@
 .remediationFindingButton:hover { color:#28680c; }
 .remediationFindingButton:focus-visible { outline:2px solid #3176cb; outline-offset:3px; }
 @media (max-width:850px) { .remediationFindingList { max-height:400px; } }
+
+/* Match both columns within the visible decision workspace; keep each independently scrollable. */
+.remediationColumns { grid-template-columns:minmax(0,1fr) minmax(330px,1fr); align-items:start; }
+.remediationColumns > .detail { max-height:570px; overflow-y:auto; padding-right:8px; }
+@media (max-width:900px) {
+  .remediationColumns { grid-template-columns:minmax(0,1fr); }
+  .remediationColumns > .detail { max-height:none; overflow:visible; border-left:0; border-top:1px solid #dde4ed; padding:16px 0 0; }
+}
