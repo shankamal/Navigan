@@ -819,6 +819,9 @@ export function AssessmentWizard() {
                               <option value="GITOPS">GitOps delivery</option>
                             </select>
                             <small>
+                              Navigan never uploads or stores your kubeconfig.
+                            </small>
+                            <small>
                               {sourceDeliveryMethod === "AWS_SSM"
                                 ? "AWS SSM installs the read-only connector through an authorized managed instance; it is not a generic Kubernetes login."
                                 : sourceDeliveryMethod === "GITOPS"
