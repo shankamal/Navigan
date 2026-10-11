@@ -26,6 +26,20 @@ describe("migration scope readiness", () => {
     expect(value.issues.map((issue) => issue.type)).toContain("PVC_OWNERSHIP_UNVERIFIED");
     expect(value.issues.map((issue) => issue.type)).not.toContain("DATA_STRATEGY_REQUIRED");
   });
+  it("requires complete reviewed mappings and rejects no-data strategy for scoped PVCs", () => {
+    const claims = [{namespace:"app",name:"data-api-0"}];
+    const initial = evaluateScopeReadiness(inventory, selected, "NO_PERSISTENT_DATA", true, 0, claims, []);
+    expect(initial.issues.map((issue) => issue.type)).toContain("STORAGE_MAPPING_REQUIRED");
+    expect(initial.issues.map((issue) => issue.type)).toContain("DATA_STRATEGY_REQUIRED");
+    const proposed = evaluateScopeReadiness(inventory, selected, "BACKUP_RESTORE", true, 0, claims, [{
+      namespace:"app",sourceClaim:"data-api-0",targetStorageClass:"gp3",targetCapacity:"10Gi",targetAccessMode:"ReadWriteOnce",status:"PROPOSED"
+    }]);
+    expect(proposed.issues.map((issue) => issue.type)).toContain("STORAGE_MAPPING_REVIEW");
+    const reviewed = evaluateScopeReadiness(inventory, selected, "BACKUP_RESTORE", true, 0, claims, [{
+      namespace:"app",sourceClaim:"data-api-0",targetStorageClass:"gp3",targetCapacity:"10Gi",targetAccessMode:"ReadWriteOnce",status:"REVIEWED"
+    }]);
+    expect(reviewed.issues.some((issue) => issue.type.startsWith("STORAGE_MAPPING"))).toBe(false);
+  });
   it("treats old inventories without references as incomplete evidence", () => {
     const value = evaluateScopeReadiness(graphFromSanitizedInventory([{kind:"Deployment",name:"api",namespace:"app"}]), selected, "UNDECIDED", false);
     expect(value.issues.map(i => i.type)).toContain("COVERAGE_UNKNOWN");
