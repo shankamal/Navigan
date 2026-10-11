@@ -135,6 +135,7 @@ describe("migration planning", () => {
       </QueryClientProvider>,
     );
     fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
+    fireEvent.click(screen.getByLabelText("Include StatefulSet retailflow/postgres"));
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     expect(screen.getAllByText("Mutable image references").length).toBeGreaterThan(0);
     expect(screen.queryByText("Other namespace warning")).toBeNull();
@@ -143,6 +144,7 @@ describe("migration planning", () => {
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
     fireEvent.change(screen.getByLabelText("Owner"), {
       target: { value: "Application owner" },
     });
