@@ -1278,54 +1278,31 @@ export function PlanningEditor({
             <aside className={styles.detail}>
               {finding ? (
                 <>
-                  <div className={styles.notice} aria-live="polite">
-                    {acceptedSuggestion ? (
-                      <p><strong>Remediation added to draft — not yet saved.</strong> Review the treatment and target mapping below, assign an owner, then save the draft. This does not change EKS resources.</p>
-                    ) : (
-                      <>
-                        <strong>Navigan suggested remediation</strong>
-                        <p>Treatment: {suggestedRemediation?.treatment ?? "REVIEW"}</p>
-                        <p>Proposed target mapping: {suggestedRemediation?.targetMapping ?? "Review required"}</p>
-                        <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || !suggestedRemediation} onClick={() => { if (suggestedRemediation) changeRemediation(suggestedRemediation); }}>
-                          Apply recommendation to draft
-                        </button>
-                      </>
-                    )}
+                  <div className={styles.recommendationHeader} aria-live="polite">
+                    <div><strong>Guided recommendation</strong><span>Rule-based · {finding.severity} · {findingCategory(finding.category)}</span></div>
+                    <span>{acceptedSuggestion ? "Decision in draft" : "Decision required"}</span>
                   </div>
-                  <section className={styles.notice} aria-label="Source to target remediation comparison">
-                    <strong>Source → Target decision</strong>
-                    <div className={styles.guideStats}>
-                      <span><strong>Source</strong> {finding.namespace ?? "Cluster"} / {finding.resourceKind ?? finding.category} / {finding.resourceName ?? "Shared finding"}</span>
-                      <span><strong>Destination</strong> {targetPlatform} · {targetCapability.status === "CURRENT" ? "Evidence available" : "Capabilities unverified"}</span>
-                    </div>
-                    <p><strong>Source finding:</strong> {finding.message}</p>
-                    <p><strong>Proposed treatment:</strong> {suggestedRemediation?.treatment ?? "Manual review"}</p>
-                    <p><strong>Suggested target mapping:</strong> {suggestedRemediation?.targetMapping || "No evidence-backed target mapping available. Complete manually."}</p>
-                    <p className={styles.caption}>This is a rule-based proposal from assessment findings, not an AI-generated or independently verified target configuration.</p>
+                  <div className={styles.recommendationProblem}>
+                    <strong>{finding.code.replaceAll("_"," ").toLowerCase().replace(/^./,letter=>letter.toUpperCase())}</strong>
+                    <p>{finding.message}</p>
+                    <small>{finding.namespace ?? "Cluster"} / {finding.resourceKind ?? finding.category} / {finding.resourceName ?? "Shared resource"}</small>
+                  </div>
+                  <section className={styles.mappingComparison} aria-label="Source to target remediation comparison">
+                    <div><span>Detected source issue</span><p>{finding.message}</p></div>
+                    <div><span>Recommended treatment · {suggestedRemediation?.treatment ?? "REVIEW"}</span><p>{suggestedRemediation?.targetMapping || "Manual review required; no specific mapping can be verified."}</p></div>
+                    <div><span>Target evidence · {targetPlatform}</span><p>{targetCapability.status === "CURRENT" ? "Capability snapshot available; validate finding-specific compatibility" : "Target configuration not verified"}</p></div>
                   </section>
-                  <h2>
-                    <Wrench size={20} />
-                    {finding.code
-                      .replaceAll("_", " ")
-                      .toLowerCase()
-                      .replace(/^./, (letter) => letter.toUpperCase())}
-                  </h2>
-                  <p>{finding.message}</p>
-                  <p className={styles.caption}>
-                    {finding.remediation ??
-                      "Review this finding with the application owner."}
-                  </p>
-                  <section className={styles.notice} aria-label="Selected remediation completion criteria">
-                    <strong>Decision completion criteria</strong>
-                    <p>Selected finding: {finding.resourceName ?? "Assessment-wide"} · {finding.severity} · {finding.category}</p>
-                    <ul>
-                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "Recorded" : "Pending"} — Choose a treatment other than Review</li>
-                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).owner ? "Recorded" : "Pending"} — Assign an accountable owner</li>
-                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).mapping ? "Recorded" : "Pending"} — Document target mapping and required changes</li>
-                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).evidence ? "Attached (unverified)" : "Pending"} — Attach validation evidence reference</li>
-                    </ul>
-                    <p>Even all four recorded decisions remain subject to independent verification.</p>
-                  </section>
+                  <div className={styles.recommendationActions}>
+                    <button className="button button-primary" disabled={!canEdit || stale || save.isPending || !suggestedRemediation || acceptedSuggestion || suggestedRemediation.treatment === "REVIEW"}
+                      onClick={() => {if(suggestedRemediation)changeRemediation(suggestedRemediation);}}>
+                      {acceptedSuggestion ? "Recommendation in draft" : "Accept recommendation"}
+                    </button>
+                    <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => changeRemediation({status:"PLANNED",treatment:"REVIEW"})}>Defer for review</button>
+                  </div>
+                  <details className={styles.notice} aria-label="Selected remediation completion criteria">
+                    <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
+                    <ul><li>Treatment {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
+                  </details>
                   <fieldset
                     className={styles.fields}
                     disabled={!canEdit || stale || save.isPending}
