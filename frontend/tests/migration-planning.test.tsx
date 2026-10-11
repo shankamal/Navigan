@@ -208,6 +208,19 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Remediation bulk actions")).toBeVisible();
     expect(screen.getByLabelText("Remediation findings list")).toBeVisible();
   });
+  it("records a proposed PVC mapping through the target mapping workspace", () => {
+    open({targetConfiguration:{platform:"EKS",clusterId:"CLU-demo"}} as Partial<Migration>,{
+      ...inventory,resources:[...inventory.resources,{apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",requestedStorage:"8Gi",storageClassName:"navigan-ebs-gp3",accessModes:["ReadWriteOnce"]}],
+    } as SourceInventory);
+    fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
+    fireEvent.click(screen.getByLabelText("Include PVC retailflow/data-postgres-0"));
+    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.click(screen.getByRole("button",{name:/Target mappings/}));
+    expect(screen.getByLabelText("Target mapping workspace")).toBeVisible();
+    expect(screen.getByRole("button",{name:"Add mapping to draft"})).toBeEnabled();
+    fireEvent.click(screen.getByRole("button",{name:"Add mapping to draft"}));
+    expect(screen.getByLabelText("Target mapping workspace")).toHaveTextContent("Mapping recorded in draft");
+  });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
