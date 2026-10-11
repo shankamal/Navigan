@@ -797,7 +797,10 @@ export function AssessmentWizard() {
                             />
                           </label>
                           <label className="field">
-                            <span>Connector delivery</span>
+                            <span className={styles.platformFieldTitle}>
+                              <PlatformIcon platform={sourceDeliveryMethod === "GITOPS" ? "GITOPS" : sourceDeliveryMethod === "AWS_SSM" ? "AWS" : "KUBERNETES"} />
+                              Connector delivery
+                            </span>
                             <select
                               value={sourceDeliveryMethod}
                               onChange={(event) =>
@@ -816,7 +819,11 @@ export function AssessmentWizard() {
                               <option value="GITOPS">GitOps delivery</option>
                             </select>
                             <small>
-                              Navigan never uploads or stores your kubeconfig.
+                              {sourceDeliveryMethod === "AWS_SSM"
+                                ? "AWS SSM installs the read-only connector through an authorized managed instance; it is not a generic Kubernetes login."
+                                : sourceDeliveryMethod === "GITOPS"
+                                  ? "GitOps distributes the connector manifest through your approved repository and reconciler; cluster credentials stay outside Navigan."
+                                  : "Helm setup is provided for installation by an authorized cluster administrator. Navigan does not upload or store kubeconfig."}
                             </small>
                           </label>
                           {sourceDeliveryMethod === "AWS_SSM" && (
