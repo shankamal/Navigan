@@ -83,7 +83,7 @@ export function graphFromSanitizedInventory(items: MigrationInventoryItem[], pla
       const prefix = template + "-" + item.name + "-";
       for (const node of nodes) {
         if (node.kind !== "PersistentVolumeClaim" || node.namespace !== (item.namespace ?? null) || !node.name.startsWith(prefix)) continue;
-        if (!/^\\d+$/.test(node.name.slice(prefix.length))) continue;
+        if (!/^[0-9]+$/.test(node.name.slice(prefix.length))) continue;
         if (edges.some((edge) => edge.from === ownerId && edge.to === node.id)) continue;
         edges.push({from: ownerId, to: node.id, kind: node.kind, name: node.name, evidence: "INFERRED", resolution: "IN_INVENTORY"});
       }
