@@ -171,10 +171,9 @@ describe("migration planning", () => {
     fireEvent.change(screen.getByLabelText("Evidence reference"), {
       target: { value: "artifact:restore-test" },
     });
-    expect(screen.getByRole("button", { name: "Apply change" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Verify remediation" }),
-    ).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Apply change" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Verify remediation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save remediation decision" })).toBeEnabled();
     expect(
       screen.getByText(
         "Evidence attachment is not verification. Target preparation requires a separate authorized action.",
