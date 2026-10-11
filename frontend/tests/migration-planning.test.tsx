@@ -189,8 +189,9 @@ describe("migration planning", () => {
     open();
     fireEvent.click(screen.getByRole("button", {name:"Remediate"}));
     fireEvent.change(screen.getByLabelText("Findings view"), {target:{value:"SHARED"}});
-    const selectAll = screen.getByRole("checkbox", {name:"Select all visible remediation findings"});
-    fireEvent.click(selectAll);
+    expect(screen.queryByLabelText("Remediation bulk actions")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", {name:"Select finding 0"}));
+    expect(screen.getByLabelText("Remediation bulk actions")).toBeVisible();
     const bulk = screen.getByRole("button", {name:"Accept eligible selections"});
     expect(bulk).toBeEnabled();
     fireEvent.click(bulk);
@@ -205,7 +206,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button",{name:/Remediation plan/}));
     expect(screen.getByLabelText("Consolidated remediation plan")).toBeVisible();
     fireEvent.click(screen.getByRole("button",{name:/Recommended fixes/}));
-    expect(screen.getByLabelText("Remediation bulk actions")).toBeVisible();
+    expect(screen.queryByLabelText("Remediation bulk actions")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Remediation findings list")).toBeVisible();
   });
   it("opens a recorded decision directly in edit mode with clear next steps", () => {
