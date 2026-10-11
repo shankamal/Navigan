@@ -209,6 +209,8 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button",{name:/Recommended fixes/}));
     expect(screen.queryByLabelText("Remediation bulk actions")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Remediation findings list")).toBeVisible();
+    expect(screen.getByText("Finding / resource")).toBeVisible();
+    expect(screen.getByText("Treatment")).toBeVisible();
   });
   it("opens a recorded decision directly in edit mode with clear next steps", () => {
     open();
