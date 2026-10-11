@@ -141,6 +141,15 @@ describe("migration planning", () => {
     expect(screen.queryByText("Other namespace warning")).toBeNull();
     expect(screen.getByLabelText("Remediation namespace")).toHaveValue("retailflow");
   });
+  it("previews and acknowledges an accepted remediation recommendation", () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
+    expect(screen.getByText("Navigan suggested remediation")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Apply recommendation to draft" }));
+    expect(screen.getByText(/Remediation added to draft/)).toBeVisible();
+    expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
+  });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
