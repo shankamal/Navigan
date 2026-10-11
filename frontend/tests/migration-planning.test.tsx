@@ -231,6 +231,18 @@ describe("migration planning", () => {
     ).not.toBeChecked();
     expect(screen.queryByRole("link", { name: "Assess" })).toBeNull();
   });
+  it("navigates consistently between scope, remediation and review using footer actions", () => {
+    open();
+    expect(screen.getByRole("button", { name: "Scope & target" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
+    expect(screen.getByRole("button", { name: "Back to scope" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to review draft" }));
+    expect(screen.getByRole("button", { name: "Back to remediation" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Back to remediation" }));
+    expect(screen.getByRole("button", { name: "Continue to review draft" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
+    expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeEnabled();
+  });
   it("shows save failures prominently and retains edits", async () => {
     mock.update.mockRejectedValue(new Error("Dev backend unavailable"));
     open();
