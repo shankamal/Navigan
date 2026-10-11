@@ -213,6 +213,7 @@ describe("migration planning", () => {
     expect(
       screen.getByText(/Inventory coverage is not yet certified/),
     ).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     fireEvent.click(screen.getByLabelText("Include Node cluster/source-node"));
     const treatment = screen.getByLabelText("Treatment source-node");
