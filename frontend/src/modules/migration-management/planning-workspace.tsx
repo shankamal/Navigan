@@ -224,6 +224,20 @@ export function PlanningEditor({
   const pendingPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" &&
     (draft.mode === "FULL_CLUSTER" || (!namespace || r.namespace === namespace)));
 
+  const sourceReferences = resources.flatMap((r) => {
+    const input = r.kind === "Ingress" ? r.backendServiceReferences : workloadKinds.has(r.kind) ? r.dependencyReferences : null;
+    if (!Array.isArray(input)) return [];
+    return input.flatMap((ref: unknown) => {
+      if (!ref || typeof ref !== "object") return [];
+      const entry = ref as Record<string, unknown>;
+      if (typeof entry.kind !== "string" || typeof entry.name !== "string") return [];
+      return [{
+        owner: r.kind + " " + r.name, namespace: r.namespace,
+        kind: entry.kind, name: entry.name,
+        present: resources.some((other) => other.kind === entry.kind && other.name === entry.name && other.namespace === r.namespace),
+      }];
+    });
+  }).filter((ref) => !namespace || ref.namespace === namespace);
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -550,10 +564,18 @@ export function PlanningEditor({
               ))}
             </nav>
             {resourceView === "DEPENDENCIES" && (
-              <p className={styles.caption}>Dependency candidates are categorized by resource kind or manually marked relationships. A resource appearing here is not proof of a verified dependency; confirm references with the application owner.</p>
+              <div className={styles.notice}>
+                <strong>Source reference evidence · {sourceReferences.length} relationships</strong>
+                {sourceReferences.length === 0 ? <p>No references in this snapshot; collect fresh inventory before concluding dependencies are absent.</p> : <ul>{sourceReferences.map((ref, i) => <li key={i}>{ref.owner} → {ref.kind} {ref.name} — {ref.present ? "Found in inventory" : "Not found in inventory"}</li>)}</ul>}
+                <p>Presence in inventory does not establish target readiness or complete discovery.</p>
+              </div>
             )}
             {resourceView === "DATA" && (
-              <p className={styles.caption}>PVC definitions and storage objects are metadata only. Persistent volume contents, snapshots, recovery objectives and target storage mappings require separate validation. Choose your data strategy in the right-hand Scope Summary.</p>
+              <div className={styles.notice}>
+                <strong>PVC consumer references</strong>
+                {sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").length === 0 ? <p>No PVC consumer references in this snapshot. This does not prove there is no persistent data.</p> : <ul>{sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").map((ref, i) => <li key={i}>{ref.owner} → PVC {ref.name} — {ref.present ? "Claim inventoried" : "Claim missing from inventory"}</li>)}</ul>}
+                <p>PVC metadata does not include volume data. Verify StorageClass, access mode, capacity, and approved transfer strategy.</p>
+              </div>
             )}
             {resourceView === "CONFIGURATION" && (
               <p className={styles.caption}>Configuration resources are metadata-only inventory; secrets and Helm values are not exported by this planning view. Artifact collection requires separate authorization.</p>
