@@ -272,10 +272,16 @@ export function PlanningEditor({
     return { workload, references, selected, observedClaimCandidates };
   });
   const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
+  const scopedStorageClaims = resources.filter((r) => r.kind === "PersistentVolumeClaim" && typeof r.name === "string" && r.namespace && (
+    draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace &&
+      (item.kind === "PersistentVolumeClaim" && item.name === r.name || item.kind === "StatefulSet"))
+  ));
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
-    workloadRelationships.filter((entry) => entry.selected).reduce((count, entry) => count + entry.observedClaimCandidates.length, 0)
+    workloadRelationships.filter((entry) => entry.selected).reduce((count, entry) => count + entry.observedClaimCandidates.length, 0),
+    scopedStorageClaims.map((r) => ({namespace: r.namespace ?? null, name: r.name!})),
+    draft.storageMappings ?? []
   );
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
@@ -317,6 +323,11 @@ export function PlanningEditor({
     setDraft(next);
     setDirty(true);
     setMessage("");
+  }
+  function updateStorageMapping(namespace: string, sourceClaim: string, patch: Partial<NonNullable<MigrationPlanningDraft["storageMappings"]>[number]>) {
+    const existing = (draft.storageMappings ?? []).find((m) => m.namespace === namespace && m.sourceClaim === sourceClaim);
+    const entry = {...{namespace, sourceClaim, targetStorageClass:"", targetCapacity:"", targetAccessMode:"", status:"PROPOSED" as const}, ...existing, ...patch};
+    change({...draft, storageMappings: [...(draft.storageMappings ?? []).filter((m) => !(m.namespace === namespace && m.sourceClaim === sourceClaim)), entry]});
   }
   function changeRemediation(patch: Partial<RemediationDraft>) {
     change({
@@ -659,6 +670,37 @@ export function PlanningEditor({
                 {sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").length === 0 ? <p>No PVC consumer references in this snapshot. This does not prove there is no persistent data.</p> : <ul>{sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").map((ref, i) => <li key={i}>{ref.owner} → PVC {ref.name} — {ref.present ? "Claim inventoried" : "Claim missing from inventory"}</li>)}</ul>}
                 <strong>Discovered PVC inventory · {relevantPvcs.length} claims</strong>
                 {relevantPvcs.length === 0 ? <p>No PVC definitions inventoried in this view.</p> : <ul>{relevantPvcs.map((pvc) => <li key={resourceKey({...pvc, namespace: pvc.namespace ?? null})}><strong>{pvc.name}</strong> · {pvc.namespace} · {typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "capacity unknown"} · {typeof pvc.storageClassName === "string" ? pvc.storageClassName : "StorageClass unspecified"} · {Array.isArray(pvc.accessModes) ? pvc.accessModes.filter((mode): mode is string => typeof mode === "string").join(", ") : "access mode unknown"} · {draft.resources.some((item) => item.kind === "PersistentVolumeClaim" && item.name === pvc.name && item.namespace === pvc.namespace) ? "Selected" : "Not selected"} · {scopedReferences.some((ref) => ref.kind === "PersistentVolumeClaim" && ref.name === pvc.name && ref.namespace === pvc.namespace) ? "Referenced by selected workload" : "No selected-workload reference captured"}</li>)}</ul>}
+                <div className={styles.applicationMap} aria-label="Target storage mapping">
+                  <strong>Target storage mapping · {scopedStorageClaims.length} source PVCs</strong>
+                  <p>Record target requirements for each in-scope claim. These are proposed values, not validated target capabilities.</p>
+                  {scopedStorageClaims.map((pvc) => {
+                    const current = (draft.storageMappings ?? []).find((m) => m.namespace === pvc.namespace && m.sourceClaim === pvc.name);
+                    return (
+                      <div className={styles.applicationCard} key={pvc.namespace + "/" + pvc.name}>
+                        <strong>{pvc.namespace}/{pvc.name}</strong>
+                        <p>Source: {typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "capacity unknown"} · {typeof pvc.storageClassName === "string" ? pvc.storageClassName : "StorageClass unknown"}</p>
+                        <div className={styles.applicationCards}>
+                          <label>Target storage class
+                            <input aria-label={`Storage class for ${pvc.name}`} value={current?.targetStorageClass ?? ""} disabled={!canEdit || stale || save.isPending} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetStorageClass:e.target.value, status:"PROPOSED"})} placeholder="Target-provided storage class" />
+                          </label>
+                          <label>Target capacity
+                            <input aria-label={`Target capacity for ${pvc.name}`} value={current?.targetCapacity ?? ""} disabled={!canEdit || stale || save.isPending} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetCapacity:e.target.value, status:"PROPOSED"})} placeholder="e.g. 8Gi" />
+                          </label>
+                          <label>Target access mode
+                            <select aria-label={`Target access mode for ${pvc.name}`} value={current?.targetAccessMode ?? ""} disabled={!canEdit || stale || save.isPending} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetAccessMode:e.target.value, status:"PROPOSED"})}>
+                              <option value="">Select mode</option><option value="ReadWriteOnce">ReadWriteOnce</option><option value="ReadWriteMany">ReadWriteMany</option><option value="ReadOnlyMany">ReadOnlyMany</option><option value="ReadWriteOncePod">ReadWriteOncePod</option>
+                            </select>
+                          </label>
+                          <label>Mapping review
+                            <select aria-label={`Mapping status for ${pvc.name}`} value={current?.status ?? "PROPOSED"} disabled={!canEdit || stale || save.isPending || !current?.targetStorageClass || !current?.targetCapacity || !current?.targetAccessMode} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {status:e.target.value as "PROPOSED" | "REVIEWED"})}>
+                              <option value="PROPOSED">Proposed</option><option value="REVIEWED">Reviewed (human)</option>
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 <p>PVC metadata does not include volume data. Verify StorageClass, access mode, capacity, and approved transfer strategy. StatefulSet volume claim templates may not appear as explicit workload dependency references in historical inventory.</p>
               </div>
             )}
