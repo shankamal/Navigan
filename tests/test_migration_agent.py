@@ -432,3 +432,31 @@ def test_persistent_connector_polls_repeatedly():
         )
 
     assert calls == ["run", 5, "run", 5, "run"]
+
+
+def test_live_collection_resolves_service_selectors_without_exporting_labels():
+    def request(path):
+        if path == "/api/v1/nodes":
+            return {"items": [node()]}
+        if path == "/api/v1/namespaces":
+            return {"items": [{"metadata": {"name": "retailflow"}}]}
+        if path.endswith("/deployments"):
+            workload = deployment()
+            workload["spec"]["template"]["metadata"] = {
+                "labels": {"app": "retailflow", "internal-token": "sensitive-label-value"}
+            }
+            return {"items": [workload]}
+        if path.endswith("/services"):
+            return {"items": [
+                {"metadata": {"name": "retailflow-service", "namespace": "retailflow"},
+                 "spec": {"selector": {"app": "retailflow"}}},
+                {"metadata": {"name": "empty-selector", "namespace": "retailflow"},
+                 "spec": {"selector": {}}},
+            ]}
+        return {"items": []}
+
+    result = collect_inventory(assignment(), request)
+    workload = next(r for r in result["resources"] if r["kind"] == "Deployment")
+    assert {"kind": "Service", "name": "retailflow-service"} in workload["dependencyReferences"]
+    assert {"kind": "Service", "name": "empty-selector"} not in workload["dependencyReferences"]
+    assert "sensitive-label-value" not in json.dumps(result)
