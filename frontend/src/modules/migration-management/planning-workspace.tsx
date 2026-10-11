@@ -36,6 +36,7 @@ import type {
 } from "./model";
 import { PlatformIcon } from "./platform-icon";
 import { graphFromSanitizedInventory } from "./migration-graph";
+import { evaluateScopeReadiness } from "./migration-readiness";
 import { recommendResource, recommendDependencies, recommendFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
@@ -259,6 +260,10 @@ export function PlanningEditor({
     return { workload, references, selected, observedClaimCandidates };
   });
   const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
+  const readiness = evaluateScopeReadiness(
+    graph, draft.resources, draft.dataStrategy,
+    resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace)))
+  );
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -825,6 +830,13 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
+            <section className={styles.notice} aria-label="Scope readiness assessment">
+              <strong>Scope readiness · {readiness.state === "INCOMPLETE" ? "Decisions outstanding" : "Manual validation required"}</strong>
+              <p>{readiness.selectedWorkloads} primary resources selected · {readiness.confirmedDependencies} confirmed dependencies · {readiness.issues.length} open planning checks</p>
+              {readiness.issues.length > 0 ? (
+                <ul>{readiness.issues.map((issue, index) => <li key={index}><strong>{issue.type.replaceAll("_", " ")}</strong> — {issue.detail}</li>)}</ul>
+              ) : <p>No outstanding checks detected in collected evidence. This is not target readiness or migration approval.</p>}
+            </section>
             <div className={styles.intelligencePanel}>
               <h2>Navigan analysis</h2>
               <p className={styles.caption}>{namespace || "All assessed namespaces"} · {filtered.length} inventoried resources in view</p>
