@@ -147,6 +147,7 @@ export function PlanningEditor({
   }, [tab, setLabel]);
   const [namespace, setNamespace] = useState("");
   const [search, setSearch] = useState("");
+  const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("ALL");
   const [severity, setSeverity] = useState("ALL");
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
@@ -169,6 +170,19 @@ export function PlanningEditor({
     (r) =>
       (!namespace || r.namespace === namespace) &&
       `${r.name} ${r.kind}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const workloadKinds = new Set(["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod"]);
+  const configurationKinds = new Set(["ConfigMap", "Secret", "ServiceAccount", "Ingress", "Namespace", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "NetworkPolicy", "CustomResourceDefinition"]);
+  const dataKinds = new Set(["PersistentVolumeClaim", "PersistentVolume", "StorageClass", "VolumeSnapshot"]);
+  const viewResources = filtered.filter((r) =>
+    resourceView === "ALL" ||
+    (resourceView === "WORKLOADS" && workloadKinds.has(r.kind)) ||
+    (resourceView === "DEPENDENCIES" && (
+      draft.resources.some((item) => item.dependency && resourceKey(item) === resourceKey({...r, namespace: r.namespace ?? null})) ||
+      ["Service", "ConfigMap", "Secret", "ServiceAccount", "PersistentVolumeClaim"].includes(r.kind)
+    )) ||
+    (resourceView === "CONFIGURATION" && configurationKinds.has(r.kind)) ||
+    (resourceView === "DATA" && dataKinds.has(r.kind))
   );
   const selected = new Map(draft.resources.map((r) => [resourceKey(r), r]));
   const displayedRecommendations = filtered.map((r) => recommendResource(r));
@@ -517,17 +531,44 @@ export function PlanningEditor({
                 </div>
               </label>
             </div>
+            <nav className={styles.scopeViews} aria-label="Scope resource views">
+              {([
+                ["WORKLOADS", "Workloads"],
+                ["DEPENDENCIES", "Dependencies"],
+                ["CONFIGURATION", "Configuration"],
+                ["DATA", "Data & Storage"],
+                ["ALL", "All resources · Technical view"],
+              ] as const).map(([view, label]) => (
+                <button
+                  key={view}
+                  type="button"
+                  aria-current={resourceView === view ? "page" : undefined}
+                  onClick={() => setResourceView(view)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            {resourceView === "DEPENDENCIES" && (
+              <p className={styles.caption}>Dependency candidates are categorized by resource kind or manually marked relationships. A resource appearing here is not proof of a verified dependency; confirm references with the application owner.</p>
+            )}
+            {resourceView === "DATA" && (
+              <p className={styles.caption}>PVC definitions and storage objects are metadata only. Persistent volume contents, snapshots, recovery objectives and target storage mappings require separate validation. Choose your data strategy in the right-hand Scope Summary.</p>
+            )}
+            {resourceView === "CONFIGURATION" && (
+              <p className={styles.caption}>Configuration resources are metadata-only inventory; secrets and Helm values are not exported by this planning view. Artifact collection requires separate authorization.</p>
+            )}
             <div className={styles.toolbar}>
               <button
                 className="button button-secondary"
                 disabled={
-                  !canEdit || stale || save.isPending || !filtered.length
+                  !canEdit || stale || save.isPending || !viewResources.length
                 }
                 onClick={() => {
                   const next = new Map(
                     draft.resources.map((r) => [resourceKey(r), r]),
                   );
-                  for (const r of filtered) {
+                  for (const r of viewResources) {
                     const item: PlannedResource = {
                       apiVersion: r.apiVersion,
                       kind: r.kind,
@@ -547,11 +588,11 @@ export function PlanningEditor({
               <button
                 className="button button-secondary"
                 disabled={
-                  !canEdit || stale || save.isPending || !filtered.length
+                  !canEdit || stale || save.isPending || !viewResources.length
                 }
                 onClick={() => {
                   const keys = new Set(
-                    filtered.map((r) =>
+                    viewResources.map((r) =>
                       resourceKey({ ...r, namespace: r.namespace ?? null }),
                     ),
                   );
@@ -566,7 +607,7 @@ export function PlanningEditor({
                 Clear filtered selection
               </button>
               <span>
-                {filtered.length} resources shown · Dependencies require review
+                {viewResources.length} resources shown · Dependencies require review
               </span>
             </div>
             <div className={styles.tableScroll}>
@@ -582,7 +623,7 @@ export function PlanningEditor({
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => {
+                  {viewResources.map((r) => {
                     const key = resourceKey({
                       ...r,
                       namespace: r.namespace ?? null,
@@ -675,12 +716,12 @@ export function PlanningEditor({
                   })}
                 </tbody>
               </table>
-              {filtered.length === 0 && (
+              {viewResources.length === 0 && (
                 <p className={styles.caption}>No matching resources.</p>
               )}
             </div>
             <p className={styles.caption}>
-              Showing {filtered.length} of {resources.length} inventoried
+              Showing {viewResources.length} of {resources.length} inventoried
               resources. Historical Jobs and node agents need explicit treatment
               decisions.
             </p>
