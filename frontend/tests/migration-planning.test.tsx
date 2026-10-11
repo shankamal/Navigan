@@ -259,9 +259,12 @@ describe("migration planning", () => {
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Data & Storage" }));
     expect(screen.getByText("PVC consumer references", { selector: "strong" })).toBeVisible();
+    expect(screen.getByText(/Discovered PVC inventory/)).toBeVisible();
+    expect(screen.getByText(/PVC metadata does not include volume data/)).toBeVisible();
     expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
     expect(screen.getByText(/Source reference evidence/i)).toBeVisible();
+    expect(screen.getByText(/references from selected primary resources/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Configuration" }));
     expect(screen.getByText(/Configuration resources are metadata-only inventory/i)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
