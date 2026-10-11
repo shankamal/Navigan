@@ -159,7 +159,7 @@ describe("migration planning", () => {
     expect(screen.getByText("Guided recommendation")).toBeVisible();
     expect(screen.getByLabelText("Source to target remediation comparison")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Accept recommendation" }));
-    expect(screen.getByText("Recommendation in draft")).toBeVisible();
+    expect(screen.getByText("Decision in draft")).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
   });
   it("supports selecting findings and accepting eligible recommendations into the draft", () => {
