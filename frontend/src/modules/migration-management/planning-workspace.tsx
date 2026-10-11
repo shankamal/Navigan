@@ -158,7 +158,6 @@ export function PlanningEditor({
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
   const [remediationCategory, setRemediationCategory] = useState("ALL");
-  const [remediationCategory, setRemediationCategory] = useState("ALL");
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
