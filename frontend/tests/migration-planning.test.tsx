@@ -252,6 +252,21 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
     expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeEnabled();
   });
+  it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
+    expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Data & Storage" }));
+    expect(screen.getByText(/PVC definitions and storage objects are metadata only/i)).toBeVisible();
+    expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
+    expect(screen.getByText(/Dependency candidates are categorized/i)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Configuration" }));
+    expect(screen.getByText(/Configuration resources are metadata-only inventory/i)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
+    expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
+  });
   it("shows save failures prominently and retains edits", async () => {
     mock.update.mockRejectedValue(new Error("Dev backend unavailable"));
     open();
