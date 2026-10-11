@@ -213,7 +213,7 @@ describe("migration planning", () => {
       ...inventory,resources:[...inventory.resources,{apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",requestedStorage:"8Gi",storageClassName:"navigan-ebs-gp3",accessModes:["ReadWriteOnce"]}],
     } as SourceInventory);
     fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
-    fireEvent.click(screen.getByLabelText("Include PVC retailflow/data-postgres-0"));
+    fireEvent.click(screen.getByRole("button",{name:"Include PVC"}));
     fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
     fireEvent.click(screen.getByRole("button",{name:/Target mappings/}));
     expect(screen.getByLabelText("Target mapping workspace")).toBeVisible();
