@@ -195,7 +195,7 @@ describe("migration planning", () => {
     const bulk = screen.getByRole("button", {name:"Accept eligible selections"});
     expect(bulk).toBeEnabled();
     fireEvent.click(bulk);
-    expect(screen.getByText(/resources in draft/)).toBeVisible();
+    expect(screen.getByLabelText("Remediation overview")).toBeVisible();
   });
   it("navigates actionable remediation views without leaving the draft", () => {
     open();
