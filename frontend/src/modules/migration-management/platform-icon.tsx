@@ -19,9 +19,17 @@ export function PlatformIcon({ platform, size = "small" }: PlatformIconProps) {
   const normalized = normalizedPlatform(platform);
   const sizeClass = size === "medium" ? styles.medium : styles.small;
 
-  const asset = ["EKS", "AWS", "AMAZON_EKS"].includes(normalized)
-    ? "amazonwebservices"
-    : ["AKS", "AZURE", "AZURE_AKS"].includes(normalized)
+  const asset = ["EKS", "AMAZON_EKS"].includes(normalized)
+    ? "amazoneks"
+    : ["ECS", "AMAZON_ECS"].includes(normalized)
+      ? "amazonecs"
+      : ["AWS", "AMAZON_WEB_SERVICES"].includes(normalized)
+        ? "amazonwebservices"
+    : ["OPENSHIFT", "RED_HAT_OPENSHIFT", "ROSA"].includes(normalized)
+      ? "redhatopenshift"
+      : ["ARGOCD", "ARGO_CD", "GITOPS"].includes(normalized)
+        ? "argo"
+      : ["AKS", "AZURE", "AZURE_AKS"].includes(normalized)
       ? "microsoftazure"
       : ["GKE", "GCP", "GOOGLE_CLOUD"].includes(normalized)
         ? "googlecloud"
