@@ -161,6 +161,13 @@ export function PlanningEditor({
   const [remediationView, setRemediationView] = useState<"FIXES" | "MAPPINGS" | "PLAN">("FIXES");
   const [selectedFindingIds, setSelectedFindingIds] = useState<number[]>([]);
   const [customizeFinding, setCustomizeFinding] = useState(false);
+  const [editingFromPlan, setEditingFromPlan] = useState<number | null>(null);
+  const editFormRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (editingFromPlan !== null && remediationView === "FIXES") {
+      editFormRef.current?.scrollIntoView?.({block:"center",behavior:"smooth"});
+    }
+  }, [editingFromPlan, remediationView]);
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
@@ -1193,7 +1200,7 @@ export function PlanningEditor({
                     <p className={styles.caption}>Owner: {item.owner || "Assign owner"}</p>
                     <p className={styles.caption}>Mapping: {item.targetMapping || "Define target mapping"}</p>
                     <p className={styles.caption}>Evidence: {item.evidenceReference ? "Attached, not verified" : "Required"}</p>
-                    <button className="button button-secondary" onClick={() => {setFindingView("ALL");setRemediationCategory("ALL");setSeverity("ALL");setNamespace("");setFindingIndex(item.findingIndex);setCustomizeFinding(true);setRemediationView("FIXES");}}>Edit decision</button>
+                    <button className="button button-secondary" onClick={() => {setFindingView("ALL");setRemediationCategory("ALL");setSeverity("ALL");setNamespace("");setFindingIndex(item.findingIndex);setCustomizeFinding(true);setEditingFromPlan(item.findingIndex);setRemediationView("FIXES");}}>Edit decision</button>
                   </article>;
                 })}
                 </div>}
@@ -1283,6 +1290,10 @@ export function PlanningEditor({
             <aside className={styles.detail}>
               {finding ? (
                 <>
+                  {editingFromPlan === activeFindingIndex && <div className={styles.editDecisionBanner} role="status">
+                    <div><strong>Editing recorded decision</strong><p>Update Treatment, Owner, Target mapping, Evidence reference or Work status below. Then select <strong>Save remediation decision</strong> to persist changes.</p></div>
+                    <button className="button button-secondary" onClick={() => {setEditingFromPlan(null);setRemediationView("PLAN");}}>Back to remediation plan</button>
+                  </div>}
                   <div className={styles.recommendationProgress} aria-label="Finding decision navigation">
                     <span>Finding {categorizedFindings.findIndex(({index}) => index === activeFindingIndex) + 1} of {categorizedFindings.length}</span>
                     <div>
@@ -1320,6 +1331,7 @@ export function PlanningEditor({
                     <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
                     <ul><li>Treatment {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
                   </details>
+                  <div ref={editFormRef} />
                   <div className={styles.remediationFormHeading}><strong>Customize decision</strong><span>Change the proposal and record ownership or evidence</span></div>
                   {(customizeFinding || acceptedSuggestion) && <fieldset
                     className={styles.fields}
