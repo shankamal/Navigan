@@ -689,8 +689,9 @@ export function PlanningEditor({
             <div className={styles.intelligencePanel}>
               <h2>Navigan analysis</h2>
               <p className={styles.caption}>{namespace || "All assessed namespaces"} · {filtered.length} inventoried resources in view</p>
-              <p>{pendingRecommendations.length} recommended workload candidates · {recommendedDependencyCount} explicitly referenced supporting dependencies.</p>
-              <p className={styles.caption}>{reviewRecommendations} require manual review; {managedRecommendations} are platform-managed or generated. Only inventoried dependency references are included. Recommendations do not establish complete target readiness.</p>
+              <p>{draft.resources.length - dependencies} already selected resources · {dependencies} confirmed dependencies in draft.</p>
+              <p>{pendingRecommendations.length} additional workload candidates · {recommendedDependencyCount} additional referenced dependencies available.</p>
+              <p className={styles.caption}>{reviewRecommendations} inventoried resources classified for manual review; {managedRecommendations} are platform-managed or generated. Zero additional suggestions does not mean discovery is complete. Only inventoried dependency references are included. Recommendations do not establish complete target readiness.</p>
               <button
                 className="button button-primary"
                 disabled={!canEdit || stale || save.isPending || (recommendedScopeAdditions.length === 0 && draft.resources.length === 0)}
