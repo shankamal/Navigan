@@ -191,7 +191,7 @@ describe("migration planning", () => {
     fireEvent.change(screen.getByLabelText("Findings view"), {target:{value:"SHARED"}});
     const selectAll = screen.getByRole("checkbox", {name:"Select all visible remediation findings"});
     fireEvent.click(selectAll);
-    const bulk = screen.getByRole("button", {name:"Accept selected recommendations"});
+    const bulk = screen.getByRole("button", {name:"Accept eligible selections"});
     expect(bulk).toBeEnabled();
     fireEvent.click(bulk);
     expect(screen.getByText(/resources in draft/)).toBeVisible();
