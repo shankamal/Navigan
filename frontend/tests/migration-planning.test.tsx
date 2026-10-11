@@ -157,6 +157,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
     expect(screen.getByText("Navigan suggested remediation")).toBeVisible();
+    expect(screen.getByLabelText("Source to target remediation comparison")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Apply recommendation to draft" }));
     expect(screen.getByText(/Remediation added to draft/)).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
