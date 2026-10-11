@@ -62,7 +62,7 @@ const inventory = {
   ],
 } as SourceInventory;
 
-function open(overrides: Partial<Migration> = {}) {
+function open(overrides: Partial<Migration> = {}, inventoryOverride: SourceInventory = inventory) {
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
@@ -71,7 +71,7 @@ function open(overrides: Partial<Migration> = {}) {
       <PlanningEditor
         migration={{ ...migration, ...overrides }}
         assessment={assessment}
-        inventory={inventory}
+        inventory={inventoryOverride}
       />
     </QueryClientProvider>,
   );
@@ -255,6 +255,22 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", { name: "Continue to review draft" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
     expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeEnabled();
+  });
+  it("shows compact prefilled EKS storage mappings after adding a discovered PVC", () => {
+    open({targetConfiguration:{platform:"EKS",clusterId:"CLU-demo"}} as Partial<Migration>,{
+      ...inventory,
+      resources: [...inventory.resources, {
+        apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",
+        requestedStorage:"8Gi",storageClassName:"navigan-ebs-gp3",accessModes:["ReadWriteOnce"],
+      }],
+    } as SourceInventory);
+    fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
+    fireEvent.click(screen.getByRole("button",{name:"Include PVC in draft"}));
+    expect(screen.getByLabelText("Target storage mapping")).toHaveTextContent("1 in-scope PVCs");
+    expect(screen.getByLabelText("Storage class for data-postgres-0")).toHaveValue("gp3");
+    expect(screen.getByLabelText("Target capacity for data-postgres-0")).toHaveValue("8Gi");
+    expect(screen.getByLabelText("Target access mode for data-postgres-0")).toHaveValue("ReadWriteOnce");
+    expect(screen.getByLabelText("Mapping status for data-postgres-0")).toHaveValue("PROPOSED");
   });
   it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
     open();
