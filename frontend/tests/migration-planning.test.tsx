@@ -123,7 +123,11 @@ describe("migration planning", () => {
     const review = screen.getByRole("button", { name: "Review selected scope" });
     expect(review).toBeEnabled();
     fireEvent.click(review);
-    expect(screen.getByRole("status")).toHaveTextContent(/Selected scope is already in the planning draft/i);
+    const reviewPanel = screen.getByRole("region", { name: "Selected migration scope review" });
+    expect(reviewPanel).toHaveTextContent("retailflow-api");
+    expect(reviewPanel).toHaveTextContent("Decision required");
+    fireEvent.click(screen.getByRole("button", { name: "Hide scope review" }));
+    expect(screen.queryByRole("region", { name: "Selected migration scope review" })).toBeNull();
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
     const scoped = {
