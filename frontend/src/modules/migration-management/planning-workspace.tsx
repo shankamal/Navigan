@@ -274,7 +274,7 @@ export function PlanningEditor({
   const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
   const scopedStorageClaims = resources.filter((r) => r.kind === "PersistentVolumeClaim" && typeof r.name === "string" && r.namespace && (
     draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace &&
-      (item.kind === "PersistentVolumeClaim" && item.name === r.name || item.kind === "StatefulSet"))
+      item.kind === "PersistentVolumeClaim" && item.name === r.name)
   ));
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
@@ -670,9 +670,33 @@ export function PlanningEditor({
                 {sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").length === 0 ? <p>No PVC consumer references in this snapshot. This does not prove there is no persistent data.</p> : <ul>{sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").map((ref, i) => <li key={i}>{ref.owner} → PVC {ref.name} — {ref.present ? "Claim inventoried" : "Claim missing from inventory"}</li>)}</ul>}
                 <strong>Discovered PVC inventory · {relevantPvcs.length} claims</strong>
                 {relevantPvcs.length === 0 ? <p>No PVC definitions inventoried in this view.</p> : <ul>{relevantPvcs.map((pvc) => <li key={resourceKey({...pvc, namespace: pvc.namespace ?? null})}><strong>{pvc.name}</strong> · {pvc.namespace} · {typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "capacity unknown"} · {typeof pvc.storageClassName === "string" ? pvc.storageClassName : "StorageClass unspecified"} · {Array.isArray(pvc.accessModes) ? pvc.accessModes.filter((mode): mode is string => typeof mode === "string").join(", ") : "access mode unknown"} · {draft.resources.some((item) => item.kind === "PersistentVolumeClaim" && item.name === pvc.name && item.namespace === pvc.namespace) ? "Selected" : "Not selected"} · {scopedReferences.some((ref) => ref.kind === "PersistentVolumeClaim" && ref.name === pvc.name && ref.namespace === pvc.namespace) ? "Referenced by selected workload" : "No selected-workload reference captured"}</li>)}</ul>}
+                <div className={styles.applicationMap} aria-label="Discovered storage candidates">
+                  <strong>Discovered storage candidates · {relevantPvcs.length} PVCs</strong>
+                  <p>Mapping applies only to claims explicitly included in the draft. Review namespace and ownership before selecting storage; inventory presence alone does not prove a workload depends on it.</p>
+                  {relevantPvcs.map((pvc) => {
+                    if (typeof pvc.name !== "string") return null;
+                    const included = draft.resources.some((item) => item.kind === "PersistentVolumeClaim" && item.name === pvc.name && item.namespace === pvc.namespace);
+                    const linked = graph.edges.some((edge) => edge.to === JSON.stringify(["PersistentVolumeClaim", pvc.namespace ?? null, pvc.name]) && draft.resources.some((item) => !item.dependency && edge.from === JSON.stringify([item.kind, item.namespace, item.name])));
+                    return <div key={pvc.namespace + "/" + pvc.name} className={styles.applicationRelationship}>
+                      <span><strong>{pvc.namespace}/{pvc.name}</strong> · {linked ? "Referenced by selected resource (verify evidence)" : "Ownership not established"}</span>
+                      <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => {
+                        const key = resourceKey({apiVersion:pvc.apiVersion,kind:pvc.kind,namespace:pvc.namespace ?? null,name:pvc.name!});
+                        if (included) {
+                          change({...draft,resources:draft.resources.filter((item) => resourceKey(item) !== key)});
+                        } else {
+                          change({...draft,resources:[...draft.resources,{
+                            apiVersion:pvc.apiVersion,kind:pvc.kind,namespace:pvc.namespace ?? null,name:pvc.name!,
+                            treatment:recommendResource(pvc).resource.treatment,dependency:true,
+                          }]});
+                        }
+                      }}>{included ? "Remove from draft" : "Include PVC in draft"}</button>
+                    </div>;
+                  })}
+                </div>
                 <div className={styles.applicationMap} aria-label="Target storage mapping">
-                  <strong>Target storage mapping · {scopedStorageClaims.length} source PVCs</strong>
+                  <strong>Target storage mapping · {scopedStorageClaims.length} in-scope PVCs</strong>
                   <p>Record target requirements for each in-scope claim. These are proposed values, not validated target capabilities.</p>
+                  {scopedStorageClaims.length === 0 && <p>No PVCs are included in the migration draft. Select a discovered claim above to define its target mapping.</p>}
                   {scopedStorageClaims.map((pvc) => {
                     const current = (draft.storageMappings ?? []).find((m) => m.namespace === pvc.namespace && m.sourceClaim === pvc.name);
                     return (
