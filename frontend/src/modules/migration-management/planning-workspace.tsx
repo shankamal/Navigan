@@ -1159,7 +1159,14 @@ export function PlanningEditor({
                           <option value="ReadWriteOnce">ReadWriteOnce</option><option value="ReadWriteMany">ReadWriteMany</option><option value="ReadOnlyMany">ReadOnlyMany</option><option value="ReadWriteOncePod">ReadWriteOncePod</option>
                         </select>
                       </label>
-                      <p className={styles.caption}>Proposed only. Target class and access mode support must be independently verified.</p>
+                      <div className={styles.mappingDecisionFooter}>
+                        <span>{(draft.storageMappings ?? []).some(item => item.namespace === pvc.namespace && item.sourceClaim === pvc.name) ? "Mapping recorded in draft" : "Suggested values · not recorded"}</span>
+                        <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
+                          onClick={() => updateStorageMapping(pvc.namespace ?? "",pvc.name,{targetStorageClass:current.targetStorageClass,targetCapacity:current.targetCapacity,targetAccessMode:current.targetAccessMode,status:"PROPOSED"})}>
+                          Add mapping to draft
+                        </button>
+                      </div>
+                      <p className={styles.caption}>The target class and access-mode capabilities remain unverified. This action records a proposal only.</p>
                     </div>;
                   })}
                 </div>}
