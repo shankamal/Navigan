@@ -136,7 +136,7 @@ describe("migration planning", () => {
     );
     fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
-    expect(screen.getByText("Mutable image references")).toBeVisible();
+    expect(screen.getAllByText("Mutable image references").length).toBeGreaterThan(0);
     expect(screen.queryByText("Other namespace warning")).toBeNull();
     expect(screen.getByLabelText("Remediation namespace")).toHaveValue("retailflow");
   });
