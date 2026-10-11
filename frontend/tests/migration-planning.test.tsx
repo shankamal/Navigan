@@ -166,6 +166,22 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Target mapping")).toHaveValue("Review target CSI and data restore requirements");
     expect(screen.getByText("Decision in draft")).toBeVisible();
   });
+  it("guides users between remediation findings and closes customization on navigation", () => {
+    const scopedAssessment = {...assessment,findings:[
+      {...assessment.findings[0],code:"STORAGE_MAPPING",message:"Storage mapping requires review"},
+      {...assessment.findings[0],code:"IMAGE_DIGEST",category:"Security",message:"Container image is not pinned"},
+    ]} as Assessment;
+    const client = new QueryClient({defaultOptions:{mutations:{retry:false}}});
+    render(<QueryClientProvider client={client}><PlanningEditor migration={migration} assessment={scopedAssessment} inventory={inventory}/></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.change(screen.getByLabelText("Findings view"),{target:{value:"SHARED"}});
+    expect(screen.getByLabelText("Finding decision navigation")).toHaveTextContent("Finding 1 of 2");
+    fireEvent.click(screen.getByRole("button",{name:"Customize recommendation"}));
+    expect(screen.getByLabelText("Target mapping")).toBeVisible();
+    fireEvent.click(screen.getByRole("button",{name:"Next finding"}));
+    expect(screen.getByLabelText("Finding decision navigation")).toHaveTextContent("Finding 2 of 2");
+    expect(screen.queryByLabelText("Target mapping")).not.toBeInTheDocument();
+  });
   it("supports selecting findings and accepting eligible recommendations into the draft", () => {
     open();
     fireEvent.click(screen.getByRole("button", {name:"Remediate"}));
