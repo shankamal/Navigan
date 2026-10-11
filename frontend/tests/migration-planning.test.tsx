@@ -261,7 +261,7 @@ describe("migration planning", () => {
     expect(screen.getByText(/PVC definitions and storage objects are metadata only/i)).toBeVisible();
     expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
-    expect(screen.getByText(/Dependency candidates are categorized/i)).toBeVisible();
+    expect(screen.getByText(/Source reference evidence/i)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Configuration" }));
     expect(screen.getByText(/Configuration resources are metadata-only inventory/i)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
