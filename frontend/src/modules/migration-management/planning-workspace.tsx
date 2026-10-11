@@ -322,6 +322,23 @@ export function PlanningEditor({
           Review draft
         </button>
       </nav>
+      <section className={styles.guide} aria-label="Migration planning guide">
+        <div className={styles.guideHeading}>
+          <strong>{tab === "scope" ? "1 · Define application scope" : tab === "remediate" ? "2 · Resolve relevant findings" : "3 · Review planning readiness"}</strong>
+          <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
+        </div>
+        <p>{tab === "scope"
+          ? "Choose candidate workloads, verify dependencies and review each resource treatment. The selected resources become the working migration scope."
+          : tab === "remediate"
+            ? "Address findings for selected resources first, then review shared risks. Accepting a suggestion creates a draft action; it does not remediate EKS."
+            : "Check scope completeness, planned remediation, unresolved risks and data strategy before saving the draft."}</p>
+        <div className={styles.guideStats}>
+          <span><strong>{draft.resources.length}</strong> resources selected</span>
+          <span><strong>{dependencies}</strong> confirmed dependencies</span>
+          <span><strong>{draft.remediations.length}</strong> remediation decisions</span>
+          <span><strong>{draft.dataStrategy === "UNDECIDED" ? "Pending" : "Chosen"}</strong> data strategy</span>
+        </div>
+      </section>
       {(message || save.isPending) && (
         <div
           className={save.isError ? styles.warning : styles.notice}
@@ -1006,10 +1023,15 @@ export function PlanningEditor({
               </strong>
             </div>
           </div>
-          <p>
-            {blockers} assessment blockers remain unverified. No execution plan
-            has been generated or approved.
-          </p>
+          <div className={styles.reviewChecklist}>
+            <strong>Planning readiness checks</strong>
+            <p>{draft.resources.length === 0 ? "Action required: select at least one workload." : "Scope selected: review supporting dependencies before approval."}</p>
+            <p>{uniqueSuggestions.length > 0 ? `Action required: ${uniqueSuggestions.length} explicit dependencies have not yet been included.` : "No unmatched explicit dependencies in the currently available inventory; discovery may still be incomplete."}</p>
+            <p>{draft.resources.some((r) => r.treatment === "REVIEW") ? "Action required: one or more selected resources still need a treatment decision." : "No selected resources currently marked REVIEW."}</p>
+            <p>{draft.dataStrategy === "UNDECIDED" ? "Action required: confirm the persistent-data strategy." : "Data strategy recorded; this does not move data."}</p>
+            <p>{blockers} blockers in the full assessment remain unverified. Shared findings must be considered separately.</p>
+            <p>No execution plan has been generated or approved. Saving records planning intent only.</p>
+          </div>
           <label>
             Planning notes
             <textarea
