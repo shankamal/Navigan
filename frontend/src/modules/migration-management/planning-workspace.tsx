@@ -692,10 +692,19 @@ export function PlanningEditor({
               <p className={styles.caption}>{reviewRecommendations} require manual review; {managedRecommendations} are platform-managed or generated. Only inventoried dependency references are included. Recommendations do not establish complete target readiness.</p>
               <button
                 className="button button-primary"
-                disabled={!canEdit || stale || save.isPending || recommendedScopeAdditions.length === 0}
-                onClick={() => change({ ...draft, resources: [...draft.resources, ...recommendedScopeAdditions] })}
+                disabled={!canEdit || stale || save.isPending || (recommendedScopeAdditions.length === 0 && draft.resources.length === 0)}
+                onClick={() => {
+                  if (recommendedScopeAdditions.length > 0) {
+                    change({ ...draft, resources: [...draft.resources, ...recommendedScopeAdditions] });
+                    setMessage("Recommended resources added to the planning draft. Review storage and data strategy, then save.");
+                  } else {
+                    setMessage("Selected scope is already in the planning draft. Review data strategy, then Save draft or Continue to remediation.");
+                  }
+                }}
               >
-                Confirm recommended scope ({recommendedScopeAdditions.length})
+                {recommendedScopeAdditions.length > 0
+                  ? `Add ${recommendedScopeAdditions.length} recommended resource${recommendedScopeAdditions.length === 1 ? "" : "s"} to draft`
+                  : "Review selected scope"}
               </button>
               <p className={styles.caption}>Confirms planning selections only. Inspect the table and data strategy before saving; no resources are migrated.</p>
             </div>
