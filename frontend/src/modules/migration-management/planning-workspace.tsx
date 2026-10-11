@@ -1253,17 +1253,15 @@ export function PlanningEditor({
             {categorizedFindings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
             {findingView === "SCOPE" ? " Only findings for exact selected resources are shown. No findings does not imply readiness; dependencies may be incomplete." : " Full assessment evidence is preserved; filtering does not resolve findings."}
           </p>
-          <div className={styles.remediationBulkBar} aria-label="Remediation bulk actions">
-            <label><input type="checkbox" aria-label="Select all visible remediation findings"
-              checked={categorizedFindings.length > 0 && categorizedFindings.every(({index}) => selectedFindingIds.includes(index))}
-              onChange={(event) => setSelectedFindingIds(event.target.checked ? Array.from(new Set([...selectedFindingIds,...categorizedFindings.map(({index}) => index)])) : selectedFindingIds.filter(index => !categorizedFindings.some(item => item.index === index)))} />
-              Select all in view
-            </label>
-            <span className={styles.caption}>{categorizedFindings.filter(({index}) => selectedFindingIds.includes(index)).length} selected</span>
-            <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || !categorizedFindings.some(({index}) => selectedFindingIds.includes(index))}
-              onClick={acceptSelectedRecommendations}>Accept eligible selections</button>
-            <span className={styles.caption}>Review-only findings are never automatically accepted.</span>
-          </div>
+          {categorizedFindings.some(({index}) => selectedFindingIds.includes(index)) && (
+            <div className={styles.remediationBulkBar} aria-label="Remediation bulk actions">
+              <strong>{categorizedFindings.filter(({index}) => selectedFindingIds.includes(index)).length} findings selected</strong>
+              <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
+                onClick={acceptSelectedRecommendations}>Accept eligible selections</button>
+              <button className="button button-secondary" onClick={() => setSelectedFindingIds(ids => ids.filter(id => !categorizedFindings.some(item => item.index === id)))}>Clear selection</button>
+              <span className={styles.caption}>Review-only findings are skipped. No infrastructure changes.</span>
+            </div>
+          )}
           <div className={styles.remediationColumns}>
             <div className={styles.remediationFindingList} aria-label="Remediation findings list">
               <div className={styles.findingListHeader}><strong>Findings &amp; recommendations</strong><span>{categorizedFindings.length} in view</span></div>
