@@ -6,7 +6,7 @@ export interface ReadinessSelection {
   name: string;
   dependency?: boolean;
 }
-export type ReadinessIssueType = "MISSING_INVENTORY" | "NOT_SELECTED" | "COVERAGE_UNKNOWN" | "DATA_STRATEGY_REQUIRED" | "PVC_OWNERSHIP_UNVERIFIED";
+export type ReadinessIssueType = "MISSING_INVENTORY" | "NOT_SELECTED" | "COVERAGE_UNKNOWN" | "DATA_STRATEGY_REQUIRED" | "PVC_OWNERSHIP_UNVERIFIED" | "STORAGE_MAPPING_REQUIRED" | "STORAGE_MAPPING_REVIEW";
 export interface ReadinessIssue { type: ReadinessIssueType; detail: string; resourceId?: string }
 export interface ScopeReadiness {
   state: "INCOMPLETE" | "REVIEW_REQUIRED";
@@ -21,6 +21,8 @@ export function evaluateScopeReadiness(
   dataStrategy: string,
   persistentDataPresent: boolean,
   unverifiedPvcOwnership = 0,
+  storageClaims: {namespace: string | null; name: string}[] = [],
+  storageMappings: {namespace: string; sourceClaim: string; targetStorageClass: string; targetCapacity: string; targetAccessMode: string; status: string}[] = [],
 ): ScopeReadiness {
   const primary = selection.filter((item) => !item.dependency);
   const chosen = new Set(selection.map((item) => migrationNodeId(item.kind, item.namespace, item.name)));
@@ -39,6 +41,17 @@ export function evaluateScopeReadiness(
     } else if (!chosen.has(edge.to)) {
       issues.push({type:"NOT_SELECTED",resourceId:edge.to,detail:`${edge.kind} ${edge.name} is present in inventory but not included in the migration draft.`});
     }
+  }
+  for (const claim of storageClaims) {
+    const mapping = storageMappings.find((m) => m.namespace === claim.namespace && m.sourceClaim === claim.name);
+    if (!mapping || !mapping.targetStorageClass.trim() || !mapping.targetCapacity.trim() || !mapping.targetAccessMode.trim()) {
+      issues.push({type:"STORAGE_MAPPING_REQUIRED",detail:`PVC ${claim.namespace}/${claim.name} requires target storage class, capacity and access mode mapping.`});
+    } else if (mapping.status !== "REVIEWED") {
+      issues.push({type:"STORAGE_MAPPING_REVIEW",detail:`PVC ${claim.namespace}/${claim.name} mapping requires human review and validation.`});
+    }
+  }
+  if (storageClaims.length && dataStrategy === "NO_PERSISTENT_DATA") {
+    issues.push({type:"DATA_STRATEGY_REQUIRED",detail:"No persistent data was selected, but persistent volume claims are inventoried in migration scope."});
   }
   if (unverifiedPvcOwnership > 0) {
     issues.push({type:"PVC_OWNERSHIP_UNVERIFIED",detail:`${unverifiedPvcOwnership} PVC ownership relationship(s) need explicit source evidence before storage readiness can be established.`});
