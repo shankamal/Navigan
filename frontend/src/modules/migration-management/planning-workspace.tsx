@@ -310,7 +310,8 @@ export function PlanningEditor({
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
     workloadRelationships.filter((entry) => entry.selected).reduce((count, entry) => count + entry.observedClaimCandidates.length, 0),
     scopedStorageClaims.map((r) => ({namespace: r.namespace ?? null, name: r.name!})),
-    draft.storageMappings ?? []
+    draft.storageMappings ?? [],
+    storageCompatibility
   );
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
