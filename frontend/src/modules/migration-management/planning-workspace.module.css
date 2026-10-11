@@ -533,3 +533,8 @@
 .recommendationProgress>div{display:flex;gap:6px}
 .recommendationProgress button{padding:6px 9px;font-size:12px}
 @media(max-width:750px){.recommendationProgress{align-items:flex-start;flex-direction:column}}
+
+.remediationFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.remediationFormGrid label{min-width:0}
+.remediationFormGrid input,.remediationFormGrid select{width:100%}
+@media(max-width:650px){.remediationFormGrid{grid-template-columns:minmax(0,1fr)}}
