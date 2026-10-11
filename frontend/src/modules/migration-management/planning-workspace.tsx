@@ -508,7 +508,7 @@ export function PlanningEditor({
           Review draft
         </button>
       </nav>
-      <section className={styles.guide} aria-label="Migration planning guide">
+      <section className={styles.guide} aria-label="Migration planning guide" style={tab === "remediate" ? {padding:"10px 16px",marginBottom:"8px"} : undefined}>
         <div className={styles.guideHeading}>
           <strong>{tab === "scope" ? "1 · Define application scope" : tab === "remediate" ? "2 · Resolve relevant findings" : "3 · Review planning readiness"}</strong>
           <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
@@ -1109,16 +1109,11 @@ export function PlanningEditor({
       )}
       {tab === "remediate" && (
         <section className={styles.surface}>
-          <section className={styles.notice} aria-label="Remediation overview">
-            <strong>Migration remediation workspace</strong>
-            <div className={styles.guideStats}>
-              <span><strong>{draft.resources.length}</strong> scoped resources</span>
-              <span><strong>{findings.length}</strong> assessment findings</span>
-              <span><strong>{readiness.issues.length}</strong> planning checks</span>
-              <span><strong>{storageCompatibility.length}</strong> storage compatibility findings</span>
-            </div>
-            <p>Choose recommended treatments, adjust target mappings, assign owners and save the plan. No changes are made to source or target infrastructure.</p>
-            {draft.resources.length === 0 && <p>Select application workloads in Scope &amp; target to populate relevant findings.</p>}
+          <section className={styles.remediationKpis} aria-label="Remediation overview">
+            <div><strong>{draft.resources.length}</strong><span>Resources in scope</span></div>
+            <div><strong>{findings.length}</strong><span>Assessment findings</span></div>
+            <div><strong>{draft.remediations.length}</strong><span>Decisions recorded</span></div>
+            <div><strong>{readiness.issues.length}</strong><span>Outstanding checks</span></div>
           </section>
           <nav className={styles.scopeViews} aria-label="Remediation workspace views">
             <button aria-current={remediationView === "FIXES" ? "page" : undefined} onClick={() => setRemediationView("FIXES")}>Recommended fixes · {findings.length}</button>
@@ -1177,16 +1172,10 @@ export function PlanningEditor({
             </section>
           )}
           {remediationView === "FIXES" && (<>
-          <details className={styles.notice} aria-label="Planning readiness issues for remediation">
-            <summary><strong>Review {readiness.issues.length} outstanding migration intelligence checks</strong></summary>
-            {readiness.issues.length === 0 ? <p>No detected scope gaps; independent target validation is still required.</p> :
-              <ul>{readiness.issues.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul>}
-          </details>
-          <details className={styles.notice} aria-label="Storage compatibility issues for remediation">
-            <summary><strong>Review {storageCompatibility.length} target storage checks</strong></summary>
-            {storageCompatibility.length > 0 && <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.detail}</li>)}</ul>}
-            <p>Target StorageClass recommendations remain unverified until trusted capability evidence is collected.</p>
-          </details>
+          <div className={styles.remediationIntroduction}>
+            <strong>Choose a finding → review the proposed resolution → accept, customize or defer.</strong>
+            <span>Planning only. Changes are not applied to infrastructure.</span>
+          </div>
           <div className={styles.toolbar}>
             <label>
               Findings view
@@ -1232,19 +1221,6 @@ export function PlanningEditor({
             {categorizedFindings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
             {findingView === "SCOPE" ? " Only findings for exact selected resources are shown. No findings does not imply readiness; dependencies may be incomplete." : " Full assessment evidence is preserved; filtering does not resolve findings."}
           </p>
-          <section className={styles.notice} aria-label="Remediation decision coverage">
-            <strong>Remediation decision coverage</strong>
-            <div className={styles.guideStats}>
-              <span><strong>{findings.length}</strong> findings</span>
-              <span><strong>{findings.filter(({index}) => remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index)).treatment).length}</strong> treatments selected</span>
-              <span><strong>{findings.filter(({index}) => {
-                const checks = remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index));
-                return checks.treatment && checks.owner && checks.mapping && checks.evidence;
-              }).length}</strong> fully documented</span>
-              <span><strong>{readiness.issues.length}</strong> outstanding scope checks</span>
-            </div>
-            <p>{remediationGroups.map((group) => group.category + ": " + group.items.length).join(" · ") || "No findings in selected filters"}. Documentation is not independent verification.</p>
-          </section>
           <div className={styles.toolbar} aria-label="Remediation bulk actions">
             <label><input type="checkbox" aria-label="Select all visible remediation findings"
               checked={categorizedFindings.length > 0 && categorizedFindings.every(({index}) => selectedFindingIds.includes(index))}
@@ -1303,6 +1279,7 @@ export function PlanningEditor({
                     <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
                     <ul><li>Treatment {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
                   </details>
+                  <div className={styles.remediationFormHeading}><strong>Customize decision</strong><span>Assign ownership and edit the proposed mapping below</span></div>
                   <fieldset
                     className={styles.fields}
                     disabled={!canEdit || stale || save.isPending}
@@ -1407,6 +1384,19 @@ export function PlanningEditor({
               )}
             </aside>
           </div>
+          <details className={styles.remediationEvidence} aria-label="Technical readiness evidence">
+            <summary>Technical readiness evidence · {readiness.issues.length} planning checks · {storageCompatibility.length} storage checks</summary>
+            <details className={styles.notice} aria-label="Planning readiness issues for remediation">
+            <summary><strong>Review {readiness.issues.length} outstanding migration intelligence checks</strong></summary>
+            {readiness.issues.length === 0 ? <p>No detected scope gaps; independent target validation is still required.</p> :
+              <ul>{readiness.issues.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul>}
+          </details>
+          <details className={styles.notice} aria-label="Storage compatibility issues for remediation">
+            <summary><strong>Review {storageCompatibility.length} target storage checks</strong></summary>
+            {storageCompatibility.length > 0 && <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.detail}</li>)}</ul>}
+            <p>Target StorageClass recommendations remain unverified until trusted capability evidence is collected.</p>
+          </details>
+          </details>
           </>)}
         </section>
       )}
