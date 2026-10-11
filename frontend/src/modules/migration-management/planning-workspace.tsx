@@ -243,6 +243,25 @@ export function PlanningEditor({
   const missingReferences = scopedReferences.filter((ref) => !ref.present);
   const unselectedReferences = scopedReferences.filter((ref) => ref.present && !draft.resources.some((item) => item.kind === ref.kind && item.name === ref.name && item.namespace === ref.namespace));
   const relevantPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" && (!namespace || r.namespace === namespace));
+  const applicationWorkloads = resources.filter((r) =>
+    ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind) &&
+    (!namespace || r.namespace === namespace)
+  );
+  const plannedWorkloadKeys = new Set(draft.resources.filter((r) => !r.dependency).map((r) =>
+    JSON.stringify([r.kind, r.namespace, r.name])
+  ));
+  const workloadRelationships = applicationWorkloads.map((workload) => {
+    const references = sourceReferences.filter((ref) =>
+      ref.owner === workload.kind + " " + workload.name && ref.namespace === workload.namespace
+    );
+    const selected = plannedWorkloadKeys.has(JSON.stringify([workload.kind, workload.namespace, workload.name]));
+    const observedClaimCandidates = workload.kind === "StatefulSet" ? relevantPvcs.filter((pvc) =>
+      typeof pvc.name === "string" && pvc.name.endsWith("-" + workload.name + "-0") && pvc.namespace === workload.namespace &&
+      !references.some((ref) => ref.kind === "PersistentVolumeClaim" && ref.name === pvc.name)
+    ) : [];
+    return { workload, references, selected, observedClaimCandidates };
+  });
+  const evidenceCoverage = sourceReferences.length ? "References captured" : "Reference evidence unavailable in this snapshot";
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -572,6 +591,43 @@ export function PlanningEditor({
               <strong>{resourceView === "WORKLOADS" ? "Workloads — application scope" : resourceView === "DEPENDENCIES" ? "Dependencies — source relationship evidence" : resourceView === "CONFIGURATION" ? "Configuration — application settings" : resourceView === "DATA" ? "Data & Storage — PVC readiness" : "All resources — technical inventory"}</strong>
               <p>{resourceView === "DEPENDENCIES" ? "Review references, unresolved inventory objects and supporting resources for selected workloads." : resourceView === "DATA" ? "Review claim consumers, requested capacity and storage migration decisions." : resourceView === "WORKLOADS" ? "Select the application workloads to migrate; supporting resources are reviewed separately." : resourceView === "CONFIGURATION" ? "Review metadata-only configuration evidence without collecting sensitive values." : "Advanced inventory view. Selections here affect the same draft."}</p>
             </div>
+            {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && (
+              <div className={styles.applicationMap} aria-label="Application workload dependency map">
+                <div className={styles.applicationMapHeader}>
+                  <div>
+                    <strong>Application workload map</strong>
+                    <p>{applicationWorkloads.length} inventoried controllers · {workloadRelationships.filter((entry) => entry.selected).length} included in draft · {evidenceCoverage}</p>
+                  </div>
+                  <span>Source inventory · Assessment v{assessment.assessmentVersion}</span>
+                </div>
+                <div className={styles.applicationCards}>
+                  {workloadRelationships.map(({workload, references, selected, observedClaimCandidates}) => (
+                    <article key={resourceKey({...workload, namespace: workload.namespace ?? null})} className={styles.applicationCard}>
+                      <div className={styles.applicationCardTitle}>
+                        <strong>{workload.name}</strong>
+                        <span>{workload.kind} · {selected ? "Selected" : "Not selected"}</span>
+                      </div>
+                      <div className={styles.applicationCardLinks}>
+                        {references.length > 0 ? references.map((ref, index) => (
+                          <div key={index} className={styles.applicationRelationship}>
+                            <span>{ref.kind} · {ref.name}</span>
+                            <span>{ref.present ? "Found in inventory" : "Not found in inventory"}</span>
+                          </div>
+                        )) : <p>No direct dependency references recorded in this snapshot.</p>}
+                        {observedClaimCandidates.map((pvc) => (
+                          <div key={pvc.name} className={styles.applicationRelationship}>
+                            <span>PVC · {pvc.name}</span>
+                            <span>Possible StatefulSet claim — verify ownership</span>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                  {applicationWorkloads.length === 0 && <p>No application controllers found for this namespace filter.</p>}
+                </div>
+                <p className={styles.caption}>Relationships come from sanitized inventory only. PVC name similarities are explicitly unverified and cannot establish readiness. Older assessments may not contain direct references.</p>
+              </div>
+            )}
             {resourceView === "DEPENDENCIES" && (
               <div className={styles.notice}>
                 <strong>Source reference evidence · {sourceReferences.length} relationships</strong>
