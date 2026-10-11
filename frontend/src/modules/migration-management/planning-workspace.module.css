@@ -624,3 +624,9 @@
 .findingProgress i{display:block;height:100%;background:#74b92f;border-radius:10px}
 @media(max-width:1280px){.remediationColumns{grid-template-columns:minmax(0,1fr)}.remediationColumns>.detail{max-height:650px}}
 @media(max-width:730px){.findingTableHead,.remediationFinding,.remediationFindingActive{grid-template-columns:22px 70px minmax(160px,2fr) 85px;min-width:530px}.findingTableHead>span:nth-last-child(-n+2),.remediationFinding>.findingProgress,.remediationFinding>.findingTreatment,.remediationFindingActive>.findingProgress,.remediationFindingActive>.findingTreatment{display:none}}
+
+
+.remediationInfoLine{margin:0 0 12px;padding:10px 13px;border-radius:5px;background:#e9f3ff;color:#2363a2;font-size:12px;border:1px solid #d8eaff}
+.remediationFilterBar{margin-top:4px}
+.remediationKpis>div{border-top-width:2px}
+.remediationColumns>.detail .recommendationActions{position:relative;background:transparent;bottom:auto;z-index:auto}
