@@ -158,6 +158,7 @@ export function PlanningEditor({
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
   const [remediationCategory, setRemediationCategory] = useState("ALL");
+  const [remediationView, setRemediationView] = useState<"FIXES" | "MAPPINGS" | "PLAN">("FIXES");
   const [selectedFindingIds, setSelectedFindingIds] = useState<number[]>([]);
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
@@ -1119,6 +1120,63 @@ export function PlanningEditor({
             <p>Choose recommended treatments, adjust target mappings, assign owners and save the plan. No changes are made to source or target infrastructure.</p>
             {draft.resources.length === 0 && <p>Select application workloads in Scope &amp; target to populate relevant findings.</p>}
           </section>
+          <nav className={styles.scopeViews} aria-label="Remediation workspace views">
+            <button aria-current={remediationView === "FIXES" ? "page" : undefined} onClick={() => setRemediationView("FIXES")}>Recommended fixes · {findings.length}</button>
+            <button aria-current={remediationView === "MAPPINGS" ? "page" : undefined} onClick={() => setRemediationView("MAPPINGS")}>Target mappings · {scopedStorageClaims.length}</button>
+            <button aria-current={remediationView === "PLAN" ? "page" : undefined} onClick={() => setRemediationView("PLAN")}>Remediation plan · {draft.remediations.length}</button>
+          </nav>
+          {remediationView === "MAPPINGS" && (
+            <section className={styles.applicationMap} aria-label="Target mapping workspace">
+              <div className={styles.applicationMapHeader}>
+                <div><strong>Source-to-target storage mappings</strong><p>Review selected persistent data claims and configure proposed target settings.</p></div>
+                <span>{targetPlatform} · Target capabilities {targetCapability.status.toLowerCase()}</span>
+              </div>
+              {scopedStorageClaims.length === 0 ? <p>No PVCs are selected. Include storage claims in Scope &amp; target to configure storage mappings.</p> :
+                <div className={styles.applicationCards}>
+                  {scopedStorageClaims.map((pvc) => {
+                    const source = suggestedMapping(pvc);
+                    const current = (draft.storageMappings ?? []).find((item) => item.namespace === pvc.namespace && item.sourceClaim === pvc.name) ?? source;
+                    return <div className={styles.applicationCard} key={pvc.namespace + "/" + pvc.name}>
+                      <div className={styles.applicationCardTitle}>
+                        <strong>{pvc.name}</strong><span>{pvc.namespace} · PVC</span>
+                      </div>
+                      <p className={styles.caption}>Source · {typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "Unknown capacity"} · {typeof pvc.storageClassName === "string" ? pvc.storageClassName : "Unknown class"}</p>
+                      <label>Target StorageClass
+                        <input aria-label={`Target class for ${pvc.name}`} value={current.targetStorageClass} disabled={!canEdit || stale || save.isPending}
+                          onChange={(e) => updateStorageMapping(pvc.namespace ?? "",pvc.name,{targetStorageClass:e.target.value,status:"PROPOSED"})}/>
+                      </label>
+                      <label>Target capacity
+                        <input aria-label={`Target capacity for ${pvc.name}`} value={current.targetCapacity} disabled={!canEdit || stale || save.isPending}
+                          onChange={(e) => updateStorageMapping(pvc.namespace ?? "",pvc.name,{targetCapacity:e.target.value,status:"PROPOSED"})}/>
+                      </label>
+                      <label>Target access mode
+                        <select aria-label={`Target access mode for ${pvc.name}`} value={current.targetAccessMode} disabled={!canEdit || stale || save.isPending}
+                          onChange={(e) => updateStorageMapping(pvc.namespace ?? "",pvc.name,{targetAccessMode:e.target.value,status:"PROPOSED"})}>
+                          <option value="">Select mode</option>
+                          <option value="ReadWriteOnce">ReadWriteOnce</option><option value="ReadWriteMany">ReadWriteMany</option><option value="ReadOnlyMany">ReadOnlyMany</option><option value="ReadWriteOncePod">ReadWriteOncePod</option>
+                        </select>
+                      </label>
+                      <p className={styles.caption}>Proposed only. Target class and access mode support must be independently verified.</p>
+                    </div>;
+                  })}
+                </div>}
+            </section>
+          )}
+          {remediationView === "PLAN" && (
+            <section className={styles.applicationMap} aria-label="Consolidated remediation plan">
+              <div className={styles.applicationMapHeader}><div><strong>Remediation decision register</strong><p>Decisions recorded in this migration draft. Evidence references do not mean verified remediation.</p></div><span>{draft.remediations.length} recorded decisions</span></div>
+              {draft.remediations.length === 0 ? <p>No remediation decisions yet. Open Recommended fixes to accept or customize a recommendation.</p> :
+                <div className={styles.tableScroll}><table><thead><tr><th>Finding</th><th>Treatment</th><th>Owner</th><th>Target mapping</th><th>Evidence</th><th>Action</th></tr></thead><tbody>
+                {draft.remediations.map((item) => <tr key={item.findingIndex}>
+                  <td>{assessment.findings[item.findingIndex]?.code ?? "Unknown finding"}</td>
+                  <td>{item.treatment}</td><td>{item.owner || "Needs owner"}</td><td>{item.targetMapping || "Needs mapping"}</td><td>{item.evidenceReference ? "Attached · unverified" : "Pending"}</td>
+                  <td><button className="button button-secondary" onClick={() => {setFindingView("ALL");setRemediationCategory("ALL");setSeverity("ALL");setNamespace("");setFindingIndex(item.findingIndex);setRemediationView("FIXES");}}>Edit decision</button></td>
+                </tr>)}
+                </tbody></table></div>}
+              <p>{readiness.issues.length} planning checks and {storageCompatibility.length} storage compatibility findings remain subject to validation.</p>
+            </section>
+          )}
+          {remediationView === "FIXES" && (<>
           <details className={styles.notice} aria-label="Planning readiness issues for remediation">
             <summary><strong>Review {readiness.issues.length} outstanding migration intelligence checks</strong></summary>
             {readiness.issues.length === 0 ? <p>No detected scope gaps; independent target validation is still required.</p> :
@@ -1419,6 +1477,7 @@ export function PlanningEditor({
               )}
             </aside>
           </div>
+          </>)}
         </section>
       )}
       {tab === "review" && (
