@@ -474,6 +474,17 @@ def sanitize_resource(resource):
         }
 
     if kind == "Ingress":
+        backends = set()
+        default_service = mapping(mapping(spec.get("defaultBackend")).get("service"))
+        default_name = limited_text(default_service.get("name"), 253)
+        if default_name:
+            backends.add(default_name)
+        for rule in sequence(spec.get("rules"))[:500]:
+            for route in sequence(mapping(mapping(rule).get("http")).get("paths"))[:500]:
+                service = mapping(mapping(mapping(route).get("backend")).get("service"))
+                name = limited_text(service.get("name"), 253)
+                if name:
+                    backends.add(name)
         paths = []
         for rule in sequence(spec.get("rules"))[:500]:
             http = mapping(mapping(rule).get("http"))
@@ -493,6 +504,7 @@ def sanitize_resource(resource):
                 spec.get("ingressClassName"),
                 253,
             ),
+            "backendServiceReferences": [{"kind": "Service", "name": name} for name in sorted(backends)[:500]],
             "ruleCount": len(sequence(spec.get("rules"))),
             "tlsEntryCount": len(sequence(spec.get("tls"))),
             "paths": paths,
