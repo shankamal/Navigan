@@ -159,9 +159,12 @@ describe("migration planning", () => {
     expect(screen.getByText("Guided recommendation")).toBeVisible();
     expect(screen.getByLabelText("Source to target remediation comparison")).toBeVisible();
     expect(screen.getByRole("button", {name:"Customize recommendation"})).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Accept recommendation" }));
+    expect(screen.getByRole("button", { name: "Accept recommendation" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Customize recommendation" }));
+    expect(screen.getByLabelText("Target mapping")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Target mapping"), {target:{value:"Review target CSI and data restore requirements"}});
+    expect(screen.getByLabelText("Target mapping")).toHaveValue("Review target CSI and data restore requirements");
     expect(screen.getByText("Decision in draft")).toBeVisible();
-    expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
   });
   it("supports selecting findings and accepting eligible recommendations into the draft", () => {
     open();
@@ -273,7 +276,7 @@ describe("migration planning", () => {
     open();
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
-    expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Migration remediation workspace");
+    expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
     expect(screen.getByLabelText("Technical readiness evidence")).toBeInTheDocument();
     expect(screen.getByLabelText("Finding category")).toHaveValue("ALL");
