@@ -258,7 +258,7 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Data & Storage" }));
-    expect(screen.getByText(/PVC consumer references/i)).toBeVisible();
+    expect(screen.getByText("PVC consumer references", { selector: "strong" })).toBeVisible();
     expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
     expect(screen.getByText(/Source reference evidence/i)).toBeVisible();
