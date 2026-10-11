@@ -412,6 +412,13 @@ export function PlanningEditor({
       setSelectedFindingIds([]);
     } else setMessage("No eligible unrecorded recommendations selected. Review these findings individually.");
   }
+  function navigateFinding(direction: 1 | -1) {
+    if (!categorizedFindings.length) return;
+    const position = categorizedFindings.findIndex(({index}) => index === activeFindingIndex);
+    const nextPosition = (position + direction + categorizedFindings.length) % categorizedFindings.length;
+    setFindingIndex(categorizedFindings[nextPosition].index);
+    setCustomizeFinding(false);
+  }
   function changeRemediation(patch: Partial<RemediationDraft>) {
     change({
       ...draft,
@@ -1255,6 +1262,13 @@ export function PlanningEditor({
             <aside className={styles.detail}>
               {finding ? (
                 <>
+                  <div className={styles.recommendationProgress} aria-label="Finding decision navigation">
+                    <span>Finding {categorizedFindings.findIndex(({index}) => index === activeFindingIndex) + 1} of {categorizedFindings.length}</span>
+                    <div>
+                      <button className="button button-secondary" disabled={categorizedFindings.length < 2} onClick={() => navigateFinding(-1)}>Previous finding</button>
+                      <button className="button button-secondary" disabled={categorizedFindings.length < 2} onClick={() => navigateFinding(1)}>Next finding</button>
+                    </div>
+                  </div>
                   <div className={styles.recommendationHeader} aria-live="polite">
                     <div><strong>Guided recommendation</strong><span>Rule-based · {finding.severity} · {findingCategory(finding.category)}</span></div>
                     <span>{acceptedSuggestion ? "Decision in draft" : "Decision required"}</span>
