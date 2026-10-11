@@ -238,6 +238,11 @@ export function PlanningEditor({
       }];
     });
   }).filter((ref) => !namespace || ref.namespace === namespace);
+  const chosenOwners = new Set(draft.resources.filter((item) => !item.dependency).map((item) => JSON.stringify([item.kind, item.namespace, item.name])));
+  const scopedReferences = sourceReferences.filter((ref) => chosenOwners.has(JSON.stringify([ref.owner.split(" ")[0], ref.namespace, ref.owner.slice(ref.owner.indexOf(" ") + 1)])));
+  const missingReferences = scopedReferences.filter((ref) => !ref.present);
+  const unselectedReferences = scopedReferences.filter((ref) => ref.present && !draft.resources.some((item) => item.kind === ref.kind && item.name === ref.name && item.namespace === ref.namespace));
+  const relevantPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" && (!namespace || r.namespace === namespace));
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -567,14 +572,28 @@ export function PlanningEditor({
               <div className={styles.notice}>
                 <strong>Source reference evidence · {sourceReferences.length} relationships</strong>
                 {sourceReferences.length === 0 ? <p>No references in this snapshot; collect fresh inventory before concluding dependencies are absent.</p> : <ul>{sourceReferences.map((ref, i) => <li key={i}>{ref.owner} → {ref.kind} {ref.name} — {ref.present ? "Found in inventory" : "Not found in inventory"}</li>)}</ul>}
-                <p>Presence in inventory does not establish target readiness or complete discovery.</p>
+                <p><strong>{scopedReferences.length} references from selected primary resources</strong> · {missingReferences.length} missing inventory objects · {unselectedReferences.length} not included in draft.</p>
+                {missingReferences.length > 0 && <p>Missing: {missingReferences.map((ref) => ref.kind + " " + ref.name).join(", ")}. Confirm collection coverage before proceeding.</p>}
+                {unselectedReferences.length > 0 && <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => {
+                  const additions = resources.filter((r) => unselectedReferences.some((ref) => ref.kind === r.kind && ref.name === r.name && ref.namespace === r.namespace)).map((r) => ({
+                    apiVersion: r.apiVersion, kind: r.kind, namespace: r.namespace ?? null, name: r.name,
+                    treatment: recommendResource(r).resource.treatment, dependency: true,
+                  } as PlannedResource));
+                  const next = new Map(draft.resources.map((item) => [resourceKey(item), item]));
+                  additions.forEach((item) => next.set(resourceKey(item), item));
+                  change({ ...draft, resources: [...next.values()] });
+                  setMessage("Referenced supporting resources added to draft for review. Save the draft to persist.");
+                }}>Include {unselectedReferences.length} referenced dependencies in draft</button>}
+                <p>Presence in inventory does not establish target readiness or complete discovery. All dependency additions require review.</p>
               </div>
             )}
             {resourceView === "DATA" && (
               <div className={styles.notice}>
                 <strong>PVC consumer references</strong>
                 {sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").length === 0 ? <p>No PVC consumer references in this snapshot. This does not prove there is no persistent data.</p> : <ul>{sourceReferences.filter((ref) => ref.kind === "PersistentVolumeClaim").map((ref, i) => <li key={i}>{ref.owner} → PVC {ref.name} — {ref.present ? "Claim inventoried" : "Claim missing from inventory"}</li>)}</ul>}
-                <p>PVC metadata does not include volume data. Verify StorageClass, access mode, capacity, and approved transfer strategy.</p>
+                <strong>Discovered PVC inventory · {relevantPvcs.length} claims</strong>
+                {relevantPvcs.length === 0 ? <p>No PVC definitions inventoried in this view.</p> : <ul>{relevantPvcs.map((pvc) => <li key={resourceKey({...pvc, namespace: pvc.namespace ?? null})}><strong>{pvc.name}</strong> · {pvc.namespace} · {pvc.requestedStorage ?? "capacity unknown"} · {pvc.storageClassName ?? "StorageClass unspecified"} · {Array.isArray(pvc.accessModes) ? pvc.accessModes.join(", ") : "access mode unknown"} · {draft.resources.some((item) => item.kind === "PersistentVolumeClaim" && item.name === pvc.name && item.namespace === pvc.namespace) ? "Selected" : "Not selected"} · {scopedReferences.some((ref) => ref.kind === "PersistentVolumeClaim" && ref.name === pvc.name && ref.namespace === pvc.namespace) ? "Referenced by selected workload" : "No selected-workload reference captured"}</li>)}</ul>}
+                <p>PVC metadata does not include volume data. Verify StorageClass, access mode, capacity, and approved transfer strategy. StatefulSet volume claim templates may not appear as explicit workload dependency references in historical inventory.</p>
               </div>
             )}
             {resourceView === "CONFIGURATION" && (
