@@ -115,6 +115,8 @@ describe("migration planning", () => {
     open();
     fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
     expect(screen.getByText(/Navigan analysis/)).toBeVisible();
+    expect(screen.getByLabelText("Scope readiness assessment")).toHaveTextContent("Scope readiness");
+    expect(screen.getByLabelText("Scope readiness assessment")).toHaveTextContent("COVERAGE UNKNOWN");
     expect(screen.getByText(/2 inventoried resources in view/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Add 1 recommended resource to draft" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
