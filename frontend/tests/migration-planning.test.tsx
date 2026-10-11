@@ -267,6 +267,8 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Data & Storage" }));
     expect(screen.getByText("PVC consumer references", { selector: "strong" })).toBeVisible();
     expect(screen.getByText(/Discovered PVC inventory/)).toBeVisible();
+    expect(screen.getByLabelText("Discovered storage candidates")).toBeVisible();
+    expect(screen.getByText(/No PVCs are included in the migration draft/)).toBeVisible();
     expect(screen.getByText(/PVC metadata does not include volume data/)).toBeVisible();
     expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
