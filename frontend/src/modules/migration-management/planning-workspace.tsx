@@ -158,6 +158,7 @@ export function PlanningEditor({
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
   const [remediationCategory, setRemediationCategory] = useState("ALL");
+  const [selectedFindingIds, setSelectedFindingIds] = useState<number[]>([]);
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
@@ -393,6 +394,21 @@ export function PlanningEditor({
     const existing = (draft.storageMappings ?? []).find((m) => m.namespace === namespace && m.sourceClaim === sourceClaim);
     const entry = {...{namespace, sourceClaim, targetStorageClass:"", targetCapacity:"", targetAccessMode:"", status:"PROPOSED" as const}, ...existing, ...patch};
     change({...draft, storageMappings: [...(draft.storageMappings ?? []).filter((m) => !(m.namespace === namespace && m.sourceClaim === sourceClaim)), entry]});
+  }
+  function acceptSelectedRecommendations() {
+    const selectedIds = categorizedFindings.filter(({index}) => selectedFindingIds.includes(index)).map(({index}) => index);
+    const updated = new Map(draft.remediations.map(item => [item.findingIndex,item]));
+    let applied = 0;
+    for (const index of selectedIds) {
+      const suggestion = recommendFinding(assessment,index);
+      if (!suggestion || suggestion.treatment === "REVIEW" || updated.has(index)) continue;
+      updated.set(index, suggestion);
+      applied += 1;
+    }
+    if (applied) {
+      change({...draft,remediations:[...updated.values()]});
+      setSelectedFindingIds([]);
+    } else setMessage("No eligible unrecorded recommendations selected. Review these findings individually.");
   }
   function changeRemediation(patch: Partial<RemediationDraft>) {
     change({
@@ -1169,11 +1185,23 @@ export function PlanningEditor({
             </div>
             <p>{remediationGroups.map((group) => group.category + ": " + group.items.length).join(" · ") || "No findings in selected filters"}. Documentation is not independent verification.</p>
           </section>
+          <div className={styles.toolbar} aria-label="Remediation bulk actions">
+            <label><input type="checkbox" aria-label="Select all visible remediation findings"
+              checked={categorizedFindings.length > 0 && categorizedFindings.every(({index}) => selectedFindingIds.includes(index))}
+              onChange={(event) => setSelectedFindingIds(event.target.checked ? Array.from(new Set([...selectedFindingIds,...categorizedFindings.map(({index}) => index)])) : selectedFindingIds.filter(index => !categorizedFindings.some(item => item.index === index)))} />
+              Select visible findings
+            </label>
+            <span>{categorizedFindings.filter(({index}) => selectedFindingIds.includes(index)).length} selected</span>
+            <button className="button button-primary" disabled={!canEdit || stale || save.isPending || !categorizedFindings.some(({index}) => selectedFindingIds.includes(index))}
+              onClick={acceptSelectedRecommendations}>Accept selected recommendations</button>
+            <span className={styles.caption}>Only specific, non-Review recommendations are added to the planning draft; existing decisions are preserved.</span>
+          </div>
           <div className={styles.remediationColumns}>
             <div className={styles.tableScroll}>
               <table>
                 <thead>
                   <tr>
+                    <th>Select</th>
                     <th>Finding</th>
                     <th>Affected resource</th>
                     <th>Decision progress</th>
@@ -1194,6 +1222,9 @@ export function PlanningEditor({
                           index === activeFindingIndex ? styles.selectedRow : ""
                         }
                       >
+                        <td><input aria-label={`Select finding ${index}`} type="checkbox"
+                          checked={selectedFindingIds.includes(index)}
+                          onChange={(event) => setSelectedFindingIds(event.target.checked ? [...selectedFindingIds,index] : selectedFindingIds.filter(id => id !== index))} /></td>
                         <td>
                           <button
                             className={styles.findingButton}
