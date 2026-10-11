@@ -689,7 +689,7 @@ class SourceInventoryReport(Model):
                         raise ValueError("Invalid inventory dependency reference.")
                     reference_kind = reference["kind"]
                     reference_name = reference["name"]
-                    if reference_kind not in {"ConfigMap", "Secret", "ServiceAccount", "PersistentVolumeClaim"}:
+                    if reference_kind not in {"ConfigMap", "Secret", "ServiceAccount", "PersistentVolumeClaim", "Service"}:
                         raise ValueError("Unsupported inventory dependency kind.")
                     if not isinstance(reference_name, str) or not 0 < len(reference_name) <= 253:
                         raise ValueError("Invalid inventory dependency name.")
