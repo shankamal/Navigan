@@ -528,3 +528,8 @@
 
 .recommendationConfirmation{border-left:3px solid #86bc25;background:#f0f8e9;color:#31551c;padding:10px 12px;font-size:12px}
 .recommendationActions{position:sticky;bottom:0;background:#fff;padding:10px 0;border-top:1px solid #e1e8ee;z-index:1}
+
+.recommendationProgress{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;color:#607187;font-size:12px}
+.recommendationProgress>div{display:flex;gap:6px}
+.recommendationProgress button{padding:6px 9px;font-size:12px}
+@media(max-width:750px){.recommendationProgress{align-items:flex-start;flex-direction:column}}
