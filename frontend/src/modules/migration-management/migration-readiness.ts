@@ -1,3 +1,4 @@
+import type { StorageCompatibilityFinding } from "./storage-validation";
 import { migrationNodeId, type MigrationGraph } from "./migration-graph";
 
 export interface ReadinessSelection {
@@ -6,7 +7,7 @@ export interface ReadinessSelection {
   name: string;
   dependency?: boolean;
 }
-export type ReadinessIssueType = "MISSING_INVENTORY" | "NOT_SELECTED" | "COVERAGE_UNKNOWN" | "DATA_STRATEGY_REQUIRED" | "PVC_OWNERSHIP_UNVERIFIED" | "STORAGE_MAPPING_REQUIRED" | "STORAGE_MAPPING_REVIEW";
+export type ReadinessIssueType = "MISSING_INVENTORY" | "NOT_SELECTED" | "COVERAGE_UNKNOWN" | "DATA_STRATEGY_REQUIRED" | "PVC_OWNERSHIP_UNVERIFIED" | "STORAGE_MAPPING_REQUIRED" | "STORAGE_MAPPING_REVIEW" | "STORAGE_COMPATIBILITY";
 export interface ReadinessIssue { type: ReadinessIssueType; detail: string; resourceId?: string }
 export interface ScopeReadiness {
   state: "INCOMPLETE" | "REVIEW_REQUIRED";
@@ -23,6 +24,7 @@ export function evaluateScopeReadiness(
   unverifiedPvcOwnership = 0,
   storageClaims: {namespace: string | null; name: string}[] = [],
   storageMappings: {namespace: string; sourceClaim: string; targetStorageClass: string; targetCapacity: string; targetAccessMode: string; status: string}[] = [],
+  compatibilityFindings: StorageCompatibilityFinding[] = [],
 ): ScopeReadiness {
   const primary = selection.filter((item) => !item.dependency);
   const chosen = new Set(selection.map((item) => migrationNodeId(item.kind, item.namespace, item.name)));
@@ -49,6 +51,9 @@ export function evaluateScopeReadiness(
     } else if (mapping.status !== "REVIEWED") {
       issues.push({type:"STORAGE_MAPPING_REVIEW",detail:`PVC ${claim.namespace}/${claim.name} mapping requires human review and validation.`});
     }
+  }
+  for (const finding of compatibilityFindings) {
+    issues.push({type:"STORAGE_COMPATIBILITY",detail:finding.detail});
   }
   if (storageClaims.length && dataStrategy === "NO_PERSISTENT_DATA") {
     issues.push({type:"DATA_STRATEGY_REQUIRED",detail:"No persistent data was selected, but persistent volume claims are inventoried in migration scope."});
