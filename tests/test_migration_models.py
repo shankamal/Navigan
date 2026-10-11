@@ -317,3 +317,28 @@ def test_rejects_sensitive_source_catalogue():
 
     with pytest.raises(ValidationError):
         SourceCatalogueReport.model_validate(payload)
+
+
+def test_planning_draft_persists_unique_storage_mappings():
+    from navigan.modules.migration_management.models import MigrationPlanningDraft
+
+    base = {
+        "schemaVersion": 1,
+        "mode": "SELECTED_WORKLOADS",
+        "assessmentVersion": 2,
+        "inventoryDigest": "a" * 64,
+        "resources": [],
+        "remediations": [],
+    }
+    entry = {
+        "namespace": "retailflow",
+        "sourceClaim": "data-postgres-0",
+        "targetStorageClass": "gp3",
+        "targetCapacity": "8Gi",
+        "targetAccessMode": "ReadWriteOnce",
+        "status": "PROPOSED",
+    }
+    draft = MigrationPlanningDraft.model_validate({**base, "storageMappings": [entry]})
+    assert draft.model_dump()["storageMappings"] == [entry]
+    with pytest.raises(ValidationError, match="unique"):
+        MigrationPlanningDraft.model_validate({**base, "storageMappings": [entry, entry]})
