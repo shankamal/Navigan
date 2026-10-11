@@ -336,6 +336,23 @@ export function PlanningEditor({
             (!namespace || !finding.namespace || finding.namespace === namespace)
           : findingScope(finding) === "SCOPE")
     );
+  const remediationGroups = ["Storage", "Networking", "Security", "Configuration", "Other"].map((category) => ({
+    category,
+    items: findings.filter(({finding}) => {
+      const raw = (finding.category ?? "").toLowerCase();
+      if (category === "Storage") return /stor|volume|persist|data/.test(raw);
+      if (category === "Networking") return /network|ingress|route|service/.test(raw);
+      if (category === "Security") return /secur|identity|iam|secret|policy/.test(raw);
+      if (category === "Configuration") return /config|api|deploy/.test(raw);
+      return !/stor|volume|persist|data|network|ingress|route|service|secur|identity|iam|secret|policy|config|api|deploy/.test(raw);
+    }),
+  })).filter((group) => group.items.length > 0);
+  const remediationDecisionChecks = (item: RemediationDraft | undefined) => ({
+    treatment: Boolean(item && item.treatment !== "REVIEW"),
+    owner: Boolean(item?.owner.trim()),
+    mapping: Boolean(item?.targetMapping.trim()),
+    evidence: Boolean(item?.evidenceReference.trim()),
+  });
   // The previous selection may no longer be visible after filtering.
   const activeFindingIndex = findings.some(({ index }) => index === findingIndex)
     ? findingIndex
@@ -1119,6 +1136,15 @@ export function PlanningEditor({
             {findings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
             {findingView === "SCOPE" ? " Only findings for exact selected resources are shown. No findings does not imply readiness; dependencies may be incomplete." : " Full assessment evidence is preserved; filtering does not resolve findings."}
           </p>
+          <section className={styles.notice} aria-label="Remediation decision coverage">
+            <strong>Remediation decision coverage</strong>
+            <p>{findings.length} assessment findings in view · {findings.filter(({index}) => remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index)).treatment).length} have a chosen treatment · {findings.filter(({index}) => {
+              const checks = remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index));
+              return checks.treatment && checks.owner && checks.mapping && checks.evidence;
+            }).length} have documented decision, owner, target mapping and evidence.</p>
+            <p>Documentation does not certify remediation or authorize migration execution.</p>
+            {remediationGroups.map((group) => <p key={group.category}><strong>{group.category}</strong> · {group.items.length} finding(s)</p>)}
+          </section>
           <div className={styles.remediationColumns}>
             <div className={styles.tableScroll}>
               <table>
@@ -1207,6 +1233,17 @@ export function PlanningEditor({
                     {finding.remediation ??
                       "Review this finding with the application owner."}
                   </p>
+                  <section className={styles.notice} aria-label="Selected remediation completion criteria">
+                    <strong>Decision completion criteria</strong>
+                    <p>Selected finding: {finding.resourceName ?? "Assessment-wide"} · {finding.severity} · {finding.category}</p>
+                    <ul>
+                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "Recorded" : "Pending"} — Choose a treatment other than Review</li>
+                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).owner ? "Recorded" : "Pending"} — Assign an accountable owner</li>
+                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).mapping ? "Recorded" : "Pending"} — Document target mapping and required changes</li>
+                      <li>{remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).evidence ? "Attached (unverified)" : "Pending"} — Attach validation evidence reference</li>
+                    </ul>
+                    <p>Even all four recorded decisions remain subject to independent verification.</p>
+                  </section>
                   <fieldset
                     className={styles.fields}
                     disabled={!canEdit || stale || save.isPending}
