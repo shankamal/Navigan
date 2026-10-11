@@ -1135,13 +1135,6 @@ export function PlanningEditor({
             <label>
               Category
               <select aria-label="Finding category" value={remediationCategory} onChange={(e) => setRemediationCategory(e.target.value)}>
-                <option value="ALL">All categories</option>
-                {["Storage","Networking","Security","Configuration","Other"].map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <label>
-              Category
-              <select aria-label="Finding category" value={remediationCategory} onChange={(e) => setRemediationCategory(e.target.value)}>
                 {["ALL","Storage","Networking","Security","Configuration","Other"].map((item) => <option key={item} value={item}>{item === "ALL" ? "All categories" : item}</option>)}
               </select>
             </label>
