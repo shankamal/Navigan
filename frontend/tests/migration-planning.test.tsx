@@ -173,6 +173,17 @@ describe("migration planning", () => {
     fireEvent.click(bulk);
     expect(screen.getByText(/resources in draft/)).toBeVisible();
   });
+  it("navigates actionable remediation views without leaving the draft", () => {
+    open();
+    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    expect(screen.getByRole("navigation",{name:"Remediation workspace views"})).toBeVisible();
+    fireEvent.click(screen.getByRole("button",{name:/Target mappings/}));
+    expect(screen.getByLabelText("Target mapping workspace")).toBeVisible();
+    fireEvent.click(screen.getByRole("button",{name:/Remediation plan/}));
+    expect(screen.getByLabelText("Consolidated remediation plan")).toBeVisible();
+    fireEvent.click(screen.getByRole("button",{name:/Recommended fixes/}));
+    expect(screen.getByLabelText("Remediation bulk actions")).toBeVisible();
+  });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
