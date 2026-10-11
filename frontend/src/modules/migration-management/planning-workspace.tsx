@@ -1168,14 +1168,28 @@ export function PlanningEditor({
           {remediationView === "PLAN" && (
             <section className={styles.applicationMap} aria-label="Consolidated remediation plan">
               <div className={styles.applicationMapHeader}><div><strong>Remediation decision register</strong><p>Decisions recorded in this migration draft. Evidence references do not mean verified remediation.</p></div><span>{draft.remediations.length} recorded decisions</span></div>
+              <div className={styles.remediationKpis}>
+                <div><strong>{draft.remediations.filter(item => item.treatment !== "REVIEW").length}</strong><span>Treatment decisions</span></div>
+                <div><strong>{draft.remediations.filter(item => !item.owner.trim()).length}</strong><span>Need an owner</span></div>
+                <div><strong>{draft.remediations.filter(item => !item.targetMapping.trim()).length}</strong><span>Need target mapping</span></div>
+                <div><strong>{draft.remediations.filter(item => !item.evidenceReference.trim()).length}</strong><span>Await evidence</span></div>
+              </div>
               {draft.remediations.length === 0 ? <p>No remediation decisions yet. Open Recommended fixes to accept or customize a recommendation.</p> :
-                <div className={styles.tableScroll}><table><thead><tr><th>Finding</th><th>Treatment</th><th>Owner</th><th>Target mapping</th><th>Evidence</th><th>Action</th></tr></thead><tbody>
-                {draft.remediations.map((item) => <tr key={item.findingIndex}>
-                  <td>{assessment.findings[item.findingIndex]?.code ?? "Unknown finding"}</td>
-                  <td>{item.treatment}</td><td>{item.owner || "Needs owner"}</td><td>{item.targetMapping || "Needs mapping"}</td><td>{item.evidenceReference ? "Attached · unverified" : "Pending"}</td>
-                  <td><button className="button button-secondary" onClick={() => {setFindingView("ALL");setRemediationCategory("ALL");setSeverity("ALL");setNamespace("");setFindingIndex(item.findingIndex);setRemediationView("FIXES");}}>Edit decision</button></td>
-                </tr>)}
-                </tbody></table></div>}
+                <div className={styles.applicationCards}>
+                {draft.remediations.map((item) => {
+                  const decisionChecks = remediationDecisionChecks(item);
+                  const complete = Object.values(decisionChecks).filter(Boolean).length;
+                  return <article className={styles.applicationCard} key={item.findingIndex}>
+                    <div className={styles.applicationCardTitle}><strong>{assessment.findings[item.findingIndex]?.code.replaceAll("_"," ") ?? "Unknown finding"}</strong>
+                      <span>{assessment.findings[item.findingIndex]?.resourceName ?? "Assessment-wide"} · {item.treatment}</span></div>
+                    <p><strong>{complete}/4</strong> decision fields documented · independent verification pending</p>
+                    <p className={styles.caption}>Owner: {item.owner || "Assign owner"}</p>
+                    <p className={styles.caption}>Mapping: {item.targetMapping || "Define target mapping"}</p>
+                    <p className={styles.caption}>Evidence: {item.evidenceReference ? "Attached, not verified" : "Required"}</p>
+                    <button className="button button-secondary" onClick={() => {setFindingView("ALL");setRemediationCategory("ALL");setSeverity("ALL");setNamespace("");setFindingIndex(item.findingIndex);setCustomizeFinding(true);setRemediationView("FIXES");}}>Edit decision</button>
+                  </article>;
+                })}
+                </div>}
               <p>{readiness.issues.length} planning checks and {storageCompatibility.length} storage compatibility findings remain subject to validation.</p>
             </section>
           )}
