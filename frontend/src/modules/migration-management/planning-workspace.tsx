@@ -272,6 +272,19 @@ export function PlanningEditor({
     return { workload, references, selected, observedClaimCandidates };
   });
   const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
+  const targetPlatform = String(migration.targetConfiguration?.platform ?? "UNKNOWN").toUpperCase();
+  // Provider-specific candidates are guidance, not verified StorageClasses.
+  function suggestedMapping(pvc: SourceInventoryResource & {name: string}) {
+    const modes = Array.isArray(pvc.accessModes) ? pvc.accessModes.filter((m): m is string => typeof m === "string") : [];
+    return {
+      namespace: pvc.namespace ?? "",
+      sourceClaim: pvc.name,
+      targetStorageClass: targetPlatform === "EKS" ? "gp3" : "",
+      targetCapacity: typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "",
+      targetAccessMode: modes[0] ?? "",
+      status: "PROPOSED" as const,
+    };
+  }
   const scopedStorageClaims = resources.filter((r) => r.kind === "PersistentVolumeClaim" && typeof r.name === "string" && r.namespace && (
     draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace &&
       item.kind === "PersistentVolumeClaim" && item.name === r.name)
@@ -687,7 +700,7 @@ export function PlanningEditor({
                           change({...draft,resources:[...draft.resources,{
                             apiVersion:pvc.apiVersion,kind:pvc.kind,namespace:pvc.namespace ?? null,name:pvc.name!,
                             treatment:recommendResource(pvc).resource.treatment,dependency:true,
-                          }]});
+                          }],storageMappings:[...(draft.storageMappings ?? []).filter((m) => !(m.namespace === pvc.namespace && m.sourceClaim === pvc.name)), suggestedMapping(pvc as SourceInventoryResource & {name:string})]});
                         }
                       }}>{included ? "Remove from draft" : "Include PVC in draft"}</button>
                     </div>;
@@ -697,33 +710,30 @@ export function PlanningEditor({
                   <strong>Target storage mapping · {scopedStorageClaims.length} in-scope PVCs</strong>
                   <p>Record target requirements for each in-scope claim. These are proposed values, not validated target capabilities.</p>
                   {scopedStorageClaims.length === 0 && <p>No PVCs are included in the migration draft. Select a discovered claim above to define its target mapping.</p>}
-                  {scopedStorageClaims.map((pvc) => {
-                    const current = (draft.storageMappings ?? []).find((m) => m.namespace === pvc.namespace && m.sourceClaim === pvc.name);
-                    return (
-                      <div className={styles.applicationCard} key={pvc.namespace + "/" + pvc.name}>
-                        <strong>{pvc.namespace}/{pvc.name}</strong>
-                        <p>Source: {typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "capacity unknown"} · {typeof pvc.storageClassName === "string" ? pvc.storageClassName : "StorageClass unknown"}</p>
-                        <div className={styles.applicationCards}>
-                          <label>Target storage class
-                            <input aria-label={`Storage class for ${pvc.name}`} value={current?.targetStorageClass ?? ""} disabled={!canEdit || stale || save.isPending} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetStorageClass:e.target.value, status:"PROPOSED"})} placeholder="Target-provided storage class" />
-                          </label>
-                          <label>Target capacity
-                            <input aria-label={`Target capacity for ${pvc.name}`} value={current?.targetCapacity ?? ""} disabled={!canEdit || stale || save.isPending} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetCapacity:e.target.value, status:"PROPOSED"})} placeholder="e.g. 8Gi" />
-                          </label>
-                          <label>Target access mode
-                            <select aria-label={`Target access mode for ${pvc.name}`} value={current?.targetAccessMode ?? ""} disabled={!canEdit || stale || save.isPending} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetAccessMode:e.target.value, status:"PROPOSED"})}>
-                              <option value="">Select mode</option><option value="ReadWriteOnce">ReadWriteOnce</option><option value="ReadWriteMany">ReadWriteMany</option><option value="ReadOnlyMany">ReadOnlyMany</option><option value="ReadWriteOncePod">ReadWriteOncePod</option>
-                            </select>
-                          </label>
-                          <label>Mapping review
-                            <select aria-label={`Mapping status for ${pvc.name}`} value={current?.status ?? "PROPOSED"} disabled={!canEdit || stale || save.isPending || !current?.targetStorageClass || !current?.targetCapacity || !current?.targetAccessMode} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {status:e.target.value as "PROPOSED" | "REVIEWED"})}>
-                              <option value="PROPOSED">Proposed</option><option value="REVIEWED">Reviewed (human)</option>
-                            </select>
-                          </label>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div className={styles.tableScroll}>
+                    <table>
+                      <thead><tr><th>Source PVC</th><th>Source capacity / class</th><th>Suggested target class</th><th>Target capacity</th><th>Access mode</th><th>Review</th></tr></thead>
+                      <tbody>{scopedStorageClaims.map((pvc) => {
+                        const saved = (draft.storageMappings ?? []).find((m) => m.namespace === pvc.namespace && m.sourceClaim === pvc.name);
+                        const suggested = suggestedMapping(pvc as SourceInventoryResource & {name:string});
+                        const current = saved ?? suggested;
+                        const disabled = !canEdit || stale || save.isPending;
+                        return <tr key={pvc.namespace + "/" + pvc.name}>
+                          <td><strong>{pvc.namespace}/{pvc.name}</strong></td>
+                          <td>{typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : "unknown"} · {typeof pvc.storageClassName === "string" ? pvc.storageClassName : "unknown"}</td>
+                          <td><input aria-label={`Storage class for ${pvc.name}`} value={current.targetStorageClass} disabled={disabled} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetStorageClass:e.target.value,status:"PROPOSED"})} placeholder="Target class not verified" /></td>
+                          <td><input aria-label={`Target capacity for ${pvc.name}`} value={current.targetCapacity} disabled={disabled} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetCapacity:e.target.value,status:"PROPOSED"})} placeholder="Required capacity" /></td>
+                          <td><select aria-label={`Target access mode for ${pvc.name}`} value={current.targetAccessMode} disabled={disabled} onChange={(e) => updateStorageMapping(pvc.namespace!, pvc.name!, {targetAccessMode:e.target.value,status:"PROPOSED"})}>
+                            <option value="">Select mode</option>{["ReadWriteOnce","ReadWriteMany","ReadOnlyMany","ReadWriteOncePod"].map((mode) => <option value={mode} key={mode}>{mode}</option>)}
+                          </select></td>
+                          <td><select aria-label={`Mapping status for ${pvc.name}`} value={current.status} disabled={disabled || !current.targetStorageClass || !current.targetCapacity || !current.targetAccessMode} onChange={(e) => updateStorageMapping(pvc.namespace!,pvc.name!,{status:e.target.value as "PROPOSED" | "REVIEWED"})}>
+                            <option value="PROPOSED">Proposed</option><option value="REVIEWED">Reviewed (human)</option>
+                          </select></td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
+                  </div>
+                  <p>Target: {targetPlatform}. Suggested values are editable planning defaults only. StorageClass names and CSI/access-mode support must be verified on the selected target before review.</p>
                 </div>
                 <p>PVC metadata does not include volume data. Verify StorageClass, access mode, capacity, and approved transfer strategy. StatefulSet volume claim templates may not appear as explicit workload dependency references in historical inventory.</p>
               </div>
