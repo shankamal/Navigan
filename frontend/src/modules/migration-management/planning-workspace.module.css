@@ -600,3 +600,27 @@
 .remediationFormHeading{border-top:1px solid #e5eaf2}
 @media(max-width:1100px){.remediationColumns{grid-template-columns:minmax(0,1fr) minmax(300px,1fr)}}
 @media(max-width:850px){.remediationColumns{grid-template-columns:minmax(0,1fr)}.remediationColumns>.detail{max-height:none}.remediationKpis>div{padding-left:56px}.remediationKpis>div:before{left:9px}}
+
+
+/* Reference-matched structured findings table; not a recoloured vertical list */
+.remediationColumns{grid-template-columns:minmax(0,1.55fr) minmax(400px,1fr);gap:12px}
+.remediationFindingList{overflow:auto;max-height:630px}
+.findingTableHead,.remediationFinding,.remediationFindingActive{display:grid;grid-template-columns:23px minmax(74px,.75fr) minmax(180px,2.5fr) minmax(72px,.8fr) minmax(75px,.7fr) minmax(110px,1fr);align-items:center;gap:8px}
+.findingTableHead{position:sticky;top:45px;z-index:2;padding:10px 12px;background:#f1f5f9;border-bottom:1px solid #d9e3ee;color:#607087;font-size:11px;font-weight:700}
+.remediationFinding,.remediationFindingActive{min-height:72px;padding:9px 12px;border-left:0;border-bottom:1px solid #e2eaf2}
+.remediationFindingActive{padding:9px 12px;border-left:0;background:#eaf4ff!important;box-shadow:inset 3px 0 #2383e2}
+.remediationFindingButton{gap:3px;font-size:12px;line-height:1.3}
+.remediationFindingButton strong{font-weight:600}
+.remediationFindingButton small{color:#74849a;font-size:11px}
+.findingSeverity,.findingCategory,.findingTreatment{justify-self:start;padding:5px 7px;border-radius:5px;background:#eaf3ff;color:#1765b2;font-weight:700;font-size:10px;white-space:nowrap}
+.findingSeverity[data-severity="BLOCKER"],.findingSeverity[data-severity="CRITICAL"]{background:#fee8e8;color:#b52127}
+.findingSeverity[data-severity="WARNING"]{background:#fff0d6;color:#a45a00}
+.findingSeverity[data-severity="INFO"]{background:#e7f2ff;color:#1768b6}
+.findingCategory{background:#f1f5fa;color:#4a5d78}
+.findingTreatment{background:#e3efff;color:#126bc6;font-size:9px}
+.findingTreatment[data-review="true"]{background:#fff0db;color:#a75c09}
+.findingProgress{display:grid;gap:5px;font-size:11px;color:#53677b}
+.findingProgress>span{display:block;width:70px;height:7px;border-radius:10px;background:#e1e6ec;overflow:hidden}
+.findingProgress i{display:block;height:100%;background:#74b92f;border-radius:10px}
+@media(max-width:1280px){.remediationColumns{grid-template-columns:minmax(0,1fr)}.remediationColumns>.detail{max-height:650px}}
+@media(max-width:730px){.findingTableHead,.remediationFinding,.remediationFindingActive{grid-template-columns:22px 70px minmax(160px,2fr) 85px;min-width:530px}.findingTableHead>span:nth-last-child(-n+2),.remediationFinding>.findingProgress,.remediationFinding>.findingTreatment,.remediationFindingActive>.findingProgress,.remediationFindingActive>.findingTreatment{display:none}}
