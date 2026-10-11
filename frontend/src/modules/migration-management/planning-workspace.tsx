@@ -160,6 +160,7 @@ export function PlanningEditor({
   const [remediationCategory, setRemediationCategory] = useState("ALL");
   const [remediationView, setRemediationView] = useState<"FIXES" | "MAPPINGS" | "PLAN">("FIXES");
   const [selectedFindingIds, setSelectedFindingIds] = useState<number[]>([]);
+  const [customizeFinding, setCustomizeFinding] = useState(false);
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
@@ -1273,14 +1274,19 @@ export function PlanningEditor({
                       onClick={() => {if(suggestedRemediation)changeRemediation(suggestedRemediation);}}>
                       {acceptedSuggestion ? "Recommendation in draft" : "Accept recommendation"}
                     </button>
-                    <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => changeRemediation({status:"PLANNED",treatment:"REVIEW"})}>Defer for review</button>
+                    <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
+                      onClick={() => setCustomizeFinding(value => !value)}>{customizeFinding ? "Hide customization" : "Customize recommendation"}</button>
+                    <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
+                      onClick={() => {changeRemediation({status:"PLANNED",treatment:"REVIEW",targetMapping:"Deferred for manual review; target mapping not approved."});setCustomizeFinding(false);}}>
+                      Defer for review</button>
                   </div>
+                  {acceptedSuggestion && <p className={styles.recommendationConfirmation} role="status">Decision recorded in the planning draft. Save draft to persist it; target configuration remains unverified.</p>}
                   <details className={styles.notice} aria-label="Selected remediation completion criteria">
                     <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
                     <ul><li>Treatment {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
                   </details>
                   <div className={styles.remediationFormHeading}><strong>Customize decision</strong><span>Assign ownership and edit the proposed mapping below</span></div>
-                  <fieldset
+                  {(customizeFinding || acceptedSuggestion) && <fieldset
                     className={styles.fields}
                     disabled={!canEdit || stale || save.isPending}
                   >
@@ -1366,7 +1372,7 @@ export function PlanningEditor({
                         </option>
                       </select>
                     </label>
-                  </fieldset>
+                  </fieldset>}
                   <p className={styles.notice}>
                     Evidence attachment is not verification. Target preparation
                     requires a separate authorized action.
