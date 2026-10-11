@@ -38,6 +38,7 @@ import { PlatformIcon } from "./platform-icon";
 import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
+import { inspectTargetCapabilitySnapshot } from "./target-capabilities";
 import { recommendResource, recommendDependencies, recommendFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
@@ -296,6 +297,9 @@ export function PlanningEditor({
   ));
   // Until a target adapter supplies verified StorageClass evidence, no class
   // can be certified by a provider-level naming recommendation.
+  const targetCapability = inspectTargetCapabilitySnapshot(
+    null, targetPlatform, String(migration.targetConfiguration?.clusterId ?? "")
+  );
   const storageCompatibility = evaluateStorageCompatibility(
     scopedStorageClaims.map((pvc) => ({
       namespace: pvc.namespace ?? null,
@@ -303,7 +307,7 @@ export function PlanningEditor({
       requestedStorage: typeof pvc.requestedStorage === "string" ? pvc.requestedStorage : null,
     })),
     (draft.storageMappings ?? []).length ? draft.storageMappings ?? [] : scopedStorageClaims.map((pvc) => suggestedMapping(pvc)),
-    null,
+    targetCapability.evidence,
   );
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
@@ -913,6 +917,10 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
+            <section className={styles.notice} aria-label="Target capability evidence status">
+              <strong>Target capability discovery · {targetCapability.status.toLowerCase()}</strong>
+              <p>No verified, fresh, target-bound capability snapshot has been collected for this planning session. Storage-class recommendations cannot be approved using provider naming conventions alone.</p>
+            </section>
             <section className={styles.notice} aria-label="Storage compatibility findings">
               <strong>Target storage compatibility · {storageCompatibility.length} checks</strong>
               {storageCompatibility.length ? <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul> : <p>No scoped storage compatibility issues detected in available evidence. Target verification and approval remain separate.</p>}
