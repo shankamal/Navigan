@@ -258,6 +258,7 @@ describe("migration planning", () => {
     open();
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
+    expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Migration remediation workspace");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
     expect(screen.getByLabelText("Remediation decision coverage")).toBeVisible();
     expect(screen.getByLabelText("Finding category")).toHaveValue("ALL");
