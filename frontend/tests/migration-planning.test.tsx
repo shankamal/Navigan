@@ -183,6 +183,7 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Consolidated remediation plan")).toBeVisible();
     fireEvent.click(screen.getByRole("button",{name:/Recommended fixes/}));
     expect(screen.getByLabelText("Remediation bulk actions")).toBeVisible();
+    expect(screen.getByLabelText("Remediation findings list")).toBeVisible();
   });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
