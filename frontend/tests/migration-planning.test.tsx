@@ -256,6 +256,8 @@ describe("migration planning", () => {
   it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
     open();
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("retailflow-api");
+    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Reference evidence unavailable in this snapshot");
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
