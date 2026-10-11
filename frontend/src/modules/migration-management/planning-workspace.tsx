@@ -1245,24 +1245,28 @@ export function PlanningEditor({
           )}
           <div className={styles.remediationColumns}>
             <div className={styles.remediationFindingList} aria-label="Remediation findings list">
-              <div className={styles.findingListHeader}><strong>Findings &amp; recommendations</strong><span>{categorizedFindings.length} in view</span></div>
+              <div className={styles.findingListHeader}><strong>Findings &amp; recommendations</strong><span>{categorizedFindings.length} findings</span></div>
+              <div className={styles.findingTableHead}><span></span><span>Severity</span><span>Finding / resource</span><span>Category</span><span>Decision</span><span>Treatment</span></div>
               {categorizedFindings.length === 0 && <p className={styles.caption}>No findings match these filters.</p>}
               {categorizedFindings.map(({finding:f,index}) => {
                 const item=draft.remediations.find(r=>r.findingIndex===index);
                 const checks=remediationDecisionChecks(item);
                 const progress=[checks.treatment,checks.owner,checks.mapping,checks.evidence].filter(Boolean).length;
+                const recommendation=recommendFinding(assessment,index);
                 return <div key={index} className={index===activeFindingIndex ? styles.remediationFindingActive : styles.remediationFinding}>
                   <input aria-label={`Select finding ${index}`} type="checkbox" checked={selectedFindingIds.includes(index)}
-                    onChange={(e)=>setSelectedFindingIds(e.target.checked?[...selectedFindingIds,index]:selectedFindingIds.filter(id=>id!==index))}/>
-                  <button className={styles.remediationFindingButton} onClick={()=>setFindingIndex(index)}>
-                    <span className={styles.findingListMeta}><strong>{f.severity}</strong> · {findingCategory(f.category)} · {f.resourceName??"Assessment-wide"}</span>
-                    <span>{f.message}</span>
-                    <span className={styles.findingListMeta}>{item?.treatment??"Review required"} · {progress}/4 decision fields · {item?.evidenceReference?"Evidence attached, unverified":"Evidence pending"}</span>
+                    onChange={e=>setSelectedFindingIds(e.target.checked?[...selectedFindingIds,index]:selectedFindingIds.filter(id=>id!==index))}/>
+                  <span className={styles.findingSeverity} data-severity={f.severity}>{f.severity}</span>
+                  <button className={styles.remediationFindingButton} onClick={()=>{setFindingIndex(index);setCustomizeFinding(false);setEditingFromPlan(null);}}>
+                    <strong>{f.message}</strong><small>{f.resourceName??"Assessment-wide"} · {f.resourceKind??findingCategory(f.category)}</small>
                   </button>
+                  <span className={styles.findingCategory}>{findingCategory(f.category)}</span>
+                  <span className={styles.findingProgress}><strong>{progress}/4</strong><span><i style={{width:`${progress*25}%`}} /></span></span>
+                  <span className={styles.findingTreatment} data-review={recommendation?.treatment==="REVIEW"}>{item?.treatment??(recommendation?.treatment==="REVIEW"?"REVIEW NEEDED":recommendation?.treatment??"REVIEW")}</span>
                 </div>;
               })}
             </div>
-            <aside className={styles.detail}>
+                        <aside className={styles.detail}>
               {finding ? (
                 <>
                   {editingFromPlan === activeFindingIndex && <div className={styles.editDecisionBanner} role="status">
