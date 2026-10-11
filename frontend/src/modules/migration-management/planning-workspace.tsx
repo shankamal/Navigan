@@ -186,14 +186,19 @@ export function PlanningEditor({
   const uniqueSuggestions = [...new Map(suggestions.map((r) => [resourceKey(r.resource), r])).values()];
   const findings = assessment.findings
     .map((finding, index) => ({ finding, index }))
-    .filter(
-      ({ finding }) => severity === "ALL" || finding.severity === severity,
+    .filter(({ finding }) =>
+      (severity === "ALL" || finding.severity === severity) &&
+      (!namespace || finding.namespace === namespace)
     );
-  const finding = assessment.findings[findingIndex];
+  // The previous selection may no longer be visible after filtering.
+  const activeFindingIndex = findings.some(({ index }) => index === findingIndex)
+    ? findingIndex
+    : (findings[0]?.index ?? -1);
+  const finding = activeFindingIndex >= 0 ? assessment.findings[activeFindingIndex] : undefined;
   const remediation =
-    draft.remediations.find((r) => r.findingIndex === findingIndex) ??
+    draft.remediations.find((r) => r.findingIndex === activeFindingIndex) ??
     ({
-      findingIndex,
+      findingIndex: activeFindingIndex,
       treatment: "REVIEW",
       owner: "",
       targetMapping: "",
@@ -209,7 +214,7 @@ export function PlanningEditor({
     change({
       ...draft,
       remediations: [
-        ...draft.remediations.filter((r) => r.findingIndex !== findingIndex),
+        ...draft.remediations.filter((r) => r.findingIndex !== activeFindingIndex),
         { ...remediation, ...patch },
       ],
     });
@@ -716,7 +721,14 @@ export function PlanningEditor({
       {tab === "remediate" && (
         <section className={styles.surface}>
           <div className={styles.toolbar}>
-            <strong>{blockers} assessment blockers</strong>
+            <label>
+              Namespace
+              <select aria-label="Remediation namespace" value={namespace} onChange={(e) => setNamespace(e.target.value)}>
+                <option value="">All assessed namespaces</option>
+                {namespaces.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <strong>{findings.filter(({ finding }) => finding.severity === "BLOCKER").length} visible blockers</strong>
             <span>
               {draft.remediations.filter((r) => r.evidenceReference).length}{" "}
               evidence references · verification pending
@@ -735,6 +747,9 @@ export function PlanningEditor({
               </select>
             </label>
           </div>
+          <p className={styles.caption}>
+            {findings.length} findings shown for {namespace || "all assessed namespaces"}. Findings from other namespaces are hidden, not resolved. Mutable image references remain visible when they affect this namespace; pin images by digest before approving execution.
+          </p>
           <div className={styles.remediationColumns}>
             <div className={styles.tableScroll}>
               <table>
@@ -755,7 +770,7 @@ export function PlanningEditor({
                       <tr
                         key={index}
                         className={
-                          index === findingIndex ? styles.selectedRow : ""
+                          index === activeFindingIndex ? styles.selectedRow : ""
                         }
                       >
                         <td>
@@ -797,10 +812,10 @@ export function PlanningEditor({
             <aside className={styles.detail}>
               {finding ? (
                 <>
-                  {!draft.remediations.some((r) => r.findingIndex === findingIndex) && (
+                  {!draft.remediations.some((r) => r.findingIndex === activeFindingIndex) && (
                     <div className={styles.notice}>
                       <p>Navigan has a proposed target mapping; review and accept it before saving.</p>
-                      <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => { const proposed = recommendFinding(assessment, findingIndex); if (proposed) changeRemediation(proposed); }}>
+                      <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => { const proposed = recommendFinding(assessment, activeFindingIndex); if (proposed) changeRemediation(proposed); }}>
                         Use suggested remediation
                       </button>
                     </div>
@@ -924,7 +939,7 @@ export function PlanningEditor({
                   </div>
                 </>
               ) : (
-                <p>No findings in this assessment.</p>
+                <p>No findings match the selected namespace and severity.</p>
               )}
             </aside>
           </div>
