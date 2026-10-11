@@ -367,6 +367,11 @@ def sanitize_workload(resource):
     )
     result["pod"] = pod_inventory(workload_pod_spec(resource))
     result["dependencyReferences"] = dependency_references(resource)
+    if resource.get("kind") == "StatefulSet":
+        result["volumeClaimTemplateNames"] = sorted({
+            name for entry in sequence(spec.get("volumeClaimTemplates"))[:100]
+            if (name := limited_text(mapping(mapping(entry).get("metadata")).get("name"), 253))
+        })
     return result
 
 
