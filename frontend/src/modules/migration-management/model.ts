@@ -362,6 +362,14 @@ export interface RemediationDraft {
   status: "PLANNED" | "IN_PROGRESS" | "EVIDENCE_ATTACHED";
 }
 
+export interface MigrationStorageMapping {
+  namespace: string;
+  sourceClaim: string;
+  targetStorageClass: string;
+  targetCapacity: string;
+  targetAccessMode: string;
+  status: "PROPOSED" | "REVIEWED";
+}
 export interface MigrationPlanningDraft {
   schemaVersion: 1;
   mode: "SELECTED_WORKLOADS" | "FULL_CLUSTER";
@@ -369,6 +377,7 @@ export interface MigrationPlanningDraft {
   inventoryDigest: string;
   resources: PlannedResource[];
   remediations: RemediationDraft[];
+  storageMappings?: MigrationStorageMapping[];
   dataStrategy:
     "UNDECIDED" | "BACKUP_RESTORE" | "REPLICATION" | "NO_PERSISTENT_DATA";
   notes: string;
