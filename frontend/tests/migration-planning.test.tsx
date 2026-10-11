@@ -211,6 +211,7 @@ describe("migration planning", () => {
     expect(
       screen.getByText(/Inventory coverage is not yet certified/),
     ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     fireEvent.click(screen.getByLabelText("Include Node cluster/source-node"));
     const treatment = screen.getByLabelText("Treatment source-node");
     expect(treatment.querySelector('option[value="MIGRATE"]')).toBeNull();
@@ -254,6 +255,7 @@ describe("migration planning", () => {
   });
   it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
     open();
+    expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
