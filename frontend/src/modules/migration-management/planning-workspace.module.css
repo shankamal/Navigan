@@ -475,3 +475,15 @@
 .applicationRelationship span { overflow-wrap: anywhere; }
 .applicationRelationship span:last-child { color: #617188; text-align: right; }
 @media (max-width: 720px) { .applicationMapHeader { flex-direction: column; } .applicationCards { grid-template-columns: 1fr; } }
+
+/* Compact actionable remediation master-detail experience */
+.remediationFindingList { min-width:0; max-height:570px; overflow-y:auto; border:1px solid #dce4ed; background:#fff; }
+.findingListHeader { position:sticky; top:0; z-index:1; display:flex; justify-content:space-between; padding:12px 14px; background:#f4f7fa; border-bottom:1px solid #dce4ed; font-size:13px; }
+.findingListHeader span, .findingListMeta { color:#63758a; font-size:11px; }
+.remediationFinding, .remediationFindingActive { display:flex; gap:12px; padding:13px 14px; border-bottom:1px solid #e5eaf0; align-items:flex-start; }
+.remediationFindingActive { background:#eff7ec; border-left:3px solid #86bc25; padding-left:11px; }
+.remediationFinding input, .remediationFindingActive input { margin-top:5px; flex-shrink:0; }
+.remediationFindingButton { display:flex; flex-direction:column; align-items:flex-start; text-align:left; width:100%; gap:6px; border:0; background:transparent; color:#23344b; cursor:pointer; font-size:13px; line-height:1.45; }
+.remediationFindingButton:hover { color:#28680c; }
+.remediationFindingButton:focus-visible { outline:2px solid #3176cb; outline-offset:3px; }
+@media (max-width:850px) { .remediationFindingList { max-height:400px; } }
