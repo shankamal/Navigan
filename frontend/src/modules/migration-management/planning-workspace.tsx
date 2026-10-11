@@ -1108,25 +1108,27 @@ export function PlanningEditor({
       )}
       {tab === "remediate" && (
         <section className={styles.surface}>
-          <div className={styles.notice}>
-            <strong>Guided remediation · {draft.resources.length} selected resources</strong>
-            <p>Start with selected-scope findings. Review shared risks separately, then consult all assessment findings for audit. Changing the migration scope updates this view without modifying the assessment.</p>
-            {draft.resources.length === 0 && (
-              <p>No workloads have been included in the planning draft. Return to Scope &amp; target, select your workloads, and confirm required dependencies before remediation.</p>
-            )}
-          </div>
-          <section className={styles.notice} aria-label="Storage compatibility issues for remediation">
-            <strong>Target storage checks · {storageCompatibility.length}</strong>
+          <section className={styles.notice} aria-label="Remediation overview">
+            <strong>Migration remediation workspace</strong>
+            <div className={styles.guideStats}>
+              <span><strong>{draft.resources.length}</strong> scoped resources</span>
+              <span><strong>{findings.length}</strong> assessment findings</span>
+              <span><strong>{readiness.issues.length}</strong> planning checks</span>
+              <span><strong>{storageCompatibility.length}</strong> storage compatibility findings</span>
+            </div>
+            <p>Choose recommended treatments, adjust target mappings, assign owners and save the plan. No changes are made to source or target infrastructure.</p>
+            {draft.resources.length === 0 && <p>Select application workloads in Scope &amp; target to populate relevant findings.</p>}
+          </section>
+          <details className={styles.notice} aria-label="Planning readiness issues for remediation">
+            <summary><strong>Review {readiness.issues.length} outstanding migration intelligence checks</strong></summary>
+            {readiness.issues.length === 0 ? <p>No detected scope gaps; independent target validation is still required.</p> :
+              <ul>{readiness.issues.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul>}
+          </details>
+          <details className={styles.notice} aria-label="Storage compatibility issues for remediation">
+            <summary><strong>Review {storageCompatibility.length} target storage checks</strong></summary>
             {storageCompatibility.length > 0 && <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.detail}</li>)}</ul>}
-            <p>Actual target StorageClass evidence has not been collected; class recommendations remain unverified.</p>
-          </section>
-          <section className={styles.notice} aria-label="Planning readiness issues for remediation">
-            <strong>Outstanding migration intelligence checks · {readiness.issues.length}</strong>
-            {readiness.issues.length === 0 ? <p>No detected scope gaps; migration and target readiness still require approval.</p> : (
-              <ul>{readiness.issues.map((issue, index) => <li key={index}>{issue.type.replaceAll("_", " ")} — {issue.detail}</li>)}</ul>
-            )}
-            <p>These checks are planning prerequisites, not assessment findings. Resolve dependency selection in Scope &amp; Target and document data decisions before approving a migration plan.</p>
-          </section>
+            <p>Target StorageClass recommendations remain unverified until trusted capability evidence is collected.</p>
+          </details>
           <div className={styles.toolbar}>
             <label>
               Findings view
