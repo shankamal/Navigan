@@ -35,6 +35,7 @@ import type {
   SourceInventoryResource,
 } from "./model";
 import { PlatformIcon } from "./platform-icon";
+import { graphFromSanitizedInventory } from "./migration-graph";
 import { recommendResource, recommendDependencies, recommendFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
@@ -224,20 +225,16 @@ export function PlanningEditor({
   const pendingPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" &&
     (draft.mode === "FULL_CLUSTER" || (!namespace || r.namespace === namespace)));
 
-  const sourceReferences = resources.flatMap((r) => {
-    const input = r.kind === "Ingress" ? r.backendServiceReferences : workloadKinds.has(r.kind) ? r.dependencyReferences : null;
-    if (!Array.isArray(input)) return [];
-    return input.flatMap((ref: unknown) => {
-      if (!ref || typeof ref !== "object") return [];
-      const entry = ref as Record<string, unknown>;
-      if (typeof entry.kind !== "string" || typeof entry.name !== "string") return [];
-      return [{
-        owner: r.kind + " " + r.name, namespace: r.namespace,
-        kind: entry.kind, name: entry.name,
-        present: resources.some((other) => other.kind === entry.kind && other.name === entry.name && other.namespace === r.namespace),
-      }];
+  const graph = graphFromSanitizedInventory(resources);
+  const sourceReferences = graph.edges
+    .filter((edge) => {
+      const owner = graph.nodes.find((node) => node.id === edge.from);
+      return owner && (!namespace || owner.namespace === namespace);
+    })
+    .map((edge) => {
+      const owner = graph.nodes.find((node) => node.id === edge.from)!;
+      return { owner: owner.kind + " " + owner.name, namespace: owner.namespace, kind: edge.kind, name: edge.name, present: edge.resolution === "IN_INVENTORY" };
     });
-  }).filter((ref) => !namespace || ref.namespace === namespace);
   const chosenOwners = new Set(draft.resources.filter((item) => !item.dependency).map((item) => JSON.stringify([item.kind, item.namespace, item.name])));
   const scopedReferences = sourceReferences.filter((ref) => chosenOwners.has(JSON.stringify([ref.owner.split(" ")[0], ref.namespace, ref.owner.slice(ref.owner.indexOf(" ") + 1)])));
   const missingReferences = scopedReferences.filter((ref) => !ref.present);
@@ -261,7 +258,7 @@ export function PlanningEditor({
     ) : [];
     return { workload, references, selected, observedClaimCandidates };
   });
-  const evidenceCoverage = sourceReferences.length ? "References captured" : "Reference evidence unavailable in this snapshot";
+  const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
