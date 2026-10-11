@@ -161,6 +161,17 @@ describe("migration planning", () => {
     expect(screen.getByText(/Remediation added to draft/)).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
   });
+  it("supports selecting findings and accepting eligible recommendations into the draft", () => {
+    open();
+    fireEvent.click(screen.getByRole("button", {name:"Remediate"}));
+    fireEvent.change(screen.getByLabelText("Findings view"), {target:{value:"SHARED"}});
+    const selectAll = screen.getByRole("checkbox", {name:"Select all visible remediation findings"});
+    fireEvent.click(selectAll);
+    const bulk = screen.getByRole("button", {name:"Accept selected recommendations"});
+    expect(bulk).toBeEnabled();
+    fireEvent.click(bulk);
+    expect(screen.getByText(/resources in draft/)).toBeVisible();
+  });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
