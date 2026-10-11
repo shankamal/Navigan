@@ -454,3 +454,8 @@
 .scopeReview ul { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow-y: auto; }
 .scopeReview li { padding: 9px 0; border-bottom: 1px solid #e6ebf0; display: grid; gap: 3px; overflow-wrap: anywhere; }
 .scopeReview li span { font-size: 12px; color: #526479; }
+
+.scopeViews { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; border-bottom: 1px solid #dce3ea; padding-bottom: 8px; }
+.scopeViews button { cursor: pointer; background: #f5f7fa; border: 1px solid #dce3ea; padding: 9px 12px; font-size: 13px; color: #34455c; border-radius: 3px; }
+.scopeViews button[aria-current="page"] { color: #1a4a04; border-color: #86bc25; background: #f0f8e8; font-weight: 600; }
+.scopeViews button:focus-visible { outline: 2px solid #3176cb; outline-offset: 2px; }
