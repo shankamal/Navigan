@@ -250,6 +250,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
     expect(screen.getByLabelText("Remediation decision coverage")).toBeVisible();
+    expect(screen.getByLabelText("Finding category")).toHaveValue("ALL");
     expect(screen.getByRole("combobox", { name: "Finding category" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Back to scope" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Continue to review draft" }));
