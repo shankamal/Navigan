@@ -240,6 +240,18 @@ export function PlanningEditor({
   const scopedReferences = sourceReferences.filter((ref) => chosenOwners.has(JSON.stringify([ref.owner.split(" ")[0], ref.namespace, ref.owner.slice(ref.owner.indexOf(" ") + 1)])));
   const missingReferences = scopedReferences.filter((ref) => !ref.present);
   const unselectedReferences = scopedReferences.filter((ref) => ref.present && !draft.resources.some((item) => item.kind === ref.kind && item.name === ref.name && item.namespace === ref.namespace));
+  const unselectedDependencyResources = resources.filter((r) => unselectedReferences.some((ref) => ref.kind === r.kind && ref.name === r.name && ref.namespace === r.namespace));
+  function includeReferencedDependencies() {
+    const additions = unselectedDependencyResources.map((r) => ({
+      apiVersion: r.apiVersion, kind: r.kind, namespace: r.namespace ?? null, name: r.name,
+      treatment: recommendResource(r).resource.treatment, dependency: true,
+    } as PlannedResource));
+    const next = new Map(draft.resources.map((item) => [resourceKey(item), item]));
+    additions.forEach((item) => next.set(resourceKey(item), item));
+    change({ ...draft, resources: [...next.values()] });
+    setMessage("Referenced supporting resources added to draft for review. Save the draft to persist.");
+  }
+
   const relevantPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" && (!namespace || r.namespace === namespace));
   const applicationWorkloads = resources.filter((r) =>
     ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind) &&
@@ -637,16 +649,7 @@ export function PlanningEditor({
                 {sourceReferences.length === 0 ? <p>No references in this snapshot; collect fresh inventory before concluding dependencies are absent.</p> : <ul>{sourceReferences.map((ref, i) => <li key={i}>{ref.owner} → {ref.kind} {ref.name} — {ref.present ? "Found in inventory" : "Not found in inventory"}</li>)}</ul>}
                 <p><strong>{scopedReferences.length} references from selected primary resources</strong> · {missingReferences.length} missing inventory objects · {unselectedReferences.length} not included in draft.</p>
                 {missingReferences.length > 0 && <p>Missing: {missingReferences.map((ref) => ref.kind + " " + ref.name).join(", ")}. Confirm collection coverage before proceeding.</p>}
-                {unselectedReferences.length > 0 && <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => {
-                  const additions = resources.filter((r) => unselectedReferences.some((ref) => ref.kind === r.kind && ref.name === r.name && ref.namespace === r.namespace)).map((r) => ({
-                    apiVersion: r.apiVersion, kind: r.kind, namespace: r.namespace ?? null, name: r.name,
-                    treatment: recommendResource(r).resource.treatment, dependency: true,
-                  } as PlannedResource));
-                  const next = new Map(draft.resources.map((item) => [resourceKey(item), item]));
-                  additions.forEach((item) => next.set(resourceKey(item), item));
-                  change({ ...draft, resources: [...next.values()] });
-                  setMessage("Referenced supporting resources added to draft for review. Save the draft to persist.");
-                }}>Include {unselectedReferences.length} referenced dependencies in draft</button>}
+                {unselectedReferences.length > 0 && <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={includeReferencedDependencies}>Include {unselectedReferences.length} referenced dependencies in draft</button>}
                 <p>Presence in inventory does not establish target readiness or complete discovery. All dependency additions require review.</p>
               </div>
             )}
@@ -837,6 +840,11 @@ export function PlanningEditor({
               {readiness.issues.length > 0 ? (
                 <ul>{readiness.issues.map((issue, index) => <li key={index}><strong>{issue.type.replaceAll("_", " ")}</strong> — {issue.detail}</li>)}</ul>
               ) : <p>No outstanding checks detected in collected evidence. This is not target readiness or migration approval.</p>}
+              {unselectedDependencyResources.length > 0 && (
+                <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={includeReferencedDependencies}>
+                  Add {unselectedDependencyResources.length} inventoried dependencies to draft
+                </button>
+              )}
             </section>
             <div className={styles.intelligencePanel}>
               <h2>Navigan analysis</h2>
