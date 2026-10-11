@@ -29,6 +29,7 @@ export interface MigrationInventoryItem {
   namespace?: string | null;
   dependencyReferences?: unknown;
   backendServiceReferences?: unknown;
+  volumeClaimTemplateNames?: unknown;
 }
 const workloadKinds = new Set(["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod", "TaskDefinition", "EcsService", "DeploymentConfig"]);
 const storageKinds = new Set(["PersistentVolumeClaim", "PersistentVolume", "StorageClass", "VolumeSnapshot", "EfsVolume"]);
@@ -69,6 +70,22 @@ export function graphFromSanitizedInventory(items: MigrationInventoryItem[], pla
           evidence: "EXPLICIT_REFERENCE",
           resolution: index.has(id) ? "IN_INVENTORY" : "NOT_IN_INVENTORY",
         });
+      }
+    }
+  }
+  // StatefulSet claim template names plus an existing concrete PVC name provide
+  // derived ownership evidence; do not invent claims for absent replicas.
+  for (const item of items) {
+    if (item.kind !== "StatefulSet" || !item.name || !Array.isArray(item.volumeClaimTemplateNames)) continue;
+    const ownerId = migrationNodeId(item.kind, item.namespace, item.name);
+    for (const template of item.volumeClaimTemplateNames) {
+      if (typeof template !== "string" || !template) continue;
+      const prefix = template + "-" + item.name + "-";
+      for (const node of nodes) {
+        if (node.kind !== "PersistentVolumeClaim" || node.namespace !== (item.namespace ?? null) || !node.name.startsWith(prefix)) continue;
+        if (!/^\\d+$/.test(node.name.slice(prefix.length))) continue;
+        if (edges.some((edge) => edge.from === ownerId && edge.to === node.id)) continue;
+        edges.push({from: ownerId, to: node.id, kind: node.kind, name: node.name, evidence: "INFERRED", resolution: "IN_INVENTORY"});
       }
     }
   }
