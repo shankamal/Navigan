@@ -190,6 +190,25 @@ export function PlanningEditor({
     return source ? recommendDependencies(source, resources) : [];
   }).filter((suggestion) => !selected.has(resourceKey(suggestion.resource)));
   const uniqueSuggestions = [...new Map(suggestions.map((r) => [resourceKey(r.resource), r])).values()];
+  // Resolve dependencies against the proposed workloads before asking for confirmation.
+  // This avoids a second acceptance button appearing only after workloads are added.
+  const proposedWorkloads = [...draft.resources.filter((r) => !r.dependency), ...pendingRecommendations.map((r) => r.resource)];
+  const proposedDependencies = proposedWorkloads
+    .filter((r) => ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind))
+    .flatMap((r) => {
+      const source = resources.find((x) => resourceKey({ ...x, namespace: x.namespace ?? null }) === resourceKey(r));
+      return source ? recommendDependencies(source, resources) : [];
+    })
+    .filter((r) => !selected.has(resourceKey(r.resource)));
+  const recommendedScopeAdditions = [...new Map(
+    [...pendingRecommendations.map((r) => r.resource), ...proposedDependencies.map((r) => r.resource)]
+      .filter((r) => !selected.has(resourceKey(r)))
+      .map((r) => [resourceKey(r), r] as const),
+  ).values()];
+  const recommendedDependencyCount = recommendedScopeAdditions.filter((r) => r.dependency).length;
+  const pendingPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" &&
+    (draft.mode === "FULL_CLUSTER" || (!namespace || r.namespace === namespace)));
+
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -472,22 +491,6 @@ export function PlanningEditor({
                 ? "This inventory may exclude system namespaces or cluster-scoped resources. Full-estate coverage must be confirmed before execution planning."
                 : "Inventory contains sanitized metadata, not deployment manifests or data. Dependency names are incomplete; confirm them with the application owner."}
             </p>
-            <div className={styles.notice}>
-              Navigan suggests resource treatments from the inventoried kind. Review recommendations before saving; uncertain resources default to review.
-              {uniqueSuggestions.length > 0 && (
-                <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => change({ ...draft, resources: [...draft.resources, ...uniqueSuggestions.map((r) => r.resource)] })}>
-                  Include {uniqueSuggestions.length} explicitly referenced dependencies
-                </button>
-              )}
-            </div>
-            <div className={styles.notice}>
-              <strong>Navigan analysis — {namespace || "all assessed namespaces"}</strong>
-              <p>{filtered.length} resources in view · {pendingRecommendations.length} not yet selected · {reviewRecommendations} requiring explicit review · {managedRecommendations} platform-managed or generated.</p>
-              <p>Only primary workload candidates can be bulk-added. Supporting resources require explicit dependencies; platform-managed resources are excluded from automated inclusion. Suggestions are not verified EKS readiness.</p>
-              <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || pendingRecommendations.length === 0} onClick={() => change({ ...draft, resources: [...draft.resources, ...pendingRecommendations.map((r) => r.resource)] })}>
-                Add {pendingRecommendations.length} workload candidate{pendingRecommendations.length === 1 ? "" : "s"} to draft
-              </button>
-            </div>
             <div className={styles.filters}>
               <label>
                 Namespace
@@ -682,6 +685,20 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
+            <div className={styles.intelligencePanel}>
+              <h2>Navigan analysis</h2>
+              <p className={styles.caption}>{namespace || "All assessed namespaces"} · {filtered.length} inventoried resources in view</p>
+              <p>{pendingRecommendations.length} recommended workload candidates · {recommendedDependencyCount} explicitly referenced supporting dependencies.</p>
+              <p className={styles.caption}>{reviewRecommendations} require manual review; {managedRecommendations} are platform-managed or generated. Only inventoried dependency references are included. Recommendations do not establish complete target readiness.</p>
+              <button
+                className="button button-primary"
+                disabled={!canEdit || stale || save.isPending || recommendedScopeAdditions.length === 0}
+                onClick={() => change({ ...draft, resources: [...draft.resources, ...recommendedScopeAdditions] })}
+              >
+                Confirm recommended scope ({recommendedScopeAdditions.length})
+              </button>
+              <p className={styles.caption}>Confirms planning selections only. Inspect the table and data strategy before saving; no resources are migrated.</p>
+            </div>
             <h2>Scope summary</h2>
             <div className={styles.summaryItem}>
               <Boxes size={22} />
@@ -697,6 +714,13 @@ export function PlanningEditor({
               <div>
                 <strong>{dependencies} confirmed dependencies</strong>
                 <small>Manual confirmation; discovery is not complete</small>
+              </div>
+            </div>
+            <div className={styles.summaryItem}>
+              <Database size={22} />
+              <div>
+                <strong>Storage dependencies</strong>
+                <small>{pendingPvcs.length} PVC manifest{pendingPvcs.length === 1 ? "" : "s"} in the current inventory scope. Data content is not included in inventory.</small>
               </div>
             </div>
             <div className={styles.summaryItem}>
