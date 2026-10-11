@@ -157,6 +157,7 @@ export function PlanningEditor({
   const [search, setSearch] = useState("");
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
+  const [remediationCategory, setRemediationCategory] = useState("ALL");
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
@@ -325,10 +326,19 @@ export function PlanningEditor({
     return scopedResourceKeys.has(JSON.stringify([item.resourceKind, item.namespace, item.resourceName]))
       ? "SCOPE" : "OUTSIDE";
   };
+  function findingCategory(rawValue: string | undefined) {
+    const raw = (rawValue ?? "").toLowerCase();
+    if (/stor|volume|persist|data/.test(raw)) return "Storage";
+    if (/network|ingress|route|service/.test(raw)) return "Networking";
+    if (/secur|identity|iam|secret|policy/.test(raw)) return "Security";
+    if (/config|api|deploy/.test(raw)) return "Configuration";
+    return "Other";
+  }
   const findings = assessment.findings
     .map((finding, index) => ({ finding, index }))
     .filter(({ finding }) =>
       (severity === "ALL" || finding.severity === severity) &&
+      (remediationCategory === "ALL" || findingCategory(finding.category) === remediationCategory) &&
       (findingView === "ALL"
         ? (!namespace || finding.namespace === namespace)
         : findingView === "SHARED"
@@ -338,14 +348,7 @@ export function PlanningEditor({
     );
   const remediationGroups = ["Storage", "Networking", "Security", "Configuration", "Other"].map((category) => ({
     category,
-    items: findings.filter(({finding}) => {
-      const raw = (finding.category ?? "").toLowerCase();
-      if (category === "Storage") return /stor|volume|persist|data/.test(raw);
-      if (category === "Networking") return /network|ingress|route|service/.test(raw);
-      if (category === "Security") return /secur|identity|iam|secret|policy/.test(raw);
-      if (category === "Configuration") return /config|api|deploy/.test(raw);
-      return !/stor|volume|persist|data|network|ingress|route|service|secur|identity|iam|secret|policy|config|api|deploy/.test(raw);
-    }),
+    items: findings.filter(({finding}) => findingCategory(finding.category) === category),
   })).filter((group) => group.items.length > 0);
   const remediationDecisionChecks = (item: RemediationDraft | undefined) => ({
     treatment: Boolean(item && item.treatment !== "REVIEW"),
@@ -1119,6 +1122,13 @@ export function PlanningEditor({
               evidence references · verification pending
             </span>
             <label>
+              Category
+              <select aria-label="Finding category" value={remediationCategory} onChange={(e) => setRemediationCategory(e.target.value)}>
+                <option value="ALL">All categories</option>
+                {["Storage","Networking","Security","Configuration","Other"].map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
               Severity
               <select
                 aria-label="Finding severity"
@@ -1138,12 +1148,16 @@ export function PlanningEditor({
           </p>
           <section className={styles.notice} aria-label="Remediation decision coverage">
             <strong>Remediation decision coverage</strong>
-            <p>{findings.length} assessment findings in view · {findings.filter(({index}) => remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index)).treatment).length} have a chosen treatment · {findings.filter(({index}) => {
-              const checks = remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index));
-              return checks.treatment && checks.owner && checks.mapping && checks.evidence;
-            }).length} have documented decision, owner, target mapping and evidence.</p>
-            <p>Documentation does not certify remediation or authorize migration execution.</p>
-            {remediationGroups.map((group) => <p key={group.category}><strong>{group.category}</strong> · {group.items.length} finding(s)</p>)}
+            <div className={styles.guideStats}>
+              <span><strong>{findings.length}</strong> findings</span>
+              <span><strong>{findings.filter(({index}) => remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index)).treatment).length}</strong> treatments selected</span>
+              <span><strong>{findings.filter(({index}) => {
+                const checks = remediationDecisionChecks(draft.remediations.find((r) => r.findingIndex === index));
+                return checks.treatment && checks.owner && checks.mapping && checks.evidence;
+              }).length}</strong> fully documented</span>
+              <span><strong>{readiness.issues.length}</strong> outstanding scope checks</span>
+            </div>
+            <p>{remediationGroups.map((group) => group.category + ": " + group.items.length).join(" · ") || "No findings in selected filters"}. Documentation is not independent verification.</p>
           </section>
           <div className={styles.remediationColumns}>
             <div className={styles.tableScroll}>
@@ -1152,6 +1166,7 @@ export function PlanningEditor({
                   <tr>
                     <th>Finding</th>
                     <th>Affected resource</th>
+                    <th>Decision progress</th>
                     <th>Owner</th>
                     <th>Evidence status</th>
                   </tr>
@@ -1192,6 +1207,10 @@ export function PlanningEditor({
                             {f.resourceKind ?? f.category}
                           </small>
                         </td>
+                        <td>{(() => {
+                          const checks = remediationDecisionChecks(item);
+                          return [checks.treatment,checks.owner,checks.mapping,checks.evidence].filter(Boolean).length + "/4 documented";
+                        })()}</td>
                         <td>{item?.owner || "Unassigned"}</td>
                         <td>
                           {item?.evidenceReference
