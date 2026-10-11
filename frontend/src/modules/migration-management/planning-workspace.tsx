@@ -734,6 +734,13 @@ export function PlanningEditor({
       )}
       {tab === "remediate" && (
         <section className={styles.surface}>
+          <div className={styles.notice}>
+            <strong>Guided remediation · {draft.resources.length} selected resources</strong>
+            <p>Start with selected-scope findings. Review shared risks separately, then consult all assessment findings for audit. Changing the migration scope updates this view without modifying the assessment.</p>
+            {draft.resources.length === 0 && (
+              <p>No workloads have been included in the planning draft. Return to Scope &amp; target, select your workloads, and confirm required dependencies before remediation.</p>
+            )}
+          </div>
           <div className={styles.toolbar}>
             <label>
               Findings view
