@@ -116,10 +116,14 @@ describe("migration planning", () => {
     fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
     expect(screen.getByText(/Navigan analysis/)).toBeVisible();
     expect(screen.getByText(/2 inventoried resources in view/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm recommended scope (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 1 recommended resource to draft" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
     expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
     expect(screen.queryByRole("button", { name: /explicitly referenced dependencies/i })).toBeNull();
+    const review = screen.getByRole("button", { name: "Review selected scope" });
+    expect(review).toBeEnabled();
+    fireEvent.click(review);
+    expect(screen.getByText(/Selected scope is already in the planning draft/i)).toBeVisible();
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
     const scoped = {
