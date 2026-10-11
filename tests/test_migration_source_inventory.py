@@ -279,3 +279,46 @@ def test_service_selector_relationships_preserve_privacy_and_namespace():
         "observedAt": "2026-10-11T12:00:00Z",
         "sourceKubernetesVersion": "v1.37.1",
     })
+
+
+def test_ingress_backend_services_are_sanitized_and_validated():
+    from migration_connector.inventory import build_inventory
+    objects = [
+        {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress",
+         "metadata": {"name": "edge", "namespace": "retailflow"},
+         "spec": {"defaultBackend": {"service": {"name": "fallback", "port": {"number": 80}}},
+                  "tls": [{"hosts": ["private.example.com"], "secretName": "edge-cert"}],
+                  "rules": [{"host": "private.example.com", "http": {"paths": [
+                      {"path": "/private", "pathType": "Prefix", "backend": {
+                          "service": {"name": "retail-api", "port": {"number": 8080}}}}
+                  ]}}]}},
+    ]
+    inventory = build_inventory(objects)
+    ingress = resource_by_kind(inventory, "Ingress")
+    assert ingress["backendServiceReferences"] == [
+        {"kind": "Service", "name": "fallback"},
+        {"kind": "Service", "name": "retail-api"},
+    ]
+    assert "private.example.com" not in str(inventory)
+    assert "edge-cert" not in str(inventory)
+    SourceInventoryReport.model_validate({
+        **inventory, "migrationVersion": 4,
+        "observedAt": "2026-10-11T12:00:00Z",
+        "sourceKubernetesVersion": "v1.37.1",
+    })
+
+
+def test_rejects_unexpected_ingress_backend_payload():
+    payload = source_inventory()
+    from migration_connector.inventory import build_inventory
+    incoming = build_inventory([{
+        "apiVersion": "networking.k8s.io/v1", "kind": "Ingress",
+        "metadata": {"name": "edge", "namespace": "retailflow"},
+        "spec": {},
+    }])
+    payload["resources"].append(incoming["resources"][0])
+    payload["resources"][-1]["backendServiceReferences"] = [
+        {"kind": "Service", "name": "api", "host": "private.example.com"}
+    ]
+    with pytest.raises(ValidationError, match="Invalid ingress backend reference"):
+        SourceInventoryReport.model_validate(payload)
