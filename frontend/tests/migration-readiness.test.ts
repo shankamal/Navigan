@@ -21,6 +21,11 @@ describe("migration scope readiness", () => {
     expect(value.issues).toHaveLength(0);
     expect(value.state).toBe("REVIEW_REQUIRED");
   });
+  it("flags unverified PVC ownership separately from data strategy", () => {
+    const value = evaluateScopeReadiness(inventory, selected, "BACKUP_RESTORE", true, 2);
+    expect(value.issues.map((issue) => issue.type)).toContain("PVC_OWNERSHIP_UNVERIFIED");
+    expect(value.issues.map((issue) => issue.type)).not.toContain("DATA_STRATEGY_REQUIRED");
+  });
   it("treats old inventories without references as incomplete evidence", () => {
     const value = evaluateScopeReadiness(graphFromSanitizedInventory([{kind:"Deployment",name:"api",namespace:"app"}]), selected, "UNDECIDED", false);
     expect(value.issues.map(i => i.type)).toContain("COVERAGE_UNKNOWN");
