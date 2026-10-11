@@ -1257,70 +1257,23 @@ export function PlanningEditor({
             <span className={styles.caption}>Only specific, non-Review recommendations are added to the planning draft; existing decisions are preserved.</span>
           </div>
           <div className={styles.remediationColumns}>
-            <div className={styles.tableScroll}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Select</th>
-                    <th>Finding</th>
-                    <th>Affected resource</th>
-                    <th>Decision progress</th>
-                    <th>Treatment</th>
-                    <th>Owner</th>
-                    <th>Mapping / Evidence</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {categorizedFindings.map(({ finding: f, index }) => {
-                    const item = draft.remediations.find(
-                      (r) => r.findingIndex === index,
-                    );
-                    return (
-                      <tr
-                        key={index}
-                        className={
-                          index === activeFindingIndex ? styles.selectedRow : ""
-                        }
-                      >
-                        <td><input aria-label={`Select finding ${index}`} type="checkbox"
-                          checked={selectedFindingIds.includes(index)}
-                          onChange={(event) => setSelectedFindingIds(event.target.checked ? [...selectedFindingIds,index] : selectedFindingIds.filter(id => id !== index))} /></td>
-                        <td>
-                          <button
-                            className={styles.findingButton}
-                            onClick={() => setFindingIndex(index)}
-                          >
-                            <span
-                              className={
-                                f.severity === "BLOCKER"
-                                  ? styles.blocker
-                                  : styles.severity
-                              }
-                            >
-                              {f.severity}
-                            </span>
-                            {f.message}
-                          </button>
-                        </td>
-                        <td>
-                          {f.resourceName ?? "Assessment-wide"}
-                          <small>
-                            {f.namespace ?? "Cluster"} ·{" "}
-                            {f.resourceKind ?? f.category}
-                          </small>
-                        </td>
-                        <td>{(() => {
-                          const checks = remediationDecisionChecks(item);
-                          return [checks.treatment,checks.owner,checks.mapping,checks.evidence].filter(Boolean).length + "/4 documented";
-                        })()}</td>
-                        <td>{item?.treatment ?? "Review pending"}</td>
-                        <td>{item?.owner || "Unassigned"}</td>
-                        <td>{item?.targetMapping ? "Mapping proposed" : "Mapping required"} · {item?.evidenceReference ? "Evidence attached (unverified)" : "Evidence pending"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className={styles.remediationFindingList} aria-label="Remediation findings list">
+              <div className={styles.findingListHeader}><strong>Findings &amp; recommendations</strong><span>{categorizedFindings.length} in view</span></div>
+              {categorizedFindings.length === 0 && <p className={styles.caption}>No findings match these filters.</p>}
+              {categorizedFindings.map(({finding:f,index}) => {
+                const item=draft.remediations.find(r=>r.findingIndex===index);
+                const checks=remediationDecisionChecks(item);
+                const progress=[checks.treatment,checks.owner,checks.mapping,checks.evidence].filter(Boolean).length;
+                return <div key={index} className={index===activeFindingIndex ? styles.remediationFindingActive : styles.remediationFinding}>
+                  <input aria-label={`Select finding ${index}`} type="checkbox" checked={selectedFindingIds.includes(index)}
+                    onChange={(e)=>setSelectedFindingIds(e.target.checked?[...selectedFindingIds,index]:selectedFindingIds.filter(id=>id!==index))}/>
+                  <button className={styles.remediationFindingButton} onClick={()=>setFindingIndex(index)}>
+                    <span className={styles.findingListMeta}><strong>{f.severity}</strong> · {findingCategory(f.category)} · {f.resourceName??"Assessment-wide"}</span>
+                    <span>{f.message}</span>
+                    <span className={styles.findingListMeta}>{item?.treatment??"Review required"} · {progress}/4 decision fields · {item?.evidenceReference?"Evidence attached, unverified":"Evidence pending"}</span>
+                  </button>
+                </div>;
+              })}
             </div>
             <aside className={styles.detail}>
               {finding ? (
