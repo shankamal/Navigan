@@ -168,7 +168,7 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
     fireEvent.change(screen.getByLabelText("Target mapping"), {target:{value:"Review target CSI and data restore requirements"}});
     expect(screen.getByLabelText("Target mapping")).toHaveValue("Review target CSI and data restore requirements");
-    expect(screen.getByText("Decision in draft")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Decision in draft" })).toBeDisabled();
   });
   it("guides users between remediation findings and closes customization on navigation", () => {
     const scopedAssessment = {...assessment,findings:[
