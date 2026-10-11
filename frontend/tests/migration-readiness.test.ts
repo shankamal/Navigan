@@ -40,6 +40,13 @@ describe("migration scope readiness", () => {
     }]);
     expect(reviewed.issues.some((issue) => issue.type.startsWith("STORAGE_MAPPING"))).toBe(false);
   });
+  it("treats target capability issues as outstanding scope readiness checks", () => {
+    const result = evaluateScopeReadiness(inventory, selected, "BACKUP_RESTORE", true, 0, [], [], [{
+      type:"CLASS_UNVERIFIED",claim:"app/data",detail:"Target class gp3 is unverified."
+    }]);
+    expect(result.state).toBe("INCOMPLETE");
+    expect(result.issues.some(issue => issue.type === "STORAGE_COMPATIBILITY")).toBe(true);
+  });
   it("treats old inventories without references as incomplete evidence", () => {
     const value = evaluateScopeReadiness(graphFromSanitizedInventory([{kind:"Deployment",name:"api",namespace:"app"}]), selected, "UNDECIDED", false);
     expect(value.issues.map(i => i.type)).toContain("COVERAGE_UNKNOWN");
