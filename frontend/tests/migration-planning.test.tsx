@@ -256,6 +256,16 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
     expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeEnabled();
   });
+  it("defaults storage discovery to the migration namespace and excludes other namespace PVCs", () => {
+    open({}, {...inventory, resources: [...inventory.resources,
+      {apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",requestedStorage:"8Gi"},
+      {apiVersion:"v1",kind:"PersistentVolumeClaim",name:"other-data",namespace:"migration-demo",requestedStorage:"4Gi"},
+    ]} as SourceInventory);
+    fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
+    const table = screen.getByLabelText("Storage discovery and mapping");
+    expect(table).toHaveTextContent("retailflow/data-postgres-0");
+    expect(table).not.toHaveTextContent("migration-demo/other-data");
+  });
   it("shows compact prefilled EKS storage mappings after adding a discovered PVC", () => {
     open({targetConfiguration:{platform:"EKS",clusterId:"CLU-demo"}} as Partial<Migration>,{
       ...inventory,
@@ -265,8 +275,8 @@ describe("migration planning", () => {
       }],
     } as SourceInventory);
     fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
-    fireEvent.click(screen.getByRole("button",{name:"Include PVC in draft"}));
-    expect(screen.getByLabelText("Target storage mapping")).toHaveTextContent("1 in-scope PVCs");
+    fireEvent.click(screen.getByRole("button",{name:"Include PVC"}));
+    expect(screen.getByLabelText("Storage discovery and mapping")).toHaveTextContent("data-postgres-0");
     expect(screen.getByLabelText("Storage class for data-postgres-0")).toHaveValue("gp3");
     expect(screen.getByLabelText("Target capacity for data-postgres-0")).toHaveValue("8Gi");
     expect(screen.getByLabelText("Target access mode for data-postgres-0")).toHaveValue("ReadWriteOnce");
@@ -283,8 +293,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Data & Storage" }));
     expect(screen.getByText("PVC consumer references", { selector: "strong" })).toBeVisible();
     expect(screen.getByText(/Discovered PVC inventory/)).toBeVisible();
-    expect(screen.getByLabelText("Discovered storage candidates")).toBeVisible();
-    expect(screen.getByText(/No PVCs are included in the migration draft/)).toBeVisible();
+    expect(screen.getByLabelText("Storage discovery and mapping")).toBeVisible();
     expect(screen.getByText(/PVC metadata does not include volume data/)).toBeVisible();
     expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
