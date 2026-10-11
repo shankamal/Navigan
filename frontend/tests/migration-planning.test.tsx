@@ -208,6 +208,20 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Remediation bulk actions")).toBeVisible();
     expect(screen.getByLabelText("Remediation findings list")).toBeVisible();
   });
+  it("opens a recorded decision directly in edit mode with clear next steps", () => {
+    open();
+    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.change(screen.getByLabelText("Findings view"),{target:{value:"SHARED"}});
+    fireEvent.click(screen.getByRole("button",{name:"Customize recommendation"}));
+    fireEvent.change(screen.getByLabelText("Owner"),{target:{value:"Platform team"}});
+    fireEvent.click(screen.getByRole("button",{name:/Remediation plan/}));
+    fireEvent.click(screen.getByRole("button",{name:"Edit decision"}));
+    expect(screen.getByText("Editing recorded decision")).toBeVisible();
+    expect(screen.getByLabelText("Owner")).toHaveValue("Platform team");
+    expect(screen.getByRole("button",{name:"Save remediation decision"})).toBeEnabled();
+    fireEvent.click(screen.getByRole("button",{name:"Back to remediation plan"}));
+    expect(screen.getByLabelText("Consolidated remediation plan")).toBeVisible();
+  });
   it("records a proposed PVC mapping through the target mapping workspace", () => {
     open({targetConfiguration:{platform:"EKS",clusterId:"CLU-demo"}} as Partial<Migration>,{
       ...inventory,resources:[...inventory.resources,{apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",requestedStorage:"8Gi",storageClassName:"navigan-ebs-gp3",accessModes:["ReadWriteOnce"]}],
