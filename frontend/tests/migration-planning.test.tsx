@@ -273,7 +273,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Migration remediation workspace");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
-    expect(screen.getByLabelText("Remediation decision coverage")).toBeVisible();
+    expect(screen.getByLabelText("Technical readiness evidence")).toBeInTheDocument();
     expect(screen.getByLabelText("Finding category")).toHaveValue("ALL");
     expect(screen.getByRole("combobox", { name: "Finding category" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Back to scope" })).toBeEnabled();
