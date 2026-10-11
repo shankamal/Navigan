@@ -459,3 +459,19 @@
 .scopeViews button { cursor: pointer; background: #f5f7fa; border: 1px solid #dce3ea; padding: 9px 12px; font-size: 13px; color: #34455c; border-radius: 3px; }
 .scopeViews button[aria-current="page"] { color: #1a4a04; border-color: #86bc25; background: #f0f8e8; font-weight: 600; }
 .scopeViews button:focus-visible { outline: 2px solid #3176cb; outline-offset: 2px; }
+
+.applicationMap { padding: 16px; background: #f7f9fc; border: 1px solid #dce4ed; border-left: 3px solid #86bc25; margin: 12px 0 16px; }
+.applicationMapHeader { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 12px; }
+.applicationMapHeader strong { color: #1c3043; font-size: 15px; }
+.applicationMapHeader p, .applicationMapHeader span { margin: 3px 0 0; color: #63758a; font-size: 12px; }
+.applicationCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.applicationCard { background: white; border: 1px solid #dce4ed; padding: 12px; min-width: 0; }
+.applicationCardTitle { display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid #e8edf2; }
+.applicationCardTitle strong { color: #1c3043; overflow-wrap: anywhere; }
+.applicationCardTitle span { color: #65758a; font-size: 12px; }
+.applicationCardLinks { margin-top: 8px; display: grid; gap: 7px; font-size: 12px; }
+.applicationCardLinks p { color: #65758a; margin: 0; }
+.applicationRelationship { display: flex; justify-content: space-between; gap: 10px; border-left: 2px solid #86bc25; padding: 5px 7px; background: #f7faf3; }
+.applicationRelationship span { overflow-wrap: anywhere; }
+.applicationRelationship span:last-child { color: #617188; text-align: right; }
+@media (max-width: 720px) { .applicationMapHeader { flex-direction: column; } .applicationCards { grid-template-columns: 1fr; } }
