@@ -158,6 +158,7 @@ describe("migration planning", () => {
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
     expect(screen.getByText("Guided recommendation")).toBeVisible();
     expect(screen.getByLabelText("Source to target remediation comparison")).toBeVisible();
+    expect(screen.getByRole("button", {name:"Customize recommendation"})).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Accept recommendation" }));
     expect(screen.getByText("Decision in draft")).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
@@ -189,6 +190,7 @@ describe("migration planning", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
+    fireEvent.click(screen.getByRole("button", {name:"Customize recommendation"}));
     fireEvent.change(screen.getByLabelText("Owner"), {
       target: { value: "Application owner" },
     });
