@@ -124,7 +124,7 @@ describe("migration planning", () => {
     const scoped = {
       ...assessment,
       findings: [
-        { ...assessment.findings[0], namespace: "retailflow", message: "Mutable image references", code: "IMAGE_TAG" },
+        { ...assessment.findings[0], namespace: "retailflow", resourceKind: "StatefulSet", message: "Mutable image references", code: "IMAGE_TAG" },
         { ...assessment.findings[0], namespace: "payments", resourceName: "other", message: "Other namespace warning", code: "OTHER" },
       ],
     } as Assessment;
