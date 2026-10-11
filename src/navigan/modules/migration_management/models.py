@@ -401,6 +401,15 @@ class RemediationDraft(Model):
         return self
 
 
+class MigrationStorageMapping(Model):
+    namespace: Namespace
+    sourceClaim: str = Field(min_length=1, max_length=253)
+    targetStorageClass: str = Field(default="", max_length=253)
+    targetCapacity: str = Field(default="", max_length=50)
+    targetAccessMode: str = Field(default="", max_length=60)
+    status: Literal["PROPOSED", "REVIEWED"] = "PROPOSED"
+
+
 class MigrationPlanningDraft(Model):
     schemaVersion: Literal[1] = 1
     mode: Literal["SELECTED_WORKLOADS", "FULL_CLUSTER"]
@@ -408,6 +417,7 @@ class MigrationPlanningDraft(Model):
     inventoryDigest: str = Field(pattern=r"^[a-f0-9]{64}$")
     resources: list[PlannedResource] = Field(default_factory=list, max_length=2000)
     remediations: list[RemediationDraft] = Field(default_factory=list, max_length=500)
+    storageMappings: list[MigrationStorageMapping] = Field(default_factory=list, max_length=2000)
     dataStrategy: Literal["UNDECIDED", "BACKUP_RESTORE", "REPLICATION", "NO_PERSISTENT_DATA"] = "UNDECIDED"
     notes: str = Field(default="", max_length=2000)
 
@@ -415,7 +425,8 @@ class MigrationPlanningDraft(Model):
     def unique_entries(self):
         keys = [(r.apiVersion, r.kind, r.namespace, r.name) for r in self.resources]
         findings = [r.findingIndex for r in self.remediations]
-        if len(keys) != len(set(keys)) or len(findings) != len(set(findings)):
+        storage_keys = [(m.namespace, m.sourceClaim) for m in self.storageMappings]
+        if len(keys) != len(set(keys)) or len(findings) != len(set(findings)) or len(storage_keys) != len(set(storage_keys)):
             raise ValueError("Resource and finding entries must be unique.")
         return self
 
