@@ -120,6 +120,26 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
     expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
   });
+  it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
+    const scoped = {
+      ...assessment,
+      findings: [
+        { ...assessment.findings[0], namespace: "retailflow", message: "Mutable image references", code: "IMAGE_TAG" },
+        { ...assessment.findings[0], namespace: "payments", resourceName: "other", message: "Other namespace warning", code: "OTHER" },
+      ],
+    } as Assessment;
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PlanningEditor migration={migration} assessment={scoped} inventory={inventory} />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
+    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    expect(screen.getByText("Mutable image references")).toBeVisible();
+    expect(screen.queryByText("Other namespace warning")).toBeNull();
+    expect(screen.getByLabelText("Remediation namespace")).toHaveValue("retailflow");
+  });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
