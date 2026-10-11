@@ -495,3 +495,18 @@
   .remediationColumns { grid-template-columns:minmax(0,1fr); }
   .remediationColumns > .detail { max-height:none; overflow:visible; border-left:0; border-top:1px solid #dde4ed; padding:16px 0 0; }
 }
+
+/* Compact visual hierarchy for the actionable recommendation pane */
+.recommendationHeader{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #dde5eb;padding:4px 0 12px}
+.recommendationHeader>div{display:grid;gap:3px}.recommendationHeader span{font-size:11px;color:#5c6c7d}
+.recommendationProblem{padding:14px;background:#eef5fb;border-left:3px solid #327bb6;margin:12px 0}
+.recommendationProblem strong{font-size:14px;color:#22354a}
+.recommendationProblem p{margin:6px 0;font-size:13px}
+.recommendationProblem small{color:#65758a}
+.mappingComparison{display:grid;gap:0;border:1px solid #dce4ed;background:#fff;margin-bottom:12px}
+.mappingComparison>div{padding:11px 13px;border-bottom:1px solid #e5eaf0}
+.mappingComparison>div:last-child{border-bottom:0}
+.mappingComparison span{font-size:11px;font-weight:700;color:#47596f}
+.mappingComparison p{margin:5px 0 0;line-height:1.45;font-size:13px}
+.recommendationActions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.remediationColumns>.detail{max-height:570px}
