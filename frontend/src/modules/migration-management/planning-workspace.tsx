@@ -209,6 +209,8 @@ export function PlanningEditor({
     ? findingIndex
     : (findings[0]?.index ?? -1);
   const finding = activeFindingIndex >= 0 ? assessment.findings[activeFindingIndex] : undefined;
+  const suggestedRemediation = activeFindingIndex >= 0 ? recommendFinding(assessment, activeFindingIndex) : null;
+  const acceptedSuggestion = draft.remediations.some((r) => r.findingIndex === activeFindingIndex);
   const remediation =
     draft.remediations.find((r) => r.findingIndex === activeFindingIndex) ??
     ({
@@ -842,14 +844,20 @@ export function PlanningEditor({
             <aside className={styles.detail}>
               {finding ? (
                 <>
-                  {!draft.remediations.some((r) => r.findingIndex === activeFindingIndex) && (
-                    <div className={styles.notice}>
-                      <p>Navigan has a proposed target mapping; review and accept it before saving.</p>
-                      <button className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={() => { const proposed = recommendFinding(assessment, activeFindingIndex); if (proposed) changeRemediation(proposed); }}>
-                        Use suggested remediation
-                      </button>
-                    </div>
-                  )}
+                  <div className={styles.notice} aria-live="polite">
+                    {acceptedSuggestion ? (
+                      <p><strong>Remediation added to draft — not yet saved.</strong> Review the treatment and target mapping below, assign an owner, then save the draft. This does not change EKS resources.</p>
+                    ) : (
+                      <>
+                        <strong>Navigan suggested remediation</strong>
+                        <p>Treatment: {suggestedRemediation?.treatment ?? "REVIEW"}</p>
+                        <p>Proposed target mapping: {suggestedRemediation?.targetMapping ?? "Review required"}</p>
+                        <button className="button button-secondary" disabled={!canEdit || stale || save.isPending || !suggestedRemediation} onClick={() => { if (suggestedRemediation) changeRemediation(suggestedRemediation); }}>
+                          Apply recommendation to draft
+                        </button>
+                      </>
+                    )}
+                  </div>
                   <h2>
                     <Wrench size={20} />
                     {finding.code
