@@ -523,16 +523,14 @@ export function PlanningEditor({
           Review draft
         </button>
       </nav>
-      {tab !== "remediate" && <section className={styles.guide} aria-label="Migration planning guide" style={tab === "remediate" ? {padding:"10px 16px",marginBottom:"8px"} : undefined}>
+      {tab !== "remediate" && <section className={styles.guide} aria-label="Migration planning guide">
         <div className={styles.guideHeading}>
-          <strong>{tab === "scope" ? "1 · Define application scope" : tab === "remediate" ? "2 · Resolve relevant findings" : "3 · Review planning readiness"}</strong>
+          <strong>{tab === "scope" ? "1 · Define application scope" : "3 · Review planning readiness"}</strong>
           <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
         </div>
         <p>{tab === "scope"
           ? "Choose candidate workloads, verify dependencies and review each resource treatment. The selected resources become the working migration scope."
-          : tab === "remediate"
-            ? "Address findings for selected resources first, then review shared risks. Accepting a suggestion creates a draft action; it does not remediate EKS."
-            : "Check scope completeness, planned remediation, unresolved risks and data strategy before saving the draft."}</p>
+          : "Check scope completeness, planned remediation, unresolved risks and data strategy before saving the draft."}</p>
         <div className={styles.guideStats}>
           <span><strong>{draft.resources.length}</strong> resources selected</span>
           <span><strong>{dependencies}</strong> confirmed dependencies</span>
