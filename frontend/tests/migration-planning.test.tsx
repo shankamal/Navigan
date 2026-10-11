@@ -161,6 +161,9 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", {name:"Customize recommendation"})).toBeVisible();
     expect(screen.getByRole("button", { name: "Accept recommendation" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Customize recommendation" }));
+    expect(screen.getByLabelText("Treatment")).toBeVisible();
+    expect(screen.getByLabelText("Owner")).toBeVisible();
+    expect(screen.getByLabelText("Work status")).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).toHaveValue("");
     fireEvent.change(screen.getByLabelText("Target mapping"), {target:{value:"Review target CSI and data restore requirements"}});
     expect(screen.getByLabelText("Target mapping")).toHaveValue("Review target CSI and data restore requirements");
