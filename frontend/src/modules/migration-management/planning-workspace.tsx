@@ -1291,9 +1291,9 @@ export function PlanningEditor({
                     <div><span>Target evidence · {targetPlatform}</span><p>{targetCapability.status === "CURRENT" ? "Capability snapshot available; validate finding-specific compatibility" : "Target configuration not verified"}</p></div>
                   </section>
                   <div className={styles.recommendationActions}>
-                    <button className="button button-primary" disabled={!canEdit || stale || save.isPending || !suggestedRemediation || acceptedSuggestion || suggestedRemediation.treatment === "REVIEW"}
-                      onClick={() => {if(suggestedRemediation)changeRemediation(suggestedRemediation);}}>
-                      {acceptedSuggestion ? "Recommendation in draft" : "Accept recommendation"}
+                    <button className="button button-primary" disabled={!canEdit || stale || save.isPending || !suggestedRemediation || acceptedSuggestion}
+                      onClick={() => {if(suggestedRemediation) {changeRemediation(suggestedRemediation); if(suggestedRemediation.treatment === "REVIEW")setCustomizeFinding(true);}}}>
+                      {acceptedSuggestion ? "Decision in draft" : suggestedRemediation?.treatment === "REVIEW" ? "Record for manual review" : "Accept recommendation"}
                     </button>
                     <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
                       onClick={() => setCustomizeFinding(value => !value)}>{customizeFinding ? "Hide customization" : "Customize recommendation"}</button>
@@ -1301,6 +1301,7 @@ export function PlanningEditor({
                       onClick={() => {changeRemediation({status:"PLANNED",treatment:"REVIEW",targetMapping:"Deferred for manual review; target mapping not approved."});setCustomizeFinding(false);}}>
                       Defer for review</button>
                   </div>
+                  {suggestedRemediation?.treatment === "REVIEW" && !acceptedSuggestion && <p className={styles.caption}>This finding has no evidence-backed automatic fix. Record it for manual review, assign an owner and validate the target configuration before approval.</p>}
                   {acceptedSuggestion && <p className={styles.recommendationConfirmation} role="status">Decision recorded in the planning draft. Save draft to persist it; target configuration remains unverified.</p>}
                   <details className={styles.notice} aria-label="Selected remediation completion criteria">
                     <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
