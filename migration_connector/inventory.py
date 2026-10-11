@@ -719,6 +719,38 @@ def build_inventory(resources):
     if len(resources) > MAX_RESOURCES:
         raise UnsafeInventory("Inventory resource limit exceeded.")
 
-    return finalize_inventory(
-        [sanitize_resource(item) for item in resources]
-    )
+    sanitized = [sanitize_resource(item) for item in resources]
+    # Service selectors are evaluated locally, without exporting label values.
+    # Empty selectors must never match every workload.
+    service_matches = {}
+    for service in resources:
+        if service.get("kind") != "Service":
+            continue
+        selector = mapping(mapping(service.get("spec")).get("selector"))
+        if not selector or len(selector) > 200:
+            continue
+        namespace = mapping(service.get("metadata")).get("namespace")
+        name = limited_text(mapping(service.get("metadata")).get("name"), 253)
+        if not name:
+            continue
+        service_matches[(namespace, name)] = selector
+
+    for original, item in zip(resources, sanitized):
+        if original.get("kind") not in WORKLOAD_KINDS:
+            continue
+        spec = mapping(original.get("spec"))
+        template = mapping(spec.get("template"))
+        pod_labels = mapping(mapping(template.get("metadata")).get("labels"))
+        namespace = item.get("namespace")
+        matched = [
+            name for (ns, name), selector in service_matches.items()
+            if ns == namespace and pod_labels
+            and all(pod_labels.get(key) == value for key, value in selector.items())
+        ]
+        refs = {(ref["kind"], ref["name"]) for ref in item["dependencyReferences"]}
+        refs.update(("Service", name) for name in matched)
+        item["dependencyReferences"] = [
+            {"kind": kind, "name": name} for kind, name in sorted(refs)[:500]
+        ]
+
+    return finalize_inventory(sanitized)
