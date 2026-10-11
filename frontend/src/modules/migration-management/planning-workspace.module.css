@@ -442,3 +442,5 @@
 .guideStats strong { color: #27354a; }
 .reviewChecklist { display: grid; gap: 8px; padding: 16px; border: 1px solid #dce3ea; background: #f7f9fb; border-radius: 4px; margin-bottom: 16px; }
 .reviewChecklist p { margin: 0; font-size: 13px; color: #47596c; }
+
+.navigationAnchor { scroll-margin-top: 200px; height: 0; }
