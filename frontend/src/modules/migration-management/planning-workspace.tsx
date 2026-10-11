@@ -13,7 +13,7 @@ import {
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspacePage } from "@/shared/components/workspace-page-context";
 
 import { normalizeApiError } from "@/shared/api/client";
@@ -129,6 +129,11 @@ export function PlanningEditor({
       : emptyDraft(assessment),
   );
   const [tab, setTab] = useState<"scope" | "remediate" | "review">("scope");
+  const stepHeadingRef = useRef<HTMLDivElement>(null);
+  function navigateToStep(next: "scope" | "remediate" | "review") {
+    setTab(next);
+    stepHeadingRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
+  }
   const { setLabel } = useWorkspacePage();
   useEffect(() => {
     setLabel(
@@ -296,17 +301,18 @@ export function PlanningEditor({
           </Link>
         }
       />
+      <div ref={stepHeadingRef} className={styles.navigationAnchor} />
       <nav className={styles.steps} aria-label="Migration workflow">
         <button
           aria-current={tab === "scope" ? "step" : undefined}
-          onClick={() => setTab("scope")}
+          onClick={() => navigateToStep("scope")}
         >
           <Boxes size={17} />
           Scope & target
         </button>
         <button
           aria-current={tab === "remediate" ? "step" : undefined}
-          onClick={() => setTab("remediate")}
+          onClick={() => navigateToStep("remediate")}
         >
           <Wrench size={17} />
           Remediate
@@ -316,7 +322,7 @@ export function PlanningEditor({
         </button>
         <button
           aria-current={tab === "review" ? "step" : undefined}
-          onClick={() => setTab("review")}
+          onClick={() => navigateToStep("review")}
         >
           <ShieldCheck size={17} />
           Review draft
@@ -1058,10 +1064,11 @@ export function PlanningEditor({
       <footer className={styles.footer}>
         <button
           className="button button-secondary"
-          onClick={() => setTab(tab === "review" ? "remediate" : "scope")}
+          onClick={() => navigateToStep(tab === "review" ? "remediate" : "scope")}
+          disabled={tab === "scope"}
         >
           <ArrowLeft size={16} />
-          Back
+          {tab === "scope" ? "Scope & target" : tab === "remediate" ? "Back to scope" : "Back to remediation"}
         </button>
         <p>
           {save.isPending
@@ -1080,10 +1087,10 @@ export function PlanningEditor({
         </button>
         <button
           className="button button-primary"
-          onClick={() => setTab(tab === "scope" ? "remediate" : "review")}
+          onClick={() => navigateToStep(tab === "scope" ? "remediate" : "review")}
           disabled={tab === "review"}
         >
-          {tab === "scope" ? "Review remediation" : "Review draft"}
+          {tab === "scope" ? "Continue to remediation" : "Continue to review draft"}
           <ArrowRight size={16} />
         </button>
       </footer>
