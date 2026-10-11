@@ -520,6 +520,7 @@ SOURCE_INVENTORY_KEYS = {
         "ruleCount",
         "tlsEntryCount",
         "paths",
+        "backendServiceReferences",
     },
     "PersistentVolumeClaim": {
         "accessModes",
@@ -697,6 +698,18 @@ class SourceInventoryReport(Model):
                     if pair in seen_references:
                         raise ValueError("Duplicate inventory dependency reference.")
                     seen_references.add(pair)
+
+            if kind == "Ingress":
+                backends = resource.get("backendServiceReferences", [])
+                if not isinstance(backends, list) or len(backends) > 500:
+                    raise ValueError("Invalid ingress backend references.")
+                seen_backends = set()
+                for backend in backends:
+                    if not isinstance(backend, dict) or set(backend) != {"kind", "name"} or backend.get("kind") != "Service" or not isinstance(backend.get("name"), str) or not 0 < len(backend["name"]) <= 253:
+                        raise ValueError("Invalid ingress backend reference.")
+                    if backend["name"] in seen_backends:
+                        raise ValueError("Duplicate ingress backend reference.")
+                    seen_backends.add(backend["name"])
 
             api_version = resource.get("apiVersion")
             if (
