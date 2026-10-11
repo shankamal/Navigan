@@ -143,6 +143,7 @@ export function PlanningEditor({
   const [namespace, setNamespace] = useState("");
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("ALL");
+  const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
   const [message, setMessage] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -184,11 +185,24 @@ export function PlanningEditor({
     return source ? recommendDependencies(source, resources) : [];
   }).filter((suggestion) => !selected.has(resourceKey(suggestion.resource)));
   const uniqueSuggestions = [...new Map(suggestions.map((r) => [resourceKey(r.resource), r])).values()];
+  const scopedResourceKeys = new Set(draft.resources.map((r) =>
+    JSON.stringify([r.kind, r.namespace ?? null, r.name])));
+  const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
+  const findingScope = (item: Assessment["findings"][number]) => {
+    if (!item.resourceName || !item.resourceKind || !item.namespace) return "SHARED";
+    return scopedResourceKeys.has(JSON.stringify([item.resourceKind, item.namespace, item.resourceName]))
+      ? "SCOPE" : "OUTSIDE";
+  };
   const findings = assessment.findings
     .map((finding, index) => ({ finding, index }))
     .filter(({ finding }) =>
       (severity === "ALL" || finding.severity === severity) &&
-      (!namespace || finding.namespace === namespace)
+      (findingView === "ALL"
+        ? (!namespace || finding.namespace === namespace)
+        : findingView === "SHARED"
+          ? findingScope(finding) === "SHARED" &&
+            (!namespace || !finding.namespace || finding.namespace === namespace)
+          : findingScope(finding) === "SCOPE")
     );
   // The previous selection may no longer be visible after filtering.
   const activeFindingIndex = findings.some(({ index }) => index === findingIndex)
@@ -722,8 +736,16 @@ export function PlanningEditor({
         <section className={styles.surface}>
           <div className={styles.toolbar}>
             <label>
+              Findings view
+              <select aria-label="Findings view" value={findingView} onChange={(e) => setFindingView(e.target.value as "SCOPE" | "SHARED" | "ALL")}>
+                <option value="SCOPE">Selected migration scope</option>
+                <option value="SHARED">Shared and unassigned risks</option>
+                <option value="ALL">All assessment findings</option>
+              </select>
+            </label>
+            <label>
               Namespace
-              <select aria-label="Remediation namespace" value={namespace} onChange={(e) => setNamespace(e.target.value)}>
+              <select aria-label="Remediation namespace" value={namespace} disabled={findingView === "SCOPE"} onChange={(e) => setNamespace(e.target.value)}>
                 <option value="">All assessed namespaces</option>
                 {namespaces.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
@@ -748,7 +770,8 @@ export function PlanningEditor({
             </label>
           </div>
           <p className={styles.caption}>
-            {findings.length} findings shown for {namespace || "all assessed namespaces"}. Findings from other namespaces are hidden, not resolved. Mutable image references remain visible when they affect this namespace; pin images by digest before approving execution.
+            {findings.length} findings shown · {draft.resources.length} resources in draft · {scopedNamespaces.size} selected namespace(s).
+            {findingView === "SCOPE" ? " Only findings for exact selected resources are shown. No findings does not imply readiness; dependencies may be incomplete." : " Full assessment evidence is preserved; filtering does not resolve findings."}
           </p>
           <div className={styles.remediationColumns}>
             <div className={styles.tableScroll}>
