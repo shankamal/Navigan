@@ -156,10 +156,10 @@ describe("migration planning", () => {
     open();
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
-    expect(screen.getByText("Navigan suggested remediation")).toBeVisible();
+    expect(screen.getByText("Guided recommendation")).toBeVisible();
     expect(screen.getByLabelText("Source to target remediation comparison")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Apply recommendation to draft" }));
-    expect(screen.getByText(/Remediation added to draft/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Accept recommendation" }));
+    expect(screen.getByText("Recommendation in draft")).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
   });
   it("supports selecting findings and accepting eligible recommendations into the draft", () => {
