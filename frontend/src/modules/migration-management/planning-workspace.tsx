@@ -147,7 +147,7 @@ export function PlanningEditor({
   }, [tab, setLabel]);
   const [namespace, setNamespace] = useState("");
   const [search, setSearch] = useState("");
-  const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("ALL");
+  const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
   const [findingView, setFindingView] = useState<"SCOPE" | "SHARED" | "ALL">("SCOPE");
   const [findingIndex, setFindingIndex] = useState(0);
@@ -568,6 +568,10 @@ export function PlanningEditor({
                 </button>
               ))}
             </nav>
+            <div className={styles.notice} aria-live="polite">
+              <strong>{resourceView === "WORKLOADS" ? "Workloads — application scope" : resourceView === "DEPENDENCIES" ? "Dependencies — source relationship evidence" : resourceView === "CONFIGURATION" ? "Configuration — application settings" : resourceView === "DATA" ? "Data & Storage — PVC readiness" : "All resources — technical inventory"}</strong>
+              <p>{resourceView === "DEPENDENCIES" ? "Review references, unresolved inventory objects and supporting resources for selected workloads." : resourceView === "DATA" ? "Review claim consumers, requested capacity and storage migration decisions." : resourceView === "WORKLOADS" ? "Select the application workloads to migrate; supporting resources are reviewed separately." : resourceView === "CONFIGURATION" ? "Review metadata-only configuration evidence without collecting sensitive values." : "Advanced inventory view. Selections here affect the same draft."}</p>
+            </div>
             {resourceView === "DEPENDENCIES" && (
               <div className={styles.notice}>
                 <strong>Source reference evidence · {sourceReferences.length} relationships</strong>
