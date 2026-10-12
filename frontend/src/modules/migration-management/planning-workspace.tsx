@@ -179,6 +179,7 @@ export function PlanningEditor({
   const [message, setMessage] = useState("");
   const [dirty, setDirty] = useState(false);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
+  const [scopeAnalysisNamespace, setScopeAnalysisNamespace] = useState<string | null>(null);
   const stale =
     draft.assessmentVersion !== assessment.assessmentVersion ||
     draft.inventoryDigest !== assessment.inventoryDigest ||
@@ -684,7 +685,7 @@ export function PlanningEditor({
                 Namespace
                 <select
                   value={namespace}
-                  onChange={(e) => setNamespace(e.target.value)}
+                  onChange={(e) => {setNamespace(e.target.value);setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}}
                 >
                   <option value="">All assessed namespaces</option>
                   {namespaces.map((n) => (
@@ -705,25 +706,27 @@ export function PlanningEditor({
               </label>
               <div className={styles.scopeFilterActions}>
               <button type="button" className="button button-secondary" aria-expanded={scopeReviewOpen}
-                aria-controls="scope-selection-review" onClick={() => setScopeReviewOpen(open => !open)}
-                disabled={draft.resources.length === 0}>
-                {scopeReviewOpen ? "Hide selected scope" : `Review selected scope (${draft.resources.length})`}
+                aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(namespace);setScopeReviewOpen(open => !open);}}
+                disabled={!namespace || !canEdit || stale || save.isPending}>
+
+                {scopeReviewOpen ? "Hide scope analysis" : "Analyze selected namespace"}
               </button>
               </div>
             </div>
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>Selected scope · {draft.resources.length} resources</strong>
-                  <span>{dependencies} confirmed dependencies · Assessment v{assessment.assessmentVersion}</span>
+                  <strong>Namespace analysis · {scopeAnalysisNamespace}</strong>
+                  <span>{draft.resources.filter(resource => resource.namespace === scopeAnalysisNamespace).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <div className={styles.scopeReviewItems}>
-                  {draft.resources.map(resource => (
+                  {draft.resources.filter(resource => resource.namespace === scopeAnalysisNamespace).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
                       {resource.name} <small>{resource.kind}</small>
                     </span>
                   ))}
                 </div>
+                <p className={styles.scopeReviewData}>Suggested dependencies: {uniqueSuggestions.filter(item => item.resource.namespace === scopeAnalysisNamespace).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
@@ -745,6 +748,10 @@ export function PlanningEditor({
                 </button>
               ))}
             </nav>
+            <div className={styles.scopeInstructions} aria-live="polite">
+              <strong>What to do now</strong>
+              <p>{resourceView === "WORKLOADS" ? "Select application workloads, then analyze the namespace to identify evidenced dependencies." : resourceView === "DEPENDENCIES" ? "Confirm required supporting resources and investigate missing or unknown references." : resourceView === "CONFIGURATION" ? "Review application settings, access controls and secrets references without exposing secret values." : resourceView === "DATA" ? "Include the required PVCs, check proposed target mappings and select a data migration strategy." : "Advanced review: verify selected resources and the proposed migration action for each."}</p>
+            </div>
             <div className={styles.notice} aria-live="polite">
               <strong>{resourceView === "WORKLOADS" ? "Workloads — application scope" : resourceView === "DEPENDENCIES" ? "Dependencies — source relationship evidence" : resourceView === "CONFIGURATION" ? "Configuration — application settings" : resourceView === "DATA" ? "Data & Storage — PVC readiness" : "All resources — technical inventory"}</strong>
               <p>{resourceView === "DEPENDENCIES" ? "Review references, unresolved inventory objects and supporting resources for selected workloads." : resourceView === "DATA" ? "Review claim consumers, requested capacity and storage migration decisions." : resourceView === "WORKLOADS" ? "Select the application workloads to migrate; supporting resources are reviewed separately." : resourceView === "CONFIGURATION" ? "Review metadata-only configuration evidence without collecting sensitive values." : "Advanced inventory view. Selections here affect the same draft."}</p>
@@ -1015,45 +1022,6 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
-            <section className={styles.notice} aria-label="Target capability evidence status">
-              <strong>Target capability discovery · {targetCapability.status.toLowerCase()}</strong>
-              <p>No verified, fresh, target-bound capability snapshot has been collected for this planning session. Storage-class recommendations cannot be approved using provider naming conventions alone.</p>
-            </section>
-            <section className={styles.notice} aria-label="Storage compatibility findings">
-              <strong>Target storage compatibility · {storageCompatibility.length} checks</strong>
-              {storageCompatibility.length ? <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul> : <p>No scoped storage compatibility issues detected in available evidence. Target verification and approval remain separate.</p>}
-            </section>
-            <section className={styles.notice} aria-label="Scope readiness assessment">
-              <strong>Scope readiness · {readiness.state === "INCOMPLETE" ? "Decisions outstanding" : "Manual validation required"}</strong>
-              <p>{readiness.selectedWorkloads} primary resources selected · {readiness.confirmedDependencies} confirmed dependencies · {readiness.issues.length} open planning checks</p>
-              {readiness.issues.length > 0 ? (
-                <ul>{readiness.issues.map((issue, index) => <li key={index}><strong>{issue.type.replaceAll("_", " ")}</strong> — {issue.detail}</li>)}</ul>
-              ) : <p>No outstanding checks detected in collected evidence. This is not target readiness or migration approval.</p>}
-              {unselectedDependencyResources.length > 0 && (
-                <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={includeReferencedDependencies}>
-                  Add {unselectedDependencyResources.length} inventoried dependencies to draft
-                </button>
-              )}
-            </section>
-            <div className={styles.intelligencePanel}>
-              <h2>Navigan analysis</h2>
-              <p className={styles.caption}>Recommendations from available source inventory only.</p>
-              {recommendedScopeAdditions.length > 0 ? (
-                <>
-                  <p><strong>{recommendedScopeAdditions.length} resource{recommendedScopeAdditions.length === 1 ? "" : "s"} recommended</strong> for inclusion in the draft.</p>
-                  <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
-                    onClick={() => {
-                      change({...draft,resources:[...draft.resources,...recommendedScopeAdditions]});
-                      setMessage("Recommended resources added to the planning draft. Review storage and data strategy before saving.");
-                    }}>
-                    Add {recommendedScopeAdditions.length} recommended resource{recommendedScopeAdditions.length === 1 ? "" : "s"} to draft
-                  </button>
-                </>
-              ) : (
-                <p className={styles.caption}>No additional resource recommendations in this inventory. Dependency coverage may still be incomplete.</p>
-              )}
-              {draft.dataStrategy === "UNDECIDED" && <p className={styles.caption}><strong>Next action:</strong> Review Data &amp; Storage and choose a data migration strategy.</p>}
-            </div>
             <h2>Scope summary</h2>
             <div className={styles.summaryItem}>
               <Boxes size={22} />
@@ -1133,6 +1101,26 @@ export function PlanningEditor({
                 coverage is not yet certified for full-cluster migration.
               </p>
             )}
+            <section className={styles.notice} aria-label="Target capability evidence status">
+              <strong>Target capability discovery · {targetCapability.status.toLowerCase()}</strong>
+              <p>No verified, fresh, target-bound capability snapshot has been collected for this planning session. Storage-class recommendations cannot be approved using provider naming conventions alone.</p>
+            </section>
+            <section className={styles.notice} aria-label="Storage compatibility findings">
+              <strong>Target storage compatibility · {storageCompatibility.length} checks</strong>
+              {storageCompatibility.length ? <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul> : <p>No scoped storage compatibility issues detected in available evidence. Target verification and approval remain separate.</p>}
+            </section>
+            <section className={styles.notice} aria-label="Scope readiness assessment">
+              <strong>Scope readiness · {readiness.state === "INCOMPLETE" ? "Decisions outstanding" : "Manual validation required"}</strong>
+              <p>{readiness.selectedWorkloads} primary resources selected · {readiness.confirmedDependencies} confirmed dependencies · {readiness.issues.length} open planning checks</p>
+              {readiness.issues.length > 0 ? (
+                <ul>{readiness.issues.map((issue, index) => <li key={index}><strong>{issue.type.replaceAll("_", " ")}</strong> — {issue.detail}</li>)}</ul>
+              ) : <p>No outstanding checks detected in collected evidence. This is not target readiness or migration approval.</p>}
+              {unselectedDependencyResources.length > 0 && (
+                <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={includeReferencedDependencies}>
+                  Add {unselectedDependencyResources.length} inventoried dependencies to draft
+                </button>
+              )}
+            </section>
           </aside>
         </div>
       )}
