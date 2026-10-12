@@ -229,6 +229,9 @@ export function PlanningEditor({
       selected.get(resourceKey({ ...r, namespace: r.namespace ?? null }))
         ?.treatment === "REVIEW",
   ).length;
+  const analyzedInventory = resources.filter(r=>r.namespace && scopeNamespaceSet.has(r.namespace));
+  const analyzedWorkloadCandidates = analyzedInventory.filter(r=>["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(r.kind));
+  const pendingAnalyzedWorkloads = analyzedWorkloadCandidates.filter(r=>!selected.has(resourceKey({...r,namespace:r.namespace??null})));
   const dependencies = draft.resources.filter((r) => r.dependency).length;
   const blockers = assessment.findings.filter(
     (f) => f.severity === "BLOCKER",
@@ -723,6 +726,25 @@ export function PlanningEditor({
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <p className={styles.caption}>Current draft resources in the analyzed namespaces. Review candidate dependencies below and explicitly include only the resources required for migration.</p>
+                <div className={styles.scopeAnalysisCounters}>
+                  <span><strong>{analyzedWorkloadCandidates.length}</strong> workload candidates found</span>
+                  <span><strong>{pendingAnalyzedWorkloads.length}</strong> not in draft</span>
+                  <span><strong>{draft.resources.filter(r=>r.namespace && scopeNamespaceSet.has(r.namespace)).length}</strong> already in draft</span>
+                </div>
+                <div className={styles.scopeAnalysisCandidates}>
+                  <strong>Workloads discovered for selected namespaces</strong>
+                  <p className={styles.caption}>Analysis does not automatically add resources. Select the workloads you need to migrate; supporting dependencies require evidence or manual confirmation.</p>
+                  {pendingAnalyzedWorkloads.map(r=>{
+                    const recommended=recommendResource(r);
+                    return <div className={styles.scopeAnalysisCandidate} key={resourceKey({...r,namespace:r.namespace??null})}>
+                      <span><strong>{r.name}</strong><small>{r.namespace} · {r.kind} · {recommended.resource.treatment.replaceAll("_"," ").toLowerCase()}</small></span>
+                      <button type="button" className="button button-secondary"
+                        disabled={!canEdit || stale || save.isPending}
+                        onClick={()=>change({...draft,resources:[...draft.resources,{...recommended.resource,dependency:false}]})}>Add to draft</button>
+                    </div>;
+                  })}
+                  {!pendingAnalyzedWorkloads.length && <p className={styles.caption}>All discovered workload candidates are already in the draft, or no workloads were found.</p>}
+                </div>
                 <div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
@@ -1084,7 +1106,9 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
-            <h2>Confirmed draft scope</h2>
+            <h2>Scope overview</h2>
+            {scopeReviewOpen && <p className={styles.scopeAnalysisSidebar}><strong>Analyzed namespaces: {scopeNamespaces.length}</strong> · {analyzedWorkloadCandidates.length} workload candidates · {pendingAnalyzedWorkloads.length} not included</p>}
+            <h3 className={styles.scopeDraftLabel}>Confirmed draft scope</h3>
             <p className={styles.caption}>Shows resources already saved or selected in the planning draft, not automatic results from the latest namespace analysis.</p>
             {draftOutsideScope > 0 && <p className={styles.scopeOutsideNotice}>{draftOutsideScope} draft resource{draftOutsideScope===1?" is":"s are"} outside your current namespace selection. Change the selection or explicitly update the draft before final review.</p>}
             <div className={styles.summaryItem}>
