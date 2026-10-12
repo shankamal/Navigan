@@ -115,10 +115,10 @@ describe("migration planning", () => {
   it("analyzes explicit namespace scope without silently adding unverified resources", () => {
     open();
     expect(screen.getByRole("button", {name:"Continue to remediation"})).toBeDisabled();
-    expect(screen.getByRole("button", {name:"Review selected scope"})).toBeEnabled();
+    expect(screen.getByRole("button", {name:"Analyze selected scope"})).toBeEnabled();
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
     expect(screen.getByRole("button", {name:"Continue to remediation"})).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", {name:"Review selected scope"}));
+    fireEvent.click(screen.getByRole("button", {name:"Analyze selected scope"}));
     const reviewPanel = screen.getByRole("region",{name:"Selected migration scope review"});
     expect(reviewPanel).toHaveTextContent("retailflow-api");
     expect(reviewPanel).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
