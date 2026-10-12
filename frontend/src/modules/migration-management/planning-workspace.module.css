@@ -716,3 +716,11 @@
 .dataStrategyEditor label{display:grid;gap:5px;max-width:320px;font-size:12px}
 .dataStrategyEditor select{padding:8px;border:1px solid #cfdae7;border-radius:5px}
 .dataStrategyEditor small{font-size:11px;color:#64748b}
+
+
+.scopeReadinessCompact{margin-top:14px;border:1px solid #d9e5ed;border-left:3px solid #6f93b3;border-radius:5px;padding:12px;background:#f8fbfe}
+.scopeReadinessCompact>strong{font-size:12px}
+.scopeReadinessCompact p{font-size:12px;margin:7px 0;color:#50667a;line-height:1.45}
+.scopeReadinessCompact details{font-size:12px;margin-top:9px}
+.scopeReadinessCompact summary{cursor:pointer;font-weight:600;color:#325674}
+.scopeReadinessCompact li{padding:3px 0}
