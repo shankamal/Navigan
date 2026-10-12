@@ -1046,7 +1046,7 @@ export function PlanningEditor({
                       change({...draft,resources:[...draft.resources,...recommendedScopeAdditions]});
                       setMessage("Recommended resources added to the planning draft. Review storage and data strategy before saving.");
                     }}>
-                    Add {recommendedScopeAdditions.length} recommended resource{recommendedScopeAdditions.length === 1 ? "" : "s"}
+                    Add {recommendedScopeAdditions.length} recommended resource{recommendedScopeAdditions.length === 1 ? "" : "s"} to draft
                   </button>
                 </>
               ) : (
