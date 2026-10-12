@@ -122,13 +122,13 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
     expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
     expect(screen.queryByRole("button", { name: /explicitly referenced dependencies/i })).toBeNull();
-    const review = screen.getByRole("button", { name: "Review selected scope" });
+    const review = screen.getByRole("button", { name: "Review selected scope (1)" });
     expect(review).toBeEnabled();
     fireEvent.click(review);
     const reviewPanel = screen.getByRole("region", { name: "Selected migration scope review" });
     expect(reviewPanel).toHaveTextContent("retailflow-api");
     expect(reviewPanel).toHaveTextContent("Decision required");
-    fireEvent.click(screen.getByRole("button", { name: "Hide scope review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide selected scope" }));
     expect(screen.queryByRole("region", { name: "Selected migration scope review" })).toBeNull();
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
