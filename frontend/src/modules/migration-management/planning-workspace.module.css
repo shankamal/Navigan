@@ -791,3 +791,22 @@
 .scopeAnalysisCandidate button{flex-shrink:0;padding:7px 9px;font-size:11px}
 .scopeAnalysisSidebar{font-size:12px;padding:8px 10px;border-left:3px solid #86bc25;background:#f6faef}
 .scopeDraftLabel{margin:12px 0 5px;font-size:13px}
+
+
+/* Namespace-grouped intelligent scope analysis: dense, accessible visual inventory */
+.analysisTopology{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:12px;margin:14px 0}
+.analysisNamespaceGroup{border:1px solid #d8e2e9;background:#fff;border-radius:7px;overflow:hidden}
+.analysisNamespaceHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#f2f6fa;border-bottom:1px solid #dce6ed}
+.analysisNamespaceHead>div{display:grid;gap:3px}
+.analysisNamespaceHead strong{font-size:14px;color:#273b4c;overflow-wrap:anywhere}
+.analysisNamespaceHead small,.analysisNamespaceHead>span{font-size:11px;color:#667e8c}
+.analysisWorkloadGrid{display:grid;gap:7px;padding:11px;align-content:start}
+.analysisWorkloadCard,.analysisWorkloadIncluded{border:1px solid #dce4ea;background:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:5px;min-width:0}
+.analysisWorkloadIncluded{border-color:#b9d695;border-left:4px solid #86bc25;background:#f5faef}
+.analysisWorkloadInfo{display:grid;gap:4px;min-width:0}
+.analysisWorkloadInfo strong{font-size:12px;color:#253b50;overflow-wrap:anywhere}
+.analysisWorkloadInfo small{font-size:11px;color:#678093}
+.analysisWorkloadInfo span{font-size:10px;color:#497b27}
+.analysisWorkloadCard .analysisWorkloadInfo span{color:#856333}
+.analysisWorkloadCard button{padding:6px 9px;font-size:11px;flex-shrink:0}
+@media(max-width:700px){.analysisTopology{grid-template-columns:1fr}.analysisWorkloadCard{flex-wrap:wrap}}
