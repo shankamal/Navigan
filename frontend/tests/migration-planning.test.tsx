@@ -123,17 +123,16 @@ describe("migration planning", () => {
     expect(reviewPanel).toHaveTextContent("retailflow-api");
     expect(reviewPanel).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
     expect(screen.getByRole("button",{name:"Continue to remediation"})).toBeEnabled();
-    fireEvent.click(screen.getByRole("button",{name:"Hide scope analysis"}));
-    expect(screen.queryByRole("region",{name:"Selected migration scope review"})).toBeNull();
+    expect(screen.getByRole("region",{name:"Selected migration scope review"})).toBeVisible();
   });
   it("supports analysis of multiple explicitly selected namespaces", () => {
     open({}, {...inventory,resources:[...inventory.resources,{
       apiVersion:"apps/v1",kind:"Deployment",namespace:"payments",name:"payments-api",
     }]} as SourceInventory);
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
-    fireEvent.click(screen.getByText("Analyze namespaces (1)"));
-    fireEvent.click(screen.getByLabelText("Analyze namespace payments"));
-    fireEvent.click(screen.getByRole("button",{name:"Review selected scope"}));
+    fireEvent.click(screen.getByText("Application namespaces (1 selected)"));
+    fireEvent.click(screen.getByLabelText("Select namespace payments"));
+    fireEvent.click(screen.getByRole("button",{name:"Analyze selected scope"}));
     const result=screen.getByRole("region",{name:"Selected migration scope review"});
     expect(result).toHaveTextContent("payments");
     expect(result).toHaveTextContent("retailflow-api");
@@ -153,7 +152,7 @@ describe("migration planning", () => {
         <PlanningEditor migration={migration} assessment={scoped} inventory={inventory} />
       </QueryClientProvider>,
     );
-    fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
+    
     fireEvent.click(screen.getByLabelText("Include StatefulSet retailflow/postgres"));
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     expect(screen.getAllByText("Mutable image references").length).toBeGreaterThan(0);
@@ -300,7 +299,7 @@ describe("migration planning", () => {
     expect(
       screen.getByText(/Inventory coverage is not yet certified/),
     ).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "" } });
+
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     fireEvent.click(screen.getByLabelText("Include Node cluster/source-node"));
     const treatment = screen.getByLabelText("Migration action source-node");
@@ -335,7 +334,7 @@ describe("migration planning", () => {
     open();
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeDisabled();
-    expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("Review selected scope");
+    expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("Analyze selected scope");
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
