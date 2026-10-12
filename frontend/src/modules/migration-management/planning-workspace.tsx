@@ -703,13 +703,13 @@ export function PlanningEditor({
                   />
                 </div>
               </label>
-            </div>
-            <div className={styles.scopeFilterActions}>
+              <div className={styles.scopeFilterActions}>
               <button type="button" className="button button-secondary" aria-expanded={scopeReviewOpen}
                 aria-controls="scope-selection-review" onClick={() => setScopeReviewOpen(open => !open)}
                 disabled={draft.resources.length === 0}>
                 {scopeReviewOpen ? "Hide selected scope" : `Review selected scope (${draft.resources.length})`}
               </button>
+              </div>
             </div>
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
