@@ -92,6 +92,7 @@ describe("migration planning", () => {
       screen.getByLabelText("Include StatefulSet retailflow/postgres"),
     );
     fireEvent.click(screen.getByLabelText("Required dependency postgres"));
+    fireEvent.click(screen.getByRole("button", { name: "Data & Storage" }));
     fireEvent.change(screen.getByLabelText("Data strategy"), {
       target: { value: "BACKUP_RESTORE" },
     });
@@ -111,25 +112,19 @@ describe("migration planning", () => {
       )[0],
     ).toBeVisible();
   });
-  it("shows namespace recommendations before selection and applies only the filtered recommendations", () => {
+  it("analyzes explicit namespace scope without silently adding unverified resources", () => {
     open();
-    fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "retailflow" } });
-    expect(screen.getByText(/Navigan analysis/)).toBeVisible();
-    expect(screen.getByLabelText("Scope readiness assessment")).toHaveTextContent("Scope readiness");
-    expect(screen.getByLabelText("Scope readiness assessment")).toHaveTextContent("COVERAGE UNKNOWN");
-    expect(screen.getByText(/Recommendations from available source inventory only/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Add 1 recommended resource to draft" }));
-    expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
-    expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
-    expect(screen.queryByRole("button", { name: /explicitly referenced dependencies/i })).toBeNull();
-    const review = screen.getByRole("button", { name: "Review selected scope" });
-    expect(review).toBeEnabled();
-    fireEvent.click(review);
-    const reviewPanel = screen.getByRole("region", { name: "Selected migration scope review" });
+    expect(screen.getByRole("button", {name:"Continue to remediation"})).toBeDisabled();
+    expect(screen.getByRole("button", {name:"Review selected scope"})).toBeEnabled();
+    fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
+    expect(screen.getByRole("button", {name:"Continue to remediation"})).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", {name:"Review selected scope"}));
+    const reviewPanel = screen.getByRole("region",{name:"Selected migration scope review"});
     expect(reviewPanel).toHaveTextContent("retailflow-api");
-    expect(reviewPanel).toHaveTextContent("Decision required");
-    fireEvent.click(screen.getByRole("button", { name: "Hide scope analysis" }));
-    expect(screen.queryByRole("region", { name: "Selected migration scope review" })).toBeNull();
+    expect(reviewPanel).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
+    expect(screen.getByRole("button",{name:"Continue to remediation"})).toBeEnabled();
+    fireEvent.click(screen.getByRole("button",{name:"Hide scope analysis"}));
+    expect(screen.queryByRole("region",{name:"Selected migration scope review"})).toBeNull();
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
     const scoped = {
@@ -327,7 +322,7 @@ describe("migration planning", () => {
     open();
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeDisabled();
-    expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("dependency-reference evidence");
+    expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("Review selected scope");
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
@@ -371,8 +366,8 @@ describe("migration planning", () => {
   it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
     open();
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("retailflow-api");
-    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Reference evidence unavailable in this snapshot");
+    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Relationship evidence was not collected");
+    expect(screen.queryByLabelText("Observed workload dependency relationships")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
@@ -380,6 +375,7 @@ describe("migration planning", () => {
     expect(screen.getByText("PVC consumer references", { selector: "strong" })).toBeVisible();
     expect(screen.getByText(/Discovered PVC inventory/)).toBeVisible();
     expect(screen.getByLabelText("Storage discovery and mapping")).toBeVisible();
+    expect(screen.getByLabelText("Data strategy")).toHaveValue("UNDECIDED");
     expect(screen.getByText(/PVC metadata does not include volume data/)).toBeVisible();
     expect(screen.queryByLabelText("Include Deployment retailflow/retailflow-api")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
