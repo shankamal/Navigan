@@ -3,10 +3,11 @@ import {useEffect,useMemo,useState} from "react";
 import {AlertTriangle,Boxes,CheckCircle2,Database,Layers3,Network,Search,ZoomIn,ZoomOut,RotateCcw,GitBranch,ChevronRight} from "lucide-react";
 import styles from "./scope-topology.module.css";
 export type TopologyResource={kind:string;namespace:string|null;name:string;selected:boolean;references:{kind:string;name:string;present:boolean}[];potentialClaims:{name:string}[]};
-type Props={namespaces:string[];resources:TopologyResource[];coverageKnown:boolean;onSelect?:(resource:TopologyResource)=>void;readOnly?:boolean};
+type SupportResource={kind:string;namespace:string|null;name:string;selected:boolean};
+type Props={namespaces:string[];resources:TopologyResource[];supportingResources?:SupportResource[];coverageKnown:boolean;onSelect?:(resource:TopologyResource)=>void;readOnly?:boolean};
 const id=(r:TopologyResource)=>[r.namespace,r.kind,r.name].join("/");
 function glyph(kind:string){return kind==="StatefulSet"?<Database size={16}/>:kind==="Service"?<Network size={16}/>:<Layers3 size={16}/>;}
-export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readOnly}:Props){
+export function ScopeTopology({namespaces,resources,supportingResources=[],coverageKnown,onSelect,readOnly}:Props){
  const [focus,setFocus]=useState<string|null>(null);
  const [search,setSearch]=useState("");
  const [zoom,setZoom]=useState(100);
@@ -14,12 +15,15 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
  const [activeNamespace,setActiveNamespace]=useState<string>("ALL");
  const [mapView,setMapView]=useState<"overview"|"detail">("overview");
  const filtered=useMemo(()=>resources.filter(r=>(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(showDiscovered||r.selected)&&[r.kind,r.name,r.namespace,...r.references.map(x=>x.name)].join(" ").toLowerCase().includes(search.toLowerCase())),[resources,activeNamespace,showDiscovered,search]);
+ const [showSupporting,setShowSupporting]=useState(true);
  const focused=resources.find(r=>id(r)===focus && namespaces.includes(r.namespace??""));
  useEffect(()=>{if(activeNamespace!=="ALL"&&!namespaces.includes(activeNamespace)){setActiveNamespace("ALL");setMapView("overview");setFocus(null);}},[activeNamespace,namespaces]);
  useEffect(()=>{if(mapView==="detail"&&!focused)setMapView("overview");},[mapView,focused]);
  const covered=coverageKnown;
  const recorded=filtered.reduce((n,r)=>n+r.references.length,0);
  const visibleRecorded=coverageKnown?recorded:0;
+ const scopedSupporting=supportingResources.filter(r=>(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(!search||[r.kind,r.name,r.namespace].join(" ").toLowerCase().includes(search.toLowerCase())));
+ const supportCategories=[{label:"Networking",kinds:["Service","Ingress","NetworkPolicy"]},{label:"Configuration & identity",kinds:["ConfigMap","Secret","ServiceAccount"]},{label:"Data & storage",kinds:["PersistentVolumeClaim"]}];
  return <section className={styles.mapShell} aria-label="Application dependency topology">
    <header className={styles.mapHeader}>
      <div><span className={styles.mapEyebrow}>APPLICATION DEPENDENCY MAP</span><h3>Discovered application topology</h3><p>Explore selected namespaces, workloads and supporting resources</p></div>
@@ -28,7 +32,7 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
    <div className={styles.mapToolbar}>
      <div className={styles.mapViewSwitch} role="group" aria-label="Topology map view"><button className={mapView==="overview"?styles.mapViewActive:""} onClick={()=>setMapView("overview")}>Namespace map</button><button className={mapView==="detail"?styles.mapViewActive:""} onClick={()=>setMapView("detail")} disabled={!focused}>Workload detail</button></div>
      <label className={styles.mapSearch}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Search application map" placeholder="Search workloads or dependencies"/></label>
-     <label className={styles.mapToggle}><input type="checkbox" checked={showDiscovered} onChange={e=>setShowDiscovered(e.target.checked)}/> Show discovered</label>
+     <label className={styles.mapToggle}><input type="checkbox" checked={showSupporting} onChange={e=>setShowSupporting(e.target.checked)}/> Supporting resources</label><label className={styles.mapToggle}><input type="checkbox" checked={showDiscovered} onChange={e=>setShowDiscovered(e.target.checked)}/> Show discovered</label>
      <div className={styles.mapZoom}><button aria-label="Zoom out" onClick={()=>setZoom(z=>Math.max(80,z-10))}><ZoomOut size={15}/></button><span>{zoom}%</span><button aria-label="Zoom in" onClick={()=>setZoom(z=>Math.min(120,z+10))}><ZoomIn size={15}/></button><button aria-label="Reset zoom" onClick={()=>setZoom(100)}><RotateCcw size={15}/></button></div>
    </div>
    <div className={styles.mapBody}>
@@ -39,7 +43,7 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
      </aside>
      <div className={styles.mapStage}>
        {!covered&&<div className={styles.mapAlert}><AlertTriangle size={17}/><span><strong>Dependency mapping requires reassessment.</strong> Workloads are real discovered objects; no unverified connections are presented as fact.</span></div>}
-       <div className={styles.mapStats}><span><strong>{filtered.length}</strong> workloads displayed</span><span><strong>{filtered.filter(r=>r.selected).length}</strong> included</span><span><strong>{visibleRecorded}</strong> references available</span></div>
+       <div className={styles.mapStats}><span><strong>{filtered.length}</strong> workloads displayed</span><span><strong>{filtered.filter(r=>r.selected).length}</strong> included</span><span><strong>{visibleRecorded}</strong> recorded references</span><span><strong>{scopedSupporting.length}</strong> supporting resources</span></div>
        {mapView==="detail" && focused ? <div className={styles.mapFocusCanvas}>
           <div className={styles.mapFocusHeading}><span>WORKLOAD DEPENDENCY VIEW</span><button onClick={()=>setMapView("overview")}>Back to namespace map</button></div>
           <div className={styles.mapFocusLayout}>
@@ -67,6 +71,18 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
            </div>)}</div>
          </section>;
        })}
+       {showSupporting&&scopedSupporting.length>0&&<section className={styles.mapSupportPanel} aria-label="Supporting resources in selected namespace scope">
+          <div className={styles.mapSupportHeading}><strong>Supporting resources</strong><span>{scopedSupporting.length} discovered objects · Inclusion is not proof of workload dependency</span></div>
+          <div className={styles.mapSupportGrid}>{supportCategories.map(group=>{
+            const items=scopedSupporting.filter(r=>group.kinds.includes(r.kind));
+            return <div className={styles.mapSupportCategory} key={group.label}><div><strong>{group.label}</strong><span>{items.length}</span></div>
+              {items.map(r=><div className={r.selected?styles.mapSupportIncluded:styles.mapSupportItem} key={[r.namespace,r.kind,r.name].join("/")}>
+                <span><b>{r.name}</b><small>{r.kind} · {r.namespace}</small></span><small>{r.selected?"In draft":"Discovered"}</small>
+              </div>)}
+              {!items.length&&<p>No resources discovered</p>}
+            </div>;
+          })}</div>
+        </section>}
        {!filtered.length&&<p className={styles.mapEmpty}>No workloads match the current filters.</p>}
        </div></div>}
      </div>
