@@ -38,6 +38,7 @@ import { PlatformIcon } from "./platform-icon";
 import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
+import { evaluateTargetCompatibility } from "./compatibility-intelligence";
 import { inspectTargetCapabilitySnapshot } from "./target-capabilities";
 import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
@@ -325,6 +326,14 @@ export function PlanningEditor({
     (draft.storageMappings ?? []).length ? draft.storageMappings ?? [] : scopedStorageClaims.map((pvc) => suggestedMapping(pvc)),
     targetCapability.evidence,
   );
+  const targetCompatibility = evaluateTargetCompatibility({
+    platform:targetPlatform,
+    targetId:String(migration.targetConfiguration?.clusterId ?? ""),
+    snapshot:null, // An authorized read-only adapter must provide this; never substitute inferred capabilities.
+    requirements:[],
+    claims:scopedStorageClaims.map(pvc=>({namespace:pvc.namespace??null,name:pvc.name,requestedStorage:typeof pvc.requestedStorage==="string"?pvc.requestedStorage:null})),
+    mappings:(draft.storageMappings??[]).length ? draft.storageMappings??[] : scopedStorageClaims.map(pvc=>suggestedMapping(pvc)),
+  });
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
@@ -1434,6 +1443,11 @@ export function PlanningEditor({
               )}
             </aside>
           </div>
+          <details className={styles.remediationEvidence} aria-label="Target compatibility intelligence">
+            <summary>Target compatibility · {targetCompatibility.evidenceStatus.toLowerCase()} · {targetCompatibility.findings.length} evidence checks</summary>
+            <p>Planning intelligence only. Target observations are not yet connected to this workspace.</p>
+            {targetCompatibility.findings.map(item=><p key={item.id}><strong>{item.status} · {item.capability} · {item.resource}</strong> — {item.reason} {item.nextAction}</p>)}
+          </details>
           <details className={styles.remediationEvidence} aria-label="Technical readiness evidence">
             <summary>Technical readiness evidence · {readiness.issues.length} planning checks · {storageCompatibility.length} storage checks</summary>
             <details className={styles.notice} aria-label="Planning readiness issues for remediation">
