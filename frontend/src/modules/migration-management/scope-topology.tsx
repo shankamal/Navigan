@@ -31,19 +31,19 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
    {displayed.map((ns,index)=>{
     const nodes=visible.filter(r=>r.namespace===ns);
     const isExpanded=expanded.includes(ns);
-    const primary=isExpanded?nodes:nodes.slice(0,5);
+    const primary=isExpanded?nodes:nodes.slice(0,8);
     return <section key={ns} className={styles.namespace} data-tone={index%2?"green":"blue"}>
-      <div className={styles.namespaceHeading}><span><Boxes size={17}/><strong>{ns}</strong><small>{nodes.length} workload{nodes.length===1?"":"s"}</small></span><span className={styles.namespaceMeta}>{nodes.filter(x=>x.selected).length} included{nodes.length>5&&<button onClick={()=>setExpanded(a=>isExpanded?a.filter(x=>x!==ns):[...a,ns])}>{isExpanded?"Show fewer":`Show all ${nodes.length}`}</button>}</span></div>
-      <div className={styles.lanes}>{primary.map(resource=>{
+      <div className={styles.namespaceHeading}><span><Boxes size={17}/><strong>{ns}</strong><small>{nodes.length} workload{nodes.length===1?"":"s"}</small></span><span className={styles.namespaceMeta}>{nodes.filter(x=>x.selected).length} included{nodes.length>8&&<button onClick={()=>setExpanded(a=>isExpanded?a.filter(x=>x!==ns):[...a,ns])}>{isExpanded?"Show fewer":`Show all ${nodes.length}`}</button>}</span></div>
+      <div className={!coverageKnown?styles.inventoryGrid:styles.lanes}>{primary.map(resource=>{
         const id=ident(resource);
         return <div className={styles.lane} key={id}>
           <button className={resource.selected?styles.nodeSelected:styles.node} onClick={()=>setFocus(id)} aria-label={`Inspect ${resource.kind} ${resource.name}`}>
             <Layers3 size={17}/><span><strong>{resource.name}</strong><small>{resource.kind}</small></span>{resource.selected&&<CheckCircle2 className={styles.included} size={16}/>}
           </button>
-          <div className={styles.relationship}>
-            {resource.references.length>0?<><span className={styles.connector}><GitBranch size={13}/> Recorded links</span><div className={styles.deps}>{resource.references.map((ref,j)=><button key={j} onClick={()=>setFocus(id)} className={ref.present?styles.dep:styles.missing}><span><strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"In source inventory":"Not found in inventory"}</small></span></button>)}</div></>:<span className={styles.noLink}>{coverageKnown?"No recorded references for this workload":"Dependency relationships not collected"}</span>}
+          {(coverageKnown || resource.references.length>0 || resource.potentialClaims.length>0) && <div className={styles.relationship}>
+            {resource.references.length>0?<><span className={styles.connector}><GitBranch size={13}/> Recorded links</span><div className={styles.deps}>{resource.references.map((ref,j)=><button key={j} onClick={()=>setFocus(id)} className={ref.present?styles.dep:styles.missing}><span><strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"In source inventory":"Not found in inventory"}</small></span></button>)}</div></>:<span className={styles.noLink}>{coverageKnown?"No recorded references for this workload":"Relationship evidence pending"}</span>}
             {resource.potentialClaims.length>0&&<div className={styles.claims}><Database size={13}/><span>Possible storage:</span>{resource.potentialClaims.map(p=><span key={p.name} className={styles.claim}>{p.name} · unverified</span>)}</div>}
-          </div>
+          </div>}
         </div>;
       })}</div>
     </section>;
