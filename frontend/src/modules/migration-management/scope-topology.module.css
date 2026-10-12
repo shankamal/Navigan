@@ -185,3 +185,27 @@
 @media(max-width:1170px){.mapZoom{margin-left:0}.mapLegend{justify-content:flex-start}.mapToolbar{row-gap:9px}}
 @media(max-width:760px){.mapBody{grid-template-columns:145px minmax(0,1fr)}.mapNodes{grid-template-columns:repeat(auto-fill,minmax(155px,1fr))}.mapSidebar>button{gap:4px}}
 @media(max-width:600px){.mapBody{display:block}.mapSidebar{border-right:0;border-bottom:1px solid #dbe4ec}.mapCanvas{min-width:0}.mapNodes{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}.mapZoom{margin-left:auto}}
+
+
+/* Evidence-backed topology: aligned workload, edge, and dependency lanes */
+.graphTopology{padding:13px;background:linear-gradient(90deg,#fbfdff,#f7fafc)}
+.graphColumnHead{display:grid;grid-template-columns:minmax(175px,1fr) minmax(185px,1.15fr);gap:76px;padding:7px 10px 11px;font-size:10px;font-weight:800;letter-spacing:.7px;color:#61788c}
+.graphRows{display:grid;gap:10px}
+.graphRow{display:grid;grid-template-columns:minmax(175px,1fr) 76px minmax(185px,1.15fr);align-items:center;min-height:78px}
+.graphWorkload,.graphWorkloadSelected{display:flex;align-items:center;gap:11px;text-align:left;background:#fff;border:1px solid #cddce9;border-left:3px solid #aebfd1;border-radius:5px;padding:13px 11px;min-height:65px;min-width:0;cursor:pointer;box-shadow:0 2px 5px #2146670d}
+.graphWorkloadSelected{background:#f0f9ed;border-color:#a9d390;border-left-color:#86bc25}
+.graphWorkload:hover,.graphWorkloadSelected:hover{border-color:#69a52f;box-shadow:0 3px 12px #548f3222}
+.graphEdge,.graphEdgeUnknown{height:2px;background:#68a83b;position:relative;margin:0}
+.graphEdge:after{content:"";position:absolute;right:0;top:-5px;border-left:8px solid #68a83b;border-top:6px solid transparent;border-bottom:6px solid transparent}
+.graphEdgeUnknown{background:repeating-linear-gradient(90deg,#c5d1de 0,#c5d1de 4px,transparent 4px,transparent 10px);height:1px}
+.graphEdgeUnknown:after{content:"?";position:absolute;right:5px;top:-12px;font-size:10px;font-weight:700;background:#f7fafc;color:#8ea0af;padding:0 4px}
+.graphDependencyArea{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:56px;padding:4px 0}
+.graphDependency,.graphDependencyMissing{display:flex;align-items:center;gap:8px;min-height:52px;min-width:140px;flex:1 1 145px;max-width:100%;border:1px solid #bbd9e8;background:#f4faff;border-radius:5px;padding:9px 10px}
+.graphDependencyMissing{border-color:#e3c58e;background:#fff9ef}
+.graphDepGlyph{color:#508db1;flex-shrink:0}
+.graphDependency>span:last-child,.graphDependencyMissing>span:last-child{display:grid;gap:4px;min-width:0}
+.graphDependency strong,.graphDependencyMissing strong{font-size:11px;overflow-wrap:anywhere;color:#2e4356}
+.graphDependency small,.graphDependencyMissing small{font-size:9px;color:#698198}
+.graphNoEvidence{display:grid;gap:4px;padding:9px 12px;border:1px dashed #ccd8e2;background:#f7f9fc;border-radius:4px;color:#6e8295;font-size:10px;line-height:1.5;width:100%}
+.graphNoEvidence small{font-size:10px;color:#a27b36}
+@media(max-width:790px){.graphRow{grid-template-columns:minmax(125px,1fr) 32px minmax(135px,1fr)}.graphColumnHead{gap:32px;grid-template-columns:1fr 1fr}.graphWorkload,.graphWorkloadSelected{padding:9px;gap:5px}.graphDependency{min-width:0}.graphTopology{padding:8px}}
