@@ -737,15 +737,15 @@ export function PlanningEditor({
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>2. Scope analysis results</strong>
-                  <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
+                  <strong>2. Scope analysis &amp; dependency topology</strong>
+                  <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} total draft resources in selected namespaces · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <p className={styles.caption}>Review discovered workloads by namespace. Green nodes are already included; other workloads remain optional until you add them.</p>
                 <div className={styles.analysisMetricGrid}>
                   <div><span>Namespaces analyzed</span><strong>{scopeNamespaces.length}</strong></div>
-                  <div><span>Workload candidates</span><strong>{analyzedWorkloadCandidates.length}</strong></div>
-                  <div><span>Not yet in draft</span><strong>{pendingAnalyzedWorkloads.length}</strong></div>
-                  <div><span>Confirmed dependencies</span><strong>{dependencies}</strong><small>Manual / recorded; not independent verification</small></div>
+                  <div><span>Discovered workloads</span><strong>{analyzedWorkloadCandidates.length}</strong><small>In selected namespaces</small></div>
+                  <div><span>Workloads not selected</span><strong>{pendingAnalyzedWorkloads.length}</strong></div>
+                  <div><span>Total draft resources</span><strong>{draft.resources.length}</strong><small>{draft.resources.length-dependencies} primary or manually selected + {dependencies} dependency-flagged</small></div>
                 </div>
             {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && scopeReviewOpen && (
               <ScopeTopology
@@ -765,7 +765,7 @@ export function PlanningEditor({
                 }}
               />
             )}
-                <details className={styles.optionalWorkloadReview}><summary>Review individual workload cards and add resources to draft</summary>
+                <details className={styles.optionalWorkloadReview}><summary>Advanced: expand individual workload cards (optional)</summary>
                 <div className={styles.analysisTopology} aria-label="Analyzed namespace workload cards">
                   {scopeNamespaces.map(ns=>{
                     const candidates=analyzedWorkloadCandidates.filter(r=>r.namespace===ns);
@@ -795,13 +795,13 @@ export function PlanningEditor({
                   })}
                 </div>
                 </details>
-                <div className={styles.scopeReviewItems}>
+                <details className={styles.compactReviewDetails}><summary>View all selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
                       {resource.name} <small>{resource.kind}</small>
                     </span>
                   ))}
-                </div>
+                </div></details>
                 <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <div className={styles.scopeIntelligence}>
                   <strong>Required resources from observed relationships</strong>
@@ -1107,9 +1107,9 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
-            <h2>Scope overview</h2>
+            <h2>Confirmed draft scope</h2>
             {scopeReviewOpen && <p className={styles.scopeAnalysisSidebar}><strong>Analyzed namespaces: {scopeNamespaces.length}</strong> · {analyzedWorkloadCandidates.length} workload candidates · {pendingAnalyzedWorkloads.length} not included</p>}
-            <h3 className={styles.scopeDraftLabel}>Confirmed draft scope</h3>
+            <p className={styles.scopeDraftLabel}><strong>{draft.resources.length} total draft resources</strong> · {draft.resources.length-dependencies} selected + {dependencies} dependency-flagged</p>
             <p className={styles.caption}>Shows resources already saved or selected in the planning draft, not automatic results from the latest namespace analysis.</p>
             {draftOutsideScope > 0 && <p className={styles.scopeOutsideNotice}>{draftOutsideScope} draft resource{draftOutsideScope===1?" is":"s are"} outside your current namespace selection. Change the selection or explicitly update the draft before final review.</p>}
             <div className={styles.summaryItem}>
