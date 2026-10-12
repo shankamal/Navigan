@@ -180,6 +180,7 @@ export function PlanningEditor({
   const [dirty, setDirty] = useState(false);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [scopeAnalysisNamespace, setScopeAnalysisNamespace] = useState<string | null>(null);
+  const [scopeAnalysisSignature, setScopeAnalysisSignature] = useState<string | null>(null);
   const stale =
     draft.assessmentVersion !== assessment.assessmentVersion ||
     draft.inventoryDigest !== assessment.inventoryDigest ||
@@ -344,6 +345,7 @@ export function PlanningEditor({
     storageCompatibility
   );
   // Scope-entry checks are distinct from remediation/final-readiness findings.
+  const currentScopeSignature = JSON.stringify(draft.resources.filter(resource=>resource.namespace===namespace).map(resourceKey).sort());
   const scopeGateIssues = [
     ...(!namespace ? ["Select a namespace."] : []),
     ...(scopeAnalysisNamespace !== namespace ? ["Review selected scope after choosing the namespace."] : []),
@@ -713,7 +715,7 @@ export function PlanningEditor({
               </label>
               <div className={styles.scopeFilterActions}>
               <button type="button" className="button button-secondary" aria-expanded={scopeReviewOpen}
-                aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(namespace);setScopeReviewOpen(open => !open);}}
+                aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(namespace);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(open => !open);}}
                 disabled={!namespace || !canEdit || stale || save.isPending}>
 
                 {scopeReviewOpen ? "Hide scope analysis" : "Review selected scope"}
