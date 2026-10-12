@@ -209,3 +209,8 @@
 .graphNoEvidence{display:grid;gap:4px;padding:9px 12px;border:1px dashed #ccd8e2;background:#f7f9fc;border-radius:4px;color:#6e8295;font-size:10px;line-height:1.5;width:100%}
 .graphNoEvidence small{font-size:10px;color:#a27b36}
 @media(max-width:790px){.graphRow{grid-template-columns:minmax(125px,1fr) 32px minmax(135px,1fr)}.graphColumnHead{gap:32px;grid-template-columns:1fr 1fr}.graphWorkload,.graphWorkloadSelected{padding:9px;gap:5px}.graphDependency{min-width:0}.graphTopology{padding:8px}}
+
+
+/* Missing evidence must never look like a discovered network edge. */
+.graphEdgeUnknown{background:none;height:auto;display:grid;place-items:center}
+.graphEdgeUnknown:after{content:"unknown";position:static;border:0;background:transparent;padding:0;color:#8b99a8;font-size:9px;font-weight:600;letter-spacing:.1px}
