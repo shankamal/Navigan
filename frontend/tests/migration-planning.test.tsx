@@ -122,7 +122,7 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
     expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
     expect(screen.queryByRole("button", { name: /explicitly referenced dependencies/i })).toBeNull();
-    const review = screen.getByRole("button", { name: "Analyze selected namespace" });
+    const review = screen.getByRole("button", { name: "Review selected scope" });
     expect(review).toBeEnabled();
     fireEvent.click(review);
     const reviewPanel = screen.getByRole("region", { name: "Selected migration scope review" });
