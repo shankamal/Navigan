@@ -669,3 +669,15 @@
 .scopeReview{margin:10px 0 16px;border:1px solid #dce6f0;background:#f8fbff;border-radius:6px;padding:14px}
 @media(max-width:850px){.filters:has(.scopeFilterActions){grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.scopeFilterActions{grid-column:1/-1;justify-content:flex-start}}
 @media(max-width:550px){.filters:has(.scopeFilterActions){grid-template-columns:minmax(0,1fr)}.scopeFilterActions{grid-column:auto}}
+
+
+/* Compact inline scope review, avoiding a second resource inventory in the selector */
+.scopeReview{padding:11px 13px;margin:8px 0 12px;background:#fbfcfe;border:1px solid #dce6ed}
+.scopeReviewHeading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.scopeReviewHeading strong{font-size:13px;color:#2b3f53}
+.scopeReviewHeading span{font-size:11px;color:#687d91}
+.scopeReviewItems{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.scopeReviewItems>span{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;background:#fff;border:1px solid #dfe6ef;border-radius:4px;font-size:12px;font-weight:600;color:#34475a}
+.scopeReviewItems small{font-size:10px;color:#718096;font-weight:400}
+.scopeReviewData{margin:0!important;font-size:12px}
+@media(max-width:720px){.scopeReviewHeading{align-items:flex-start;flex-direction:column}}
