@@ -163,6 +163,7 @@ export function PlanningEditor({
       ? [requested[0]] : [];
   });
   const namespace = scopeNamespaces.length === 1 ? scopeNamespaces[0] : "";
+  const [remediationNamespace, setNamespace] = useState("");
   const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
   const scopeNamespaceSet = new Set(scopeNamespaces);
   const [search, setSearch] = useState("");
@@ -380,10 +381,10 @@ export function PlanningEditor({
       (severity === "ALL" || finding.severity === severity) &&
       (remediationCategory === "ALL" || findingCategory(finding.category) === remediationCategory) &&
       (findingView === "ALL"
-        ? (!namespace || finding.namespace === namespace)
+        ? (!remediationNamespace || finding.namespace === remediationNamespace)
         : findingView === "SHARED"
           ? findingScope(finding) === "SHARED" &&
-            (!namespace || !finding.namespace || finding.namespace === namespace)
+            (!remediationNamespace || !finding.namespace || finding.namespace === remediationNamespace)
           : findingScope(finding) === "SCOPE")
     );
   const remediationGroups = ["Storage", "Networking", "Security", "Configuration", "Other"].map((category) => ({
@@ -1219,7 +1220,7 @@ export function PlanningEditor({
               </select>
             </label>
             <label>Namespace
-              <select aria-label="Remediation namespace" value={namespace} disabled={findingView === "SCOPE"} onChange={(e) => setNamespace(e.target.value)}>
+              <select aria-label="Remediation namespace" value={remediationNamespace} disabled={findingView === "SCOPE"} onChange={(e) => setNamespace(e.target.value)}>
                 <option value="">All namespaces</option>
                 {namespaces.map(item => <option key={item} value={item}>{item}</option>)}
               </select>
