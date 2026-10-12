@@ -722,28 +722,42 @@ export function PlanningEditor({
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>2. Scope analysis results · {scopeNamespaces.join(", ")}</strong>
+                  <strong>2. Intelligent scope analysis</strong>
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
-                <p className={styles.caption}>Current draft resources in the analyzed namespaces. Review candidate dependencies below and explicitly include only the resources required for migration.</p>
+                <p className={styles.caption}>Review discovered workloads by namespace. Green nodes are already included; other workloads remain optional until you add them.</p>
                 <div className={styles.scopeAnalysisCounters}>
                   <span><strong>{analyzedWorkloadCandidates.length}</strong> workload candidates found</span>
                   <span><strong>{pendingAnalyzedWorkloads.length}</strong> not in draft</span>
                   <span><strong>{draft.resources.filter(r=>r.namespace && scopeNamespaceSet.has(r.namespace)).length}</strong> already in draft</span>
                 </div>
-                <div className={styles.scopeAnalysisCandidates}>
-                  <strong>Workloads discovered for selected namespaces</strong>
-                  <p className={styles.caption}>Analysis does not automatically add resources. Select the workloads you need to migrate; supporting dependencies require evidence or manual confirmation.</p>
-                  {pendingAnalyzedWorkloads.map(r=>{
-                    const recommended=recommendResource(r);
-                    return <div className={styles.scopeAnalysisCandidate} key={resourceKey({...r,namespace:r.namespace??null})}>
-                      <span><strong>{r.name}</strong><small>{r.namespace} · {r.kind} · {recommended.resource.treatment.replaceAll("_"," ").toLowerCase()}</small></span>
-                      <button type="button" className="button button-secondary"
-                        disabled={!canEdit || stale || save.isPending}
-                        onClick={()=>change({...draft,resources:[...draft.resources,{...recommended.resource,dependency:false}]})}>Add to draft</button>
-                    </div>;
+                <div className={styles.analysisTopology} aria-label="Analyzed namespace workload cards">
+                  {scopeNamespaces.map(ns=>{
+                    const candidates=analyzedWorkloadCandidates.filter(r=>r.namespace===ns);
+                    const included=candidates.filter(r=>selected.has(resourceKey({...r,namespace:r.namespace??null})));
+                    return <section className={styles.analysisNamespaceGroup} key={ns}>
+                      <div className={styles.analysisNamespaceHead}>
+                        <div><strong>{ns}</strong><small>Application namespace</small></div>
+                        <span>{included.length} selected / {candidates.length} discovered</span>
+                      </div>
+                      <div className={styles.analysisWorkloadGrid}>
+                        {candidates.map(r=>{
+                          const inDraft=selected.has(resourceKey({...r,namespace:r.namespace??null}));
+                          const recommendation=recommendResource(r);
+                          return <div className={inDraft?styles.analysisWorkloadIncluded:styles.analysisWorkloadCard} key={resourceKey({...r,namespace:r.namespace??null})}>
+                            <div className={styles.analysisWorkloadInfo}>
+                              <strong>{r.name}</strong><small>{r.kind}</small>
+                              <span>{inDraft?"Included in draft":recommendation.resource.treatment==="REVIEW"?"Needs manual review":"Candidate for migration"}</span>
+                            </div>
+                            {!inDraft && <button type="button" className="button button-secondary"
+                              disabled={!canEdit||stale||save.isPending}
+                              onClick={()=>change({...draft,resources:[...draft.resources,{...recommendation.resource,dependency:false}]})}>Add to draft</button>}
+                          </div>;
+                        })}
+                        {!candidates.length && <p className={styles.caption}>No application controllers discovered in this namespace.</p>}
+                      </div>
+                    </section>;
                   })}
-                  {!pendingAnalyzedWorkloads.length && <p className={styles.caption}>All discovered workload candidates are already in the draft, or no workloads were found.</p>}
                 </div>
                 <div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
