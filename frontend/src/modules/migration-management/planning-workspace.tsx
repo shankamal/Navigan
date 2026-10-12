@@ -544,7 +544,7 @@ export function PlanningEditor({
           <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
         </div>
         <p>{tab === "scope"
-          ? "Choose candidate workloads, verify dependencies and review each resource treatment. The selected resources become the working migration scope."
+          ? "Choose candidate workloads, verify dependencies and review the migration action for each resource. The selected resources become the working migration scope."
           : "Check scope completeness, planned remediation, unresolved risks and data strategy before saving the draft."}</p>
         <div className={styles.guideStats}>
           <span><strong>{draft.resources.length}</strong> resources selected</span>
@@ -905,7 +905,7 @@ export function PlanningEditor({
                     <th>Include</th>
                     <th>Name / kind</th>
                     <th>Namespace</th>
-                    <th>Treatment</th>
+                    <th>Migration action</th>
                     <th>Navigan recommendation</th>
                     <th>Dependency</th>
                   </tr>
@@ -936,7 +936,7 @@ export function PlanningEditor({
                         <td>
                           {chosen ? (
                             <select
-                              aria-label={`Treatment ${r.name}`}
+                              aria-label={`Migration action ${r.name}`}
                               value={chosen.treatment}
                               disabled={!canEdit || stale || save.isPending}
                               onChange={(e) =>
@@ -1197,7 +1197,7 @@ export function PlanningEditor({
             <section className={styles.applicationMap} aria-label="Consolidated remediation plan">
               <div className={styles.applicationMapHeader}><div><strong>Remediation decision register</strong><p>Decisions recorded in this migration draft. Evidence references do not mean verified remediation.</p></div><span>{draft.remediations.length} recorded decisions</span></div>
               <div className={styles.remediationKpis}>
-                <div><strong>{draft.remediations.filter(item => item.treatment !== "REVIEW").length}</strong><span>Treatment decisions</span></div>
+                <div><strong>{draft.remediations.filter(item => item.treatment !== "REVIEW").length}</strong><span>Actions selected</span></div>
                 <div><strong>{draft.remediations.filter(item => !item.owner.trim()).length}</strong><span>Need an owner</span></div>
                 <div><strong>{draft.remediations.filter(item => !item.targetMapping.trim()).length}</strong><span>Need target mapping</span></div>
                 <div><strong>{draft.remediations.filter(item => !item.evidenceReference.trim()).length}</strong><span>Await evidence</span></div>
@@ -1261,7 +1261,7 @@ export function PlanningEditor({
           <div className={styles.remediationColumns}>
             <div className={styles.remediationFindingList} aria-label="Remediation findings list">
               <div className={styles.findingListHeader}><strong>Findings &amp; recommendations</strong><span>{categorizedFindings.length} findings</span></div>
-              <div className={styles.findingTableHead}><span></span><span>Severity</span><span>Finding / resource</span><span>Category</span><span>Decision</span><span>Treatment</span></div>
+              <div className={styles.findingTableHead}><span></span><span>Severity</span><span>Finding / resource</span><span>Category</span><span>Decision</span><span>Recommended action</span></div>
               {categorizedFindings.length === 0 && <p className={styles.caption}>No findings match these filters.</p>}
               {categorizedFindings.map(({finding:f,index}) => {
                 const item=draft.remediations.find(r=>r.findingIndex===index);
@@ -1285,7 +1285,7 @@ export function PlanningEditor({
               {finding ? (
                 <>
                   {editingFromPlan === activeFindingIndex && <div className={styles.editDecisionBanner} role="status">
-                    <div><strong>Editing recorded decision</strong><p>Update Treatment, Owner, Target mapping, Evidence reference or Work status below. Then select <strong>Save remediation decision</strong> to persist changes.</p></div>
+                    <div><strong>Editing recorded decision</strong><p>Update Migration Action, Owner, Target mapping, Evidence reference or Work status below. Then select <strong>Save remediation decision</strong> to persist changes.</p></div>
                     <button className="button button-secondary" onClick={() => {setEditingFromPlan(null);setRemediationView("PLAN");}}>Back to remediation plan</button>
                   </div>}
                   <div className={styles.recommendationProgress} aria-label="Finding decision navigation">
@@ -1335,7 +1335,7 @@ export function PlanningEditor({
                   {acceptedSuggestion && <p className={styles.recommendationConfirmation} role="status">Decision recorded in the planning draft. Save draft to persist it; target configuration remains unverified.</p>}
                   <details className={styles.notice} aria-label="Selected remediation completion criteria">
                     <summary><strong>Decision completion · {[...Object.values(remediationDecisionChecks(acceptedSuggestion ? remediation : undefined))].filter(Boolean).length}/4</strong></summary>
-                    <ul><li>Treatment {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
+                    <ul><li>Migration action {remediationDecisionChecks(acceptedSuggestion ? remediation : undefined).treatment ? "recorded" : "pending"}</li><li>Owner {remediation.owner ? "recorded" : "pending"}</li><li>Target mapping {remediation.targetMapping ? "recorded" : "pending"}</li><li>Evidence {remediation.evidenceReference ? "attached, unverified" : "pending"}</li></ul>
                   </details>
                   <div ref={editFormRef} />
                   <div className={styles.remediationFormHeading}><strong>Customize decision</strong><span>Change the proposal and record ownership or evidence</span></div>
@@ -1346,7 +1346,7 @@ export function PlanningEditor({
 
                     <div className={styles.remediationFormGrid}>
                     <label>
-                      Treatment
+                      Migration action
                       <select
                         value={remediation.treatment}
                         onChange={(e) =>
