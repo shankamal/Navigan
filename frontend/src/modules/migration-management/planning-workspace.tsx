@@ -357,6 +357,7 @@ export function PlanningEditor({
     ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace && scopeNamespaceSet.has(resource.namespace)) ? ["Select at least one workload in the selected namespaces."] : []),
     ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
+  const draftOutsideScope = draft.resources.filter(item=>item.namespace && !scopeNamespaceSet.has(item.namespace)).length;
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -1064,7 +1065,9 @@ export function PlanningEditor({
             </p>
           </section>
           <aside className={styles.surface}>
-            <h2>Scope summary</h2>
+            <h2>Confirmed draft scope</h2>
+            <p className={styles.caption}>Shows resources already saved or selected in the planning draft, not automatic results from the latest namespace analysis.</p>
+            {draftOutsideScope > 0 && <p className={styles.scopeOutsideNotice}>{draftOutsideScope} draft resource{draftOutsideScope===1?" is":"s are"} outside your current namespace selection. Change the selection or explicitly update the draft before final review.</p>}
             <div className={styles.summaryItem}>
               <Boxes size={22} />
               <div>
