@@ -681,3 +681,25 @@
 .scopeReviewItems small{font-size:10px;color:#718096;font-weight:400}
 .scopeReviewData{margin:0!important;font-size:12px}
 @media(max-width:720px){.scopeReviewHeading{align-items:flex-start;flex-direction:column}}
+
+
+/* Explicit namespace analysis and source-evidence relationship mapping */
+.scopeFilterActions .button,.scopeFilterActions button{background:#86bc25!important;border-color:#76ac18!important;color:#14210b!important;font-weight:700}
+.scopeFilterActions button:hover:not(:disabled){background:#79ac20!important}
+.scopeFilterActions button:disabled{background:#e3ebd7!important;color:#6a7a59!important}
+.scopeInstructions{border-left:3px solid #4381b9;background:#f1f7fd;padding:10px 12px;margin:12px 0 9px}
+.scopeInstructions strong{font-size:12px}
+.scopeInstructions p{margin:4px 0 0;font-size:12px}
+.workloadGraph{display:grid;gap:9px;margin-top:12px}
+.workloadGraphRow{display:grid;grid-template-columns:minmax(160px,1fr) 32px minmax(210px,1.5fr);align-items:center;gap:8px;padding:10px;border:1px solid #e0e7ef;background:#fff;border-radius:5px}
+.workloadGraphNode,.workloadGraphDependency{display:flex;flex-direction:column;gap:4px;border:1px solid #dce5ee;border-radius:6px;padding:10px 12px;background:#f8fbfe}
+.workloadGraphNode{border-left:3px solid #86bc25}
+.workloadGraphConnector{text-align:center;color:#6d8ea8;font-size:21px}
+.workloadGraphDependencies{display:flex;gap:8px;flex-wrap:wrap}
+.workloadGraphDependency{flex:1 1 160px;background:#f9fcff}
+.workloadGraphUnknown{font-size:12px;color:#85632d;background:#fff9ee;padding:10px;border:1px dashed #e2cda4;border-radius:5px}
+.workloadGraphNode strong,.workloadGraphDependency strong{font-size:12px;overflow-wrap:anywhere}
+.workloadGraphNode small,.workloadGraphDependency small{font-size:11px;color:#6a7e90}
+.scopeGateNotice{max-height:145px;overflow:auto;margin:10px 0 0;padding:10px 14px;background:#fff8ee;border-left:3px solid #e4a346;font-size:12px}
+.scopeGateNotice ul{margin:6px 0 0;padding-left:20px}
+@media(max-width:750px){.workloadGraphRow{grid-template-columns:minmax(0,1fr)}.workloadGraphConnector{transform:rotate(90deg)}}
