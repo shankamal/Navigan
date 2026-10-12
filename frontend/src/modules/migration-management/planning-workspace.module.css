@@ -888,3 +888,12 @@
 .optionalWorkloadReview{margin:9px 0}
 .optionalWorkloadReview:not([open]){background:#f8fafc}
 .scopeDraftLabel{background:#f2f7eb;border:1px solid #cce3b9;border-radius:4px;padding:10px 12px;font-size:12px;color:#345b2b}
+
+
+/* Inline explanation for workload card selection colors. */
+.workloadCardLegend{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;padding:11px 13px;margin:10px 12px 0;background:#f8fafc;border:1px solid #dce5ee;border-radius:4px}
+.workloadCardLegend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#40566e;line-height:1.5}
+.workloadCardLegend strong{color:#1d3551}
+.workloadLegendGreen,.workloadLegendWhite{display:inline-block;width:15px;height:15px;border-radius:3px;flex-shrink:0}
+.workloadLegendGreen{background:#f2f8ed;border:2px solid #79b72a}
+.workloadLegendWhite{background:#fff;border:2px solid #cdd9e6}
