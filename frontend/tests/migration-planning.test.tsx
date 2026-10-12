@@ -117,7 +117,7 @@ describe("migration planning", () => {
     expect(screen.getByText(/Navigan analysis/)).toBeVisible();
     expect(screen.getByLabelText("Scope readiness assessment")).toHaveTextContent("Scope readiness");
     expect(screen.getByLabelText("Scope readiness assessment")).toHaveTextContent("COVERAGE UNKNOWN");
-    expect(screen.getByText(/2 inventoried resources in view/)).toBeVisible();
+    expect(screen.getByText(/Recommendations from available source inventory only/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Add 1 recommended resource to draft" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
     expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
