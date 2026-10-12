@@ -254,13 +254,13 @@ export function PlanningEditor({
   ).values()];
   const recommendedDependencyCount = recommendedScopeAdditions.filter((r) => r.dependency).length;
   const pendingPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" &&
-    (draft.mode === "FULL_CLUSTER" || (!namespace || r.namespace === namespace)));
+    (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))));
 
   const graph = graphFromSanitizedInventory(resources);
   const sourceReferences = graph.edges
     .filter((edge) => {
       const owner = graph.nodes.find((node) => node.id === edge.from);
-      return owner && (!namespace || owner.namespace === namespace);
+      return owner && (draft.mode === "FULL_CLUSTER" || (owner.namespace && scopeNamespaceSet.has(owner.namespace)));
     })
     .map((edge) => {
       const owner = graph.nodes.find((node) => node.id === edge.from)!;
@@ -282,10 +282,10 @@ export function PlanningEditor({
     setMessage("Referenced supporting resources added to draft for review. Save the draft to persist.");
   }
 
-  const relevantPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" && (!namespace || r.namespace === namespace));
+  const relevantPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))));
   const applicationWorkloads = resources.filter((r) =>
     ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind) &&
-    (!namespace || r.namespace === namespace)
+    (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace)))
   );
   const plannedWorkloadKeys = new Set(draft.resources.filter((r) => !r.dependency).map((r) =>
     JSON.stringify([r.kind, r.namespace, r.name])
