@@ -608,6 +608,14 @@ export function PlanningEditor({
         </div>)}
       </div>}
       {tab === "scope" && (
+        <section className={styles.scopeKpiBar} aria-label="Migration discovery metrics">
+          <div><span>SELECTED NAMESPACES</span><strong>{scopeNamespaces.length}</strong><small>From {namespaces.length} discovered</small></div>
+          <div><span>DISCOVERED WORKLOADS</span><strong>{analyzedWorkloadCandidates.length}</strong><small>In selected namespaces</small></div>
+          <div><span>DRAFT RESOURCES</span><strong>{draft.resources.length}</strong><small>Saved on explicit confirmation</small></div>
+          <div><span>PLANNING CHECKS</span><strong>{scopeGateIssues.length}</strong><small>Need attention before proceeding</small></div>
+        </section>
+      )}
+      {tab === "scope" && (
         <div className={styles.columns}>
           <section className={styles.surface}>
             <div className={styles.context}>
@@ -757,6 +765,7 @@ export function PlanningEditor({
                 }}
               />
             )}
+                <details className={styles.optionalWorkloadReview}><summary>Review individual workload cards and add resources to draft</summary>
                 <div className={styles.analysisTopology} aria-label="Analyzed namespace workload cards">
                   {scopeNamespaces.map(ns=>{
                     const candidates=analyzedWorkloadCandidates.filter(r=>r.namespace===ns);
@@ -785,6 +794,7 @@ export function PlanningEditor({
                     </section>;
                   })}
                 </div>
+                </details>
                 <div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
