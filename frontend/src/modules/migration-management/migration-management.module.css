@@ -2381,3 +2381,6 @@
 .reportPlanAction span{font-size:.73rem;color:#5c6e65}
 .reportPlanAction>a{white-space:nowrap;display:inline-flex;align-items:center;gap:8px;flex-shrink:0}
 @media(max-width:720px){.reportPlanAction{align-items:stretch;flex-direction:column}.reportPlanAction>a{justify-content:center}.reportDecisionBar{bottom:0;border-radius:9px 9px 0 0}}
+
+.reportApprovalNote{margin:0;color:#a64e18;background:#fff7ed;border:1px solid #f2dcc6;border-radius:5px;padding:8px 10px;font-size:12px}
+.reportDecisionBar>.reportDecisionActions{margin-left:auto}
