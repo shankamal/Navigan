@@ -118,15 +118,20 @@ export function PlanningEditor({
 }) {
   const { identity } = useAuth();
   const cache = useQueryClient();
-  const canEdit =
-    hasPermission(identity, "migration.edit") &&
-    [
-      "ASSESSMENT_READY",
-      "SUBMITTED",
-      "UNDER_REVIEW",
-      "APPROVED",
-      "REJECTED",
-    ].includes(migration.status);
+  const hasMigrationEditPermission = hasPermission(identity, "migration.edit");
+  const editableMigrationStatus = [
+    "ASSESSMENT_READY",
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "APPROVED",
+    "REJECTED",
+  ].includes(migration.status);
+  const canEdit = hasMigrationEditPermission && editableMigrationStatus;
+  const editRestriction = !hasMigrationEditPermission
+    ? "Your current account does not have the migration.edit permission. Ask your platform administrator to assign an editing role or privilege."
+    : !editableMigrationStatus
+      ? `Migration status ${migration.status} does not allow planning edits. Complete the required assessment or migration workflow first.`
+      : null;
   const [draft, setDraft] = useState<MigrationPlanningDraft>(() =>
     migration.planningDraft?.schemaVersion === 1
       ? (migration.planningDraft as unknown as MigrationPlanningDraft)
@@ -563,8 +568,7 @@ export function PlanningEditor({
       )}
       {!canEdit && (
         <div className={styles.notice}>
-          Read-only planning view. Editing requires migration permission and a
-          completed assessment.
+          Read-only planning view. {editRestriction}
         </div>
       )}
       {tab === "scope" && (
