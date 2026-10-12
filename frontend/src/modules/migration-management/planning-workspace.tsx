@@ -766,6 +766,10 @@ export function PlanningEditor({
               />
             )}
                 <details className={styles.optionalWorkloadReview}><summary>Advanced: expand individual workload cards (optional)</summary>
+                <div className={styles.workloadCardLegend} aria-label="Workload card color meanings">
+                  <span><i className={styles.workloadLegendGreen} aria-hidden="true" /><strong>Green card</strong> — Already included in migration draft</span>
+                  <span><i className={styles.workloadLegendWhite} aria-hidden="true" /><strong>White card</strong> — Discovered, not yet selected; use Add to draft to include it</span>
+                </div>
                 <div className={styles.analysisTopology} aria-label="Analyzed namespace workload cards">
                   {scopeNamespaces.map(ns=>{
                     const candidates=analyzedWorkloadCandidates.filter(r=>r.namespace===ns);
