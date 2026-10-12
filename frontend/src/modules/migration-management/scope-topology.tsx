@@ -65,13 +65,29 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
          const entries=filtered.filter(r=>r.namespace===ns);
          return <section className={styles.mapGroup} data-tone={index%2===0?"blue":"green"} key={ns}>
            <div className={styles.mapGroupHeader}><div><Boxes size={18}/><strong>{ns}</strong><span>{entries.length} workloads</span></div><small>{entries.filter(r=>r.selected).length} included</small></div>
-           <div className={styles.mapNodes}>{entries.map(r=><div className={styles.mapUnit} key={id(r)}>
-             <button type="button" className={r.selected?styles.mapNodeIncluded:styles.mapNode} onClick={()=>{setFocus(id(r));setMapView("detail");}} aria-label={`Inspect ${r.kind} ${r.name}`}>
-               <span className={styles.mapNodeIcon}>{glyph(r.kind)}</span><span className={styles.mapNodeCopy}><strong>{r.name}</strong><small>{r.kind}</small></span>{r.selected&&<CheckCircle2 size={16} className={styles.mapCheck}/>}
-             </button>
-             {covered&&r.references.length>0&&<div className={styles.mapConnections}><div className={styles.mapConnectionStem}/>{r.references.map((ref,i)=><div key={i} className={ref.present?styles.mapRef:styles.mapRefMissing}><GitBranch size={13}/><span><strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Recorded in inventory":"Missing from inventory"}</small></span></div>)}</div>}
-             {r.potentialClaims.length>0&&<div className={styles.mapClaims}><Database size={13}/><span>Storage to verify: {r.potentialClaims.map(c=>c.name).join(", ")}</span></div>}
-           </div>)}</div>
+           <div className={styles.graphTopology}>
+             <div className={styles.graphColumnHead}><span>APPLICATION WORKLOADS</span><span>RECORDED DEPENDENCIES</span></div>
+             <div className={styles.graphRows}>{entries.map(r=>{
+               const observed=covered?r.references:[];
+               return <div className={styles.graphRow} key={id(r)}>
+                 <button type="button" className={r.selected?styles.graphWorkloadSelected:styles.graphWorkload} onClick={()=>{setFocus(id(r));setMapView("detail");}} aria-label={`Inspect ${r.kind} ${r.name}`}>
+                   <span className={styles.mapNodeIcon}>{glyph(r.kind)}</span>
+                   <span className={styles.mapNodeCopy}><strong>{r.name}</strong><small>{r.kind} · {r.selected?"Included in draft":"Discovered"}</small></span>
+                   {r.selected&&<CheckCircle2 size={16} className={styles.mapCheck}/>}
+                 </button>
+                 <div className={observed.length?styles.graphEdge:styles.graphEdgeUnknown} aria-hidden="true"><span/></div>
+                 <div className={styles.graphDependencyArea}>
+                   {observed.length?observed.map((ref,i)=>{
+                     const match=scopedSupporting.find(candidate=>candidate.kind===ref.kind&&candidate.name===ref.name&&candidate.namespace===r.namespace);
+                     return <div key={i} className={ref.present?styles.graphDependency:styles.graphDependencyMissing}>
+                       <span className={styles.graphDepGlyph}>{ref.kind==="PersistentVolumeClaim"?<Database size={15}/>:<Network size={15}/>}</span>
+                       <span><strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Recorded reference":"Not in inventory"}{match?.selected?" · Included":""}</small></span>
+                     </div>;
+                   }):<div className={styles.graphNoEvidence}>{covered?"No explicit resource references recorded":"Dependencies not collected"}{r.potentialClaims.length>0&&<small>Potential storage: {r.potentialClaims.map(c=>c.name).join(", ")} · unverified</small>}</div>}
+                 </div>
+               </div>;
+             })}</div>
+           </div>
          </section>;
        })}
        {showSupporting&&scopedSupporting.length>0&&<section className={styles.mapSupportPanel} aria-label="Supporting resources in selected namespace scope">
