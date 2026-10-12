@@ -6,7 +6,6 @@ export type TopologyResource={kind:string;namespace:string|null;name:string;sele
 type SupportResource={kind:string;namespace:string|null;name:string;selected:boolean};
 type Props={namespaces:string[];resources:TopologyResource[];supportingResources?:SupportResource[];coverageKnown:boolean;onSelect?:(resource:TopologyResource)=>void;readOnly?:boolean};
 const id=(r:TopologyResource)=>[r.namespace,r.kind,r.name].join("/");
-const scopedCount=(resources:SupportResource[],ns:string)=>resources.filter(r=>r.selected&&(ns==="ALL"||r.namespace===ns)).length;
 function glyph(kind:string){return kind==="StatefulSet"?<Database size={16}/>:kind==="Service"?<Network size={16}/>:<Layers3 size={16}/>;}
 export function ScopeTopology({namespaces,resources,supportingResources=[],coverageKnown,onSelect,readOnly}:Props){
  const [focus,setFocus]=useState<string|null>(null);
@@ -24,8 +23,8 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
  const recorded=filtered.reduce((n,r)=>n+r.references.length,0);
  const visibleRecorded=coverageKnown?recorded:0;
  const selectedWorkloadCount=filtered.filter(r=>r.selected).length;
- const selectedSupportCount=scopedCount(supportingResources.filter(r=>namespaces.includes(r.namespace??"")),activeNamespace);
  const scopedSupporting=supportingResources.filter(r=>namespaces.includes(r.namespace??"")&&(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(!search||[r.kind,r.name,r.namespace].join(" ").toLowerCase().includes(search.toLowerCase())));
+ const selectedSupportCount=scopedSupporting.filter(r=>r.selected).length;
  const supportCategories=[{label:"Networking",kinds:["Service","Ingress","NetworkPolicy"]},{label:"Configuration & identity",kinds:["ConfigMap","Secret","ServiceAccount"]},{label:"Data & storage",kinds:["PersistentVolumeClaim"]}];
  return <section className={styles.mapShell} aria-label="Application dependency topology">
    <header className={styles.mapHeader}>
