@@ -136,6 +136,11 @@ describe("migration planning", () => {
     const result=screen.getByRole("region",{name:"Selected migration scope review"});
     expect(result).toHaveTextContent("payments");
     expect(result).toHaveTextContent("retailflow-api");
+    expect(result).toHaveTextContent("payments-api");
+    expect(result).toHaveTextContent("not in draft");
+    fireEvent.click(screen.getByRole("button",{name:"Add to draft"}));
+    expect(screen.getByLabelText("Selected migration scope review")).toHaveTextContent("payments-api");
+    expect(screen.getByText(/workload candidates/)).toBeInTheDocument();
     expect(result).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
