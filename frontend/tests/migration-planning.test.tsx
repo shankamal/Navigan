@@ -385,8 +385,10 @@ describe("migration planning", () => {
   it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
     open();
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Dependency evidence unavailable");
-    expect(screen.getByLabelText("Namespace application topology")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
+    fireEvent.click(screen.getByRole("button",{name:"Analyze selected scope"}));
+    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Relationship evidence unavailable");
+    expect(screen.getByLabelText("Application workload dependency map")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
