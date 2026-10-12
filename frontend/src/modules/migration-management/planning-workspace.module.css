@@ -650,3 +650,13 @@
 .remediationKpis>div:nth-child(2):before{background:#eef4fc;color:#4e8ed7}
 .remediationKpis>div:nth-child(3):before{background:#f4f0fa;color:#8268ba}
 .remediationKpis>div:nth-child(4):before{background:#fcf3ec;color:#c47b42}
+
+
+.remediationExplanation{border:1px solid #dfe8f1;border-left:3px solid #387cb8;background:#f8fbff;border-radius:5px;padding:12px;margin:10px 0}
+.remediationExplanation>strong{font-size:13px;color:#223c57}
+.remediationExplanation p{margin:5px 0;font-size:12px}
+.remediationExplanation details{margin-top:9px;font-size:12px}
+.remediationExplanation summary{cursor:pointer;font-weight:700;color:#365a79}
+.remediationExplanation li{padding:2px 0;line-height:1.4}
+.remediationExplanation ol,.remediationExplanation ul{padding-left:22px;margin:7px 0}
+.remediationExplanation small{color:#698097;font-size:11px;margin-top:8px}
