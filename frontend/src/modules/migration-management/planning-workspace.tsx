@@ -756,6 +756,10 @@ export function PlanningEditor({
                   selected:included,references:references.map(ref=>({kind:ref.kind,name:ref.name,present:ref.present})),
                   potentialClaims:observedClaimCandidates.map(pvc=>({name:pvc.name})),
                 }))}
+                supportingResources={resources.filter(r=>r.namespace && scopeNamespaceSet.has(r.namespace) && ["Service","Ingress","ConfigMap","Secret","ServiceAccount","PersistentVolumeClaim","NetworkPolicy"].includes(r.kind)).map(r=>({
+                  kind:r.kind,namespace:r.namespace??null,name:r.name,
+                  selected:draft.resources.some(item=>item.kind===r.kind&&item.namespace===r.namespace&&item.name===r.name),
+                }))}
                 readOnly={!canEdit||stale||save.isPending}
                 onSelect={resource=>{
                   const source=resources.find(r=>r.kind===resource.kind&&r.namespace===resource.namespace&&r.name===resource.name);
