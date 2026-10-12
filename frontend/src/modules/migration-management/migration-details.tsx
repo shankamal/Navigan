@@ -515,10 +515,15 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         }
         className={migration ? styles.assessmentHeading : undefined}
         action={
-          <Link href="/migrations" className="button button-secondary">
-            <ArrowLeft size={17} />
-            Back to migrations
-          </Link>
+          <div className={styles.assessmentHeadingActions}>
+            <Link href="/migrations" className="button button-secondary">
+              <ArrowLeft size={17} />
+              Back to migrations
+            </Link>
+            {assessment && <Link href={`/migrations/${migrationId}/plan`} className="button button-primary">
+              Open migration workspace <ArrowRight size={17} />
+            </Link>}
+          </div>
         }
       />
 
