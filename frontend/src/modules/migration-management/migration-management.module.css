@@ -2384,3 +2384,12 @@
 
 .reportApprovalNote{margin:0;color:#a64e18;background:#fff7ed;border:1px solid #f2dcc6;border-radius:5px;padding:8px 10px;font-size:12px}
 .reportDecisionBar>.reportDecisionActions{margin-left:auto}
+
+/* Compact assessment sticky bar: content-sized single row without unused governance space */
+.reportDecisionBar{gap:8px 12px;padding:9px 14px;border-radius:8px;min-height:0}
+.reportPlanAction{flex:1 1 auto;padding:0;border-bottom:0;gap:12px}
+.reportPlanAction>div{gap:2px}
+.reportPlanAction span{font-size:.71rem;line-height:1.35}
+.reportPlanAction>a{padding:9px 13px}
+.reportDecisionBar>.reportDecisionActions{flex:0 0 auto}
+@media(max-width:720px){.reportDecisionBar{padding:9px 12px}.reportPlanAction{flex-direction:row;flex-wrap:wrap}.reportPlanAction>a{margin-left:auto}}
