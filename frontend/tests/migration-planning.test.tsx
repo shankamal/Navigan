@@ -122,13 +122,13 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeChecked();
     expect(screen.getByLabelText("Include StatefulSet retailflow/postgres")).not.toBeChecked();
     expect(screen.queryByRole("button", { name: /explicitly referenced dependencies/i })).toBeNull();
-    const review = screen.getByRole("button", { name: "Review selected scope (1)" });
+    const review = screen.getByRole("button", { name: "Analyze selected namespace" });
     expect(review).toBeEnabled();
     fireEvent.click(review);
     const reviewPanel = screen.getByRole("region", { name: "Selected migration scope review" });
     expect(reviewPanel).toHaveTextContent("retailflow-api");
     expect(reviewPanel).toHaveTextContent("Decision required");
-    fireEvent.click(screen.getByRole("button", { name: "Hide selected scope" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide scope analysis" }));
     expect(screen.queryByRole("region", { name: "Selected migration scope review" })).toBeNull();
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
@@ -326,7 +326,9 @@ describe("migration planning", () => {
   it("navigates consistently between scope, remediation and review using footer actions", () => {
     open();
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Continue to remediation" }));
+    expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeDisabled();
+    expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("dependency-reference evidence");
+    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
     expect(screen.getByLabelText("Technical readiness evidence")).toBeInTheDocument();
@@ -338,7 +340,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to remediation" }));
     expect(screen.getByRole("button", { name: "Continue to review draft" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
-    expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeDisabled();
   });
   it("defaults storage discovery to the migration namespace and excludes other namespace PVCs", () => {
     open({}, {...inventory, resources: [...inventory.resources,
