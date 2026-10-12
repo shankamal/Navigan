@@ -343,12 +343,12 @@ export function PlanningEditor({
     draft.storageMappings ?? [],
     storageCompatibility
   );
+  // Scope-entry checks are distinct from remediation/final-readiness findings.
   const scopeGateIssues = [
-    ...(!namespace ? ["Select a namespace before analyzing migration scope."] : []),
-    ...(scopeAnalysisNamespace !== namespace ? ["Review the selected namespace scope before continuing."] : []),
-    ...(!draft.resources.some(resource => !resource.dependency && (draft.mode==="FULL_CLUSTER" || resource.namespace===namespace)) ? ["Select at least one application workload in the chosen namespace."] : []),
-    ...readiness.issues.map(issue => issue.detail),
-    ...(stale ? ["Assessment evidence has changed; refresh the planning draft."] : []),
+    ...(!namespace ? ["Select a namespace."] : []),
+    ...(scopeAnalysisNamespace !== namespace ? ["Review selected scope after choosing the namespace."] : []),
+    ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace === namespace) ? ["Select at least one workload in the current namespace."] : []),
+    ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
@@ -734,6 +734,17 @@ export function PlanningEditor({
                   ))}
                 </div>
                 <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace === scopeAnalysisNamespace).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
+                <div className={styles.scopeIntelligence}>
+                  <strong>Required resources from observed relationships</strong>
+                  {unselectedDependencyResources.filter(item=>item.namespace===scopeAnalysisNamespace).length>0 ?
+                    unselectedDependencyResources.filter(item=>item.namespace===scopeAnalysisNamespace).map(item=><p key={item.kind+item.name}>{item.kind} · {item.name} — referenced by a selected workload
+                      <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending}
+                        onClick={()=>{const proposal=recommendResource(item).resource;change({...draft,resources:[...draft.resources,{...proposal,dependency:true}]});}}>
+                        Include dependency
+                      </button></p>)
+                    : <p>No additional referenced resources are evidenced. Missing reference coverage is not confirmation of completeness.</p>}
+                  <p>Reassessment required: {graph.coverage === "REFERENCES_AVAILABLE" ? "No additional reference-coverage warning" : "This snapshot does not contain reliable dependency references."}</p>
+                </div>
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
@@ -772,21 +783,20 @@ export function PlanningEditor({
                   </div>
                   <span>Source inventory · Assessment v{assessment.assessmentVersion}</span>
                 </div>
+                {graph.coverage !== "REFERENCES_AVAILABLE" && <p className={styles.scopeCoverageWarning}>Relationship evidence was not collected. Run a fresh dependency-aware source assessment before claiming scope completeness.</p>}
                 <div className={styles.workloadGraph} role="list" aria-label="Observed workload dependency relationships">
-                  {workloadRelationships.map(({workload,references,selected,observedClaimCandidates}) => (
+                  {workloadRelationships.filter(item=>item.selected || item.references.length>0).map(({workload,references,selected,observedClaimCandidates}) => (
                     <div className={styles.workloadGraphRow} role="listitem" key={resourceKey({...workload,namespace:workload.namespace??null})}>
                       <div className={styles.workloadGraphNode}>
-                        <strong>{workload.name}</strong>
-                        <small>{workload.kind} · {selected?"Selected":"Not selected"}</small>
+                        <strong>{workload.name}</strong><small>{workload.kind} · {selected?"Selected":"Additional evidence"}</small>
                       </div>
-                      <div className={styles.workloadGraphConnector} aria-hidden="true">→</div>
+                      <div className={styles.workloadGraphConnector} aria-hidden="true">{references.length || observedClaimCandidates.length ? "→" : "?"}</div>
                       <div className={styles.workloadGraphDependencies}>
-                        {references.length ? references.map((ref,index)=><div className={styles.workloadGraphDependency} key={index}>
-                          <strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Observed in inventory":"Missing from inventory"}</small>
-                        </div>) : <div className={styles.workloadGraphUnknown}>Relationship evidence unavailable — reassess source to discover connections</div>}
-                        {observedClaimCandidates.map(pvc=><div className={styles.workloadGraphDependency} key={pvc.name}>
-                          <strong>{pvc.name}</strong><small>PVC ownership candidate · Unverified</small>
+                        {references.map((ref,index)=><div className={styles.workloadGraphDependency} key={index}>
+                          <strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Found in source inventory":"Missing from inventory"}</small>
                         </div>)}
+                        {observedClaimCandidates.map(pvc=><div className={styles.workloadGraphDependency} key={pvc.name}><strong>{pvc.name}</strong><small>PVC candidate · Ownership unverified</small></div>)}
+                        {!references.length&&!observedClaimCandidates.length&&<span className={styles.caption}>No observed references in this assessment</span>}
                       </div>
                     </div>
                   ))}
@@ -852,6 +862,41 @@ export function PlanningEditor({
                 <p>PVC metadata does not include volume data. Verify StorageClass, access mode, capacity, and approved transfer strategy. StatefulSet volume claim templates may not appear as explicit workload dependency references in historical inventory.</p>
               </div>
             )}
+            {resourceView === "DATA" && <div className={styles.dataStrategyEditor}>
+              <Database size={22} />
+              <div>
+                <strong>Data migration</strong>
+                <label>
+                  Strategy
+                  <select
+                    aria-label="Data strategy"
+                    value={draft.dataStrategy}
+                    disabled={!canEdit || stale || save.isPending}
+                    onChange={(e) =>
+                      change({
+                        ...draft,
+                        dataStrategy: e.target
+                          .value as MigrationPlanningDraft["dataStrategy"],
+                      })
+                    }
+                  >
+                    {(
+                      [
+                        "UNDECIDED",
+                        "BACKUP_RESTORE",
+                        "REPLICATION",
+                        "NO_PERSISTENT_DATA",
+                      ] as const
+                    ).map((s) => (
+                      <option value={s} key={s}>
+                        {s.replaceAll("_", " ").toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <small>A choice records intent; it does not move data.</small>
+              </div>
+            </div>}
             {resourceView === "CONFIGURATION" && (
               <p className={styles.caption}>Configuration resources are metadata-only inventory; secrets and Helm values are not exported by this planning view. Artifact collection requires separate authorization.</p>
             )}
@@ -1048,41 +1093,7 @@ export function PlanningEditor({
                 <small>{pendingPvcs.length} PVC manifest{pendingPvcs.length === 1 ? "" : "s"} in the current inventory scope. Data content is not included in inventory.</small>
               </div>
             </div>
-            <div className={styles.summaryItem}>
-              <Database size={22} />
-              <div>
-                <strong>Data migration</strong>
-                <label>
-                  Strategy
-                  <select
-                    aria-label="Data strategy"
-                    value={draft.dataStrategy}
-                    disabled={!canEdit || stale || save.isPending}
-                    onChange={(e) =>
-                      change({
-                        ...draft,
-                        dataStrategy: e.target
-                          .value as MigrationPlanningDraft["dataStrategy"],
-                      })
-                    }
-                  >
-                    {(
-                      [
-                        "UNDECIDED",
-                        "BACKUP_RESTORE",
-                        "REPLICATION",
-                        "NO_PERSISTENT_DATA",
-                      ] as const
-                    ).map((s) => (
-                      <option value={s} key={s}>
-                        {s.replaceAll("_", " ").toLowerCase()}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <small>A choice records intent; it does not move data.</small>
-              </div>
-            </div>
+            <p className={styles.caption}>Data strategy: <strong>{draft.dataStrategy==="UNDECIDED"?"Decision required":draft.dataStrategy.replaceAll("_"," ")}</strong></p>
             <div className={styles.summaryItem}>
               <ShieldCheck size={22} />
               <div>
