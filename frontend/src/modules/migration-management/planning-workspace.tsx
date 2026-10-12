@@ -160,9 +160,10 @@ export function PlanningEditor({
     const namespaces = Array.isArray(requested) ? requested.filter((value): value is string => typeof value === "string") : [];
     return namespaces.length === 1 ? namespaces[0] : "";
   });
-  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() =>
-    Array.isArray(migration.migrationScope?.namespaces) ? migration.migrationScope.namespaces.filter((value): value is string => typeof value === "string") : []
-  );
+  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => {
+    const requested = migration.migrationScope?.namespaces;
+    return Array.isArray(requested) ? requested.filter((value): value is string => typeof value === "string") : [];
+  });
   const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
   const scopeNamespaceSet = new Set(scopeNamespaces);
   const [search, setSearch] = useState("");
@@ -699,7 +700,7 @@ export function PlanningEditor({
                 Namespace
                 <select
                   value={namespace}
-                  onChange={(e) => {setNamespace(e.target.value);if(e.target.value)setScopeNamespaces([e.target.value]);setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}}
+                  onChange={(e) => {const next=e.target.value;setNamespace(next);if(next)setScopeNamespaces(current=>current.includes(next)?current:[...current,next]);setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}}
                 >
                   <option value="">All assessed namespaces</option>
                   {namespaces.map((n) => (
