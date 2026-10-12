@@ -703,3 +703,16 @@
 .scopeGateNotice{max-height:145px;overflow:auto;margin:10px 0 0;padding:10px 14px;background:#fff8ee;border-left:3px solid #e4a346;font-size:12px}
 .scopeGateNotice ul{margin:6px 0 0;padding-left:20px}
 @media(max-width:750px){.workloadGraphRow{grid-template-columns:minmax(0,1fr)}.workloadGraphConnector{transform:rotate(90deg)}}
+
+
+/* Scope intelligence: concise evidence and action, separate from readiness blockers */
+.scopeIntelligence{margin:10px 0;padding:11px 12px;background:#f0f7ff;border:1px solid #d9e8f8;border-radius:5px;font-size:12px}
+.scopeIntelligence strong{display:block;margin-bottom:7px}
+.scopeIntelligence p{margin:6px 0}
+.scopeIntelligence button{margin-left:10px;font-size:11px;padding:5px 8px}
+.scopeCoverageWarning{margin:12px 0;padding:9px 12px;border-left:3px solid #d79e40;background:#fff7e9;font-size:12px}
+.dataStrategyEditor{display:flex;align-items:start;gap:12px;padding:12px 14px;margin:12px 0;border:1px solid #dce8ef;border-left:3px solid #86bc25;border-radius:5px;background:#f9fcff}
+.dataStrategyEditor>div{display:grid;gap:7px;flex:1}
+.dataStrategyEditor label{display:grid;gap:5px;max-width:320px;font-size:12px}
+.dataStrategyEditor select{padding:8px;border:1px solid #cfdae7;border-radius:5px}
+.dataStrategyEditor small{font-size:11px;color:#64748b}
