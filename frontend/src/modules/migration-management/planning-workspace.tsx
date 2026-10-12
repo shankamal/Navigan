@@ -343,6 +343,13 @@ export function PlanningEditor({
     draft.storageMappings ?? [],
     storageCompatibility
   );
+  const scopeGateIssues = [
+    ...(!namespace ? ["Select a namespace before analyzing migration scope."] : []),
+    ...(scopeAnalysisNamespace !== namespace ? ["Run Analyze selected namespace to review this migration scope."] : []),
+    ...(!draft.resources.some(resource => !resource.dependency && (draft.mode==="FULL_CLUSTER" || resource.namespace===namespace)) ? ["Select at least one application workload in the chosen namespace."] : []),
+    ...readiness.issues.map(issue => issue.detail),
+    ...(stale ? ["Assessment evidence has changed; refresh the planning draft."] : []),
+  ];
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -765,30 +772,25 @@ export function PlanningEditor({
                   </div>
                   <span>Source inventory · Assessment v{assessment.assessmentVersion}</span>
                 </div>
-                <div className={styles.applicationCards}>
-                  {workloadRelationships.map(({workload, references, selected, observedClaimCandidates}) => (
-                    <article key={resourceKey({...workload, namespace: workload.namespace ?? null})} className={styles.applicationCard}>
-                      <div className={styles.applicationCardTitle}>
+                <div className={styles.workloadGraph} role="list" aria-label="Observed workload dependency relationships">
+                  {workloadRelationships.map(({workload,references,selected,observedClaimCandidates}) => (
+                    <div className={styles.workloadGraphRow} role="listitem" key={resourceKey({...workload,namespace:workload.namespace??null})}>
+                      <div className={styles.workloadGraphNode}>
                         <strong>{workload.name}</strong>
-                        <span>{workload.kind} · {selected ? "Selected" : "Not selected"}</span>
+                        <small>{workload.kind} · {selected?"Selected":"Not selected"}</small>
                       </div>
-                      <div className={styles.applicationCardLinks}>
-                        {references.length > 0 ? references.map((ref, index) => (
-                          <div key={index} className={styles.applicationRelationship}>
-                            <span>{ref.kind} · {ref.name}</span>
-                            <span>{ref.present ? "Found in inventory" : "Not found in inventory"}</span>
-                          </div>
-                        )) : <p>No direct dependency references recorded in this snapshot.</p>}
-                        {observedClaimCandidates.map((pvc) => (
-                          <div key={pvc.name} className={styles.applicationRelationship}>
-                            <span>PVC · {pvc.name}</span>
-                            <span>Possible StatefulSet claim — verify ownership</span>
-                          </div>
-                        ))}
+                      <div className={styles.workloadGraphConnector} aria-hidden="true">→</div>
+                      <div className={styles.workloadGraphDependencies}>
+                        {references.length ? references.map((ref,index)=><div className={styles.workloadGraphDependency} key={index}>
+                          <strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Observed in inventory":"Missing from inventory"}</small>
+                        </div>) : <div className={styles.workloadGraphUnknown}>Relationship evidence unavailable — reassess source to discover connections</div>}
+                        {observedClaimCandidates.map(pvc=><div className={styles.workloadGraphDependency} key={pvc.name}>
+                          <strong>{pvc.name}</strong><small>PVC ownership candidate · Unverified</small>
+                        </div>)}
                       </div>
-                    </article>
+                    </div>
                   ))}
-                  {applicationWorkloads.length === 0 && <p>No application controllers found for this namespace filter.</p>}
+                  {!applicationWorkloads.length && <p>No controllers discovered for this namespace.</p>}
                 </div>
                 <p className={styles.caption}>Relationships come from sanitized inventory only. PVC name similarities are explicitly unverified and cannot establish readiness. Older assessments may not contain direct references.</p>
               </div>
@@ -1509,6 +1511,10 @@ export function PlanningEditor({
           </button>
         </section>
       )}
+      {tab==="scope" && scopeGateIssues.length>0 && <div className={styles.scopeGateNotice} role="status" aria-label="Required scope checks">
+        <strong>Before remediation · {scopeGateIssues.length} checks outstanding</strong>
+        <ul>{scopeGateIssues.map((issue,index)=><li key={index}>{issue}</li>)}</ul>
+      </div>}
       <footer className={styles.footer}>
         <button
           className="button button-secondary"
@@ -1536,7 +1542,8 @@ export function PlanningEditor({
         <button
           className="button button-primary"
           onClick={() => navigateToStep(tab === "scope" ? "remediate" : "review")}
-          disabled={tab === "review"}
+          disabled={tab === "review" || (tab === "scope" && scopeGateIssues.length > 0)}
+          title={tab === "scope" && scopeGateIssues.length ? scopeGateIssues[0] : undefined}
         >
           {tab === "scope" ? "Continue to remediation" : "Continue to review draft"}
           <ArrowRight size={16} />
