@@ -741,12 +741,6 @@ export function PlanningEditor({
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} total draft resources in selected namespaces · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <p className={styles.caption}>Review discovered workloads by namespace. Green nodes are already included; other workloads remain optional until you add them.</p>
-                <div className={styles.analysisMetricGrid}>
-                  <div><span>Namespaces analyzed</span><strong>{scopeNamespaces.length}</strong></div>
-                  <div><span>Discovered workloads</span><strong>{analyzedWorkloadCandidates.length}</strong><small>In selected namespaces</small></div>
-                  <div><span>Workloads not selected</span><strong>{pendingAnalyzedWorkloads.length}</strong></div>
-                  <div><span>Total draft resources</span><strong>{draft.resources.length}</strong><small>{draft.resources.length-dependencies} primary or manually selected + {dependencies} dependency-flagged</small></div>
-                </div>
             {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && scopeReviewOpen && (
               <ScopeTopology
                 namespaces={scopeNamespaces}
@@ -776,6 +770,7 @@ export function PlanningEditor({
                     </span>
                   ))}
                 </div></details>
+                <details className={styles.compactReviewDetails}><summary>Dependency evidence &amp; additional resource recommendations</summary>
                 <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <div className={styles.scopeIntelligence}>
                   <strong>Required resources from observed relationships</strong>
@@ -788,6 +783,7 @@ export function PlanningEditor({
                     : <p>No additional referenced resources are evidenced. Missing reference coverage is not confirmation of completeness.</p>}
                   <p>Reassessment required: {graph.coverage === "REFERENCES_AVAILABLE" ? "No additional reference-coverage warning" : "This snapshot does not contain reliable dependency references."}</p>
                 </div>
+                </details>
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
