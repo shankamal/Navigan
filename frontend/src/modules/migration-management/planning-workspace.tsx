@@ -353,7 +353,7 @@ export function PlanningEditor({
   const currentScopeSignature = JSON.stringify(draft.resources.filter(resource=>resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resourceKey).sort());
   const scopeGateIssues = [
     ...(!scopeNamespaces.length ? ["Select one or more namespaces for scope analysis."] : []),
-    ...(scopeAnalysisNamespace !== namespace ? ["Review selected scope after choosing the namespace."] : []),
+    ...(scopeAnalysisNamespace !== scopeNamespaceKey || scopeAnalysisSignature !== currentScopeSignature ? ["Review selected scope after making resource selections."] : []),
     ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace && scopeNamespaceSet.has(resource.namespace)) ? ["Select at least one workload in the selected namespaces."] : []),
     ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
@@ -751,7 +751,7 @@ export function PlanningEditor({
                 <div className={styles.scopeIntelligence}>
                   <strong>Required resources from observed relationships</strong>
                   {unselectedDependencyResources.filter(item=>item.namespace && scopeNamespaceSet.has(item.namespace)).length>0 ?
-                    unselectedDependencyResources.filter(item=>item.namespace===scopeAnalysisNamespace).map(item=><p key={item.kind+item.name}>{item.kind} · {item.name} — referenced by a selected workload
+                    unselectedDependencyResources.filter(item=>item.namespace && scopeNamespaceSet.has(item.namespace)).map(item=><p key={item.kind+item.name}>{item.kind} · {item.name} — referenced by a selected workload
                       <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending}
                         onClick={()=>{const proposal=recommendResource(item).resource;change({...draft,resources:[...draft.resources,{...proposal,dependency:true}]});}}>
                         Include dependency
