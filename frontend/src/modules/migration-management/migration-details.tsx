@@ -497,11 +497,6 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           </button>
         </>
       )}
-      {!canSubmit && !canReview && !canDecide && (
-        <span className={styles.approvalUnavailable}>
-          No approval action is available for your role at this stage.
-        </span>
-      )}
     </>
   );
 
@@ -1094,7 +1089,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           {criticalFindingCount > 0 && <p className={styles.reportApprovalNote}>
             Approval blocked: {criticalFindingCount} critical finding{criticalFindingCount === 1 ? "" : "s"} require remediation.
           </p>}
-          <div className={styles.reportDecisionActions}>{approvalControls}</div>
+          {(canSubmit || canReview || canDecide) && <div className={styles.reportDecisionActions}>{approvalControls}</div>}
           {action.isError && (
             <p role="alert">{normalizeApiError(action.error).message}</p>
           )}
