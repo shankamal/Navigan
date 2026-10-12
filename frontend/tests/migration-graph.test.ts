@@ -53,4 +53,28 @@ describe("migration intelligence portable graph", () => {
     expect(openshift.edges[0].resolution).toBe("IN_INVENTORY");
     expect(migrationResourceCategory("DeploymentConfig")).toBe("WORKLOAD");
   });
+  it("deduplicates repeated exact workload references without losing scope", () => {
+    const graph = graphFromSanitizedInventory([
+      {kind:"Deployment",name:"api",namespace:"retailflow",dependencyReferences:[
+        {kind:"ConfigMap",name:"settings"},
+        {kind:"ConfigMap",name:"settings"},
+      ]},
+      {kind:"ConfigMap",name:"settings",namespace:"retailflow"},
+      {kind:"ConfigMap",name:"settings",namespace:"another"},
+    ]);
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.edges[0].resolution).toBe("IN_INVENTORY");
+  });
+  it("distinguishes an inventoried reference list with no edges from missing reference coverage", () => {
+    const knownEmpty = graphFromSanitizedInventory([
+      {kind:"Deployment",name:"api",namespace:"retailflow",dependencyReferences:[]}
+    ]);
+    const unavailable = graphFromSanitizedInventory([
+      {kind:"Deployment",name:"api",namespace:"retailflow"}
+    ]);
+    expect(knownEmpty.coverage).toBe("REFERENCES_AVAILABLE");
+    expect(knownEmpty.edges).toHaveLength(0);
+    expect(unavailable.coverage).toBe("REFERENCES_NOT_COLLECTED");
+  });
+
 });
