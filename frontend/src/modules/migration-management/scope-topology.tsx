@@ -16,7 +16,7 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
  const [activeNamespace,setActiveNamespace]=useState<string>("ALL");
  const [mapView,setMapView]=useState<"overview"|"detail">("overview");
  const filtered=useMemo(()=>resources.filter(r=>(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(showDiscovered||r.selected)&&[r.kind,r.name,r.namespace,...r.references.map(x=>x.name)].join(" ").toLowerCase().includes(search.toLowerCase())),[resources,activeNamespace,showDiscovered,search]);
- const [showSupporting,setShowSupporting]=useState(true);
+ const [showSupporting,setShowSupporting]=useState(false);
  const focused=resources.find(r=>id(r)===focus && namespaces.includes(r.namespace??""));
  useEffect(()=>{if(activeNamespace!=="ALL"&&!namespaces.includes(activeNamespace)){setActiveNamespace("ALL");setMapView("overview");setFocus(null);}},[activeNamespace,namespaces]);
  useEffect(()=>{if(mapView==="detail"&&!focused)setMapView("overview");},[mapView,focused]);
@@ -35,7 +35,7 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
    <div className={styles.mapToolbar}>
      <div className={styles.mapViewSwitch} role="group" aria-label="Topology map view"><button className={mapView==="overview"?styles.mapViewActive:""} onClick={()=>setMapView("overview")}>Namespace map</button><button className={mapView==="detail"?styles.mapViewActive:""} onClick={()=>setMapView("detail")} disabled={!focused}>Workload detail</button></div>
      <label className={styles.mapSearch}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Search application map" placeholder="Search workloads or dependencies"/></label>
-     <label className={styles.mapToggle}><input type="checkbox" checked={showSupporting} onChange={e=>setShowSupporting(e.target.checked)}/> Supporting resources</label><label className={styles.mapToggle}><input type="checkbox" checked={showDiscovered} onChange={e=>setShowDiscovered(e.target.checked)}/> Show discovered</label>
+     <label className={styles.mapToggle}><input type="checkbox" checked={showSupporting} onChange={e=>setShowSupporting(e.target.checked)}/> Show supporting resources</label><label className={styles.mapToggle}><input type="checkbox" checked={showDiscovered} onChange={e=>setShowDiscovered(e.target.checked)}/> Show discovered</label>
      <div className={styles.mapZoom}><button aria-label="Zoom out" onClick={()=>setZoom(z=>Math.max(80,z-10))}><ZoomOut size={15}/></button><span>{zoom}%</span><button aria-label="Zoom in" onClick={()=>setZoom(z=>Math.min(120,z+10))}><ZoomIn size={15}/></button><button aria-label="Reset zoom" onClick={()=>setZoom(100)}><RotateCcw size={15}/></button></div>
    </div>
    <div className={styles.mapBody}>
