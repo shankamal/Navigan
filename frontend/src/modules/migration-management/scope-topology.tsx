@@ -24,8 +24,8 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
  const recorded=filtered.reduce((n,r)=>n+r.references.length,0);
  const visibleRecorded=coverageKnown?recorded:0;
  const selectedWorkloadCount=filtered.filter(r=>r.selected).length;
- const selectedSupportCount=scopedCount(supportingResources,activeNamespace);
- const scopedSupporting=supportingResources.filter(r=>(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(!search||[r.kind,r.name,r.namespace].join(" ").toLowerCase().includes(search.toLowerCase())));
+ const selectedSupportCount=scopedCount(supportingResources.filter(r=>namespaces.includes(r.namespace??"")),activeNamespace);
+ const scopedSupporting=supportingResources.filter(r=>namespaces.includes(r.namespace??"")&&(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(!search||[r.kind,r.name,r.namespace].join(" ").toLowerCase().includes(search.toLowerCase())));
  const supportCategories=[{label:"Networking",kinds:["Service","Ingress","NetworkPolicy"]},{label:"Configuration & identity",kinds:["ConfigMap","Secret","ServiceAccount"]},{label:"Data & storage",kinds:["PersistentVolumeClaim"]}];
  return <section className={styles.mapShell} aria-label="Application dependency topology">
    <header className={styles.mapHeader}>
@@ -42,7 +42,7 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
      <aside className={styles.mapSidebar} aria-label="Namespace explorer"><strong>Namespaces <small>{namespaces.length}</small></strong>
        <button aria-current={activeNamespace==="ALL"?"true":undefined} onClick={()=>{setActiveNamespace("ALL");setMapView("overview");setFocus(null);}}><Boxes size={17}/><span>All selected namespaces<small>{resources.length} workloads</small></span><ChevronRight size={14}/></button>
        {namespaces.map(ns=><button key={ns} aria-current={activeNamespace===ns?"true":undefined} onClick={()=>{setActiveNamespace(ns);setMapView("overview");setFocus(null);}}><Boxes size={17}/><span>{ns}<small>{resources.filter(r=>r.namespace===ns).length} workloads · {resources.filter(r=>r.namespace===ns&&r.selected).length} included</small></span><ChevronRight size={14}/></button>)}
-       <div className={styles.mapEvidence}><strong>Evidence status</strong><span>{visibleRecorded} verified-reference candidates</span><small>{covered?"Reference inventory collected":"Relationship references not collected. A new assessment is needed for verified dependency edges."}</small></div>
+       <div className={styles.mapEvidence}><strong>Evidence status</strong><span>{visibleRecorded} recorded references</span><small>{covered?"Reference inventory collected":"Relationship references not collected. A new assessment is needed for verified dependency edges."}</small></div>
      </aside>
      <div className={styles.mapStage}>
        {!covered&&<div className={styles.mapAlert}><AlertTriangle size={17}/><span><strong>Dependency mapping requires reassessment.</strong> Workloads are real discovered objects; no unverified connections are presented as fact.</span></div>}
@@ -55,7 +55,7 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
             <div className={styles.mapFocusRelationships}>
               <strong>Recorded dependency references ({covered?focused.references.length:0})</strong>
               {covered&&focused.references.map((ref,index)=><div key={index} className={ref.present?styles.mapFocusVerified:styles.mapFocusMissing}><GitBranch size={15}/><span><b>{ref.name}</b><small>{ref.kind} · {ref.present?"Present in source inventory":"Missing from source inventory"}</small></span></div>)}
-              {(!covered||focused.references.length===0)&&<p>Dependency links cannot be verified from this assessment. Reassessment is required before showing relationship edges.</p>}
+              {(!covered||focused.references.length===0)&&<p>{!covered?"Relationship evidence was not collected in this assessment; reassess to discover references.":"No explicit dependency references were recorded for this workload."}</p>}
               {focused.potentialClaims.length>0&&<div className={styles.mapFocusStorage}><Database size={15}/> Potential storage — requires verification: {focused.potentialClaims.map(x=>x.name).join(", ")}</div>}
             </div>
           </div>
