@@ -162,8 +162,8 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", {name:"Customize recommendation"})).toBeVisible();
     expect(screen.getByRole("button", { name: "Record for manual review" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Record for manual review" }));
-    expect(screen.getByLabelText("Treatment")).toHaveValue("REVIEW");
-    expect(screen.getByLabelText("Treatment")).toBeVisible();
+    expect(screen.getByLabelText("Migration action")).toHaveValue("REVIEW");
+    expect(screen.getByLabelText("Migration action")).toBeVisible();
     expect(screen.getByLabelText("Owner")).toBeVisible();
     expect(screen.getByLabelText("Work status")).toBeVisible();
     expect(screen.getByLabelText("Target mapping")).not.toHaveValue("");
@@ -211,7 +211,7 @@ describe("migration planning", () => {
     expect(screen.queryByLabelText("Remediation bulk actions")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Remediation findings list")).toBeVisible();
     expect(screen.getByText("Finding / resource")).toBeVisible();
-    expect(screen.getByText("Treatment")).toBeVisible();
+    expect(screen.getByText("Recommended action")).toBeVisible();
   });
   it("opens a recorded decision directly in edit mode with clear next steps", () => {
     open();
@@ -295,7 +295,7 @@ describe("migration planning", () => {
     fireEvent.change(screen.getByLabelText("Namespace"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     fireEvent.click(screen.getByLabelText("Include Node cluster/source-node"));
-    const treatment = screen.getByLabelText("Treatment source-node");
+    const treatment = screen.getByLabelText("Migration action source-node");
     expect(treatment.querySelector('option[value="MIGRATE"]')).toBeNull();
   });
   it("selects and clears only filtered resources", () => {
