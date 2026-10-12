@@ -742,7 +742,7 @@ export function PlanningEditor({
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <div className={styles.scopeReviewItems}>
-                  {draft.resources.filter(resource => resource.namespace === scopeAnalysisNamespace).map(resource => (
+                  {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
                       {resource.name} <small>{resource.kind}</small>
                     </span>
