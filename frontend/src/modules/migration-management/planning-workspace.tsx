@@ -531,6 +531,7 @@ export function PlanningEditor({
         <button
           aria-current={tab === "remediate" ? "step" : undefined}
           onClick={() => navigateToStep("remediate")}
+          disabled={tab === "scope" && scopeGateIssues.length > 0}
         >
           <Wrench size={17} />
           Remediate
@@ -541,6 +542,7 @@ export function PlanningEditor({
         <button
           aria-current={tab === "review" ? "step" : undefined}
           onClick={() => navigateToStep("review")}
+          disabled={tab === "scope" && scopeGateIssues.length > 0}
         >
           <ShieldCheck size={17} />
           Review draft
