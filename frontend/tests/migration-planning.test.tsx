@@ -126,6 +126,19 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button",{name:"Hide scope analysis"}));
     expect(screen.queryByRole("region",{name:"Selected migration scope review"})).toBeNull();
   });
+  it("supports analysis of multiple explicitly selected namespaces", () => {
+    open({}, {...inventory,resources:[...inventory.resources,{
+      apiVersion:"apps/v1",kind:"Deployment",namespace:"payments",name:"payments-api",
+    }]} as SourceInventory);
+    fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
+    fireEvent.click(screen.getByText("Analyze namespaces (1)"));
+    fireEvent.click(screen.getByLabelText("Analyze namespace payments"));
+    fireEvent.click(screen.getByRole("button",{name:"Review selected scope"}));
+    const result=screen.getByRole("region",{name:"Selected migration scope review"});
+    expect(result).toHaveTextContent("payments");
+    expect(result).toHaveTextContent("retailflow-api");
+    expect(result).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
+  });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
     const scoped = {
       ...assessment,
