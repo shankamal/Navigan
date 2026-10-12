@@ -214,3 +214,6 @@
 /* Missing evidence must never look like a discovered network edge. */
 .graphEdgeUnknown{background:none;height:auto;display:grid;place-items:center}
 .graphEdgeUnknown:after{content:"unknown";position:static;border:0;background:transparent;padding:0;color:#8b99a8;font-size:9px;font-weight:600;letter-spacing:.1px}
+
+.graphEdgeMissing{position:relative;height:2px;background:repeating-linear-gradient(90deg,#d3a351 0,#d3a351 6px,transparent 6px,transparent 11px)}
+.graphEdgeMissing:after{content:"!";position:absolute;right:0;top:-9px;border:1px solid #ddb66d;border-radius:50%;background:#fff7e9;color:#966b1e;font-size:9px;font-weight:700;width:17px;height:17px;text-align:center;line-height:15px}
