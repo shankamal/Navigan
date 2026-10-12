@@ -37,6 +37,7 @@ import type {
 import { PlatformIcon } from "./platform-icon";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
+import { MigrationTopologyWorkspace } from "./topology-workspace";
 
 export function resourceKey(
   resource: Pick<PlannedResource, "apiVersion" | "kind" | "namespace" | "name">,
@@ -317,6 +318,14 @@ export function PlanningEditor({
           Read-only planning view. Editing requires migration permission and a
           completed assessment.
         </div>
+      )}
+      {tab === "scope" && (
+        <MigrationTopologyWorkspace
+          inventory={inventory}
+          assessment={assessment}
+          chosenNamespaces={namespace ? [namespace] : namespaces}
+          onChooseNamespace={setNamespace}
+        />
       )}
       {tab === "scope" && (
         <div className={styles.columns}>
