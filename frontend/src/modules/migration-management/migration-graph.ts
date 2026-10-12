@@ -55,6 +55,7 @@ export function graphFromSanitizedInventory(items: MigrationInventoryItem[], pla
   const index = new Set(nodes.map((n) => n.id));
   const edges: MigrationEdge[] = [];
   let hasReferences = false;
+  const edgeKeys = new Set<string>();
   for (const item of items) {
     if (!item.name) continue;
     for (const field of ["dependencyReferences", "backendServiceReferences"] as const) {
@@ -64,8 +65,12 @@ export function graphFromSanitizedInventory(items: MigrationInventoryItem[], pla
       for (const ref of refs) {
         if (!ref || typeof ref !== "object" || typeof ref.kind !== "string" || typeof ref.name !== "string") continue;
         const id = migrationNodeId(ref.kind, item.namespace, ref.name);
+        const from = migrationNodeId(item.kind, item.namespace, item.name);
+        const edgeKey = JSON.stringify([from,id]);
+        if (edgeKeys.has(edgeKey)) continue;
+        edgeKeys.add(edgeKey);
         edges.push({
-          from: migrationNodeId(item.kind, item.namespace, item.name), to: id,
+          from, to: id,
           kind: ref.kind, name: ref.name,
           evidence: "EXPLICIT_REFERENCE",
           resolution: index.has(id) ? "IN_INVENTORY" : "NOT_IN_INVENTORY",
@@ -85,6 +90,7 @@ export function graphFromSanitizedInventory(items: MigrationInventoryItem[], pla
         if (node.kind !== "PersistentVolumeClaim" || node.namespace !== (item.namespace ?? null) || !node.name.startsWith(prefix)) continue;
         if (!/^[0-9]+$/.test(node.name.slice(prefix.length))) continue;
         if (edges.some((edge) => edge.from === ownerId && edge.to === node.id)) continue;
+        edgeKeys.add(JSON.stringify([ownerId,node.id]));
         edges.push({from: ownerId, to: node.id, kind: node.kind, name: node.name, evidence: "INFERRED", resolution: "IN_INVENTORY"});
       }
     }
