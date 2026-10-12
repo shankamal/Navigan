@@ -850,3 +850,32 @@
 .topologyWorkloadNode{border-radius:7px;box-shadow:0 2px 6px rgba(33,56,78,.06)}
 @media(max-width:1180px){.scopeWorkflowJourney{grid-template-columns:repeat(3,minmax(0,1fr))}.analysisMetricGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.scopeWorkflowJourney{grid-template-columns:repeat(2,minmax(0,1fr))}.analysisMetricGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.analysisMetricGrid>div{padding:9px}}
+
+
+/* Reference-aligned migration planning: compact header, dashboard KPIs and topology-first workspace. */
+.workspace {gap:12px;max-width:100%;color:#172b46}
+.workspace :global(.page-heading){background:#f7f9fc;border:1px solid #e0e7f0;border-radius:5px;padding:14px 18px;margin:0}
+.workspace :global(.page-heading) h1{font-size:23px;line-height:1.2}
+.scopeKpiBar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.scopeKpiBar>div{background:#fff;border:1px solid #dce4ec;border-radius:5px;border-left:3px solid #71af26;padding:14px 18px;display:grid;gap:3px;min-width:0}
+.scopeKpiBar>div:nth-child(2){border-left-color:#3676d7}
+.scopeKpiBar>div:nth-child(3){border-left-color:#8667d4}
+.scopeKpiBar>div:nth-child(4){border-left-color:#e5a128}
+.scopeKpiBar span{font-size:10px;font-weight:700;color:#5f7389;letter-spacing:.7px}
+.scopeKpiBar strong{font-size:28px;color:#183453;line-height:1.2}
+.scopeKpiBar small{font-size:11px}
+.columns{grid-template-columns:minmax(0,3fr) minmax(300px,1fr);gap:12px;align-items:start}
+.columns>.surface{padding:16px;border-radius:5px}
+.columns>aside.surface{position:sticky;top:12px;max-height:calc(100vh - 110px);overflow:auto}
+.guide{padding:12px 18px!important}
+.guide p{margin:4px 0}
+.optionalWorkloadReview{margin:12px 0;border:1px solid #dfe7ed;border-radius:5px;background:#fff}
+.optionalWorkloadReview>summary{padding:13px 16px;cursor:pointer;font-weight:650;font-size:12px;color:#405775;list-style-position:inside;background:#f5f8fb}
+.optionalWorkloadReview[open]>summary{border-bottom:1px solid #dfe7ed}
+.optionalWorkloadReview .analysisTopology{padding:12px}
+.scopeReview{padding:12px!important}
+.scopeReviewHeading{margin-bottom:10px}
+.scopeWorkflowJourney{background:#fff;border:1px solid #e1e7ec;border-radius:5px;padding:10px 14px}
+.scopeJourneyStep strong{font-size:11px}
+@media(max-width:1050px){.columns{grid-template-columns:minmax(0,1fr)}.columns>aside.surface{position:static;max-height:none}.scopeKpiBar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.scopeKpiBar{grid-template-columns:minmax(0,1fr)}}
