@@ -739,6 +739,24 @@ export function PlanningEditor({
                   <div><span>Not yet in draft</span><strong>{pendingAnalyzedWorkloads.length}</strong></div>
                   <div><span>Confirmed dependencies</span><strong>{dependencies}</strong><small>Manual / recorded; not independent verification</small></div>
                 </div>
+            {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && scopeReviewOpen && (
+              <ScopeTopology
+                namespaces={scopeNamespaces}
+                coverageKnown={graph.coverage === "REFERENCES_AVAILABLE"}
+                resources={workloadRelationships.map(({workload,references,selected:included,observedClaimCandidates})=>({
+                  kind:workload.kind,namespace:workload.namespace??null,name:workload.name,
+                  selected:included,references:references.map(ref=>({kind:ref.kind,name:ref.name,present:ref.present})),
+                  potentialClaims:observedClaimCandidates.map(pvc=>({name:pvc.name})),
+                }))}
+                readOnly={!canEdit||stale||save.isPending}
+                onSelect={resource=>{
+                  const source=resources.find(r=>r.kind===resource.kind&&r.namespace===resource.namespace&&r.name===resource.name);
+                  if(source&&!draft.resources.some(item=>resourceKey(item)===resourceKey({...source,namespace:source.namespace??null}))){
+                    change({...draft,resources:[...draft.resources,{...recommendResource(source).resource,dependency:false}]});
+                  }
+                }}
+              />
+            )}
                 <div className={styles.analysisTopology} aria-label="Analyzed namespace workload cards">
                   {scopeNamespaces.map(ns=>{
                     const candidates=analyzedWorkloadCandidates.filter(r=>r.namespace===ns);
@@ -788,24 +806,6 @@ export function PlanningEditor({
                 </div>
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
-            )}
-            {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && scopeReviewOpen && (
-              <ScopeTopology
-                namespaces={scopeNamespaces}
-                coverageKnown={graph.coverage === "REFERENCES_AVAILABLE"}
-                resources={workloadRelationships.map(({workload,references,selected:included,observedClaimCandidates})=>({
-                  kind:workload.kind,namespace:workload.namespace??null,name:workload.name,
-                  selected:included,references:references.map(ref=>({kind:ref.kind,name:ref.name,present:ref.present})),
-                  potentialClaims:observedClaimCandidates.map(pvc=>({name:pvc.name})),
-                }))}
-                readOnly={!canEdit||stale||save.isPending}
-                onSelect={resource=>{
-                  const source=resources.find(r=>r.kind===resource.kind&&r.namespace===resource.namespace&&r.name===resource.name);
-                  if(source&&!draft.resources.some(item=>resourceKey(item)===resourceKey({...source,namespace:source.namespace??null}))){
-                    change({...draft,resources:[...draft.resources,{...recommendResource(source).resource,dependency:false}]});
-                  }
-                }}
-              />
             )}
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
