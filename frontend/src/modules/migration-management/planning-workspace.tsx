@@ -600,6 +600,12 @@ export function PlanningEditor({
           Read-only planning view. {editRestriction}
         </div>
       )}
+      {tab === "scope" && <div className={styles.scopeWorkflowJourney} aria-label="Scope analysis workflow">
+        {["Select namespaces","Analyze scope","Review topology","Add to draft","Resolve readiness","Remediation"].map((stage,index)=><div className={styles.scopeJourneyStep} key={stage}>
+          <span className={index===0||index===1&&scopeReviewOpen?styles.scopeJourneyActive:styles.scopeJourneyNumber}>{index+1}</span>
+          <strong>{stage}</strong>
+        </div>)}
+      </div>}
       {tab === "scope" && (
         <div className={styles.columns}>
           <section className={styles.surface}>
@@ -699,10 +705,10 @@ export function PlanningEditor({
                 ? "This inventory may exclude system namespaces or cluster-scoped resources. Full-estate coverage must be confirmed before execution planning."
                 : "Inventory contains sanitized metadata, not deployment manifests or data. Dependency names are incomplete; confirm them with the application owner."}
             </p>
-            <div className={styles.scopeFlowPrompt}><strong>1. Select namespaces</strong><p>Choose one or more application namespaces, then analyze their workloads and dependencies. Selected namespaces do not change the saved migration draft until you accept resources.</p></div>
+            <div className={styles.scopeFlowPrompt}><strong>1. Select application namespaces</strong><p>Choose the namespaces to analyze. Analysis discovers candidates; only resources you explicitly accept become part of the migration draft.</p></div>
             <div className={styles.scopeSelectionBar}>
               <details className={styles.scopeNamespacePicker}>
-                <summary aria-label="Application namespaces">Application namespaces ({scopeNamespaces.length} selected)</summary>
+                <summary aria-label="Application namespaces">Select namespaces · {scopeNamespaces.length} selected</summary>
                 <div>{namespaces.map(item=><label key={item}>
                   <input type="checkbox" aria-label={`Select namespace ${item}`} checked={scopeNamespaceSet.has(item)}
                     onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} />{item}
@@ -722,14 +728,15 @@ export function PlanningEditor({
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>2. Intelligent scope analysis</strong>
+                  <strong>2. Scope analysis results</strong>
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <p className={styles.caption}>Review discovered workloads by namespace. Green nodes are already included; other workloads remain optional until you add them.</p>
-                <div className={styles.scopeAnalysisCounters}>
-                  <span><strong>{analyzedWorkloadCandidates.length}</strong> workload candidates found</span>
-                  <span><strong>{pendingAnalyzedWorkloads.length}</strong> not in draft</span>
-                  <span><strong>{draft.resources.filter(r=>r.namespace && scopeNamespaceSet.has(r.namespace)).length}</strong> already in draft</span>
+                <div className={styles.analysisMetricGrid}>
+                  <div><span>Namespaces analyzed</span><strong>{scopeNamespaces.length}</strong></div>
+                  <div><span>Workload candidates</span><strong>{analyzedWorkloadCandidates.length}</strong></div>
+                  <div><span>Not yet in draft</span><strong>{pendingAnalyzedWorkloads.length}</strong></div>
+                  <div><span>Confirmed dependencies</span><strong>{dependencies}</strong><small>Manual / recorded; not independent verification</small></div>
                 </div>
                 <div className={styles.analysisTopology} aria-label="Analyzed namespace workload cards">
                   {scopeNamespaces.map(ns=>{
@@ -811,7 +818,7 @@ export function PlanningEditor({
               <section className={styles.applicationMap} aria-label="Application workload dependency map">
                 <div className={styles.applicationMapHeader}>
                   <div>
-                    <strong>Application dependency topology</strong>
+                    <strong>3. Discovered application topology</strong>
                     <p>{scopeNamespaces.length} application namespace{scopeNamespaces.length===1?"":"s"} · {workloadRelationships.filter(item=>item.selected).length} selected workloads · Assessment v{assessment.assessmentVersion}</p>
                   </div>
                   <span>Source evidence only · No infrastructure changes</span>
