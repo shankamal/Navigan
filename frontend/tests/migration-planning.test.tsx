@@ -405,6 +405,8 @@ describe("migration planning", () => {
   it("keeps users without edit permission read-only", () => {
     mock.canEdit = false;
     open();
+    expect(screen.getByText(/does not have the migration.edit permission/)).toBeVisible();
+    expect(screen.getByRole("radio", {name:/Full cluster/})).toBeDisabled();
     expect(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     ).toBeDisabled();
