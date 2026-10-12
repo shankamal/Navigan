@@ -897,3 +897,12 @@
 .workloadLegendGreen,.workloadLegendWhite{display:inline-block;width:15px;height:15px;border-radius:3px;flex-shrink:0}
 .workloadLegendGreen{background:#f2f8ed;border:2px solid #79b72a}
 .workloadLegendWhite{background:#fff;border:2px solid #cdd9e6}
+
+
+/* Migration planning hierarchy: the application map is the primary scope review. */
+.scopeReview{padding:12px!important}
+.scopeReviewHeading{margin-bottom:8px}
+.scopeReview>.caption{margin:6px 0 10px}
+.scopeReview>.compactReviewDetails{margin-top:10px}
+.scopeReview>.compactReviewDetails summary{font-weight:600;cursor:pointer}
+.scopeReview>.scopeReviewData{font-size:11px;margin:10px 0 3px}
