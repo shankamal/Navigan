@@ -135,3 +135,21 @@
 .mapFocusArrow{font-size:22px}
 .mapFocusRelationships>p{padding:11px 12px;background:#f7f9fc;border:1px dashed #ccd8e6;border-radius:5px}
 .mapSidebar>button:focus-visible,.mapNode:focus-visible,.mapNodeIncluded:focus-visible,.mapViewSwitch button:focus-visible{outline:2px solid #609d26;outline-offset:2px}
+
+
+/* Supporting resource categories are discovered inventory, never inferred dependency edges. */
+.mapSupportPanel{border:1px solid #d8e3ee;background:#fff;border-radius:5px;overflow:hidden}
+.mapSupportHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f3f7fc;border-bottom:1px solid #dce5ef;padding:11px 13px}
+.mapSupportHeading strong{font-size:12px;color:#2b425a}
+.mapSupportHeading span{font-size:10px;color:#667e92}
+.mapSupportGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;padding:11px}
+.mapSupportCategory{border:1px solid #dce6ef;border-radius:5px;min-width:0;background:#fbfcfe;overflow:hidden}
+.mapSupportCategory>div:first-child{display:flex;justify-content:space-between;gap:5px;background:#eff4f9;padding:10px;font-size:11px}
+.mapSupportCategory>div:first-child span{color:#60788b}
+.mapSupportItem,.mapSupportIncluded{margin:8px;padding:9px;border:1px solid #d6e1eb;border-radius:4px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.mapSupportIncluded{background:#f0f9ec;border-color:#a4cd8a}
+.mapSupportItem>span,.mapSupportIncluded>span{display:grid;gap:3px;min-width:0}
+.mapSupportItem b,.mapSupportIncluded b{font-size:11px;overflow-wrap:anywhere}
+.mapSupportItem small,.mapSupportIncluded small{font-size:10px;color:#708498}
+.mapSupportCategory>p{font-size:10px;color:#8192a2;padding:10px;margin:0}
+@media(max-width:850px){.mapSupportGrid{grid-template-columns:1fr}.mapSupportHeading{align-items:flex-start;flex-direction:column}}
