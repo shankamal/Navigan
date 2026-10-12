@@ -157,6 +157,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
     expect(screen.getByText("Guided recommendation")).toBeVisible();
+    expect(screen.getByLabelText("Remediation intelligence explanation")).toHaveTextContent("Storage equivalence");
     expect(screen.getByLabelText("Source to target remediation comparison")).toBeVisible();
     expect(screen.getByRole("button", {name:"Customize recommendation"})).toBeVisible();
     expect(screen.getByRole("button", { name: "Record for manual review" })).toBeEnabled();
