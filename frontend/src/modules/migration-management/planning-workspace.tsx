@@ -155,15 +155,14 @@ export function PlanningEditor({
     );
     return () => setLabel("");
   }, [tab, setLabel]);
-  const [namespace, setNamespace] = useState(() => {
-    const requested = migration.migrationScope?.namespaces;
-    const namespaces = Array.isArray(requested) ? requested.filter((value): value is string => typeof value === "string") : [];
-    return namespaces.length === 1 ? namespaces[0] : "";
-  });
+  // Namespace selection is the analysis scope; it is not a separate inventory browser.
+  // Default to a single explicitly intended application namespace only.
   const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => {
     const requested = migration.migrationScope?.namespaces;
-    return Array.isArray(requested) ? requested.filter((value): value is string => typeof value === "string") : [];
+    return Array.isArray(requested) && requested.length === 1 && typeof requested[0] === "string"
+      ? [requested[0]] : [];
   });
+  const namespace = scopeNamespaces.length === 1 ? scopeNamespaces[0] : "";
   const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
   const scopeNamespaceSet = new Set(scopeNamespaces);
   const [search, setSearch] = useState("");
@@ -201,7 +200,7 @@ export function PlanningEditor({
   ].sort();
   const filtered = resources.filter(
     (r) =>
-      (!namespace || r.namespace === namespace) &&
+      (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))) &&
       `${r.name} ${r.kind}`.toLowerCase().includes(search.toLowerCase()),
   );
   const workloadKinds = new Set(["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod"]);
@@ -354,7 +353,7 @@ export function PlanningEditor({
   const currentScopeSignature = JSON.stringify(draft.resources.filter(resource=>resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resourceKey).sort());
   const scopeGateIssues = [
     ...(!scopeNamespaces.length ? ["Select one or more namespaces for scope analysis."] : []),
-    ...(scopeAnalysisNamespace !== scopeNamespaceKey || scopeAnalysisSignature !== currentScopeSignature ? ["Review selected scope after making resource selections."] : []),
+    ...(scopeAnalysisNamespace !== scopeNamespaceKey || scopeAnalysisSignature !== currentScopeSignature ? ["Run Analyze selected scope for your current selection."] : []),
     ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace && scopeNamespaceSet.has(resource.namespace)) ? ["Select at least one workload in the selected namespaces."] : []),
     ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
@@ -695,52 +694,33 @@ export function PlanningEditor({
                 ? "This inventory may exclude system namespaces or cluster-scoped resources. Full-estate coverage must be confirmed before execution planning."
                 : "Inventory contains sanitized metadata, not deployment manifests or data. Dependency names are incomplete; confirm them with the application owner."}
             </p>
-            <div className={styles.filters}>
-              <label>
-                Namespace
-                <select
-                  value={namespace}
-                  onChange={(e) => {const next=e.target.value;setNamespace(next);if(next)setScopeNamespaces(current=>current.includes(next)?current:[...current,next]);setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}}
-                >
-                  <option value="">All assessed namespaces</option>
-                  {namespaces.map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Search resources
-                <div className={styles.search}>
-                  <Search size={16} />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Name or kind"
-                  />
-                </div>
-              </label>
+            <div className={styles.scopeFlowPrompt}><strong>1. Select namespaces</strong><p>Choose one or more application namespaces, then analyze their workloads and dependencies. Selected namespaces do not change the saved migration draft until you accept resources.</p></div>
+            <div className={styles.scopeSelectionBar}>
               <details className={styles.scopeNamespacePicker}>
-                <summary>Analyze namespaces ({scopeNamespaces.length})</summary>
+                <summary aria-label="Application namespaces">Application namespaces ({scopeNamespaces.length} selected)</summary>
                 <div>{namespaces.map(item=><label key={item}>
-                  <input type="checkbox" aria-label={`Analyze namespace ${item}`} checked={scopeNamespaceSet.has(item)}
-                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}} />{item}
+                  <input type="checkbox" aria-label={`Select namespace ${item}`} checked={scopeNamespaceSet.has(item)}
+                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} />{item}
                 </label>)}</div>
               </details>
+              <label className={styles.scopeSearchLabel}>Search selected resources
+                <div className={styles.search}><Search size={16} /><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Name or kind"/></div>
+              </label>
               <div className={styles.scopeFilterActions}>
-              <button type="button" className="button button-secondary" aria-expanded={scopeReviewOpen}
-                aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(open => !open);}}
-                disabled={!scopeNamespaces.length || !canEdit || stale || save.isPending}>
-
-                {scopeReviewOpen ? "Hide scope analysis" : "Review selected scope"}
-              </button>
+                <button type="button" className="button button-primary" aria-expanded={scopeReviewOpen}
+                  aria-controls="scope-selection-review"
+                  onClick={()=>{setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(true);}}
+                  disabled={!scopeNamespaces.length || !canEdit || stale || save.isPending}>Analyze selected scope</button>
               </div>
             </div>
+            {scopeNamespaces.length>0 && <p className={styles.scopeSelectedNamespaces}><strong>Selected:</strong> {scopeNamespaces.join(", ")}</p>}
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>Namespace analysis · {scopeNamespaces.join(", ")}</strong>
+                  <strong>2. Scope analysis results · {scopeNamespaces.join(", ")}</strong>
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
+                <p className={styles.caption}>Current draft resources in the analyzed namespaces. Review candidate dependencies below and explicitly include only the resources required for migration.</p>
                 <div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
