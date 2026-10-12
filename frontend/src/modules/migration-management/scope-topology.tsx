@@ -66,6 +66,14 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
          return <section className={styles.mapGroup} data-tone={index%2===0?"blue":"green"} key={ns}>
            <div className={styles.mapGroupHeader}><div><Boxes size={18}/><strong>{ns}</strong><span>{entries.length} workloads</span></div><small>{entries.filter(r=>r.selected).length} included</small></div>
            <div className={styles.graphTopology}>
+             {!covered?<div className={styles.graphCompact}>
+               <div className={styles.graphCompactHeading}><span>DISCOVERED WORKLOADS</span><span>Choose a workload to review its dependencies and migration readiness</span></div>
+               <div className={styles.graphCompactGrid}>{entries.map(r=><button type="button" key={id(r)} className={r.selected?styles.graphCompactSelected:styles.graphCompactNode} onClick={()=>{setFocus(id(r));setMapView("detail");}} aria-label={`Inspect ${r.kind} ${r.name}`}>
+                 <span className={styles.mapNodeIcon}>{glyph(r.kind)}</span>
+                 <span className={styles.mapNodeCopy}><strong>{r.name}</strong><small>{r.kind} · {r.selected?"Included in draft":"Discovered"}</small></span>
+                 {r.selected&&<CheckCircle2 size={16} className={styles.mapCheck}/>}
+               </button>)}</div>
+             </div>:<>
              <div className={styles.graphColumnHead}><span>APPLICATION WORKLOADS</span><span>RECORDED DEPENDENCIES</span></div>
              <div className={styles.graphRows}>{entries.map(r=>{
                const observed=covered?r.references:[];
@@ -87,6 +95,7 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
                  </div>
                </div>;
              })}</div>
+             </>}
            </div>
          </section>;
        })}
