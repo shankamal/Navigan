@@ -138,7 +138,7 @@ describe("migration planning", () => {
     expect(result).toHaveTextContent("retailflow-api");
     expect(result).toHaveTextContent("payments-api");
     expect(result).toHaveTextContent("not in draft");
-    fireEvent.click(screen.getByRole("button",{name:"Add to draft"}));
+    fireEvent.click(screen.getAllByRole("button",{name:"Add to draft"}).at(-1)!);
     expect(screen.getByLabelText("Selected migration scope review")).toHaveTextContent("payments-api");
     expect(screen.getByText(/workload candidates/)).toBeInTheDocument();
     expect(result).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
