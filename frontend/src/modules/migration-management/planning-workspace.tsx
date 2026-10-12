@@ -160,6 +160,11 @@ export function PlanningEditor({
     const namespaces = Array.isArray(requested) ? requested.filter((value): value is string => typeof value === "string") : [];
     return namespaces.length === 1 ? namespaces[0] : "";
   });
+  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() =>
+    Array.isArray(migration.migrationScope?.namespaces) ? migration.migrationScope.namespaces.filter((value): value is string => typeof value === "string") : []
+  );
+  const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
+  const scopeNamespaceSet = new Set(scopeNamespaces);
   const [search, setSearch] = useState("");
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
   const [severity, setSeverity] = useState("ALL");
@@ -345,11 +350,11 @@ export function PlanningEditor({
     storageCompatibility
   );
   // Scope-entry checks are distinct from remediation/final-readiness findings.
-  const currentScopeSignature = JSON.stringify(draft.resources.filter(resource=>resource.namespace===namespace).map(resourceKey).sort());
+  const currentScopeSignature = JSON.stringify(draft.resources.filter(resource=>resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resourceKey).sort());
   const scopeGateIssues = [
-    ...(!namespace ? ["Select a namespace."] : []),
+    ...(!scopeNamespaces.length ? ["Select one or more namespaces for scope analysis."] : []),
     ...(scopeAnalysisNamespace !== namespace ? ["Review selected scope after choosing the namespace."] : []),
-    ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace === namespace) ? ["Select at least one workload in the current namespace."] : []),
+    ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace && scopeNamespaceSet.has(resource.namespace)) ? ["Select at least one workload in the selected namespaces."] : []),
     ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
@@ -694,7 +699,7 @@ export function PlanningEditor({
                 Namespace
                 <select
                   value={namespace}
-                  onChange={(e) => {setNamespace(e.target.value);setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}}
+                  onChange={(e) => {setNamespace(e.target.value);if(e.target.value)setScopeNamespaces([e.target.value]);setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}}
                 >
                   <option value="">All assessed namespaces</option>
                   {namespaces.map((n) => (
@@ -713,10 +718,17 @@ export function PlanningEditor({
                   />
                 </div>
               </label>
+              <details className={styles.scopeNamespacePicker}>
+                <summary>Analyze namespaces ({scopeNamespaces.length})</summary>
+                <div>{namespaces.map(item=><label key={item}>
+                  <input type="checkbox" aria-label={`Analyze namespace ${item}`} checked={scopeNamespaceSet.has(item)}
+                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setScopeReviewOpen(false);setScopeAnalysisNamespace(null);}} />{item}
+                </label>)}</div>
+              </details>
               <div className={styles.scopeFilterActions}>
               <button type="button" className="button button-secondary" aria-expanded={scopeReviewOpen}
-                aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(namespace);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(open => !open);}}
-                disabled={!namespace || !canEdit || stale || save.isPending}>
+                aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(open => !open);}}
+                disabled={!scopeNamespaces.length || !canEdit || stale || save.isPending}>
 
                 {scopeReviewOpen ? "Hide scope analysis" : "Review selected scope"}
               </button>
@@ -725,8 +737,8 @@ export function PlanningEditor({
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>Namespace analysis · {scopeAnalysisNamespace}</strong>
-                  <span>{draft.resources.filter(resource => resource.namespace === scopeAnalysisNamespace).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
+                  <strong>Namespace analysis · {scopeNamespaces.join(", ")}</strong>
+                  <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} selected resources · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace === scopeAnalysisNamespace).map(resource => (
@@ -735,10 +747,10 @@ export function PlanningEditor({
                     </span>
                   ))}
                 </div>
-                <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace === scopeAnalysisNamespace).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
+                <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <div className={styles.scopeIntelligence}>
                   <strong>Required resources from observed relationships</strong>
-                  {unselectedDependencyResources.filter(item=>item.namespace===scopeAnalysisNamespace).length>0 ?
+                  {unselectedDependencyResources.filter(item=>item.namespace && scopeNamespaceSet.has(item.namespace)).length>0 ?
                     unselectedDependencyResources.filter(item=>item.namespace===scopeAnalysisNamespace).map(item=><p key={item.kind+item.name}>{item.kind} · {item.name} — referenced by a selected workload
                       <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending}
                         onClick={()=>{const proposal=recommendResource(item).resource;change({...draft,resources:[...draft.resources,{...proposal,dependency:true}]});}}>
