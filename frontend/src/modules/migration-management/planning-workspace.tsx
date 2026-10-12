@@ -35,6 +35,7 @@ import type {
   SourceInventoryResource,
 } from "./model";
 import { PlatformIcon } from "./platform-icon";
+import { ScopeTopology } from "./scope-topology";
 import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
@@ -788,6 +789,24 @@ export function PlanningEditor({
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
+            {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && scopeReviewOpen && (
+              <ScopeTopology
+                namespaces={scopeNamespaces}
+                coverageKnown={graph.coverage === "REFERENCES_AVAILABLE"}
+                resources={workloadRelationships.map(({workload,references,selected:included,observedClaimCandidates})=>({
+                  kind:workload.kind,namespace:workload.namespace??null,name:workload.name,
+                  selected:included,references:references.map(ref=>({kind:ref.kind,name:ref.name,present:ref.present})),
+                  potentialClaims:observedClaimCandidates.map(pvc=>({name:pvc.name})),
+                }))}
+                readOnly={!canEdit||stale||save.isPending}
+                onSelect={resource=>{
+                  const source=resources.find(r=>r.kind===resource.kind&&r.namespace===resource.namespace&&r.name===resource.name);
+                  if(source&&!draft.resources.some(item=>resourceKey(item)===resourceKey({...source,namespace:source.namespace??null}))){
+                    change({...draft,resources:[...draft.resources,{...recommendResource(source).resource,dependency:false}]});
+                  }
+                }}
+              />
+            )}
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
                 ["WORKLOADS", "Workloads"],
@@ -814,55 +833,6 @@ export function PlanningEditor({
               <strong>{resourceView === "WORKLOADS" ? "Workloads — application scope" : resourceView === "DEPENDENCIES" ? "Dependencies — source relationship evidence" : resourceView === "CONFIGURATION" ? "Configuration — application settings" : resourceView === "DATA" ? "Data & Storage — PVC readiness" : "All resources — technical inventory"}</strong>
               <p>{resourceView === "DEPENDENCIES" ? "Review references, unresolved inventory objects and supporting resources for selected workloads." : resourceView === "DATA" ? "Review claim consumers, requested capacity and storage migration decisions." : resourceView === "WORKLOADS" ? "Select the application workloads to migrate; supporting resources are reviewed separately." : resourceView === "CONFIGURATION" ? "Review metadata-only configuration evidence without collecting sensitive values." : "Advanced inventory view. Selections here affect the same draft."}</p>
             </div>
-            {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && (
-              <section className={styles.applicationMap} aria-label="Application workload dependency map">
-                <div className={styles.applicationMapHeader}>
-                  <div>
-                    <strong>3. Discovered application topology</strong>
-                    <p>{scopeNamespaces.length} application namespace{scopeNamespaces.length===1?"":"s"} · {workloadRelationships.filter(item=>item.selected).length} selected workloads · Assessment v{assessment.assessmentVersion}</p>
-                  </div>
-                  <span>Source evidence only · No infrastructure changes</span>
-                </div>
-                <div className={styles.topologyLegend}>
-                  <span><i className={styles.topologySelectedMark}/> Selected workload</span>
-                  <span><i className={styles.topologyObservedMark}/> Observed reference</span>
-                  <span><i className={styles.topologyInferredMark}/> Potential / unverified</span>
-                </div>
-                {graph.coverage !== "REFERENCES_AVAILABLE" && <div className={styles.topologyCoverage}>
-                  <strong>Dependency evidence unavailable</strong>
-                  <p>The existing assessment did not capture workload references. Navigan can display the selected workloads but cannot reliably draw their connections. Run a fresh dependency-aware assessment to populate the topology.</p>
-                </div>}
-                <div className={styles.topologyCanvas} aria-label="Namespace application topology">
-                  {scopeNamespaces.map(ns => {
-                    const entries=workloadRelationships.filter(item=>item.workload.namespace===ns && item.selected);
-                    return <section key={ns} className={styles.topologyNamespace}>
-                      <div className={styles.topologyNamespaceHeader}><strong>{ns}</strong><span>{entries.length} selected workload{entries.length===1?"":"s"}</span></div>
-                      {entries.length ? <div className={styles.topologyNodes}>
-                        {entries.map(({workload,references,observedClaimCandidates})=><div className={styles.topologyChain} key={resourceKey({...workload,namespace:workload.namespace??null})}>
-                          <div className={styles.topologyWorkloadNode}>
-                            <strong>{workload.name}</strong><small>{workload.kind}</small>
-                          </div>
-                          {references.length>0 && <>
-                            <div className={styles.topologyEdge} aria-label="Observed dependency connection"/>
-                            <div className={styles.topologyDependencyNodes}>
-                              {references.map((ref,index)=><div className={ref.present?styles.topologyDependencyNode:styles.topologyMissingNode} key={index}>
-                                <strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Referenced in source inventory":"Referenced, not inventoried"}</small>
-                              </div>)}
-                            </div>
-                          </>}
-                          {observedClaimCandidates.length>0 && <div className={styles.topologyCandidates}>
-                            <small>Potential PVCs · not confirmed connections</small>
-                            {observedClaimCandidates.map(pvc=><span key={pvc.name}>{pvc.name}</span>)}
-                          </div>}
-                        </div>)}
-                      </div>:<p className={styles.caption}>No selected workloads in this namespace. Select workloads from the inventory below.</p>}
-                    </section>;
-                  })}
-                  {!scopeNamespaces.length && <p className={styles.caption}>Select one or more application namespaces to display their workload topology.</p>}
-                </div>
-                {graph.coverage !== "REFERENCES_AVAILABLE" && <p className={styles.topologyNextAction}><strong>Next:</strong> Save the current scope as a draft if needed, then collect updated dependency evidence. Unobserved links must not be represented as confirmed.</p>}
-              </section>
-            )}
             {resourceView === "DEPENDENCIES" && (
               <div className={styles.notice}>
                 <strong>Source reference evidence · {sourceReferences.length} relationships</strong>
