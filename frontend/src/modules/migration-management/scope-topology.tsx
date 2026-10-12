@@ -75,7 +75,7 @@ export function ScopeTopology({namespaces,resources,supportingResources=[],cover
                    <span className={styles.mapNodeCopy}><strong>{r.name}</strong><small>{r.kind} · {r.selected?"Included in draft":"Discovered"}</small></span>
                    {r.selected&&<CheckCircle2 size={16} className={styles.mapCheck}/>}
                  </button>
-                 <div className={observed.length?styles.graphEdge:styles.graphEdgeUnknown} aria-hidden="true"><span/></div>
+                 <div className={observed.some(ref=>ref.present)?styles.graphEdge:observed.length?styles.graphEdgeMissing:styles.graphEdgeUnknown} aria-hidden="true"><span/></div>
                  <div className={styles.graphDependencyArea}>
                    {observed.length?observed.map((ref,i)=>{
                      const match=scopedSupporting.find(candidate=>candidate.kind===ref.kind&&candidate.name===ref.name&&candidate.namespace===r.namespace);
