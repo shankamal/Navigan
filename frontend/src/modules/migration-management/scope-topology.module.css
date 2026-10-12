@@ -153,3 +153,35 @@
 .mapSupportItem small,.mapSupportIncluded small{font-size:10px;color:#708498}
 .mapSupportCategory>p{font-size:10px;color:#8192a2;padding:10px;margin:0}
 @media(max-width:850px){.mapSupportGrid{grid-template-columns:1fr}.mapSupportHeading{align-items:flex-start;flex-direction:column}}
+
+
+/* Screenshot-driven density and hierarchy correction (October 2026). */
+.mapShell{border-radius:4px;border-color:#d9e2eb;box-shadow:0 3px 16px #183a5910}
+.mapHeader{padding:13px 16px;align-items:center;background:#fff}
+.mapHeader h3{font-size:16px;line-height:1.3}.mapHeader p{font-size:11px}
+.mapToolbar{padding:9px 13px;gap:8px;flex-wrap:wrap;background:#f8fafc}
+.mapViewSwitch{order:0}.mapSearch{order:1;flex:1 1 180px;max-width:none}
+.mapToggle{order:2;font-size:10px;margin-left:0;white-space:nowrap}
+.mapZoom{order:3;margin-left:auto}
+.mapBody{grid-template-columns:174px minmax(0,1fr);min-height:390px}
+.mapSidebar{padding:12px 7px;background:#fbfcfe}
+.mapSidebar>button{padding:9px 7px;gap:7px}
+.mapSidebar>button>span{font-size:11px}
+.mapSidebar>button small{font-size:10px}
+.mapEvidence{padding:12px 8px 5px}
+.mapStats{gap:8px;padding:9px 13px}
+.mapStats span{border-right:0;border-radius:4px;background:#f4f7fb;padding:7px 10px!important;font-size:10px}
+.mapStats strong{font-size:14px;margin-right:3px}
+.mapAlert{margin:8px 12px 0;font-size:10px}
+.mapScroll{max-height:610px;padding:13px}
+.mapCanvas{gap:15px;min-width:0;background-size:20px 20px}
+.mapGroup{border-radius:5px;box-shadow:0 2px 7px #25496609}
+.mapGroupHeader{padding:11px 13px}
+.mapNodes{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:11px;padding:15px}
+.mapNode,.mapNodeIncluded{min-height:70px;box-shadow:none;padding:12px 9px;transition:box-shadow .15s,border-color .15s}
+.mapNodeCopy strong{font-size:11px;line-height:1.4}.mapNodeCopy small{font-size:10px}
+.mapNode:hover,.mapNodeIncluded:hover{border-color:#86bc25;box-shadow:0 2px 10px #53763c26}
+.mapFooter{padding:9px 13px;font-size:10px}
+@media(max-width:1170px){.mapZoom{margin-left:0}.mapLegend{justify-content:flex-start}.mapToolbar{row-gap:9px}}
+@media(max-width:760px){.mapBody{grid-template-columns:145px minmax(0,1fr)}.mapNodes{grid-template-columns:repeat(auto-fill,minmax(155px,1fr))}.mapSidebar>button{gap:4px}}
+@media(max-width:600px){.mapBody{display:block}.mapSidebar{border-right:0;border-bottom:1px solid #dbe4ec}.mapCanvas{min-width:0}.mapNodes{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}.mapZoom{margin-left:auto}}
