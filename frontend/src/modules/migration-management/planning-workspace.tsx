@@ -704,6 +704,29 @@ export function PlanningEditor({
                 </div>
               </label>
             </div>
+            <div className={styles.scopeFilterActions}>
+              <button type="button" className="button button-secondary" aria-expanded={scopeReviewOpen}
+                aria-controls="scope-selection-review" onClick={() => setScopeReviewOpen(open => !open)}
+                disabled={draft.resources.length === 0}>
+                {scopeReviewOpen ? "Hide selected scope" : `Review selected scope (${draft.resources.length})`}
+              </button>
+            </div>
+            {scopeReviewOpen && (
+              <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
+                <h2>Selected migration scope review</h2>
+                <p className={styles.caption}>{draft.resources.length} selected resources · {dependencies} confirmed dependencies · assessment v{assessment.assessmentVersion}</p>
+                <ul>
+                  {draft.resources.map((resource) => (
+                    <li key={resourceKey(resource)}>
+                      <strong>{resource.name}</strong>
+                      <span>{resource.namespace || "Cluster-scoped"} · {resource.kind} · {resource.dependency ? "Dependency" : "Workload/resource"} · {resource.treatment}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p><strong>Data migration:</strong> {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</p>
+                <p className={styles.caption}>This is a draft review, not a target-readiness approval. Check missing dependencies and PVC data migration before proceeding.</p>
+              </section>
+            )}
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
                 ["WORKLOADS", "Workloads"],
@@ -1020,38 +1043,18 @@ export function PlanningEditor({
               <p className={styles.caption}>{reviewRecommendations} inventoried resources classified for manual review; {managedRecommendations} are platform-managed or generated. Zero additional suggestions does not mean discovery is complete. Only inventoried dependency references are included. Recommendations do not establish complete target readiness.</p>
               <button
                 className="button button-primary"
-                disabled={!canEdit || stale || save.isPending || (recommendedScopeAdditions.length === 0 && draft.resources.length === 0)}
+                disabled={!canEdit || stale || save.isPending || recommendedScopeAdditions.length === 0}
                 onClick={() => {
                   if (recommendedScopeAdditions.length > 0) {
                     change({ ...draft, resources: [...draft.resources, ...recommendedScopeAdditions] });
                     setMessage("Recommended resources added to the planning draft. Review storage and data strategy, then save.");
-                  } else {
-                    setScopeReviewOpen((open) => !open);
                   }
                 }}
               >
-                {recommendedScopeAdditions.length > 0
-                  ? `Add ${recommendedScopeAdditions.length} recommended resource${recommendedScopeAdditions.length === 1 ? "" : "s"} to draft`
-                  : scopeReviewOpen ? "Hide scope review" : "Review selected scope"}
+                {`Add ${recommendedScopeAdditions.length} recommended resource${recommendedScopeAdditions.length === 1 ? "" : "s"} to draft`}
               </button>
               <p className={styles.caption}>Confirms planning selections only. Inspect the table and data strategy before saving; no resources are migrated.</p>
             </div>
-            {scopeReviewOpen && (
-              <section className={styles.scopeReview} aria-label="Selected migration scope review">
-                <h2>Selected migration scope review</h2>
-                <p className={styles.caption}>{draft.resources.length} selected resources · {dependencies} confirmed dependencies · assessment v{assessment.assessmentVersion}</p>
-                <ul>
-                  {draft.resources.map((resource) => (
-                    <li key={resourceKey(resource)}>
-                      <strong>{resource.name}</strong>
-                      <span>{resource.namespace || "Cluster-scoped"} · {resource.kind} · {resource.dependency ? "Dependency" : "Workload/resource"} · {resource.treatment}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p><strong>Data migration:</strong> {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</p>
-                <p className={styles.caption}>This is a draft review, not a target-readiness approval. Check missing dependencies and PVC data migration before proceeding.</p>
-              </section>
-            )}
             <h2>Scope summary</h2>
             <div className={styles.summaryItem}>
               <Boxes size={22} />
