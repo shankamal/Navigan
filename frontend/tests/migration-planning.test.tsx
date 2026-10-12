@@ -137,6 +137,8 @@ describe("migration planning", () => {
     expect(result).toHaveTextContent("payments");
     expect(result).toHaveTextContent("retailflow-api");
     expect(result).toHaveTextContent("payments-api");
+    expect(screen.getByLabelText("Scope analysis workflow")).toHaveTextContent("Select namespaces");
+    expect(result).toHaveTextContent("Workload candidates");
     expect(result).toHaveTextContent("not in draft");
     fireEvent.click(screen.getAllByRole("button",{name:"Add to draft"}).at(-1)!);
     expect(screen.getByLabelText("Selected migration scope review")).toHaveTextContent("payments-api");
