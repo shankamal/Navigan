@@ -39,7 +39,7 @@ import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
 import { inspectTargetCapabilitySnapshot } from "./target-capabilities";
-import { recommendResource, recommendDependencies, recommendFinding } from "./planning-recommendations";
+import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
 
@@ -383,6 +383,7 @@ export function PlanningEditor({
     : (categorizedFindings[0]?.index ?? -1);
   const finding = activeFindingIndex >= 0 ? assessment.findings[activeFindingIndex] : undefined;
   const suggestedRemediation = activeFindingIndex >= 0 ? recommendFinding(assessment, activeFindingIndex) : null;
+  const recommendationIntelligence = activeFindingIndex >= 0 ? analyzeRemediationFinding(assessment,activeFindingIndex,targetPlatform) : null;
   const acceptedSuggestion = draft.remediations.some((r) => r.findingIndex === activeFindingIndex);
   const remediation =
     draft.remediations.find((r) => r.findingIndex === activeFindingIndex) ??
@@ -1288,6 +1289,17 @@ export function PlanningEditor({
                     <p>{finding.message}</p>
                     <small>{finding.namespace ?? "Cluster"} / {finding.resourceKind ?? finding.category} / {finding.resourceName ?? "Shared resource"}</small>
                   </div>
+                  {recommendationIntelligence && <section className={styles.remediationExplanation} aria-label="Remediation intelligence explanation">
+                    <strong>{recommendationIntelligence.title}</strong>
+                    <p>{recommendationIntelligence.rationale}</p>
+                    <details><summary>Required actions and verification</summary>
+                      <strong>Proposed actions</strong>
+                      <ol>{recommendationIntelligence.proposedActions.map((action,index)=><li key={index}>{action}</li>)}</ol>
+                      <strong>Verification requirements</strong>
+                      <ul>{recommendationIntelligence.verificationRequirements.map((requirement,index)=><li key={index}>{requirement}</li>)}</ul>
+                    </details>
+                    <small>Rule-based planning guidance · Human review required · No target compatibility implied</small>
+                  </section>}
                   <section className={styles.mappingComparison} aria-label="Source to target remediation comparison">
                     <div><span>Detected source issue</span><p>{finding.message}</p></div>
                     <div><span>Recommended treatment · {suggestedRemediation?.treatment ?? "REVIEW"}</span><p>{suggestedRemediation?.targetMapping || "Manual review required; no specific mapping can be verified."}</p></div>
