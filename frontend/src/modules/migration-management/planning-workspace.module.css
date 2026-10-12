@@ -733,3 +733,17 @@
 .scopeNamespacePicker label{display:flex;align-items:center;gap:8px;padding:7px 6px;cursor:pointer}
 @media(max-width:1080px){.filters:has(.scopeNamespacePicker){grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:550px){.filters:has(.scopeNamespacePicker){grid-template-columns:minmax(0,1fr)}}
+
+
+/* Guided scope workflow: one namespace selector, explicit analysis, distinct draft summary */
+.scopeFlowPrompt{margin:12px 0 8px;background:#f3f8ff;border-left:3px solid #4381b9;padding:10px 12px}
+.scopeFlowPrompt strong{font-size:12px}
+.scopeFlowPrompt p{font-size:12px;margin:4px 0;color:#50647a}
+.scopeSelectionBar{display:grid;grid-template-columns:minmax(220px,1fr) minmax(220px,1.35fr) auto;gap:12px;align-items:end}
+.scopeSelectionBar .scopeNamespacePicker{align-self:end}
+.scopeSelectionBar .scopeNamespacePicker summary{min-height:39px}
+.scopeSearchLabel{display:grid;gap:6px;font-size:12px;color:#42576d}
+.scopeSelectionBar .scopeFilterActions button{min-height:39px;white-space:nowrap}
+.scopeSelectedNamespaces{font-size:12px;color:#4e6276;margin:9px 0}
+@media(max-width:900px){.scopeSelectionBar{grid-template-columns:repeat(2,minmax(0,1fr))}.scopeSelectionBar .scopeFilterActions{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:550px){.scopeSelectionBar{grid-template-columns:minmax(0,1fr)}.scopeSelectionBar .scopeFilterActions{grid-column:auto}}
