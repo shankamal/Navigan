@@ -1,5 +1,5 @@
 "use client";
-import {useMemo,useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 import {AlertTriangle,Boxes,CheckCircle2,Database,Layers3,Network,Search,ZoomIn,ZoomOut,RotateCcw,GitBranch,ChevronRight} from "lucide-react";
 import styles from "./scope-topology.module.css";
 export type TopologyResource={kind:string;namespace:string|null;name:string;selected:boolean;references:{kind:string;name:string;present:boolean}[];potentialClaims:{name:string}[]};
@@ -15,6 +15,8 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
  const [mapView,setMapView]=useState<"overview"|"detail">("overview");
  const filtered=useMemo(()=>resources.filter(r=>(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(showDiscovered||r.selected)&&[r.kind,r.name,r.namespace,...r.references.map(x=>x.name)].join(" ").toLowerCase().includes(search.toLowerCase())),[resources,activeNamespace,showDiscovered,search]);
  const focused=resources.find(r=>id(r)===focus && namespaces.includes(r.namespace??""));
+ useEffect(()=>{if(activeNamespace!=="ALL"&&!namespaces.includes(activeNamespace)){setActiveNamespace("ALL");setMapView("overview");setFocus(null);}},[activeNamespace,namespaces]);
+ useEffect(()=>{if(mapView==="detail"&&!focused)setMapView("overview");},[mapView,focused]);
  const covered=coverageKnown;
  const recorded=filtered.reduce((n,r)=>n+r.references.length,0);
  const visibleRecorded=coverageKnown?recorded:0;
@@ -31,8 +33,8 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
    </div>
    <div className={styles.mapBody}>
      <aside className={styles.mapSidebar} aria-label="Namespace explorer"><strong>Namespaces <small>{namespaces.length}</small></strong>
-       <button aria-current={activeNamespace==="ALL"?"true":undefined} onClick={()=>{setActiveNamespace("ALL");setMapView("overview");}}><Boxes size={17}/><span>All selected namespaces<small>{resources.length} workloads</small></span><ChevronRight size={14}/></button>
-       {namespaces.map(ns=><button key={ns} aria-current={activeNamespace===ns?"true":undefined} onClick={()=>{setActiveNamespace(ns);setMapView("overview");}}><Boxes size={17}/><span>{ns}<small>{resources.filter(r=>r.namespace===ns).length} workloads · {resources.filter(r=>r.namespace===ns&&r.selected).length} included</small></span><ChevronRight size={14}/></button>)}
+       <button aria-current={activeNamespace==="ALL"?"true":undefined} onClick={()=>{setActiveNamespace("ALL");setMapView("overview");setFocus(null);}}><Boxes size={17}/><span>All selected namespaces<small>{resources.length} workloads</small></span><ChevronRight size={14}/></button>
+       {namespaces.map(ns=><button key={ns} aria-current={activeNamespace===ns?"true":undefined} onClick={()=>{setActiveNamespace(ns);setMapView("overview");setFocus(null);}}><Boxes size={17}/><span>{ns}<small>{resources.filter(r=>r.namespace===ns).length} workloads · {resources.filter(r=>r.namespace===ns&&r.selected).length} included</small></span><ChevronRight size={14}/></button>)}
        <div className={styles.mapEvidence}><strong>Evidence status</strong><span>{visibleRecorded} verified-reference candidates</span><small>{covered?"Reference inventory collected":"Relationship references not collected. A new assessment is needed for verified dependency edges."}</small></div>
      </aside>
      <div className={styles.mapStage}>
@@ -42,7 +44,7 @@ export function ScopeTopology({namespaces,resources,coverageKnown,onSelect,readO
           <div className={styles.mapFocusHeading}><span>WORKLOAD DEPENDENCY VIEW</span><button onClick={()=>setMapView("overview")}>Back to namespace map</button></div>
           <div className={styles.mapFocusLayout}>
             <div className={styles.mapFocusPrimary}><span>{focused.kind} · {focused.namespace}</span><strong>{focused.name}</strong><small>{focused.selected?"Included in migration draft":"Discovered — not included"}</small></div>
-            <div className={styles.mapFocusArrow} aria-hidden="true">{covered&&focused.references.length>0?"→":"· · ·"}</div>
+            <div className={styles.mapFocusArrow} aria-hidden="true">{covered&&focused.references.length>0?"→":"?"}</div>
             <div className={styles.mapFocusRelationships}>
               <strong>Recorded dependency references ({covered?focused.references.length:0})</strong>
               {covered&&focused.references.map((ref,index)=><div key={index} className={ref.present?styles.mapFocusVerified:styles.mapFocusMissing}><GitBranch size={15}/><span><b>{ref.name}</b><small>{ref.kind} · {ref.present?"Present in source inventory":"Missing from source inventory"}</small></span></div>)}
