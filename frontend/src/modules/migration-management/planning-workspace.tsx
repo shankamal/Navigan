@@ -713,18 +713,18 @@ export function PlanningEditor({
             </div>
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
-                <h2>Selected migration scope review</h2>
-                <p className={styles.caption}>{draft.resources.length} selected resources · {dependencies} confirmed dependencies · assessment v{assessment.assessmentVersion}</p>
-                <ul>
-                  {draft.resources.map((resource) => (
-                    <li key={resourceKey(resource)}>
-                      <strong>{resource.name}</strong>
-                      <span>{resource.namespace || "Cluster-scoped"} · {resource.kind} · {resource.dependency ? "Dependency" : "Workload/resource"} · {resource.treatment}</span>
-                    </li>
+                <div className={styles.scopeReviewHeading}>
+                  <strong>Selected scope · {draft.resources.length} resources</strong>
+                  <span>{dependencies} confirmed dependencies · Assessment v{assessment.assessmentVersion}</span>
+                </div>
+                <div className={styles.scopeReviewItems}>
+                  {draft.resources.map(resource => (
+                    <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
+                      {resource.name} <small>{resource.kind}</small>
+                    </span>
                   ))}
-                </ul>
-                <p><strong>Data migration:</strong> {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</p>
-                <p className={styles.caption}>This is a draft review, not a target-readiness approval. Check missing dependencies and PVC data migration before proceeding.</p>
+                </div>
+                <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
             <nav className={styles.scopeViews} aria-label="Scope resource views">
@@ -1037,23 +1037,22 @@ export function PlanningEditor({
             </section>
             <div className={styles.intelligencePanel}>
               <h2>Navigan analysis</h2>
-              <p className={styles.caption}>{namespace || "All assessed namespaces"} · {filtered.length} inventoried resources in view</p>
-              <p>{draft.resources.length - dependencies} already selected resources · {dependencies} confirmed dependencies in draft.</p>
-              <p>{pendingRecommendations.length} additional workload candidates · {recommendedDependencyCount} additional referenced dependencies available.</p>
-              <p className={styles.caption}>{reviewRecommendations} inventoried resources classified for manual review; {managedRecommendations} are platform-managed or generated. Zero additional suggestions does not mean discovery is complete. Only inventoried dependency references are included. Recommendations do not establish complete target readiness.</p>
-              <button
-                className="button button-primary"
-                disabled={!canEdit || stale || save.isPending || recommendedScopeAdditions.length === 0}
-                onClick={() => {
-                  if (recommendedScopeAdditions.length > 0) {
-                    change({ ...draft, resources: [...draft.resources, ...recommendedScopeAdditions] });
-                    setMessage("Recommended resources added to the planning draft. Review storage and data strategy, then save.");
-                  }
-                }}
-              >
-                {`Add ${recommendedScopeAdditions.length} recommended resource${recommendedScopeAdditions.length === 1 ? "" : "s"} to draft`}
-              </button>
-              <p className={styles.caption}>Confirms planning selections only. Inspect the table and data strategy before saving; no resources are migrated.</p>
+              <p className={styles.caption}>Recommendations from available source inventory only.</p>
+              {recommendedScopeAdditions.length > 0 ? (
+                <>
+                  <p><strong>{recommendedScopeAdditions.length} resource{recommendedScopeAdditions.length === 1 ? "" : "s"} recommended</strong> for inclusion in the draft.</p>
+                  <button className="button button-secondary" disabled={!canEdit || stale || save.isPending}
+                    onClick={() => {
+                      change({...draft,resources:[...draft.resources,...recommendedScopeAdditions]});
+                      setMessage("Recommended resources added to the planning draft. Review storage and data strategy before saving.");
+                    }}>
+                    Add {recommendedScopeAdditions.length} recommended resource{recommendedScopeAdditions.length === 1 ? "" : "s"}
+                  </button>
+                </>
+              ) : (
+                <p className={styles.caption}>No additional resource recommendations in this inventory. Dependency coverage may still be incomplete.</p>
+              )}
+              {draft.dataStrategy === "UNDECIDED" && <p className={styles.caption}><strong>Next action:</strong> Review Data &amp; Storage and choose a data migration strategy.</p>}
             </div>
             <h2>Scope summary</h2>
             <div className={styles.summaryItem}>
