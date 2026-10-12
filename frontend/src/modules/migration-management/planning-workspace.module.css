@@ -749,3 +749,31 @@
 @media(max-width:550px){.scopeSelectionBar{grid-template-columns:minmax(0,1fr)}.scopeSelectionBar .scopeFilterActions{grid-column:auto}}
 
 .scopeOutsideNotice{font-size:12px;margin:9px 0;padding:9px 10px;background:#fff8ed;border-left:3px solid #d8992d;color:#775526}
+
+
+/* Evidence-backed Headlamp-inspired topology: no invented relationship lines. */
+.topologyLegend{display:flex;gap:18px;flex-wrap:wrap;padding:10px 2px;color:#526378;font-size:11px}
+.topologyLegend span{display:inline-flex;align-items:center;gap:7px}
+.topologyLegend i{width:10px;height:10px;display:inline-block;border-radius:3px}
+.topologySelectedMark{background:#86bc25}.topologyObservedMark{background:#328ac1}.topologyInferredMark{border:1px dashed #d39c48;background:#fff8e8}
+.topologyCoverage{border-left:3px solid #dba14e;background:#fff8ee;padding:11px 13px;margin:8px 0 14px;font-size:12px}
+.topologyCoverage p{margin:5px 0 0;line-height:1.5}
+.topologyCanvas{background-color:#fcfdff;background-image:radial-gradient(#dce5ef 0.8px,transparent 0.8px);background-size:18px 18px;border:1px solid #dce5ed;padding:18px;min-height:220px;display:grid;gap:17px;align-content:start}
+.topologyNamespace{border:1px solid #dce6ee;border-radius:5px;background:rgba(255,255,255,.94);padding:12px}
+.topologyNamespaceHeader{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e6ecf2;padding-bottom:9px;margin-bottom:13px;color:#253b51}
+.topologyNamespaceHeader strong{font-size:13px}.topologyNamespaceHeader span{font-size:11px;color:#657a8b}
+.topologyNodes{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.topologyChain{display:flex;align-items:center;min-width:190px;gap:0;max-width:100%;flex-wrap:wrap}
+.topologyWorkloadNode{display:flex;flex-direction:column;gap:6px;border:1px solid #a6c97d;border-left:4px solid #86bc25;padding:12px 14px;background:#f5faef;border-radius:6px;min-width:185px;max-width:260px;box-shadow:0 2px 4px rgba(10,35,55,.04)}
+.topologyWorkloadNode strong,.topologyDependencyNode strong,.topologyMissingNode strong{font-size:12px;overflow-wrap:anywhere}
+.topologyWorkloadNode small,.topologyDependencyNode small,.topologyMissingNode small{font-size:11px;color:#6c7f90}
+.topologyEdge{width:30px;height:2px;background:#328ac1;position:relative}
+.topologyEdge:after{content:"";position:absolute;right:-1px;top:-4px;border-left:7px solid #328ac1;border-top:5px solid transparent;border-bottom:5px solid transparent}
+.topologyDependencyNodes{display:grid;gap:7px;max-width:240px}
+.topologyDependencyNode,.topologyMissingNode{display:flex;flex-direction:column;gap:5px;border:1px solid #bad9ec;border-left:3px solid #328ac1;background:#f1f8fd;padding:10px;border-radius:5px}
+.topologyMissingNode{border-color:#edcf95;border-left-color:#da9d3b;background:#fff8e9}
+.topologyCandidates{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:8px}
+.topologyCandidates small{flex-basis:100%;color:#986d27}
+.topologyCandidates span{padding:4px 7px;font-size:11px;border:1px dashed #d9b879;background:#fffaf0;border-radius:4px}
+.topologyNextAction{font-size:12px;color:#52677b;line-height:1.5;margin:11px 0 0}
+@media(max-width:720px){.topologyCanvas{padding:9px}.topologyNodes{display:grid}.topologyChain{gap:8px}.topologyEdge{width:20px}}
