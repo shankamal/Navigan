@@ -1058,25 +1058,6 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       )}
 
       {assessment && (
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Plan migration</h2>
-              <p>
-                Choose workloads and track remediation against this assessment.
-                Assessment approval does not authorize execution.
-              </p>
-            </div>
-            <Link
-              href={`/migrations/${migrationId}/plan`}
-              className="button button-primary"
-            >
-              Open migration workspace <ArrowRight size={17} />
-            </Link>
-          </div>
-        </section>
-      )}
-      {assessment && (
         <AssessmentReportCard
           report={assessment}
           inventory={sourceInventory}
@@ -1101,6 +1082,12 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       )}
       {assessment && (
         <section className={styles.reportDecisionBar}>
+          <div className={styles.reportPlanAction}>
+            <div><strong>Plan migration</strong><span>Choose workloads and track remediation. Approval does not authorize execution.</span></div>
+            <Link href={`/migrations/${migrationId}/plan`} className="button button-primary">
+              Open migration workspace <ArrowRight size={17} />
+            </Link>
+          </div>
           <div>
             <strong>
               {criticalFindingCount > 0
