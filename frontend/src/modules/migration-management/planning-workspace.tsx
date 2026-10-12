@@ -345,7 +345,7 @@ export function PlanningEditor({
   );
   const scopeGateIssues = [
     ...(!namespace ? ["Select a namespace before analyzing migration scope."] : []),
-    ...(scopeAnalysisNamespace !== namespace ? ["Run Analyze selected namespace to review this migration scope."] : []),
+    ...(scopeAnalysisNamespace !== namespace ? ["Review the selected namespace scope before continuing."] : []),
     ...(!draft.resources.some(resource => !resource.dependency && (draft.mode==="FULL_CLUSTER" || resource.namespace===namespace)) ? ["Select at least one application workload in the chosen namespace."] : []),
     ...readiness.issues.map(issue => issue.detail),
     ...(stale ? ["Assessment evidence has changed; refresh the planning draft."] : []),
@@ -716,7 +716,7 @@ export function PlanningEditor({
                 aria-controls="scope-selection-review" onClick={() => {setScopeAnalysisNamespace(namespace);setScopeReviewOpen(open => !open);}}
                 disabled={!namespace || !canEdit || stale || save.isPending}>
 
-                {scopeReviewOpen ? "Hide scope analysis" : "Analyze selected namespace"}
+                {scopeReviewOpen ? "Hide scope analysis" : "Review selected scope"}
               </button>
               </div>
             </div>
@@ -733,7 +733,7 @@ export function PlanningEditor({
                     </span>
                   ))}
                 </div>
-                <p className={styles.scopeReviewData}>Suggested dependencies: {uniqueSuggestions.filter(item => item.resource.namespace === scopeAnalysisNamespace).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
+                <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace === scopeAnalysisNamespace).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
