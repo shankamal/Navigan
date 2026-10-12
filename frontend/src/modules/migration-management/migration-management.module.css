@@ -2393,3 +2393,7 @@
 .reportPlanAction>a{padding:9px 13px}
 .reportDecisionBar>.reportDecisionActions{flex:0 0 auto}
 @media(max-width:720px){.reportDecisionBar{padding:9px 12px}.reportPlanAction{flex-direction:row;flex-wrap:wrap}.reportPlanAction>a{margin-left:auto}}
+
+.assessmentHeadingActions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.assessmentHeadingActions>a{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+@media(max-width:720px){.assessmentHeadingActions{justify-content:flex-start}.assessmentHeadingActions>a{white-space:normal}}
