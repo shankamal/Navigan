@@ -1116,26 +1116,14 @@ export function PlanningEditor({
                 coverage is not yet certified for full-cluster migration.
               </p>
             )}
-            <section className={styles.notice} aria-label="Target capability evidence status">
-              <strong>Target capability discovery · {targetCapability.status.toLowerCase()}</strong>
-              <p>No verified, fresh, target-bound capability snapshot has been collected for this planning session. Storage-class recommendations cannot be approved using provider naming conventions alone.</p>
-            </section>
-            <section className={styles.notice} aria-label="Storage compatibility findings">
-              <strong>Target storage compatibility · {storageCompatibility.length} checks</strong>
-              {storageCompatibility.length ? <ul>{storageCompatibility.map((issue,index) => <li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul> : <p>No scoped storage compatibility issues detected in available evidence. Target verification and approval remain separate.</p>}
-            </section>
-            <section className={styles.notice} aria-label="Scope readiness assessment">
-              <strong>Scope readiness · {readiness.state === "INCOMPLETE" ? "Decisions outstanding" : "Manual validation required"}</strong>
-              <p>{readiness.selectedWorkloads} primary resources selected · {readiness.confirmedDependencies} confirmed dependencies · {readiness.issues.length} open planning checks</p>
-              {readiness.issues.length > 0 ? (
-                <ul>{readiness.issues.map((issue, index) => <li key={index}><strong>{issue.type.replaceAll("_", " ")}</strong> — {issue.detail}</li>)}</ul>
-              ) : <p>No outstanding checks detected in collected evidence. This is not target readiness or migration approval.</p>}
-              {unselectedDependencyResources.length > 0 && (
-                <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={includeReferencedDependencies}>
-                  Add {unselectedDependencyResources.length} inventoried dependencies to draft
-                </button>
-              )}
-            </section>
+            <div className={styles.scopeReadinessCompact} aria-label="Scope readiness assessment">
+              <strong>Migration readiness · {readiness.issues.length} follow-up checks</strong>
+              <p>{targetCapability.status === "CURRENT" ? "Target evidence available for evaluation." : "Target capabilities not verified."} Missing evidence stays open for remediation and final review.</p>
+              <details><summary>Review compatibility and readiness details</summary>
+                <ul>{readiness.issues.map((issue,index)=><li key={index}><strong>{issue.type.replaceAll("_"," ")}</strong> — {issue.detail}</li>)}</ul>
+                <p>Storage checks: {storageCompatibility.length}. Target evidence: {targetCapability.status.toLowerCase()}.</p>
+              </details>
+            </div>
           </aside>
         </div>
       )}
