@@ -127,3 +127,11 @@
 .mapFocusVerified small,.mapFocusMissing small{font-size:10px;color:#718296}
 .mapFocusStorage{font-size:11px;color:#916f2c;background:#fff8eb;border:1px dashed #ebcb90;border-radius:5px;padding:10px;display:flex;align-items:center;gap:7px}
 @media(max-width:950px){.mapToolbar{flex-wrap:wrap}.mapSearch{flex-basis:100%;max-width:none}.mapFocusLayout{grid-template-columns:1fr;gap:10px}.mapFocusArrow{transform:rotate(90deg);font-size:22px}}
+
+
+/* Evidence-unavailable state remains clear without overwhelming the diagram. */
+.mapAlert{margin:10px 12px 0;border:1px solid #e9d9ae;border-left:3px solid #d7a43b;border-radius:4px;background:#fffaf0;padding:9px 12px;color:#725823}
+.mapAlert strong{font-weight:700}
+.mapFocusArrow{font-size:22px}
+.mapFocusRelationships>p{padding:11px 12px;background:#f7f9fc;border:1px dashed #ccd8e6;border-radius:5px}
+.mapSidebar>button:focus-visible,.mapNode:focus-visible,.mapNodeIncluded:focus-visible,.mapViewSwitch button:focus-visible{outline:2px solid #609d26;outline-offset:2px}
