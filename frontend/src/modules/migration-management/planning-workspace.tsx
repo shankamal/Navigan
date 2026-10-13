@@ -507,7 +507,7 @@ export function PlanningEditor({
     migration: { id:migration.migrationId,name:migration.name,customer:String(migration.customerName??migration.customerId),status:migration.status,mode:draft.mode },
     assessment: { version:assessment.assessmentVersion,inventoryDigest:assessment.inventoryDigest,stale,dependencyReferenceCoverage:graph.coverage },
     scope: { selectedNamespaces:scopeNamespaces,discoveredWorkloads:analyzedWorkloadCandidates.length,selectedWorkloads:draft.resources.filter(r=>!r.dependency&&["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(r.kind)).length,resources:draft.resources.map(r=>({namespace:r.namespace,kind:r.kind,name:r.name,treatment:r.treatment,dependency:r.dependency})),dependencyFlaggedCount:dependencies },
-    remediation: { recordedDecisions:draft.remediations.length,findings:assessment.findings.map(f=>({severity:f.severity,description:String(f.description??"")})) },
+    remediation: { recordedDecisions:draft.remediations.length,findings:assessment.findings.map(f=>({severity:f.severity,description:f.message})) },
     readiness: { openChecks:readiness.issues.map(issue=>({type:issue.type,detail:issue.detail})),dataStrategy:draft.dataStrategy,pvcManifests:pendingPvcs.length },
     artifactReadiness: { sourceManifests:"NOT_COLLECTED",helmCharts:"NOT_COLLECTED",images:"REFERENCES_ONLY",s3Package:"NOT_CREATED",ecrPromotion:"NOT_STARTED" },
     disclaimer:"Planning export reflects the current UI draft, which may contain unsaved changes. No migration artifacts or cluster resources are exported.",
