@@ -423,6 +423,7 @@ export function PlanningEditor({
     savedScopeCurrent && !dirty ? savedDraft!.resources : [],
     resources,
     savedTargetMatches,
+    savedTargetMatches ? targetEvidence : null,
   );
   const p0Checks = p0Compatibility.flatMap(item => item.checks);
   const p0Unverified = p0Checks.filter(item => item.status === "NOT_VERIFIED").length;
@@ -710,16 +711,19 @@ export function PlanningEditor({
           {!targetEvidence?.snapshot.resourceKinds && <p className={styles.caption}>The current saved report predates resource categorization. The updated backend will populate this after an authorized refresh.</p>}
         </section>
         <section className={styles.targetCapabilitySection} aria-label="Target readiness evidence">
-          <div className={styles.targetAssessmentHead}><div><strong>What still needs verification?</strong><p>These are capability checks required to compare selected workloads against this EKS cluster. A reported resource count is not proof that any capability is supported.</p></div><span className={styles.targetEvidenceUnknown}>6 capability areas · Not verified</span></div>
+          <div className={styles.targetAssessmentHead}><div><strong>Target capability evidence</strong><p>Partial observations show what the connector discovered, not proof of compatibility with selected source workloads.</p></div><span className={styles.targetEvidenceUnknown}>Migration readiness · Pending verification</span></div>
           <div className={styles.targetCapabilityGrid}>
-            {[
-              {title:"Kubernetes APIs",description:"Target version, supported API groups and deprecated source APIs."},
-              {title:"Compute & scheduling",description:"Node allocatable capacity, workload requests, quotas, affinities and taints."},
-              {title:"Storage & CSI",description:"StorageClasses, provisioners, volume access modes and capacity."},
-              {title:"Networking & ingress",description:"Services, ingress controllers, routes, DNS/TLS and network policies."},
-              {title:"Identity & security",description:"Service accounts, permissions, image pulls, secrets and workload identity."},
-              {title:"Controllers & dependencies",description:"Required operators, CRDs and external application dependencies."},
-            ].map(item=><div key={item.title}><strong>{item.title}</strong><span>NOT VERIFIED</span><p>{item.description}</p></div>)}
+            {([
+              ["Kubernetes APIs", "kubernetesApi"],
+              ["Compute & scheduling", "compute"],
+              ["Storage & CSI", "storage"],
+              ["Networking & ingress", "networking"],
+              ["Identity & security", "identity"],
+              ["Controllers & dependencies", "dependencies"],
+            ] as const).map(([title,key]) => {
+              const evidence = targetEvidence?.snapshot.capabilityEvidence?.[key];
+              return <div key={key}><strong>{title}</strong><span>{evidence?.status === "PARTIAL" ? "PARTIAL EVIDENCE" : "NOT VERIFIED"}</span><p>{evidence?.reason ?? "An authorized, capability-specific target observation is required."}</p></div>;
+            })}
           </div>
         </section>
         <div className={styles.workflowStageWarning}>Inventory collection is read-only and does not establish migration readiness. Continue to Compatibility with the saved Source Draft; unsupported or absent target evidence remains Not Verified.</div>
