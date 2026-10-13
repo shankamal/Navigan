@@ -593,7 +593,7 @@ export function PlanningEditor({
       )}
       {tab === "target" && <section className={styles.surface} aria-label="Target discovery and readiness">
         <div className={styles.workflowStageHeading}><strong>2. Target Discovery &amp; Readiness</strong><p>Identify target environment capabilities and evidence gaps before compatibility scoring. Target discovery is read-only.</p></div>
-        <div className={styles.context}><div><span>Selected target</span><strong>{String(migration.targetConfiguration?.clusterId??"Not configured")}</strong></div><div><span>Target platform</span><strong>{targetPlatform}</strong></div><div><span>Evidence status</span><strong>{targetCompatibility.evidenceStatus}</strong></div></div>
+        <div className={styles.context}><div><span>AWS EKS cluster name</span><strong>{assessment.inventorySummary.target.clusterName || "Not available in assessment"}</strong></div><div><span>Navigan Cluster ID</span><strong>{String(migration.targetConfiguration?.clusterId ?? "Not configured")}</strong></div><div><span>Target platform</span><strong>{targetPlatform}</strong></div><div><span>Evidence status</span><strong>{targetCompatibility.evidenceStatus}</strong></div></div>
                     <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
               <div className={styles.targetAssessmentHead}>
                 <div><strong>Target Analysis &amp; Migration Path</strong><p>Evaluate the selected migration scope against verified target capabilities before choosing a migration path.</p></div>
@@ -601,7 +601,7 @@ export function PlanningEditor({
               </div>
               <div className={styles.targetAssessmentSummary}>
                 <div><span>Source assessment</span><strong>Version {assessment.assessmentVersion}</strong><small>{draft.resources.length} resources currently included</small></div>
-                <div><span>Target platform</span><strong>{targetPlatform}</strong><small>{String(migration.targetConfiguration?.clusterId ?? "No cluster identifier")}</small></div>
+                <div><span>Target EKS cluster</span><strong>{assessment.inventorySummary.target.clusterName || "Name unavailable"}</strong><small>Navigan ID: {String(migration.targetConfiguration?.clusterId ?? "Not configured")}</small></div>
                 <div><span>Target discovery</span><strong>{targetCompatibility.evidenceStatus === "CURRENT" ? "Evidence available" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
               </div>
               <div className={styles.targetAssessmentDecision}>
