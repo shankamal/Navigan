@@ -1021,3 +1021,20 @@
 .scopeNamespaceChips{clear:both;position:relative}
 @media(max-width:980px){.scopeSelectionBar{grid-template-columns:minmax(190px,1fr) minmax(190px,1.2fr)}.scopeSelectionBar .scopeFilterActions{grid-column:1/-1;justify-content:flex-end}}
 @media(max-width:600px){.scopeSelectionBar{grid-template-columns:minmax(0,1fr)}.scopeSelectionBar .scopeFilterActions{grid-column:auto;justify-content:stretch}.scopeSelectionBar .scopeFilterActions button{width:100%}}
+
+
+/* Migration Summary & Export: summary is metadata-only, not an artifact package. */
+.migrationSummaryPanel{border:1px solid #dce6ee;border-left:3px solid #86bc25;border-radius:4px;padding:15px;margin:12px 0;background:#fff}
+.migrationSummaryHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.migrationSummaryHead strong{font-size:16px;color:#283f55}
+.migrationSummaryHead p{font-size:11px;color:#6b8195;margin:5px 0 0;line-height:1.6}
+.migrationExportActions{display:flex;gap:7px;flex-wrap:wrap}
+.migrationExportActions button{border:1px solid #a9c4da;border-radius:4px;background:#f9fcff;color:#2e5c7a;padding:9px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.migrationExportActions button:hover{background:#e9f4fb}
+.migrationSummaryGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.migrationSummaryGrid>div{display:grid;gap:6px;padding:11px;background:#f7fafc;border:1px solid #dfe7ef;border-radius:4px}
+.migrationSummaryGrid span{font-size:10px;color:#61778d}
+.migrationSummaryGrid b{font-size:19px;color:#427d25}
+.migrationSummaryEvidence{font-size:11px;color:#667e91;line-height:1.6;margin:6px 0}
+@media(max-width:880px){.migrationSummaryHead{flex-direction:column}.migrationSummaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{.migrationExportActions,.steps,button{display:none!important}.migrationSummaryPanel{break-inside:avoid}}
