@@ -101,6 +101,73 @@ class Service:
         }
         return self.repo.save_target_assessment(identifier, cluster_id, snapshot)
 
+    def target_compatibility(self, identifier):
+        """Return the backend-authoritative migration-path decision.
+
+        A direct/assisted recommendation is only allowed when the persisted
+        target assessment is bound to the current source assessment and the
+        target snapshot declares complete coverage. Source blockers can block
+        the path even before target coverage is complete.
+        """
+        self.access.require("migration.view")
+        migration = self.repo.get(identifier)
+        assessment = self.repo.get_assessment(identifier).get("assessment")
+        target = self.repo.get_target_assessment(identifier).get("assessment")
+
+        if not assessment:
+            return {
+                "migrationId": identifier,
+                "assessmentVersion": None,
+                "targetClusterId": (migration.get("target_configuration") or {}).get("clusterId"),
+                "evidenceLevel": None,
+                "coverageComplete": False,
+                "decision": {
+                    "path": "PENDING_EVIDENCE",
+                    "reason": "A current source assessment is required before compatibility can be decided.",
+                },
+            }
+
+        findings = assessment.get("findings") or []
+        blocked = any(
+            finding.get("severity") == "BLOCKER"
+            or finding.get("disposition") == "BLOCKER"
+            for finding in findings
+            if isinstance(finding, dict)
+        )
+        if blocked:
+            path = "BLOCKED"
+            reason = "The source assessment contains one or more blocking findings that must be resolved."
+        elif not target:
+            path = "PENDING_EVIDENCE"
+            reason = "Run target analysis and collect target-bound evidence before selecting a migration path."
+        else:
+            snapshot = target.get("snapshot") or {}
+            complete = bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or [])
+            if not complete:
+                path = "PENDING_EVIDENCE"
+                reason = "Target evidence is present but incomplete; required capabilities remain unverified."
+            elif any(
+                finding.get("disposition") in {"MANUAL_CHANGE", "AUTOMATED_CHANGE"}
+                for finding in findings
+                if isinstance(finding, dict)
+            ):
+                path = "ASSISTED"
+                reason = "Compatibility evidence is complete, but one or more source findings require remediation or assisted translation."
+            else:
+                path = "DIRECT"
+                reason = "Current source and target evidence is complete and no blocking or remediation findings remain."
+
+        snapshot = (target or {}).get("snapshot") or {}
+        return {
+            "migrationId": identifier,
+            "assessmentVersion": assessment.get("assessmentVersion"),
+            "targetClusterId": (target or {}).get("targetClusterId")
+            or (migration.get("target_configuration") or {}).get("clusterId"),
+            "evidenceLevel": (target or {}).get("evidenceLevel"),
+            "coverageComplete": bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or []),
+            "decision": {"path": path, "reason": reason},
+        }
+
     def create(self, body):
         self.access.require("migration.create")
         self.access.require_customer(body["customerId"])
