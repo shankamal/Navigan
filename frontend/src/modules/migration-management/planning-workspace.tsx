@@ -396,7 +396,7 @@ export function PlanningEditor({
     category,
     items: findings.filter(({finding}) => findingCategory(finding.category) === category),
   })).filter((group) => group.items.length > 0);
-  const workloadFindingOptions = [...new Map(assessment.findings.filter(item => item.namespace && item.resourceName && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(item.resourceKind ?? "") && scopeNamespaceSet.has(item.namespace)).map(item => [JSON.stringify([item.namespace,item.resourceName]), {namespace:item.namespace!,name:item.resourceName!}])).values()];
+  const workloadFindingOptions = [...new Map(assessment.findings.filter(item => item.namespace && item.resourceName && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(item.resourceKind ?? "") && scopeNamespaceSet.has(item.namespace)).map(item => [JSON.stringify([item.namespace,item.resourceName]), {namespace:item.namespace!,name:item.resourceName!}] as const)).values()];
   const categorizedFindings = findings.filter(({finding}) => {
     if(remediationWorkload !== "ALL" && JSON.stringify([finding.namespace,finding.resourceName]) !== remediationWorkload) return false;
     if (remediationCategory === "ALL") return true;
@@ -1269,7 +1269,7 @@ export function PlanningEditor({
           <section className={styles.remediationWorkloadPicker} aria-label="Workload-first remediation navigation">
             <div><strong>Review by workload</strong><p>Choose an application workload to focus its findings and remediation decisions. Select All workloads to review the complete assessment scope.</p></div>
             <div className={styles.remediationWorkloadChoices}>
-              <button type="button" aria-pressed={remediationWorkload==="ALL"} onClick={()=>setRemediationWorkload("ALL")}>All workloads <small>{assessment.findings.length} total findings</small></button>
+              <button type="button" aria-pressed={remediationWorkload==="ALL"} onClick={()=>{setRemediationWorkload("ALL");setFindingView("SCOPE");setNamespace("");setSeverity("ALL");setRemediationCategory("ALL");}}>All workloads <small>{assessment.findings.length} total findings</small></button>
               {workloadFindingOptions.map(item=>{const key=JSON.stringify([item.namespace,item.name]);const count=assessment.findings.filter(f=>f.namespace===item.namespace&&f.resourceName===item.name).length;return <button type="button" key={key} aria-pressed={remediationWorkload===key} onClick={()=>{setRemediationWorkload(key);setFindingView("ALL");setNamespace(item.namespace);setSeverity("ALL");setRemediationCategory("ALL");const next=assessment.findings.findIndex(f=>f.namespace===item.namespace&&f.resourceName===item.name);if(next>=0)setFindingIndex(next);}}><strong>{item.name}</strong><small>{item.namespace} · {count} finding{count===1?"":"s"}</small></button>})}
             </div>
           </section>
