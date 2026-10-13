@@ -697,12 +697,17 @@ export function PlanningEditor({
           <div><span>Evidence coverage</span><strong>{targetEvidence ? "Partial · Inventory only" : "Unavailable"}</strong></div>
         </div>
         <section className={styles.targetCapabilitySection} aria-label="Target resource inventory coverage">
-          <div className={styles.targetAssessmentHead}><div><strong>Resource inventory coverage</strong><p>The saved connector report provides an inventory total but not a resource-type breakdown. Namespace, workload, service and storage counts cannot be verified from this response.</p></div></div>
+          <div className={styles.targetAssessmentHead}><div><strong>Observed resource inventory</strong><p>Resource categories come from the existing Cluster Management connector. Only identifiable resource kinds are counted; unknown records are not guessed.</p></div></div>
           <div className={styles.targetOverview}>
             <div><span>Total reported resources</span><strong>{targetEvidence?.snapshot.resourceCount ?? "—"}</strong><small>Connector-observed count</small></div>
-            <div><span>Resource type breakdown</span><strong>Not available</strong><small>Detailed categories not exposed by current assessment API</small></div>
-            <div><span>Verified target capabilities</span><strong>Pending</strong><small>Additional target observations needed</small></div>
+            <div><span>Resource kinds identified</span><strong>{targetEvidence?.snapshot.resourceKinds ? Object.keys(targetEvidence.snapshot.resourceKinds).length : "Not yet available"}</strong><small>Detailed breakdown is available after the updated backend assessment</small></div>
+            <div><span>Evidence freshness</span><strong>{targetEvidence?.snapshot.inventoryExpiresAt && Date.parse(targetEvidence.snapshot.inventoryExpiresAt) <= Date.now() ? "Expired" : targetEvidence?.snapshot.inventoryExpiresAt ? "Within connector expiry" : "Unknown"}</strong><small>Expiry: {targetEvidence?.snapshot.inventoryExpiresAt ? new Date(targetEvidence.snapshot.inventoryExpiresAt).toLocaleString() : "Not reported"}</small></div>
           </div>
+          {targetEvidence?.snapshot.resourceKinds && Object.keys(targetEvidence.snapshot.resourceKinds).length > 0 &&
+            <div className={styles.targetCapabilityGrid}>{Object.entries(targetEvidence.snapshot.resourceKinds).map(([kind,count])=>
+              <div key={kind}><strong>{kind}</strong><span>{count} observed</span><p>Discovered object count; support on the target for migrated workloads is not yet verified.</p></div>)}</div>}
+          {Boolean(targetEvidence?.snapshot.unclassifiedResourceCount) && <p className={styles.caption}>{targetEvidence?.snapshot.unclassifiedResourceCount} resource records did not identify a kind and were not categorized.</p>}
+          {!targetEvidence?.snapshot.resourceKinds && <p className={styles.caption}>The current saved report predates resource categorization. The updated backend will populate this after an authorized refresh.</p>}
         </section>
         <section className={styles.targetCapabilitySection} aria-label="Target readiness evidence">
           <div className={styles.targetAssessmentHead}><div><strong>What still needs verification?</strong><p>These are capability checks required to compare selected workloads against this EKS cluster. A reported resource count is not proof that any capability is supported.</p></div><span className={styles.targetEvidenceUnknown}>6 capability areas · Not verified</span></div>
