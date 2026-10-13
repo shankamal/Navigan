@@ -53,18 +53,21 @@ export function analyzeP0Compatibility(
       "Kubernetes API": "kubernetesApi", "Compute & scheduling": "compute", "Persistent storage": "storage",
       Networking: "networking", "Identity & security": "identity", Dependencies: "dependencies",
     };
-    const checks: P0Check[] = capabilities.map(capability => ({
-      capability,
-      status: "NOT_VERIFIED",
-      reason: source
-        ? connectorInventoryAvailable
-          ? targetAssessment?.snapshot.capabilityEvidence?.[evidenceKeys[capability]]
-            ? `${targetAssessment.snapshot.capabilityEvidence[evidenceKeys[capability]].status === "PARTIAL" ? "Partial target observations" : "Target capability not verified"}: ${targetAssessment.snapshot.capabilityEvidence[evidenceKeys[capability]].reason} Source-to-target requirements have not been verified.`
-            : "Source resource is observed and target connector inventory is available, but capability comparisons have not been collected."
-          : "Source resource is observed; target capability evidence is unavailable."
-        : "Selected resource is not present in the current source inventory snapshot.",
-      nextAction: actions[capability],
-    }));
+    const checks: P0Check[] = capabilities.map(capability => {
+      const observed = targetAssessment?.snapshot.capabilityEvidence?.[evidenceKeys[capability]];
+      return {
+        capability,
+        status: "NOT_VERIFIED",
+        reason: !source
+          ? "Selected resource is not present in the current source inventory snapshot."
+          : !connectorInventoryAvailable
+            ? "Source resource is observed; target capability evidence is unavailable."
+            : observed
+              ? `${observed.status === "PARTIAL" ? "Partial target observations" : "Target capability not verified"}: ${observed.reason} Source-to-target requirements have not been verified.`
+              : "Source resource is observed and target connector inventory is available, but capability comparisons have not been collected.",
+        nextAction: actions[capability],
+      };
+    });
     return {
       resource,
       checks,
