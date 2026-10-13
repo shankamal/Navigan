@@ -140,23 +140,20 @@ export function PlanningEditor({
       ? (migration.planningDraft as unknown as MigrationPlanningDraft)
       : emptyDraft(assessment),
   );
-  const [tab, setTab] = useState<"scope" | "remediate" | "review">("scope");
+  const workflowSteps = ["scope", "target", "compatibility", "remediate", "plan", "review"] as const;
+  type WorkflowStep = (typeof workflowSteps)[number];
+  const [tab, setTab] = useState<WorkflowStep>("scope");
   const stepHeadingRef = useRef<HTMLDivElement>(null);
-  function navigateToStep(next: "scope" | "remediate" | "review") {
+  function navigateToStep(next: WorkflowStep) {
     setTab(next);
     stepHeadingRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
   }
   const { setLabel } = useWorkspacePage();
   useEffect(() => {
-    setLabel(
-      tab === "scope"
-        ? "Scope & target"
-        : tab === "remediate"
-          ? "Remediation & target mapping"
-          : "Review migration draft",
-    );
+    const names: Record<WorkflowStep,string> = {scope:"Source discovery & scope",target:"Target discovery & readiness",compatibility:"Source-to-target compatibility",remediate:"Remediation",plan:"Migration planning",review:"Review & export"};
+    setLabel(names[tab]);
     return () => setLabel("");
-  }, [tab, setLabel]);
+  },[tab,setLabel]);
   // Namespace selection is the analysis scope; it is not a separate inventory browser.
   // Default to a single explicitly intended application namespace only.
   const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => {
@@ -551,32 +548,10 @@ export function PlanningEditor({
       />
       <div ref={stepHeadingRef} className={styles.navigationAnchor} />
       <nav className={styles.steps} aria-label="Migration workflow">
-        <button
-          aria-current={tab === "scope" ? "step" : undefined}
-          onClick={() => navigateToStep("scope")}
-        >
-          <Boxes size={17} />
-          Scope & target
-        </button>
-        <button
-          aria-current={tab === "remediate" ? "step" : undefined}
-          onClick={() => navigateToStep("remediate")}
-        >
-          <Wrench size={17} />
-          Remediate
-        </button>
-        <button disabled title="Execution plan generation is not available yet">
-          Plan
-        </button>
-        <button
-          aria-current={tab === "review" ? "step" : undefined}
-          onClick={() => navigateToStep("review")}
-        >
-          <ShieldCheck size={17} />
-          Review draft
-        </button>
-      </nav>
-      {tab === "review" && <section className={styles.guide} aria-label="Migration planning guide">
+        {([["scope","1 · Source"],["target","2 · Target"],["compatibility","3 · Compatibility"],["remediate","4 · Remediation"],["plan","5 · Migration Plan"],["review","6 · Review & Export"]] as const).map(([step,label])=>
+          <button key={step} type="button" aria-current={tab===step?"step":undefined} onClick={()=>navigateToStep(step)}>{label}</button>
+        )}
+      </nav>     {tab === "review" && <section className={styles.guide} aria-label="Migration planning guide">
         <div className={styles.guideHeading}>
           <strong>3 · Review planning readiness</strong>
           <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
@@ -616,6 +591,52 @@ export function PlanningEditor({
           Read-only planning view. {editRestriction}
         </div>
       )}
+      {tab === "target" && <section className={styles.surface} aria-label="Target discovery and readiness">
+        <div className={styles.workflowStageHeading}><strong>2. Target Discovery &amp; Readiness</strong><p>Identify target environment capabilities and evidence gaps before compatibility scoring. Target discovery is read-only.</p></div>
+        <div className={styles.context}><div><span>Selected target</span><strong>{String(migration.targetConfiguration?.clusterId??"Not configured")}</strong></div><div><span>Target platform</span><strong>{targetPlatform}</strong></div><div><span>Evidence status</span><strong>{targetCompatibility.evidenceStatus}</strong></div></div>
+                    <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
+              <div className={styles.targetAssessmentHead}>
+                <div><strong>Target Analysis &amp; Migration Path</strong><p>Evaluate the selected migration scope against verified target capabilities before choosing a migration path.</p></div>
+                <span className={styles.targetEvidenceUnknown}>Target evidence: {targetCompatibility.evidenceStatus}</span>
+              </div>
+              <div className={styles.targetAssessmentSummary}>
+                <div><span>Source assessment</span><strong>Version {assessment.assessmentVersion}</strong><small>{draft.resources.length} resources currently included</small></div>
+                <div><span>Target platform</span><strong>{targetPlatform}</strong><small>{String(migration.targetConfiguration?.clusterId ?? "No cluster identifier")}</small></div>
+                <div><span>Target discovery</span><strong>{targetCompatibility.evidenceStatus === "CURRENT" ? "Evidence available" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
+              </div>
+              <div className={styles.targetAssessmentDecision}>
+                <strong>Migration path: {migrationPathDecision.path === "PENDING_EVIDENCE" ? "Pending target verification" : migrationPathDecision.path === "DIRECT" ? "Direct migration candidate" : migrationPathDecision.path === "ASSISTED" ? "Assisted migration" : "Blocked"}</strong>
+                <p>{migrationPathDecision.reason} Target capability discovery is not yet connected to an authorized live target adapter. A configured target is not proof of compatibility.</p>
+              </div>
+              <details className={styles.targetAssessmentDetails}>
+                <summary>Compatibility evidence and next actions · {targetCompatibility.findings.length} checks</summary>
+                {targetCompatibility.findings.map(item=><div key={item.id} className={styles.targetAssessmentFinding}>
+                  <div><strong>{item.capability}</strong><small>{item.resource} · {item.status}</small></div>
+                  <p>{item.reason}</p><p><b>Next:</b> {item.nextAction}</p>
+                </div>)}
+                <p>Further target checks must include compute, namespace admission/quotas, networking, identity, image pull access and required controllers. Until verified, all remain unassessed.</p>
+              </details>
+            </section>
+
+        <div className={styles.workflowStageWarning}>Analyze Target requires an authorized read-only backend adapter. No live target interrogation is available yet; target readiness is not verified.</div>
+      </section>}
+      {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
+        <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Match included workloads and dependencies against verified target capabilities. Scores remain pending until required evidence is complete.</p></div>
+        <div className={styles.compatibilitySnapshot}>
+          <div><span>Compatibility score</span><strong>Pending</strong><small>Not calculated from unverified capabilities</small></div>
+          <div><span>Evidence coverage</span><strong>Incomplete</strong><small>Live target capability data not collected</small></div>
+          <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_"," ")}</strong><small>{migrationPathDecision.reason}</small></div>
+        </div>
+        <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}><thead><tr><th>Source resource</th><th>Source kind</th><th>Target platform</th><th>Proposed target mapping</th><th>Compatibility</th></tr></thead><tbody>
+          {draft.resources.map(resource=><tr key={resourceKey(resource)}><td>{resource.namespace??"Cluster"}/{resource.name}</td><td>{resource.kind}</td><td>{targetPlatform}</td><td>Pending verified target capabilities</td><td>Unknown</td></tr>)}
+        </tbody></table></div>
+        {draft.resources.length===0 && <p>Select workloads in Source before evaluating compatibility.</p>}
+        <div className={styles.workflowStageWarning}>A namespace selection does not establish deployment compatibility. Remediation is conditional on verified compatibility findings; this screen cannot approve direct migration yet.</div>
+      </section>}
+      {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
+        <div className={styles.workflowStageHeading}><strong>5. Migration Plan</strong><p>Plan generation follows evidence-backed source-to-target matching, remediation decisions and artifact readiness.</p></div>
+        <div className={styles.workflowStageWarning}>Plan generation is not yet available. Migration execution, deployment and rollback remain disabled until target assessment, approvals and backend orchestration are implemented.</div>
+      </section>}
       {tab === "scope" && (
         <div className={styles.columns}>
           <section className={styles.surface}>
@@ -703,29 +724,6 @@ export function PlanningEditor({
                 Create a cluster through Cluster Management
               </Link>
             </p>
-            <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
-              <div className={styles.targetAssessmentHead}>
-                <div><strong>Target Analysis &amp; Migration Path</strong><p>Evaluate the selected migration scope against verified target capabilities before choosing a migration path.</p></div>
-                <span className={styles.targetEvidenceUnknown}>Target evidence: {targetCompatibility.evidenceStatus}</span>
-              </div>
-              <div className={styles.targetAssessmentSummary}>
-                <div><span>Source assessment</span><strong>Version {assessment.assessmentVersion}</strong><small>{draft.resources.length} resources currently included</small></div>
-                <div><span>Target platform</span><strong>{targetPlatform}</strong><small>{String(migration.targetConfiguration?.clusterId ?? "No cluster identifier")}</small></div>
-                <div><span>Target discovery</span><strong>{targetCompatibility.evidenceStatus === "CURRENT" ? "Evidence available" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
-              </div>
-              <div className={styles.targetAssessmentDecision}>
-                <strong>Migration path: {migrationPathDecision.path === "PENDING_EVIDENCE" ? "Pending target verification" : migrationPathDecision.path === "DIRECT" ? "Direct migration candidate" : migrationPathDecision.path === "ASSISTED" ? "Assisted migration" : "Blocked"}</strong>
-                <p>{migrationPathDecision.reason} Target capability discovery is not yet connected to an authorized live target adapter. A configured target is not proof of compatibility.</p>
-              </div>
-              <details className={styles.targetAssessmentDetails}>
-                <summary>Compatibility evidence and next actions · {targetCompatibility.findings.length} checks</summary>
-                {targetCompatibility.findings.map(item=><div key={item.id} className={styles.targetAssessmentFinding}>
-                  <div><strong>{item.capability}</strong><small>{item.resource} · {item.status}</small></div>
-                  <p>{item.reason}</p><p><b>Next:</b> {item.nextAction}</p>
-                </div>)}
-                <p>Further target checks must include compute, namespace admission/quotas, networking, identity, image pull access and required controllers. Until verified, all remain unassessed.</p>
-              </details>
-            </section>
             <div className={styles.sectionHeading}>
               <h2>
                 {draft.mode === "FULL_CLUSTER"
@@ -1565,38 +1563,10 @@ export function PlanningEditor({
         <ul>{scopeGateIssues.map((issue,index)=><li key={index}>{issue}</li>)}</ul>
       </div>}
       <footer className={styles.footer}>
-        <button
-          className="button button-secondary"
-          onClick={() => navigateToStep(tab === "review" ? "remediate" : "scope")}
-          disabled={tab === "scope"}
-        >
-          <ArrowLeft size={16} />
-          {tab === "scope" ? "Previous step" : tab === "remediate" ? "Back to scope" : "Back to remediation"}
-        </button>
-        <p>
-          {save.isPending
-            ? "Saving draft…"
-            : message ||
-              (dirty
-                ? "Unsaved planning changes"
-                : `Assessment v${assessment.assessmentVersion} · Draft only`)}
-        </p>
-        <button
-          className="button button-secondary"
-          disabled={!canEdit || stale || !dirty || save.isPending}
-          onClick={() => save.mutate()}
-        >
-          {save.isPending ? "Saving…" : "Save draft"}
-        </button>
-        <button
-          className="button button-primary"
-          onClick={() => navigateToStep(tab === "scope" ? "remediate" : "review")}
-          disabled={tab === "review" || (tab === "scope" && scopeGateIssues.length > 0)}
-          title={tab === "scope" && scopeGateIssues.length ? scopeGateIssues[0] : undefined}
-        >
-          {tab === "scope" ? "Continue to remediation" : "Continue to review draft"}
-          <ArrowRight size={16} />
-        </button>
+        <button className="button button-secondary" type="button" disabled={tab==="scope"} onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)])}><ArrowLeft size={16}/> Previous step</button>
+        <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
+        <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate()}>{save.isPending?"Saving…":"Save draft"}</button>
+        <button className="button button-primary" type="button" disabled={tab==="review"||(tab==="scope"&&scopeGateIssues.length>0)} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)])}>Continue to {tab==="scope"?"target":tab==="target"?"compatibility":tab==="compatibility"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
       </footer>
     </div>
   );
