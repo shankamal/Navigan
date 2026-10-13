@@ -1081,13 +1081,18 @@ export function PlanningEditor({
             </div>
 
                 </section>
-                <details className={styles.compactReviewDetails}><summary>5. Confirm migration scope · selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
-                  {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
-                    <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
-                      {resource.name} <small>{resource.kind}</small>
-                    </span>
-                  ))}
-                </div></details>
+                <details className={styles.compactReviewDetails} open><summary>5. Confirm migration scope · {scopeNamespaces.length} namespaces · {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} draft resources</summary>
+                  <div className={styles.confirmScopeGroups}>
+                    {scopeNamespaces.map(namespace => {
+                      const selectedResources = draft.resources.filter(resource => resource.namespace === namespace);
+                      const workloadCount = selectedResources.filter(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(resource.kind)).length;
+                      return <div className={styles.confirmScopeGroup} key={namespace}>
+                        <div className={styles.confirmScopeGroupHeader}><strong>{namespace}</strong><small>{workloadCount} workload{workloadCount === 1 ? "" : "s"} · {selectedResources.length} draft resource{selectedResources.length === 1 ? "" : "s"}</small></div>
+                        {selectedResources.length ? <div className={styles.scopeReviewItems}>{selectedResources.map(resource => <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>{resource.name} <small>{resource.kind}</small></span>)}</div> : <p className={styles.confirmScopeMissing}>No workloads added to draft from this namespace. Select its workload in Step 3 using Add to Draft if it should be migrated.</p>}
+                      </div>;
+                    })}
+                  </div>
+                </details>
                 <div className={styles.scopeReviewReadiness}><strong>6. Readiness and next steps</strong><span>Data strategy: {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")} · {readiness.issues.length} follow-up checks</span></div>
               </section>
             )}
