@@ -906,3 +906,24 @@
 .scopeReview>.compactReviewDetails{margin-top:10px}
 .scopeReview>.compactReviewDetails summary{font-weight:600;cursor:pointer}
 .scopeReview>.scopeReviewData{font-size:11px;margin:10px 0 3px}
+
+
+/* Guided Scope & Target: workload selection takes precedence over graph discovery. */
+.scopeWorkloadTableWrap{border:1px solid #d9e4ee;border-radius:5px;background:#fff;margin:12px 0;overflow:hidden}
+.scopeWorkloadTableHeading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;background:#f6f9fc;border-bottom:1px solid #dce6ef}
+.scopeWorkloadTableHeading strong{font-size:14px;color:#263e53}
+.scopeWorkloadTableHeading p{font-size:11px;color:#748597;margin:6px 0 0}
+.scopeWorkloadTableHeading>span{font-size:11px;font-weight:700;color:#548a24;white-space:nowrap}
+.scopeWorkloadTableScroll{overflow-x:auto}
+.scopeWorkloadTable{border-collapse:collapse;width:100%;font-size:12px;min-width:690px}
+.scopeWorkloadTable th{text-align:left;color:#677c91;background:#fbfcfe;font-size:10px;font-weight:800;letter-spacing:.45px;text-transform:uppercase;padding:12px;border-bottom:1px solid #dce6ee;white-space:nowrap}
+.scopeWorkloadTable td{padding:11px 12px;border-bottom:1px solid #e7edf2;color:#445b72;vertical-align:middle}
+.scopeWorkloadTable td:first-child strong{color:#253d53;overflow-wrap:anywhere}
+.scopeWorkloadTable tr:last-child td{border-bottom:0}
+.scopeWorkloadTable tr:hover td{background:#fafdf7}
+.scopeTableIncluded{font-size:11px;color:#3d7e18;font-weight:750}
+.scopeTableDiscovered{font-size:11px;color:#647d92}
+.scopeTableAdd{background:#86bc25;border:1px solid #71ab20;color:#1d3518;border-radius:4px;padding:8px 12px;font-size:11px;font-weight:750;cursor:pointer;white-space:nowrap}
+.scopeTableAdd:hover{background:#9bcf41}
+.scopeTableAdd:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:780px){.scopeWorkloadTableHeading{align-items:flex-start;flex-direction:column}.scopeWorkloadTableScroll{overflow-x:auto}}
