@@ -77,7 +77,23 @@ class Service:
         if existing["status"] not in {"READY", "DEGRADED"}:
             raise ApiError(409, "TARGET_INVENTORY_UNAVAILABLE",
                            "Cluster Management connector inventory is missing or stale. Refresh it in Cluster Management and retry.")
+        resources = existing.get("resources") or []
+        # Include only source-observed resource kinds; unknown shapes remain
+        # explicitly unclassified rather than being guessed.
+        resource_kinds = {}
+        unclassified = 0
+        for resource in resources:
+            kind = resource.get("kind") if isinstance(resource, dict) else None
+            if isinstance(kind, str) and kind.strip():
+                kind = kind.strip()
+                resource_kinds[kind] = resource_kinds.get(kind, 0) + 1
+            else:
+                unclassified += 1
+
         snapshot = {
+            "resourceKinds": dict(sorted(resource_kinds.items())),
+            "unclassifiedResourceCount": unclassified,
+            "inventoryExpiresAt": existing.get("expiresAt"),
             "provider": "AWS",
             "platform": "EKS",
             "clusterName": registered["cluster_name"],
@@ -91,7 +107,7 @@ class Service:
             "expiresAt": existing["expiresAt"],
             "evidenceLevel": "CONNECTOR_RUNTIME_INVENTORY",
             "coverageComplete": False,
-            "resourceCount": len(existing.get("resources") or []),
+            "resourceCount": len(resources),
             "unverified": [
                 "Workload-specific target scheduling compatibility",
                 "StorageClass and CSI compatibility",
