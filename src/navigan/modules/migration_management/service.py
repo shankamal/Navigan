@@ -93,6 +93,14 @@ class Service:
         snapshot = {
             "resourceKinds": dict(sorted(resource_kinds.items())),
             "unclassifiedResourceCount": unclassified,
+            "capabilityEvidence": {
+                "kubernetesApi": {"status": "NOT_VERIFIED", "reason": "Supported target API versions and discovery endpoints were not included in the connector inventory."},
+                "compute": {"status": "PARTIAL", "observedNodeCount": resource_kinds.get("Node", 0), "reason": "Node objects observed; allocatable resources, quota and scheduling constraints were not verified."} if resource_kinds.get("Node", 0) else {"status": "NOT_VERIFIED", "reason": "No usable node capacity evidence was provided."},
+                "storage": {"status": "NOT_VERIFIED", "reason": "StorageClass, CSI, volume capabilities and PVC requirements are not verified."},
+                "networking": {"status": "PARTIAL", "observedServiceCount": resource_kinds.get("Service", 0), "reason": "Service objects observed; ingress, DNS, routing and network policy compatibility unverified."} if resource_kinds.get("Service", 0) else {"status": "NOT_VERIFIED", "reason": "Target routing and service capabilities are not verified."},
+                "identity": {"status": "NOT_VERIFIED", "reason": "Workload identity permissions and secret/image access have not been evaluated."},
+                "dependencies": {"status": "NOT_VERIFIED", "reason": "Installed operators, CRDs and external dependencies have not been verified."},
+            },
             "inventoryExpiresAt": existing.get("expiresAt"),
             "provider": "AWS",
             "platform": "EKS",
