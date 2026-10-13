@@ -621,40 +621,53 @@ export function PlanningEditor({
           Read-only planning view. {editRestriction}
         </div>
       )}
-      {tab === "target" && <section className={styles.surface} aria-label="Target discovery and readiness">
-        <div className={styles.workflowStageHeading}><strong>2. Target Discovery &amp; Readiness</strong><p>Read-only AWS EKS control-plane discovery, with persisted evidence and manual refresh.</p></div>
+      {tab === "target" && <section className={styles.surface} aria-label="Target environment assessment and readiness">
+        <div className={styles.workflowStageHeading}><strong>2. Target Environment Assessment &amp; Readiness</strong><p>Understand the selected destination, capture available connector evidence, and identify what must be verified before matching source workloads.</p></div>
+        <div className={styles.targetGuide}>
+          <div><strong>1 · Capture target inventory</strong><small>Use the existing authorized Cluster Management connector. This is read-only.</small></div>
+          <div><strong>2 · Review evidence and gaps</strong><small>Separate what Navigan observed from capabilities still requiring verification.</small></div>
+          <div><strong>3 · Compare source and target</strong><small>Continue to Compatibility for resource-specific checks; migration readiness stays pending.</small></div>
+        </div>
         <div className={styles.targetAssessmentActions}>
-          <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Analyzing target…" : targetEvidence ? "Re-analyze Target" : "Analyze Target"}</button>
-          <span>{targetLoading ? "Loading previous evidence…" : targetEvidence ? `Last analyzed: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "No saved target assessment"}</span>
+          <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Analyzing target…" : targetEvidence ? "Refresh target inventory" : "Analyze Target"}</button>
+          <span>{targetLoading ? "Loading saved inventory evidence…" : targetEvidence ? `Last captured: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "No saved target evidence yet"}</span>
         </div>
         {targetError && <div role="alert" className={styles.warning}>{targetError}</div>}
-        {targetEvidence && <div className={styles.targetObservedResult}><strong>Cluster connector inventory · {targetEvidence.snapshot.clusterStatus ?? "Unknown"}</strong><span>{targetEvidence.snapshot.clusterName} · Inventory revision {targetEvidence.snapshot.sourceRevision ?? "unknown"} · {targetEvidence.snapshot.resourceCount ?? 0} reported resources</span><small>Evidence: {targetEvidence.evidenceLevel}. Migration-specific storage, scheduling, identity and workload compatibility remain unverified.</small></div>}
-        <div className={styles.context}><div><span>AWS EKS cluster name</span><strong>{assessment.inventorySummary.target.clusterName || "Not available in assessment"}</strong></div><div><span>Navigan Cluster ID</span><strong>{String(migration.targetConfiguration?.clusterId ?? "Not configured")}</strong></div><div><span>Target platform</span><strong>{targetPlatform}</strong></div><div><span>Evidence status</span><strong>{targetEvidence ? "PARTIAL · Connector inventory" : targetCompatibility.evidenceStatus}</strong></div></div>
-                    <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
-              <div className={styles.targetAssessmentHead}>
-                <div><strong>Target Analysis &amp; Migration Path</strong><p>Evaluate the selected migration scope against verified target capabilities before choosing a migration path.</p></div>
-                <span className={styles.targetEvidenceUnknown}>Target evidence: {targetEvidence ? "PARTIAL · Connector inventory" : targetCompatibility.evidenceStatus}</span>
-              </div>
-              <div className={styles.targetAssessmentSummary}>
-                <div><span>Source assessment</span><strong>Version {assessment.assessmentVersion}</strong><small>{draft.resources.length} resources currently included</small></div>
-                <div><span>Target EKS cluster</span><strong>{assessment.inventorySummary.target.clusterName || "Name unavailable"}</strong><small>Navigan ID: {String(migration.targetConfiguration?.clusterId ?? "Not configured")}</small></div>
-                <div><span>Target discovery</span><strong>{targetEvidence ? "Inventory available · Compatibility not verified" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
-              </div>
-              <div className={styles.targetAssessmentDecision}>
-                <strong>Migration path: {migrationPathDecision.path === "PENDING_EVIDENCE" ? "Pending target verification" : migrationPathDecision.path === "DIRECT" ? "Direct migration candidate" : migrationPathDecision.path === "ASSISTED" ? "Assisted migration" : "Blocked"}</strong>
-                <p>{migrationPathDecision.reason} {targetEvidence ? "Connector inventory is available, but migration-specific target capabilities have not been verified." : "No authorized target inventory evidence has been captured. A configured target is not proof of compatibility."}</p>
-              </div>
-              <details className={styles.targetAssessmentDetails}>
-                <summary>Compatibility evidence and next actions · {targetCompatibility.findings.length} checks</summary>
-                {targetCompatibility.findings.map(item=><div key={item.id} className={styles.targetAssessmentFinding}>
-                  <div><strong>{item.capability}</strong><small>{item.resource} · {item.status}</small></div>
-                  <p>{item.reason}</p><p><b>Next:</b> {item.nextAction}</p>
-                </div>)}
-                <p>Further target checks must include compute, namespace admission/quotas, networking, identity, image pull access and required controllers. Until verified, all remain unassessed.</p>
-              </details>
-            </section>
-
-        <div className={styles.workflowStageWarning}>{targetEvidence ? "Existing Cluster Management connector inventory has been captured. Storage, scheduling, networking, identity and workload compatibility require additional verification before target readiness can be determined." : "Analyze Target uses existing authorized Cluster Management connector inventory. Target readiness remains unverified until evidence is collected and compatibility checks are completed."}</div>
+        <div className={styles.targetOverview}>
+          <div><span>Destination cluster</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Existing cluster</small></div>
+          <div><span>Connector inventory</span><strong>{targetEvidence ? "Captured" : "Not captured"}</strong><small>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Run Analyze Target to collect evidence"}</small></div>
+          <div><span>Compatibility readiness</span><strong>Pending verification</strong><small>Inventory does not establish workload compatibility</small></div>
+        </div>
+        {targetEvidence && <div className={styles.targetObservedResult}>
+          <strong>Observed destination · {targetEvidence.snapshot.clusterStatus ?? "Status unknown"}</strong>
+          <span>{targetEvidence.snapshot.clusterName} · Revision {targetEvidence.snapshot.sourceRevision ?? "Not reported"} · {targetEvidence.snapshot.resourceCount ?? 0} reported resources</span>
+          <small>Evidence: {targetEvidence.evidenceLevel} · Observed {targetEvidence.snapshot.observedAt ? new Date(targetEvidence.snapshot.observedAt).toLocaleString() : "time not reported"} · Inventory completeness not established</small>
+        </div>}
+        <div className={styles.targetEvidenceDetails}>
+          <strong>Target identity &amp; evidence provenance</strong>
+          <div><span>Navigan cluster ID</span><strong>{String(migration.targetConfiguration?.clusterId ?? "Not configured")}</strong></div>
+          <div><span>Inventory source</span><strong>{targetEvidence ? "Cluster Management connector" : "Not available"}</strong></div>
+          <div><span>Inventory revision</span><strong>{targetEvidence?.snapshot.sourceRevision ?? "Not reported"}</strong></div>
+          <div><span>Evidence coverage</span><strong>{targetEvidence ? "Partial · Inventory only" : "Unavailable"}</strong></div>
+        </div>
+        <section className={styles.targetCapabilitySection} aria-label="Target readiness evidence">
+          <div className={styles.targetAssessmentHead}><div><strong>What still needs verification?</strong><p>These are capability checks required to compare selected workloads against this EKS cluster. A reported resource count is not proof that any capability is supported.</p></div><span className={styles.targetEvidenceUnknown}>6 capability areas · Not verified</span></div>
+          <div className={styles.targetCapabilityGrid}>
+            {[
+              {title:"Kubernetes APIs",description:"Target version, supported API groups and deprecated source APIs."},
+              {title:"Compute & scheduling",description:"Node allocatable capacity, workload requests, quotas, affinities and taints."},
+              {title:"Storage & CSI",description:"StorageClasses, provisioners, volume access modes and capacity."},
+              {title:"Networking & ingress",description:"Services, ingress controllers, routes, DNS/TLS and network policies."},
+              {title:"Identity & security",description:"Service accounts, permissions, image pulls, secrets and workload identity."},
+              {title:"Controllers & dependencies",description:"Required operators, CRDs and external application dependencies."},
+            ].map(item=><div key={item.title}><strong>{item.title}</strong><span>NOT VERIFIED</span><p>{item.description}</p></div>)}
+          </div>
+        </section>
+        <div className={styles.targetNextStep}>
+          <div><strong>Next: Source-to-Target Compatibility</strong><p>{targetEvidence ? "Inventory evidence is available. Compare the selected source resources and review outstanding requirements; incomplete capabilities remain Not Verified." : "Capture target inventory first, then compare your selected source workloads against the available evidence."}</p></div>
+          <button type="button" className="button button-primary" onClick={() => navigateToStep("compatibility")}>Continue to Compatibility →</button>
+        </div>
+        <div className={styles.workflowStageWarning}>Target Analysis uses the existing authorized, read-only connector inventory. It does not modify the EKS cluster, approve migration, or independently verify scheduling, storage, networking or identity readiness.</div>
       </section>}
       {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
         <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
