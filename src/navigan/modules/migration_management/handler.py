@@ -167,6 +167,8 @@ def route_of(method, path):
 
     if len(parts) == 1 and method == "GET":
         return "get", identifier, None
+    if len(parts) == 2 and parts[1] == "target-assessment" and method in {"GET", "POST"}:
+        return ("target_assessment_get" if method == "GET" else "target_assessment_run"), identifier, None
 
     if (
         len(parts) == 2
@@ -214,6 +216,7 @@ def execute(event, principal, correlation):
         "source_cluster_update",
         "source_cluster_enrollment",
         "source_cluster_install",
+        "target_assessment_run",
     }
     idempotent = mutating and route != "source_cluster_enrollment"
 
@@ -271,10 +274,13 @@ def execute(event, principal, correlation):
             model = DiscoveryAction
         else:
             model = MigrationAction
-        body = model.model_validate(body).model_dump(
-            mode="json",
-            exclude_none=True,
-        )
+        if model is not None:
+            body = model.model_validate(body).model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+        elif body:
+            raise ApiError(400, "INVALID_REQUEST", "Target discovery accepts an empty JSON body only.")
 
         if idempotent:
             key = headers.get("idempotency-key")
@@ -319,6 +325,8 @@ def execute(event, principal, correlation):
                 value = repo.get_source_inventory(identifier)
             elif route == "assessment":
                 value = repo.get_assessment(identifier)
+            elif route == "target_assessment_get":
+                value = repo.get_target_assessment(identifier)
             else:
                 from .repository import serialize
 
@@ -355,7 +363,10 @@ def execute(event, principal, correlation):
 
         service = Service(repo, access, correlation)
 
-        if route == "source_cluster_create":
+        if route == "target_assessment_run":
+            value = service.analyze_target(identifier)
+            status = 200
+        elif route == "source_cluster_create":
             value = service.create_source_cluster(body)
             status = 201
         elif route == "source_cluster_update":
