@@ -74,9 +74,9 @@ class Service:
         if registered["status"] != "ACTIVE":
             raise ApiError(409, "TARGET_NOT_ACTIVE", "Target cluster must be ACTIVE.")
         existing = cluster_repo.runtime_inventory(cluster_id, cluster=registered)
-        if existing["status"] != "READY":
+        if existing["status"] not in {"READY", "DEGRADED"}:
             raise ApiError(409, "TARGET_INVENTORY_UNAVAILABLE",
-                           "Cluster Management connector inventory is not READY. Refresh it in Cluster Management and retry.")
+                           "Cluster Management connector inventory is missing or stale. Refresh it in Cluster Management and retry.")
         snapshot = {
             "provider": "AWS",
             "platform": "EKS",
@@ -86,6 +86,7 @@ class Service:
             "source": "CLUSTER_MANAGEMENT_CONNECTOR",
             "sourceRevision": existing["sourceRevision"],
             "connectorId": existing["connectorId"],
+            "inventoryStatus": existing["status"],
             "observedAt": existing["observedAt"],
             "expiresAt": existing["expiresAt"],
             "evidenceLevel": "CONNECTOR_RUNTIME_INVENTORY",
