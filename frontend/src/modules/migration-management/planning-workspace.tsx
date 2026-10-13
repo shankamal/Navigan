@@ -148,16 +148,51 @@ export function PlanningEditor({
   const [targetLoading, setTargetLoading] = useState(false);
   const [targetRunning, setTargetRunning] = useState(false);
   const [targetError, setTargetError] = useState("");
+  // Refresh stale or absent saved target evidence once per migration/target per page session.
+  const autoTargetAttempted = useRef(new Set<string>());
   useEffect(() => {
     if (tab !== "target" && tab !== "compatibility") return;
     let active = true;
-    setTargetLoading(true);
-    migrations.targetAssessment(migration.migrationId)
-      .then(result => { if (active) { setTargetEvidence(result.assessment); setTargetError(""); } })
-      .catch(() => { if (active) setTargetError("Stored target evidence could not be loaded."); })
-      .finally(() => { if (active) setTargetLoading(false); });
+    const clusterId = String(migration.targetConfiguration?.clusterId ?? "");
+    const key = [migration.migrationId, assessment.assessmentVersion, clusterId].join(":");
+    const load = async () => {
+      setTargetLoading(true);
+      setTargetError("");
+      try {
+        const stored = await migrations.targetAssessment(migration.migrationId);
+        if (!active) return;
+        const evidence = stored.assessment;
+        const matches = evidence?.targetClusterId === clusterId &&
+          evidence.assessmentVersion === assessment.assessmentVersion;
+        setTargetEvidence(matches ? evidence : null);
+        const observedAt = evidence ? Date.parse(evidence.snapshot.observedAt) : NaN;
+        const staleEvidence = !Number.isFinite(observedAt) ||
+          observedAt > Date.now() + 300000 ||
+          Date.now() - observedAt > 60 * 60 * 1000;
+        if (!canEdit || !clusterId ||
+            String(migration.targetConfiguration?.platform ?? "").toUpperCase() !== "EKS" ||
+            (matches && !staleEvidence) || autoTargetAttempted.current.has(key)) return;
+        autoTargetAttempted.current.add(key);
+        setTargetRunning(true);
+        try {
+          const refreshed = await migrations.analyzeTarget(migration.migrationId);
+          if (active) setTargetEvidence(refreshed.assessment);
+        } catch (error: unknown) {
+          const api = normalizeApiError(error);
+          if (active) setTargetError(`Automatic target refresh unavailable · ${api.code}: ${api.message}. Existing evidence remains reviewable; use Refresh target inventory to retry.`);
+        } finally {
+          if (active) setTargetRunning(false);
+        }
+      } catch (error: unknown) {
+        const api = normalizeApiError(error);
+        if (active) setTargetError(`Target evidence could not be loaded · ${api.code}: ${api.message}`);
+      } finally {
+        if (active) setTargetLoading(false);
+      }
+    };
+    void load();
     return () => { active = false; };
-  }, [tab, migration.migrationId]);
+  }, [tab, migration.migrationId, migration.targetConfiguration?.clusterId, migration.targetConfiguration?.platform, assessment.assessmentVersion, canEdit]);
   async function runTargetAnalysis() {
     if (targetRunning) return;
     setTargetRunning(true); setTargetError("");
@@ -644,13 +679,13 @@ export function PlanningEditor({
           <div><strong>3 · Compare source and target</strong><small>Continue to Compatibility for resource-specific checks; migration readiness stays pending.</small></div>
         </div>
         <div className={styles.targetAssessmentActions}>
-          <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Analyzing target…" : targetEvidence ? "Refresh target inventory" : "Analyze Target"}</button>
+          <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Refreshing target inventory…" : "Refresh target inventory"}</button>
           <span>{targetLoading ? "Loading saved inventory evidence…" : targetEvidence ? `Last captured: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "No saved target evidence yet"}</span>
         </div>
         {targetError && <div role="alert" className={styles.warning}>{targetError}</div>}
         <div className={styles.targetOverview}>
           <div><span>Destination cluster</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Existing cluster</small></div>
-          <div><span>Connector inventory</span><strong>{targetEvidence ? "Captured" : "Not captured"}</strong><small>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Run Analyze Target to collect evidence"}</small></div>
+          <div><span>Connector inventory</span><strong>{targetEvidence ? "Captured" : "Not captured"}</strong><small>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Collected automatically when available"}</small></div>
           <div><span>Compatibility readiness</span><strong>Pending verification</strong><small>Inventory does not establish workload compatibility</small></div>
         </div>
         {targetEvidence && <div className={styles.targetObservedResult}>
@@ -679,7 +714,7 @@ export function PlanningEditor({
           </div>
         </section>
         <div className={styles.targetNextStep}>
-          <div><strong>Next: Source-to-Target Compatibility</strong><p>{targetEvidence ? "Inventory evidence is available. Compare the selected source resources and review outstanding requirements; incomplete capabilities remain Not Verified." : "Capture target inventory first, then compare your selected source workloads against the available evidence."}</p></div>
+          <div><strong>Next: Source-to-Target Compatibility</strong><p>{targetEvidence ? "Inventory evidence is available. Compare the selected source resources and review outstanding requirements; incomplete capabilities remain Not Verified." : "Navigan attempts to retrieve target evidence automatically. Review any access or inventory gaps before continuing."}</p></div>
           <button type="button" className="button button-primary" onClick={() => navigateToStep("compatibility")}>Continue to Compatibility →</button>
         </div>
         <div className={styles.workflowStageWarning}>Target Analysis uses the existing authorized, read-only connector inventory. It does not modify the EKS cluster, approve migration, or independently verify scheduling, storage, networking or identity readiness.</div>
