@@ -1,120 +1,91 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
-import {AlertTriangle,Boxes,CheckCircle2,Database,Layers3,Network,Search,ZoomIn,ZoomOut,RotateCcw,GitBranch,ChevronRight} from "lucide-react";
+import {AlertTriangle,Boxes,CheckCircle2,ChevronRight,Database,Layers3,Network,RotateCcw,Search,ZoomIn,ZoomOut,X} from "lucide-react";
 import styles from "./scope-topology.module.css";
+
 export type TopologyResource={kind:string;namespace:string|null;name:string;selected:boolean;references:{kind:string;name:string;present:boolean}[];potentialClaims:{name:string}[]};
-type SupportResource={kind:string;namespace:string|null;name:string;selected:boolean};
-type Props={namespaces:string[];resources:TopologyResource[];supportingResources?:SupportResource[];coverageKnown:boolean;onSelect?:(resource:TopologyResource)=>void;readOnly?:boolean};
-const id=(r:TopologyResource)=>[r.namespace,r.kind,r.name].join("/");
-function glyph(kind:string){return kind==="StatefulSet"?<Database size={16}/>:kind==="Service"?<Network size={16}/>:<Layers3 size={16}/>;}
+type SupportingResource={kind:string;namespace:string|null;name:string;selected:boolean};
+type Props={namespaces:string[];resources:TopologyResource[];supportingResources?:SupportingResource[];coverageKnown:boolean;onSelect?:(resource:TopologyResource)=>void;readOnly?:boolean};
+type Node={id:string;name:string;kind:string;namespace:string|null;selected:boolean;type:"workload"|"support";present:boolean;x:number;y:number};
+type Edge={from:string;to:string;present:boolean};
+const key=(r:{namespace:string|null;kind:string;name:string})=>JSON.stringify([r.namespace,r.kind,r.name]);
+const iconFor=(kind:string)=>kind==="PersistentVolumeClaim"||kind==="StatefulSet"?<Database size={17}/>:kind==="Service"||kind==="Ingress"?<Network size={17}/>:<Layers3 size={17}/>;
+
 export function ScopeTopology({namespaces,resources,supportingResources=[],coverageKnown,onSelect,readOnly}:Props){
- const [focus,setFocus]=useState<string|null>(null);
- const [search,setSearch]=useState("");
+ const [namespace,setNamespace]=useState("ALL");
+ const [query,setQuery]=useState("");
+ const [selectedId,setSelectedId]=useState<string|null>(null);
  const [zoom,setZoom]=useState(100);
- const [showDiscovered,setShowDiscovered]=useState(true);
- const [activeNamespace,setActiveNamespace]=useState<string>("ALL");
- const [mapView,setMapView]=useState<"overview"|"detail">("overview");
- const filtered=useMemo(()=>resources.filter(r=>(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(showDiscovered||r.selected)&&[r.kind,r.name,r.namespace,...r.references.map(x=>x.name)].join(" ").toLowerCase().includes(search.toLowerCase())),[resources,activeNamespace,showDiscovered,search]);
- const [showSupporting,setShowSupporting]=useState(false);
- const focused=resources.find(r=>id(r)===focus && namespaces.includes(r.namespace??""));
- useEffect(()=>{if(activeNamespace!=="ALL"&&!namespaces.includes(activeNamespace)){setActiveNamespace("ALL");setMapView("overview");setFocus(null);}},[activeNamespace,namespaces]);
- useEffect(()=>{if(mapView==="detail"&&!focused)setMapView("overview");},[mapView,focused]);
- const covered=coverageKnown;
- const recorded=filtered.reduce((n,r)=>n+r.references.length,0);
- const visibleRecorded=coverageKnown?recorded:0;
- const selectedWorkloadCount=filtered.filter(r=>r.selected).length;
- const scopedSupporting=supportingResources.filter(r=>namespaces.includes(r.namespace??"")&&(activeNamespace==="ALL"||r.namespace===activeNamespace)&&(!search||[r.kind,r.name,r.namespace].join(" ").toLowerCase().includes(search.toLowerCase())));
- const selectedSupportCount=scopedSupporting.filter(r=>r.selected).length;
- const supportCategories=[{label:"Networking",kinds:["Service","Ingress","NetworkPolicy"]},{label:"Configuration & identity",kinds:["ConfigMap","Secret","ServiceAccount"]},{label:"Data & storage",kinds:["PersistentVolumeClaim"]}];
- return <section className={styles.mapShell} aria-label="Application dependency topology">
-   <header className={styles.mapHeader}>
-     <div><span className={styles.mapEyebrow}>APPLICATION DEPENDENCY MAP</span><h3>Discovered application topology</h3><p>Explore selected namespaces, workloads and supporting resources</p></div>
-     <div className={styles.mapLegend}><span><i className={styles.mapGreen}/> Included in draft</span><span><i className={styles.mapWhite}/> Discovered</span><span><i className={styles.mapAmber}/> Needs validation</span></div>
-   </header>
-   <div className={styles.mapToolbar}>
-     <div className={styles.mapViewSwitch} role="group" aria-label="Topology map view"><button className={mapView==="overview"?styles.mapViewActive:""} onClick={()=>setMapView("overview")}>Namespace map</button><button className={mapView==="detail"?styles.mapViewActive:""} onClick={()=>setMapView("detail")} disabled={!focused}>Workload detail</button></div>
-     <label className={styles.mapSearch}><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Search application map" placeholder="Search workloads or dependencies"/></label>
-     <label className={styles.mapToggle}><input type="checkbox" checked={showSupporting} onChange={e=>setShowSupporting(e.target.checked)}/> Show supporting resources</label><label className={styles.mapToggle}><input type="checkbox" checked={showDiscovered} onChange={e=>setShowDiscovered(e.target.checked)}/> Show discovered</label>
-     <div className={styles.mapZoom}><button aria-label="Zoom out" onClick={()=>setZoom(z=>Math.max(80,z-10))}><ZoomOut size={15}/></button><span>{zoom}%</span><button aria-label="Zoom in" onClick={()=>setZoom(z=>Math.min(120,z+10))}><ZoomIn size={15}/></button><button aria-label="Reset zoom" onClick={()=>setZoom(100)}><RotateCcw size={15}/></button></div>
+ const [showAllSupport,setShowAllSupport]=useState(false);
+ const [onlyDraft,setOnlyDraft]=useState(false);
+ useEffect(()=>{if(namespace!=="ALL"&&!namespaces.includes(namespace)){setNamespace("ALL");setSelectedId(null);}},[namespaces,namespace]);
+ const scopedWorkloads=useMemo(()=>resources.filter(r=>namespaces.includes(r.namespace??"")&&(namespace==="ALL"||r.namespace===namespace)),[resources,namespaces,namespace]);
+ const scopedSupporting=useMemo(()=>supportingResources.filter(r=>namespaces.includes(r.namespace??"")&&(namespace==="ALL"||r.namespace===namespace)),[supportingResources,namespaces,namespace]);
+ const matches=(r:{name:string;kind:string;namespace:string|null})=>[r.name,r.kind,r.namespace].join(" ").toLowerCase().includes(query.toLowerCase());
+ const workloads=scopedWorkloads.filter(r=>(!onlyDraft||r.selected)&&matches(r));
+ const referenceKeys=new Set(workloads.flatMap(r=>coverageKnown?r.references.map(ref=>key({namespace:r.namespace,kind:ref.kind,name:ref.name})):[]));
+ const showSupport=scopedSupporting.filter(r=>(showAllSupport||referenceKeys.has(key(r))||r.selected)&&(matches(r)||referenceKeys.has(key(r))));
+ const missingRefs=coverageKnown?workloads.flatMap(r=>r.references.filter(ref=>!scopedSupporting.some(p=>p.kind===ref.kind&&p.name===ref.name&&p.namespace===r.namespace)).map(ref=>({kind:ref.kind,name:ref.name,namespace:r.namespace,selected:false,present:false}))):[];
+ const supporting=[...showSupport.map(r=>({...r,present:true})),...missingRefs.filter((r,i,a)=>a.findIndex(x=>key(x)===key(r))===i)];
+ const rowHeight=78, top=62, nodeWidth=240, supportX=515, graphWidth=790;
+ const graphHeight=Math.max(330,top+Math.max(workloads.length,supporting.length)*rowHeight+22);
+ const nodes:Node[]=[
+   ...workloads.map((r,i)=>({...r,id:key(r),type:"workload" as const,present:true,x:35,y:top+i*rowHeight})),
+   ...supporting.map((r,i)=>({...r,id:key(r),type:"support" as const,x:supportX,y:top+i*rowHeight}))
+ ];
+ const index=new Map(nodes.map(n=>[n.id,n]));
+ const edges:Edge[]=coverageKnown?workloads.flatMap(r=>r.references.map(ref=>({from:key(r),to:key({namespace:r.namespace,kind:ref.kind,name:ref.name}),present:ref.present})).filter(e=>index.has(e.to))):[];
+ const focus=nodes.find(n=>n.id===selectedId);
+ const chosenWorkload=resources.find(r=>key(r)===selectedId);
+ const focusedReferences=chosenWorkload?.references??[];
+ const selectedWorkloads=scopedWorkloads.filter(r=>r.selected).length;
+ const selectedSupport=scopedSupporting.filter(r=>r.selected).length;
+ const displayNamespaces=namespace==="ALL"?namespaces:[namespace];
+ return <section className={styles.hmShell} aria-label="Headlamp-inspired application resource map">
+   <div className={styles.hmHeader}>
+     <div><span className={styles.hmEyebrow}>SCOPE &amp; TARGET / APPLICATION MAP</span><h3>Application resource map</h3><p>Select a namespace, inspect resources and plan migration scope</p></div>
+     <div className={styles.hmLegend}><span><i className={styles.hmGreen}/> In migration draft</span><span><i className={styles.hmWhite}/> Discovered</span><span><i className={styles.hmAmber}/> Missing reference</span></div>
    </div>
-   <div className={styles.mapBody}>
-     <aside className={styles.mapSidebar} aria-label="Namespace explorer"><strong>Namespaces <small>{namespaces.length}</small></strong>
-       <button aria-current={activeNamespace==="ALL"?"true":undefined} onClick={()=>{setActiveNamespace("ALL");setMapView("overview");setFocus(null);}}><Boxes size={17}/><span>All selected namespaces<small>{resources.length} workloads</small></span><ChevronRight size={14}/></button>
-       {namespaces.map(ns=><button key={ns} aria-current={activeNamespace===ns?"true":undefined} onClick={()=>{setActiveNamespace(ns);setMapView("overview");setFocus(null);}}><Boxes size={17}/><span>{ns}<small>{resources.filter(r=>r.namespace===ns).length} workloads · {resources.filter(r=>r.namespace===ns&&r.selected).length} included</small></span><ChevronRight size={14}/></button>)}
-       <div className={styles.mapEvidence}><strong>Evidence status</strong><span>{visibleRecorded} recorded references</span><small>{covered?"Reference inventory collected":"Relationship references not collected. A new assessment is needed for verified dependency edges."}</small></div>
+   <div className={styles.hmTools}>
+     <label className={styles.hmSearch}><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find resources..." aria-label="Find resources in map"/></label>
+     <label><input type="checkbox" checked={onlyDraft} onChange={e=>setOnlyDraft(e.target.checked)}/> In draft only</label>
+     <label><input type="checkbox" checked={showAllSupport} onChange={e=>setShowAllSupport(e.target.checked)}/> All supporting resources</label>
+     <div className={styles.hmZoom}><button aria-label="Zoom out" onClick={()=>setZoom(v=>Math.max(60,v-10))}><ZoomOut size={15}/></button><span>{zoom}%</span><button aria-label="Zoom in" onClick={()=>setZoom(v=>Math.min(140,v+10))}><ZoomIn size={15}/></button><button aria-label="Reset zoom" onClick={()=>setZoom(100)}><RotateCcw size={15}/></button></div>
+   </div>
+   <div className={styles.hmWorkspace}>
+     <aside className={styles.hmNamespaces} aria-label="Namespace filter">
+       <div className={styles.hmSidebarTitle}>NAMESPACES <span>{namespaces.length}</span></div>
+       <button className={namespace==="ALL"?styles.hmNamespaceActive:styles.hmNamespace} onClick={()=>{setNamespace("ALL");setSelectedId(null);}}><Boxes size={16}/><span>All namespaces<small>{resources.filter(r=>namespaces.includes(r.namespace??"")).length} workloads</small></span><ChevronRight size={14}/></button>
+       {namespaces.map(ns=><button key={ns} className={namespace===ns?styles.hmNamespaceActive:styles.hmNamespace} onClick={()=>{setNamespace(ns);setSelectedId(null);}}><Boxes size={16}/><span>{ns}<small>{resources.filter(r=>r.namespace===ns).length} workloads</small></span><ChevronRight size={14}/></button>)}
+       <div className={styles.hmSidebarFooter}><strong>Source evidence</strong><span>{coverageKnown?"Reference inventory available":"References not collected"}</span><small>Only source-observed references create connecting lines.</small></div>
      </aside>
-     <div className={styles.mapStage}>
-       {!covered&&<div className={styles.mapAlert}><AlertTriangle size={17}/><span><strong>Dependency mapping requires reassessment.</strong> Workloads are real discovered objects; no unverified connections are presented as fact.</span></div>}
-       <div className={styles.mapStats}><span><strong>{filtered.length}</strong> workloads displayed</span><span><strong>{selectedWorkloadCount}</strong> workloads included</span><span><strong>{selectedSupportCount}</strong> supporting resources in draft</span><span><strong>{visibleRecorded}</strong> recorded references</span><span><strong>{scopedSupporting.length}</strong> supporting resources</span></div>
-       {mapView==="detail" && focused ? <div className={styles.mapFocusCanvas}>
-          <div className={styles.mapFocusHeading}><span>WORKLOAD DEPENDENCY VIEW</span><button onClick={()=>setMapView("overview")}>Back to namespace map</button></div>
-          <div className={styles.mapFocusLayout}>
-            <div className={styles.mapFocusPrimary}><span>{focused.kind} · {focused.namespace}</span><strong>{focused.name}</strong><small>{focused.selected?"Included in migration draft":"Discovered — not included"}</small></div>
-            <div className={styles.mapFocusArrow} aria-hidden="true">{covered&&focused.references.length>0?"→":"?"}</div>
-            <div className={styles.mapFocusRelationships}>
-              <strong>Recorded dependency references ({covered?focused.references.length:0})</strong>
-              {covered&&focused.references.map((ref,index)=><div key={index} className={ref.present?styles.mapFocusVerified:styles.mapFocusMissing}><GitBranch size={15}/><span><b>{ref.name}</b><small>{ref.kind} · {ref.present?"Present in source inventory":"Missing from source inventory"}</small></span></div>)}
-              {(!covered||focused.references.length===0)&&<p>{!covered?"Relationship evidence was not collected in this assessment; reassess to discover references.":"No explicit dependency references were recorded for this workload."}</p>}
-              {focused.potentialClaims.length>0&&<div className={styles.mapFocusStorage}><Database size={15}/> Potential storage — requires verification: {focused.potentialClaims.map(x=>x.name).join(", ")}</div>}
-            </div>
-          </div>
-          {!focused.selected&&onSelect&&<button className={styles.mapAdd} disabled={readOnly} onClick={()=>onSelect(focused)}>Add workload to migration draft</button>}
-        </div> : <div className={styles.mapScroll}><div className={styles.mapCanvas} style={{zoom:`${zoom}%`}}>
-       {namespaces.filter(ns=>(activeNamespace==="ALL"||activeNamespace===ns)&&filtered.some(r=>r.namespace===ns)).map((ns,index)=>{
-         const entries=filtered.filter(r=>r.namespace===ns);
-         return <section className={styles.mapGroup} data-tone={index%2===0?"blue":"green"} key={ns}>
-           <div className={styles.mapGroupHeader}><div><Boxes size={18}/><strong>{ns}</strong><span>{entries.length} workloads</span></div><small>{entries.filter(r=>r.selected).length} included</small></div>
-           <div className={styles.graphTopology}>
-             {!covered?<div className={styles.graphCompact}>
-               <div className={styles.graphCompactHeading}><span>DISCOVERED WORKLOADS</span><span>Choose a workload to review its dependencies and migration readiness</span></div>
-               <div className={styles.graphCompactGrid}>{entries.map(r=><button type="button" key={id(r)} className={r.selected?styles.graphCompactSelected:styles.graphCompactNode} onClick={()=>{setFocus(id(r));setMapView("detail");}} aria-label={`Inspect ${r.kind} ${r.name}`}>
-                 <span className={styles.mapNodeIcon}>{glyph(r.kind)}</span>
-                 <span className={styles.mapNodeCopy}><strong>{r.name}</strong><small>{r.kind} · {r.selected?"Included in draft":"Discovered"}</small></span>
-                 {r.selected&&<CheckCircle2 size={16} className={styles.mapCheck}/>}
-               </button>)}</div>
-             </div>:<>
-             <div className={styles.graphColumnHead}><span>APPLICATION WORKLOADS</span><span>RECORDED DEPENDENCIES</span></div>
-             <div className={styles.graphRows}>{entries.map(r=>{
-               const observed=covered?r.references:[];
-               return <div className={styles.graphRow} key={id(r)}>
-                 <button type="button" className={r.selected?styles.graphWorkloadSelected:styles.graphWorkload} onClick={()=>{setFocus(id(r));setMapView("detail");}} aria-label={`Inspect ${r.kind} ${r.name}`}>
-                   <span className={styles.mapNodeIcon}>{glyph(r.kind)}</span>
-                   <span className={styles.mapNodeCopy}><strong>{r.name}</strong><small>{r.kind} · {r.selected?"Included in draft":"Discovered"}</small></span>
-                   {r.selected&&<CheckCircle2 size={16} className={styles.mapCheck}/>}
-                 </button>
-                 <div className={observed.some(ref=>ref.present)?styles.graphEdge:observed.length?styles.graphEdgeMissing:styles.graphEdgeUnknown} aria-hidden="true"><span/></div>
-                 <div className={styles.graphDependencyArea}>
-                   {observed.length?observed.map((ref,i)=>{
-                     const match=scopedSupporting.find(candidate=>candidate.kind===ref.kind&&candidate.name===ref.name&&candidate.namespace===r.namespace);
-                     return <div key={i} className={ref.present?styles.graphDependency:styles.graphDependencyMissing}>
-                       <span className={styles.graphDepGlyph}>{ref.kind==="PersistentVolumeClaim"?<Database size={15}/>:<Network size={15}/>}</span>
-                       <span><strong>{ref.name}</strong><small>{ref.kind} · {ref.present?"Recorded reference":"Not in inventory"}{match?.selected?" · Included":""}</small></span>
-                     </div>;
-                   }):<div className={styles.graphNoEvidence}>{covered?"No explicit resource references recorded":"Dependencies not collected"}{r.potentialClaims.length>0&&<small>Potential storage: {r.potentialClaims.map(c=>c.name).join(", ")} · unverified</small>}</div>}
-                 </div>
-               </div>;
-             })}</div>
-             </>}
-           </div>
-         </section>;
-       })}
-       {showSupporting&&scopedSupporting.length>0&&<section className={styles.mapSupportPanel} aria-label="Supporting resources in selected namespace scope">
-          <div className={styles.mapSupportHeading}><strong>Supporting resources</strong><span>{scopedSupporting.length} discovered objects · Inclusion is not proof of workload dependency</span></div>
-          <div className={styles.mapSupportGrid}>{supportCategories.map(group=>{
-            const items=scopedSupporting.filter(r=>group.kinds.includes(r.kind));
-            return <div className={styles.mapSupportCategory} key={group.label}><div><strong>{group.label}</strong><span>{items.length}</span></div>
-              {items.map(r=><div className={r.selected?styles.mapSupportIncluded:styles.mapSupportItem} key={[r.namespace,r.kind,r.name].join("/")}>
-                <span><b>{r.name}</b><small>{r.kind} · {r.namespace}</small></span><small>{r.selected?"In draft":"Discovered"}</small>
-              </div>)}
-              {!items.length&&<p>No resources discovered</p>}
-            </div>;
-          })}</div>
-        </section>}
-       {!filtered.length&&<p className={styles.mapEmpty}>No workloads match the current filters.</p>}
-       </div></div>}
+     <div className={styles.hmMain}>
+       <div className={styles.hmStats}><span><b>{scopedWorkloads.length}</b> workloads</span><span><b>{selectedWorkloads}</b> included workloads</span><span><b>{selectedSupport}</b> included supporting resources</span><span><b>{edges.length}</b> visible references</span></div>
+       {!coverageKnown&&<div className={styles.hmNotice}><AlertTriangle size={16}/><span><strong>Relationship evidence not collected.</strong> The map shows discovered resources without assuming connections. Reassess the source to populate verified links.</span></div>}
+       <div className={styles.hmCanvasScroll}><div className={styles.hmScaled} style={{width:graphWidth*zoom/100,height:graphHeight*zoom/100}}>
+         <div className={styles.hmCanvas} style={{width:graphWidth,height:graphHeight,transform:`scale(${zoom/100})`}}>
+           <div className={styles.hmGroupLabel} style={{left:35}}>WORKLOADS <small>{workloads.length}</small></div>
+           <div className={styles.hmGroupLabel} style={{left:supportX}}>SUPPORTING RESOURCES <small>{supporting.length}</small></div>
+           <svg className={styles.hmSvg} viewBox={`0 0 ${graphWidth} ${graphHeight}`} aria-hidden="true">
+             {edges.map((e,i)=>{const a=index.get(e.from)!,b=index.get(e.to)!;const sx=a.x+nodeWidth,sy=a.y+28,ex=b.x,ey=b.y+28,mid=(sx+ex)/2;return <path key={i} d={`M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}`} fill="none" stroke={e.present?"#78ac35":"#d59b40"} strokeWidth={2} strokeDasharray={e.present?undefined:"6 5"}/>;})}
+           </svg>
+           {nodes.map(n=><button type="button" key={n.id} style={{left:n.x,top:n.y,width:nodeWidth}} className={[styles.hmNode,n.selected?styles.hmNodeSelected:"",!n.present?styles.hmNodeMissing:"",selectedId===n.id?styles.hmNodeFocused:""].join(" ")} onClick={()=>setSelectedId(n.id)}>
+             <span className={styles.hmNodeIcon}>{iconFor(n.kind)}</span><span className={styles.hmNodeText}><strong>{n.name}</strong><small>{n.kind} · {n.namespace}</small></span>{n.selected&&<CheckCircle2 size={16} className={styles.hmCheck}/>}
+           </button>)}
+           {!nodes.length&&<div className={styles.hmEmpty}>No matching resources in this namespace. Adjust the filters or search.</div>}
+         </div>
+       </div></div>
+       <div className={styles.hmCanvasFooter}><span>{displayNamespaces.join(", ")}</span><span>Green nodes are included in the draft; resource discovery alone does not imply a dependency</span></div>
      </div>
+     <aside className={styles.hmInspector} aria-label="Resource inspection and migration scope">
+       <div className={styles.hmSidebarTitle}>SCOPE INSPECTOR</div>
+       {focus?<><div className={styles.hmInspectHeading}><span>{focus.type==="workload"?"Workload":"Supporting resource"}</span><button onClick={()=>setSelectedId(null)} aria-label="Close resource inspector"><X size={17}/></button></div>
+         <h4>{focus.name}</h4><p>{focus.kind} · {focus.namespace}</p><div className={styles.hmInspectState}>{focus.selected?"Included in migration draft":focus.present?"Discovered — not selected":"Referenced but not in inventory"}</div>
+         {chosenWorkload&&<div className={styles.hmReferenceList}><strong>Recorded references ({coverageKnown?focusedReferences.length:0})</strong>{coverageKnown&&focusedReferences.map((ref,i)=><div key={i}>{ref.kind} · {ref.name} <small>{ref.present?"Found":"Missing"}</small></div>)}{!coverageKnown&&<small>Relationship evidence unavailable in this assessment</small>}{coverageKnown&&!focusedReferences.length&&<small>No explicit references recorded</small>}</div>}
+         {!focus.selected&&chosenWorkload&&onSelect&&<button className={styles.hmAdd} disabled={readOnly} onClick={()=>onSelect(chosenWorkload)}>Add workload to draft</button>}
+       </>:<><p className={styles.hmInspectorHint}>Select a node on the map to inspect its resource details and migration selection.</p><div className={styles.hmScopeTotals}><div><strong>{selectedWorkloads}</strong><span>Selected workloads</span></div><div><strong>{selectedSupport}</strong><span>Supporting resources</span></div><div><strong>{scopedWorkloads.length}</strong><span>Discovered workloads</span></div></div></>}
+       <div className={styles.hmInspectorFoot}>Migration planning only. No source resources are modified.</div>
+     </aside>
    </div>
-   <footer className={styles.mapFooter}>Connectors appear only when the assessment provides relationship-reference coverage. Storage candidates and missing evidence are not verified dependencies.</footer>
-   {focused&&mapView==="overview"&&<div className={styles.mapInspector} role="region" aria-label="Resource details"><div><strong>Resource details</strong><button aria-label="Close resource details" onClick={()=>setFocus(null)}>×</button></div><h4>{focused.name}</h4><p>{focused.namespace} · {focused.kind}</p><p>{focused.selected?"Included in the migration draft":"Discovered; not included in the migration draft"}</p><p>{focused.references.length} recorded references · {focused.potentialClaims.length} storage candidates</p>{!focused.selected&&onSelect&&<button className={styles.mapAdd} disabled={readOnly} onClick={()=>{onSelect(focused);setFocus(null)}}>Add to draft</button>}</div>}
  </section>;
 }
