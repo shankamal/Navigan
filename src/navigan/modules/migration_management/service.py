@@ -53,36 +53,51 @@ class Service:
         self.correlation = correlation
 
     def analyze_target(self, identifier):
-        """User-triggered, read-only EKS control-plane observation."""
+        """Capture existing Cluster Management connector inventory, read-only."""
         self.access.require("migration.edit")
         migration = self.repo.get(identifier)
         configuration = migration.get("target_configuration") or {}
         if migration["target_platform"] != "EKS":
             raise ApiError(422, "TARGET_ADAPTER_UNAVAILABLE",
-                           "Target analysis is currently implemented for EKS only.")
+                           "Existing target inventory assessment currently supports EKS.")
         cluster_id = configuration.get("clusterId")
-        region = configuration.get("awsRegion")
         assessment = self.repo.get_assessment(identifier).get("assessment")
         if not cluster_id or not assessment:
             raise ApiError(409, "TARGET_NOT_READY",
                            "A selected target and source assessment are required.")
-        summary = assessment.get("inventorySummary") or {}
-        target = summary.get("target") or {}
-        registered = self.repo.require_registered_target(migration, cluster_id)
-        cluster_name = registered["cluster_name"]
-        if target.get("clusterName") != cluster_name or not region:
-            raise ApiError(409, "TARGET_METADATA_MISSING",
-                           "Registered EKS cluster name must match the source assessment target, and AWS region must be configured.")
-        from .target_discovery import discover_eks_control_plane
-        try:
-            snapshot = discover_eks_control_plane(name=cluster_name, region=region)
-        except Exception as exc:
-            # Never persist or expose an unverified/failed observation as current.
-            import logging
-            logging.getLogger(__name__).warning("Target discovery failed: %s", type(exc).__name__)
-            raise ApiError(503, "TARGET_DISCOVERY_FAILED",
-                           "Unable to obtain read-only EKS target evidence. Check configured account, region and IAM access.") from None
-        snapshot["naviganClusterId"] = cluster_id
+        from navigan.modules.cluster_management.repository import Repository as ClusterRepository
+        cluster_repo = ClusterRepository(self.repo.db, self.principal)
+        registered = cluster_repo.get(cluster_id)
+        if registered["customer_id"] != migration["customer_id"] or registered["cluster_name"] != configuration.get("clusterName"):
+            raise ApiError(409, "TARGET_IDENTITY_MISMATCH",
+                           "Target is not the registered cluster for this migration and customer.")
+        if registered["status"] != "ACTIVE":
+            raise ApiError(409, "TARGET_NOT_ACTIVE", "Target cluster must be ACTIVE.")
+        existing = cluster_repo.runtime_inventory(cluster_id, cluster=registered)
+        if existing["status"] != "READY":
+            raise ApiError(409, "TARGET_INVENTORY_UNAVAILABLE",
+                           "Cluster Management connector inventory is not READY. Refresh it in Cluster Management and retry.")
+        snapshot = {
+            "provider": "AWS",
+            "platform": "EKS",
+            "clusterName": registered["cluster_name"],
+            "naviganClusterId": cluster_id,
+            "clusterStatus": registered["status"],
+            "source": "CLUSTER_MANAGEMENT_CONNECTOR",
+            "sourceRevision": existing["sourceRevision"],
+            "connectorId": existing["connectorId"],
+            "observedAt": existing["observedAt"],
+            "expiresAt": existing["expiresAt"],
+            "evidenceLevel": "CONNECTOR_RUNTIME_INVENTORY",
+            "coverageComplete": False,
+            "resourceCount": len(existing.get("resources") or []),
+            "unverified": [
+                "Workload-specific target scheduling compatibility",
+                "StorageClass and CSI compatibility",
+                "Ingress and networking compatibility",
+                "Workload identity and image pull authorization",
+            ],
+        }
         return self.repo.save_target_assessment(identifier, cluster_id, snapshot)
 
     def create(self, body):
