@@ -52,6 +52,38 @@ class Service:
         self.principal = repo.principal
         self.correlation = correlation
 
+    def analyze_target(self, identifier):
+        """User-triggered, read-only EKS control-plane observation."""
+        self.access.require("migration.edit")
+        migration = self.repo.get(identifier)
+        configuration = migration.get("target_configuration") or {}
+        if migration["target_platform"] != "EKS":
+            raise ApiError(422, "TARGET_ADAPTER_UNAVAILABLE",
+                           "Target analysis is currently implemented for EKS only.")
+        cluster_id = configuration.get("clusterId")
+        region = configuration.get("awsRegion")
+        assessment = self.repo.get_assessment(identifier).get("assessment")
+        if not cluster_id or not assessment:
+            raise ApiError(409, "TARGET_NOT_READY",
+                           "A selected target and source assessment are required.")
+        summary = assessment.get("inventorySummary") or {}
+        target = summary.get("target") or {}
+        cluster_name = target.get("clusterName")
+        if not cluster_name or not region:
+            raise ApiError(409, "TARGET_METADATA_MISSING",
+                           "Assessed EKS cluster name and configured AWS region are required.")
+        from .target_discovery import discover_eks_control_plane
+        try:
+            snapshot = discover_eks_control_plane(name=cluster_name, region=region)
+        except Exception as exc:
+            # Never persist or expose an unverified/failed observation as current.
+            import logging
+            logging.getLogger(__name__).warning("Target discovery failed: %s", type(exc).__name__)
+            raise ApiError(503, "TARGET_DISCOVERY_FAILED",
+                           "Unable to obtain read-only EKS target evidence. Check configured account, region and IAM access.") from None
+        snapshot["naviganClusterId"] = cluster_id
+        return self.repo.save_target_assessment(identifier, cluster_id, snapshot)
+
     def create(self, body):
         self.access.require("migration.create")
         self.access.require_customer(body["customerId"])
