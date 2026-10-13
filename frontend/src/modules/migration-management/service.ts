@@ -18,7 +18,33 @@ import {
 
 const base = "/migrations";
 
+export interface TargetAssessmentRecord {
+  targetClusterId: string;
+  assessmentVersion: number;
+  evidenceLevel: "CONTROL_PLANE_ONLY";
+  createdAt: string;
+  snapshot: {
+    platform: string;
+    clusterName: string;
+    region: string;
+    kubernetesVersion?: string;
+    clusterStatus?: string;
+    observedAt: string;
+    coverageComplete: false;
+    unverified: string[];
+  };
+}
+export interface TargetAssessmentResponse {
+  migrationId: string;
+  assessment: TargetAssessmentRecord | null;
+}
+
 export const migrations = {
+  targetAssessment: async (migrationId: string): Promise<TargetAssessmentResponse> =>
+    (await apiClient.get(`${base}/${migrationId}/target-assessment`)).data,
+  analyzeTarget: async (migrationId: string): Promise<TargetAssessmentResponse> =>
+    (await apiClient.post(`${base}/${migrationId}/target-assessment`, {}, { headers: writeHeaders({ key: crypto.randomUUID() }) })).data,
+
   list: async () =>
     parseResponse(
       migrationListSchema,
