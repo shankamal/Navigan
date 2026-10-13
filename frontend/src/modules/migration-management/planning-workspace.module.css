@@ -1038,3 +1038,18 @@
 .migrationSummaryEvidence{font-size:11px;color:#667e91;line-height:1.6;margin:6px 0}
 @media(max-width:880px){.migrationSummaryHead{flex-direction:column}.migrationSummaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media print{.migrationExportActions,.steps,button{display:none!important}.migrationSummaryPanel{break-inside:avoid}}
+
+
+/* Remediation artifact readiness; uploads remain disabled until API integration. */
+.artifactReadinessPanel{border:1px solid #dce5ed;border-left:3px solid #86bc25;border-radius:4px;padding:15px;background:#fff;margin:12px 0}
+.artifactReadinessHead{display:flex;justify-content:space-between;align-items:start;gap:12px}
+.artifactReadinessHead strong{font-size:16px;color:#263d54}
+.artifactReadinessHead p,.artifactReadinessPanel>p{font-size:11px;line-height:1.6;color:#71859a;margin:5px 0 0}
+.artifactReadinessHead>span{font-size:10px;background:#fff7e9;border:1px solid #e5d5a8;border-radius:4px;padding:7px;color:#86682a;white-space:nowrap}
+.artifactReadinessGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.artifactReadinessGrid>div{display:grid;align-content:start;gap:8px;padding:13px;border:1px solid #dfe8ef;border-radius:4px;background:#fafcfe}
+.artifactReadinessGrid strong{font-size:12px;color:#29445c}
+.artifactReadinessGrid span{font-size:11px;color:#946b2a;font-weight:700}
+.artifactReadinessGrid small{font-size:10px;color:#71859b;line-height:1.45}
+@media(max-width:900px){.artifactReadinessGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.artifactReadinessGrid{grid-template-columns:1fr}.artifactReadinessHead{flex-direction:column}}
