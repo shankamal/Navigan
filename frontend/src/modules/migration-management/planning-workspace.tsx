@@ -166,9 +166,13 @@ export function PlanningEditor({
           evidence.assessmentVersion === assessment.assessmentVersion;
         setTargetEvidence(matches ? evidence : null);
         const observedAt = evidence ? Date.parse(evidence.snapshot.observedAt) : NaN;
+        const expiry = evidence?.snapshot.inventoryExpiresAt ?? null;
+        const expiresAt = expiry ? Date.parse(expiry) : NaN;
         const staleEvidence = !Number.isFinite(observedAt) ||
           observedAt > Date.now() + 300000 ||
-          Date.now() - observedAt > 60 * 60 * 1000;
+          (Number.isFinite(expiresAt)
+            ? expiresAt <= Date.now()
+            : Date.now() - observedAt > 60 * 60 * 1000);
         if (!canEdit || !clusterId ||
             String(migration.targetConfiguration?.platform ?? "").toUpperCase() !== "EKS" ||
             (matches && !staleEvidence) || autoTargetAttempted.current.has(key)) return;
