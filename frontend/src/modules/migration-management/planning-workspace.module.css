@@ -1145,3 +1145,29 @@
 .targetObservedResult strong{font-size:12px;color:#294b35}
 .targetObservedResult span{font-size:12px;color:#395973}
 .targetObservedResult small{font-size:11px;color:#745a31;line-height:1.6}
+
+/* Guided target assessment: rectangular, evidence-first workspace. */
+.targetGuide{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 15px}
+.targetGuide>div{border:1px solid #dce5ec;border-top:3px solid #86bc25;background:#f8fafc;padding:12px;display:grid;gap:6px}
+.targetGuide strong{font-size:12px;color:#28445a}
+.targetGuide small{font-size:11px;color:#687c8d;line-height:1.55}
+.targetOverview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:13px 0}
+.targetOverview>div{display:grid;gap:7px;border:1px solid #dce6ee;background:#f7f9fb;padding:13px;min-width:0}
+.targetOverview span,.targetEvidenceDetails span{color:#687f93;font-size:11px}
+.targetOverview strong{color:#24435a;font-size:17px;overflow-wrap:anywhere}
+.targetOverview small{color:#698096;font-size:11px;line-height:1.5}
+.targetEvidenceDetails{border:1px solid #dce6ee;padding:14px;margin:13px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.targetEvidenceDetails>strong{grid-column:1/-1;font-size:13px;color:#28455d}
+.targetEvidenceDetails>div{display:grid;gap:5px;min-width:0}
+.targetEvidenceDetails>div strong{font-size:12px;color:#2d4c65;overflow-wrap:anywhere}
+.targetCapabilitySection{margin:15px 0;border:1px solid #dce6ee;padding:14px;background:#fff}
+.targetCapabilityGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:13px}
+.targetCapabilityGrid>div{border:1px solid #e1e7ed;background:#fbfcfd;padding:12px;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 9px}
+.targetCapabilityGrid strong{font-size:12px;color:#29495f}
+.targetCapabilityGrid span{font-size:10px;font-weight:700;color:#946729}
+.targetCapabilityGrid p{grid-column:1/-1;font-size:11px;color:#687d90;line-height:1.55;margin:2px 0 0}
+.targetNextStep{display:flex;align-items:center;justify-content:space-between;gap:18px;border-left:3px solid #86bc25;background:#f4f9ed;padding:14px 16px;margin:16px 0}
+.targetNextStep strong{font-size:13px;color:#294c39}
+.targetNextStep p{margin:5px 0 0;color:#526a5a;font-size:11px;line-height:1.6}
+.targetNextStep button{flex-shrink:0}
+@media(max-width:820px){.targetGuide,.targetOverview{grid-template-columns:1fr}.targetCapabilityGrid,.targetEvidenceDetails{grid-template-columns:1fr}.targetNextStep{flex-direction:column;align-items:stretch}.targetNextStep button{width:100%}}
