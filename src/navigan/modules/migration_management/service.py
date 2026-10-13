@@ -68,10 +68,11 @@ class Service:
                            "A selected target and source assessment are required.")
         summary = assessment.get("inventorySummary") or {}
         target = summary.get("target") or {}
-        cluster_name = target.get("clusterName")
-        if not cluster_name or not region:
+        registered = self.repo.require_registered_target(migration, cluster_id)
+        cluster_name = registered["cluster_name"]
+        if target.get("clusterName") != cluster_name or not region:
             raise ApiError(409, "TARGET_METADATA_MISSING",
-                           "Assessed EKS cluster name and configured AWS region are required.")
+                           "Registered EKS cluster name must match the source assessment target, and AWS region must be configured.")
         from .target_discovery import discover_eks_control_plane
         try:
             snapshot = discover_eks_control_plane(name=cluster_name, region=region)
