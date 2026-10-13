@@ -988,3 +988,20 @@
 .optionScopeMore summary{cursor:pointer;font-size:11px;font-weight:700;color:#3a637e}
 .optionScopeMore li{font-size:10px;line-height:1.5;margin:6px 0}
 .optionScopeMore p{font-size:10px;color:#71859b}
+
+
+/* Step 4: task-based Resource Review and Migration Actions */
+.scopeResourceReview{margin:16px 0 13px;border:1px solid #dce5ec;border-radius:5px;background:#fff;overflow:hidden}
+.scopeResourceReviewHead{padding:15px 15px 10px;background:#f7fafc;border-bottom:1px solid #e1e9f0}
+.scopeResourceReviewHead strong{font-size:14px;color:#253e55}
+.scopeResourceReviewHead p{font-size:11px;color:#6e8295;line-height:1.5;margin:6px 0 0}
+.scopeResourceReviewMetrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:11px 14px}
+.scopeResourceReviewMetrics>span{border:1px solid #dce7f0;background:#f9fbfd;border-radius:4px;padding:10px;display:flex;gap:7px;align-items:center;min-width:0;font-size:10px;color:#657d91}
+.scopeResourceReviewMetrics b{font-size:18px;color:#417e21}
+.scopeResourceReview>.compactReviewDetails{margin:0 14px 10px}
+.scopeReviewTabbedActions{border-top:1px solid #e1e9f0;margin-top:10px}
+.scopeReviewTabbedActions .scopeViews{margin:0;padding:3px 12px;display:flex;flex-wrap:wrap;gap:10px}
+.scopeReviewTabbedActions .scopeInstructions{margin:8px 12px}
+.scopeReviewTabbedActions .notice{margin:8px 12px}
+.scopeReviewTabbedActions .scopeResourceTable{max-height:430px;overflow:auto}
+@media(max-width:720px){.scopeResourceReviewMetrics{grid-template-columns:1fr}}
