@@ -1563,10 +1563,10 @@ export function PlanningEditor({
         <ul>{scopeGateIssues.map((issue,index)=><li key={index}>{issue}</li>)}</ul>
       </div>}
       <footer className={styles.footer}>
-        <button className="button button-secondary" type="button" disabled={tab==="scope"} onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)])}><ArrowLeft size={16}/> Previous step</button>
+        <button className="button button-secondary" type="button" disabled={tab==="scope"} onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)]!)}><ArrowLeft size={16}/> Previous step</button>
         <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
         <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate()}>{save.isPending?"Saving…":"Save draft"}</button>
-        <button className="button button-primary" type="button" disabled={tab==="review"||(tab==="scope"&&scopeGateIssues.length>0)} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)])}>Continue to {tab==="scope"?"target":tab==="target"?"compatibility":tab==="compatibility"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
+        <button className="button button-primary" type="button" disabled={tab==="review"||(tab==="scope"&&scopeGateIssues.length>0)} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!)}>Continue to {tab==="scope"?"target":tab==="target"?"compatibility":tab==="compatibility"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
       </footer>
     </div>
   );
