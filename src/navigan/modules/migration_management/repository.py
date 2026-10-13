@@ -235,6 +235,43 @@ class Repository:
             )
         return row
 
+    def get_target_assessment(self, identifier):
+        migration = self.get(identifier)
+        row = self.db.execute(
+            "SELECT target_cluster_id, assessment_version, target_snapshot, "
+            "evidence_level, created_at "
+            "FROM migration_management.migration_target_assessments "
+            "WHERE migration_id=%s ORDER BY created_at DESC, id DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+        target_id = (migration.get("target_configuration") or {}).get("clusterId")
+        # Evidence from an old target must never be presented for the new one.
+        if not row or row["target_cluster_id"] != target_id:
+            return {"migrationId": identifier, "assessment": None}
+        return {"migrationId": identifier, "assessment": {
+            "targetClusterId": row["target_cluster_id"],
+            "assessmentVersion": row["assessment_version"],
+            "snapshot": row["target_snapshot"],
+            "evidenceLevel": row["evidence_level"],
+            "createdAt": row["created_at"].isoformat(),
+        }}
+
+    def save_target_assessment(self, identifier, cluster_id, snapshot):
+        migration = self.get(identifier, lock=True)
+        if (migration.get("target_configuration") or {}).get("clusterId") != cluster_id:
+            raise ApiError(409, "TARGET_CHANGED", "Migration target changed; reassess.")
+        assessment = self.get_assessment(identifier)["assessment"]
+        if not assessment:
+            raise ApiError(409, "ASSESSMENT_REQUIRED", "Source assessment is required.")
+        self.db.execute(
+            "INSERT INTO migration_management.migration_target_assessments "
+            "(migration_id,target_cluster_id,assessment_version,target_snapshot,evidence_level,created_by) "
+            "VALUES (%s,%s,%s,%s::jsonb,%s,%s)",
+            [identifier, cluster_id, assessment["assessmentVersion"], json_text(snapshot),
+             snapshot["evidenceLevel"], self.principal.user_id],
+        )
+        return self.get_target_assessment(identifier)
+
     def get_source_catalogue(self, identifier):
         migration = self.get(identifier)
 
