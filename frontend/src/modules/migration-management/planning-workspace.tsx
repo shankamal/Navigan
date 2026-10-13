@@ -1069,62 +1069,29 @@ export function PlanningEditor({
             </details>
           </section>
           <aside className={styles.surface}>
-            <h2>Migration scope summary</h2>
-            {scopeReviewOpen && <p className={styles.scopeAnalysisSidebar}><strong>Analyzed namespaces: {scopeNamespaces.length}</strong> · {analyzedWorkloadCandidates.length} workload candidates · {pendingAnalyzedWorkloads.length} not included</p>}
-            <p className={styles.scopeDraftLabel}><strong>{draft.resources.length} total draft resources</strong> · {draft.resources.length-dependencies} selected + {dependencies} dependency-flagged</p>
-            <p className={styles.caption}>Shows resources already saved or selected in the planning draft, not automatic results from the latest namespace analysis.</p>
-            {draftOutsideScope > 0 && <p className={styles.scopeOutsideNotice}>{draftOutsideScope} draft resource{draftOutsideScope===1?" is":"s are"} outside your current namespace selection. Change the selection or explicitly update the draft before final review.</p>}
-            <div className={styles.summaryItem}>
-              <Boxes size={22} />
-              <div>
-                <strong>
-                  {draft.resources.length - dependencies} selected resources
-                </strong>
-                <small>Explicitly selected by you</small>
-              </div>
-            </div>
-            <div className={styles.summaryItem}>
-              <ClipboardCheck size={22} />
-              <div>
-                <strong>{dependencies} confirmed dependencies</strong>
-                <small>Manual confirmation; discovery is not complete</small>
-              </div>
-            </div>
-            <div className={styles.summaryItem}>
-              <Database size={22} />
-              <div>
-                <strong>Storage dependencies</strong>
-                <small>{pendingPvcs.length} PVC manifest{pendingPvcs.length === 1 ? "" : "s"} in the current inventory scope. Data content is not included in inventory.</small>
-              </div>
-            </div>
-            <p className={styles.caption}>Data strategy: <strong>{draft.dataStrategy==="UNDECIDED"?"Decision required":draft.dataStrategy.replaceAll("_"," ")}</strong></p>
-            <div className={styles.summaryItem}>
-              <ShieldCheck size={22} />
-              <div>
-                <strong>Source remains unchanged</strong>
-                <small>No workload, data, or traffic changes</small>
-              </div>
-            </div>
-            <div className={styles.summaryItem}>
-              <LockKeyhole size={22} />
-              <div>
-                <strong>Execution not enabled</strong>
-                <small>Separate plan approval and cutover gates required</small>
-              </div>
-            </div>
-            {draft.mode === "FULL_CLUSTER" && (
-              <p className={styles.warning}>
-                {unaccounted} resources need a treatment decision. Inventory
-                coverage is not yet certified for full-cluster migration.
-              </p>
-            )}
-            <div className={styles.scopeReadinessCompact} aria-label="Scope readiness assessment">
-              <strong>Migration readiness · {readiness.issues.length} follow-up checks</strong>
-              <p>{targetCapability.status === "CURRENT" ? "Target evidence available for evaluation." : "Target capabilities not verified."} Missing evidence stays open for remediation and final review.</p>
-              <details><summary>Review compatibility and readiness details</summary>
-                <ul>{readiness.issues.map((issue,index)=><li key={index}><strong>{issue.type.replaceAll("_"," ")}</strong> — {issue.detail}</li>)}</ul>
-                <p>Storage checks: {storageCompatibility.length}. Target evidence: {targetCapability.status.toLowerCase()}.</p>
-              </details>
+            <div className={styles.optionScopeSidebar}>
+              <div className={styles.optionScopeHeader}><strong>Migration scope summary</strong><small>Current planning draft</small></div>
+              <div className={styles.optionScopeMetric}><span>Namespaces selected</span><strong>{scopeNamespaces.length} / {namespaces.length}</strong><div className={styles.optionScopeTrack}><i style={{width:`${namespaces.length?scopeNamespaces.length/namespaces.length*100:0}%`}}/></div></div>
+              <div className={styles.optionScopeMetric}><span>Workloads included</span><strong>{workloadRelationships.filter(r=>r.selected).length} / {workloadRelationships.length}</strong><div className={styles.optionScopeTrack}><i style={{width:`${workloadRelationships.length?workloadRelationships.filter(r=>r.selected).length/workloadRelationships.length*100:0}%`}}/></div></div>
+              <div className={styles.optionScopeMetric}><span>Draft resources</span><strong>{draft.resources.length}</strong><small>{draft.resources.length-dependencies} explicitly selected · {dependencies} dependency-flagged</small></div>
+              <div className={styles.optionScopeDivider}/>
+              <strong className={styles.optionScopeSubheading}>Selected namespaces</strong>
+              <div className={styles.optionScopeNamespaceList}>{scopeNamespaces.map(ns=><div key={ns}><Boxes size={16}/><span><b>{ns}</b><small>{applicationWorkloads.filter(r=>r.namespace===ns).length} workloads · {workloadRelationships.filter(r=>r.workload.namespace===ns&&r.selected).length} included</small></span></div>)}</div>
+              <div className={styles.optionScopeDivider}/>
+              <strong className={styles.optionScopeSubheading}>Current draft</strong>
+              <div className={styles.optionScopeRow}><span>Selected resources</span><strong>{draft.resources.length-dependencies}</strong></div>
+              <div className={styles.optionScopeRow}><span>Dependency-flagged</span><strong>{dependencies}</strong></div>
+              <div className={styles.optionScopeRow}><span>PVC manifests to review</span><strong>{pendingPvcs.length}</strong></div>
+              {draftOutsideScope>0&&<p className={styles.scopeOutsideNotice}>{draftOutsideScope} draft resources are outside the selected namespaces.</p>}
+              <div className={styles.optionScopeDivider}/>
+              <strong className={styles.optionScopeSubheading}>Assessment evidence</strong>
+              <p className={styles.optionScopeEvidence}>{graph.coverage==="REFERENCES_AVAILABLE"?"Resource references collected":"Resource relationships not collected; reassessment required"}</p>
+              <div className={styles.optionScopeRow}><span>Recorded references</span><strong>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</strong></div>
+              <div className={styles.optionScopeRow}><span>Readiness follow-ups</span><strong>{readiness.issues.length}</strong></div>
+              <div className={styles.optionScopeRow}><span>Data strategy</span><strong>{draft.dataStrategy==="UNDECIDED"?"Pending":"Selected"}</strong></div>
+              <div className={styles.optionScopeSafe}><ShieldCheck size={16}/><span>Source remains unchanged · Execution not enabled</span></div>
+              {draft.mode==="FULL_CLUSTER"&&<p className={styles.warning}>{unaccounted} resources need a treatment decision.</p>}
+              <details className={styles.optionScopeMore}><summary>Review readiness details</summary><ul>{readiness.issues.map((issue,index)=><li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul><p>Storage checks: {storageCompatibility.length}. Target evidence: {targetCapability.status.toLowerCase()}.</p></details>
             </div>
           </aside>
         </div>
