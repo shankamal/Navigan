@@ -1117,3 +1117,22 @@
 .targetAssessmentFinding small{color:#986c30;font-size:10px}
 .targetAssessmentFinding p,.targetAssessmentDetails>p{font-size:11px;line-height:1.5;color:#677c90;margin:6px 12px}
 @media(max-width:760px){.targetAssessmentHead{flex-direction:column}.targetAssessmentSummary{grid-template-columns:1fr}}
+
+
+/* Six-stage migration workflow */
+.steps{display:flex;gap:7px;flex-wrap:wrap}
+.steps button{min-width:0;flex:1 1 135px;white-space:normal;font-size:11px}
+.workflowStageHeading{padding:13px 0 15px}
+.workflowStageHeading strong{font-size:17px;color:#28435c}
+.workflowStageHeading p{margin:6px 0 0;color:#6d8195;font-size:12px;line-height:1.6}
+.workflowStageWarning{margin:13px 0;padding:12px 14px;border-left:3px solid #d49c38;background:#fff9e9;font-size:12px;color:#725b36;line-height:1.6}
+.compatibilitySnapshot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:10px 0 17px}
+.compatibilitySnapshot>div{border:1px solid #dce5ee;background:#f9fbfd;border-radius:4px;padding:12px;display:grid;gap:6px}
+.compatibilitySnapshot span{font-size:11px;color:#657c90}
+.compatibilitySnapshot strong{font-size:15px;color:#385269}
+.compatibilitySnapshot small{font-size:10px;color:#8192a2;line-height:1.5}
+.compatibilityMatrixWrap{overflow-x:auto;border:1px solid #dce5ee;border-radius:4px}
+.compatibilityMatrix{width:100%;border-collapse:collapse;font-size:11px;text-align:left}
+.compatibilityMatrix th{background:#f1f5f9;color:#49627b}
+.compatibilityMatrix th,.compatibilityMatrix td{padding:11px;border-bottom:1px solid #e4eaf0}
+@media(max-width:750px){.compatibilitySnapshot{grid-template-columns:1fr}.steps button{flex:1 1 40%}}
