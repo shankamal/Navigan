@@ -927,3 +927,27 @@
 .scopeTableAdd:hover{background:#9bcf41}
 .scopeTableAdd:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:780px){.scopeWorkloadTableHeading{align-items:flex-start;flex-direction:column}.scopeWorkloadTableScroll{overflow-x:auto}}
+
+
+/* Scope & Target / Option 3: compact workload-first enterprise workspace. */
+.scopeOptionSectionTitle{display:flex;align-items:center;gap:10px;padding:11px 3px;border-bottom:1px solid #dce5ed;margin:3px 0 14px}
+.scopeOptionSectionTitle>span{display:grid;place-items:center;background:#4b9120;color:#fff;width:23px;height:23px;border-radius:50%;font-size:12px;font-weight:800;flex-shrink:0}
+.scopeOptionSectionTitle>strong{font-size:14px;color:#233a50}
+.scopeOptionSectionTitle>small{font-size:11px;color:#6e8194;margin-left:5px}
+.scopeNamespaceChips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 2px 14px}
+.scopeNamespaceChips>strong{font-size:11px;color:#496582;margin-right:5px}
+.scopeNamespaceChips>span{display:flex;align-items:center;gap:10px;border:1px solid #bed4e8;background:#f5faff;color:#253f5a;border-radius:4px;padding:8px 10px;font-size:11px;font-weight:700}
+.scopeNamespaceChips small{font-size:10px;color:#71889d;font-weight:400}
+.scopeWorkloadTableWrap{margin-top:8px;border-radius:4px}
+.scopeWorkloadTableHeading{background:#fff;padding:12px 14px}
+.scopeWorkloadTable th{font-size:10px;background:#f2f5f8}
+.scopeWorkloadTable td{padding:9px 11px}
+.scopeTableAdd{background:#fff;border:1px solid #62a2de;color:#226caa;box-shadow:none;padding:7px 11px}
+.scopeTableAdd:hover{background:#e9f5ff;border-color:#3f89cb}
+.scopeTableAdd:disabled{opacity:.5}
+.scopeReview{background:#fff}
+.scopeReviewHeading{padding:10px 6px}
+.scopeReviewHeading strong{font-size:14px}
+.scopeReview>.compactReviewDetails{border:1px solid #e0e8ef;border-radius:4px;margin:8px 0}
+.scopeReview>.compactReviewDetails summary{padding:11px 12px;background:#f8fafc;color:#3b516a;font-size:12px}
+@media(max-width:920px){.scopeOptionSectionTitle{flex-wrap:wrap}.scopeOptionSectionTitle>small{margin-left:33px;flex-basis:100%}}
