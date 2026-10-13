@@ -1053,3 +1053,13 @@
 .artifactReadinessGrid small{font-size:10px;color:#71859b;line-height:1.45}
 @media(max-width:900px){.artifactReadinessGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.artifactReadinessGrid{grid-template-columns:1fr}.artifactReadinessHead{flex-direction:column}}
+
+
+/* Scope confirmation differentiates selected namespaces from drafted workloads. */
+.confirmScopeGroups{display:grid;gap:10px;padding:12px}
+.confirmScopeGroup{border:1px solid #dae5ed;border-radius:4px;padding:10px 12px;background:#fff}
+.confirmScopeGroupHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:7px}
+.confirmScopeGroupHeader strong{font-size:12px;color:#2c465d}
+.confirmScopeGroupHeader small{font-size:11px;color:#70859a}
+.confirmScopeGroup .scopeReviewItems{padding:0}
+.confirmScopeMissing{margin:4px 0 0;padding:9px 10px;background:#fff9ed;border-left:3px solid #d9a74f;font-size:11px;line-height:1.5;color:#755c2a}
