@@ -502,6 +502,24 @@ export function PlanningEditor({
     },
     onError: (error) => setMessage(normalizeApiError(error).message),
   });
+
+  const migrationSummary = {
+    migration: { id:migration.migrationId,name:migration.name,customer:String(migration.customerName??migration.customerId),status:migration.status,mode:draft.mode },
+    assessment: { version:assessment.assessmentVersion,inventoryDigest:assessment.inventoryDigest,stale,dependencyReferenceCoverage:graph.coverage },
+    scope: { selectedNamespaces:scopeNamespaces,discoveredWorkloads:analyzedWorkloadCandidates.length,selectedWorkloads:draft.resources.filter(r=>!r.dependency&&["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(r.kind)).length,resources:draft.resources.map(r=>({namespace:r.namespace,kind:r.kind,name:r.name,treatment:r.treatment,dependency:r.dependency})),dependencyFlaggedCount:dependencies },
+    remediation: { recordedDecisions:draft.remediations.length,findings:assessment.findings.map(f=>({severity:f.severity,description:String(f.description??"")})) },
+    readiness: { openChecks:readiness.issues.map(issue=>({type:issue.type,detail:issue.detail})),dataStrategy:draft.dataStrategy,pvcManifests:pendingPvcs.length },
+    artifactReadiness: { sourceManifests:"NOT_COLLECTED",helmCharts:"NOT_COLLECTED",images:"REFERENCES_ONLY",s3Package:"NOT_CREATED",ecrPromotion:"NOT_STARTED" },
+    disclaimer:"Planning export reflects the current UI draft, which may contain unsaved changes. No migration artifacts or cluster resources are exported.",
+  };
+  function downloadReport(format:"json"|"csv"){
+    const json=JSON.stringify(migrationSummary,null,2);
+    const escapeCell=(v:unknown)=>'"'+String(v??"").replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
+    const csv=[["Namespace","Kind","Name","Treatment","Dependency"].map(escapeCell).join(","),...migrationSummary.scope.resources.map(r=>[r.namespace,r.kind,r.name,r.treatment,r.dependency].map(escapeCell).join(","))].join("\r\n");
+    const file=new Blob([format==="json"?json:"\uFEFF"+csv],{type:format==="json"?"application/json;charset=utf-8":"text/csv;charset=utf-8"});
+    const href=URL.createObjectURL(file);
+    const link=document.createElement("a");link.href=href;link.download=`navigan-migration-summary-${migration.migrationId}.${format}`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(href);
+  }
   return (
     <div className={styles.workspace}>
       <PageHeading
@@ -1432,6 +1450,12 @@ export function PlanningEditor({
           </>)}
         </section>
       )}
+      {tab === "review" && <section className={styles.migrationSummaryPanel} aria-label="Migration Summary and Export">
+        <div className={styles.migrationSummaryHead}><div><strong>Migration Summary &amp; Export</strong><p>Review the current scope and download a planning report. Exports are snapshots of the current draft, including unsaved changes.</p></div><div className={styles.migrationExportActions}><button type="button" onClick={()=>downloadReport("json")}>Export JSON</button><button type="button" onClick={()=>downloadReport("csv")}>Export CSV</button><button type="button" onClick={()=>window.print()}>Print / Save PDF</button></div></div>
+        <div className={styles.migrationSummaryGrid}><div><span>Discovered workloads</span><b>{analyzedWorkloadCandidates.length}</b></div><div><span>Draft resources</span><b>{draft.resources.length}</b></div><div><span>Dependency-flagged</span><b>{dependencies}</b></div><div><span>Readiness checks</span><b>{readiness.issues.length}</b></div></div>
+        <p className={styles.migrationSummaryEvidence}>Evidence: {graph.coverage==="REFERENCES_AVAILABLE"?"References collected":"Relationship references not collected"} · Data strategy: {draft.dataStrategy.replaceAll("_"," ")} · Artifact package: Not created</p>
+        <p className={styles.migrationSummaryEvidence}>YAML / Helm artifacts have not been collected into S3; container images have not been promoted to ECR. Reports include metadata only.</p>
+      </section>}
       {tab === "review" && (
         <section className={styles.surface}>
           <h2>Draft readiness</h2>
