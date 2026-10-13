@@ -149,7 +149,7 @@ export function PlanningEditor({
   const [targetRunning, setTargetRunning] = useState(false);
   const [targetError, setTargetError] = useState("");
   useEffect(() => {
-    if (tab !== "target") return;
+    if (tab !== "target" && tab !== "compatibility") return;
     let active = true;
     setTargetLoading(true);
     migrations.targetAssessment(migration.migrationId)
@@ -373,7 +373,22 @@ export function PlanningEditor({
     mappings:(draft.storageMappings??[]).length ? draft.storageMappings??[] : scopedStorageClaims.map(pvc=>suggestedMapping(pvc)),
   });
   const migrationPathDecision = determineMigrationPath({ targetEvidence: targetCompatibility.evidenceStatus, checks: targetCompatibility.findings, coverageComplete: false }); // Target API integration must supply complete verified coverage.
-  const p0Compatibility = analyzeP0Compatibility(draft.resources, resources, Boolean(targetEvidence));
+  // Compatibility is tied to the persisted source scope, never unsaved edits.
+  const savedDraft = migration.planningDraft?.schemaVersion === 1
+    ? migration.planningDraft as unknown as MigrationPlanningDraft
+    : null;
+  const savedScopeCurrent = Boolean(savedDraft &&
+    savedDraft.assessmentVersion === assessment.assessmentVersion &&
+    savedDraft.inventoryDigest === assessment.inventoryDigest &&
+    !stale);
+  const savedTargetMatches = Boolean(targetEvidence &&
+    targetEvidence.targetClusterId === String(migration.targetConfiguration?.clusterId ?? "") &&
+    targetEvidence.assessmentVersion === assessment.assessmentVersion);
+  const p0Compatibility = analyzeP0Compatibility(
+    savedScopeCurrent && !dirty ? savedDraft!.resources : [],
+    resources,
+    savedTargetMatches,
+  );
   const p0Checks = p0Compatibility.flatMap(item => item.checks);
   const p0Unverified = p0Checks.filter(item => item.status === "NOT_VERIFIED").length;
   const readiness = evaluateScopeReadiness(
@@ -671,6 +686,7 @@ export function PlanningEditor({
       </section>}
       {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
         <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
+        <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but current target evidence is missing or does not match the selected cluster and assessment version. Capture fresh target evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
         <div className={styles.compatibilitySnapshot}>
           <div><span>Selected resources</span><strong>{p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
           <div><span>Compatibility checks</span><strong>{p0Checks.length}</strong><small>{p0Unverified} not verified</small></div>
@@ -689,7 +705,7 @@ export function PlanningEditor({
             </details></td>
           </tr>)}</tbody>
         </table></div>
-        {p0Compatibility.length === 0 && <p>Select and add source workloads in Step 1 to generate scoped compatibility checks.</p>}
+        {p0Compatibility.length === 0 && <p>Save selected workloads in Step 1 and ensure the target evidence is current to generate scoped checks.</p>}
         <div className={styles.workflowStageWarning}>P0 assessment is read-only and evidence-gated. The saved connector inventory confirms discovery, not target compatibility. Kubernetes API support, scheduling capacity, storage, networking, identity and dependencies require verified target-specific observations before migration readiness can be determined.</div>
       </section>}
       {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
