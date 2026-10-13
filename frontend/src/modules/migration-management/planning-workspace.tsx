@@ -40,6 +40,7 @@ import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
 import { evaluateTargetCompatibility } from "./compatibility-intelligence";
+import { determineMigrationPath } from "./migration-path-decision";
 import { inspectTargetCapabilitySnapshot } from "./target-capabilities";
 import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
@@ -347,6 +348,7 @@ export function PlanningEditor({
     claims:scopedStorageClaims.map(pvc=>({namespace:pvc.namespace??null,name:pvc.name,requestedStorage:typeof pvc.requestedStorage==="string"?pvc.requestedStorage:null})),
     mappings:(draft.storageMappings??[]).length ? draft.storageMappings??[] : scopedStorageClaims.map(pvc=>suggestedMapping(pvc)),
   });
+  const migrationPathDecision = determineMigrationPath({ targetEvidence: targetCompatibility.evidenceStatus, checks: targetCompatibility.findings, coverageComplete: false }); // Target API integration must supply complete verified coverage.
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
@@ -682,9 +684,9 @@ export function PlanningEditor({
                 </strong>
               </div>
               <ArrowRight size={18} />
-              <PlatformIcon platform="EKS" size="medium" />
+              <PlatformIcon platform={targetPlatform} size="medium" />
               <div>
-                <span>Assessed target</span>
+                <span>Selected target (unverified)</span>
                 <strong>
                   {assessment.inventorySummary.target.clusterName ??
                     "Target not selected"}
@@ -712,8 +714,8 @@ export function PlanningEditor({
                 <div><span>Target discovery</span><strong>{targetCompatibility.evidenceStatus === "CURRENT" ? "Evidence available" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
               </div>
               <div className={styles.targetAssessmentDecision}>
-                <strong>Migration path: Pending target verification</strong>
-                <p>Direct migration cannot be recommended from source inventory alone. Target capability discovery is not yet connected to an authorized live target adapter. A configured target is not proof of compatibility.</p>
+                <strong>Migration path: {migrationPathDecision.path === "PENDING_EVIDENCE" ? "Pending target verification" : migrationPathDecision.path === "DIRECT" ? "Direct migration candidate" : migrationPathDecision.path === "ASSISTED" ? "Assisted migration" : "Blocked"}</strong>
+                <p>{migrationPathDecision.reason} Target capability discovery is not yet connected to an authorized live target adapter. A configured target is not proof of compatibility.</p>
               </div>
               <details className={styles.targetAssessmentDetails}>
                 <summary>Compatibility evidence and next actions · {targetCompatibility.findings.length} checks</summary>
