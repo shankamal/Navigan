@@ -701,6 +701,29 @@ export function PlanningEditor({
                 Create a cluster through Cluster Management
               </Link>
             </p>
+            <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
+              <div className={styles.targetAssessmentHead}>
+                <div><strong>Target Analysis &amp; Migration Path</strong><p>Evaluate the selected migration scope against verified target capabilities before choosing a migration path.</p></div>
+                <span className={styles.targetEvidenceUnknown}>Target evidence: {targetCompatibility.evidenceStatus}</span>
+              </div>
+              <div className={styles.targetAssessmentSummary}>
+                <div><span>Source assessment</span><strong>Version {assessment.assessmentVersion}</strong><small>{draft.resources.length} resources currently included</small></div>
+                <div><span>Target platform</span><strong>{targetPlatform}</strong><small>{String(migration.targetConfiguration?.clusterId ?? "No cluster identifier")}</small></div>
+                <div><span>Target discovery</span><strong>{targetCompatibility.evidenceStatus === "CURRENT" ? "Evidence available" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
+              </div>
+              <div className={styles.targetAssessmentDecision}>
+                <strong>Migration path: Pending target verification</strong>
+                <p>Direct migration cannot be recommended from source inventory alone. Target capability discovery is not yet connected to an authorized live target adapter. A configured target is not proof of compatibility.</p>
+              </div>
+              <details className={styles.targetAssessmentDetails}>
+                <summary>Compatibility evidence and next actions · {targetCompatibility.findings.length} checks</summary>
+                {targetCompatibility.findings.map(item=><div key={item.id} className={styles.targetAssessmentFinding}>
+                  <div><strong>{item.capability}</strong><small>{item.resource} · {item.status}</small></div>
+                  <p>{item.reason}</p><p><b>Next:</b> {item.nextAction}</p>
+                </div>)}
+                <p>Further target checks must include compute, namespace admission/quotas, networking, identity, image pull access and required controllers. Until verified, all remain unassessed.</p>
+              </details>
+            </section>
             <div className={styles.sectionHeading}>
               <h2>
                 {draft.mode === "FULL_CLUSTER"
