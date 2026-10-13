@@ -170,6 +170,9 @@ def route_of(method, path):
     if len(parts) == 2 and parts[1] == "target-assessment" and method in {"GET", "POST"}:
         return ("target_assessment_get" if method == "GET" else "target_assessment_run"), identifier, None
 
+    if len(parts) == 2 and parts[1] == "target-compatibility" and method == "GET":
+        return "target_compatibility_get", identifier, None
+
     if (
         len(parts) == 2
         and parts[1] == "source-catalogue"
@@ -327,6 +330,8 @@ def execute(event, principal, correlation):
                 value = repo.get_assessment(identifier)
             elif route == "target_assessment_get":
                 value = repo.get_target_assessment(identifier)
+            elif route == "target_compatibility_get":
+                value = Service(repo, access, correlation).target_compatibility(identifier)
             else:
                 from .repository import serialize
 
