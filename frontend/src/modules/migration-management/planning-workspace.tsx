@@ -673,19 +673,15 @@ export function PlanningEditor({
       )}
       {tab === "target" && <section className={styles.surface} aria-label="Target environment assessment and readiness">
         <div className={styles.workflowStageHeading}><strong>2. Target Environment Assessment &amp; Readiness</strong><p>Understand the selected destination, capture available connector evidence, and identify what must be verified before matching source workloads.</p></div>
-        <div className={styles.targetGuide}>
-          <div><strong>1 · Capture target inventory</strong><small>Use the existing authorized Cluster Management connector. This is read-only.</small></div>
-          <div><strong>2 · Review evidence and gaps</strong><small>Separate what Navigan observed from capabilities still requiring verification.</small></div>
-          <div><strong>3 · Compare source and target</strong><small>Continue to Compatibility for resource-specific checks; migration readiness stays pending.</small></div>
-        </div>
+        <p className={styles.caption}>Navigan automatically retrieves the destination inventory. Review reported evidence and outstanding checks before continuing to Compatibility.</p>
         <div className={styles.targetAssessmentActions}>
           <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Refreshing target inventory…" : "Refresh target inventory"}</button>
-          <span>{targetLoading ? "Loading saved inventory evidence…" : targetEvidence ? `Last captured: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "No saved target evidence yet"}</span>
+          <span role="status">{targetRunning ? "Refreshing authorized inventory…" : targetLoading ? "Loading saved inventory evidence…" : targetEvidence ? `Last captured: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "Target evidence not yet captured"}</span>
         </div>
         {targetError && <div role="alert" className={styles.warning}>{targetError}</div>}
         <div className={styles.targetOverview}>
           <div><span>Destination cluster</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Existing cluster</small></div>
-          <div><span>Connector inventory</span><strong>{targetEvidence ? "Captured" : "Not captured"}</strong><small>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Collected automatically when available"}</small></div>
+          <div><span>Connector inventory</span><strong>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} resources` : "Not captured"}</strong><small>{targetEvidence ? "Reported by registered connector" : "Collected automatically when available"}</small></div>
           <div><span>Compatibility readiness</span><strong>Pending verification</strong><small>Inventory does not establish workload compatibility</small></div>
         </div>
         {targetEvidence && <div className={styles.targetObservedResult}>
@@ -700,6 +696,14 @@ export function PlanningEditor({
           <div><span>Inventory revision</span><strong>{targetEvidence?.snapshot.sourceRevision ?? "Not reported"}</strong></div>
           <div><span>Evidence coverage</span><strong>{targetEvidence ? "Partial · Inventory only" : "Unavailable"}</strong></div>
         </div>
+        <section className={styles.targetCapabilitySection} aria-label="Target resource inventory coverage">
+          <div className={styles.targetAssessmentHead}><div><strong>Resource inventory coverage</strong><p>The saved connector report provides an inventory total but not a resource-type breakdown. Namespace, workload, service and storage counts cannot be verified from this response.</p></div></div>
+          <div className={styles.targetOverview}>
+            <div><span>Total reported resources</span><strong>{targetEvidence?.snapshot.resourceCount ?? "—"}</strong><small>Connector-observed count</small></div>
+            <div><span>Resource type breakdown</span><strong>Not available</strong><small>Detailed categories not exposed by current assessment API</small></div>
+            <div><span>Verified target capabilities</span><strong>Pending</strong><small>Additional target observations needed</small></div>
+          </div>
+        </section>
         <section className={styles.targetCapabilitySection} aria-label="Target readiness evidence">
           <div className={styles.targetAssessmentHead}><div><strong>What still needs verification?</strong><p>These are capability checks required to compare selected workloads against this EKS cluster. A reported resource count is not proof that any capability is supported.</p></div><span className={styles.targetEvidenceUnknown}>6 capability areas · Not verified</span></div>
           <div className={styles.targetCapabilityGrid}>
@@ -713,11 +717,7 @@ export function PlanningEditor({
             ].map(item=><div key={item.title}><strong>{item.title}</strong><span>NOT VERIFIED</span><p>{item.description}</p></div>)}
           </div>
         </section>
-        <div className={styles.targetNextStep}>
-          <div><strong>Next: Source-to-Target Compatibility</strong><p>{targetEvidence ? "Inventory evidence is available. Compare the selected source resources and review outstanding requirements; incomplete capabilities remain Not Verified." : "Navigan attempts to retrieve target evidence automatically. Review any access or inventory gaps before continuing."}</p></div>
-          <button type="button" className="button button-primary" onClick={() => navigateToStep("compatibility")}>Continue to Compatibility →</button>
-        </div>
-        <div className={styles.workflowStageWarning}>Target Analysis uses the existing authorized, read-only connector inventory. It does not modify the EKS cluster, approve migration, or independently verify scheduling, storage, networking or identity readiness.</div>
+        <div className={styles.workflowStageWarning}>Inventory collection is read-only and does not establish migration readiness. Continue to Compatibility with the saved Source Draft; unsupported or absent target evidence remains Not Verified.</div>
       </section>}
       {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
         <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
