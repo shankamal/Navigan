@@ -1136,3 +1136,12 @@
 .compatibilityMatrix th{background:#f1f5f9;color:#49627b}
 .compatibilityMatrix th,.compatibilityMatrix td{padding:11px;border-bottom:1px solid #e4eaf0}
 @media(max-width:750px){.compatibilitySnapshot{grid-template-columns:1fr}.steps button{flex:1 1 40%}}
+
+
+/* Explicit, server-backed read-only target assessment */
+.targetAssessmentActions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:11px 0 15px}
+.targetAssessmentActions>span{font-size:11px;color:#61788c}
+.targetObservedResult{display:grid;gap:6px;border:1px solid #d6e5d1;border-left:3px solid #86bc25;border-radius:4px;padding:12px 14px;background:#f9fcf7;margin:12px 0}
+.targetObservedResult strong{font-size:12px;color:#294b35}
+.targetObservedResult span{font-size:12px;color:#395973}
+.targetObservedResult small{font-size:11px;color:#745a31;line-height:1.6}
