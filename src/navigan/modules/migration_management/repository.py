@@ -246,7 +246,9 @@ class Repository:
         ).fetchone()
         target_id = (migration.get("target_configuration") or {}).get("clusterId")
         # Evidence from an old target must never be presented for the new one.
-        if not row or row["target_cluster_id"] != target_id:
+        latest_source = self.get_assessment(identifier).get("assessment")
+        if (not row or row["target_cluster_id"] != target_id or not latest_source or
+                row["assessment_version"] != latest_source["assessmentVersion"]):
             return {"migrationId": identifier, "assessment": None}
         return {"migrationId": identifier, "assessment": {
             "targetClusterId": row["target_cluster_id"],
