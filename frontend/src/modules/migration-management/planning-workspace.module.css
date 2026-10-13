@@ -1093,3 +1093,27 @@
 .remediationWorkloadChoices button:focus-visible{outline:2px solid #2379b8;outline-offset:2px}
 .remediationFindingList,.remediationColumns>.detail{scrollbar-width:auto}
 @media print{.remediationWorkloadPicker,.remediationFilterBar{display:none!important}}
+
+
+/* Target assessment is a separate evidence gate; unknown is never direct-ready. */
+.targetAssessmentPanel{border:1px solid #dce6ee;border-left:3px solid #86bc25;border-radius:4px;background:#fff;margin:13px 0 18px;padding:14px}
+.targetAssessmentHead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.targetAssessmentHead strong{font-size:14px;color:#273e54}
+.targetAssessmentHead p{margin:5px 0 0;color:#6b8195;font-size:11px;line-height:1.5}
+.targetEvidenceUnknown{border:1px solid #e4d7b5;background:#fff9eb;border-radius:4px;padding:7px 9px;font-weight:700;font-size:10px;color:#835f1b;white-space:nowrap}
+.targetAssessmentSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:13px 0}
+.targetAssessmentSummary>div{display:grid;gap:5px;border:1px solid #dce6ee;border-radius:4px;padding:11px;background:#f9fbfd}
+.targetAssessmentSummary span{font-size:10px;color:#647b90}
+.targetAssessmentSummary strong{font-size:12px;color:#29475f;overflow-wrap:anywhere}
+.targetAssessmentSummary small{font-size:10px;color:#8293a5;overflow-wrap:anywhere}
+.targetAssessmentDecision{background:#fff9ed;border-left:3px solid #dca044;padding:10px 12px}
+.targetAssessmentDecision strong{font-size:12px;color:#74551c}
+.targetAssessmentDecision p{margin:5px 0 0;font-size:11px;line-height:1.6;color:#77684d}
+.targetAssessmentDetails{margin-top:12px;border:1px solid #e0e8ef;border-radius:4px}
+.targetAssessmentDetails summary{cursor:pointer;padding:11px 12px;font-size:11px;font-weight:700;color:#365c77}
+.targetAssessmentFinding{border-top:1px solid #e7ecf1;padding:9px 12px}
+.targetAssessmentFinding div{display:flex;justify-content:space-between;gap:10px}
+.targetAssessmentFinding strong{font-size:11px;color:#334c62}
+.targetAssessmentFinding small{color:#986c30;font-size:10px}
+.targetAssessmentFinding p,.targetAssessmentDetails>p{font-size:11px;line-height:1.5;color:#677c90;margin:6px 12px}
+@media(max-width:760px){.targetAssessmentHead{flex-direction:column}.targetAssessmentSummary{grid-template-columns:1fr}}
