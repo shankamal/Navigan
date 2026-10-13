@@ -1,3 +1,4 @@
+import type { TargetAssessmentRecord } from "./service";
 import type { PlannedResource, SourceInventoryResource } from "./model";
 
 export type P0Status = "COMPATIBLE" | "REMEDIATION_REQUIRED" | "BLOCKED" | "NOT_VERIFIED";
@@ -42,17 +43,24 @@ export function analyzeP0Compatibility(
   selected: PlannedResource[],
   sourceResources: SourceInventoryResource[],
   connectorInventoryAvailable: boolean,
+  targetAssessment?: TargetAssessmentRecord | null,
 ): P0ResourceResult[] {
   return selected.map(resource => {
     const source = sourceResources.find(item => item.kind === resource.kind &&
       item.name === resource.name && (item.namespace ?? null) === (resource.namespace ?? null));
     const capabilities = APPLICABLE[resource.kind] ?? ["Kubernetes API", "Dependencies"];
+    const evidenceKeys: Record<P0Check["capability"], keyof NonNullable<TargetAssessmentRecord["snapshot"]["capabilityEvidence"]>> = {
+      "Kubernetes API": "kubernetesApi", "Compute & scheduling": "compute", "Persistent storage": "storage",
+      Networking: "networking", "Identity & security": "identity", Dependencies: "dependencies",
+    };
     const checks: P0Check[] = capabilities.map(capability => ({
       capability,
       status: "NOT_VERIFIED",
       reason: source
         ? connectorInventoryAvailable
-          ? "Source resource is observed and target connector inventory is available, but the required target capability comparison is not recorded."
+          ? targetAssessment?.snapshot.capabilityEvidence?.[evidenceKeys[capability]]
+            ? `${targetAssessment.snapshot.capabilityEvidence[evidenceKeys[capability]].status === "PARTIAL" ? "Partial target observations" : "Target capability not verified"}: ${targetAssessment.snapshot.capabilityEvidence[evidenceKeys[capability]].reason} Source-to-target requirements have not been verified.`
+            : "Source resource is observed and target connector inventory is available, but capability comparisons have not been collected."
           : "Source resource is observed; target capability evidence is unavailable."
         : "Selected resource is not present in the current source inventory snapshot.",
       nextAction: actions[capability],
