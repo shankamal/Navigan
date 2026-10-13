@@ -171,7 +171,7 @@ export function PlanningEditor({
   const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("DEPENDENCIES");
   const [severity, setSeverity] = useState("ALL");
   const [remediationCategory, setRemediationCategory] = useState("ALL");
-  const [remediationView, setRemediationView] = useState<"FIXES" | "MAPPINGS" | "PLAN">("FIXES");
+  const [remediationView, setRemediationView] = useState<"FIXES" | "MAPPINGS" | "PLAN" | "ARTIFACTS">("FIXES");
   const [selectedFindingIds, setSelectedFindingIds] = useState<number[]>([]);
   const [customizeFinding, setCustomizeFinding] = useState(false);
   const [editingFromPlan, setEditingFromPlan] = useState<number | null>(null);
@@ -1125,7 +1125,25 @@ export function PlanningEditor({
           </aside>
         </div>
       )}
-      {tab === "remediate" && <section className={styles.artifactReadinessPanel} aria-label="Migration Artifact Management">
+      {tab === "remediate" && (
+        <section className={styles.surface}>
+          <section className={styles.remediationKpis} aria-label="Remediation overview">
+            <div><strong>{draft.resources.length}</strong><span>Resources in scope</span></div>
+            <div><strong>{findings.length}</strong><span>Assessment findings</span></div>
+            <div><strong>{draft.remediations.length}</strong><span>Decisions recorded</span></div>
+            <div><strong>{readiness.issues.length}</strong><span>Outstanding checks</span></div>
+          </section>
+          <div className={styles.remediationWorkflowIntro}>
+            <div><strong>Remediation workspace</strong><p>Resolve assessment findings, record target mappings, assign owners, and review artifact readiness. Draft decisions do not modify the source or target cluster.</p></div>
+            <span>{draft.remediations.length} decisions recorded · {readiness.issues.length} readiness checks</span>
+          </div>
+          <nav className={styles.scopeViews} aria-label="Remediation workspace views">
+            <button aria-current={remediationView === "FIXES" ? "page" : undefined} onClick={() => setRemediationView("FIXES")}>Recommended fixes · {findings.length}</button>
+            <button aria-current={remediationView === "MAPPINGS" ? "page" : undefined} onClick={() => setRemediationView("MAPPINGS")}>Target mappings · {scopedStorageClaims.length}</button>
+            <button aria-current={remediationView === "PLAN" ? "page" : undefined} onClick={() => setRemediationView("PLAN")}>Remediation plan · {draft.remediations.length}</button>
+            <button aria-current={remediationView === "ARTIFACTS" ? "page" : undefined} onClick={() => setRemediationView("ARTIFACTS")}>Migration artifacts · Readiness</button>
+          </nav>
+          {remediationView === "ARTIFACTS" && <section className={styles.artifactReadinessPanel} aria-label="Migration Artifact Management">
         <div className={styles.artifactReadinessHead}><div><strong>Migration Artifact Management</strong><p>Artifact readiness is separate from resource discovery. Upload and ECR promotion must be authorized and validated before migration execution.</p></div><span>Foundation · Pending integration</span></div>
         <div className={styles.artifactReadinessGrid}>
           <div><strong>YAML manifests</strong><span>Not collected</span><small>S3 ingestion not yet connected</small></div>
@@ -1135,19 +1153,7 @@ export function PlanningEditor({
         </div>
         <p>Artifact foundation: tenant-scoped S3 object paths and KMS-encrypted presigned upload contracts are available in the backend module. No artifact has been uploaded, validated or promoted by this screen.</p>
       </section>}
-      {tab === "remediate" && (
-        <section className={styles.surface}>
-          <section className={styles.remediationKpis} aria-label="Remediation overview">
-            <div><strong>{draft.resources.length}</strong><span>Resources in scope</span></div>
-            <div><strong>{findings.length}</strong><span>Assessment findings</span></div>
-            <div><strong>{draft.remediations.length}</strong><span>Decisions recorded</span></div>
-            <div><strong>{readiness.issues.length}</strong><span>Outstanding checks</span></div>
-          </section>
-          <nav className={styles.scopeViews} aria-label="Remediation workspace views">
-            <button aria-current={remediationView === "FIXES" ? "page" : undefined} onClick={() => setRemediationView("FIXES")}>Recommended fixes · {findings.length}</button>
-            <button aria-current={remediationView === "MAPPINGS" ? "page" : undefined} onClick={() => setRemediationView("MAPPINGS")}>Target mappings · {scopedStorageClaims.length}</button>
-            <button aria-current={remediationView === "PLAN" ? "page" : undefined} onClick={() => setRemediationView("PLAN")}>Remediation plan · {draft.remediations.length}</button>
-          </nav>
+
           {remediationView === "MAPPINGS" && (
             <section className={styles.applicationMap} aria-label="Target mapping workspace">
               <div className={styles.applicationMapHeader}>
