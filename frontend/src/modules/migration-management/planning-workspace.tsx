@@ -168,7 +168,7 @@ export function PlanningEditor({
   const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
   const scopeNamespaceSet = new Set(scopeNamespaces);
   const [search, setSearch] = useState("");
-  const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("WORKLOADS");
+  const [resourceView, setResourceView] = useState<"ALL" | "WORKLOADS" | "DEPENDENCIES" | "CONFIGURATION" | "DATA">("DEPENDENCIES");
   const [severity, setSeverity] = useState("ALL");
   const [remediationCategory, setRemediationCategory] = useState("ALL");
   const [remediationView, setRemediationView] = useState<"FIXES" | "MAPPINGS" | "PLAN">("FIXES");
@@ -771,11 +771,11 @@ export function PlanningEditor({
                 </div>
                 </details>
 
-            <details className={styles.compactReviewDetails}><summary>Detailed resource actions and technical inventory</summary>
+            <div className={styles.scopeReviewTabbedActions}>
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
-                ["WORKLOADS", "Workloads"],
                 ["DEPENDENCIES", "Dependencies"],
+                ["WORKLOADS", "Workloads"],
                 ["CONFIGURATION", "Configuration"],
                 ["DATA", "Data & Storage"],
                 ["ALL", "All resources · Technical view"],
@@ -1060,7 +1060,7 @@ export function PlanningEditor({
               resources. Historical Jobs and node agents need explicit treatment
               decisions.
             </p>
-            </details>
+            </div>
 
                 </section>
                 <details className={styles.compactReviewDetails}><summary>5. Confirm migration scope · selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
