@@ -21,12 +21,14 @@ const base = "/migrations";
 export interface TargetAssessmentRecord {
   targetClusterId: string;
   assessmentVersion: number;
-  evidenceLevel: "CONTROL_PLANE_ONLY";
+  evidenceLevel: "CONNECTOR_RUNTIME_INVENTORY";
   createdAt: string;
   snapshot: {
     platform: string;
     clusterName: string;
-    region: string;
+    region?: string;
+    sourceRevision?: string;
+    resourceCount?: number;
     kubernetesVersion?: string;
     clusterStatus?: string;
     observedAt: string;
