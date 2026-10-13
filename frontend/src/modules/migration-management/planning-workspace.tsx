@@ -41,6 +41,7 @@ import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
 import { evaluateTargetCompatibility } from "./compatibility-intelligence";
 import { determineMigrationPath } from "./migration-path-decision";
+import { analyzeP0Compatibility } from "./source-target-p0";
 import { inspectTargetCapabilitySnapshot } from "./target-capabilities";
 import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
@@ -372,6 +373,9 @@ export function PlanningEditor({
     mappings:(draft.storageMappings??[]).length ? draft.storageMappings??[] : scopedStorageClaims.map(pvc=>suggestedMapping(pvc)),
   });
   const migrationPathDecision = determineMigrationPath({ targetEvidence: targetCompatibility.evidenceStatus, checks: targetCompatibility.findings, coverageComplete: false }); // Target API integration must supply complete verified coverage.
+  const p0Compatibility = analyzeP0Compatibility(draft.resources, resources, Boolean(targetEvidence));
+  const p0Checks = p0Compatibility.flatMap(item => item.checks);
+  const p0Unverified = p0Checks.filter(item => item.status === "NOT_VERIFIED").length;
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
@@ -653,17 +657,27 @@ export function PlanningEditor({
         <div className={styles.workflowStageWarning}>{targetEvidence ? "Existing Cluster Management connector inventory has been captured. Storage, scheduling, networking, identity and workload compatibility require additional verification before target readiness can be determined." : "Analyze Target uses existing authorized Cluster Management connector inventory. Target readiness remains unverified until evidence is collected and compatibility checks are completed."}</div>
       </section>}
       {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
-        <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Match included workloads and dependencies against verified target capabilities. Scores remain pending until required evidence is complete.</p></div>
+        <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
         <div className={styles.compatibilitySnapshot}>
-          <div><span>Compatibility score</span><strong>Pending</strong><small>Not calculated from unverified capabilities</small></div>
-          <div><span>Evidence coverage</span><strong>Incomplete</strong><small>Live target capability data not collected</small></div>
-          <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_"," ")}</strong><small>{migrationPathDecision.reason}</small></div>
+          <div><span>Selected resources</span><strong>{p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
+          <div><span>Compatibility checks</span><strong>{p0Checks.length}</strong><small>{p0Unverified} not verified</small></div>
+          <div><span>Target evidence</span><strong>{targetEvidence ? "Partial" : "Unavailable"}</strong><small>{targetEvidence ? `Connector inventory · ${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Run Analyze Target in Step 2"}</small></div>
+          <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_", " ")}</strong><small>{migrationPathDecision.reason}</small></div>
         </div>
-        <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}><thead><tr><th>Source resource</th><th>Source kind</th><th>Target platform</th><th>Proposed target mapping</th><th>Compatibility</th></tr></thead><tbody>
-          {draft.resources.map(resource=><tr key={resourceKey(resource)}><td>{resource.namespace??"Cluster"}/{resource.name}</td><td>{resource.kind}</td><td>{targetPlatform}</td><td>Pending verified target capabilities</td><td>Unknown</td></tr>)}
-        </tbody></table></div>
-        {draft.resources.length===0 && <p>Select workloads in Source before evaluating compatibility.</p>}
-        <div className={styles.workflowStageWarning}>A namespace selection does not establish deployment compatibility. Remediation is conditional on verified compatibility findings; this screen cannot approve direct migration yet.</div>
+        <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
+          <thead><tr><th>Selected source resource</th><th>Kind</th><th>Target</th><th>Overall result</th><th>P0 checks / next action</th></tr></thead>
+          <tbody>{p0Compatibility.map(result => <tr key={resourceKey(result.resource)}>
+            <td>{result.resource.namespace ?? "Cluster"}/{result.resource.name}</td>
+            <td>{result.resource.kind}</td>
+            <td>{targetPlatform}</td>
+            <td>{result.status.replaceAll("_", " ")}</td>
+            <td><details><summary>{result.checks.length} checks · {result.checks.filter(check => check.status === "NOT_VERIFIED").length} not verified</summary>
+              {result.checks.map(check => <div key={check.capability}><strong>{check.capability} · {check.status.replaceAll("_", " ")}</strong><p>{check.reason}</p><p>Next: {check.nextAction}</p></div>)}
+            </details></td>
+          </tr>)}</tbody>
+        </table></div>
+        {p0Compatibility.length === 0 && <p>Select and add source workloads in Step 1 to generate scoped compatibility checks.</p>}
+        <div className={styles.workflowStageWarning}>P0 assessment is read-only and evidence-gated. The saved connector inventory confirms discovery, not target compatibility. Kubernetes API support, scheduling capacity, storage, networking, identity and dependencies require verified target-specific observations before migration readiness can be determined.</div>
       </section>}
       {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
         <div className={styles.workflowStageHeading}><strong>5. Migration Plan</strong><p>Plan generation follows evidence-backed source-to-target matching, remediation decisions and artifact readiness.</p></div>
