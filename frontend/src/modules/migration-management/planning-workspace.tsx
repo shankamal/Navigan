@@ -790,6 +790,7 @@ export function PlanningEditor({
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
+            <details className={styles.compactReviewDetails}><summary>5. Advanced resource inventory &amp; technical review (optional)</summary>
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
                 ["WORKLOADS", "Workloads"],
@@ -1078,6 +1079,7 @@ export function PlanningEditor({
               resources. Historical Jobs and node agents need explicit treatment
               decisions.
             </p>
+            </details>
           </section>
           <aside className={styles.surface}>
             <h2>Confirmed draft scope</h2>
