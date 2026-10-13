@@ -1086,3 +1086,10 @@
 .remediationColumns>.detail{max-height:none;overflow:visible}
 .remediationColumns{align-items:start}
 @media(max-width:920px){.remediationWorkloadChoices button{min-width:130px}.remediationColumns{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Focus control and accessible one-scroll remediation workspace */
+.remediationClearFocus{border:1px solid #b9ccd9;background:white!important;color:#245d81!important}
+.remediationWorkloadChoices button:focus-visible{outline:2px solid #2379b8;outline-offset:2px}
+.remediationFindingList,.remediationColumns>.detail{scrollbar-width:auto}
+@media print{.remediationWorkloadPicker,.remediationFilterBar{display:none!important}}
