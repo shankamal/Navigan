@@ -1120,6 +1120,16 @@ export function PlanningEditor({
           </aside>
         </div>
       )}
+      {tab === "remediate" && <section className={styles.artifactReadinessPanel} aria-label="Migration Artifact Management">
+        <div className={styles.artifactReadinessHead}><div><strong>Migration Artifact Management</strong><p>Artifact readiness is separate from resource discovery. Upload and ECR promotion must be authorized and validated before migration execution.</p></div><span>Foundation · Pending integration</span></div>
+        <div className={styles.artifactReadinessGrid}>
+          <div><strong>YAML manifests</strong><span>Not collected</span><small>S3 ingestion not yet connected</small></div>
+          <div><strong>Helm packages</strong><span>Not collected</span><small>Charts and values require secure capture</small></div>
+          <div><strong>Container images</strong><span>References only</span><small>Registry digest verification / ECR promotion pending</small></div>
+          <div><strong>Migration artifact package</strong><span>Not generated</span><small>Approval and validation required</small></div>
+        </div>
+        <p>Artifact foundation: tenant-scoped S3 object paths and KMS-encrypted presigned upload contracts are available in the backend module. No artifact has been uploaded, validated or promoted by this screen.</p>
+      </section>}
       {tab === "remediate" && (
         <section className={styles.surface}>
           <section className={styles.remediationKpis} aria-label="Remediation overview">
