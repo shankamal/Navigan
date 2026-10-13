@@ -559,7 +559,7 @@ export function PlanningEditor({
           Review draft
         </button>
       </nav>
-      {tab !== "remediate" && <section className={styles.guide} aria-label="Migration planning guide">
+      {tab === "review" && <section className={styles.guide} aria-label="Migration planning guide">
         <div className={styles.guideHeading}>
           <strong>{tab === "scope" ? "1 · Define application scope" : "3 · Review planning readiness"}</strong>
           <span>Assessment v{assessment.assessmentVersion} · Read-only planning</span>
@@ -601,23 +601,10 @@ export function PlanningEditor({
           Read-only planning view. {editRestriction}
         </div>
       )}
-      {tab === "scope" && <div className={styles.scopeWorkflowJourney} aria-label="Scope analysis workflow">
-        {["Select namespaces","Analyze scope","Review topology","Add to draft","Resolve readiness","Remediation"].map((stage,index)=><div className={styles.scopeJourneyStep} key={stage}>
-          <span className={index===0||index===1&&scopeReviewOpen?styles.scopeJourneyActive:styles.scopeJourneyNumber}>{index+1}</span>
-          <strong>{stage}</strong>
-        </div>)}
-      </div>}
-      {tab === "scope" && (
-        <section className={styles.scopeKpiBar} aria-label="Migration discovery metrics">
-          <div><span>SELECTED NAMESPACES</span><strong>{scopeNamespaces.length}</strong><small>From {namespaces.length} discovered</small></div>
-          <div><span>DISCOVERED WORKLOADS</span><strong>{analyzedWorkloadCandidates.length}</strong><small>In selected namespaces</small></div>
-          <div><span>DRAFT RESOURCES</span><strong>{draft.resources.length}</strong><small>Saved on explicit confirmation</small></div>
-          <div><span>PLANNING CHECKS</span><strong>{scopeGateIssues.length}</strong><small>Need attention before proceeding</small></div>
-        </section>
-      )}
       {tab === "scope" && (
         <div className={styles.columns}>
           <section className={styles.surface}>
+            <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Migration details and mode</strong><small>Confirm assessed source, target and planning approach</small></div>
             <div className={styles.context}>
               <div>
                 <span>Migration name</span>
@@ -714,7 +701,7 @@ export function PlanningEditor({
                 ? "This inventory may exclude system namespaces or cluster-scoped resources. Full-estate coverage must be confirmed before execution planning."
                 : "Inventory contains sanitized metadata, not deployment manifests or data. Dependency names are incomplete; confirm them with the application owner."}
             </p>
-            <div className={styles.scopeFlowPrompt}><strong>1. Select application namespaces</strong><p>Choose the namespaces to analyze. Analysis discovers candidates; only resources you explicitly accept become part of the migration draft.</p></div>
+            <div className={styles.scopeOptionSectionTitle}><span>2</span><strong>Select namespaces</strong><small>Choose the namespaces to analyze and include in scope</small></div>
             <div className={styles.scopeSelectionBar}>
               <details className={styles.scopeNamespacePicker}>
                 <summary aria-label="Application namespaces">Select namespaces · {scopeNamespaces.length} selected</summary>
@@ -733,18 +720,18 @@ export function PlanningEditor({
                   disabled={!scopeNamespaces.length || !canEdit || stale || save.isPending}>Analyze selected scope</button>
               </div>
             </div>
-            {scopeNamespaces.length>0 && <p className={styles.scopeSelectedNamespaces}><strong>Selected:</strong> {scopeNamespaces.join(", ")}</p>}
+            {scopeNamespaces.length>0 && <div className={styles.scopeNamespaceChips}><strong>{scopeNamespaces.length} selected</strong>{scopeNamespaces.map(ns=><span key={ns}>{ns}<small>{applicationWorkloads.filter(r=>r.namespace===ns).length} workloads</small></span>)}</div>}
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>2. Scope analysis &amp; workload selection</strong>
+                  <strong>3. Select application workloads</strong>
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} total draft resources in selected namespaces · Assessment v{assessment.assessmentVersion}</span>
                 </div>
                 <p className={styles.caption}>Review discovered workloads and use Add to Draft to include them in the migration scope.</p>
                 <div className={styles.scopeWorkloadTableWrap}>
                   <div className={styles.scopeWorkloadTableHeading}>
-                    <div><strong>3. Review workloads &amp; add to migration draft</strong><p>Choose workloads directly. A discovered workload is not included until added to the draft.</p></div>
-                    <span>{workloadRelationships.filter(item=>item.selected).length} included / {workloadRelationships.length} discovered</span>
+                    <div><strong>Choose workloads for migration</strong><p>Choose workloads directly. A discovered workload is not included until added to the draft.</p></div>
+                    <span>{workloadRelationships.length} discovered · {workloadRelationships.filter(item=>item.selected).length} included · {workloadRelationships.filter(item=>!item.selected).length} not selected</span>
                   </div>
                   <div className={styles.scopeWorkloadTableScroll}>
                     <table className={styles.scopeWorkloadTable}>
@@ -766,14 +753,14 @@ export function PlanningEditor({
                     </table>
                   </div>
                 </div>
-                <details className={styles.compactReviewDetails}><summary>View all selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
+                <details className={styles.compactReviewDetails}><summary>5. Confirm migration scope · selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
                       {resource.name} <small>{resource.kind}</small>
                     </span>
                   ))}
                 </div></details>
-                <details className={styles.compactReviewDetails}><summary>Dependency evidence &amp; additional resource recommendations</summary>
+                <details className={styles.compactReviewDetails}><summary>4. Dependencies and storage · evidence and recommendations</summary>
                 <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <div className={styles.scopeIntelligence}>
                   <strong>Required resources from observed relationships</strong>
@@ -790,7 +777,7 @@ export function PlanningEditor({
                 <p className={styles.scopeReviewData}>Data strategy: <strong>{draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")}</strong></p>
               </section>
             )}
-            <details className={styles.compactReviewDetails}><summary>5. Advanced resource inventory &amp; technical review (optional)</summary>
+            <details className={styles.compactReviewDetails}><summary>Advanced resource inventory &amp; technical review (optional)</summary>
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
                 ["WORKLOADS", "Workloads"],
@@ -1082,7 +1069,7 @@ export function PlanningEditor({
             </details>
           </section>
           <aside className={styles.surface}>
-            <h2>Confirmed draft scope</h2>
+            <h2>Migration scope summary</h2>
             {scopeReviewOpen && <p className={styles.scopeAnalysisSidebar}><strong>Analyzed namespaces: {scopeNamespaces.length}</strong> · {analyzedWorkloadCandidates.length} workload candidates · {pendingAnalyzedWorkloads.length} not included</p>}
             <p className={styles.scopeDraftLabel}><strong>{draft.resources.length} total draft resources</strong> · {draft.resources.length-dependencies} selected + {dependencies} dependency-flagged</p>
             <p className={styles.caption}>Shows resources already saved or selected in the planning draft, not automatic results from the latest namespace analysis.</p>
