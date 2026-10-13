@@ -235,6 +235,22 @@ class Repository:
             )
         return row
 
+    def require_registered_target(self, migration, cluster_id):
+        config = migration.get("target_configuration") or {}
+        row = self.db.execute(
+            "SELECT cluster_id, cluster_name, status, customer_id "
+            "FROM cluster_management.clusters "
+            "WHERE cluster_id=%s AND customer_id=%s",
+            [cluster_id, migration["customer_id"]],
+        ).fetchone()
+        if not row or row["cluster_name"] != config.get("clusterName"):
+            raise ApiError(409, "TARGET_IDENTITY_MISMATCH",
+                           "Selected target identity does not match the registered Navigan cluster.")
+        if row["status"] != "ACTIVE":
+            raise ApiError(409, "TARGET_NOT_ACTIVE",
+                           "Target cluster must be ACTIVE before read-only analysis.")
+        return row
+
     def get_target_assessment(self, identifier):
         migration = self.get(identifier)
         row = self.db.execute(
