@@ -281,6 +281,17 @@ Resources:
       RouteKey: POST /api/v1/migrations/{migrationId}/target-assessment
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
+  GetMigrationTargetCompatibilityRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/target-compatibility
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
   CreateMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission
