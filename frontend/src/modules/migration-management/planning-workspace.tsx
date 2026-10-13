@@ -629,16 +629,16 @@ export function PlanningEditor({
                     <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
               <div className={styles.targetAssessmentHead}>
                 <div><strong>Target Analysis &amp; Migration Path</strong><p>Evaluate the selected migration scope against verified target capabilities before choosing a migration path.</p></div>
-                <span className={styles.targetEvidenceUnknown}>Target evidence: {targetCompatibility.evidenceStatus}</span>
+                <span className={styles.targetEvidenceUnknown}>Target evidence: {targetEvidence ? "PARTIAL · Connector inventory" : targetCompatibility.evidenceStatus}</span>
               </div>
               <div className={styles.targetAssessmentSummary}>
                 <div><span>Source assessment</span><strong>Version {assessment.assessmentVersion}</strong><small>{draft.resources.length} resources currently included</small></div>
                 <div><span>Target EKS cluster</span><strong>{assessment.inventorySummary.target.clusterName || "Name unavailable"}</strong><small>Navigan ID: {String(migration.targetConfiguration?.clusterId ?? "Not configured")}</small></div>
-                <div><span>Target discovery</span><strong>{targetCompatibility.evidenceStatus === "CURRENT" ? "Evidence available" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
+                <div><span>Target discovery</span><strong>{targetEvidence ? "Inventory available · Compatibility not verified" : "Not verified"}</strong><small>{targetCompatibility.findings.length} compatibility checks requiring attention</small></div>
               </div>
               <div className={styles.targetAssessmentDecision}>
                 <strong>Migration path: {migrationPathDecision.path === "PENDING_EVIDENCE" ? "Pending target verification" : migrationPathDecision.path === "DIRECT" ? "Direct migration candidate" : migrationPathDecision.path === "ASSISTED" ? "Assisted migration" : "Blocked"}</strong>
-                <p>{migrationPathDecision.reason} Target capability discovery is not yet connected to an authorized live target adapter. A configured target is not proof of compatibility.</p>
+                <p>{migrationPathDecision.reason} {targetEvidence ? "Connector inventory is available, but migration-specific target capabilities have not been verified." : "No authorized target inventory evidence has been captured. A configured target is not proof of compatibility."}</p>
               </div>
               <details className={styles.targetAssessmentDetails}>
                 <summary>Compatibility evidence and next actions · {targetCompatibility.findings.length} checks</summary>
@@ -650,7 +650,7 @@ export function PlanningEditor({
               </details>
             </section>
 
-        <div className={styles.workflowStageWarning}>Analyze Target requires an authorized read-only backend adapter. No live target interrogation is available yet; target readiness is not verified.</div>
+        <div className={styles.workflowStageWarning}>{targetEvidence ? "Existing Cluster Management connector inventory has been captured. Storage, scheduling, networking, identity and workload compatibility require additional verification before target readiness can be determined." : "Analyze Target uses existing authorized Cluster Management connector inventory. Target readiness remains unverified until evidence is collected and compatibility checks are completed."}</div>
       </section>}
       {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
         <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Match included workloads and dependencies against verified target capabilities. Scores remain pending until required evidence is complete.</p></div>
