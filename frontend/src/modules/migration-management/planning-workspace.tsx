@@ -163,8 +163,9 @@ export function PlanningEditor({
     try {
       const result = await migrations.analyzeTarget(migration.migrationId);
       setTargetEvidence(result.assessment);
-    } catch {
-      setTargetError("Target analysis failed. Verify IAM permissions, target region and the deployed Migration API.");
+    } catch (error: unknown) {
+      const api = normalizeApiError(error);
+      setTargetError(`Analyze Target failed · HTTP ${api.status || "network"} · ${api.code}: ${api.message}${api.correlationId ? ` · Request ID: ${api.correlationId}` : ""}`);
     } finally { setTargetRunning(false); }
   }
 
