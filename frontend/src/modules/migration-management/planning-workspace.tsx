@@ -143,6 +143,31 @@ export function PlanningEditor({
   const workflowSteps = ["scope", "target", "compatibility", "remediate", "plan", "review"] as const;
   type WorkflowStep = (typeof workflowSteps)[number];
   const [tab, setTab] = useState<WorkflowStep>("scope");
+  const [targetEvidence, setTargetEvidence] = useState<import("./service").TargetAssessmentRecord | null>(null);
+  const [targetLoading, setTargetLoading] = useState(false);
+  const [targetRunning, setTargetRunning] = useState(false);
+  const [targetError, setTargetError] = useState("");
+  useEffect(() => {
+    if (tab !== "target") return;
+    let active = true;
+    setTargetLoading(true);
+    migrations.targetAssessment(migration.migrationId)
+      .then(result => { if (active) { setTargetEvidence(result.assessment); setTargetError(""); } })
+      .catch(() => { if (active) setTargetError("Stored target evidence could not be loaded."); })
+      .finally(() => { if (active) setTargetLoading(false); });
+    return () => { active = false; };
+  }, [tab, migration.migrationId]);
+  async function runTargetAnalysis() {
+    if (targetRunning) return;
+    setTargetRunning(true); setTargetError("");
+    try {
+      const result = await migrations.analyzeTarget(migration.migrationId);
+      setTargetEvidence(result.assessment);
+    } catch {
+      setTargetError("Target analysis failed. Verify IAM permissions, target region and the deployed Migration API.");
+    } finally { setTargetRunning(false); }
+  }
+
   const stepHeadingRef = useRef<HTMLDivElement>(null);
   function navigateToStep(next: WorkflowStep) {
     setTab(next);
@@ -592,7 +617,13 @@ export function PlanningEditor({
         </div>
       )}
       {tab === "target" && <section className={styles.surface} aria-label="Target discovery and readiness">
-        <div className={styles.workflowStageHeading}><strong>2. Target Discovery &amp; Readiness</strong><p>Identify target environment capabilities and evidence gaps before compatibility scoring. Target discovery is read-only.</p></div>
+        <div className={styles.workflowStageHeading}><strong>2. Target Discovery &amp; Readiness</strong><p>Read-only AWS EKS control-plane discovery, with persisted evidence and manual refresh.</p></div>
+        <div className={styles.targetAssessmentActions}>
+          <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Analyzing target…" : targetEvidence ? "Re-analyze Target" : "Analyze Target"}</button>
+          <span>{targetLoading ? "Loading previous evidence…" : targetEvidence ? `Last analyzed: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "No saved target assessment"}</span>
+        </div>
+        {targetError && <div role="alert" className={styles.warning}>{targetError}</div>}
+        {targetEvidence && <div className={styles.targetObservedResult}><strong>EKS control-plane observation · {targetEvidence.snapshot.clusterStatus ?? "Unknown"}</strong><span>{targetEvidence.snapshot.clusterName} · Kubernetes {targetEvidence.snapshot.kubernetesVersion ?? "unknown"} · {targetEvidence.snapshot.region}</span><small>Evidence: {targetEvidence.evidenceLevel}. Kubernetes API access, storage, node capacity and workload compatibility remain unverified.</small></div>}
         <div className={styles.context}><div><span>AWS EKS cluster name</span><strong>{assessment.inventorySummary.target.clusterName || "Not available in assessment"}</strong></div><div><span>Navigan Cluster ID</span><strong>{String(migration.targetConfiguration?.clusterId ?? "Not configured")}</strong></div><div><span>Target platform</span><strong>{targetPlatform}</strong></div><div><span>Evidence status</span><strong>{targetCompatibility.evidenceStatus}</strong></div></div>
                     <section className={styles.targetAssessmentPanel} aria-label="Source to target compatibility and readiness">
               <div className={styles.targetAssessmentHead}>
