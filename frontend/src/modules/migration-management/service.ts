@@ -29,6 +29,9 @@ export interface TargetAssessmentRecord {
     region?: string;
     sourceRevision?: string;
     resourceCount?: number;
+    resourceKinds?: Record<string, number>;
+    unclassifiedResourceCount?: number;
+    inventoryExpiresAt?: string | null;
     kubernetesVersion?: string;
     clusterStatus?: string;
     observedAt: string;
