@@ -93,6 +93,11 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 2) return ["GET", "PUT"].includes(method);
     if (path.length !== 3) return false;
 
+    if (path[2] === "target-assessment")
+      return method === "GET" || method === "POST";
+    if (path[2] === "target-compatibility")
+      return method === "GET";
+
     if (
       ["source-catalogue", "source-inventory", "assessment"].includes(path[2])
     ) {
