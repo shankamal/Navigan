@@ -275,6 +275,8 @@ def execute(event, principal, correlation):
             model = InstallSourceConnector
         elif action in {"discover", "assess"}:
             model = DiscoveryAction
+        elif route == "target_assessment_run":
+            model = None
         else:
             model = MigrationAction
         if model is not None:
