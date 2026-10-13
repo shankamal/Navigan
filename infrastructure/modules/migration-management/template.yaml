@@ -370,18 +370,6 @@ Resources:
         POST /api/v1/source-clusters/{sourceClusterId}/enrollments
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  InstallSourceClusterConnectorRoute:
-    Type: AWS::ApiGatewayV2::Route
-    DependsOn: SourceClusterInvokePermission
-    Properties:
-      ApiId: {Ref: ApiId}
-      AuthorizationType: JWT
-      AuthorizerId: {Ref: AuthorizerId}
-      AuthorizationScopes: [{Ref: JwtScope}]
-      RouteKey: >-
-        POST /api/v1/source-clusters/{sourceClusterId}/install
-      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
-
   GetMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission
@@ -402,21 +390,6 @@ Resources:
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: GET /api/v1/migrations/{migrationId}/source-catalogue
-      Target:
-        Fn::Join:
-          - /
-          - - integrations
-            - {Ref: MigrationIntegration}
-
-  GetMigrationSourceInventoryRoute:
-    Type: AWS::ApiGatewayV2::Route
-    DependsOn: MigrationInvokePermission
-    Properties:
-      ApiId: {Ref: ApiId}
-      AuthorizationType: JWT
-      AuthorizerId: {Ref: AuthorizerId}
-      AuthorizationScopes: [{Ref: JwtScope}]
-      RouteKey: GET /api/v1/migrations/{migrationId}/source-inventory
       Target:
         Fn::Join:
           - /
@@ -458,17 +431,6 @@ Resources:
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: POST /api/v1/migrations/{migrationId}/discover
-      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
-
-  AssessMigrationRoute:
-    Type: AWS::ApiGatewayV2::Route
-    DependsOn: MigrationInvokePermission
-    Properties:
-      ApiId: {Ref: ApiId}
-      AuthorizationType: JWT
-      AuthorizerId: {Ref: AuthorizerId}
-      AuthorizationScopes: [{Ref: JwtScope}]
-      RouteKey: POST /api/v1/migrations/{migrationId}/assess
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   SubmitMigrationRoute:
