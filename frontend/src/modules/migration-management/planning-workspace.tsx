@@ -753,6 +753,9 @@ export function PlanningEditor({
                     </table>
                   </div>
                 </div>
+                <section className={styles.scopeResourceReview} aria-label="Resource Review and Migration Actions">
+                  <div className={styles.scopeResourceReviewHead}><strong>4. Resource Review &amp; Migration Actions</strong><p>Review dependencies, configuration, storage, and migration treatments. Use the tabs below for detailed resource decisions.</p></div>
+                  <div className={styles.scopeResourceReviewMetrics}><span><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b> Supporting resources</span><span><b>{pendingPvcs.length}</b> PVCs to review</span><span><b>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</b> Recorded references</span></div>
                 <details className={styles.compactReviewDetails}><summary>4. Dependencies and storage · evidence and recommendations</summary>
                 <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <div className={styles.scopeIntelligence}>
@@ -767,17 +770,8 @@ export function PlanningEditor({
                   <p>Reassessment required: {graph.coverage === "REFERENCES_AVAILABLE" ? "No additional reference-coverage warning" : "This snapshot does not contain reliable dependency references."}</p>
                 </div>
                 </details>
-                <details className={styles.compactReviewDetails}><summary>5. Confirm migration scope · selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
-                  {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
-                    <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
-                      {resource.name} <small>{resource.kind}</small>
-                    </span>
-                  ))}
-                </div></details>
-                <div className={styles.scopeReviewReadiness}><strong>6. Readiness and next steps</strong><span>Data strategy: {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")} · {readiness.issues.length} follow-up checks</span></div>
-              </section>
-            )}
-            <details className={styles.compactReviewDetails}><summary>Advanced resource inventory &amp; technical review (optional)</summary>
+
+            <details className={styles.compactReviewDetails}><summary>Detailed resource actions and technical inventory</summary>
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
                 ["WORKLOADS", "Workloads"],
@@ -1067,6 +1061,18 @@ export function PlanningEditor({
               decisions.
             </p>
             </details>
+
+                </section>
+                <details className={styles.compactReviewDetails}><summary>5. Confirm migration scope · selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
+                  {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
+                    <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
+                      {resource.name} <small>{resource.kind}</small>
+                    </span>
+                  ))}
+                </div></details>
+                <div className={styles.scopeReviewReadiness}><strong>6. Readiness and next steps</strong><span>Data strategy: {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")} · {readiness.issues.length} follow-up checks</span></div>
+              </section>
+            )}
           </section>
           <aside className={styles.surface}>
             <div className={styles.optionScopeSidebar}>
