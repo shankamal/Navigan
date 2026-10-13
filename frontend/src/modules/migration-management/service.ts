@@ -30,6 +30,12 @@ export interface TargetAssessmentRecord {
     sourceRevision?: string;
     resourceCount?: number;
     resourceKinds?: Record<string, number>;
+    capabilityEvidence?: Record<"kubernetesApi" | "compute" | "storage" | "networking" | "identity" | "dependencies", {
+      status: "PARTIAL" | "NOT_VERIFIED";
+      reason: string;
+      observedNodeCount?: number;
+      observedServiceCount?: number;
+    }>;
     unclassifiedResourceCount?: number;
     inventoryExpiresAt?: string | null;
     kubernetesVersion?: string;
