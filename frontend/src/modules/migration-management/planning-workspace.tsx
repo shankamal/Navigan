@@ -35,7 +35,7 @@ import type {
   SourceInventoryResource,
 } from "./model";
 import { PlatformIcon } from "./platform-icon";
-import { ScopeTopology } from "./scope-topology";
+
 import { graphFromSanitizedInventory } from "./migration-graph";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
@@ -737,32 +737,35 @@ export function PlanningEditor({
             {scopeReviewOpen && (
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>2. Scope analysis &amp; dependency topology</strong>
+                  <strong>2. Scope analysis &amp; workload selection</strong>
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} total draft resources in selected namespaces · Assessment v{assessment.assessmentVersion}</span>
                 </div>
-                <p className={styles.caption}>Review discovered workloads by namespace. Green nodes are already included; other workloads remain optional until you add them.</p>
-            {(resourceView === "WORKLOADS" || resourceView === "DEPENDENCIES") && scopeReviewOpen && (
-              <ScopeTopology
-                namespaces={scopeNamespaces}
-                coverageKnown={graph.coverage === "REFERENCES_AVAILABLE"}
-                resources={workloadRelationships.map(({workload,references,selected:included,observedClaimCandidates})=>({
-                  kind:workload.kind,namespace:workload.namespace??null,name:workload.name,
-                  selected:included,references:references.map(ref=>({kind:ref.kind,name:ref.name,present:ref.present})),
-                  potentialClaims:observedClaimCandidates.map(pvc=>({name:pvc.name})),
-                }))}
-                supportingResources={resources.filter(r=>r.namespace && scopeNamespaceSet.has(r.namespace) && ["Service","Ingress","ConfigMap","Secret","ServiceAccount","PersistentVolumeClaim","NetworkPolicy"].includes(r.kind)).map(r=>({
-                  kind:r.kind,namespace:r.namespace??null,name:r.name,
-                  selected:draft.resources.some(item=>item.kind===r.kind&&item.namespace===r.namespace&&item.name===r.name),
-                }))}
-                readOnly={!canEdit||stale||save.isPending}
-                onSelect={resource=>{
-                  const source=resources.find(r=>r.kind===resource.kind&&r.namespace===resource.namespace&&r.name===resource.name);
-                  if(source&&!draft.resources.some(item=>resourceKey(item)===resourceKey({...source,namespace:source.namespace??null}))){
-                    change({...draft,resources:[...draft.resources,{...recommendResource(source).resource,dependency:false}]});
-                  }
-                }}
-              />
-            )}
+                <p className={styles.caption}>Review discovered workloads and use Add to Draft to include them in the migration scope.</p>
+                <div className={styles.scopeWorkloadTableWrap}>
+                  <div className={styles.scopeWorkloadTableHeading}>
+                    <div><strong>3. Review workloads &amp; add to migration draft</strong><p>Choose workloads directly. A discovered workload is not included until added to the draft.</p></div>
+                    <span>{workloadRelationships.filter(item=>item.selected).length} included / {workloadRelationships.length} discovered</span>
+                  </div>
+                  <div className={styles.scopeWorkloadTableScroll}>
+                    <table className={styles.scopeWorkloadTable}>
+                      <thead><tr><th>Workload</th><th>Namespace</th><th>Type</th><th>Draft status</th><th>Dependency evidence</th><th>Action</th></tr></thead>
+                      <tbody>
+                        {workloadRelationships.map(({workload,references,selected:included})=><tr key={resourceKey({...workload,namespace:workload.namespace??null})}>
+                          <td><strong>{workload.name}</strong></td>
+                          <td>{workload.namespace??"Cluster"}</td>
+                          <td>{workload.kind}</td>
+                          <td><span className={included?styles.scopeTableIncluded:styles.scopeTableDiscovered}>{included?"Included in draft":"Discovered"}</span></td>
+                          <td>{graph.coverage!=="REFERENCES_AVAILABLE"?"Not collected":references.length+" references"}</td>
+                          <td>{included?<span className={styles.scopeTableIncluded}>Included</span>:<button type="button" className={styles.scopeTableAdd} disabled={!canEdit||stale||save.isPending} onClick={()=>{
+                            if(!draft.resources.some(item=>item.kind===workload.kind&&item.namespace===workload.namespace&&item.name===workload.name)){
+                              change({...draft,resources:[...draft.resources,{...recommendResource(workload).resource,dependency:false}]});
+                            }
+                          }}>Add to Draft</button>}</td>
+                        </tr>)}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
                 <details className={styles.compactReviewDetails}><summary>View all selected resource names ({draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length})</summary><div className={styles.scopeReviewItems}>
                   {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resource => (
                     <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>
