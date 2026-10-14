@@ -52,8 +52,8 @@ class RuntimeResourceItem(BaseModel):
     ready: int = Field(ge=0, le=100000)
     desired: int = Field(ge=0, le=100000)
     restarts: int = Field(ge=0, le=1000000)
-    allocatableCpu: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\\.[0-9]+)?m?$")
-    allocatableMemory: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\\.[0-9]+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$")
+    allocatableCpu: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?m?$")
+    allocatableMemory: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$")
 
 
 
