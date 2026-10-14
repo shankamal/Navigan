@@ -219,7 +219,13 @@ class Service:
         nodes = snapshot.get("nodeCapacity") or []
         coverage = snapshot.get("nodeCapacityCoverage") or {}
         observed_nodes = coverage.get("observedNodes")
-        complete_nodes = bool(nodes) and observed_nodes == len(nodes)
+        expires_raw = snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")
+        try:
+            evidence_expiry = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")) if isinstance(expires_raw, str) else None
+            fresh_nodes = evidence_expiry is not None and evidence_expiry.tzinfo is not None and evidence_expiry > datetime.now(timezone.utc)
+        except ValueError:
+            fresh_nodes = False
+        complete_nodes = fresh_nodes and bool(nodes) and observed_nodes == len(nodes)
         for resource in source_resources:
             if not isinstance(resource, dict):
                 continue
