@@ -45,6 +45,12 @@ export interface TargetCompatibilityResponse {
       namespace?: string | null;
       name: string;
       sourceStorageClass?: string | null;
+      sourceAccessModes?: string[];
+      requestedStorage?: string | null;
+      volumeMode?: string | null;
+      targetProvisioner?: string | null;
+      targetVolumeBindingMode?: string | null;
+      csiDriverObserved?: boolean;
       status: "PARTIAL" | "PENDING_EVIDENCE";
       reason: string;
     }[];
