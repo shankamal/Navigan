@@ -664,3 +664,16 @@ def test_storage_discovery_error_does_not_interrupt_inventory(monkeypatch):
 
     monkeypatch.setattr(agent, "kubernetes_request", request)
     assert agent.runtime_inventory()["resources"] == []
+
+
+def test_storage_class_metadata_is_observed_not_assumed(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/apis/storage.k8s.io/v1/storageclasses":
+            return {"items": [{"metadata": {"name": "gp3"}, "provisioner": "ebs.csi.aws.com",
+                               "volumeBindingMode": "WaitForFirstConsumer", "reclaimPolicy": "Delete"}]}
+        return {"items": []}
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    storage = next(r for r in agent.runtime_inventory()["resources"] if r["kind"] == "StorageClass")
+    assert storage["provisioner"] == "ebs.csi.aws.com"
+    assert storage["volumeBindingMode"] == "WaitForFirstConsumer"
+    assert storage["reclaimPolicy"] == "Delete"
