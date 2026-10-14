@@ -109,7 +109,12 @@ class Service:
             ) if metrics.get(key) == 1
         ]
 
+        storage_classes = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "StorageClass" and isinstance(item.get("name"), str)})
+        csi_drivers = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "CSIDriver" and isinstance(item.get("name"), str)})
+
         snapshot = {
+            "storageClasses": storage_classes,
+            "csiDrivers": csi_drivers,
             "discoveredApiVersions": discovered_api_versions,
             "nodeCapacity": node_capacity,
             "nodeCapacityCoverage": {"observedNodes": len(nodes), "nodesWithCapacity": len(node_capacity)},
@@ -118,7 +123,7 @@ class Service:
             "capabilityEvidence": {
                 "kubernetesApi": {"status": "PARTIAL" if discovered_api_versions else "NOT_VERIFIED", "observedApiVersions": discovered_api_versions, "reason": "Core API version discovery observed; source resource API compatibility, deprecations, CRDs and admission are not yet evaluated." if discovered_api_versions else "No supported target API versions were verified from connector discovery endpoints."},
                 "compute": {"status": "PARTIAL", "observedNodeCount": resource_kinds.get("Node", 0), "reason": "Node capacity observations are available for some nodes; pod requests, current utilization, quotas, affinity and taints are not yet compared." if node_capacity else "Node objects observed; allocatable resources, quota and scheduling constraints were not verified."} if resource_kinds.get("Node", 0) else {"status": "NOT_VERIFIED", "reason": "No usable node capacity evidence was provided."},
-                "storage": {"status": "NOT_VERIFIED", "reason": "StorageClass, CSI, volume capabilities and PVC requirements are not verified."},
+                "storage": {"status": "PARTIAL" if storage_classes or csi_drivers else "NOT_VERIFIED", "observedStorageClassCount": len(storage_classes), "observedCSIDriverCount": len(csi_drivers), "reason": "StorageClass and CSI driver names observed; provisioning, access modes, topology, snapshots and PVC migration compatibility are not verified." if storage_classes or csi_drivers else "No StorageClass or CSI driver evidence was reported; storage compatibility is unverified."},
                 "networking": {"status": "PARTIAL", "observedServiceCount": resource_kinds.get("Service", 0), "reason": "Service objects observed; ingress, DNS, routing and network policy compatibility unverified."} if resource_kinds.get("Service", 0) else {"status": "NOT_VERIFIED", "reason": "Target routing and service capabilities are not verified."},
                 "identity": {"status": "NOT_VERIFIED", "reason": "Workload identity permissions and secret/image access have not been evaluated."},
                 "dependencies": {"status": "NOT_VERIFIED", "reason": "Installed operators, CRDs and external dependencies have not been verified."},
