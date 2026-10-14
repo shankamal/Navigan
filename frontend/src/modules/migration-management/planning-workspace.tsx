@@ -724,6 +724,12 @@ export function PlanningEditor({
           {Boolean(targetEvidence?.snapshot.unclassifiedResourceCount) && <p className={styles.caption}>{targetEvidence?.snapshot.unclassifiedResourceCount} resource records did not identify a kind and were not categorized.</p>}
           {!targetEvidence?.snapshot.resourceKinds && <p className={styles.caption}>The current saved report predates resource categorization. The updated backend will populate this after an authorized refresh.</p>}
         </section>
+        {targetEvidence?.snapshot.nodeCapacityCoverage && <section className={styles.targetCapabilitySection} aria-label="Observed node capacity">
+          <div className={styles.targetAssessmentHead}><div><strong>Node allocatable capacity (observed)</strong><p>Reported by the authorized connector. This is not available scheduling headroom or proof that source workloads fit.</p></div><span className={styles.targetEvidenceUnknown}>{targetEvidence.snapshot.nodeCapacityCoverage.nodesWithCapacity} / {targetEvidence.snapshot.nodeCapacityCoverage.observedNodes} nodes with capacity observations</span></div>
+          {targetEvidence.snapshot.nodeCapacity?.length ? <div className={styles.targetCapabilityGrid}>
+            {targetEvidence.snapshot.nodeCapacity.map((node, i) => <div key={node.name ?? i}><strong>{node.name ?? "Unknown node"}</strong><span>OBSERVED</span><p>Allocatable CPU: {node.allocatableCpu} · Memory: {node.allocatableMemory}</p></div>)}
+          </div> : <p className={styles.caption}>No allocatable capacity values reported by the connector.</p>}
+        </section>}
         <section className={styles.targetCapabilitySection} aria-label="Target readiness evidence">
           <div className={styles.targetAssessmentHead}><div><strong>Target capability evidence</strong><p>Partial observations show what the connector discovered, not proof of compatibility with selected source workloads.</p></div><span className={styles.targetEvidenceUnknown}>Migration readiness · Pending verification</span></div>
           <div className={styles.targetCapabilityGrid}>
