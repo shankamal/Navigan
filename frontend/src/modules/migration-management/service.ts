@@ -36,6 +36,19 @@ export interface TargetCompatibilityResponse {
   targetClusterId: string | null;
   coverageComplete: boolean;
   decision: { path: string; reason: string };
+  storageEvidence?: {
+    status: "PARTIAL" | "PENDING_EVIDENCE";
+    reason: string;
+    claims: {
+      apiVersion: string;
+      kind: string;
+      namespace?: string | null;
+      name: string;
+      sourceStorageClass?: string | null;
+      status: "PARTIAL" | "PENDING_EVIDENCE";
+      reason: string;
+    }[];
+  };
   schedulingEvidence?: {
     status: "PARTIAL" | "PENDING_EVIDENCE";
     reason: string;
