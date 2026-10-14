@@ -639,3 +639,28 @@ def test_runtime_inventory_reports_only_verified_api_discovery(monkeypatch):
     metrics = agent.runtime_inventory()["metrics"]
     assert metrics["apiDiscoveryCoreV1"] == 1
     assert metrics["apiDiscoveryAppsV1"] == 0
+
+
+def test_runtime_inventory_discovers_storage_resources_without_claiming_readiness(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/apis/storage.k8s.io/v1/storageclasses":
+            return {"items": [{"metadata": {"name": "gp3"}}]}
+        if path == "/apis/storage.k8s.io/v1/csidrivers":
+            return {"items": [{"metadata": {"name": "ebs.csi.aws.com"}}]}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    resources = agent.runtime_inventory()["resources"]
+    assert any(r["kind"] == "StorageClass" and r["name"] == "gp3" for r in resources)
+    assert any(r["kind"] == "CSIDriver" and r["name"] == "ebs.csi.aws.com" for r in resources)
+    assert all(r["status"] == "OBSERVED" for r in resources)
+
+
+def test_storage_discovery_error_does_not_interrupt_inventory(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path.startswith("/apis/storage.k8s.io"):
+            raise RuntimeError("forbidden")
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    assert agent.runtime_inventory()["resources"] == []
