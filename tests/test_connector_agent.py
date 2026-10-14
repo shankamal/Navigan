@@ -577,3 +577,29 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
     }
     assert inventory["warningEvents"][0]["reason"] == "BackOff"
     assert "fieldSelector=type%3DWarning" in paths[-1]
+
+
+def test_runtime_inventory_reports_node_allocatable_capacity(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/api/v1/nodes":
+            return {"items": [{"metadata": {"name": "worker-1"},
+                "status": {"allocatable": {"cpu": "1930m", "memory": "7350Mi"},
+                           "conditions": [{"type": "Ready", "status": "True"}]}}]}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    report = agent.runtime_inventory()
+    node = next(item for item in report["resources"] if item["kind"] == "Node")
+    assert node["allocatableCpu"] == "1930m"
+    assert node["allocatableMemory"] == "7350Mi"
+    assert report["metrics"]["readyNodeCount"] == 1
+
+
+def test_runtime_inventory_omits_missing_node_capacity(monkeypatch):
+    monkeypatch.setattr(agent, "kubernetes_request",
+        lambda path, *_args, **_kwargs:
+            {"items": [{"metadata": {"name": "worker-1"}, "status": {}}]}
+            if path == "/api/v1/nodes" else {"items": []})
+    node = agent.runtime_inventory()["resources"][0]
+    assert "allocatableCpu" not in node
+    assert "allocatableMemory" not in node
