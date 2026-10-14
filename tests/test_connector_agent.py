@@ -568,6 +568,8 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
     assert service["status"] == "HEALTHY"
     assert service["ready"] == 1
     assert inventory["metrics"] == {
+        "apiDiscoveryCoreV1": 0,
+        "apiDiscoveryAppsV1": 0,
         "nodeCount": 1,
         "readyNodeCount": 1,
         "podCount": 1,
@@ -623,3 +625,17 @@ def test_runtime_inventory_reports_node_scheduling_observations(monkeypatch):
     assert node["taintCount"] == 1
     assert node["allocatableCpu"] == "2"
     assert node["allocatableMemory"] == "4Gi"
+
+
+def test_runtime_inventory_reports_only_verified_api_discovery(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/api/v1":
+            return {"groupVersion": "v1", "resources": []}
+        if path == "/apis/apps/v1":
+            return {"groupVersion": "not-apps/v1", "resources": []}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    metrics = agent.runtime_inventory()["metrics"]
+    assert metrics["apiDiscoveryCoreV1"] == 1
+    assert metrics["apiDiscoveryAppsV1"] == 0
