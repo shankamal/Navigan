@@ -382,3 +382,14 @@ def test_runtime_resource_validates_node_scheduling_observations():
         RuntimeResourceItem.model_validate({**fields, "taintCount": -1})
     with pytest.raises(ValidationError):
         RuntimeResourceItem.model_validate({**fields, "unschedulable": "true"})
+
+
+def test_connector_runtime_accepts_storageclass_and_csidriver():
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    for kind, name in [("StorageClass", "gp3"), ("CSIDriver", "ebs.csi.aws.com")]:
+        result = RuntimeResourceItem.model_validate({
+            "kind": kind, "name": name, "namespace": None,
+            "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
+        })
+        assert result.kind == kind
