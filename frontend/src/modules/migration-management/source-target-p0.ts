@@ -13,7 +13,8 @@ export interface P0ResourceResult {
   checks: P0Check[];
   status: P0Status;
 }
-const APPLICABLE: Record<string, P0Check["capability"][]> = {
+type TargetCheckCapability = Exclude<P0Check["capability"], "Source assessment">;
+const APPLICABLE: Record<string, TargetCheckCapability[]> = {
   Deployment: ["Kubernetes API", "Compute & scheduling", "Networking", "Identity & security", "Dependencies"],
   StatefulSet: ["Kubernetes API", "Compute & scheduling", "Persistent storage", "Networking", "Identity & security", "Dependencies"],
   DaemonSet: ["Kubernetes API", "Compute & scheduling", "Networking", "Identity & security", "Dependencies"],
@@ -25,7 +26,7 @@ const APPLICABLE: Record<string, P0Check["capability"][]> = {
   Service: ["Kubernetes API", "Networking", "Dependencies"],
   ServiceAccount: ["Kubernetes API", "Identity & security", "Dependencies"],
 };
-const actions: Record<P0Check["capability"], string> = {
+const actions: Record<TargetCheckCapability, string> = {
   "Kubernetes API": "Verify the resource apiVersion and kind against the observed target Kubernetes version and enabled APIs.",
   "Compute & scheduling": "Collect target allocatable CPU/memory, quotas, taints, tolerations and workload requests.",
   "Persistent storage": "Validate the actual target StorageClasses, CSI drivers, access modes and capacity against each claim.",
@@ -50,7 +51,7 @@ export function analyzeP0Compatibility(
     const source = sourceResources.find(item => item.kind === resource.kind &&
       item.name === resource.name && (item.namespace ?? null) === (resource.namespace ?? null));
     const capabilities = APPLICABLE[resource.kind] ?? ["Kubernetes API", "Dependencies"];
-    const evidenceKeys: Record<Exclude<P0Check["capability"], "Source assessment">, keyof NonNullable<TargetAssessmentRecord["snapshot"]["capabilityEvidence"]>> = {
+    const evidenceKeys: Record<TargetCheckCapability, keyof NonNullable<TargetAssessmentRecord["snapshot"]["capabilityEvidence"]>> = {
       "Kubernetes API": "kubernetesApi", "Compute & scheduling": "compute", "Persistent storage": "storage",
       Networking: "networking", "Identity & security": "identity", Dependencies: "dependencies",
     };
