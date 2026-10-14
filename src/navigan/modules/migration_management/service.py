@@ -261,7 +261,19 @@ class Service:
                 "name": resource.get("name"),
                 **result,
             })
+        from .storage_evidence import compare_storage_claims
+        storage_observations = compare_storage_claims(
+            source_resources, selected, snapshot.get("storageClasses"),
+            fresh=fresh_nodes,
+        )
         return {
+            "storageEvidence": {
+                "status": "PARTIAL" if storage_observations and all(
+                    item["status"] == "PARTIAL" for item in storage_observations
+                ) else "PENDING_EVIDENCE",
+                "claims": storage_observations,
+                "reason": "StorageClass name matching does not certify CSI functionality, access modes or volume migration.",
+            },
             "schedulingEvidence": {
                 "status": "PARTIAL" if observations and all(item["status"] == "PARTIAL" for item in observations) else "PENDING_EVIDENCE",
                 "workloads": observations,
