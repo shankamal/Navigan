@@ -1,9 +1,9 @@
 import type { TargetAssessmentRecord } from "./service";
-import type { PlannedResource, SourceInventoryResource } from "./model";
+import type { Assessment, PlannedResource, SourceInventoryResource } from "./model";
 
 export type P0Status = "COMPATIBLE" | "REMEDIATION_REQUIRED" | "BLOCKED" | "NOT_VERIFIED";
 export interface P0Check {
-  capability: "Kubernetes API" | "Compute & scheduling" | "Persistent storage" | "Networking" | "Identity & security" | "Dependencies";
+  capability: "Source assessment" | "Kubernetes API" | "Compute & scheduling" | "Persistent storage" | "Networking" | "Identity & security" | "Dependencies";
   status: P0Status;
   reason: string;
   nextAction: string;
@@ -44,12 +44,13 @@ export function analyzeP0Compatibility(
   sourceResources: SourceInventoryResource[],
   connectorInventoryAvailable: boolean,
   targetAssessment?: TargetAssessmentRecord | null,
+  sourceFindings: Assessment["findings"] = [],
 ): P0ResourceResult[] {
   return selected.map(resource => {
     const source = sourceResources.find(item => item.kind === resource.kind &&
       item.name === resource.name && (item.namespace ?? null) === (resource.namespace ?? null));
     const capabilities = APPLICABLE[resource.kind] ?? ["Kubernetes API", "Dependencies"];
-    const evidenceKeys: Record<P0Check["capability"], keyof NonNullable<TargetAssessmentRecord["snapshot"]["capabilityEvidence"]>> = {
+    const evidenceKeys: Record<Exclude<P0Check["capability"], "Source assessment">, keyof NonNullable<TargetAssessmentRecord["snapshot"]["capabilityEvidence"]>> = {
       "Kubernetes API": "kubernetesApi", "Compute & scheduling": "compute", "Persistent storage": "storage",
       Networking: "networking", "Identity & security": "identity", Dependencies: "dependencies",
     };
@@ -68,6 +69,23 @@ export function analyzeP0Compatibility(
         nextAction: actions[capability],
       };
     });
+    // Source assessment findings are evidence-backed independently of target discovery.
+    // Match only explicit resource identities; namespace-wide findings are not
+    // automatically assigned to every workload in that namespace.
+    const matched = sourceFindings.filter(finding =>
+      finding.resourceKind === resource.kind &&
+      finding.resourceName === resource.name &&
+      (finding.namespace ?? null) === (resource.namespace ?? null));
+    for (const finding of matched) {
+      const blocked = finding.severity === "BLOCKER" || finding.disposition === "BLOCKER";
+      if (!blocked && !["MANUAL_CHANGE", "AUTOMATED_CHANGE"].includes(finding.disposition)) continue;
+      checks.push({
+        capability: "Source assessment",
+        status: blocked ? "BLOCKED" : "REMEDIATION_REQUIRED",
+        reason: `Source assessment [${finding.code}]: ${finding.message}`,
+        nextAction: finding.remediation ?? "Review and resolve the source assessment finding before approving this migration.",
+      });
+    }
     return {
       resource,
       checks,
