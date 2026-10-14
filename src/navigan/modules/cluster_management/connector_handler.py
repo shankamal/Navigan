@@ -54,6 +54,8 @@ class RuntimeResourceItem(BaseModel):
     restarts: int = Field(ge=0, le=1000000)
     allocatableCpu: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?m?$")
     allocatableMemory: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$")
+    unschedulable: bool | None = None
+    taintCount: int | None = Field(default=None, ge=0, le=10000)
 
 
 
