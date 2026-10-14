@@ -94,7 +94,9 @@ class Service:
         nodes = [item for item in resources if isinstance(item, dict) and item.get("kind") == "Node"]
         node_capacity = [
             {"name": node.get("name"), "allocatableCpu": node.get("allocatableCpu"),
-             "allocatableMemory": node.get("allocatableMemory")}
+             "allocatableMemory": node.get("allocatableMemory"),
+             "unschedulable": node.get("unschedulable"),
+             "taintCount": node.get("taintCount")}
             for node in nodes
             if node.get("allocatableCpu") and node.get("allocatableMemory")
         ]
