@@ -420,7 +420,16 @@ export function PlanningEditor({
     savedDraft.assessmentVersion === assessment.assessmentVersion &&
     savedDraft.inventoryDigest === assessment.inventoryDigest &&
     !stale);
-  const savedTargetMatches = Boolean(targetEvidence &&
+  const targetExpiryMs = targetEvidence?.snapshot.inventoryExpiresAt
+    ? Date.parse(targetEvidence.snapshot.inventoryExpiresAt) : NaN;
+  const targetObservedMs = targetEvidence?.snapshot.observedAt
+    ? Date.parse(targetEvidence.snapshot.observedAt) : NaN;
+  const targetEvidenceCurrent = Number.isFinite(targetObservedMs) &&
+    targetObservedMs <= Date.now() + 300000 &&
+    (Number.isFinite(targetExpiryMs)
+      ? targetExpiryMs > Date.now()
+      : Date.now() - targetObservedMs <= 60 * 60 * 1000);
+  const savedTargetMatches = Boolean(targetEvidence && targetEvidenceCurrent &&
     targetEvidence.targetClusterId === String(migration.targetConfiguration?.clusterId ?? "") &&
     targetEvidence.assessmentVersion === assessment.assessmentVersion);
   const p0Compatibility = analyzeP0Compatibility(
@@ -735,11 +744,11 @@ export function PlanningEditor({
       </section>}
       {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
         <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
-        <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but current target evidence is missing or does not match the selected cluster and assessment version. Capture fresh target evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
+        <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but target evidence is unavailable, expired, or does not match the selected cluster and assessment. Refresh evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
         <div className={styles.compatibilitySnapshot}>
           <div><span>Selected resources</span><strong>{p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
           <div><span>Compatibility checks</span><strong>{p0Checks.length}</strong><small>{p0Unverified} not verified</small></div>
-          <div><span>Target evidence</span><strong>{targetEvidence ? "Partial" : "Unavailable"}</strong><small>{targetEvidence ? `Connector inventory · ${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Review Target evidence in Step 2"}</small></div>
+          <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence ? "Expired / mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
           <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_", " ")}</strong><small>{migrationPathDecision.reason}</small></div>
         </div>
         <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
