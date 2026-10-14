@@ -145,6 +145,8 @@ export function PlanningEditor({
   type WorkflowStep = (typeof workflowSteps)[number];
   const [tab, setTab] = useState<WorkflowStep>("scope");
   const [targetEvidence, setTargetEvidence] = useState<import("./service").TargetAssessmentRecord | null>(null);
+  const [schedulingReport, setSchedulingReport] = useState<import("./service").TargetCompatibilityResponse | null>(null);
+  const [schedulingError, setSchedulingError] = useState("");
   const [targetLoading, setTargetLoading] = useState(false);
   const [targetRunning, setTargetRunning] = useState(false);
   const [targetError, setTargetError] = useState("");
@@ -197,6 +199,22 @@ export function PlanningEditor({
     void load();
     return () => { active = false; };
   }, [tab, migration.migrationId, migration.targetConfiguration?.clusterId, migration.targetConfiguration?.platform, assessment.assessmentVersion, canEdit]);
+  useEffect(() => {
+    if (tab !== "compatibility") return;
+    let active = true;
+    setSchedulingReport(null);
+    setSchedulingError("");
+    void migrations.targetCompatibility(migration.migrationId)
+      .then(result => {
+        if (active) setSchedulingReport(result);
+      })
+      .catch((error: unknown) => {
+        const api = normalizeApiError(error);
+        if (active) setSchedulingError(`Scheduling evidence unavailable · ${api.code}: ${api.message}`);
+      });
+    return () => { active = false; };
+  }, [tab, migration.migrationId, assessment.assessmentVersion, migration.planningDraft]);
+
   async function runTargetAnalysis() {
     if (targetRunning) return;
     setTargetRunning(true); setTargetError("");
@@ -757,6 +775,26 @@ export function PlanningEditor({
           <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence ? "Expired / mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
           <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_", " ")}</strong><small>{migrationPathDecision.reason}</small></div>
         </div>
+        <section className={styles.targetCapabilitySection} aria-label="Workload scheduling evidence">
+          <div className={styles.targetAssessmentHead}>
+            <div><strong>Workload scheduling evidence</strong><p>Backend-observed CPU/memory fit against target node allocatable capacity. This is not free headroom or confirmed Kubernetes scheduling compatibility.</p></div>
+            <span className={styles.targetEvidenceUnknown}>{schedulingReport?.schedulingEvidence?.status?.replaceAll("_", " ") ?? "PENDING EVIDENCE"}</span>
+          </div>
+          {schedulingError && <p role="alert">{schedulingError}</p>}
+          {dirty || !savedScopeCurrent || !savedTargetMatches
+            ? <p className={styles.caption}>Save the current source scope and refresh target evidence to review workload scheduling checks.</p>
+            : schedulingReport?.schedulingEvidence?.workloads?.length
+              ? <div className={styles.targetCapabilityGrid}>{schedulingReport.schedulingEvidence.workloads.map((item, i) =>
+                  <div key={`${item.apiVersion}/${item.kind}/${item.namespace ?? ""}/${item.name}/${i}`}>
+                    <strong>{item.namespace ?? "Cluster"}/{item.name} · {item.kind}</strong>
+                    <span>{item.status.replaceAll("_", " ")}</span>
+                    <p>{item.reason}</p>
+                    {typeof item.candidateNodes === "number" && <small>Capacity candidates: {item.candidateNodes} · Nodes evaluated: {item.observedNodes ?? "unknown"}</small>}
+                  </div>
+                )}</div>
+              : <p className={styles.caption}>No verified workload-specific scheduling evaluation is available yet. Source resource requests may be missing from the inventory.</p>}
+          <p className={styles.caption}>Scheduling observations never override source blockers, missing target capabilities, or the backend migration approval gate.</p>
+        </section>
         <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
           <thead><tr><th>Selected source resource</th><th>Kind</th><th>Target</th><th>Overall result</th><th>P0 checks / next action</th></tr></thead>
           <tbody>{p0Compatibility.map(result => {
