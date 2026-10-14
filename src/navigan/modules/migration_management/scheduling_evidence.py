@@ -79,3 +79,36 @@ def evaluate_node_capacity(cpu_request, memory_request, nodes, *, inventory_comp
                 "candidateNodes": 0, "observedNodes": observed}
     return {"status": "REMEDIATION_REQUIRED", "reason": "Every fully observed node has less allocatable CPU or memory than requested. This does not measure current utilization.",
             "candidateNodes": 0, "observedNodes": observed}
+
+
+def workload_pod_requests(resource):
+    """Aggregate explicit regular-container requests for a simple PodSpec.
+
+    Init containers, selectors, affinity and tolerations require a richer
+    scheduler evaluation and are deliberately not approximated here.
+    """
+    pod = resource.get("pod") if isinstance(resource, dict) else None
+    if not isinstance(pod, dict):
+        return None
+    if pod.get("initContainers") or pod.get("nodeSelectorKeys") or pod.get("tolerations"):
+        return None
+    affinity = pod.get("affinity")
+    if isinstance(affinity, dict) and any(affinity.values()):
+        return None
+    containers = pod.get("containers")
+    if not isinstance(containers, list) or not containers:
+        return None
+    total_cpu, total_memory = 0, 0
+    for container in containers:
+        if not isinstance(container, dict):
+            return None
+        resources = container.get("resources")
+        requests = resources.get("requests") if isinstance(resources, dict) else None
+        if not isinstance(requests, dict):
+            return None
+        cpu, memory = cpu_millicores(requests.get("cpu")), memory_bytes(requests.get("memory"))
+        if cpu is None or memory is None:
+            return None
+        total_cpu += cpu
+        total_memory += memory
+    return {"cpu": f"{total_cpu}m", "memory": str(total_memory)}
