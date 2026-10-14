@@ -603,3 +603,23 @@ def test_runtime_inventory_omits_missing_node_capacity(monkeypatch):
     node = agent.runtime_inventory()["resources"][0]
     assert "allocatableCpu" not in node
     assert "allocatableMemory" not in node
+
+
+def test_runtime_inventory_reports_node_scheduling_observations(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/api/v1/nodes":
+            return {"items": [{
+                "metadata": {"name": "worker-2"},
+                "spec": {"unschedulable": True, "taints": [
+                    {"key": "dedicated", "value": "system", "effect": "NoSchedule"}
+                ]},
+                "status": {"allocatable": {"cpu": "2", "memory": "4Gi"}},
+            }]}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    node = agent.runtime_inventory()["resources"][0]
+    assert node["unschedulable"] is True
+    assert node["taintCount"] == 1
+    assert node["allocatableCpu"] == "2"
+    assert node["allocatableMemory"] == "4Gi"
