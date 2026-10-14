@@ -204,7 +204,49 @@ class Service:
                 reason = "Current source and target evidence is complete and no blocking or remediation findings remain."
 
         snapshot = (target or {}).get("snapshot") or {}
+        # A source inventory identifies workloads, but does not necessarily
+        # contain Kubernetes PodSpec resource requests. Keep those pending.
+        from .scheduling_evidence import evaluate_node_capacity
+        source_inventory = self.repo.get_source_inventory(identifier).get("inventory")
+        source_resources = (source_inventory or {}).get("resources") or []
+        draft = migration.get("planning_draft") or {}
+        selected = {
+            (r.get("apiVersion"), r.get("kind"), r.get("namespace"), r.get("name"))
+            for r in (draft.get("resources") or [])
+            if isinstance(r, dict) and r.get("treatment") == "MIGRATE"
+        }
+        observations = []
+        nodes = snapshot.get("nodeCapacity") or []
+        coverage = snapshot.get("nodeCapacityCoverage") or {}
+        observed_nodes = coverage.get("observedNodes")
+        complete_nodes = bool(nodes) and observed_nodes == len(nodes)
+        for resource in source_resources:
+            if not isinstance(resource, dict):
+                continue
+            identity = (resource.get("apiVersion"), resource.get("kind"),
+                        resource.get("namespace"), resource.get("name"))
+            if identity not in selected or resource.get("kind") not in {"Deployment", "StatefulSet", "DaemonSet", "Pod", "Job", "CronJob"}:
+                continue
+            # Only consume explicit, already-observed aggregate requests.
+            # Do not infer pod requests from replicas, limits or node sizes.
+            requests = resource.get("resourceRequests") if isinstance(resource.get("resourceRequests"), dict) else {}
+            result = evaluate_node_capacity(
+                requests.get("cpu"), requests.get("memory"), nodes,
+                inventory_complete=complete_nodes,
+            )
+            observations.append({
+                "apiVersion": resource.get("apiVersion"),
+                "kind": resource.get("kind"),
+                "namespace": resource.get("namespace"),
+                "name": resource.get("name"),
+                **result,
+            })
         return {
+            "schedulingEvidence": {
+                "status": "PARTIAL" if observations and all(item["status"] == "PARTIAL" for item in observations) else "PENDING_EVIDENCE",
+                "workloads": observations,
+                "reason": "Node allocatable capacity is not available headroom; resource requests, tolerations, affinity, utilization and quotas must be verified before migration approval.",
+            },
             "migrationId": identifier,
             "assessmentVersion": assessment.get("assessmentVersion"),
             "targetClusterId": (target or {}).get("targetClusterId")
