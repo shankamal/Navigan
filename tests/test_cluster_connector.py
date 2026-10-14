@@ -393,3 +393,15 @@ def test_connector_runtime_accepts_storageclass_and_csidriver():
             "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
         })
         assert result.kind == kind
+
+
+def test_connector_runtime_accepts_storage_class_provisioning_observations():
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+    result = RuntimeResourceItem.model_validate({
+        "kind": "StorageClass", "name": "gp3", "status": "OBSERVED",
+        "ready": 0, "desired": 0, "restarts": 0,
+        "provisioner": "ebs.csi.aws.com", "volumeBindingMode": "WaitForFirstConsumer",
+        "reclaimPolicy": "Delete",
+    })
+    assert result.provisioner == "ebs.csi.aws.com"
+    assert result.volumeBindingMode == "WaitForFirstConsumer"
