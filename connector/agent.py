@@ -656,6 +656,29 @@ def runtime_inventory():
             # Discovery restrictions must not stop established inventory.
             pass
 
+    # Bounded, optional storage discovery: failures do not block runtime inventory.
+    for endpoint, kind in (
+        ("/apis/storage.k8s.io/v1/storageclasses", "StorageClass"),
+        ("/apis/storage.k8s.io/v1/csidrivers", "CSIDriver"),
+    ):
+        try:
+            payload = kubernetes_request(endpoint)
+            if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+                continue
+            for item in payload["items"][:MAX_RUNTIME_RESOURCES_PER_KIND]:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("metadata", {}).get("name")
+                if not isinstance(name, str) or not name:
+                    continue
+                spec = item.get("spec") or {}
+                resources.append({
+                    "kind": kind, "namespace": None, "name": name,
+                    "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
+                })
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError):
+            pass
+
     nodes = [item for item in resources if item["kind"] == "Node"]
     pods = [item for item in resources if item["kind"] == "Pod"]
     return {
