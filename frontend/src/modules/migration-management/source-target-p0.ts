@@ -50,7 +50,7 @@ export function analyzeP0Compatibility(
   return selected.map(resource => {
     const source = sourceResources.find(item => item.kind === resource.kind &&
       item.name === resource.name && (item.namespace ?? null) === (resource.namespace ?? null));
-    const capabilities = APPLICABLE[resource.kind] ?? ["Kubernetes API", "Dependencies"];
+    const capabilities: TargetCheckCapability[] = APPLICABLE[resource.kind] ?? ["Kubernetes API", "Dependencies"];
     const evidenceKeys: Record<TargetCheckCapability, keyof NonNullable<TargetAssessmentRecord["snapshot"]["capabilityEvidence"]>> = {
       "Kubernetes API": "kubernetesApi", "Compute & scheduling": "compute", "Persistent storage": "storage",
       Networking: "networking", "Identity & security": "identity", Dependencies: "dependencies",
