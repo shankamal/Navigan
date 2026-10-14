@@ -101,13 +101,22 @@ class Service:
             if node.get("allocatableCpu") and node.get("allocatableMemory")
         ]
 
+        metrics = existing.get("metrics") or {}
+        discovered_api_versions = [
+            version for key, version in (
+                ("apiDiscoveryCoreV1", "v1"),
+                ("apiDiscoveryAppsV1", "apps/v1"),
+            ) if metrics.get(key) == 1
+        ]
+
         snapshot = {
+            "discoveredApiVersions": discovered_api_versions,
             "nodeCapacity": node_capacity,
             "nodeCapacityCoverage": {"observedNodes": len(nodes), "nodesWithCapacity": len(node_capacity)},
             "resourceKinds": dict(sorted(resource_kinds.items())),
             "unclassifiedResourceCount": unclassified,
             "capabilityEvidence": {
-                "kubernetesApi": {"status": "NOT_VERIFIED", "reason": "Supported target API versions and discovery endpoints were not included in the connector inventory."},
+                "kubernetesApi": {"status": "PARTIAL" if discovered_api_versions else "NOT_VERIFIED", "observedApiVersions": discovered_api_versions, "reason": "Core API version discovery observed; source resource API compatibility, deprecations, CRDs and admission are not yet evaluated." if discovered_api_versions else "No supported target API versions were verified from connector discovery endpoints."},
                 "compute": {"status": "PARTIAL", "observedNodeCount": resource_kinds.get("Node", 0), "reason": "Node capacity observations are available for some nodes; pod requests, current utilization, quotas, affinity and taints are not yet compared." if node_capacity else "Node objects observed; allocatable resources, quota and scheduling constraints were not verified."} if resource_kinds.get("Node", 0) else {"status": "NOT_VERIFIED", "reason": "No usable node capacity evidence was provided."},
                 "storage": {"status": "NOT_VERIFIED", "reason": "StorageClass, CSI, volume capabilities and PVC requirements are not verified."},
                 "networking": {"status": "PARTIAL", "observedServiceCount": resource_kinds.get("Service", 0), "reason": "Service objects observed; ingress, DNS, routing and network policy compatibility unverified."} if resource_kinds.get("Service", 0) else {"status": "NOT_VERIFIED", "reason": "Target routing and service capabilities are not verified."},
