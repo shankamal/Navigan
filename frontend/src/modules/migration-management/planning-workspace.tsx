@@ -807,6 +807,15 @@ export function PlanningEditor({
             const targetStatus = targetChecks.some(check => check.status === "BLOCKED")
               ? "BLOCKED" : targetChecks.every(check => check.status === "COMPATIBLE")
                 ? "COMPATIBLE" : "PENDING VERIFICATION";
+            const scheduling = savedScopeCurrent && !dirty && savedTargetMatches &&
+              schedulingReport?.assessmentVersion === assessment.assessmentVersion &&
+              schedulingReport.targetClusterId === String(migration.targetConfiguration?.clusterId ?? "")
+              ? schedulingReport.schedulingEvidence?.workloads.find(item =>
+                  item.apiVersion === result.resource.apiVersion &&
+                  item.kind === result.resource.kind &&
+                  (item.namespace ?? null) === (result.resource.namespace ?? null) &&
+                  item.name === result.resource.name)
+              : undefined;
             return <tr key={resourceKey(result.resource)}>
               <td>{result.resource.namespace ?? "Cluster"}/{result.resource.name}</td>
               <td>{result.resource.kind}</td>
@@ -814,6 +823,7 @@ export function PlanningEditor({
               <td><div className={styles.compatibilityDualStatus}>
                 <span>Source readiness <strong>{sourceStatus}</strong></span>
                 <span>Target compatibility <strong>{targetStatus}</strong></span>
+                {scheduling && <span>Compute scheduling <strong>{scheduling.status.replaceAll("_", " ")}</strong></span>}
               </div></td>
               <td><details className={styles.compatibilityDetails}>
                 <summary>{result.checks.length} checks · {sourceChecks.length} source findings · {targetChecks.filter(check => check.status === "NOT_VERIFIED").length} target unverified</summary>
@@ -823,6 +833,14 @@ export function PlanningEditor({
                     <div><b>{check.capability}</b><span>{check.status.replaceAll("_", " ")}</span></div>
                     <p>{check.reason}</p><small>Action: {check.nextAction}</small>
                   </div>)}
+                </div>}
+                {scheduling && <div className={styles.compatibilityCheckGroup}>
+                  <strong>Compute scheduling evidence</strong>
+                  <div className={styles.compatibilityCheck}>
+                    <div><b>Workload-to-node observation</b><span>{scheduling.status.replaceAll("_", " ")}</span></div>
+                    <p>{scheduling.reason}</p>
+                    <small>{typeof scheduling.candidateNodes === "number" ? `Capacity candidates: ${scheduling.candidateNodes} · ` : ""}Nodes evaluated: {scheduling.observedNodes ?? "Not verified"} · Read-only evidence, not scheduler approval</small>
+                  </div>
                 </div>}
                 <div className={styles.compatibilityCheckGroup}>
                   <strong>Target capability verification</strong>
