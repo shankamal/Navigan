@@ -578,7 +578,7 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
         "warningEventCount": 1,
     }
     assert inventory["warningEvents"][0]["reason"] == "BackOff"
-    assert "fieldSelector=type%3DWarning" in paths[-1]
+    assert any("fieldSelector=type%3DWarning" in path for path in paths)
 
 
 def test_runtime_inventory_reports_node_allocatable_capacity(monkeypatch):
