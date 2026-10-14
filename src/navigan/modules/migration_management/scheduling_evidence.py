@@ -48,6 +48,7 @@ def evaluate_node_capacity(cpu_request, memory_request, nodes, *, inventory_comp
     observed = 0
     candidates = 0
     unknown = 0
+    capacity_matches = 0
     for node in nodes:
         if not isinstance(node, dict):
             unknown += 1
@@ -60,6 +61,8 @@ def evaluate_node_capacity(cpu_request, memory_request, nodes, *, inventory_comp
             unknown += 1
             continue
         observed += 1
+        if cpu >= request_cpu and memory >= request_memory:
+            capacity_matches += 1
         # A tainted node may still be suitable if the workload tolerates it;
         # without toleration evidence, do not declare it a candidate.
         if not cordoned and taints == 0 and cpu >= request_cpu and memory >= request_memory:
@@ -71,5 +74,8 @@ def evaluate_node_capacity(cpu_request, memory_request, nodes, *, inventory_comp
     if candidates:
         return {"status": "PARTIAL", "reason": "At least one node has sufficient allocatable capacity, is uncordoned and has no reported taints. Free capacity, selectors, affinity, quotas and admission are unverified.",
                 "candidateNodes": candidates, "observedNodes": observed}
-    return {"status": "REMEDIATION_REQUIRED", "reason": "No fully observed, uncordoned, untainted node meets the requested allocatable CPU and memory. Tolerations and workload placement remain unverified.",
+    if capacity_matches:
+        return {"status": "PENDING_EVIDENCE", "reason": "Nodes have sufficient allocatable capacity, but cordon state or taints require workload-specific placement evidence.",
+                "candidateNodes": 0, "observedNodes": observed}
+    return {"status": "REMEDIATION_REQUIRED", "reason": "Every fully observed node has less allocatable CPU or memory than requested. This does not measure current utilization.",
             "candidateNodes": 0, "observedNodes": observed}
