@@ -34,7 +34,7 @@ def test_compatibility_exposes_selected_workload_scheduling_without_approving_pa
     repo.get_source_inventory.return_value = {"inventory": {
         "resources": [{"apiVersion": "apps/v1", "kind": "Deployment",
                        "namespace": "apps", "name": "web",
-                       "resourceRequests": {"cpu": "500m", "memory": "1Gi"}}],
+                       "pod": {"containers": [{"name": "web", "resources": {"requests": {"cpu": "500m", "memory": "1Gi"}}}]}}],
     }}
     result = Service(repo, Mock(), "test").target_compatibility("MIG-test")
     assert result["decision"]["path"] == "PENDING_EVIDENCE"
