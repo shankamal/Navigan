@@ -55,11 +55,13 @@ export interface TargetAssessmentRecord {
     sourceRevision?: string;
     resourceCount?: number;
     resourceKinds?: Record<string, number>;
+    discoveredApiVersions?: string[];
     nodeCapacity?: { name?: string; allocatableCpu: string; allocatableMemory: string }[];
     nodeCapacityCoverage?: { observedNodes: number; nodesWithCapacity: number };
     capabilityEvidence?: Record<"kubernetesApi" | "compute" | "storage" | "networking" | "identity" | "dependencies", {
       status: "PARTIAL" | "NOT_VERIFIED";
       reason: string;
+      observedApiVersions?: string[];
       observedNodeCount?: number;
       observedServiceCount?: number;
     }>;
