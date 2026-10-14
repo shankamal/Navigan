@@ -581,8 +581,7 @@ def runtime_inventory():
             elif kind == "Service":
                 ready = 1
                 desired = 1
-            resources.append(
-                {
+            resource = {
                     "kind": kind,
                     "namespace": metadata.get("namespace"),
                     "name": metadata.get("name"),
@@ -597,7 +596,13 @@ def runtime_inventory():
                         for value in status.get("containerStatuses", [])
                     ),
                 }
-            )
+            if kind == "Node":
+                allocatable = status.get("allocatable") or {}
+                for field, key in (("allocatableCpu", "cpu"), ("allocatableMemory", "memory")):
+                    value = allocatable.get(key)
+                    if isinstance(value, str) and 0 < len(value) <= 40:
+                        resource[field] = value
+            resources.append(resource)
 
     collect("/api/v1/nodes", "Node")
     collect("/apis/apps/v1/deployments", "Deployment", "replicas", "availableReplicas")
