@@ -597,6 +597,9 @@ def runtime_inventory():
                     ),
                 }
             if kind == "Node":
+                # Read-only scheduling observations; do not infer schedulability.
+                resource["unschedulable"] = spec.get("unschedulable") is True
+                resource["taintCount"] = len(spec.get("taints") or [])
                 allocatable = status.get("allocatable") or {}
                 for field, key in (("allocatableCpu", "cpu"), ("allocatableMemory", "memory")):
                     value = allocatable.get(key)
