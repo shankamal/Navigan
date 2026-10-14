@@ -111,9 +111,11 @@ class Service:
 
         storage_classes = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "StorageClass" and isinstance(item.get("name"), str)})
         csi_drivers = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "CSIDriver" and isinstance(item.get("name"), str)})
+        storage_class_details = [{"name": item["name"], "provisioner": item.get("provisioner"), "volumeBindingMode": item.get("volumeBindingMode"), "reclaimPolicy": item.get("reclaimPolicy")} for item in resources if isinstance(item, dict) and item.get("kind") == "StorageClass" and isinstance(item.get("name"), str)]
 
         snapshot = {
             "storageClasses": storage_classes,
+            "storageClassDetails": storage_class_details,
             "csiDrivers": csi_drivers,
             "discoveredApiVersions": discovered_api_versions,
             "nodeCapacity": node_capacity,
