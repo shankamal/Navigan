@@ -18,6 +18,31 @@ import {
 
 const base = "/migrations";
 
+export interface SchedulingEvidenceResult {
+  status: "PARTIAL" | "PENDING_EVIDENCE" | "REMEDIATION_REQUIRED";
+  reason: string;
+  candidateNodes?: number;
+  observedNodes?: number;
+  unverifiedNodes?: number;
+  apiVersion: string;
+  kind: string;
+  namespace?: string | null;
+  name: string;
+}
+
+export interface TargetCompatibilityResponse {
+  migrationId: string;
+  assessmentVersion: number | null;
+  targetClusterId: string | null;
+  coverageComplete: boolean;
+  decision: { path: string; reason: string };
+  schedulingEvidence?: {
+    status: "PARTIAL" | "PENDING_EVIDENCE";
+    reason: string;
+    workloads: SchedulingEvidenceResult[];
+  };
+}
+
 export interface TargetAssessmentRecord {
   targetClusterId: string;
   assessmentVersion: number;
@@ -53,6 +78,8 @@ export interface TargetAssessmentResponse {
 }
 
 export const migrations = {
+  targetCompatibility: async (migrationId: string): Promise<TargetCompatibilityResponse> =>
+    (await apiClient.get(`${base}/${migrationId}/target-compatibility`)).data,
   targetAssessment: async (migrationId: string): Promise<TargetAssessmentResponse> =>
     (await apiClient.get(`${base}/${migrationId}/target-assessment`)).data,
   analyzeTarget: async (migrationId: string): Promise<TargetAssessmentResponse> =>
