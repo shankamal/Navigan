@@ -672,10 +672,20 @@ def runtime_inventory():
                 if not isinstance(name, str) or not name:
                     continue
                 spec = item.get("spec") or {}
-                resources.append({
+                entry = {
                     "kind": kind, "namespace": None, "name": name,
                     "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
-                })
+                }
+                if kind == "StorageClass":
+                    for field, key in (
+                        ("provisioner", "provisioner"),
+                        ("volumeBindingMode", "volumeBindingMode"),
+                        ("reclaimPolicy", "reclaimPolicy"),
+                    ):
+                        value = item.get(key)
+                        if isinstance(value, str) and 0 < len(value) <= 253:
+                            entry[field] = value
+                resources.append(entry)
         except (RuntimeError, ValueError, OSError, urllib.error.URLError):
             pass
 
