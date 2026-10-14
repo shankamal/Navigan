@@ -45,7 +45,7 @@ class PlatformComponentItem(BaseModel):
 
 class RuntimeResourceItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
-    kind: str = Field(pattern=r"^(Node|Deployment|StatefulSet|DaemonSet|Pod|Service)$")
+    kind: str = Field(pattern=r"^(Node|Deployment|StatefulSet|DaemonSet|Pod|Service|StorageClass|CSIDriver)$")
     namespace: str | None = Field(default=None, max_length=253)
     name: str = Field(min_length=1, max_length=253)
     status: str = Field(min_length=1, max_length=40)
