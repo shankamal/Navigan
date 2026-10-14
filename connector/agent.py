@@ -641,12 +641,28 @@ def runtime_inventory():
                 ),
             }
         )
+    # Kubernetes discovery endpoints are read-only. Report positive evidence
+    # only when the API server explicitly advertises the expected version.
+    api_discovery = {"apiDiscoveryCoreV1": 0, "apiDiscoveryAppsV1": 0}
+    for path, expected, metric in (
+        ("/api/v1", "v1", "apiDiscoveryCoreV1"),
+        ("/apis/apps/v1", "apps/v1", "apiDiscoveryAppsV1"),
+    ):
+        try:
+            response = kubernetes_request(path)
+            if isinstance(response, dict) and response.get("groupVersion") == expected:
+                api_discovery[metric] = 1
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError):
+            # Discovery restrictions must not stop established inventory.
+            pass
+
     nodes = [item for item in resources if item["kind"] == "Node"]
     pods = [item for item in resources if item["kind"] == "Pod"]
     return {
         "resources": resources,
         "warningEvents": warning_events,
         "metrics": {
+            **api_discovery,
             "nodeCount": len(nodes),
             "readyNodeCount": sum(item["ready"] for item in nodes),
             "podCount": len(pods),
