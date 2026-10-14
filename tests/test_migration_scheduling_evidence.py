@@ -37,3 +37,22 @@ def test_taints_and_cordon_do_not_false_block():
 def test_unknown_capacity_is_not_compatible():
     assert evaluate_node_capacity("500m", "1Gi", [{"allocatableCpu": "1"}], inventory_complete=True)["status"] == "PENDING_EVIDENCE"
     assert evaluate_node_capacity(None, "1Gi", [node()], inventory_complete=True)["status"] == "PENDING_EVIDENCE"
+
+
+def test_source_pod_requests_are_aggregated_from_sanitized_containers():
+    from navigan.modules.migration_management.scheduling_evidence import workload_pod_requests
+    resource = {"pod": {"containers": [
+        {"resources": {"requests": {"cpu": "250m", "memory": "256Mi"}}},
+        {"resources": {"requests": {"cpu": "500m", "memory": "512Mi"}}},
+    ]}}
+    assert workload_pod_requests(resource) == {"cpu": "750m", "memory": str(768 * 1024**2)}
+
+
+def test_complex_pod_placement_and_missing_requests_remain_pending():
+    from navigan.modules.migration_management.scheduling_evidence import workload_pod_requests
+    simple = {"pod": {"containers": [
+        {"resources": {"requests": {"cpu": "500m", "memory": "1Gi"}}}
+    ]}}
+    assert workload_pod_requests({**simple, "pod": {**simple["pod"], "initContainers": [{}]}}) is None
+    assert workload_pod_requests({**simple, "pod": {**simple["pod"], "tolerations": [{"key": "gpu"}]}}) is None
+    assert workload_pod_requests({"pod": {"containers": [{"resources": {"requests": {"cpu": "500m"}}}]}}) is None
