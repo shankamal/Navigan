@@ -91,12 +91,22 @@ class Service:
             else:
                 unclassified += 1
 
+        nodes = [item for item in resources if isinstance(item, dict) and item.get("kind") == "Node"]
+        node_capacity = [
+            {"name": node.get("name"), "allocatableCpu": node.get("allocatableCpu"),
+             "allocatableMemory": node.get("allocatableMemory")}
+            for node in nodes
+            if node.get("allocatableCpu") and node.get("allocatableMemory")
+        ]
+
         snapshot = {
+            "nodeCapacity": node_capacity,
+            "nodeCapacityCoverage": {"observedNodes": len(nodes), "nodesWithCapacity": len(node_capacity)},
             "resourceKinds": dict(sorted(resource_kinds.items())),
             "unclassifiedResourceCount": unclassified,
             "capabilityEvidence": {
                 "kubernetesApi": {"status": "NOT_VERIFIED", "reason": "Supported target API versions and discovery endpoints were not included in the connector inventory."},
-                "compute": {"status": "PARTIAL", "observedNodeCount": resource_kinds.get("Node", 0), "reason": "Node objects observed; allocatable resources, quota and scheduling constraints were not verified."} if resource_kinds.get("Node", 0) else {"status": "NOT_VERIFIED", "reason": "No usable node capacity evidence was provided."},
+                "compute": {"status": "PARTIAL", "observedNodeCount": resource_kinds.get("Node", 0), "reason": "Node capacity observations are available for some nodes; pod requests, current utilization, quotas, affinity and taints are not yet compared." if node_capacity else "Node objects observed; allocatable resources, quota and scheduling constraints were not verified."} if resource_kinds.get("Node", 0) else {"status": "NOT_VERIFIED", "reason": "No usable node capacity evidence was provided."},
                 "storage": {"status": "NOT_VERIFIED", "reason": "StorageClass, CSI, volume capabilities and PVC requirements are not verified."},
                 "networking": {"status": "PARTIAL", "observedServiceCount": resource_kinds.get("Service", 0), "reason": "Service objects observed; ingress, DNS, routing and network policy compatibility unverified."} if resource_kinds.get("Service", 0) else {"status": "NOT_VERIFIED", "reason": "Target routing and service capabilities are not verified."},
                 "identity": {"status": "NOT_VERIFIED", "reason": "Workload identity permissions and secret/image access have not been evaluated."},
