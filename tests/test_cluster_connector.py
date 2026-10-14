@@ -364,3 +364,21 @@ def test_runtime_resource_rejects_malformed_allocatable_quantity():
             "ready": 1, "desired": 1, "restarts": 0,
             "allocatableCpu": "invalid", "allocatableMemory": "7350Mi",
         })
+
+
+def test_runtime_resource_validates_node_scheduling_observations():
+    from pydantic import ValidationError
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    fields = {
+        "kind": "Node", "name": "worker-2", "status": "HEALTHY",
+        "ready": 1, "desired": 1, "restarts": 0,
+        "unschedulable": True, "taintCount": 2,
+    }
+    node = RuntimeResourceItem.model_validate(fields)
+    assert node.unschedulable is True
+    assert node.taintCount == 2
+    with pytest.raises(ValidationError):
+        RuntimeResourceItem.model_validate({**fields, "taintCount": -1})
+    with pytest.raises(ValidationError):
+        RuntimeResourceItem.model_validate({**fields, "unschedulable": "true"})
