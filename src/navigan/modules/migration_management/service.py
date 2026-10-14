@@ -206,7 +206,7 @@ class Service:
         snapshot = (target or {}).get("snapshot") or {}
         # A source inventory identifies workloads, but does not necessarily
         # contain Kubernetes PodSpec resource requests. Keep those pending.
-        from .scheduling_evidence import evaluate_node_capacity
+        from .scheduling_evidence import evaluate_node_capacity, workload_pod_requests
         source_inventory = self.repo.get_source_inventory(identifier).get("inventory")
         source_resources = (source_inventory or {}).get("resources") or []
         draft = migration.get("planning_draft") or {}
@@ -235,7 +235,7 @@ class Service:
                 continue
             # Only consume explicit, already-observed aggregate requests.
             # Do not infer pod requests from replicas, limits or node sizes.
-            requests = resource.get("resourceRequests") if isinstance(resource.get("resourceRequests"), dict) else {}
+            requests = workload_pod_requests(resource) or {}
             result = evaluate_node_capacity(
                 requests.get("cpu"), requests.get("memory"), nodes,
                 inventory_complete=complete_nodes,
