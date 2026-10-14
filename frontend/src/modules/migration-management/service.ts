@@ -70,6 +70,7 @@ export interface TargetAssessmentRecord {
     resourceKinds?: Record<string, number>;
     discoveredApiVersions?: string[];
     storageClasses?: string[];
+    storageClassDetails?: { name: string; provisioner?: string | null; volumeBindingMode?: string | null; reclaimPolicy?: string | null }[];
     csiDrivers?: string[];
     nodeCapacity?: { name?: string; allocatableCpu: string; allocatableMemory: string }[];
     nodeCapacityCoverage?: { observedNodes: number; nodesWithCapacity: number };
