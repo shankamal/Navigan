@@ -739,20 +739,49 @@ export function PlanningEditor({
         <div className={styles.compatibilitySnapshot}>
           <div><span>Selected resources</span><strong>{p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
           <div><span>Compatibility checks</span><strong>{p0Checks.length}</strong><small>{p0Unverified} not verified</small></div>
-          <div><span>Target evidence</span><strong>{targetEvidence ? "Partial" : "Unavailable"}</strong><small>{targetEvidence ? `Connector inventory · ${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Run Analyze Target in Step 2"}</small></div>
+          <div><span>Target evidence</span><strong>{targetEvidence ? "Partial" : "Unavailable"}</strong><small>{targetEvidence ? `Connector inventory · ${targetEvidence.snapshot.resourceCount ?? 0} reported resources` : "Review Target evidence in Step 2"}</small></div>
           <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_", " ")}</strong><small>{migrationPathDecision.reason}</small></div>
         </div>
         <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
           <thead><tr><th>Selected source resource</th><th>Kind</th><th>Target</th><th>Overall result</th><th>P0 checks / next action</th></tr></thead>
-          <tbody>{p0Compatibility.map(result => <tr key={resourceKey(result.resource)}>
-            <td>{result.resource.namespace ?? "Cluster"}/{result.resource.name}</td>
-            <td>{result.resource.kind}</td>
-            <td>{targetPlatform}</td>
-            <td>{result.status.replaceAll("_", " ")}</td>
-            <td><details><summary>{result.checks.length} checks · {result.checks.filter(check => check.status === "NOT_VERIFIED").length} not verified</summary>
-              {result.checks.map(check => <div key={check.capability}><strong>{check.capability} · {check.status.replaceAll("_", " ")}</strong><p>{check.reason}</p><p>Next: {check.nextAction}</p></div>)}
-            </details></td>
-          </tr>)}</tbody>
+          <tbody>{p0Compatibility.map(result => {
+            const sourceChecks = result.checks.filter(check => check.capability === "Source assessment");
+            const targetChecks = result.checks.filter(check => check.capability !== "Source assessment");
+            const sourceStatus = sourceChecks.some(check => check.status === "BLOCKED")
+              ? "BLOCKED"
+              : sourceChecks.some(check => check.status === "REMEDIATION_REQUIRED")
+                ? "REMEDIATION REQUIRED" : "No resource-specific findings";
+            const targetStatus = targetChecks.some(check => check.status === "BLOCKED")
+              ? "BLOCKED" : targetChecks.every(check => check.status === "COMPATIBLE")
+                ? "COMPATIBLE" : "PENDING VERIFICATION";
+            return <tr key={resourceKey(result.resource)}>
+              <td>{result.resource.namespace ?? "Cluster"}/{result.resource.name}</td>
+              <td>{result.resource.kind}</td>
+              <td>{targetPlatform}</td>
+              <td><div className={styles.compatibilityDualStatus}>
+                <span>Source readiness <strong>{sourceStatus}</strong></span>
+                <span>Target compatibility <strong>{targetStatus}</strong></span>
+              </div></td>
+              <td><details className={styles.compatibilityDetails}>
+                <summary>{result.checks.length} checks · {sourceChecks.length} source findings · {targetChecks.filter(check => check.status === "NOT_VERIFIED").length} target unverified</summary>
+                {sourceChecks.length > 0 && <div className={styles.compatibilityCheckGroup}>
+                  <strong>Source assessment findings</strong>
+                  {sourceChecks.map((check, i) => <div className={styles.compatibilityCheck} key={i}>
+                    <div><b>{check.capability}</b><span>{check.status.replaceAll("_", " ")}</span></div>
+                    <p>{check.reason}</p><small>Action: {check.nextAction}</small>
+                  </div>)}
+                </div>}
+                <div className={styles.compatibilityCheckGroup}>
+                  <strong>Target capability verification</strong>
+                  {targetChecks.map((check, i) => <div className={styles.compatibilityCheck} key={i}>
+                    <div><b>{check.capability}</b><span>{check.status.replaceAll("_", " ")}</span></div>
+                    <p>{check.reason.replace(/ Source-to-target requirements have not been verified\\.$/, "")}</p>
+                    <small>Action: {check.nextAction}</small>
+                  </div>)}
+                </div>
+              </details></td>
+            </tr>;
+          })}</tbody>
         </table></div>
         {p0Compatibility.length === 0 && <p>Save selected workloads in Step 1 and ensure the target evidence is current to generate scoped checks.</p>}
         <div className={styles.workflowStageWarning}>P0 assessment is read-only and evidence-gated. The saved connector inventory confirms discovery, not target compatibility. Kubernetes API support, scheduling capacity, storage, networking, identity and dependencies require verified target-specific observations before migration readiness can be determined.</div>
