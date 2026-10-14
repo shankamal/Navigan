@@ -2,10 +2,12 @@ from navigan.modules.migration_management.storage_evidence import compare_storag
 
 
 def claim(storage_class="gp3", **overrides):
-    return {"apiVersion": "v1", "kind": "PersistentVolumeClaim",
+    result = {"apiVersion": "v1", "kind": "PersistentVolumeClaim",
             "namespace": "apps", "name": "data", "storageClassName": storage_class,
             "accessModes": ["ReadWriteOnce"], "requestedStorage": "10Gi",
-            "volumeMode": "Filesystem", **overrides}
+            "volumeMode": "Filesystem"}
+    result.update(overrides)
+    return result
 
 
 SELECTED = {("v1", "PersistentVolumeClaim", "apps", "data")}
