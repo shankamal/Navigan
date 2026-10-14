@@ -428,6 +428,7 @@ export function PlanningEditor({
     resources,
     savedTargetMatches,
     savedTargetMatches ? targetEvidence : null,
+    assessment.findings,
   );
   const p0Checks = p0Compatibility.flatMap(item => item.checks);
   const p0Unverified = p0Checks.filter(item => item.status === "NOT_VERIFIED").length;
