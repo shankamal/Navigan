@@ -339,3 +339,28 @@ def test_bootstrap_remains_pending_until_namespace_inventory_is_ready():
 
     statements = [call.args[0] for call in db.execute.call_args_list]
     assert not any("SET status='ACTIVE'" in sql for sql in statements)
+
+
+
+def test_runtime_resource_accepts_observed_node_allocatable_values():
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    node = RuntimeResourceItem.model_validate({
+        "kind": "Node", "name": "worker-1", "status": "HEALTHY",
+        "ready": 1, "desired": 1, "restarts": 0,
+        "allocatableCpu": "1930m", "allocatableMemory": "7350Mi",
+    })
+    assert node.allocatableCpu == "1930m"
+    assert node.allocatableMemory == "7350Mi"
+
+
+def test_runtime_resource_rejects_malformed_allocatable_quantity():
+    from pydantic import ValidationError
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    with pytest.raises(ValidationError):
+        RuntimeResourceItem.model_validate({
+            "kind": "Node", "name": "worker-1", "status": "HEALTHY",
+            "ready": 1, "desired": 1, "restarts": 0,
+            "allocatableCpu": "invalid", "allocatableMemory": "7350Mi",
+        })
