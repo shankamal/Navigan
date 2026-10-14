@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime, timezone
 import secrets
 import uuid
 
@@ -166,8 +167,17 @@ class Service:
             reason = "Run target analysis and collect target-bound evidence before selecting a migration path."
         else:
             snapshot = target.get("snapshot") or {}
-            complete = bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or [])
-            if not complete:
+            expires_raw = snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")
+            try:
+                expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")) if isinstance(expires_raw, str) else None
+                current = expires is not None and expires.tzinfo is not None and expires > datetime.now(timezone.utc)
+            except ValueError:
+                current = False
+            complete = current and bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or [])
+            if not current:
+                path = "PENDING_EVIDENCE"
+                reason = "Target connector evidence has expired or has no trustworthy expiry timestamp."
+            elif not complete:
                 path = "PENDING_EVIDENCE"
                 reason = "Target evidence is present but incomplete; required capabilities remain unverified."
             elif any(
@@ -188,7 +198,9 @@ class Service:
             "targetClusterId": (target or {}).get("targetClusterId")
             or (migration.get("target_configuration") or {}).get("clusterId"),
             "evidenceLevel": (target or {}).get("evidenceLevel"),
-            "coverageComplete": bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or []),
+            "coverageComplete": (bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or []) and
+                                 bool(snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")) and
+                                 path in {"DIRECT", "ASSISTED"}),
             "decision": {"path": path, "reason": reason},
         }
 
