@@ -267,6 +267,8 @@ class Service:
         storage_observations = compare_storage_claims(
             source_resources, selected, snapshot.get("storageClasses"),
             fresh=fresh_nodes,
+            class_details=snapshot.get("storageClassDetails"),
+            csi_drivers=snapshot.get("csiDrivers"),
         )
         return {
             "storageEvidence": {
