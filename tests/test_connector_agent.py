@@ -551,7 +551,7 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
 
     def request(path):
         paths.append(path)
-        return responses.pop(0)
+        return responses.pop(0) if responses else {}
 
     monkeypatch.setattr(agent, "kubernetes_request", request)
 
