@@ -1,0 +1,75 @@
+"""Read-only, conservative scheduling feasibility checks for migration planning.
+
+This is an evidence evaluator, not a Kubernetes scheduler. It intentionally
+returns PENDING_EVIDENCE unless the entire considered node set can be assessed.
+"""
+import re
+
+CPU = re.compile(r"^(?:[0-9]+(?:\\.[0-9]+)?)(?:m)?$")
+MEMORY = re.compile(r"^([0-9]+(?:\\.[0-9]+)?)(Ki|Mi|Gi|Ti|K|M|G|T)?$")
+SCALE = {"Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4,
+         "K": 1000, "M": 1000**2, "G": 1000**3, "T": 1000**4, None: 1}
+
+
+def cpu_millicores(value):
+    if not isinstance(value, str) or not CPU.fullmatch(value):
+        return None
+    try:
+        return round(float(value[:-1]) if value.endswith("m") else float(value) * 1000)
+    except (ValueError, OverflowError):
+        return None
+
+
+def memory_bytes(value):
+    if not isinstance(value, str):
+        return None
+    match = MEMORY.fullmatch(value)
+    if not match:
+        return None
+    try:
+        return round(float(match.group(1)) * SCALE[match.group(2)])
+    except (ValueError, OverflowError):
+        return None
+
+
+def evaluate_node_capacity(cpu_request, memory_request, nodes, *, inventory_complete=False):
+    """Check a pod's aggregate CPU/memory requests against observed nodes.
+
+    Never equate allocatable with free capacity. Node taints, affinity,
+    utilization, quotas, and admission policies are outside this check.
+    """
+    request_cpu = cpu_millicores(cpu_request)
+    request_memory = memory_bytes(memory_request)
+    if request_cpu is None or request_memory is None:
+        return {"status": "PENDING_EVIDENCE", "reason": "Source CPU and memory requests are missing or invalid."}
+    if not isinstance(nodes, list) or not nodes:
+        return {"status": "PENDING_EVIDENCE", "reason": "No target node observations were provided."}
+
+    observed = 0
+    candidates = 0
+    unknown = 0
+    for node in nodes:
+        if not isinstance(node, dict):
+            unknown += 1
+            continue
+        cpu = cpu_millicores(node.get("allocatableCpu"))
+        memory = memory_bytes(node.get("allocatableMemory"))
+        cordoned = node.get("unschedulable")
+        taints = node.get("taintCount")
+        if cpu is None or memory is None or not isinstance(cordoned, bool) or type(taints) is not int or taints < 0:
+            unknown += 1
+            continue
+        observed += 1
+        # A tainted node may still be suitable if the workload tolerates it;
+        # without toleration evidence, do not declare it a candidate.
+        if not cordoned and taints == 0 and cpu >= request_cpu and memory >= request_memory:
+            candidates += 1
+
+    if not inventory_complete or unknown or observed != len(nodes):
+        return {"status": "PENDING_EVIDENCE", "reason": "Node inventory or scheduling evidence is incomplete.",
+                "observedNodes": observed, "unverifiedNodes": unknown}
+    if candidates:
+        return {"status": "PARTIAL", "reason": "At least one node has sufficient allocatable capacity, is uncordoned and has no reported taints. Free capacity, selectors, affinity, quotas and admission are unverified.",
+                "candidateNodes": candidates, "observedNodes": observed}
+    return {"status": "REMEDIATION_REQUIRED", "reason": "No fully observed, uncordoned, untainted node meets the requested allocatable CPU and memory. Tolerations and workload placement remain unverified.",
+            "candidateNodes": 0, "observedNodes": observed}
