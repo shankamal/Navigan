@@ -836,7 +836,7 @@ export function PlanningEditor({
             </details>)}</div>
         </section>}
         {!backendEvaluationCurrent && <p className={styles.workflowStageWarning}>Authoritative backend evaluation is unavailable or not current for this saved scope. The following P0 checklist is diagnostic only; it is not a migration readiness decision.</p>}
-        <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
+        {!backendEvaluationCurrent && <>        <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
           <thead><tr><th>Selected source resource</th><th>Kind</th><th>Target</th><th>Overall result</th><th>P0 checks / next action</th></tr></thead>
           <tbody>{p0Compatibility.map(result => {
             const sourceChecks = result.checks.filter(check => check.capability === "Source assessment");
@@ -932,7 +932,7 @@ export function PlanningEditor({
             </tr>;
           })}</tbody>
         </table></div>
-        {p0Compatibility.length === 0 && <p>Save selected workloads in Step 1 and ensure the target evidence is current to generate scoped checks.</p>}
+        {p0Compatibility.length === 0 && <p>Save selected workloads in Step 1 and ensure the target evidence is current to generate scoped checks.</p>}</>}
         <div className={styles.workflowStageWarning}>P0 assessment is read-only and evidence-gated. The saved connector inventory confirms discovery, not target compatibility. Kubernetes API support, scheduling capacity, storage, networking, identity and dependencies require verified target-specific observations before migration readiness can be determined.</div>
       </section>}
       {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
