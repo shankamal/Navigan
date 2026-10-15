@@ -405,3 +405,56 @@ def test_connector_runtime_accepts_storage_class_provisioning_observations():
     })
     assert result.provisioner == "ebs.csi.aws.com"
     assert result.volumeBindingMode == "WaitForFirstConsumer"
+
+
+def test_cluster_scoped_connector_gitops_upgrade_only_commits_target_files(monkeypatch):
+    from navigan.modules.cluster_management.repository import Repository
+
+    monkeypatch.setenv(
+        "CONNECTOR_IMAGE_URI",
+        "905418045935.dkr.ecr.ap-south-1.amazonaws.com/approved-connector@sha256:" + "a" * 64,
+    )
+    monkeypatch.setenv("CONNECTOR_API_BASE_URL", "https://api.example.test")
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = {
+        "connector_id": "KCC-0123456789abcdef0123456789abcdef",
+        "installation_status": "SUCCEEDED",
+    }
+    repo = Repository(db, MagicMock())
+    repo.get = MagicMock(return_value={"version": 5})
+    repo.system_repository_access = MagicMock(return_value={
+        "installation_id": 101,
+        "organization_login": "example-org",
+        "repository_name": "target-cluster-system",
+        "default_branch": "main",
+    })
+    app = MagicMock()
+    app.commit_files.return_value = {"revision": "commit-1", "branch": "main"}
+    response = repo.upgrade_connector_gitops(
+        "CLU-target",
+        {"version": 5, "imageDigest": "sha256:" + "b" * 64, "reason": "Migration capability discovery"},
+        github_app=app,
+    )
+    assert response["status"] == "GITOPS_CHANGE_COMMITTED"
+    args, kwargs = app.commit_files.call_args
+    assert args[:3] == (101, "example-org", "target-cluster-system")
+    assert set(args[3]) == {
+        "values/connector.yaml",
+        "charts/navigan-cluster-connector/templates/rbac.yaml",
+    }
+    assert 'digest: sha256:' + "b" * 64 in args[3]["values/connector.yaml"]
+    assert "\\n" not in args[3]["values/connector.yaml"]
+    assert "customresourcedefinitions" in args[3]["charts/navigan-cluster-connector/templates/rbac.yaml"]
+    assert kwargs["branch"] == "main"
+
+
+def test_cluster_scoped_connector_gitops_upgrade_rejects_stale_version():
+    from navigan.modules.cluster_management.repository import Repository
+
+    repo = Repository(MagicMock(), MagicMock())
+    repo.get = MagicMock(return_value={"version": 6})
+    with pytest.raises(ApiError):
+        repo.upgrade_connector_gitops(
+            "CLU-target",
+            {"version": 5, "imageDigest": "sha256:" + "b" * 64, "reason": "Migration discovery"},
+        )
