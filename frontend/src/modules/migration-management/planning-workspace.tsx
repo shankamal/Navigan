@@ -485,6 +485,10 @@ export function PlanningEditor({
     ? schedulingReport?.resourceEvaluations ?? [] : [];
   const authoritativePending = authoritativeResults.flatMap(item => item.checks)
     .filter(check => check.status === "PENDING_EVIDENCE" || check.status === "PARTIAL").length;
+  const authoritativeUnverified = authoritativeResults.flatMap(item => item.checks)
+    .filter(check => check.status === "PENDING_EVIDENCE").length;
+  const authoritativePartial = authoritativeResults.flatMap(item => item.checks)
+    .filter(check => check.status === "PARTIAL").length;
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
@@ -800,7 +804,7 @@ export function PlanningEditor({
         <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but target evidence is unavailable, expired, or does not match the selected cluster and assessment. Refresh evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
         <div className={styles.compatibilitySnapshot}>
           <div><span>Selected resources</span><strong>{backendEvaluationCurrent ? authoritativeResults.length : p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
-          <div><span>Compatibility checks</span><strong>{backendEvaluationCurrent ? authoritativeResults.reduce((count, item) => count + item.checks.length, 0) : p0Checks.length}</strong><small>{backendEvaluationCurrent ? authoritativePending : p0Unverified} pending / partial · {backendEvaluationCurrent ? "Backend evaluation" : "P0 fallback"}</small></div>
+          <div><span>Compatibility checks</span><strong>{backendEvaluationCurrent ? authoritativeResults.reduce((count, item) => count + item.checks.length, 0) : p0Checks.length}</strong><small>{backendEvaluationCurrent ? `${authoritativeUnverified} pending · ${authoritativePartial} partial` : `${p0Unverified} not verified`} · {backendEvaluationCurrent ? "Backend evaluation" : "P0 fallback"}</small></div>
           <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence ? "Expired / mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
           <div><span>Migration path</span><strong>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING EVIDENCE"}</strong><small>{schedulingReport?.decision?.reason ?? "Backend compatibility decision unavailable; no approval can be inferred."}</small></div>
         </div>
