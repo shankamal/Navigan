@@ -90,7 +90,8 @@ def workload_pod_requests(resource):
     pod = resource.get("pod") if isinstance(resource, dict) else None
     if not isinstance(pod, dict):
         return None
-    if pod.get("initContainers") or pod.get("nodeSelectorKeys") or pod.get("tolerations"):
+    # These constraints are not safe to ignore. The caller reports them explicitly.
+    if pod.get("initContainers") or pod.get("nodeSelectorKeys") or pod.get("nodeSelector") or pod.get("tolerations"):
         return None
     affinity = pod.get("affinity")
     if isinstance(affinity, dict) and any(affinity.values()):
@@ -112,3 +113,21 @@ def workload_pod_requests(resource):
         total_cpu += cpu
         total_memory += memory
     return {"cpu": f"{total_cpu}m", "memory": str(total_memory)}
+
+def scheduling_constraints(resource):
+    """Return actionable restrictions without claiming scheduler equivalence."""
+    pod = resource.get("pod") if isinstance(resource, dict) else None
+    if not isinstance(pod, dict):
+        return ["Source PodSpec was not captured by the connector."]
+    missing = []
+    if pod.get("initContainers"):
+        missing.append("Init-container CPU/memory requests and initialization order need evaluation.")
+    if pod.get("nodeSelectorKeys") or pod.get("nodeSelector"):
+        missing.append("Source node selectors must be matched against target node labels.")
+    if pod.get("tolerations"):
+        missing.append("Tolerations must be matched against the actual target node taints.")
+    if isinstance(pod.get("affinity"), dict) and any(pod["affinity"].values()):
+        missing.append("Pod/node affinity and anti-affinity require topology-aware evaluation.")
+    if pod.get("topologySpreadConstraints"):
+        missing.append("Topology spread constraints require target failure-domain evidence.")
+    return missing
