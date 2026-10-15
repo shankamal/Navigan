@@ -22,6 +22,7 @@ from .models import (
     KubernetesAccessAssignment,
     RevokeKubernetesAccess,
     ConnectorInstallationRequest,
+    ConnectorUpgradeRequest,
     CreateNodeGroupRequest,
     NodeGroupRequestAction,
     SystemNodeGroupMigration,
@@ -304,6 +305,10 @@ def execute(event, principal, correlation):
         method == "POST" and len(parts) == 3
         and parts[1:] == ["connector", "install"]
     )
+    upgrade_connector = (
+        method == "POST" and len(parts) == 3
+        and parts[1:] == ["connector", "upgrade"]
+    )
     create_tool_session = (
         method == "POST"
         and len(parts) == 4
@@ -373,6 +378,7 @@ def execute(event, principal, correlation):
         or create_access
         or revoke_access
         or install_connector
+        or upgrade_connector
         or create_tool_session
         or create_node_group_request
         or migrate_system_node_group
@@ -400,6 +406,8 @@ def execute(event, principal, correlation):
             if revoke_access
             else ConnectorInstallationRequest
             if install_connector
+            else ConnectorUpgradeRequest
+            if upgrade_connector
             else ToolSessionRequest
             if create_tool_session
             else CreateNodeGroupRequest
@@ -489,6 +497,19 @@ def execute(event, principal, correlation):
                 else:
                     value = serialize(row, access)
             return response(200, value, correlation)
+        if upgrade_connector:
+            access.require("cluster.access.manage")
+            operation = method + " " + path
+            fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            customer_repo = CustomerRepository(db, principal)
+            replay = customer_repo.idempotency_get(operation, key, fingerprint)
+            if replay:
+                result = response(replay["status"], replay["body"], correlation)
+                result["headers"]["Idempotency-Replayed"] = "true"
+                return result
+            value = repo.upgrade_connector_gitops(identifier, body)
+            customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})
+            return response(202, value, correlation)
         if install_connector:
             access.require("cluster.access.manage")
             row = repo.get(identifier)
