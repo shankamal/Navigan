@@ -159,7 +159,11 @@ class Service:
             "StorageClass/CSI inventory is incomplete or predates discovery support."
         )
 
+        from .target_inventory_evidence import build_target_inventory_evidence
+        target_collection = build_target_inventory_evidence(resources, metrics)
         snapshot = {
+            "collectionGaps": target_collection["collectionGaps"],
+            "collectionLimitations": target_collection["collectionLimitations"],
             "storageDiscovery": storage_discovery_states,
             "supplementaryDiscovery": supplementary_discovery,
             "supplementaryInventory": supplementary_inventory,
