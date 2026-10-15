@@ -7,15 +7,6 @@ def _identity(item):
     return (item.get("kind"), item.get("namespace"), item.get("name"))
 
 
-def _pod_spec(resource):
-    spec = resource.get("spec") or {}
-    if resource.get("kind") == "CronJob":
-        return (((spec.get("jobTemplate") or {}).get("spec") or {}).get("template") or {}).get("spec") or {}
-    if resource.get("kind") in {"Deployment", "StatefulSet", "DaemonSet", "Job"}:
-        return (spec.get("template") or {}).get("spec") or {}
-    return spec
-
-
 def discover_dependencies(resources, selected=None):
     """Return only manifest-backed dependencies; do not infer service traffic."""
     indexed = {
@@ -46,36 +37,18 @@ def discover_dependencies(resources, selected=None):
             missing.add(pair)
 
     for r in scoped:
-        pod = _pod_spec(r)
-        link(r, "ServiceAccount", pod.get("serviceAccountName") or "default")
-        for volume in pod.get("volumes") or []:
-            if not isinstance(volume, dict):
+        # The source connector deliberately submits sanitized inventory,
+        # not full Kubernetes specs. dependencyReferences is the authoritative
+        # source for resource names; pod contains only summarized attributes.
+        references = r.get("dependencyReferences") or []
+        for reference in references:
+            if not isinstance(reference, dict):
                 continue
-            pvc = volume.get("persistentVolumeClaim") or {}
-            cm = volume.get("configMap") or {}
-            secret = volume.get("secret") or {}
-            link(r, "PersistentVolumeClaim", pvc.get("claimName"))
-            link(r, "ConfigMap", cm.get("name"))
-            link(r, "Secret", secret.get("secretName"))
-            projected = (volume.get("projected") or {}).get("sources") or []
-            for part in projected:
-                if isinstance(part, dict):
-                    link(r, "ConfigMap", (part.get("configMap") or {}).get("name"))
-                    link(r, "Secret", (part.get("secret") or {}).get("name"))
-        for container in (pod.get("initContainers") or []) + (pod.get("containers") or []):
-            if not isinstance(container, dict):
-                continue
-            for env in container.get("env") or []:
-                if not isinstance(env, dict):
-                    continue
-                ref = env.get("valueFrom") or {}
-                link(r, "ConfigMap", (ref.get("configMapKeyRef") or {}).get("name"))
-                link(r, "Secret", (ref.get("secretKeyRef") or {}).get("name"))
-            for env_from in container.get("envFrom") or []:
-                if not isinstance(env_from, dict):
-                    continue
-                link(r, "ConfigMap", (env_from.get("configMapRef") or {}).get("name"))
-                link(r, "Secret", (env_from.get("secretRef") or {}).get("name"))
+            if reference.get("kind") in {
+                "ServiceAccount", "ConfigMap", "Secret",
+                "PersistentVolumeClaim", "Service",
+            }:
+                link(r, reference["kind"], reference.get("name"))
 
     def render(pair):
         source, target = pair
@@ -92,7 +65,7 @@ def discover_dependencies(resources, selected=None):
         "relationshipCount": len(edges),
         "unresolvedCount": len(missing),
         "reason": (
-            "Only observed workload-to-resource references are mapped. "
+            "Only explicitly reported sanitized workload dependency references are mapped. "
             "Service selectors, ingress routing, network calls, custom controllers "
             "and external dependencies remain unverified."
         ),
