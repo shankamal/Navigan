@@ -49,10 +49,15 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                 continue
             if (finding.get("resourceKind"), finding.get("namespace"), finding.get("resourceName")) != (key[1], key[2], key[3]):
                 continue
-            blocker = finding.get("severity") == "BLOCKER" or finding.get("disposition") == "BLOCKER"
-            add("Source assessment", "INCOMPATIBLE" if blocker else "REMEDIATION_REQUIRED",
+            disposition = finding.get("disposition")
+            blocker = finding.get("severity") == "BLOCKER" or disposition == "BLOCKER"
+            if disposition == "SEAMLESS" and not blocker:
+                continue  # Informational/compatible source findings must not require remediation.
+            needs_change = disposition in {"MANUAL_CHANGE", "AUTOMATED_CHANGE"} or finding.get("severity") == "WARNING"
+            add("Source assessment",
+                "INCOMPATIBLE" if blocker else "REMEDIATION_REQUIRED" if needs_change else "PENDING_EVIDENCE",
                 finding.get("message") or "Source assessment finding requires review.",
-                finding.get("remediation") or "Resolve the recorded source assessment finding and reassess.")
+                finding.get("remediation") or "Review this source assessment finding and confirm its treatment.")
         api_result = api_by_key.get(key)
         add("Kubernetes API", api_result.get("status") if api_result else "PENDING_EVIDENCE",
             api_result.get("reason") if api_result else "No resource-bound target API discovery result was returned.",
