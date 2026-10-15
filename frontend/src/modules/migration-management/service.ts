@@ -123,6 +123,8 @@ export interface TargetAssessmentRecord {
     region?: string;
     sourceRevision?: string;
     resourceCount?: number;
+    collectionGaps?: Record<string, "MISSING" | "PARTIAL">;
+    collectionLimitations?: Record<string, string>;
     resourceKinds?: Record<string, number>;
     discoveredApiVersions?: string[];
     storageDiscovery?: { StorageClass?: "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED"; CSIDriver?: "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED" };
