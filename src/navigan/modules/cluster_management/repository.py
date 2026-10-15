@@ -159,7 +159,7 @@ class Repository:
         if ".dkr.ecr." not in image_repo or ".amazonaws.com/" not in image_repo:
             raise ApiError(409, "CONNECTOR_REGISTRY_INVALID", "Connector must come from the approved ECR repository.")
         digest = body["imageDigest"]
-        values = "\\n".join([
+        values = "\n".join([
             "image:",
             f"  repository: {image_repo}",
             '  tag: ""',
