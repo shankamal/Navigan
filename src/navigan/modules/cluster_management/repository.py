@@ -132,6 +132,72 @@ class Repository:
             )
         return row
 
+    def upgrade_connector_gitops(self, identifier, body, github_app=None):
+        """Update only the selected cluster's connector GitOps manifests.
+
+        No Kubernetes credentials or global connector image configuration are changed.
+        """
+        import os
+        from importlib.resources import files as package_files
+
+        cluster = self.get(identifier, lock=True)
+        if cluster["version"] != body["version"]:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
+        repository = self.system_repository_access(identifier)
+        connector = self.db.execute(
+            "SELECT connector_id,installation_status FROM cluster_management.cluster_connectors "
+            "WHERE cluster_id=%s AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+        if not connector:
+            raise ApiError(409, "CONNECTOR_NOT_ACTIVE", "Install and activate the connector before upgrading it.")
+
+        baseline = os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
+        if "@sha256:" not in baseline:
+            raise ApiError(409, "CONNECTOR_IMAGE_NOT_CONFIGURED", "Approved connector ECR repository is not configured.")
+        image_repo, _ = baseline.rsplit("@", 1)
+        if ".dkr.ecr." not in image_repo or ".amazonaws.com/" not in image_repo:
+            raise ApiError(409, "CONNECTOR_REGISTRY_INVALID", "Connector must come from the approved ECR repository.")
+        digest = body["imageDigest"]
+        values = "\\n".join([
+            "image:",
+            f"  repository: {image_repo}",
+            '  tag: ""',
+            f"  digest: {digest}",
+            "  pullPolicy: IfNotPresent",
+            "",
+            "navigan:",
+            f"  apiBaseUrl: {os.environ.get('CONNECTOR_API_BASE_URL', '').rstrip('/')}",
+            f"  connectorId: {connector['connector_id']}",
+            "  existingSecret: navigan-cluster-connector",
+            "  syncIntervalSeconds: 30",
+            f"  toolsTunnelUrl: {os.environ.get('PLATFORM_TOOLS_BASE_URL', '').rstrip('/').replace('https://', 'wss://', 1) + '/tunnel' if os.environ.get('PLATFORM_TOOLS_BASE_URL') else ''}",
+            "",
+        ])
+        rbac = package_files(__package__).joinpath(
+            "system_repo_template/charts/navigan-cluster-connector/templates/rbac.yaml"
+        ).read_text(encoding="utf-8")
+        app = github_app or GitHubApp()
+        commit = app.commit_files(
+            repository["installation_id"],
+            repository["organization_login"],
+            repository["repository_name"],
+            {
+                "values/connector.yaml": values,
+                "charts/navigan-cluster-connector/templates/rbac.yaml": rbac,
+            },
+            branch=repository["default_branch"],
+            message=f"Upgrade Navigan connector for {identifier} ({body['reason']})",
+        )
+        return {
+            "clusterId": identifier,
+            "connectorId": connector["connector_id"],
+            "imageDigest": digest,
+            "repositoryCommit": commit["revision"],
+            "status": "GITOPS_CHANGE_COMMITTED",
+            "message": "Argo CD sync and new connector inventory must be verified separately.",
+        }
+
     def mark_system_repository_active(self, cluster_id, repository):
         self.db.execute(
             "UPDATE cluster_management.cluster_system_repositories "
