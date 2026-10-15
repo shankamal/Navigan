@@ -38,7 +38,36 @@ export interface ResourceCompatibilityEvaluation {
   checks: {capability: string; status: string; reason: string; nextAction: string}[];
 }
 
+export interface DiscoveryCoverageReport {
+  source: {
+    inventoryResourceCount: number;
+    selectedWorkloadCount: number;
+    matchedSelectedWorkloads: number;
+    freshness: "CURRENT" | "STALE" | "UNKNOWN";
+    discoveryAccepted: boolean;
+    dependencyEvidence: {
+      relationshipCount: number;
+      unresolvedCount: number;
+      workloadCoverage: {
+        selectedWorkloads: number;
+        withReferenceEvidence: number;
+        withoutReferenceEvidence: number;
+        complete: boolean;
+      };
+    };
+    capabilities: Record<string, {status: string; reason: string}>;
+  };
+  target: {
+    inventoryResourceCount: number | null;
+    freshness: "CURRENT" | "STALE" | "UNKNOWN";
+    discoveryAccepted: boolean;
+    capabilities: Record<string, {status: string; reason: string}>;
+  };
+  note: string;
+}
+
 export interface TargetCompatibilityResponse {
+  discoveryCoverage?: DiscoveryCoverageReport;
   resourceEvaluations?: ResourceCompatibilityEvaluation[];
   migrationId: string;
   assessmentVersion: number | null;
