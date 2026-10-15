@@ -35,7 +35,7 @@ def compare_storage_claims(source_resources, selected, storage_classes, *, fresh
             target_class = None
         modes = resource.get("accessModes")
         requested = resource.get("requestedStorage")
-        volume_mode = resource.get("volumeMode") or "Filesystem"
+        volume_mode = resource.get("volumeMode")
         valid_modes = (isinstance(modes, list) and bool(modes)
                        and all(isinstance(m, str) and m in ACCESS_MODES for m in modes))
         valid_storage = (isinstance(requested, str) and
