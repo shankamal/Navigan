@@ -646,6 +646,22 @@ export function PlanningEditor({
     scope: { selectedNamespaces:scopeNamespaces,discoveredWorkloads:analyzedWorkloadCandidates.length,selectedWorkloads:draft.resources.filter(r=>!r.dependency&&["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(r.kind)).length,resources:draft.resources.map(r=>({namespace:r.namespace,kind:r.kind,name:r.name,treatment:r.treatment,dependency:r.dependency})),dependencyFlaggedCount:dependencies },
     remediation: { recordedDecisions:draft.remediations.length,findings:assessment.findings.map(f=>({severity:f.severity,description:f.message})) },
     readiness: { openChecks:readiness.issues.map(issue=>({type:issue.type,detail:issue.detail})),dataStrategy:draft.dataStrategy,pvcManifests:pendingPvcs.length },
+    evidenceVerification: {
+      status: graph.coverage !== "REFERENCES_AVAILABLE" || !savedTargetMatches || !savedScopeCurrent || dirty
+        ? "INCOMPLETE" : backendEvaluationCurrent ? "PARTIAL_VERIFICATION" : "AWAITING_BACKEND_COMPATIBILITY",
+      sourceDependencyReferences: graph.edges.length,
+      dependencyCoverage: graph.coverage,
+      sourceScopeSavedAndCurrent: savedScopeCurrent && !dirty,
+      targetAssessmentCurrent: savedTargetMatches,
+      targetClusterId,
+      backendCompatibilityCurrent: backendEvaluationCurrent,
+      limitations: [
+        ...(graph.coverage !== "REFERENCES_AVAILABLE" ? ["Source dependency references were not collected; zero edges does not mean no dependencies."] : []),
+        ...(!savedScopeCurrent || dirty ? ["Source selection is not a current saved assessment scope."] : []),
+        ...(!savedTargetMatches ? ["Target capability inventory is unavailable, expired, or mismatched."] : []),
+        ...(!backendEvaluationCurrent ? ["Authoritative source-to-target resource checks are not current."] : []),
+      ],
+    },
     artifactReadiness: { sourceManifests:"NOT_COLLECTED",helmCharts:"NOT_COLLECTED",images:"REFERENCES_ONLY",s3Package:"NOT_CREATED",ecrPromotion:"NOT_STARTED" },
     disclaimer:"Planning export reflects the current UI draft, which may contain unsaved changes. No migration artifacts or cluster resources are exported.",
   };
@@ -1803,7 +1819,8 @@ export function PlanningEditor({
       )}
       {tab === "review" && <section className={styles.migrationSummaryPanel} aria-label="Migration Summary and Export">
         <div className={styles.migrationSummaryHead}><div><strong>Migration Summary &amp; Export</strong><p>Review the current scope and download a planning report. Exports are snapshots of the current draft, including unsaved changes.</p></div><div className={styles.migrationExportActions}><button type="button" onClick={()=>downloadReport("json")}>Export JSON</button><button type="button" onClick={()=>downloadReport("csv")}>Export CSV</button><button type="button" onClick={()=>window.print()}>Print / Save PDF</button></div></div>
-        <div className={styles.migrationSummaryGrid}><div><span>Discovered workloads</span><b>{analyzedWorkloadCandidates.length}</b></div><div><span>Draft resources</span><b>{draft.resources.length}</b></div><div><span>Dependency-flagged</span><b>{dependencies}</b></div><div><span>Readiness checks</span><b>{readiness.issues.length}</b></div></div>
+        <div role="status" className={styles.workflowStageWarning}>Report evidence: {migrationSummary.evidenceVerification.status.replaceAll("_", " ")}. {migrationSummary.evidenceVerification.limitations.length ? migrationSummary.evidenceVerification.limitations.join(" ") : "Source and target evidence are available; final migration approval remains separate."}</div>
+      <div className={styles.migrationSummaryGrid}><div><span>Discovered workloads</span><b>{analyzedWorkloadCandidates.length}</b></div><div><span>Draft resources</span><b>{draft.resources.length}</b></div><div><span>Dependency-flagged</span><b>{dependencies}</b></div><div><span>Readiness checks</span><b>{readiness.issues.length}</b></div></div>
         <p className={styles.migrationSummaryEvidence}>Evidence: {graph.coverage==="REFERENCES_AVAILABLE"?"References collected":"Relationship references not collected"} · Data strategy: {draft.dataStrategy.replaceAll("_"," ")} · Artifact package: Not created</p>
         <p className={styles.migrationSummaryEvidence}>YAML / Helm artifacts have not been collected into S3; container images have not been promoted to ECR. Reports include metadata only.</p>
       </section>}
