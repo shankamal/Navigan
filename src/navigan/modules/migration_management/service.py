@@ -292,6 +292,12 @@ class Service:
                 result["status"] = "PENDING_EVIDENCE"
                 result["reason"] = " ".join(constraints) + " " + result["reason"]
                 result["missingEvidence"] = constraints
+            from .scheduling_evidence import evaluate_node_selector
+            selector = evaluate_node_selector(resource, nodes, inventory_complete=complete_nodes)
+            if selector["status"] == "REMEDIATION_REQUIRED":
+                result["status"] = "REMEDIATION_REQUIRED"
+                result["reason"] = selector["reason"]
+            result["nodeSelectorEvidence"] = selector
             observations.append({
                 "apiVersion": resource.get("apiVersion"),
                 "kind": resource.get("kind"),
