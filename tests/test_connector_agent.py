@@ -570,6 +570,8 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
     assert inventory["metrics"] == {
         "apiDiscoveryCoreV1": 0,
         "apiDiscoveryAppsV1": 0,
+        "storageClassDiscoveryStatus": 3,
+        "csiDriverDiscoveryStatus": 3,
         "nodeCount": 1,
         "readyNodeCount": 1,
         "podCount": 1,
@@ -677,3 +679,16 @@ def test_storage_class_metadata_is_observed_not_assumed(monkeypatch):
     assert storage["provisioner"] == "ebs.csi.aws.com"
     assert storage["volumeBindingMode"] == "WaitForFirstConsumer"
     assert storage["reclaimPolicy"] == "Delete"
+
+
+def test_storage_discovery_distinguishes_rbac_denial_from_empty_inventory(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/apis/storage.k8s.io/v1/storageclasses":
+            raise RuntimeError("kubernetes API returned HTTP 403: Forbidden")
+        if path == "/apis/storage.k8s.io/v1/csidrivers":
+            return {"items": []}
+        return {"items": []}
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    metrics = agent.runtime_inventory()["metrics"]
+    assert metrics["storageClassDiscoveryStatus"] == 2
+    assert metrics["csiDriverDiscoveryStatus"] == 1
