@@ -47,6 +47,7 @@ import { analyzeP0Compatibility } from "./source-target-p0";
 import { inspectTargetCapabilitySnapshot, targetCapabilityFromAssessment } from "./target-capabilities";
 import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
+import { buildRemediationHandoff } from "./remediation-handoff";
 import styles from "./planning-workspace.module.css";
 
 export function resourceKey(
@@ -1606,6 +1607,30 @@ export function PlanningEditor({
       )}
       {tab === "remediate" && (
         <section className={styles.surface}>
+          {backendEvaluationCurrent && (() => {
+            const handoff = buildRemediationHandoff(authoritativeResults);
+            return <section className={styles.targetCapabilitySection} aria-label="Compatibility remediation handoff">
+              <div className={styles.targetAssessmentHead}><div><strong>Compatibility → Remediation handoff</strong>
+                <p>{handoff.resourceCount} assessed resources · {handoff.actions.length} actionable checks · {handoff.evidence.length} evidence-verification checks. No migration execution.</p></div></div>
+              <div className={styles.targetCapabilityGrid}>
+                <details className={styles.compatibilityDetails}><summary>Source changes / remediation actions · {handoff.actions.length}</summary>
+                  {handoff.actions.length === 0 && <p>No confirmed changes identified by current compatibility checks.</p>}
+                  {handoff.actions.map((item,index) => <div className={styles.compatibilityCheck} key={index}>
+                    <b>{item.resource.namespace ?? "Cluster"}/{item.resource.name} · {item.capability} · {item.status}</b>
+                    <p>{item.reason}</p><small>Action: {item.nextAction}</small>
+                  </div>)}
+                </details>
+                <details className={styles.compatibilityDetails}><summary>Evidence blockers / verification tasks · {handoff.evidence.length}</summary>
+                  {handoff.evidence.map((item,index) => <div className={styles.compatibilityCheck} key={index}>
+                    <b>{item.resource.namespace ?? "Cluster"}/{item.resource.name} · {item.capability} · {item.status}</b>
+                    <p>{item.reason}</p><small>Verify: {item.nextAction}</small>
+                  </div>)}
+                </details>
+              </div>
+              <p className={styles.workflowStageWarning}>{handoff.note}</p>
+            </section>;
+          })()}
+          {!backendEvaluationCurrent && <p className={styles.workflowStageWarning}>Current authoritative compatibility evaluations are unavailable. Remediation handoff remains unverified; existing draft findings below are preserved.</p>}
           <section className={styles.remediationKpis} aria-label="Remediation overview">
             <div><strong>{draft.resources.length}</strong><span>Resources in scope</span></div>
             <div><strong>{findings.length}</strong><span>Assessment findings</span></div>
