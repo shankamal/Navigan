@@ -684,6 +684,16 @@ class Service:
                 "PLANNING_EVIDENCE_CHANGED",
                 "Reload the latest assessment and inventory before planning.",
             )
+        # Namespace selections are planning-draft state, not an edit to the
+        # original Source Assessment. Reject unexpected scope expansion.
+        saved_namespaces = draft.get("selectedNamespaces")
+        if saved_namespaces is not None:
+            assessed_namespaces = set(current.get("migration_scope", {}).get("namespaces", []))
+            if not set(saved_namespaces).issubset(assessed_namespaces):
+                raise ApiError(
+                    400, "NAMESPACE_OUTSIDE_ASSESSMENT",
+                    "Selected planning namespaces must belong to the assessed source scope.",
+                )
         available = {
             (r["apiVersion"], r["kind"], r.get("namespace"), r.get("name")) for r in inventory["resources"]
         }
