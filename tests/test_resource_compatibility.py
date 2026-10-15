@@ -102,3 +102,13 @@ def test_missing_source_podspec_keeps_identity_unverified():
     result = evaluate_selected_resources([SOURCE[0]], [PLANNED[0]], [], API, [], [], target_current=True)[0]
     assert any(c["capability"] == "Identity and secrets" and c["status"] == "PENDING_EVIDENCE"
                for c in result["checks"])
+
+
+def test_target_remediation_is_not_reported_as_not_evaluated():
+    scheduling = [{"apiVersion": "apps/v1", "kind": "Deployment",
+                   "namespace": "retailflow", "name": "api",
+                   "status": "REMEDIATION_REQUIRED",
+                   "reason": "Target nodes lack the requested allocatable capacity."}]
+    result = evaluate_selected_resources(SOURCE, PLANNED, [], API, [], scheduling, target_current=True)
+    assert result[0]["targetStatus"] == "REMEDIATION_REQUIRED"
+    assert result[0]["status"] == "PENDING_EVIDENCE"  # Other checks still pending
