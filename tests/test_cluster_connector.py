@@ -110,6 +110,7 @@ def test_connector_returns_desired_access_rules_and_generic_runtime_policy(monke
             "status": "ACTIVE",
         },
         {"revision": 1234},
+        None,  # No active cluster system repository; legacy image policy applies.
     ]
     db.execute.return_value.fetchall.return_value = [
         {
