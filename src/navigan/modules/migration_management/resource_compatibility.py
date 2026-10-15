@@ -79,6 +79,22 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
             add("Networking", "PENDING_EVIDENCE",
                 "Destination network routing or policy enforcement is not verified.",
                 "Verify destination ingress, service routing or policy support for this resource.")
+        if kind in {"Deployment", "StatefulSet", "DaemonSet", "Pod", "Job", "CronJob"}:
+            pod = resource.get("pod") if isinstance(resource, dict) else None
+            # An inventory record alone cannot prove its Service, Ingress,
+            # NetworkPolicy or external network dependencies are portable.
+            # Keep that distinction explicit rather than reporting compatibility.
+            add("Workload networking dependencies", "PENDING_EVIDENCE",
+                "Workload-to-Service, Ingress, NetworkPolicy and external traffic dependencies have not been verified.",
+                "Map source network dependencies to the target, then validate routing, policy and connectivity.")
+            if not isinstance(pod, dict) or not isinstance(pod.get("volumes"), list):
+                add("Workload volume dependencies", "PENDING_EVIDENCE",
+                    "Pod volume references are not fully captured; persistent data dependencies cannot be ruled out.",
+                    "Collect volume references and validate PVC, CSI, mount, backup and data transfer mappings.")
+            elif pod["volumes"]:
+                add("Workload volume dependencies", "PENDING_EVIDENCE",
+                    "Pod volumes are present, but target volume provisioning and data dependency mapping are unverified.",
+                    "Classify each volume and verify target provisioning, PVC and data migration requirements.")
         if kind in {"ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "Secret"}:
             add("Identity and secrets", "PENDING_EVIDENCE",
                 "Target identity, RBAC rules or secret references are not verified.",
