@@ -415,6 +415,7 @@ class MigrationPlanningDraft(Model):
     mode: Literal["SELECTED_WORKLOADS", "FULL_CLUSTER"]
     assessmentVersion: int = Field(gt=0)
     inventoryDigest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    selectedNamespaces: list[Namespace] | None = Field(default=None, max_length=200)
     resources: list[PlannedResource] = Field(default_factory=list, max_length=2000)
     remediations: list[RemediationDraft] = Field(default_factory=list, max_length=500)
     storageMappings: list[MigrationStorageMapping] = Field(default_factory=list, max_length=2000)
@@ -423,6 +424,8 @@ class MigrationPlanningDraft(Model):
 
     @model_validator(mode="after")
     def unique_entries(self):
+        if self.selectedNamespaces is not None and len(set(self.selectedNamespaces)) != len(self.selectedNamespaces):
+            raise ValueError("Selected namespaces must be unique.")
         keys = [(r.apiVersion, r.kind, r.namespace, r.name) for r in self.resources]
         findings = [r.findingIndex for r in self.remediations]
         storage_keys = [(m.namespace, m.sourceClaim) for m in self.storageMappings]
