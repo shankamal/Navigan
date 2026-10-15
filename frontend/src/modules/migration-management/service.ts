@@ -33,6 +33,8 @@ export interface SchedulingEvidenceResult {
 export interface ResourceCompatibilityEvaluation {
   resource: {apiVersion: string; kind: string; namespace: string | null; name: string};
   status: "INCOMPATIBLE" | "REMEDIATION_REQUIRED" | "PENDING_EVIDENCE" | "COMPATIBLE";
+  sourceStatus?: string;
+  targetStatus?: string;
   checks: {capability: string; status: string; reason: string; nextAction: string}[];
 }
 
