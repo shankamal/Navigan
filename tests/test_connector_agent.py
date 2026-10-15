@@ -449,6 +449,73 @@ def test_tool_tunnel_keeps_receiving_heartbeats_while_proxy_request_runs(
     assert any(item.get("type") == "response" for item in sent)
 
 
+def test_tool_tunnel_normal_requests_continue_while_one_request_blocks(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    release = threading.Event()
+    started = threading.Event()
+    results = []
+
+    def fake_request(tool, *_args):
+        if tool == "headlamp":
+            started.set()
+            assert release.wait(2)
+        return {"status": 200, "headers": {}, "body": ""}
+
+    class Client:
+        def send(self, payload):
+            results.append(payload)
+
+    monkeypatch.setattr(agent, "tool_request", fake_request)
+    client = Client()
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        blocked = workers.submit(agent.handle_tool_request, client, {
+            "type": "request", "id": "slow", "tool": "headlamp",
+        })
+        assert started.wait(2)
+        quick = workers.submit(agent.handle_tool_request, client, {
+            "type": "request", "id": "fast", "tool": "argocd",
+        })
+        quick.result(timeout=2)
+        assert any(item.get("id") == "fast" and item["status"] == 200 for item in results)
+        release.set()
+        blocked.result(timeout=2)
+    assert {item["id"] for item in results} == {"slow", "fast"}
+
+
+def test_tool_tunnel_reconnects_after_connection_failure(monkeypatch):
+    attempts = []
+    sent = []
+
+    class Client:
+        def __init__(self, *_args):
+            attempts.append(len(attempts) + 1)
+
+        def send(self, payload):
+            sent.append(payload)
+
+        def receive(self):
+            if len(attempts) == 1:
+                raise RuntimeError("first connection lost")
+            raise RuntimeError("second connection lost")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(agent, "WebSocketClient", Client)
+    monkeypatch.setenv("NAVIGAN_TOOLS_TUNNEL_URL", "wss://tools.example.test/tunnel")
+
+    def sleep(_seconds):
+        if len(attempts) >= 2:
+            raise StopIteration()
+
+    monkeypatch.setattr(agent.time, "sleep", sleep)
+    with pytest.raises(StopIteration):
+        agent.tools_tunnel("KCC-" + "a" * 32, "x" * 40)
+    assert len(attempts) == 2
+    assert sum(item.get("type") == "heartbeat" for item in sent) == 2
+
+
 def test_argocd_readiness_accepts_stateful_application_controller(monkeypatch):
     responses = [
         {
