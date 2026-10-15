@@ -676,6 +676,32 @@ def runtime_inventory():
             # Discovery restrictions must not stop established inventory.
             pass
 
+    # The discovery endpoint explicitly advertises served resource kinds.
+    # Keep this bounded to the core/apps kinds used in migration assessment.
+    api_kinds = {}
+    for path, expected, group in (
+        ("/api/v1", "v1", "coreV1"),
+        ("/apis/apps/v1", "apps/v1", "appsV1"),
+    ):
+        try:
+            response = kubernetes_request(path)
+            if not isinstance(response, dict) or response.get("groupVersion") != expected:
+                continue
+            advertised = response.get("resources")
+            if not isinstance(advertised, list):
+                continue
+            names = {item.get("kind") for item in advertised
+                     if isinstance(item, dict) and isinstance(item.get("name"), str)
+                     and "/" not in item["name"] and isinstance(item.get("kind"), str)}
+            expected_kinds = (
+                ("Pod", "Service", "PersistentVolumeClaim", "ConfigMap", "Secret", "ServiceAccount")
+                if group == "coreV1" else ("Deployment", "StatefulSet", "DaemonSet")
+            )
+            for kind in expected_kinds:
+                api_kinds[f"apiKind_{group}_{kind}"] = int(kind in names)
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError):
+            pass
+
     # Report status separately from item count: empty lists can be valid.
     # 1=success, 2=permission denied, 3=unavailable/invalid response.
     storage_discovery = {}
@@ -722,6 +748,7 @@ def runtime_inventory():
         "warningEvents": warning_events,
         "metrics": {
             **api_discovery,
+            **api_kinds,
             **storage_discovery,
             "nodeCount": len(nodes),
             "readyNodeCount": sum(item["ready"] for item in nodes),
