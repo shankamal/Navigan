@@ -410,6 +410,7 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
     analyzeScope();
+    fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
     expect(screen.getByText(/Source reference evidence/i)).toBeVisible();
     expect(screen.getByText(/No references in this snapshot/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
