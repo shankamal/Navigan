@@ -280,7 +280,7 @@ export function PlanningEditor({
   );
   const namespaces = [
     ...new Set(
-      resources.map((r) => r.namespace).filter((n): n is string => Boolean(n) && assessedNamespaces.includes(n)),
+      resources.map((r) => r.namespace).filter((n): n is string => typeof n === "string" && n.length > 0 && assessedNamespaces.includes(n)),
     ),
   ].sort();
   const filtered = resources.filter(
