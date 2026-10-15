@@ -375,6 +375,7 @@ export interface MigrationPlanningDraft {
   mode: "SELECTED_WORKLOADS" | "FULL_CLUSTER";
   assessmentVersion: number;
   inventoryDigest: string;
+  selectedNamespaces?: string[] | null;
   resources: PlannedResource[];
   remediations: RemediationDraft[];
   storageMappings?: MigrationStorageMapping[];
