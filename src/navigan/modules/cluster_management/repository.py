@@ -177,7 +177,7 @@ class Repository:
         ):
             raise ApiError(409, "GITOPS_CONNECTOR_MISMATCH", "Cluster connector values do not match the registered connector.")
         if not re.search(
-            r"(?m)^  repository:\\s*['\\\"]?" + re.escape(image_repo) + r"['\\\"]?\\s*$",
+            r"(?m)^  repository:\\s*" + re.escape(image_repo) + r"\\s*$",
             values,
         ):
             raise ApiError(409, "GITOPS_IMAGE_REPOSITORY_MISMATCH", "Cluster connector image repository is not approved.")
