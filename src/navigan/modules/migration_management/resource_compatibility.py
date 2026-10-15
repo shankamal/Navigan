@@ -126,6 +126,7 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                          "REMEDIATION_REQUIRED" if any(c["status"] == "REMEDIATION_REQUIRED" for c in source_checks) else
                          "PENDING_EVIDENCE" if source_checks else "NO_FINDINGS")
         target_status = ("INCOMPATIBLE" if any(c["status"] == "INCOMPATIBLE" for c in target_checks) else
+                         "REMEDIATION_REQUIRED" if any(c["status"] == "REMEDIATION_REQUIRED" for c in target_checks) else
                          "PENDING_EVIDENCE" if any(c["status"] in {"PENDING_EVIDENCE", "PARTIAL"} for c in target_checks) else
                          "COMPATIBLE" if target_checks and all(c["status"] == "COMPATIBLE" for c in target_checks) else
                          "NOT_EVALUATED")
