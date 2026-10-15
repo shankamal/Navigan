@@ -819,6 +819,15 @@ export function PlanningEditor({
                   (item.namespace ?? null) === (result.resource.namespace ?? null) &&
                   item.name === result.resource.name)
               : undefined;
+            const apiMatch = savedScopeCurrent && !dirty && savedTargetMatches &&
+              schedulingReport?.assessmentVersion === assessment.assessmentVersion &&
+              schedulingReport.targetClusterId === String(migration.targetConfiguration?.clusterId ?? "")
+              ? schedulingReport.apiEvidence?.resources.find(item =>
+                  item.apiVersion === result.resource.apiVersion &&
+                  item.kind === result.resource.kind &&
+                  (item.namespace ?? null) === (result.resource.namespace ?? null) &&
+                  item.name === result.resource.name)
+              : undefined;
             const storage = savedScopeCurrent && !dirty && savedTargetMatches &&
               schedulingReport?.assessmentVersion === assessment.assessmentVersion &&
               schedulingReport.targetClusterId === String(migration.targetConfiguration?.clusterId ?? "")
@@ -835,6 +844,7 @@ export function PlanningEditor({
               <td><div className={styles.compatibilityDualStatus}>
                 <span>Source readiness <strong>{sourceStatus}</strong></span>
                 <span>Target compatibility <strong>{targetStatus}</strong></span>
+                {apiMatch && <span>Kubernetes API evidence <strong>{apiMatch.status.replaceAll("_", " ")}</strong></span>}
                 {storage && <span>Storage evidence <strong>{storage.status.replaceAll("_", " ")}</strong></span>}
                 {scheduling && <span>Compute scheduling <strong>{scheduling.status.replaceAll("_", " ")}</strong></span>}
               </div></td>
@@ -846,6 +856,13 @@ export function PlanningEditor({
                     <div><b>{check.capability}</b><span>{check.status.replaceAll("_", " ")}</span></div>
                     <p>{check.reason}</p><small>Action: {check.nextAction}</small>
                   </div>)}
+                </div>}
+                {apiMatch && <div className={styles.compatibilityCheckGroup}>
+                  <strong>Kubernetes API version observation</strong>
+                  <div className={styles.compatibilityCheck}>
+                    <div><b>{apiMatch.apiVersion ?? "Unknown API version"}</b><span>{apiMatch.status.replaceAll("_", " ")}</span></div>
+                    <p>{apiMatch.reason}</p>
+                  </div>
                 </div>}
                 {storage && <div className={styles.compatibilityCheckGroup}>
                   <strong>PVC target StorageClass observation</strong>
