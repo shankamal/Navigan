@@ -112,7 +112,7 @@ def test_dependency_coverage_counts_only_selected_workloads():
         resource("Deployment", "other", api_version="apps/v1"),
         resource("ServiceAccount", "api-sa"),
     ]
-    selected = {("apps/v1", "Deployment", "default", "api")}
+    selected = {("apps/v1", "Deployment", "apps", "api")}
     result = discover_dependencies(inventory, selected)
     assert result["workloadCoverage"] == {
         "selectedWorkloads": 1,
