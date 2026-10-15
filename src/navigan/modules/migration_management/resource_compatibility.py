@@ -92,8 +92,8 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                 "Refresh the target inventory and repeat compatibility assessment.")
         statuses = {entry["status"] for entry in results}
         status = ("INCOMPATIBLE" if "INCOMPATIBLE" in statuses else
-                  "REMEDIATION_REQUIRED" if "REMEDIATION_REQUIRED" in statuses else
                   "PENDING_EVIDENCE" if "PENDING_EVIDENCE" in statuses or "PARTIAL" in statuses else
+                  "REMEDIATION_REQUIRED" if "REMEDIATION_REQUIRED" in statuses else
                   "COMPATIBLE")
         source_checks = [c for c in results if c["capability"] in {"Source assessment", "Source inventory", "Resource treatment"}]
         target_checks = [c for c in results if c not in source_checks]
