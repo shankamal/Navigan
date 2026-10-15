@@ -244,7 +244,16 @@ export function PlanningEditor({
   const assessedNamespaces = Array.isArray(migration.migrationScope?.namespaces)
     ? migration.migrationScope.namespaces.filter((name): name is string => typeof name === "string" && name.length > 0)
     : [];
-  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => [...new Set(assessedNamespaces)]);
+  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => {
+    const saved = migration.planningDraft?.schemaVersion === 1
+      ? migration.planningDraft as unknown as MigrationPlanningDraft : null;
+    // Explicitly persisted selections take precedence, including a saved empty list.
+    if (Array.isArray(saved?.selectedNamespaces)) return [...new Set(saved.selectedNamespaces)];
+    // Legacy populated drafts predate selectedNamespaces; restore their source scope.
+    if (saved?.resources?.length) return [...new Set(assessedNamespaces)];
+    // A new or cleared draft must never select all namespaces automatically.
+    return [];
+  });
   const namespace = scopeNamespaces.length === 1 ? scopeNamespaces[0] : "";
   const [remediationNamespace, setNamespace] = useState("");
   const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
@@ -625,14 +634,15 @@ export function PlanningEditor({
     });
   }
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (nextDraft?: MigrationPlanningDraft) =>
       migrations.update(migration.migrationId, {
         version: migration.version,
-        planningDraft: draft,
+        planningDraft: nextDraft ?? {...draft, selectedNamespaces: scopeNamespaces},
         changeReason: "Update migration scope and remediation planning draft",
       }),
     onSuccess: async (value) => {
       cache.setQueryData(["migrations", migration.migrationId], value);
+      setDraft(value.planningDraft?.schemaVersion === 1 ? value.planningDraft as unknown as MigrationPlanningDraft : draft);
       setDirty(false);
       setMessage("Planning draft saved. No cluster changes were applied.");
       await cache.invalidateQueries({ queryKey: ["migrations"], exact: true });
@@ -640,6 +650,36 @@ export function PlanningEditor({
     onError: (error) => setMessage(normalizeApiError(error).message),
   });
 
+  async function continueToTarget() {
+    if (!canEdit || stale || save.isPending) return;
+    if (!scopeNamespaces.length || !draft.resources.some(item => !item.dependency && item.namespace && scopeNamespaceSet.has(item.namespace))) {
+      setMessage("Select a namespace and include at least one workload before continuing.");
+      return;
+    }
+    try {
+      // Await a confirmed server save; never advance on failure.
+      await save.mutateAsync({...draft, selectedNamespaces: scopeNamespaces});
+      navigateToStep("target");
+    } catch {
+      // The mutation's onError displays the API error; keep the user on Source.
+    }
+  }
+  async function clearPlanningDraft() {
+    if (!canEdit || stale || save.isPending) return;
+    if (!window.confirm("Clear the saved planning draft and selected namespaces? Source inventory, assessment and target configuration will be preserved.")) return;
+    const cleared = {...emptyDraft(assessment), selectedNamespaces: []};
+    try {
+      await save.mutateAsync(cleared);
+      setDraft(cleared);
+      setScopeNamespaces([]);
+      setScopeReviewOpen(false);
+      setScopeAnalysisNamespace(null);
+      setScopeAnalysisSignature(null);
+      setMessage("Planning draft cleared. Source assessment and inventory were preserved.");
+    } catch {
+      // Preserve both local selections and current persisted draft if saving fails.
+    }
+  }
   const migrationSummary = {
     migration: { id:migration.migrationId,name:migration.name,customer:String(migration.customerName??migration.customerId),status:migration.status,mode:draft.mode },
     assessment: { version:assessment.assessmentVersion,inventoryDigest:assessment.inventoryDigest,stale,dependencyReferenceCoverage:graph.coverage },
@@ -1075,7 +1115,7 @@ export function PlanningEditor({
                 <summary aria-label="Application namespaces">Select namespaces · {scopeNamespaces.length} selected</summary>
                 <div>{namespaces.map(item=><label key={item}>
                   <input type="checkbox" aria-label={`Select namespace ${item}`} checked={scopeNamespaceSet.has(item)}
-                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} />{item}
+                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setDirty(true);setMessage("");setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} />{item}
                 </label>)}</div>
               </details>
               <label className={styles.scopeSearchLabel}>Search selected resources
@@ -1898,8 +1938,9 @@ export function PlanningEditor({
       <footer className={styles.footer}>
         <button className="button button-secondary" type="button" disabled={tab==="scope"} onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)]!)}><ArrowLeft size={16}/> Previous step</button>
         <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
-        <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate()}>{save.isPending?"Saving…":"Save draft"}</button>
-        <button className="button button-primary" type="button" disabled={tab==="review"||(tab==="scope"&&scopeGateIssues.length>0)} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!)}>Continue to {tab==="scope"?"target":tab==="target"?"compatibility":tab==="compatibility"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
+        {tab==="scope" && <button className="button button-secondary" type="button" disabled={!canEdit||stale||save.isPending} onClick={()=>void clearPlanningDraft()}>Clear Draft</button>}
+        <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate({...draft,selectedNamespaces:scopeNamespaces})}>{save.isPending?"Saving…":"Save draft"}</button>
+        <button className="button button-primary" type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>Continue to {tab==="scope"?"target":tab==="target"?"compatibility":tab==="compatibility"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
       </footer>
     </div>
   );
