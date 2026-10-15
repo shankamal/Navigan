@@ -96,7 +96,9 @@ class Service:
             {"name": node.get("name"), "allocatableCpu": node.get("allocatableCpu"),
              "allocatableMemory": node.get("allocatableMemory"),
              "unschedulable": node.get("unschedulable"),
-             "taintCount": node.get("taintCount")}
+             "taintCount": node.get("taintCount"),
+             "nodeLabels": node.get("nodeLabels"),
+             "nodeTaints": node.get("nodeTaints")}
             for node in nodes
             if node.get("allocatableCpu") and node.get("allocatableMemory")
         ]
