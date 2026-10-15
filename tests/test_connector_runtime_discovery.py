@@ -20,6 +20,10 @@ def test_runtime_inventory_collects_node_labels_and_taints(monkeypatch):
     }
 
     def request(path):
+        if path == "/apis/networking.k8s.io/v1/ingresses":
+            return {"items": [{"metadata": {"namespace": "apps", "name": "web"}}]}
+        if path == "/api/v1/serviceaccounts":
+            return {"items": [{"metadata": {"namespace": "apps", "name": "app-sa"}}]}
         if path == "/api/v1/nodes":
             return {"items": [node]}
         if path.endswith("/storageclasses") or path.endswith("/csidrivers"):
@@ -41,3 +45,8 @@ def test_runtime_inventory_collects_node_labels_and_taints(monkeypatch):
     assert payload["metrics"]["apiKind_coreV1_Pod"] == 1
     assert payload["metrics"]["apiKind_coreV1_Service"] == 0
     assert payload["metrics"]["apiKind_appsV1_Deployment"] == 1
+
+    assert payload["metrics"]["discoveryStatus_Ingress"] == 1
+    assert payload["metrics"]["discoveryStatus_ServiceAccount"] == 1
+    assert any(item.kind == "Ingress" and item.name == "web" for item in validated.resources)
+    assert any(item.kind == "ServiceAccount" and item.name == "app-sa" for item in validated.resources)
