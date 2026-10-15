@@ -172,17 +172,17 @@ class Repository:
         # Fail closed if this file does not belong to the selected connector or
         # does not use the same approved ECR repository.
         if not re.search(
-            r"(?m)^  connectorId:\\s*" + re.escape(connector["connector_id"]) + r"\\s*$",
+            r"(?m)^  connectorId:\s*" + re.escape(connector["connector_id"]) + r"\s*$",
             values,
         ):
             raise ApiError(409, "GITOPS_CONNECTOR_MISMATCH", "Cluster connector values do not match the registered connector.")
         if not re.search(
-            r"(?m)^  repository:\\s*" + re.escape(image_repo) + r"\\s*$",
+            r"(?m)^  repository:\s*" + re.escape(image_repo) + r"\s*$",
             values,
         ):
             raise ApiError(409, "GITOPS_IMAGE_REPOSITORY_MISMATCH", "Cluster connector image repository is not approved.")
         values, updated = re.subn(
-            r"(?m)^(  digest:\\s*)[^\\r\\n]*$",
+            r"(?m)^(  digest:\s*)[^\r\n]*$",
             lambda match: match.group(1) + digest,
             values,
         )
