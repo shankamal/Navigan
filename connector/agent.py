@@ -600,6 +600,26 @@ def runtime_inventory():
                 # Read-only scheduling observations; do not infer schedulability.
                 resource["unschedulable"] = spec.get("unschedulable") is True
                 resource["taintCount"] = len(spec.get("taints") or [])
+                # Bound and sanitize placement evidence before transport.
+                labels = metadata.get("labels")
+                if isinstance(labels, dict) and len(labels) <= 100 and all(
+                    isinstance(k, str) and isinstance(v, str)
+                    and 0 < len(k) <= 253 and len(v) <= 253
+                    for k, v in labels.items()
+                ):
+                    resource["nodeLabels"] = labels
+                taints = spec.get("taints")
+                if isinstance(taints, list) and len(taints) <= 100 and all(
+                    isinstance(t, dict) and isinstance(t.get("key"), str)
+                    and t.get("effect") in {"NoSchedule", "NoExecute", "PreferNoSchedule"}
+                    and isinstance(t.get("value", ""), str)
+                    and len(t["key"]) <= 253 and len(t.get("value", "")) <= 253
+                    for t in taints
+                ):
+                    resource["nodeTaints"] = [
+                        {"key": t["key"], "value": t.get("value", ""), "effect": t["effect"]}
+                        for t in taints
+                    ]
                 allocatable = status.get("allocatable") or {}
                 for field, key in (("allocatableCpu", "cpu"), ("allocatableMemory", "memory")):
                     value = allocatable.get(key)
