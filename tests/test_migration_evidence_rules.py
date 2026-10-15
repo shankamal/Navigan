@@ -34,3 +34,35 @@ def test_scheduling_constraints_never_become_verified_capacity():
 def test_decimal_quantities_are_parsed():
     assert cpu_millicores("0.5") == 500
     assert memory_bytes("1.5Gi") == 1610612736
+
+
+from navigan.modules.migration_management.resource_compatibility import evaluate_selected_resources
+
+
+def test_workload_network_and_volume_dependencies_are_not_automatically_compatible():
+    resource = {"apiVersion": "apps/v1", "kind": "Deployment", "namespace": "apps",
+                "name": "web", "pod": {"serviceAccountName": "default",
+                                       "imagePullSecrets": [],
+                                       "volumes": [{"name": "uploads"}]}}
+    result = evaluate_selected_resources(
+        [resource], [{"apiVersion": "apps/v1", "kind": "Deployment",
+                      "namespace": "apps", "name": "web", "treatment": "MIGRATE"}],
+        [], [{"apiVersion": "apps/v1", "kind": "Deployment", "namespace": "apps",
+              "name": "web", "status": "PARTIAL", "reason": "API discovered"}],
+        [], [], target_current=True,
+    )[0]
+    checks = {check["capability"]: check for check in result["checks"]}
+    assert result["status"] == "PENDING_EVIDENCE"
+    assert checks["Workload networking dependencies"]["status"] == "PENDING_EVIDENCE"
+    assert checks["Workload volume dependencies"]["status"] == "PENDING_EVIDENCE"
+
+
+def test_missing_pod_volume_inventory_remains_explicitly_unverified():
+    resource = {"apiVersion": "v1", "kind": "Pod", "namespace": "apps", "name": "worker"}
+    result = evaluate_selected_resources(
+        [resource], [{"apiVersion": "v1", "kind": "Pod",
+                      "namespace": "apps", "name": "worker", "treatment": "MIGRATE"}],
+        [], [], [], [], target_current=True,
+    )[0]
+    checks = {check["capability"]: check for check in result["checks"]}
+    assert checks["Workload volume dependencies"]["status"] == "PENDING_EVIDENCE"
