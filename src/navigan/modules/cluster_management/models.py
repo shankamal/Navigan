@@ -187,3 +187,9 @@ class NodeGroupRequestAction(Model):
     version: int = Field(gt=0)
     reason: str | None = Field(default=None, max_length=2000)
     comments: str | None = Field(default=None, max_length=4000)
+
+
+class ConnectorUpgradeRequest(Model):
+    version: int = Field(ge=1)
+    imageDigest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    reason: str = Field(min_length=8, max_length=500)
