@@ -32,6 +32,7 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
         if item.get("treatment") == "RETIRE":
             checks.append({"resource": dict(zip(("apiVersion", "kind", "namespace", "name"), key)),
                            "status": "REMEDIATION_REQUIRED",
+                           "sourceStatus": "REMEDIATION_REQUIRED", "targetStatus": "NOT_EVALUATED",
                            "checks": [{"capability": "Resource treatment", "status": "REMEDIATION_REQUIRED",
                                        "reason": "The resource is marked for retirement, not target migration.",
                                        "nextAction": "Confirm the retirement and its dependent workloads before proceeding."}]})
