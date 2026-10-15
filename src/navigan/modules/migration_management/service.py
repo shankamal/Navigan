@@ -309,6 +309,7 @@ class Service:
         api_observations = evaluate_api_versions(
             source_resources, selected, snapshot.get("discoveredApiVersions"),
             fresh=fresh_nodes,
+            observed_resources=snapshot.get("discoveredApiResources"),
         )
         from .resource_compatibility import evaluate_selected_resources
         resource_evaluations = evaluate_selected_resources(
