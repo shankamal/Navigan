@@ -2,7 +2,7 @@
 
 import re
 
-QUANTITY = re.compile(r"^([1-9][0-9]*(?:\\.[0-9]+)?)(Ki|Mi|Gi|Ti|K|M|G|T)?$")
+QUANTITY = re.compile(r"^([1-9][0-9]*(?:\.[0-9]+)?)(Ki|Mi|Gi|Ti|K|M|G|T)?$")
 SCALE = {"Ki": 1024, "Mi": 1024 ** 2, "Gi": 1024 ** 3, "Ti": 1024 ** 4,
          "K": 1000, "M": 1000 ** 2, "G": 1000 ** 3, "T": 1000 ** 4, None: 1}
 ACCESS_MODES = {"ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"}
