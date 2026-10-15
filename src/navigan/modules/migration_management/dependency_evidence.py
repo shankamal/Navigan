@@ -53,6 +53,17 @@ def discover_dependencies(resources, selected=None):
             }:
                 link(r, reference["kind"], reference.get("name"))
 
+    # Older sanitized snapshots retained an exact serviceAccountName even
+    # before dependencyReferences was introduced. Recover only that explicit
+    # identity, never guess ConfigMap/Secret/PVC names from volume aliases.
+    for resource in scoped:
+        pod = resource.get("pod")
+        if not isinstance(pod, dict):
+            continue
+        name = pod.get("serviceAccountName")
+        if isinstance(name, str) and name and name != "default":
+            link(resource, "ServiceAccount", name)
+
     def render(pair):
         source, target = pair
         return {
@@ -68,7 +79,7 @@ def discover_dependencies(resources, selected=None):
         "relationshipCount": len(edges),
         "unresolvedCount": len(missing),
         "reason": (
-            "Selected workloads have no dependencyReferences evidence in the saved source inventory; refresh source discovery before assessing dependencies."
+            "Saved source inventory has no dependencyReferences evidence. Explicit service-account identities may be partially recovered, but ConfigMap, Secret, PVC, Service and other relationships remain unverified; a future controlled source discovery is required."
             if evidence_unavailable else
             "Only explicitly reported sanitized workload dependency references are mapped. "
             "Service selectors, ingress routing, network calls, custom controllers "
