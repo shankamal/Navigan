@@ -163,6 +163,19 @@ def tool_request(tool, path, query, method, headers, body):
             "headers": {"cache-control": "no-store"},
             "body": "",
         }
+    # Argo CD's /api/v1/stream/* endpoints use long-lived event streams.
+    # The tools tunnel is bounded request/response: forwarding streams blocks
+    # proxy workers until timeout and can starve every other utility.
+    if (
+        tool == "argocd"
+        and safe_path.startswith("/api/v1/stream/")
+        and method == "GET"
+    ):
+        return {
+            "status": 204,
+            "headers": {"cache-control": "no-store"},
+            "body": "",
+        }
     url = target.rstrip("/") + safe_path
     if query:
         url += "?" + query
