@@ -30,7 +30,14 @@ export interface SchedulingEvidenceResult {
   name: string;
 }
 
+export interface ResourceCompatibilityEvaluation {
+  resource: {apiVersion: string; kind: string; namespace: string | null; name: string};
+  status: "INCOMPATIBLE" | "REMEDIATION_REQUIRED" | "PENDING_EVIDENCE" | "COMPATIBLE";
+  checks: {capability: string; status: string; reason: string; nextAction: string}[];
+}
+
 export interface TargetCompatibilityResponse {
+  resourceEvaluations?: ResourceCompatibilityEvaluation[];
   migrationId: string;
   assessmentVersion: number | null;
   targetClusterId: string | null;
