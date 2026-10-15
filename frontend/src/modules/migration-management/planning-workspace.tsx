@@ -630,12 +630,37 @@ export function PlanningEditor({
     });
   }
   const save = useMutation({
-    mutationFn: (nextDraft?: MigrationPlanningDraft) =>
-      migrations.update(migration.migrationId, {
-        version: migration.version,
-        planningDraft: nextDraft ?? preparePlanningDraft(draft, scopeNamespaces),
-        changeReason: "Update migration scope and remediation planning draft",
-      }),
+    mutationFn: async (nextDraft?: MigrationPlanningDraft) => {
+      const payload = nextDraft ?? preparePlanningDraft(draft, scopeNamespaces);
+      try {
+        return await migrations.update(migration.migrationId, {
+          version: migration.version,
+          planningDraft: payload,
+          changeReason: "Update migration scope and remediation planning draft",
+        });
+      } catch (error) {
+        const api = normalizeApiError(error);
+        const details = JSON.stringify(api.details ?? {});
+        const rejectedNamespaceField = api.status === 422 &&
+          /selectedNamespaces/.test(details);
+        // Only a legacy backend that explicitly rejects the new field may
+        // receive a backward-compatible draft. Never silently lose a
+        // namespace selected without an actual saved resource in it.
+        const represented = new Set(payload.resources.map(item => item.namespace).filter(Boolean));
+        const selection = payload.selectedNamespaces ?? [];
+        const safeLegacyScope = selection.length > 0 &&
+          selection.every(name => represented.has(name)) &&
+          [...represented].every(name => selection.includes(name!));
+        if (!rejectedNamespaceField || !safeLegacyScope) throw error;
+        const { selectedNamespaces: _unsupported, ...legacyDraft } = payload;
+        setMessage("The running backend uses the older draft schema. Saving the resource-backed selection using legacy format.");
+        return migrations.update(migration.migrationId, {
+          version: migration.version,
+          planningDraft: legacyDraft,
+          changeReason: "Save migration planning draft using compatible schema",
+        });
+      }
+    },
     onSuccess: async (value) => {
       cache.setQueryData(["migrations", migration.migrationId], value);
       setDraft(value.planningDraft?.schemaVersion === 1 ? value.planningDraft as unknown as MigrationPlanningDraft : draft);
