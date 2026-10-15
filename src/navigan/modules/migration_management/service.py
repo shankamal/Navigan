@@ -298,6 +298,12 @@ class Service:
                 result["status"] = "REMEDIATION_REQUIRED"
                 result["reason"] = selector["reason"]
             result["nodeSelectorEvidence"] = selector
+            from .scheduling_evidence import evaluate_node_tolerations
+            taints = evaluate_node_tolerations(resource, nodes, inventory_complete=complete_nodes)
+            if taints["status"] == "REMEDIATION_REQUIRED":
+                result["status"] = "REMEDIATION_REQUIRED"
+                result["reason"] = taints["reason"]
+            result["taintTolerationEvidence"] = taints
             observations.append({
                 "apiVersion": resource.get("apiVersion"),
                 "kind": resource.get("kind"),
