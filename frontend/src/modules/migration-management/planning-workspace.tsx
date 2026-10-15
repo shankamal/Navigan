@@ -204,7 +204,7 @@ export function PlanningEditor({
     return () => { active = false; };
   }, [tab, migration.migrationId, migration.targetConfiguration?.clusterId, migration.targetConfiguration?.platform, assessment.assessmentVersion, canEdit]);
   useEffect(() => {
-    if (tab !== "compatibility" && tab !== "remediate" && tab !== "plan") return;
+    if (tab !== "compatibility" && tab !== "remediate" && tab !== "plan" && tab !== "review") return;
     let active = true;
     setSchedulingReport(null);
     setSchedulingError("");
@@ -734,6 +734,21 @@ export function PlanningEditor({
         ...(!backendEvaluationCurrent ? ["Authoritative source-to-target resource checks are not current."] : []),
       ],
     },
+    compatibility: {
+      authoritative: backendEvaluationCurrent,
+      targetClusterId,
+      executionReady: false,
+      evaluatedResources: authoritativeResults.length,
+      checks: authoritativeResults.flatMap(item=>item.checks).length,
+      evaluations: authoritativeResults.map(item=>({
+        resource:item.resource,status:item.status,sourceStatus:item.sourceStatus,
+        targetStatus:item.targetStatus,checks:item.checks,
+      })),
+      workloadAssessment: backendEvaluationCurrent ? schedulingReport?.workloadAssessmentReport ?? null : null,
+      discoveryCoverage: backendEvaluationCurrent ? schedulingReport?.discoveryCoverage ?? null : null,
+      remediationHandoff: backendEvaluationCurrent ? buildRemediationHandoff(authoritativeResults) : null,
+      migrationPlanPreview: backendEvaluationCurrent ? buildMigrationPlanPreview(authoritativeResults) : null,
+    },
     artifactReadiness: { sourceManifests:"NOT_COLLECTED",helmCharts:"NOT_COLLECTED",images:"REFERENCES_ONLY",s3Package:"NOT_CREATED",ecrPromotion:"NOT_STARTED" },
     disclaimer:"Planning export reflects the current UI draft, which may contain unsaved changes. No migration artifacts or cluster resources are exported.",
   };
@@ -749,9 +764,18 @@ export function PlanningEditor({
       ["Target assessment current",migrationSummary.evidenceVerification.targetAssessmentCurrent].map(escapeCell).join(","),
       ["Backend compatibility current",migrationSummary.evidenceVerification.backendCompatibilityCurrent].map(escapeCell).join(","),
       ...migrationSummary.evidenceVerification.limitations.map(limitation=>["Evidence limitation",limitation].map(escapeCell).join(",")),
+      ["Authoritative compatibility",migrationSummary.compatibility.authoritative].map(escapeCell).join(","),
+      ["Evaluated resources",migrationSummary.compatibility.evaluatedResources].map(escapeCell).join(","),
+      ["Compatibility checks",migrationSummary.compatibility.checks].map(escapeCell).join(","),
+      ["Execution ready",migrationSummary.compatibility.executionReady].map(escapeCell).join(","),
       "",
       ["Namespace","Kind","Name","Treatment","Dependency"].map(escapeCell).join(","),
       ...migrationSummary.scope.resources.map(r=>[r.namespace,r.kind,r.name,r.treatment,r.dependency].map(escapeCell).join(",")),
+      "",
+      ["Resource namespace","Resource kind","Resource name","Overall status","Source status","Target status","Capability","Check status","Reason","Next action"].map(escapeCell).join(","),
+      ...migrationSummary.compatibility.evaluations.flatMap(item=>
+        item.checks.map(check=>[item.resource.namespace,item.resource.kind,item.resource.name,item.status,
+          item.sourceStatus,item.targetStatus,check.capability,check.status,check.reason,check.nextAction].map(escapeCell).join(","))),
     ].join("\r\n");
     const file=new Blob([format==="json"?json:"\uFEFF"+csv],{type:format==="json"?"application/json;charset=utf-8":"text/csv;charset=utf-8"});
     const href=URL.createObjectURL(file);
