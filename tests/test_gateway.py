@@ -123,6 +123,9 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         "GET /api/v1/migrations/{migrationId}/source-catalogue",
         "GET /api/v1/migrations/{migrationId}/source-inventory",
         "GET /api/v1/migrations/{migrationId}/assessment",
+        "GET /api/v1/migrations/{migrationId}/target-assessment",
+        "POST /api/v1/migrations/{migrationId}/target-assessment",
+        "GET /api/v1/migrations/{migrationId}/target-compatibility",
         "PUT /api/v1/migrations/{migrationId}",
         *{
             f"POST /api/v1/migrations/{{migrationId}}/{action}"
