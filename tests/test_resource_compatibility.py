@@ -77,3 +77,11 @@ def test_network_checks_only_apply_to_network_resources():
     assert "Networking" in {c["capability"] for c in result[0]["checks"]}
     assert "Networking" not in {c["capability"] for c in result[1]["checks"]}
     assert result[0]["targetStatus"] == "PENDING_EVIDENCE"
+
+
+def test_seamless_source_finding_is_not_remediation():
+    finding = {"resourceKind": "Deployment", "namespace": "retailflow", "resourceName": "api",
+               "severity": "INFO", "disposition": "SEAMLESS", "message": "No source change required"}
+    result = evaluate_selected_resources(SOURCE, PLANNED, [finding], API, [], [], target_current=True)
+    assert result[0]["sourceStatus"] == "NO_FINDINGS"
+    assert result[0]["targetStatus"] == "PENDING_EVIDENCE"
