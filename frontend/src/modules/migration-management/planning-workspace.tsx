@@ -238,13 +238,13 @@ export function PlanningEditor({
     setLabel(names[tab]);
     return () => setLabel("");
   },[tab,setLabel]);
-  // Namespace selection is the analysis scope; it is not a separate inventory browser.
-  // Default to a single explicitly intended application namespace only.
-  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => {
-    const requested = migration.migrationScope?.namespaces;
-    return Array.isArray(requested) && requested.length === 1 && typeof requested[0] === "string"
-      ? [requested[0]] : [];
-  });
+  // Planning inherits the exact namespaces approved in the source assessment.
+  // A multi-namespace source scope must not silently become an empty selection.
+  // Keep saved draft resources intact; out-of-scope resources require review.
+  const assessedNamespaces = Array.isArray(migration.migrationScope?.namespaces)
+    ? migration.migrationScope.namespaces.filter((name): name is string => typeof name === "string" && name.length > 0)
+    : [];
+  const [scopeNamespaces, setScopeNamespaces] = useState<string[]>(() => [...new Set(assessedNamespaces)]);
   const namespace = scopeNamespaces.length === 1 ? scopeNamespaces[0] : "";
   const [remediationNamespace, setNamespace] = useState("");
   const scopeNamespaceKey = scopeNamespaces.slice().sort().join("|");
@@ -280,7 +280,7 @@ export function PlanningEditor({
   );
   const namespaces = [
     ...new Set(
-      resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)),
+      resources.map((r) => r.namespace).filter((n): n is string => Boolean(n) && assessedNamespaces.includes(n)),
     ),
   ].sort();
   const filtered = resources.filter(
@@ -1069,7 +1069,7 @@ export function PlanningEditor({
                 ? "This inventory may exclude system namespaces or cluster-scoped resources. Full-estate coverage must be confirmed before execution planning."
                 : "Inventory contains sanitized metadata, not deployment manifests or data. Dependency names are incomplete; confirm them with the application owner."}
             </p>
-            <div className={styles.scopeOptionSectionTitle}><span>2</span><strong>Select namespaces</strong><small>Choose the namespaces to analyze and include in scope</small></div>
+            <div className={styles.scopeOptionSectionTitle}><span>2</span><strong>Assessed source namespaces</strong><small>Only namespaces from the existing Source Assessment are available for planning</small></div>
             <div className={styles.scopeSelectionBar}>
               <details className={styles.scopeNamespacePicker}>
                 <summary aria-label="Application namespaces">Select namespaces · {scopeNamespaces.length} selected</summary>
