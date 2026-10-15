@@ -643,7 +643,11 @@ export function PlanningEditor({
       setMessage("Planning draft saved. No cluster changes were applied.");
       await cache.invalidateQueries({ queryKey: ["migrations"], exact: true });
     },
-    onError: (error) => setMessage(normalizeApiError(error).message),
+    onError: (error) => {
+      const api = normalizeApiError(error);
+      const detail = api.details ? JSON.stringify(api.details).slice(0, 700) : "";
+      setMessage(`Save failed · HTTP ${api.status || "network"} · ${api.code}: ${api.message}${detail ? " · " + detail : ""}${api.correlationId ? " · Request ID: " + api.correlationId : ""}`);
+    },
   });
 
   async function continueToTarget() {
@@ -893,6 +897,24 @@ export function PlanningEditor({
               : <p className={styles.caption}>No verified workload-specific scheduling evaluation is available yet. Source resource requests may be missing from the inventory.</p>}
           <p className={styles.caption}>Scheduling observations never override source blockers, missing target capabilities, or the backend migration approval gate.</p>
         </section>
+        {schedulingReport?.discoveryCoverage && <section className={styles.targetCapabilitySection} aria-label="Source and target discovery coverage">
+          <div className={styles.targetAssessmentHead}><div><strong>Source and Target Discovery Coverage</strong><p>Saved, read-only evidence. Missing or expired evidence is not migration readiness.</p></div></div>
+          <div className={styles.targetOverview}>
+            <div><span>Source inventory</span><strong>{schedulingReport.discoveryCoverage.source.inventoryResourceCount} resources</strong><small>Freshness: {schedulingReport.discoveryCoverage.source.freshness}</small></div>
+            <div><span>Selected source workloads</span><strong>{schedulingReport.discoveryCoverage.source.matchedSelectedWorkloads} / {schedulingReport.discoveryCoverage.source.selectedWorkloadCount}</strong><small>With dependency references: {schedulingReport.discoveryCoverage.source.dependencyEvidence.workloadCoverage.withReferenceEvidence}</small></div>
+            <div><span>Target inventory</span><strong>{schedulingReport.discoveryCoverage.target.inventoryResourceCount ?? "Unknown"} resources</strong><small>Freshness: {schedulingReport.discoveryCoverage.target.freshness}</small></div>
+          </div>
+          <div className={styles.targetCapabilityGrid}>
+            {(["source","target"] as const).flatMap(side =>
+              Object.entries(schedulingReport.discoveryCoverage![side].capabilities).map(([capability, evidence]) =>
+                <div key={side + "-" + capability}>
+                  <strong>{side === "source" ? "Source" : "Target"} · {capability}</strong>
+                  <span>{evidence.status.replaceAll("_", " ")}</span>
+                  <p>{evidence.reason}</p>
+                </div>))}
+          </div>
+          <p className={styles.workflowStageWarning}>{schedulingReport.discoveryCoverage.note}</p>
+        </section>}
         {backendEvaluationCurrent && <section className={styles.targetCapabilitySection} aria-label="Backend resource compatibility">
           <div className={styles.targetAssessmentHead}><div><strong>Authoritative resource compatibility</strong><p>Every saved resource is assessed. Expand a resource for evidence, limitations and concrete next actions. Pending evidence is not compatibility approval.</p></div><span className={styles.targetEvidenceUnknown}>{authoritativeResults.length} evaluated</span></div>
           <div className={styles.targetCapabilityGrid}>{authoritativeResults.map(item =>
