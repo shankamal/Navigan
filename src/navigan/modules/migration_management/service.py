@@ -303,6 +303,7 @@ class Service:
             fresh=fresh_nodes,
             class_details=snapshot.get("storageClassDetails"),
             csi_drivers=snapshot.get("csiDrivers"),
+            mappings=draft.get("storageMappings") or [],
         )
         from .api_evidence import evaluate_api_versions
         api_observations = evaluate_api_versions(
