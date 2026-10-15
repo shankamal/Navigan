@@ -27,3 +27,14 @@ def test_preferred_taint_does_not_block_scheduling():
         {"key": "capacity", "value": "spot", "effect": "PreferNoSchedule"}
     ]}]
     assert evaluate_node_tolerations({"pod": {"tolerations": []}}, node, inventory_complete=True)["status"] == "PARTIAL"
+
+
+def test_invalid_tolerations_do_not_produce_false_remediation():
+    malformed = {"pod": {"tolerations": [{"key": "dedicated", "operator": "Unexpected"}]}}
+    result = evaluate_node_tolerations(malformed, NODE, inventory_complete=True)
+    assert result["status"] == "PENDING_EVIDENCE"
+
+
+def test_empty_key_equal_operator_is_unverified():
+    malformed = {"pod": {"tolerations": [{"operator": "Equal", "value": "apps"}]}}
+    assert evaluate_node_tolerations(malformed, NODE, inventory_complete=True)["status"] == "PENDING_EVIDENCE"
