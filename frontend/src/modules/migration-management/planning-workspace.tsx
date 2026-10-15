@@ -951,6 +951,23 @@ export function PlanningEditor({
           </div>
           <p className={styles.workflowStageWarning}>{schedulingReport.discoveryCoverage.note}</p>
         </section>}
+        {schedulingReport?.workloadAssessmentReport && <section className={styles.targetCapabilitySection} aria-label="Selected workload migration assessment">
+          <div className={styles.targetAssessmentHead}><div>
+            <strong>Selected Workload Migration Assessment · {schedulingReport.workloadAssessmentReport.workloadCount} workloads</strong>
+            <p>Read-only assessment. Pending evidence is not approval or execution readiness.</p>
+          </div></div>
+          <div className={styles.targetCapabilityGrid}>
+            {schedulingReport.workloadAssessmentReport.workloads.map(item =>
+              <details key={JSON.stringify(item.source)} className={styles.compatibilityDetails}>
+                <summary>{item.source.namespace ?? "Cluster"}/{item.source.name} · {item.source.kind} · {item.compatibilityStatus.replaceAll("_"," ")}</summary>
+                <p>Planned treatment: {item.plannedTreatment} · Dependency evidence: {item.dependencyEvidenceStatus.replaceAll("_"," ")}</p>
+                <p>Observed dependencies: {item.observedDependencies.length ? item.observedDependencies.map(d=>d.kind+" "+d.name).join(", ") : "None confirmed; evidence may be incomplete"}</p>
+                <p>Unresolved dependencies: {item.unresolvedDependencies.length ? item.unresolvedDependencies.map(d=>d.kind+" "+d.name).join(", ") : "None recorded"}</p>
+                {item.checks.map((check,index)=><div key={index} className={styles.compatibilityCheck}><div><b>{check.capability}</b><span>{check.status.replaceAll("_"," ")}</span></div><p>{check.reason}</p><small>Next action: {check.nextAction}</small></div>)}
+              </details>)}
+          </div>
+          <p className={styles.workflowStageWarning}>{schedulingReport.workloadAssessmentReport.limitations.join(" ")}</p>
+        </section>}
         {backendEvaluationCurrent && <section className={styles.targetCapabilitySection} aria-label="Backend resource compatibility">
           <div className={styles.targetAssessmentHead}><div><strong>Authoritative resource compatibility</strong><p>Every saved resource is assessed. Expand a resource for evidence, limitations and concrete next actions. Pending evidence is not compatibility approval.</p></div><span className={styles.targetEvidenceUnknown}>{authoritativeResults.length} evaluated</span></div>
           <div className={styles.targetCapabilityGrid}>{authoritativeResults.map(item =>
