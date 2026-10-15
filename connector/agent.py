@@ -751,6 +751,7 @@ def runtime_inventory():
         ("/apis/rbac.authorization.k8s.io/v1/rolebindings", "RoleBinding"),
         ("/apis/rbac.authorization.k8s.io/v1/clusterroles", "ClusterRole"),
         ("/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", "ClusterRoleBinding"),
+        ("/apis/apiextensions.k8s.io/v1/customresourcedefinitions", "CustomResourceDefinition"),
     ):
         key = f"discoveryStatus_{kind}"
         supplementary_discovery[key] = 3
