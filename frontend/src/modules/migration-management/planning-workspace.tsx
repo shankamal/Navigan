@@ -249,8 +249,14 @@ export function PlanningEditor({
       ? migration.planningDraft as unknown as MigrationPlanningDraft : null;
     // Explicitly persisted selections take precedence, including a saved empty list.
     if (Array.isArray(saved?.selectedNamespaces)) return [...new Set(saved.selectedNamespaces)];
-    // Legacy populated drafts predate selectedNamespaces; restore their source scope.
-    if (saved?.resources?.length) return [...new Set(assessedNamespaces)];
+    // Legacy drafts did not persist the picker selection. Recover only namespaces
+    // represented by explicitly saved workload/resource entries, not every
+    // namespace from the broader Source Assessment.
+    if (saved?.resources?.length) {
+      return [...new Set(saved.resources
+        .map(resource => resource.namespace)
+        .filter((name): name is string => typeof name === "string" && assessedNamespaces.includes(name)))];
+    }
     // A new or cleared draft must never select all namespaces automatically.
     return [];
   });
