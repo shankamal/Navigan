@@ -353,6 +353,8 @@ class Service:
             fresh=fresh_nodes,
             observed_resources=snapshot.get("discoveredApiResources"),
         )
+        from .dependency_evidence import discover_dependencies
+        dependency_evidence = discover_dependencies(source_resources, selected)
         from .resource_compatibility import evaluate_selected_resources
         resource_evaluations = evaluate_selected_resources(
             source_resources, draft.get("resources") or [],
@@ -361,6 +363,7 @@ class Service:
         )
         return {
             "resourceEvaluations": resource_evaluations,
+            "dependencyEvidence": dependency_evidence,
             "apiEvidence": {
                 "status": "PARTIAL" if api_observations and all(
                     item["status"] == "PARTIAL" for item in api_observations
