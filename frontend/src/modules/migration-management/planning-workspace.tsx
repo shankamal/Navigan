@@ -48,6 +48,7 @@ import { inspectTargetCapabilitySnapshot, targetCapabilityFromAssessment } from 
 import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import { buildRemediationHandoff } from "./remediation-handoff";
+import { buildMigrationPlanPreview } from "./migration-plan-preview";
 import styles from "./planning-workspace.module.css";
 
 export function resourceKey(
@@ -203,7 +204,7 @@ export function PlanningEditor({
     return () => { active = false; };
   }, [tab, migration.migrationId, migration.targetConfiguration?.clusterId, migration.targetConfiguration?.platform, assessment.assessmentVersion, canEdit]);
   useEffect(() => {
-    if (tab !== "compatibility" && tab !== "remediate") return;
+    if (tab !== "compatibility" && tab !== "remediate" && tab !== "plan") return;
     let active = true;
     setSchedulingReport(null);
     setSchedulingError("");
@@ -1097,7 +1098,29 @@ export function PlanningEditor({
       </section>}
       {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
         <div className={styles.workflowStageHeading}><strong>5. Migration Plan</strong><p>Plan generation follows evidence-backed source-to-target matching, remediation decisions and artifact readiness.</p></div>
-        <div className={styles.workflowStageWarning}>Plan generation is not yet available. Migration execution, deployment and rollback remain disabled until target assessment, approvals and backend orchestration are implemented.</div>
+        {backendEvaluationCurrent ? (() => {
+          const preview = buildMigrationPlanPreview(authoritativeResults);
+          return <>
+            <section className={styles.remediationKpis} aria-label="Migration planning summary">
+              <div><strong>{preview.workloads.length}</strong><span>Workloads in planning inventory</span></div>
+              <div><strong>{preview.remediationCount}</strong><span>Remediation checks</span></div>
+              <div><strong>{preview.verificationCount}</strong><span>Evidence checks</span></div>
+              <div><strong>Not ready</strong><span>Execution readiness</span></div>
+            </section>
+            <div className={styles.targetCapabilityGrid}>
+              {preview.workloads.map(item => <div key={resourceKey(item.resource)} className={styles.compatibilityDetails}>
+                <strong>{item.resource.namespace ?? "Cluster"}/{item.resource.name} · {item.resource.kind}</strong>
+                <p>Source: {item.sourceStatus.replaceAll("_", " ")} · Target: {item.targetStatus.replaceAll("_", " ")}</p>
+                <small>{item.remediationCount} required-action checks · {item.verificationCount} evidence-verification checks</small>
+              </div>)}
+            </div>
+            <section className={styles.targetCapabilitySection}>
+              <strong>Required before sequencing or execution</strong>
+              {preview.prerequisites.map(step => <p key={step}>• {step}</p>)}
+            </section>
+            <p className={styles.workflowStageWarning}>{preview.note} Deployment, rollback and execution remain disabled.</p>
+          </>;
+        })() : <div className={styles.workflowStageWarning}>A current saved Source scope and authoritative target compatibility evaluations are required for the migration plan preview. No plan is generated from stale or unsaved evidence.</div>}
       </section>}
       {tab === "scope" && (
         <div className={styles.columns}>
