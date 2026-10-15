@@ -848,6 +848,15 @@ export function PlanningEditor({
           <span>{targetEvidence.snapshot.clusterName} · Revision {targetEvidence.snapshot.sourceRevision ?? "Not reported"} · {targetEvidence.snapshot.resourceCount ?? 0} reported resources</span>
           <small>Evidence: {targetEvidence.evidenceLevel} · Observed {targetEvidence.snapshot.observedAt ? new Date(targetEvidence.snapshot.observedAt).toLocaleString() : "time not reported"} · Inventory completeness not established</small>
         </div>}
+        {targetEvidence?.snapshot.collectionGaps && <section className={styles.targetCapabilitySection} aria-label="Target connector evidence collection gaps">
+          <div className={styles.targetAssessmentHead}><div><strong>Connector collection gaps</strong><p>Missing collection data is not evidence the target cluster lacks a capability.</p></div></div>
+          <div className={styles.targetCapabilityGrid}>
+            {Object.entries(targetEvidence.snapshot.collectionGaps).map(([capability,status]) =>
+              <div key={capability}><strong>{capability.replaceAll(/([A-Z])/g," $1")}</strong><span>{status}</span>
+                <p>{targetEvidence.snapshot.collectionLimitations?.[capability] ?? "Capability verification is incomplete."}</p>
+              </div>)}
+          </div>
+        </section>}
         <div className={styles.targetEvidenceDetails}>
           <strong>Target identity &amp; evidence provenance</strong>
           <div><span>Navigan cluster ID</span><strong>{String(migration.targetConfiguration?.clusterId ?? "Not configured")}</strong></div>
