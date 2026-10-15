@@ -104,3 +104,32 @@ def test_legacy_pod_summary_flags_missing_named_service_account():
     assert result["status"] == "EVIDENCE_UNAVAILABLE"
     assert result["unresolvedCount"] == 1
     assert result["unresolvedReferences"][0]["target"]["name"] == "db-sa"
+
+
+def test_dependency_coverage_counts_only_selected_workloads():
+    inventory = [
+        {**resource("Deployment", "api", api_version="apps/v1"), "dependencyReferences": []},
+        resource("Deployment", "other", api_version="apps/v1"),
+        resource("ServiceAccount", "api-sa"),
+    ]
+    selected = {("apps/v1", "Deployment", "default", "api")}
+    result = discover_dependencies(inventory, selected)
+    assert result["workloadCoverage"] == {
+        "selectedWorkloads": 1,
+        "withReferenceEvidence": 1,
+        "withoutReferenceEvidence": 0,
+        "complete": True,
+    }
+
+
+def test_dependency_coverage_does_not_count_legacy_sa_as_full_discovery():
+    inventory = [
+        {**resource("Deployment", "api", api_version="apps/v1"), "pod": {"serviceAccountName": "api-sa"}},
+        resource("ServiceAccount", "api-sa"),
+    ]
+    result = discover_dependencies(inventory)
+    assert result["workloadCoverage"]["selectedWorkloads"] == 1
+    assert result["workloadCoverage"]["withReferenceEvidence"] == 0
+    assert result["workloadCoverage"]["withoutReferenceEvidence"] == 1
+    assert result["workloadCoverage"]["complete"] is False
+    assert result["relationshipCount"] == 1
