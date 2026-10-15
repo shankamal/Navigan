@@ -77,3 +77,30 @@ def test_explicit_empty_references_are_distinct_from_legacy_missing_evidence():
     current = [resource("Deployment", "current", [], api_version="apps/v1")]
     assert discover_dependencies(legacy)["status"] == "EVIDENCE_UNAVAILABLE"
     assert discover_dependencies(current)["status"] == "PARTIAL"
+
+
+
+def test_legacy_pod_summary_recovers_only_explicit_service_account():
+    inventory = [
+        {**resource("Deployment", "api", api_version="apps/v1"),
+         "pod": {"serviceAccountName": "api-sa",
+                 "volumes": [{"name": "config", "type": "configMap"}]}},
+        resource("ServiceAccount", "api-sa"),
+        resource("ConfigMap", "config"),
+    ]
+    result = discover_dependencies(inventory)
+    assert result["status"] == "EVIDENCE_UNAVAILABLE"
+    assert result["relationshipCount"] == 1
+    assert result["relationships"][0]["target"]["name"] == "api-sa"
+    assert "ConfigMap" not in {e["target"]["kind"] for e in result["relationships"]}
+
+
+def test_legacy_pod_summary_flags_missing_named_service_account():
+    inventory = [
+        {**resource("StatefulSet", "db", api_version="apps/v1"),
+         "pod": {"serviceAccountName": "db-sa"}},
+    ]
+    result = discover_dependencies(inventory)
+    assert result["status"] == "EVIDENCE_UNAVAILABLE"
+    assert result["unresolvedCount"] == 1
+    assert result["unresolvedReferences"][0]["target"]["name"] == "db-sa"
