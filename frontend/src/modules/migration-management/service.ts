@@ -66,7 +66,25 @@ export interface DiscoveryCoverageReport {
   note: string;
 }
 
+export interface WorkloadAssessmentReport {
+  status: "ASSESSMENT_ONLY";
+  executionReady: false;
+  workloadCount: number;
+  targetClusterId: string | null;
+  workloads: {
+    source: {apiVersion: string; kind: string; namespace: string | null; name: string};
+    plannedTreatment: string;
+    compatibilityStatus: string;
+    dependencyEvidenceStatus: string;
+    observedDependencies: {kind: string; namespace: string | null; name: string}[];
+    unresolvedDependencies: {kind: string; namespace: string | null; name: string}[];
+    checks: {capability: string; status: string; reason: string; nextAction: string}[];
+  }[];
+  limitations: string[];
+}
+
 export interface TargetCompatibilityResponse {
+  workloadAssessmentReport?: WorkloadAssessmentReport;
   discoveryCoverage?: DiscoveryCoverageReport;
   resourceEvaluations?: ResourceCompatibilityEvaluation[];
   migrationId: string;
