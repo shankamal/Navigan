@@ -85,3 +85,20 @@ def test_seamless_source_finding_is_not_remediation():
     result = evaluate_selected_resources(SOURCE, PLANNED, [finding], API, [], [], target_current=True)
     assert result[0]["sourceStatus"] == "NO_FINDINGS"
     assert result[0]["targetStatus"] == "PENDING_EVIDENCE"
+
+
+def test_workload_identity_checks_follow_observed_source_references():
+    common = {"apiVersion":"apps/v1","kind":"Deployment","namespace":"apps","name":"web"}
+    plain = {**common, "pod": {"serviceAccountName":"default","imagePullSecrets":[]}}
+    privileged = {**common, "pod": {"serviceAccountName":"custom","imagePullSecrets":[]}}
+    planned = [{**common, "treatment":"MIGRATE"}]
+    ordinary = evaluate_selected_resources([plain],planned,[],[],[],[],target_current=True)[0]
+    special = evaluate_selected_resources([privileged],planned,[],[],[],[],target_current=True)[0]
+    assert "Identity and secrets" not in {check["capability"] for check in ordinary["checks"]}
+    assert "Identity and secrets" in {check["capability"] for check in special["checks"]}
+
+
+def test_missing_source_podspec_keeps_identity_unverified():
+    result = evaluate_selected_resources([SOURCE[0]], [PLANNED[0]], [], API, [], [], target_current=True)[0]
+    assert any(c["capability"] == "Identity and secrets" and c["status"] == "PENDING_EVIDENCE"
+               for c in result["checks"])
