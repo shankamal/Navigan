@@ -135,6 +135,20 @@ class Service:
                 ("CSIDriver", "csiDriverDiscoveryStatus"),
             )
         }
+        supplementary_discovery = {
+            kind: ("AVAILABLE" if metrics.get(f"discoveryStatus_{kind}") == 1 else
+                   "PERMISSION_DENIED" if metrics.get(f"discoveryStatus_{kind}") == 2 else
+                   "UNAVAILABLE" if metrics.get(f"discoveryStatus_{kind}") == 3 else "NOT_REPORTED")
+            for kind in ("Ingress", "NetworkPolicy", "ServiceAccount", "Role",
+                         "RoleBinding", "ClusterRole", "ClusterRoleBinding")
+        }
+        supplementary_inventory = {
+            kind: [{"namespace": r.get("namespace"), "name": r["name"]}
+                   for r in resources if isinstance(r, dict)
+                   and r.get("kind") == kind and isinstance(r.get("name"), str)]
+            for kind in supplementary_discovery
+        }
+
         storage_discovery_reason = (
             "Storage API discovery was denied by Kubernetes RBAC; grant the connector read-only list access to the reported resource kinds."
             if "PERMISSION_DENIED" in storage_discovery_states.values() else
@@ -147,6 +161,8 @@ class Service:
 
         snapshot = {
             "storageDiscovery": storage_discovery_states,
+            "supplementaryDiscovery": supplementary_discovery,
+            "supplementaryInventory": supplementary_inventory,
             "storageClasses": storage_classes,
             "storageClassDetails": storage_class_details,
             "csiDrivers": csi_drivers,
