@@ -140,7 +140,7 @@ class Service:
                    "PERMISSION_DENIED" if metrics.get(f"discoveryStatus_{kind}") == 2 else
                    "UNAVAILABLE" if metrics.get(f"discoveryStatus_{kind}") == 3 else "NOT_REPORTED")
             for kind in ("Ingress", "NetworkPolicy", "ServiceAccount", "Role",
-                         "RoleBinding", "ClusterRole", "ClusterRoleBinding")
+                         "RoleBinding", "ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition")
         }
         supplementary_inventory = {
             kind: [{"namespace": r.get("namespace"), "name": r["name"]}
@@ -178,7 +178,7 @@ class Service:
                 "storage": {"status": "PARTIAL" if storage_classes or csi_drivers else "NOT_VERIFIED", "observedStorageClassCount": len(storage_classes), "observedCSIDriverCount": len(csi_drivers), "reason": "StorageClass and CSI driver names observed; provisioning, access modes, topology, snapshots and PVC migration compatibility are not verified." if storage_classes or csi_drivers else storage_discovery_reason},
                 "networking": {"status": "PARTIAL", "observedServiceCount": resource_kinds.get("Service", 0), "reason": "Service objects observed; ingress, DNS, routing and network policy compatibility unverified."} if resource_kinds.get("Service", 0) else {"status": "NOT_VERIFIED", "reason": "Target routing and service capabilities are not verified."},
                 "identity": {"status": "NOT_VERIFIED", "reason": "Workload identity permissions and secret/image access have not been evaluated."},
-                "dependencies": {"status": "NOT_VERIFIED", "reason": "Installed operators, CRDs and external dependencies have not been verified."},
+                "dependencies": {"status": "PARTIAL" if supplementary_discovery.get("CustomResourceDefinition") == "AVAILABLE" else "NOT_VERIFIED", "observedCRDCount": len(supplementary_inventory.get("CustomResourceDefinition", [])), "reason": "CRD inventory observed, but operators, admission and external dependencies remain unverified." if supplementary_discovery.get("CustomResourceDefinition") == "AVAILABLE" else "Installed operators, CRDs and external dependencies have not been verified."},
             },
             "inventoryExpiresAt": existing.get("expiresAt"),
             "provider": "AWS",
