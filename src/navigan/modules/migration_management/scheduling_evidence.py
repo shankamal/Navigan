@@ -158,3 +158,44 @@ def evaluate_node_selector(resource, nodes, *, inventory_complete=False):
         return {"status": "PARTIAL", "reason": "At least one schedulable target node matches explicit nodeSelector labels; taints, affinity, headroom, quota and admission remain unverified.",
                 "candidateNodes": len(matching)}
     return {"status": "REMEDIATION_REQUIRED", "reason": "No observed schedulable target node matches the required source nodeSelector labels; revise mapping or node labeling."}
+
+
+def evaluate_node_tolerations(resource, nodes, *, inventory_complete=False):
+    """Check explicit NoSchedule/NoExecute taints, not scheduler feasibility."""
+    pod = resource.get("pod") if isinstance(resource, dict) else None
+    if not isinstance(pod, dict) or not isinstance(pod.get("tolerations"), list):
+        return {"status": "PENDING_EVIDENCE", "reason": "Source toleration list was not captured."}
+    if not inventory_complete or not isinstance(nodes, list) or not nodes:
+        return {"status": "PENDING_EVIDENCE", "reason": "Complete target taint evidence is unavailable."}
+    if any(not isinstance(node, dict) or not isinstance(node.get("nodeTaints"), list)
+           or not isinstance(node.get("unschedulable"), bool)
+           or any(not isinstance(t, dict) or not isinstance(t.get("key"), str)
+                  or t.get("effect") not in {"NoSchedule", "NoExecute", "PreferNoSchedule"}
+                  for t in node["nodeTaints"]) for node in nodes):
+        return {"status": "PENDING_EVIDENCE", "reason": "Target taint details are incomplete."}
+    tolerations = pod["tolerations"]
+    if any(not isinstance(t, dict) for t in tolerations):
+        return {"status": "PENDING_EVIDENCE", "reason": "Source tolerations are incomplete."}
+
+    def tolerated(taint):
+        for tol in tolerations:
+            effect = tol.get("effect")
+            if effect and effect != taint["effect"]:
+                continue
+            operator = tol.get("operator", "Equal")
+            if operator == "Exists" and (not tol.get("key") or tol.get("key") == taint["key"]):
+                return True
+            if operator == "Equal" and tol.get("key") == taint["key"] and tol.get("value", "") == taint.get("value", ""):
+                return True
+        return False
+
+    candidates = [
+        node for node in nodes if not node["unschedulable"] and
+        all(tolerated(taint) for taint in node["nodeTaints"]
+            if taint["effect"] in {"NoSchedule", "NoExecute"})
+    ]
+    if candidates:
+        return {"status": "PARTIAL", "reason": "At least one schedulable target node has no untolerated hard taints; labels, headroom, affinity, quotas and admission remain unverified.",
+                "candidateNodes": len(candidates)}
+    return {"status": "REMEDIATION_REQUIRED",
+            "reason": "No observed schedulable target node satisfies the source workload's hard-taint tolerations."}
