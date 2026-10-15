@@ -78,11 +78,31 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
             add("Networking", "PENDING_EVIDENCE",
                 "Destination network routing or policy enforcement is not verified.",
                 "Verify destination ingress, service routing or policy support for this resource.")
-        if kind in {"ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "Secret",
-                    "Deployment", "StatefulSet", "DaemonSet", "Pod", "Job", "CronJob"}:
+        if kind in {"ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "Secret"}:
             add("Identity and secrets", "PENDING_EVIDENCE",
-                "Target identity, authorization or referenced secret/image access is not verified.",
-                "Verify required service account, RBAC, registry and secret access on the destination.")
+                "Target identity, RBAC rules or secret references are not verified.",
+                "Compare this identity resource with target authorization and referenced workloads.")
+        elif kind in {"Deployment", "StatefulSet", "DaemonSet", "Pod", "Job", "CronJob"}:
+            pod = resource.get("pod") if isinstance(resource, dict) else None
+            if not isinstance(pod, dict):
+                add("Identity and secrets", "PENDING_EVIDENCE",
+                    "Source PodSpec identity and image-pull references are not captured.",
+                    "Refresh source PodSpec discovery to determine service account, registry and secret requirements.")
+            else:
+                identity = pod.get("serviceAccountName")
+                pull = pod.get("imagePullSecrets")
+                has_identity = isinstance(identity, str) and bool(identity) and identity != "default"
+                has_pull = isinstance(pull, list) and bool(pull)
+                if has_identity or has_pull:
+                    add("Identity and secrets", "PENDING_EVIDENCE",
+                        "Workload references a non-default service account or image-pull secrets; target authorization is unverified.",
+                        "Verify the named service account, RBAC and registry secret references in the target namespace.")
+                elif identity is None or pull is None:
+                    add("Identity and secrets", "PENDING_EVIDENCE",
+                        "Source connector did not report complete identity and image-pull references.",
+                        "Collect service account and image-pull secret fields before assessing target access.")
+                # Only omit a specialized identity check when the sanitized
+                # source explicitly captures no non-default identity references.
         if kind in {"CustomResourceDefinition", "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"}:
             add("Controllers and dependencies", "PENDING_EVIDENCE",
                 "Target API extension or admission controller is not verified.",
