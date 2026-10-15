@@ -126,9 +126,11 @@ describe("migration planning", () => {
     open();
     expect(screen.getByRole("button", {name:"Continue to target"})).toBeDisabled();
     expect(screen.getByRole("button", {name:"Analyze selected scope"})).toBeEnabled();
+    analyzeScope();
+    fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
     expect(screen.getByRole("button", {name:"Continue to target"})).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", {name:"Analyze selected scope"}));
+    analyzeScope();
     const reviewPanel = screen.getByRole("region",{name:"Selected migration scope review"});
     expect(reviewPanel).toHaveTextContent("retailflow-api");
     expect(reviewPanel).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
@@ -139,20 +141,19 @@ describe("migration planning", () => {
     open({}, {...inventory,resources:[...inventory.resources,{
       apiVersion:"apps/v1",kind:"Deployment",namespace:"payments",name:"payments-api",
     }]} as SourceInventory);
-    fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
-    fireEvent.click(screen.getByText("Application namespaces (1 selected)"));
+    fireEvent.click(screen.getByText("Select namespaces · 1 selected"));
     fireEvent.click(screen.getByLabelText("Select namespace payments"));
     fireEvent.click(screen.getByRole("button",{name:"Analyze selected scope"}));
     const result=screen.getByRole("region",{name:"Selected migration scope review"});
     expect(result).toHaveTextContent("payments");
     expect(result).toHaveTextContent("retailflow-api");
     expect(result).toHaveTextContent("payments-api");
-    expect(screen.getByLabelText("Scope analysis workflow")).toHaveTextContent("Select namespaces");
-    expect(result).toHaveTextContent("Workload candidates");
-    expect(result).toHaveTextContent("not in draft");
-    fireEvent.click(screen.getAllByRole("button",{name:"Add to draft"}).at(-1)!);
+    expect(screen.getByRole("navigation", {name:"Migration workflow"})).toHaveTextContent("Source");
+    expect(result).toHaveTextContent("Choose workloads for migration");
+    expect(result).toHaveTextContent("Discovered");
+    fireEvent.click(screen.getAllByRole("button",{name:"Add to Draft"}).at(-1)!);
     expect(screen.getByLabelText("Selected migration scope review")).toHaveTextContent("payments-api");
-    expect(screen.getByText(/workload candidates/)).toBeInTheDocument();
+    expect(screen.getByText(/Choose workloads for migration/)).toBeInTheDocument();
     expect(result).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
   });
   it("scopes remediation findings to the chosen namespace and resets the detail selection", () => {
@@ -170,15 +171,16 @@ describe("migration planning", () => {
       </QueryClientProvider>,
     );
     
+    openTechnicalResources();
     fireEvent.click(screen.getByLabelText("Include StatefulSet retailflow/postgres"));
-    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    fireEvent.click(screen.getByRole("button", { name: "4 · Remediation" }));
     expect(screen.getAllByText("Mutable image references").length).toBeGreaterThan(0);
     expect(screen.queryByText("Other namespace warning")).toBeNull();
     expect(screen.getByLabelText("Remediation namespace")).toHaveValue("retailflow");
   });
   it("previews and acknowledges an accepted remediation recommendation", () => {
     open();
-    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    fireEvent.click(screen.getByRole("button", { name: "4 · Remediation" }));
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
     expect(screen.getByText("Guided recommendation")).toBeVisible();
     expect(screen.getByLabelText("Remediation intelligence explanation")).toHaveTextContent("Storage equivalence");
@@ -202,7 +204,7 @@ describe("migration planning", () => {
     ]} as Assessment;
     const client = new QueryClient({defaultOptions:{mutations:{retry:false}}});
     render(<QueryClientProvider client={client}><PlanningEditor migration={migration} assessment={scopedAssessment} inventory={inventory}/></QueryClientProvider>);
-    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.click(screen.getByRole("button",{name:"4 · Remediation"}));
     fireEvent.change(screen.getByLabelText("Findings view"),{target:{value:"SHARED"}});
     expect(screen.getByLabelText("Finding decision navigation")).toHaveTextContent("Finding 1 of 2");
     fireEvent.click(screen.getByRole("button",{name:"Customize recommendation"}));
@@ -225,7 +227,7 @@ describe("migration planning", () => {
   });
   it("navigates actionable remediation views without leaving the draft", () => {
     open();
-    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.click(screen.getByRole("button",{name:"4 · Remediation"}));
     expect(screen.getByRole("navigation",{name:"Remediation workspace views"})).toBeVisible();
     fireEvent.click(screen.getByRole("button",{name:/Target mappings/}));
     expect(screen.getByLabelText("Target mapping workspace")).toBeVisible();
@@ -239,7 +241,7 @@ describe("migration planning", () => {
   });
   it("opens a recorded decision directly in edit mode with clear next steps", () => {
     open();
-    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.click(screen.getByRole("button",{name:"4 · Remediation"}));
     fireEvent.change(screen.getByLabelText("Findings view"),{target:{value:"SHARED"}});
     fireEvent.click(screen.getByRole("button",{name:"Customize recommendation"}));
     fireEvent.change(screen.getByLabelText("Owner"),{target:{value:"Platform team"}});
@@ -255,9 +257,10 @@ describe("migration planning", () => {
     open({targetConfiguration:{platform:"EKS",clusterId:"CLU-demo"}} as Partial<Migration>,{
       ...inventory,resources:[...inventory.resources,{apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",requestedStorage:"8Gi",storageClassName:"navigan-ebs-gp3",accessModes:["ReadWriteOnce"]}],
     } as SourceInventory);
+    analyzeScope();
     fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
     fireEvent.click(screen.getByRole("button",{name:"Include PVC"}));
-    fireEvent.click(screen.getByRole("button",{name:"Remediate"}));
+    fireEvent.click(screen.getByRole("button",{name:"4 · Remediation"}));
     fireEvent.click(screen.getByRole("button",{name:/Target mappings/}));
     expect(screen.getByLabelText("Target mapping workspace")).toBeVisible();
     expect(screen.getByRole("button",{name:"Add mapping to draft"})).toBeEnabled();
@@ -266,7 +269,7 @@ describe("migration planning", () => {
   });
   it("captures remediation evidence without exposing verification or execution actions", () => {
     open();
-    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    fireEvent.click(screen.getByRole("button", { name: "4 · Remediation" }));
     fireEvent.change(screen.getByLabelText("Findings view"), { target: { value: "SHARED" } });
     fireEvent.click(screen.getByRole("button", {name:"Customize recommendation"}));
     fireEvent.change(screen.getByLabelText("Owner"), {
@@ -317,14 +320,15 @@ describe("migration planning", () => {
       screen.getByText(/Inventory coverage is not yet certified/),
     ).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
+    openTechnicalResources();
     fireEvent.click(screen.getByLabelText("Include Node cluster/source-node"));
     const treatment = screen.getByLabelText("Migration action source-node");
     expect(treatment.querySelector('option[value="MIGRATE"]')).toBeNull();
   });
   it("selects and clears only filtered resources", () => {
     open();
-    fireEvent.change(screen.getByLabelText("Search resources"), {
+    openTechnicalResources();
+    fireEvent.change(screen.getByLabelText("Search selected resources"), {
       target: { value: "postgres" },
     });
     fireEvent.click(
@@ -333,7 +337,8 @@ describe("migration planning", () => {
     expect(
       screen.getByLabelText("Include StatefulSet retailflow/postgres"),
     ).toBeChecked();
-    fireEvent.change(screen.getByLabelText("Search resources"), {
+    openTechnicalResources();
+    fireEvent.change(screen.getByLabelText("Search selected resources"), {
       target: { value: "" },
     });
     expect(
@@ -352,7 +357,7 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue to target" })).toBeDisabled();
     expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("Analyze selected scope");
-    fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
+    fireEvent.click(screen.getByRole("button", { name: "4 · Remediation" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
     expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
     expect(screen.getByLabelText("Technical readiness evidence")).toBeInTheDocument();
@@ -371,6 +376,7 @@ describe("migration planning", () => {
       {apiVersion:"v1",kind:"PersistentVolumeClaim",name:"data-postgres-0",namespace:"retailflow",requestedStorage:"8Gi"},
       {apiVersion:"v1",kind:"PersistentVolumeClaim",name:"other-data",namespace:"migration-demo",requestedStorage:"4Gi"},
     ]} as SourceInventory);
+    analyzeScope();
     fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
     const table = screen.getByLabelText("Storage discovery and mapping");
     expect(table).toHaveTextContent("retailflow/data-postgres-0");
@@ -384,6 +390,7 @@ describe("migration planning", () => {
         requestedStorage:"8Gi",storageClassName:"navigan-ebs-gp3",accessModes:["ReadWriteOnce"],
       }],
     } as SourceInventory);
+    analyzeScope();
     fireEvent.click(screen.getByRole("button",{name:"Data & Storage"}));
     fireEvent.click(screen.getByRole("button",{name:"Include PVC"}));
     expect(screen.getByLabelText("Storage discovery and mapping")).toHaveTextContent("data-postgres-0");
@@ -394,9 +401,11 @@ describe("migration planning", () => {
   });
   it("switches between workloads, dependencies, configuration and storage without modifying selections", () => {
     open();
+    analyzeScope();
+    fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
-    fireEvent.click(screen.getByRole("button",{name:"Analyze selected scope"}));
+    analyzeScope();
     expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Relationship evidence unavailable");
     expect(screen.getByLabelText("Application workload dependency map")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
@@ -420,6 +429,7 @@ describe("migration planning", () => {
   it("shows save failures prominently and retains edits", async () => {
     mock.update.mockRejectedValue(new Error("Dev backend unavailable"));
     open();
+    openTechnicalResources();
     fireEvent.click(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     );
