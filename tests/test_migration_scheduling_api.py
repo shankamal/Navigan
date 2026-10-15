@@ -20,6 +20,7 @@ def test_compatibility_exposes_selected_workload_scheduling_without_approving_pa
     }}
     repo.get_target_assessment.return_value = {"assessment": {
         "targetClusterId": "CLU-test",
+        "assessmentVersion": 1,
         "evidenceLevel": "CONNECTOR_RUNTIME_INVENTORY",
         "snapshot": {
             "coverageComplete": False,
@@ -54,7 +55,7 @@ def test_compatibility_does_not_invent_missing_workload_requests():
     }
     repo.get_assessment.return_value = {"assessment": {"assessmentVersion": 1, "findings": []}}
     repo.get_target_assessment.return_value = {"assessment": {
-        "targetClusterId": "CLU-test", "snapshot": {"expiresAt": expiry,
+        "targetClusterId": "CLU-test", "assessmentVersion": 1, "snapshot": {"expiresAt": expiry,
         "nodeCapacity": [{"allocatableCpu": "2", "allocatableMemory": "4Gi",
                           "unschedulable": False, "taintCount": 0}],
         "nodeCapacityCoverage": {"observedNodes": 1}},
