@@ -42,7 +42,7 @@ import { evaluateStorageCompatibility } from "./storage-validation";
 import { evaluateTargetCompatibility } from "./compatibility-intelligence";
 import { determineMigrationPath } from "./migration-path-decision";
 import { analyzeP0Compatibility } from "./source-target-p0";
-import { inspectTargetCapabilitySnapshot } from "./target-capabilities";
+import { inspectTargetCapabilitySnapshot, targetCapabilityFromAssessment } from "./target-capabilities";
 import { recommendResource, recommendDependencies, recommendFinding, analyzeRemediationFinding } from "./planning-recommendations";
 import { migrations } from "./service";
 import styles from "./planning-workspace.module.css";
@@ -407,10 +407,14 @@ export function PlanningEditor({
     draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace &&
       item.kind === "PersistentVolumeClaim" && item.name === r.name)
   ));
-  // Until a target adapter supplies verified StorageClass evidence, no class
-  // can be certified by a provider-level naming recommendation.
+  // Only current, target-bound connector evidence may enter the evaluator.
+  // An observed class is not proof of PVC access-mode compatibility.
+  const targetClusterId = String(migration.targetConfiguration?.clusterId ?? "");
+  const capabilitySnapshot = targetCapabilityFromAssessment(
+    targetEvidence, targetPlatform, targetClusterId, assessment.assessmentVersion,
+  );
   const targetCapability = inspectTargetCapabilitySnapshot(
-    null, targetPlatform, String(migration.targetConfiguration?.clusterId ?? "")
+    capabilitySnapshot, targetPlatform, targetClusterId,
   );
   const storageCompatibility = evaluateStorageCompatibility(
     scopedStorageClaims.map((pvc) => ({
@@ -423,9 +427,21 @@ export function PlanningEditor({
   );
   const targetCompatibility = evaluateTargetCompatibility({
     platform:targetPlatform,
-    targetId:String(migration.targetConfiguration?.clusterId ?? ""),
-    snapshot:null, // An authorized read-only adapter must provide this; never substitute inferred capabilities.
-    requirements:[],
+    targetId:targetClusterId,
+    snapshot:capabilitySnapshot,
+    requirements: draft.resources.filter(item => !item.dependency).flatMap(item => {
+      const resource = resources.find(r => resourceKey({...r, namespace:r.namespace ?? null}) === resourceKey(item));
+      if (!resource) return [];
+      // Sanitized inventory exposes limited pod and ingress evidence only.
+      const pod = resource.pod && typeof resource.pod === "object" ? resource.pod as Record<string, unknown> : null;
+      return [{
+        kind: item.kind,
+        name: item.name,
+        namespace: item.namespace,
+        serviceAccountName: typeof pod?.serviceAccountName === "string" ? pod.serviceAccountName : null,
+        ingressClassName: typeof resource.ingressClassName === "string" ? resource.ingressClassName : null,
+      }];
+    }),
     claims:scopedStorageClaims.map(pvc=>({namespace:pvc.namespace??null,name:pvc.name,requestedStorage:typeof pvc.requestedStorage==="string"?pvc.requestedStorage:null})),
     mappings:(draft.storageMappings??[]).length ? draft.storageMappings??[] : scopedStorageClaims.map(pvc=>suggestedMapping(pvc)),
   });
