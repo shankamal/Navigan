@@ -23,7 +23,8 @@ def discover_dependencies(resources, selected=None):
              (r.get("apiVersion"), r.get("kind"), r.get("namespace"), r.get("name")) in selected)
     ]
 
-    evidenced = sum("dependencyReferences" in r for r in scoped)
+    evidenced = sum(isinstance(r.get("dependencyReferences"), list) for r in scoped)
+    missing_coverage = len(scoped) - evidenced
     evidence_unavailable = bool(scoped) and evidenced == 0
 
     def link(resource, kind, name):
@@ -76,13 +77,19 @@ def discover_dependencies(resources, selected=None):
         "status": "EVIDENCE_UNAVAILABLE" if evidence_unavailable else "PARTIAL",
         "relationships": [render(x) for x in sorted(edges, key=sort_key)],
         "unresolvedReferences": [render(x) for x in sorted(missing, key=sort_key)],
+        "workloadCoverage": {
+            "selectedWorkloads": len(scoped),
+            "withReferenceEvidence": evidenced,
+            "withoutReferenceEvidence": missing_coverage,
+            "complete": bool(scoped) and missing_coverage == 0,
+        },
         "relationshipCount": len(edges),
         "unresolvedCount": len(missing),
         "reason": (
             "Saved source inventory has no dependencyReferences evidence. Explicit service-account identities may be partially recovered, but ConfigMap, Secret, PVC, Service and other relationships remain unverified; a future controlled source discovery is required."
             if evidence_unavailable else
             "Only explicitly reported sanitized workload dependency references are mapped. "
-            "Service selectors, ingress routing, network calls, custom controllers "
-            "and external dependencies remain unverified."
+            "Some workloads still lack reference evidence; service selectors, ingress routing, "
+            "network calls, custom controllers and external dependencies remain unverified."
         ),
     }
