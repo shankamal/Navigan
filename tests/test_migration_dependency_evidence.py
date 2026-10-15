@@ -69,7 +69,7 @@ def test_empty_or_summary_only_inventory_does_not_claim_coverage():
     assert result["relationshipCount"] == 0
     assert result["unresolvedCount"] == 0
     assert result["status"] == "EVIDENCE_UNAVAILABLE"
-    assert "refresh source discovery" in result["reason"]
+    assert "future controlled source discovery is required" in result["reason"]
 
 
 def test_explicit_empty_references_are_distinct_from_legacy_missing_evidence():
