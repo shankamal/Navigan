@@ -77,6 +77,15 @@ function open(overrides: Partial<Migration> = {}, inventoryOverride: SourceInven
   );
 }
 
+// Current planning UI reveals resource controls after explicit scope analysis.
+function analyzeScope() {
+  fireEvent.click(screen.getByRole("button", { name: "Analyze selected scope" }));
+}
+function openTechnicalResources() {
+  analyzeScope();
+  fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
+}
+
 describe("migration planning", () => {
   beforeEach(() => {
     mock.canEdit = true;
@@ -85,6 +94,7 @@ describe("migration planning", () => {
   });
   it("persists resource selection and dependency confirmation without altering assessment scope", async () => {
     open();
+    openTechnicalResources();
     fireEvent.click(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     );
@@ -114,15 +124,15 @@ describe("migration planning", () => {
   });
   it("analyzes explicit namespace scope without silently adding unverified resources", () => {
     open();
-    expect(screen.getByRole("button", {name:"Continue to remediation"})).toBeDisabled();
+    expect(screen.getByRole("button", {name:"Continue to target"})).toBeDisabled();
     expect(screen.getByRole("button", {name:"Analyze selected scope"})).toBeEnabled();
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
-    expect(screen.getByRole("button", {name:"Continue to remediation"})).toBeDisabled();
+    expect(screen.getByRole("button", {name:"Continue to target"})).toBeDisabled();
     fireEvent.click(screen.getByRole("button", {name:"Analyze selected scope"}));
     const reviewPanel = screen.getByRole("region",{name:"Selected migration scope review"});
     expect(reviewPanel).toHaveTextContent("retailflow-api");
     expect(reviewPanel).toHaveTextContent("Missing reference coverage is not confirmation of completeness");
-    expect(screen.getByRole("button",{name:"Continue to remediation"})).toBeEnabled();
+    expect(screen.getByRole("button",{name:"Continue to target"})).toBeEnabled();
     expect(screen.getByRole("region",{name:"Selected migration scope review"})).toBeVisible();
   });
   it("supports analysis of multiple explicitly selected namespaces", () => {
@@ -340,7 +350,7 @@ describe("migration planning", () => {
   it("navigates consistently between scope, remediation and review using footer actions", () => {
     open();
     expect(screen.getByRole("button", { name: "Previous step" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue to target" })).toBeDisabled();
     expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("Analyze selected scope");
     fireEvent.click(screen.getByRole("button", { name: "Remediate" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
@@ -354,7 +364,7 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to remediation" }));
     expect(screen.getByRole("button", { name: "Continue to review draft" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
-    expect(screen.getByRole("button", { name: "Continue to remediation" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue to target" })).toBeDisabled();
   });
   it("defaults storage discovery to the migration namespace and excludes other namespace PVCs", () => {
     open({}, {...inventory, resources: [...inventory.resources,
