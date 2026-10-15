@@ -760,7 +760,10 @@ export function PlanningEditor({
               ["Controllers & dependencies", "dependencies"],
             ] as const).map(([title,key]) => {
               const evidence = targetEvidence?.snapshot.capabilityEvidence?.[key];
-              return <div key={key}><strong>{title}</strong><span>{evidence?.status === "PARTIAL" ? "PARTIAL EVIDENCE" : "NOT VERIFIED"}</span><p>{evidence?.reason ?? "An authorized, capability-specific target observation is required."}</p></div>;
+              return <div key={key}><strong>{title}</strong><span>{evidence?.status === "PARTIAL" ? "PARTIAL EVIDENCE" : "NOT VERIFIED"}</span><p>{evidence?.reason ?? "An authorized, capability-specific target observation is required."}</p>
+                {key === "storage" && targetEvidence?.snapshot.storageDiscovery && <small>
+                  StorageClass discovery: {targetEvidence.snapshot.storageDiscovery.StorageClass?.replaceAll("_", " ") ?? "NOT REPORTED"} · CSI discovery: {targetEvidence.snapshot.storageDiscovery.CSIDriver?.replaceAll("_", " ") ?? "NOT REPORTED"}
+                </small>}</div>;
             })}
           </div>
         </section>
