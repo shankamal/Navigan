@@ -198,6 +198,26 @@ def test_runtime_upgrade_failure_does_not_block_access_acknowledgement(
     assert event["event"] == "connector_runtime_upgrade_failed"
 
 
+def test_argocd_stream_is_not_forwarded_over_bounded_tunnel(monkeypatch):
+    def forbidden_open(*_args, **_kwargs):
+        raise AssertionError("A long-lived stream must not consume a proxy worker")
+
+    monkeypatch.setattr(agent, "open_tool_request", forbidden_open)
+    response = agent.tool_request(
+        "argocd",
+        "/tools/clusters/CLU-test/argocd/api/v1/stream/applications",
+        "",
+        "GET",
+        {},
+        "",
+    )
+    assert response == {
+        "status": 204,
+        "headers": {"cache-control": "no-store"},
+        "body": "",
+    }
+
+
 def test_argocd_proxy_removes_public_prefix(monkeypatch):
     observed = {}
 
