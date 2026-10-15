@@ -174,8 +174,17 @@ def evaluate_node_tolerations(resource, nodes, *, inventory_complete=False):
                   for t in node["nodeTaints"]) for node in nodes):
         return {"status": "PENDING_EVIDENCE", "reason": "Target taint details are incomplete."}
     tolerations = pod["tolerations"]
-    if any(not isinstance(t, dict) for t in tolerations):
-        return {"status": "PENDING_EVIDENCE", "reason": "Source tolerations are incomplete."}
+    if any(
+        not isinstance(t, dict)
+        or t.get("operator", "Equal") not in {"Equal", "Exists"}
+        or not isinstance(t.get("key", ""), str)
+        or not isinstance(t.get("value", ""), str)
+        or t.get("effect", "") not in {"", "NoSchedule", "NoExecute", "PreferNoSchedule"}
+        or (t.get("operator", "Equal") == "Equal" and not t.get("key"))
+        or (t.get("operator", "Equal") == "Exists" and bool(t.get("value")))
+        for t in tolerations
+    ):
+        return {"status": "PENDING_EVIDENCE", "reason": "Source tolerations are incomplete or invalid."}
 
     def tolerated(taint):
         for tol in tolerations:
