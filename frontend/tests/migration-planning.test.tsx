@@ -176,7 +176,8 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: "4 · Remediation" }));
     expect(screen.getAllByText("Mutable image references").length).toBeGreaterThan(0);
     expect(screen.queryByText("Other namespace warning")).toBeNull();
-    expect(screen.getByLabelText("Remediation namespace")).toHaveValue("retailflow");
+    expect(screen.getByLabelText("Findings view")).toHaveValue("SCOPE");
+    expect(screen.getByLabelText("Remediation namespace")).toBeDisabled();
   });
   it("previews and acknowledges an accepted remediation recommendation", () => {
     open();
@@ -321,7 +322,8 @@ describe("migration planning", () => {
       screen.getByText(/Inventory coverage is not yet certified/),
     ).toBeVisible();
 
-    openTechnicalResources();
+    analyzeScope();
+    fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     fireEvent.click(screen.getByLabelText("Include Node cluster/source-node"));
     const treatment = screen.getByLabelText("Migration action source-node");
     expect(treatment.querySelector('option[value="MIGRATE"]')).toBeNull();
@@ -360,16 +362,17 @@ describe("migration planning", () => {
     expect(screen.getByLabelText("Required scope checks")).toHaveTextContent("Analyze selected scope");
     fireEvent.click(screen.getByRole("button", { name: "4 · Remediation" }));
     expect(screen.getByLabelText("Remediation overview")).toHaveTextContent("Resources in scope");
-    expect(screen.getByLabelText("Planning readiness issues for remediation")).toHaveTextContent("COVERAGE UNKNOWN");
-    expect(screen.getByLabelText("Technical readiness evidence")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Remediation workspace views" })).toBeVisible();
     expect(screen.getByLabelText("Finding category")).toHaveValue("ALL");
     expect(screen.getByRole("combobox", { name: "Finding category" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Back to scope" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Continue to review draft" }));
-    expect(screen.getByRole("button", { name: "Back to remediation" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Back to remediation" }));
-    expect(screen.getByRole("button", { name: "Continue to review draft" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Back to scope" }));
+    expect(screen.getByRole("button", { name: "Continue to migration plan" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to migration plan" }));
+    expect(screen.getByRole("button", { name: "5 · Migration Plan" })).toHaveAttribute("aria-current", "step");
+    fireEvent.click(screen.getByRole("button", { name: "Continue to review" }));
+    expect(screen.getByRole("button", { name: "6 · Review & Export" })).toHaveAttribute("aria-current", "step");
+    fireEvent.click(screen.getByRole("button", { name: "Previous step" }));
+    expect(screen.getByRole("button", { name: "5 · Migration Plan" })).toHaveAttribute("aria-current", "step");
+    fireEvent.click(screen.getByRole("button", { name: "1 · Source" }));
     expect(screen.getByRole("button", { name: "Continue to target" })).toBeDisabled();
   });
   it("defaults storage discovery to the migration namespace and excludes other namespace PVCs", () => {
@@ -407,8 +410,8 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
     analyzeScope();
-    expect(screen.getByLabelText("Application workload dependency map")).toHaveTextContent("Relationship evidence unavailable");
-    expect(screen.getByLabelText("Application workload dependency map")).toBeInTheDocument();
+    expect(screen.getByText(/Source reference evidence/i)).toBeVisible();
+    expect(screen.getByText(/No references in this snapshot/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
     expect(screen.getByLabelText("Include Deployment retailflow/retailflow-api")).toBeInTheDocument();
     expect(screen.queryByLabelText("Include StatefulSet retailflow/postgres")).toBeInTheDocument();
