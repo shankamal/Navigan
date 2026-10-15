@@ -295,7 +295,14 @@ class Service:
             source_resources, selected, snapshot.get("discoveredApiVersions"),
             fresh=fresh_nodes,
         )
+        from .resource_compatibility import evaluate_selected_resources
+        resource_evaluations = evaluate_selected_resources(
+            source_resources, draft.get("resources") or [],
+            findings, api_observations, storage_observations, observations,
+            target_current=fresh_nodes,
+        )
         return {
+            "resourceEvaluations": resource_evaluations,
             "apiEvidence": {
                 "status": "PARTIAL" if api_observations and all(
                     item["status"] == "PARTIAL" for item in api_observations
