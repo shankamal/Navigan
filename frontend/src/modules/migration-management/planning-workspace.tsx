@@ -483,8 +483,6 @@ export function PlanningEditor({
   );
   const authoritativeResults = backendEvaluationCurrent
     ? schedulingReport?.resourceEvaluations ?? [] : [];
-  const authoritativePending = authoritativeResults.flatMap(item => item.checks)
-    .filter(check => check.status === "PENDING_EVIDENCE" || check.status === "PARTIAL").length;
   const authoritativeUnverified = authoritativeResults.flatMap(item => item.checks)
     .filter(check => check.status === "PENDING_EVIDENCE").length;
   const authoritativePartial = authoritativeResults.flatMap(item => item.checks)
