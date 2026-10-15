@@ -67,15 +67,25 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
             add("Workload scheduling", observed.get("status") if observed else "PENDING_EVIDENCE",
                 observed.get("reason") if observed else "Scheduling evidence is missing for the selected workload.",
                 "Verify source resource requests and target node headroom, selectors, taints, quotas and affinity.")
-        for capability, reason, action in (
-            ("Networking", "Routing, DNS, service connectivity and network-policy compatibility are not verified.",
-             "Compare source network dependencies against destination routing, policies and ingress controllers."),
-            ("Identity and secrets", "Target service account authorization, secret references and image-pull access are not verified.",
-             "Verify target workload identity, RBAC, required secrets and registry access."),
-            ("Controllers and dependencies", "Required CRDs, admission webhooks, operators and external dependencies are not verified.",
-             "Inventory dependencies and validate required controllers and external services on the destination."),
-        ):
-            add(capability, "PENDING_EVIDENCE", reason, action)
+        # Apply evidence checks only where the Kubernetes kind requires them.
+        kind = key[1]
+        if kind in {"Service", "Ingress", "NetworkPolicy"}:
+            add("Networking", "PENDING_EVIDENCE",
+                "Destination network routing or policy enforcement is not verified.",
+                "Verify destination ingress, service routing or policy support for this resource.")
+        if kind in {"ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "Secret",
+                    "Deployment", "StatefulSet", "DaemonSet", "Pod", "Job", "CronJob"}:
+            add("Identity and secrets", "PENDING_EVIDENCE",
+                "Target identity, authorization or referenced secret/image access is not verified.",
+                "Verify required service account, RBAC, registry and secret access on the destination.")
+        if kind in {"CustomResourceDefinition", "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"}:
+            add("Controllers and dependencies", "PENDING_EVIDENCE",
+                "Target API extension or admission controller is not verified.",
+                "Discover the matching target CRD or webhook and check its admission behavior.")
+        if kind == "StatefulSet":
+            add("Stateful storage dependencies", "PENDING_EVIDENCE",
+                "Volume templates and persistence dependencies remain unverified.",
+                "Verify target PVC mappings, CSI provisioning and data migration strategy.")
         if not target_current:
             add("Evidence freshness", "PENDING_EVIDENCE",
                 "Target evidence is missing, expired or not bound to a current inventory.",
@@ -85,6 +95,15 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                   "REMEDIATION_REQUIRED" if "REMEDIATION_REQUIRED" in statuses else
                   "PENDING_EVIDENCE" if "PENDING_EVIDENCE" in statuses or "PARTIAL" in statuses else
                   "COMPATIBLE")
+        source_checks = [c for c in results if c["capability"] in {"Source assessment", "Source inventory", "Resource treatment"}]
+        target_checks = [c for c in results if c not in source_checks]
+        source_status = ("INCOMPATIBLE" if any(c["status"] == "INCOMPATIBLE" for c in source_checks) else
+                         "REMEDIATION_REQUIRED" if any(c["status"] == "REMEDIATION_REQUIRED" for c in source_checks) else
+                         "PENDING_EVIDENCE" if source_checks else "NO_FINDINGS")
+        target_status = ("INCOMPATIBLE" if any(c["status"] == "INCOMPATIBLE" for c in target_checks) else
+                         "PENDING_EVIDENCE" if any(c["status"] in {"PENDING_EVIDENCE", "PARTIAL"} for c in target_checks) else
+                         "COMPATIBLE" if target_checks and all(c["status"] == "COMPATIBLE" for c in target_checks) else
+                         "NOT_EVALUATED")
         checks.append({"resource": dict(zip(("apiVersion", "kind", "namespace", "name"), key)),
-                       "status": status, "checks": results})
+                       "status": status, "sourceStatus": source_status, "targetStatus": target_status, "checks": results})
     return checks
