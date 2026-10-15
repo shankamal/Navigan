@@ -430,6 +430,18 @@ def test_cluster_scoped_connector_gitops_upgrade_only_commits_target_files(monke
         "default_branch": "main",
     })
     app = MagicMock()
+    existing_values = (
+        "image:\n"
+        "  repository: 905418045935.dkr.ecr.ap-south-1.amazonaws.com/approved-connector\n"
+        "  tag: \"\"\n"
+        "  digest: sha256:" + "a" * 64 + "\n"
+        "  pullPolicy: IfNotPresent\n"
+        "navigan:\n"
+        "  connectorId: KCC-0123456789abcdef0123456789abcdef\n"
+        "  syncIntervalSeconds: 79\n"
+        "  toolsTunnelUrl: wss://custom.example.test/tunnel\n"
+    )
+    app.read_repository_file.return_value = existing_values
     app.commit_files.return_value = {"revision": "commit-1", "branch": "main"}
     response = repo.upgrade_connector_gitops(
         "CLU-target",
@@ -445,6 +457,9 @@ def test_cluster_scoped_connector_gitops_upgrade_only_commits_target_files(monke
     }
     assert 'digest: sha256:' + "b" * 64 in args[3]["values/connector.yaml"]
     assert "\\n" not in args[3]["values/connector.yaml"]
+    assert "syncIntervalSeconds: 79" in args[3]["values/connector.yaml"]
+    assert "toolsTunnelUrl: wss://custom.example.test/tunnel" in args[3]["values/connector.yaml"]
+    assert app.read_repository_file.call_args.args[:3] == (101, "example-org", "target-cluster-system")
     assert "customresourcedefinitions" in args[3]["charts/navigan-cluster-connector/templates/rbac.yaml"]
     assert kwargs["branch"] == "main"
 
