@@ -199,7 +199,14 @@ def desired_access(db, connector, now):
             for row in rows
         ],
     }
-    desired_image = os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
+    # The per-cluster GitOps repository owns connector image rollout.
+    # Legacy global desired-image polling must not undo a targeted upgrade.
+    gitops = db.execute(
+        "SELECT 1 FROM cluster_management.cluster_system_repositories "
+        "WHERE cluster_id=%s AND status='ACTIVE' LIMIT 1",
+        [connector["cluster_id"]],
+    ).fetchone()
+    desired_image = "" if gitops else os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
     if desired_image:
         result["connector"] = {
             "desiredImage": desired_image,
