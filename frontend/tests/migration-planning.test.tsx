@@ -215,7 +215,7 @@ describe("migration planning", () => {
   });
   it("supports selecting findings and accepting eligible recommendations into the draft", () => {
     open();
-    fireEvent.click(screen.getByRole("button", {name:"Remediate"}));
+    fireEvent.click(screen.getByRole("button", {name:"4 · Remediation"}));
     fireEvent.change(screen.getByLabelText("Findings view"), {target:{value:"SHARED"}});
     expect(screen.queryByLabelText("Remediation bulk actions")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", {name:"Select finding 0"}));
@@ -301,6 +301,7 @@ describe("migration planning", () => {
       },
     });
     expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    openTechnicalResources();
     expect(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     ).toBeDisabled();
@@ -446,6 +447,7 @@ describe("migration planning", () => {
     open();
     expect(screen.getByText(/does not have the migration.edit permission/)).toBeVisible();
     expect(screen.getByRole("radio", {name:/Full cluster/})).toBeDisabled();
+    openTechnicalResources();
     expect(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     ).toBeDisabled();
