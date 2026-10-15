@@ -40,6 +40,8 @@ def test_retired_resource_requires_explicit_decommission_decision():
     planned = [{**SOURCE[0], "treatment": "RETIRE"}]
     result = evaluate_selected_resources(SOURCE, planned, [], [], [], [], target_current=True)
     assert result[0]["status"] == "REMEDIATION_REQUIRED"
+    assert result[0]["sourceStatus"] == "REMEDIATION_REQUIRED"
+    assert result[0]["targetStatus"] == "NOT_EVALUATED"
 
 
 def test_resource_specific_capabilities_not_blanket_unknowns():
