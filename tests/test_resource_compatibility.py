@@ -67,3 +67,13 @@ def test_source_remediation_distinct_from_pending_target():
     assert result[0]["sourceStatus"] == "REMEDIATION_REQUIRED"
     assert result[0]["targetStatus"] == "PENDING_EVIDENCE"
     assert result[0]["status"] == "PENDING_EVIDENCE"
+
+
+def test_network_checks_only_apply_to_network_resources():
+    source = [{"apiVersion":"v1","kind":"Service","namespace":"apps","name":"svc"},
+              {"apiVersion":"v1","kind":"ConfigMap","namespace":"apps","name":"cfg"}]
+    result = evaluate_selected_resources(source,[{**x,"treatment":"MIGRATE"} for x in source],
+                                         [],[],[],[],target_current=True)
+    assert "Networking" in {c["capability"] for c in result[0]["checks"]}
+    assert "Networking" not in {c["capability"] for c in result[1]["checks"]}
+    assert result[0]["targetStatus"] == "PENDING_EVIDENCE"
