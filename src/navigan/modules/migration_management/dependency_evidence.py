@@ -23,6 +23,9 @@ def discover_dependencies(resources, selected=None):
              (r.get("apiVersion"), r.get("kind"), r.get("namespace"), r.get("name")) in selected)
     ]
 
+    evidenced = sum("dependencyReferences" in r for r in scoped)
+    evidence_unavailable = bool(scoped) and evidenced == 0
+
     def link(resource, kind, name):
         if not isinstance(name, str) or not name:
             return
@@ -59,12 +62,14 @@ def discover_dependencies(resources, selected=None):
 
     sort_key = lambda pair: tuple(str(x or "") for identity in pair for x in identity)
     return {
-        "status": "PARTIAL",
+        "status": "EVIDENCE_UNAVAILABLE" if evidence_unavailable else "PARTIAL",
         "relationships": [render(x) for x in sorted(edges, key=sort_key)],
         "unresolvedReferences": [render(x) for x in sorted(missing, key=sort_key)],
         "relationshipCount": len(edges),
         "unresolvedCount": len(missing),
         "reason": (
+            "Selected workloads have no dependencyReferences evidence in the saved source inventory; refresh source discovery before assessing dependencies."
+            if evidence_unavailable else
             "Only explicitly reported sanitized workload dependency references are mapped. "
             "Service selectors, ingress routing, network calls, custom controllers "
             "and external dependencies remain unverified."
