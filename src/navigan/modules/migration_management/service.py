@@ -111,6 +111,17 @@ class Service:
             ) if metrics.get(key) == 1
         ]
 
+        # Kind-specific evidence comes only from successful read-only discovery.
+        discovered_api_resources = [
+            {"apiVersion": version, "kind": kind}
+            for group, version, kinds in (
+                ("coreV1", "v1", ("Pod", "Service", "PersistentVolumeClaim", "ConfigMap", "Secret", "ServiceAccount")),
+                ("appsV1", "apps/v1", ("Deployment", "StatefulSet", "DaemonSet")),
+            )
+            for kind in kinds
+            if metrics.get(f"apiKind_{group}_{kind}") == 1
+        ]
+
         storage_classes = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "StorageClass" and isinstance(item.get("name"), str)})
         csi_drivers = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "CSIDriver" and isinstance(item.get("name"), str)})
         storage_class_details = [{"name": item["name"], "provisioner": item.get("provisioner"), "volumeBindingMode": item.get("volumeBindingMode"), "reclaimPolicy": item.get("reclaimPolicy")} for item in resources if isinstance(item, dict) and item.get("kind") == "StorageClass" and isinstance(item.get("name"), str)]
@@ -140,6 +151,7 @@ class Service:
             "storageClassDetails": storage_class_details,
             "csiDrivers": csi_drivers,
             "discoveredApiVersions": discovered_api_versions,
+            "discoveredApiResources": discovered_api_resources,
             "nodeCapacity": node_capacity,
             "nodeCapacityCoverage": {"observedNodes": len(nodes), "nodesWithCapacity": len(node_capacity)},
             "resourceKinds": dict(sorted(resource_kinds.items())),
