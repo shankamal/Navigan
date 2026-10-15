@@ -68,5 +68,12 @@ def test_empty_or_summary_only_inventory_does_not_claim_coverage():
     result = discover_dependencies(summary)
     assert result["relationshipCount"] == 0
     assert result["unresolvedCount"] == 0
-    assert result["status"] == "PARTIAL"
-    assert "unverified" in result["reason"]
+    assert result["status"] == "EVIDENCE_UNAVAILABLE"
+    assert "refresh source discovery" in result["reason"]
+
+
+def test_explicit_empty_references_are_distinct_from_legacy_missing_evidence():
+    legacy = [resource("Deployment", "legacy", api_version="apps/v1")]
+    current = [resource("Deployment", "current", [], api_version="apps/v1")]
+    assert discover_dependencies(legacy)["status"] == "EVIDENCE_UNAVAILABLE"
+    assert discover_dependencies(current)["status"] == "PARTIAL"
