@@ -30,6 +30,7 @@ export interface MigrationInventoryItem {
   dependencyReferences?: unknown;
   backendServiceReferences?: unknown;
   volumeClaimTemplateNames?: unknown;
+  pod?: unknown;
 }
 const workloadKinds = new Set(["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod", "TaskDefinition", "EcsService", "DeploymentConfig"]);
 const storageKinds = new Set(["PersistentVolumeClaim", "PersistentVolume", "StorageClass", "VolumeSnapshot", "EfsVolume"]);
@@ -77,6 +78,27 @@ export function graphFromSanitizedInventory(items: MigrationInventoryItem[], pla
         });
       }
     }
+  }
+  // Legacy source inventory predates dependencyReferences, but may retain
+  // an explicit named ServiceAccount in its sanitized Pod summary.
+  // Recover that exact identity only; do not infer aliases as ConfigMap/PVC
+  // names and do not claim full reference coverage.
+  for (const item of items) {
+    if (!item.name || !workloadKinds.has(item.kind)) continue;
+    const pod = item.pod;
+    if (!pod || typeof pod !== "object" || Array.isArray(pod)) continue;
+    const serviceAccountName = (pod as {serviceAccountName?: unknown}).serviceAccountName;
+    if (typeof serviceAccountName !== "string" || !serviceAccountName || serviceAccountName === "default") continue;
+    const from = migrationNodeId(item.kind, item.namespace, item.name);
+    const to = migrationNodeId("ServiceAccount", item.namespace, serviceAccountName);
+    const edgeKey = JSON.stringify([from, to]);
+    if (edgeKeys.has(edgeKey)) continue;
+    edgeKeys.add(edgeKey);
+    edges.push({
+      from, to, kind: "ServiceAccount", name: serviceAccountName,
+      evidence: "EXPLICIT_REFERENCE",
+      resolution: index.has(to) ? "IN_INVENTORY" : "NOT_IN_INVENTORY",
+    });
   }
   // StatefulSet claim template names plus an existing concrete PVC name provide
   // derived ownership evidence; do not invent claims for absent replicas.
