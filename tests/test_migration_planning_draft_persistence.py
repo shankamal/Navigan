@@ -20,6 +20,7 @@ class StubAccess:
 
 class StubRepo:
     def __init__(self):
+        self.principal = type("Principal", (), {"user_id": "scope-tester"})()
         self.current = {
             "migration_id": "MIG-test", "customer_id": "CUS-test",
             "created_by": "creator", "status": "APPROVED", "version": 8,
