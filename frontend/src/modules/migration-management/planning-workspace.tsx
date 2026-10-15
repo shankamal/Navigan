@@ -203,7 +203,7 @@ export function PlanningEditor({
     return () => { active = false; };
   }, [tab, migration.migrationId, migration.targetConfiguration?.clusterId, migration.targetConfiguration?.platform, assessment.assessmentVersion, canEdit]);
   useEffect(() => {
-    if (tab !== "compatibility") return;
+    if (tab !== "compatibility" && tab !== "remediate") return;
     let active = true;
     setSchedulingReport(null);
     setSchedulingError("");
