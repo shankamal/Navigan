@@ -37,7 +37,8 @@ import type {
 import { PlatformIcon } from "./platform-icon";
 
 import { graphFromSanitizedInventory } from "./migration-graph";
-import { restorePlanningNamespaces, preparePlanningDraft, hasSelectedWorkload } from "./planning-draft-scope";
+import { restorePlanningNamespaces, preparePlanningDraft } from "./planning-draft-scope";
+import { saveAndContinueToTarget, confirmAndClearDraft } from "./planning-draft-actions";
 import { evaluateScopeReadiness } from "./migration-readiness";
 import { evaluateStorageCompatibility } from "./storage-validation";
 import { evaluateTargetCompatibility } from "./compatibility-intelligence";
@@ -647,32 +648,35 @@ export function PlanningEditor({
 
   async function continueToTarget() {
     if (!canEdit || stale || save.isPending) return;
-    if (!scopeNamespaces.length || !hasSelectedWorkload(draft, scopeNamespaces)) {
-      setMessage("Select a namespace and include at least one workload before continuing.");
-      return;
-    }
     try {
-      // Await a confirmed server save; never advance on failure.
-      await save.mutateAsync(preparePlanningDraft(draft, scopeNamespaces));
-      navigateToStep("target");
+      const advanced = await saveAndContinueToTarget(
+        draft, scopeNamespaces,
+        next => save.mutateAsync(next),
+        () => navigateToStep("target"),
+      );
+      if (!advanced) setMessage("Select a namespace and include at least one workload before continuing.");
     } catch {
-      // The mutation's onError displays the API error; keep the user on Source.
+      // onError displays the API error, and navigation remains on Source.
     }
   }
   async function clearPlanningDraft() {
     if (!canEdit || stale || save.isPending) return;
-    if (!window.confirm("Clear the saved planning draft and selected namespaces? Source inventory, assessment and target configuration will be preserved.")) return;
-    const cleared = {...emptyDraft(assessment), selectedNamespaces: []};
     try {
-      await save.mutateAsync(cleared);
+      const cleared = await confirmAndClearDraft(
+        draft,
+        () => window.confirm("Clear the saved planning draft and selected namespaces? Source inventory, assessment and target configuration will be preserved."),
+        next => save.mutateAsync(next),
+      );
+      if (!cleared) return;
       setDraft(cleared);
       setScopeNamespaces([]);
+      setDirty(false);
       setScopeReviewOpen(false);
       setScopeAnalysisNamespace(null);
       setScopeAnalysisSignature(null);
       setMessage("Planning draft cleared. Source assessment and inventory were preserved.");
     } catch {
-      // Preserve both local selections and current persisted draft if saving fails.
+      // Failed save leaves existing selection and draft intact.
     }
   }
   const migrationSummary = {
