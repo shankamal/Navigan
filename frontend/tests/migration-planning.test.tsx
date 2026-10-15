@@ -319,7 +319,7 @@ describe("migration planning", () => {
     open();
     fireEvent.click(screen.getByRole("radio", { name: /Full cluster/ }));
     expect(
-      screen.getByText(/Inventory coverage is not yet certified/),
+      screen.getByText(/Full-estate coverage must be confirmed before execution planning/),
     ).toBeVisible();
 
     analyzeScope();
