@@ -158,26 +158,39 @@ class Repository:
         image_repo, _ = baseline.rsplit("@", 1)
         if ".dkr.ecr." not in image_repo or ".amazonaws.com/" not in image_repo:
             raise ApiError(409, "CONNECTOR_REGISTRY_INVALID", "Connector must come from the approved ECR repository.")
+        import re
+
         digest = body["imageDigest"]
-        values = "\n".join([
-            "image:",
-            f"  repository: {image_repo}",
-            '  tag: ""',
-            f"  digest: {digest}",
-            "  pullPolicy: IfNotPresent",
-            "",
-            "navigan:",
-            f"  apiBaseUrl: {os.environ.get('CONNECTOR_API_BASE_URL', '').rstrip('/')}",
-            f"  connectorId: {connector['connector_id']}",
-            "  existingSecret: navigan-cluster-connector",
-            "  syncIntervalSeconds: 30",
-            f"  toolsTunnelUrl: {os.environ.get('PLATFORM_TOOLS_BASE_URL', '').rstrip('/').replace('https://', 'wss://', 1) + '/tunnel' if os.environ.get('PLATFORM_TOOLS_BASE_URL') else ''}",
-            "",
-        ])
+        app = github_app or GitHubApp()
+        values = app.read_repository_file(
+            repository["installation_id"],
+            repository["organization_login"],
+            repository["repository_name"],
+            "values/connector.yaml",
+            branch=repository["default_branch"],
+        )
+        # Fail closed if this file does not belong to the selected connector or
+        # does not use the same approved ECR repository.
+        if not re.search(
+            r"(?m)^  connectorId:\\s*" + re.escape(connector["connector_id"]) + r"\\s*$",
+            values,
+        ):
+            raise ApiError(409, "GITOPS_CONNECTOR_MISMATCH", "Cluster connector values do not match the registered connector.")
+        if not re.search(
+            r"(?m)^  repository:\\s*['\\\"]?" + re.escape(image_repo) + r"['\\\"]?\\s*$",
+            values,
+        ):
+            raise ApiError(409, "GITOPS_IMAGE_REPOSITORY_MISMATCH", "Cluster connector image repository is not approved.")
+        values, updated = re.subn(
+            r"(?m)^(  digest:\\s*)[^\\r\\n]*$",
+            lambda match: match.group(1) + digest,
+            values,
+        )
+        if updated != 1:
+            raise ApiError(409, "GITOPS_VALUES_INVALID", "Expected exactly one image digest in connector values.")
         rbac = package_files(__package__).joinpath(
             "system_repo_template/charts/navigan-cluster-connector/templates/rbac.yaml"
         ).read_text(encoding="utf-8")
-        app = github_app or GitHubApp()
         commit = app.commit_files(
             repository["installation_id"],
             repository["organization_login"],
