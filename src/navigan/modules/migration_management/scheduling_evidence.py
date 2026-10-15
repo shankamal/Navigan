@@ -131,3 +131,30 @@ def scheduling_constraints(resource):
     if pod.get("topologySpreadConstraints"):
         missing.append("Topology spread constraints require target failure-domain evidence.")
     return missing
+
+
+def evaluate_node_selector(resource, nodes, *, inventory_complete=False):
+    """Evaluate only exact nodeSelector labels, never affinity or free headroom."""
+    pod = resource.get("pod") if isinstance(resource, dict) else None
+    if not isinstance(pod, dict):
+        return {"status": "PENDING_EVIDENCE", "reason": "Source PodSpec is unavailable."}
+    selectors = pod.get("nodeSelector")
+    if selectors is None:
+        return {"status": "PENDING_EVIDENCE", "reason": "Source nodeSelector field was not captured."}
+    if not isinstance(selectors, dict) or any(
+        not isinstance(k, str) or not isinstance(v, str) for k, v in selectors.items()
+    ):
+        return {"status": "PENDING_EVIDENCE", "reason": "Source node selectors are invalid or incomplete."}
+    if not selectors:
+        return {"status": "PARTIAL", "reason": "Source PodSpec explicitly has no nodeSelector; other scheduling conditions remain unverified."}
+    if not inventory_complete or not isinstance(nodes, list) or not nodes:
+        return {"status": "PENDING_EVIDENCE", "reason": "Complete target node label evidence is unavailable."}
+    if any(not isinstance(node, dict) or not isinstance(node.get("nodeLabels"), dict)
+           or not isinstance(node.get("unschedulable"), bool) for node in nodes):
+        return {"status": "PENDING_EVIDENCE", "reason": "Target node labels or cordon status are incomplete."}
+    matching = [node for node in nodes if not node["unschedulable"]
+                and all(node["nodeLabels"].get(k) == v for k, v in selectors.items())]
+    if matching:
+        return {"status": "PARTIAL", "reason": "At least one schedulable target node matches explicit nodeSelector labels; taints, affinity, headroom, quota and admission remain unverified.",
+                "candidateNodes": len(matching)}
+    return {"status": "REMEDIATION_REQUIRED", "reason": "No observed schedulable target node matches the required source nodeSelector labels; revise mapping or node labeling."}
