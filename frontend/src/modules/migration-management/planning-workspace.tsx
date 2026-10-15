@@ -475,6 +475,16 @@ export function PlanningEditor({
   );
   const p0Checks = p0Compatibility.flatMap(item => item.checks);
   const p0Unverified = p0Checks.filter(item => item.status === "NOT_VERIFIED").length;
+  const backendEvaluationCurrent = Boolean(
+    !dirty && savedScopeCurrent && savedTargetMatches &&
+    schedulingReport?.assessmentVersion === assessment.assessmentVersion &&
+    schedulingReport?.targetClusterId === targetClusterId &&
+    schedulingReport.resourceEvaluations
+  );
+  const authoritativeResults = backendEvaluationCurrent
+    ? schedulingReport?.resourceEvaluations ?? [] : [];
+  const authoritativePending = authoritativeResults.flatMap(item => item.checks)
+    .filter(check => check.status === "PENDING_EVIDENCE" || check.status === "PARTIAL").length;
   const readiness = evaluateScopeReadiness(
     graph, draft.resources, draft.dataStrategy,
     resources.some((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || draft.resources.some((item) => item.namespace === r.namespace))),
@@ -789,10 +799,10 @@ export function PlanningEditor({
         <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
         <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but target evidence is unavailable, expired, or does not match the selected cluster and assessment. Refresh evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
         <div className={styles.compatibilitySnapshot}>
-          <div><span>Selected resources</span><strong>{p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
-          <div><span>Compatibility checks</span><strong>{p0Checks.length}</strong><small>{p0Unverified} not verified</small></div>
+          <div><span>Selected resources</span><strong>{backendEvaluationCurrent ? authoritativeResults.length : p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
+          <div><span>Compatibility checks</span><strong>{backendEvaluationCurrent ? authoritativeResults.reduce((count, item) => count + item.checks.length, 0) : p0Checks.length}</strong><small>{backendEvaluationCurrent ? authoritativePending : p0Unverified} pending / partial · {backendEvaluationCurrent ? "Backend evaluation" : "P0 fallback"}</small></div>
           <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence ? "Expired / mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
-          <div><span>Migration path</span><strong>{migrationPathDecision.path.replaceAll("_", " ")}</strong><small>{migrationPathDecision.reason}</small></div>
+          <div><span>Migration path</span><strong>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING EVIDENCE"}</strong><small>{schedulingReport?.decision?.reason ?? "Backend compatibility decision unavailable; no approval can be inferred."}</small></div>
         </div>
         <section className={styles.targetCapabilitySection} aria-label="Workload scheduling evidence">
           <div className={styles.targetAssessmentHead}>
@@ -814,6 +824,18 @@ export function PlanningEditor({
               : <p className={styles.caption}>No verified workload-specific scheduling evaluation is available yet. Source resource requests may be missing from the inventory.</p>}
           <p className={styles.caption}>Scheduling observations never override source blockers, missing target capabilities, or the backend migration approval gate.</p>
         </section>
+        {backendEvaluationCurrent && <section className={styles.targetCapabilitySection} aria-label="Backend resource compatibility">
+          <div className={styles.targetAssessmentHead}><div><strong>Authoritative resource compatibility</strong><p>Every saved resource is assessed. Expand a resource for evidence, limitations and concrete next actions. Pending evidence is not compatibility approval.</p></div><span className={styles.targetEvidenceUnknown}>{authoritativeResults.length} evaluated</span></div>
+          <div className={styles.targetCapabilityGrid}>{authoritativeResults.map(item =>
+            <details key={JSON.stringify(item.resource)} className={styles.compatibilityDetails}>
+              <summary>{item.resource.namespace ?? "Cluster"}/{item.resource.name} · {item.resource.kind} · {item.status.replaceAll("_", " ")}</summary>
+              {item.checks.map((check, index) => <div className={styles.compatibilityCheck} key={index}>
+                <div><b>{check.capability}</b><span>{check.status.replaceAll("_", " ")}</span></div>
+                <p>{check.reason}</p><small>Next action: {check.nextAction}</small>
+              </div>)}
+            </details>)}</div>
+        </section>}
+        {!backendEvaluationCurrent && <p className={styles.workflowStageWarning}>Authoritative backend evaluation is unavailable or not current for this saved scope. The following P0 checklist is diagnostic only; it is not a migration readiness decision.</p>}
         <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
           <thead><tr><th>Selected source resource</th><th>Kind</th><th>Target</th><th>Overall result</th><th>P0 checks / next action</th></tr></thead>
           <tbody>{p0Compatibility.map(result => {
