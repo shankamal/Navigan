@@ -446,6 +446,14 @@ describe("migration planning", () => {
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     ).toBeChecked();
   });
+  it("marks report evidence incomplete when dependencies and target verification are missing", () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "6 · Review & Export" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Report evidence: INCOMPLETE");
+    expect(screen.getByRole("status")).toHaveTextContent("zero edges does not mean no dependencies");
+    expect(screen.getByRole("status")).toHaveTextContent("Target capability inventory is unavailable");
+    expect(screen.getByRole("status")).toHaveTextContent("Authoritative source-to-target resource checks are not current");
+  });
   it("keeps users without edit permission read-only", () => {
     mock.canEdit = false;
     open();
