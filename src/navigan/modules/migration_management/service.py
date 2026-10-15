@@ -290,7 +290,19 @@ class Service:
             class_details=snapshot.get("storageClassDetails"),
             csi_drivers=snapshot.get("csiDrivers"),
         )
+        from .api_evidence import evaluate_api_versions
+        api_observations = evaluate_api_versions(
+            source_resources, selected, snapshot.get("discoveredApiVersions"),
+            fresh=fresh_nodes,
+        )
         return {
+            "apiEvidence": {
+                "status": "PARTIAL" if api_observations and all(
+                    item["status"] == "PARTIAL" for item in api_observations
+                ) else "PENDING_EVIDENCE",
+                "resources": api_observations,
+                "reason": "API group/version discovery does not verify resource kinds, CRDs, admission or deprecated fields.",
+            },
             "storageEvidence": {
                 "status": "PARTIAL" if storage_observations and all(
                     item["status"] == "PARTIAL" for item in storage_observations
