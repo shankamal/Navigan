@@ -741,6 +741,42 @@ def runtime_inventory():
             if "HTTP 403" in str(error) or "HTTP 401" in str(error):
                 storage_discovery[metric] = 2
 
+    # Non-sensitive presence-only inventory; never collect secret values or RBAC subjects.
+    supplementary_discovery = {}
+    for endpoint, kind in (
+        ("/apis/networking.k8s.io/v1/ingresses", "Ingress"),
+        ("/apis/networking.k8s.io/v1/networkpolicies", "NetworkPolicy"),
+        ("/api/v1/serviceaccounts", "ServiceAccount"),
+        ("/apis/rbac.authorization.k8s.io/v1/roles", "Role"),
+        ("/apis/rbac.authorization.k8s.io/v1/rolebindings", "RoleBinding"),
+        ("/apis/rbac.authorization.k8s.io/v1/clusterroles", "ClusterRole"),
+        ("/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", "ClusterRoleBinding"),
+    ):
+        key = f"discoveryStatus_{kind}"
+        supplementary_discovery[key] = 3
+        try:
+            payload = kubernetes_request(endpoint)
+            if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+                continue
+            supplementary_discovery[key] = 1
+            for item in payload["items"][:MAX_RUNTIME_RESOURCES_PER_KIND]:
+                if not isinstance(item, dict):
+                    continue
+                metadata = item.get("metadata") or {}
+                name = metadata.get("name")
+                namespace = metadata.get("namespace")
+                if not isinstance(name, str) or not name or len(name) > 253:
+                    continue
+                if namespace is not None and (not isinstance(namespace, str) or len(namespace) > 253):
+                    continue
+                resources.append({
+                    "kind": kind, "namespace": namespace, "name": name,
+                    "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
+                })
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError) as error:
+            if "HTTP 403" in str(error) or "HTTP 401" in str(error):
+                supplementary_discovery[key] = 2
+
     nodes = [item for item in resources if item["kind"] == "Node"]
     pods = [item for item in resources if item["kind"] == "Pod"]
     return {
@@ -750,6 +786,7 @@ def runtime_inventory():
             **api_discovery,
             **api_kinds,
             **storage_discovery,
+            **supplementary_discovery,
             "nodeCount": len(nodes),
             "readyNodeCount": sum(item["ready"] for item in nodes),
             "podCount": len(pods),
