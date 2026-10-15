@@ -56,6 +56,9 @@ class RuntimeResourceItem(BaseModel):
     allocatableMemory: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$")
     unschedulable: bool | None = None
     taintCount: int | None = Field(default=None, ge=0, le=10000)
+    nodeLabels: dict[str, str] | None = Field(default=None, max_length=100)
+    nodeTaints: list[dict[str, str]] | None = Field(default=None, max_length=100)
+    apiVersion: str | None = Field(default=None, max_length=128)
     provisioner: str | None = Field(default=None, max_length=253)
     volumeBindingMode: str | None = Field(default=None, pattern=r"^(Immediate|WaitForFirstConsumer)$")
     reclaimPolicy: str | None = Field(default=None, pattern=r"^(Delete|Retain|Recycle)$")
