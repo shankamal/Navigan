@@ -579,6 +579,7 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
         "discoveryStatus_RoleBinding": 3,
         "discoveryStatus_ClusterRole": 3,
         "discoveryStatus_ClusterRoleBinding": 3,
+        "discoveryStatus_CustomResourceDefinition": 3,
         "nodeCount": 1,
         "readyNodeCount": 1,
         "podCount": 1,
