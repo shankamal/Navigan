@@ -369,7 +369,14 @@ class Service:
             findings, api_observations, storage_observations, observations,
             target_current=fresh_nodes,
         )
+        from .assessment_report import build_workload_assessment_report
+        workload_report = build_workload_assessment_report(
+            draft, resource_evaluations, dependency_evidence,
+            (target or {}).get("targetClusterId") or
+            (migration.get("target_configuration") or {}).get("clusterId"),
+        )
         return {
+            "workloadAssessmentReport": workload_report,
             "resourceEvaluations": resource_evaluations,
             "dependencyEvidence": dependency_evidence,
             "discoveryCoverage": discovery_coverage,
