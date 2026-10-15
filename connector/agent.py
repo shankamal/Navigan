@@ -656,15 +656,20 @@ def runtime_inventory():
             # Discovery restrictions must not stop established inventory.
             pass
 
-    # Bounded, optional storage discovery: failures do not block runtime inventory.
+    # Report status separately from item count: empty lists can be valid.
+    # 1=success, 2=permission denied, 3=unavailable/invalid response.
+    storage_discovery = {}
     for endpoint, kind in (
         ("/apis/storage.k8s.io/v1/storageclasses", "StorageClass"),
         ("/apis/storage.k8s.io/v1/csidrivers", "CSIDriver"),
     ):
+        metric = "storageClassDiscoveryStatus" if kind == "StorageClass" else "csiDriverDiscoveryStatus"
+        storage_discovery[metric] = 3
         try:
             payload = kubernetes_request(endpoint)
             if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
                 continue
+            storage_discovery[metric] = 1
             for item in payload["items"][:MAX_RUNTIME_RESOURCES_PER_KIND]:
                 if not isinstance(item, dict):
                     continue
@@ -686,8 +691,9 @@ def runtime_inventory():
                         if isinstance(value, str) and 0 < len(value) <= 253:
                             entry[field] = value
                 resources.append(entry)
-        except (RuntimeError, ValueError, OSError, urllib.error.URLError):
-            pass
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError) as error:
+            if "HTTP 403" in str(error) or "HTTP 401" in str(error):
+                storage_discovery[metric] = 2
 
     nodes = [item for item in resources if item["kind"] == "Node"]
     pods = [item for item in resources if item["kind"] == "Pod"]
@@ -696,6 +702,7 @@ def runtime_inventory():
         "warningEvents": warning_events,
         "metrics": {
             **api_discovery,
+            **storage_discovery,
             "nodeCount": len(nodes),
             "readyNodeCount": sum(item["ready"] for item in nodes),
             "podCount": len(pods),
