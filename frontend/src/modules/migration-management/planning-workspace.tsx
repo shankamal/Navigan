@@ -2033,6 +2033,26 @@ export function PlanningEditor({
       {tab === "review" && <section className={styles.migrationSummaryPanel} aria-label="Migration Summary and Export">
         <div className={styles.migrationSummaryHead}><div><strong>Migration Summary &amp; Export</strong><p>Review the current scope and download a planning report. Exports are snapshots of the current draft, including unsaved changes.</p></div><div className={styles.migrationExportActions}><button type="button" onClick={()=>downloadReport("json")}>Export JSON</button><button type="button" onClick={()=>downloadReport("csv")}>Export CSV</button><button type="button" onClick={()=>window.print()}>Print / Save PDF</button></div></div>
         <div role="status" className={styles.workflowStageWarning}>Report evidence: {migrationSummary.evidenceVerification.status.replaceAll("_", " ")}. {migrationSummary.evidenceVerification.limitations.length ? migrationSummary.evidenceVerification.limitations.join(" ") : "Source and target evidence are available; final migration approval remains separate."}</div>
+      <section className={styles.targetCapabilitySection} aria-label="Consolidated source-to-target assessment">
+        <div className={styles.targetAssessmentHead}><div><strong>Consolidated compatibility and remediation report</strong>
+          <p>Exports include the selected resources, every authoritative compatibility check, evidence gaps, remediation actions and a non-executable planning preview.</p></div></div>
+        {backendEvaluationCurrent ? <>
+          <div className={styles.remediationKpis}>
+            <div><strong>{migrationSummary.compatibility.evaluatedResources}</strong><span>Evaluated resources</span></div>
+            <div><strong>{migrationSummary.compatibility.checks}</strong><span>Compatibility checks</span></div>
+            <div><strong>{migrationSummary.compatibility.remediationHandoff?.actions.length ?? 0}</strong><span>Remediation actions</span></div>
+            <div><strong>{migrationSummary.compatibility.remediationHandoff?.evidence.length ?? 0}</strong><span>Evidence tasks</span></div>
+          </div>
+          <p className={styles.workflowStageWarning}>Assessment only · Execution NOT READY · Source dependency and target capability evidence remain subject to verification.</p>
+          <details className={styles.compatibilityDetails}><summary>Workload-level report · {migrationSummary.compatibility.migrationPlanPreview?.workloads.length ?? 0} workloads</summary>
+            {migrationSummary.compatibility.migrationPlanPreview?.workloads.map(item=><div className={styles.compatibilityCheck} key={resourceKey(item.resource)}>
+              <strong>{item.resource.namespace ?? "Cluster"}/{item.resource.name} · {item.resource.kind}</strong>
+              <p>Source: {item.sourceStatus.replaceAll("_"," ")} · Target: {item.targetStatus.replaceAll("_"," ")}</p>
+              <small>{item.remediationCount} actions · {item.verificationCount} evidence checks</small>
+            </div>)}
+          </details>
+        </> : <p className={styles.workflowStageWarning}>Saved, current authoritative compatibility evidence is not available. Exports clearly mark the compatibility section unavailable; they are not approval-ready reports.</p>}
+      </section>
       <div className={styles.migrationSummaryGrid}><div><span>Discovered workloads</span><b>{analyzedWorkloadCandidates.length}</b></div><div><span>Draft resources</span><b>{draft.resources.length}</b></div><div><span>Dependency-flagged</span><b>{dependencies}</b></div><div><span>Readiness checks</span><b>{readiness.issues.length}</b></div></div>
         <p className={styles.migrationSummaryEvidence}>Evidence: {graph.coverage==="REFERENCES_AVAILABLE"?"References collected":"Relationship references not collected"} · Data strategy: {draft.dataStrategy.replaceAll("_"," ")} · Artifact package: Not created</p>
         <p className={styles.migrationSummaryEvidence}>YAML / Helm artifacts have not been collected into S3; container images have not been promoted to ECR. Reports include metadata only.</p>
