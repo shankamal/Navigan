@@ -641,8 +641,10 @@ export function PlanningEditor({
       } catch (error) {
         const api = normalizeApiError(error);
         const details = JSON.stringify(api.details ?? {});
-        const rejectedNamespaceField = api.status === 422 &&
-          /selectedNamespaces/.test(details);
+        const rejectedNamespaceField = (api.status === 400 || api.status === 422) &&
+          api.code === "VALIDATION_ERROR" &&
+          /planningDraft\.selectedNamespaces/.test(details) &&
+          /Extra inputs are not permitted/.test(details);
         // Only a legacy backend that explicitly rejects the new field may
         // receive a backward-compatible draft. Never silently lose a
         // namespace selected without an actual saved resource in it.
