@@ -370,6 +370,17 @@ Resources:
         POST /api/v1/source-clusters/{sourceClusterId}/enrollments
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
+  InstallSourceClusterConnectorRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/source-clusters/{sourceClusterId}/install
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
   GetMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission
