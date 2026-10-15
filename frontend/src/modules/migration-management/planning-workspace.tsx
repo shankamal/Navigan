@@ -668,7 +668,19 @@ export function PlanningEditor({
   function downloadReport(format:"json"|"csv"){
     const json=JSON.stringify(migrationSummary,null,2);
     const escapeCell=(v:unknown)=>'"'+String(v??"").replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
-    const csv=[["Namespace","Kind","Name","Treatment","Dependency"].map(escapeCell).join(","),...migrationSummary.scope.resources.map(r=>[r.namespace,r.kind,r.name,r.treatment,r.dependency].map(escapeCell).join(","))].join("\r\n");
+    const csv=[
+      ["Report status",migrationSummary.evidenceVerification.status].map(escapeCell).join(","),
+      ["Assessment version",migrationSummary.assessment.version].map(escapeCell).join(","),
+      ["Inventory digest",migrationSummary.assessment.inventoryDigest].map(escapeCell).join(","),
+      ["Dependency coverage",migrationSummary.evidenceVerification.dependencyCoverage].map(escapeCell).join(","),
+      ["Source dependency edges",migrationSummary.evidenceVerification.sourceDependencyReferences].map(escapeCell).join(","),
+      ["Target assessment current",migrationSummary.evidenceVerification.targetAssessmentCurrent].map(escapeCell).join(","),
+      ["Backend compatibility current",migrationSummary.evidenceVerification.backendCompatibilityCurrent].map(escapeCell).join(","),
+      ...migrationSummary.evidenceVerification.limitations.map(limitation=>["Evidence limitation",limitation].map(escapeCell).join(",")),
+      "",
+      ["Namespace","Kind","Name","Treatment","Dependency"].map(escapeCell).join(","),
+      ...migrationSummary.scope.resources.map(r=>[r.namespace,r.kind,r.name,r.treatment,r.dependency].map(escapeCell).join(",")),
+    ].join("\r\n");
     const file=new Blob([format==="json"?json:"\uFEFF"+csv],{type:format==="json"?"application/json;charset=utf-8":"text/csv;charset=utf-8"});
     const href=URL.createObjectURL(file);
     const link=document.createElement("a");link.href=href;link.download=`navigan-migration-summary-${migration.migrationId}.${format}`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(href);
