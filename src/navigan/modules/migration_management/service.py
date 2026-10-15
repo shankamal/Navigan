@@ -355,6 +355,10 @@ class Service:
         )
         from .dependency_evidence import discover_dependencies
         dependency_evidence = discover_dependencies(source_resources, selected)
+        from .discovery_coverage import build_discovery_coverage
+        discovery_coverage = build_discovery_coverage(
+            source_inventory, draft, target,
+        )
         from .resource_compatibility import evaluate_selected_resources
         resource_evaluations = evaluate_selected_resources(
             source_resources, draft.get("resources") or [],
@@ -364,6 +368,7 @@ class Service:
         return {
             "resourceEvaluations": resource_evaluations,
             "dependencyEvidence": dependency_evidence,
+            "discoveryCoverage": discovery_coverage,
             "apiEvidence": {
                 "status": "PARTIAL" if api_observations and all(
                     item["status"] == "PARTIAL" for item in api_observations
