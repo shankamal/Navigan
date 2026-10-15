@@ -951,7 +951,7 @@ export function PlanningEditor({
           </div>
           <p className={styles.workflowStageWarning}>{schedulingReport.discoveryCoverage.note}</p>
         </section>}
-        {schedulingReport?.workloadAssessmentReport && <section className={styles.targetCapabilitySection} aria-label="Selected workload migration assessment">
+        {backendEvaluationCurrent && schedulingReport?.workloadAssessmentReport && <section className={styles.targetCapabilitySection} aria-label="Selected workload migration assessment">
           <div className={styles.targetAssessmentHead}><div>
             <strong>Selected Workload Migration Assessment · {schedulingReport.workloadAssessmentReport.workloadCount} workloads</strong>
             <p>Read-only assessment. Pending evidence is not approval or execution readiness.</p>
@@ -967,6 +967,21 @@ export function PlanningEditor({
               </details>)}
           </div>
           <p className={styles.workflowStageWarning}>{schedulingReport.workloadAssessmentReport.limitations.join(" ")}</p>
+        </section>}
+        {backendEvaluationCurrent && !schedulingReport?.workloadAssessmentReport && <section className={styles.targetCapabilitySection} aria-label="Selected workload assessment using existing evaluations">
+          <div className={styles.targetAssessmentHead}><div>
+            <strong>Selected Workload Assessment · {authoritativeResults.filter(item => ["Deployment","StatefulSet","DaemonSet","Pod","Job","CronJob"].includes(item.resource.kind)).length} evaluated workloads</strong>
+            <p>Compatibility evidence from the current backend. Dependency relationships are not available in this response and remain unverified.</p>
+          </div></div>
+          <div className={styles.targetCapabilityGrid}>
+            {authoritativeResults.filter(item => ["Deployment","StatefulSet","DaemonSet","Pod","Job","CronJob"].includes(item.resource.kind)).map(item =>
+              <details key={JSON.stringify(item.resource)} className={styles.compatibilityDetails}>
+                <summary>{item.resource.namespace ?? "Cluster"}/{item.resource.name} · {item.resource.kind} · {item.status.replaceAll("_"," ")}</summary>
+                <p>Dependencies: NOT VERIFIED by this report</p>
+                {item.checks.map((check,index)=><div key={index} className={styles.compatibilityCheck}><div><b>{check.capability}</b><span>{check.status.replaceAll("_"," ")}</span></div><p>{check.reason}</p><small>Next action: {check.nextAction}</small></div>)}
+              </details>)}
+          </div>
+          <p className={styles.workflowStageWarning}>Assessment only. Execution readiness is not established.</p>
         </section>}
         {backendEvaluationCurrent && <section className={styles.targetCapabilitySection} aria-label="Backend resource compatibility">
           <div className={styles.targetAssessmentHead}><div><strong>Authoritative resource compatibility</strong><p>Every saved resource is assessed. Expand a resource for evidence, limitations and concrete next actions. Pending evidence is not compatibility approval.</p></div><span className={styles.targetEvidenceUnknown}>{authoritativeResults.length} evaluated</span></div>
