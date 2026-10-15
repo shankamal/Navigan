@@ -200,6 +200,15 @@ class Service:
                 },
             }
 
+        # Never allow evidence from a previous target or assessment to influence
+        # the current compatibility decision.
+        configured_target = (migration.get("target_configuration") or {}).get("clusterId")
+        target_matches = bool(
+            target and target.get("targetClusterId") == configured_target
+            and target.get("assessmentVersion") == assessment.get("assessmentVersion")
+        )
+        if not target_matches:
+            target = None
         findings = assessment.get("findings") or []
         blocked = any(
             finding.get("severity") == "BLOCKER"
