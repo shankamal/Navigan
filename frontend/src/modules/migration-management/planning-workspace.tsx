@@ -213,7 +213,7 @@ export function PlanningEditor({
         if (active) setSchedulingError(`Scheduling evidence unavailable · ${api.code}: ${api.message}`);
       });
     return () => { active = false; };
-  }, [tab, migration.migrationId, assessment.assessmentVersion, migration.planningDraft]);
+  }, [tab, migration.migrationId, assessment.assessmentVersion, migration.planningDraft, targetEvidence?.snapshot.sourceRevision, targetEvidence?.snapshot.observedAt, targetEvidence?.snapshot.inventoryExpiresAt]);
 
   async function runTargetAnalysis() {
     if (targetRunning) return;
@@ -849,6 +849,8 @@ export function PlanningEditor({
                   <div className={styles.compatibilityCheck}>
                     <div><b>{storage.sourceStorageClass ?? "Source StorageClass unreported"}</b><span>{storage.status.replaceAll("_", " ")}</span></div>
                     <p>{storage.reason}</p>
+                    <small>Source: {storage.requestedStorage ?? "capacity unknown"} · {(storage.sourceAccessModes ?? []).join(", ") || "access modes unknown"} · {storage.volumeMode ?? "volume mode unknown"}</small>
+                    <small>Target: {storage.targetProvisioner ?? "provisioner unknown"} · {storage.targetVolumeBindingMode ?? "binding unknown"} · CSI driver {storage.csiDriverObserved ? "observed" : "not verified"}</small>
                     <small>StorageClass observation is not evidence of successful volume provisioning or data migration.</small>
                   </div>
                 </div>}
