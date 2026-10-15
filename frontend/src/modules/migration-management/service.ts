@@ -75,6 +75,7 @@ export interface TargetAssessmentRecord {
     resourceCount?: number;
     resourceKinds?: Record<string, number>;
     discoveredApiVersions?: string[];
+    storageDiscovery?: { StorageClass?: "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED"; CSIDriver?: "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED" };
     storageClasses?: string[];
     storageClassDetails?: { name: string; provisioner?: string | null; volumeBindingMode?: string | null; reclaimPolicy?: string | null }[];
     csiDrivers?: string[];
