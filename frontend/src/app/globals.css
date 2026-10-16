@@ -5760,7 +5760,7 @@ td {
 
 .customer-table tbody tr:hover {
   background: #f8fafc;
-  box-shadow: inset 3px 0 var(--brand-lime);
+  box-shadow: none;
 }
 
 .customer-avatar {
