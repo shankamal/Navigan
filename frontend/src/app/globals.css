@@ -8847,3 +8847,55 @@ td {
     overscroll-behavior-y: contain;
   }
 }
+
+/* Compact desktop density: comfortable at browser zoom 100%, without scaling text. */
+@media (min-width: 901px) {
+  .sidebar {
+    width: clamp(198px, 17vw, 236px);
+    flex: 0 0 clamp(198px, 17vw, 236px);
+  }
+
+  .navigation-collapsed .sidebar {
+    width: 76px;
+    flex-basis: 76px;
+  }
+
+  .content-column main,
+  .content-column .breadcrumb,
+  .content-column .app-footer {
+    padding-inline: clamp(12px, 1.6vw, 28px);
+  }
+
+  .content-column main {
+    padding-block: clamp(12px, 1.3vw, 22px);
+  }
+
+  .page-heading h1 {
+    font-size: clamp(1.35rem, 1.6vw, 1.75rem);
+  }
+
+  .metrics-grid {
+    gap: 10px;
+  }
+}
+
+@container (max-width: 1160px) {
+  .content-column .form-layout,
+  .content-column .detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-column .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-column :is(.page-heading, .heading-actions, .form-actions, .list-heading) {
+    flex-wrap: wrap;
+  }
+}
+
+@container (max-width: 560px) {
+  .content-column .metrics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
