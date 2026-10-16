@@ -1176,7 +1176,7 @@ export function PlanningEditor({
             </div>
           </div>
         </section>
-        <div className={styles.columns}>
+        <div className={styles.sourceFullWidthColumns}>
           <section className={styles.surface}>
             <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Migration details and mode</strong><small>Confirm assessed source, target and planning approach</small></div>
             <div className={styles.context}>
