@@ -1626,3 +1626,19 @@
 .workspace :is(.planningContinueButton, .targetRefreshButton) {
   border-color: #5e8b1b !important;
 }
+
+/* The same understated single-edge treatment throughout planning. */
+.sourceDashboardCards > div,
+.sourceOverviewMetric,
+.scopeKpiBar > div,
+.scopeResourceReviewMetrics > span,
+.sourceConfirmPanel,
+.targetWorkspace,
+.targetClusterBanner,
+.targetReadinessItem,
+.targetFindingsStrip,
+.migrationSummaryPanel,
+.artifactReadinessPanel,
+.sourceMapLauncher {
+  border-left: 3px solid #86bc25;
+}

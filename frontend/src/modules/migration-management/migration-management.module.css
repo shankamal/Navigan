@@ -2397,3 +2397,13 @@
 .assessmentHeadingActions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
 .assessmentHeadingActions>a{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 @media(max-width:720px){.assessmentHeadingActions{justify-content:flex-start}.assessmentHeadingActions>a{white-space:normal}}
+.connectionCard,
+.optionCard,
+.checkCard,
+.portfolioPanel,
+.attentionPanel,
+.attentionCard,
+.metricCard,
+.boardCard {
+  border-left: 3px solid #86bc25;
+}

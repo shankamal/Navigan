@@ -8999,3 +8999,36 @@ td {
     transition: none;
   }
 }
+
+/* Consistent Deloitte accent: a single, rounded left edge on card surfaces. */
+.app-shell .content-column :is(
+  .panel,
+  .metric,
+  .pd-card,
+  .pd-overview-panel,
+  .pd-attention-workspace,
+  .pd-kpi,
+  .customer-metrics,
+  .customer-board-card,
+  .environment-metrics,
+  .environment-board-card,
+  .environment-metric,
+  .environment-baseline-panel,
+  .cluster-board-card,
+  .cluster-lifecycle-chart,
+  .cluster-setup-sidebar,
+  .cluster-directory-panel,
+  .cluster-directory-metric,
+  .migration-report-route,
+  .migration-kpi-strip,
+  .migration-inventory-panel,
+  .migration-governance-card
+) {
+  border-left: 3px solid #86bc25;
+}
+/* Replace old top-edge and category-colored strips with the shared left edge. */
+.app-shell .content-column .metric::before,
+.app-shell .content-column .pd-kpi::before,
+.app-shell .content-column .cluster-directory-metric::before {
+  content: none;
+}
