@@ -3,8 +3,9 @@ import { useAuth } from "./auth-provider";
 import { LoginForm } from "./login-form";
 import { type ReactNode } from "react";
 import Image from "next/image";
-import { Cloud, Network } from "lucide-react";
+import { Cloud, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Loading } from "@/shared/components/ui";
+import { NaviganMark } from "@/shared/components/navigan-mark";
 import "./login-workspace.css";
 
 const clouds = [
@@ -32,21 +33,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
         aria-label="About Navigan"
       >
         <div className="login-product-brand">
-          <Network size={35} aria-hidden="true" />
+          <NaviganMark />
           <div>
             <strong>Navigan</strong>
-            <span>Container Management Platform</span>
+            <span>Your container command centre</span>
           </div>
         </div>
         <div className="login-hero-copy">
+          <span className="login-introduction-eyebrow">CLOUD &amp; CONTAINER OPERATIONS</span>
           <h1>
-            One workspace.
+            Navigate your cloud estate.
             <br />
-            Your cloud estate<span>.</span>
+            With confidence<span>.</span>
           </h1>
           <p>
-            Unify, manage and scale your container environments across clouds —
-            with clarity, control and confidence.
+            One connected workspace to discover, manage and modernize your
+            container environments across clouds.
           </p>
         </div>
         <Image
@@ -90,6 +92,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       </section>
       <section className="login-access-panel" aria-label="Secure sign-in">
         <div className="signin-card login-access-card">
+          <div className="login-access-identity"><span><LockKeyhole size={15}/> SECURE WORKSPACE ACCESS</span><ShieldCheck size={20} aria-hidden="true"/></div>
           {configured ? (
             <LoginForm />
           ) : (

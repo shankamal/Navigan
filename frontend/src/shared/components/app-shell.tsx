@@ -8,6 +8,7 @@ import {
   useWorkspacePage,
 } from "./workspace-page-context";
 import { usePathname } from "next/navigation";
+import { NaviganMark } from "./navigan-mark";
 import {
   ArrowRightLeft,
   Building2,
@@ -368,7 +369,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 aria-label="Navigan home"
                 title="Navigan home"
               >
-                <Network size={24} aria-hidden="true" />
+                <NaviganMark compact />
                 <span className="sidebar-brand-name">Navigan</span>
               </Link>
               <button
