@@ -405,17 +405,6 @@ export function PlanningEditor({
   const scopedReferences = sourceReferences.filter((ref) => chosenOwners.has(JSON.stringify([ref.owner.split(" ")[0], ref.namespace, ref.owner.slice(ref.owner.indexOf(" ") + 1)])));
   const missingReferences = scopedReferences.filter((ref) => !ref.present);
   const unselectedReferences = scopedReferences.filter((ref) => ref.present && !draft.resources.some((item) => item.kind === ref.kind && item.name === ref.name && item.namespace === ref.namespace));
-  const unselectedDependencyResources = resources.filter((r) => unselectedReferences.some((ref) => ref.kind === r.kind && ref.name === r.name && ref.namespace === r.namespace));
-  function includeReferencedDependencies() {
-    const additions = unselectedDependencyResources.map((r) => ({
-      apiVersion: r.apiVersion, kind: r.kind, namespace: r.namespace ?? null, name: r.name,
-      treatment: recommendResource(r).resource.treatment, dependency: true,
-    } as PlannedResource));
-    const next = new Map(draft.resources.map((item) => [resourceKey(item), item]));
-    additions.forEach((item) => next.set(resourceKey(item), item));
-    change({ ...draft, resources: [...next.values()] });
-    setMessage("Referenced supporting resources added to draft for review. Save the draft to persist.");
-  }
 
   const relevantPvcs = resources.filter((r) => r.kind === "PersistentVolumeClaim" && (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))));
   const applicationWorkloads = resources.filter((r) =>
@@ -550,7 +539,6 @@ export function PlanningEditor({
     ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace && scopeNamespaceSet.has(resource.namespace)) ? ["Select at least one workload in the selected namespaces."] : []),
     ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
-  const draftOutsideScope = draft.resources.filter(item=>item.namespace && !scopeNamespaceSet.has(item.namespace)).length;
   const scopedResourceKeys = new Set(draft.resources.map((r) =>
     JSON.stringify([r.kind, r.namespace ?? null, r.name])));
   const scopedNamespaces = new Set(draft.resources.map((r) => r.namespace).filter((n): n is string => Boolean(n)));
@@ -1458,21 +1446,13 @@ export function PlanningEditor({
                 </div>}
                 <section className={styles.scopeResourceReview} aria-label="Resource Review and Migration Actions">
                   <div className={styles.scopeResourceReviewHead}><div className={styles.scopeResourceReviewTitle}><span><Layers size={19}/></span><div><strong>Resource explorer</strong><p>Optional technical review and manual scope adjustments. Your main workload and PVC choices are above.</p></div></div><span className={styles.scopeResourceReviewTag}>Advanced review</span></div>
-                  <div className={styles.scopeResourceReviewMetrics}><span><Boxes size={19}/><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b><small>Supporting resources</small></span><span><Database size={19}/><b>{pendingPvcs.length}</b><small>PVCs to review</small></span><span><Network size={19}/><b>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</b><small>Recorded references</small></span></div>
-                <details className={styles.compactReviewDetails}><summary>4. Dependencies and storage · evidence and recommendations</summary>
-                <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
-                <div className={styles.scopeIntelligence}>
-                  <strong>Required resources from observed relationships</strong>
-                  {unselectedDependencyResources.filter(item=>item.namespace && scopeNamespaceSet.has(item.namespace)).length>0 ?
-                    unselectedDependencyResources.filter(item=>item.namespace && scopeNamespaceSet.has(item.namespace)).map(item=><p key={item.kind+item.name}>{item.kind} · {item.name} — referenced by a selected workload
-                      <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending}
-                        onClick={()=>{const proposal=recommendResource(item).resource;change({...draft,resources:[...draft.resources,{...proposal,dependency:true}]});}}>
-                        Include dependency
-                      </button></p>)
-                    : <p>No additional referenced resources are evidenced. Missing reference coverage is not confirmation of completeness.</p>}
-                  <p>Reassessment required: {graph.coverage === "REFERENCES_AVAILABLE" ? "No additional reference-coverage warning" : "This snapshot does not contain reliable dependency references."}</p>
+                  <div className={styles.scopeResourceReviewMetrics}><span><Boxes size={19}/><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b><small>Supporting resources discovered</small></span><span><Database size={19}/><b>{pendingPvcs.length}</b><small>Source PVCs discovered</small></span><span><Network size={19}/><b>{sourceReferences.length}</b><small>Observed references · coverage {graph.coverage==="REFERENCES_AVAILABLE"?"collected":"incomplete"}</small></span></div>
+                <div className={styles.sourceDependencySummary} role="status">
+                  <div><Network size={18}/><strong>Dependency evidence</strong><span>{scopedReferences.length} observed references</span></div>
+                  <p>{unselectedReferences.length ? `${unselectedReferences.length} referenced supporting resource${unselectedReferences.length===1?" is":"s are"} not in the migration draft.` : "No additional referenced supporting resources require a scope decision."} Source relationships are shown for awareness; inclusion is a separate migration-planning decision.</p>
+                  {graph.coverage!=="REFERENCES_AVAILABLE"&&<p className={styles.sourceEvidenceCaution}><ShieldCheck size={14}/> Relationship coverage is incomplete. This snapshot cannot confirm every dependency; a fresh Source Assessment may be needed.</p>}
+                  <small>To inspect or change resource inclusion, use the optional technical explorer below.</small>
                 </div>
-                </details>
 
             <div id="source-resource-review" className={styles.scopeReviewTabbedActions}>
             <nav className={styles.scopeViews} aria-label="Scope resource views">
@@ -1492,23 +1472,13 @@ export function PlanningEditor({
                 </button>
               ))}
             </nav>
-            <div className={styles.scopeInstructions} aria-live="polite">
-              <strong>What to do now</strong>
-              <p>{resourceView === "WORKLOADS" ? "Select application workloads, then analyze the namespace to identify evidenced dependencies." : resourceView === "DEPENDENCIES" ? "Confirm required supporting resources and investigate missing or unknown references." : resourceView === "CONFIGURATION" ? "Review application settings, access controls and secrets references without exposing secret values." : resourceView === "DATA" ? "Include the required PVCs, check proposed target mappings and select a data migration strategy." : "Advanced review: verify selected resources and the proposed migration action for each."}</p>
-            </div>
-            <div className={styles.notice} aria-live="polite">
-              <strong>{resourceView === "WORKLOADS" ? "Workloads — application scope" : resourceView === "DEPENDENCIES" ? "Dependencies — source relationship evidence" : resourceView === "CONFIGURATION" ? "Configuration — application settings" : resourceView === "DATA" ? "Data & Storage — PVC readiness" : "All resources — technical inventory"}</strong>
-              <p>{resourceView === "DEPENDENCIES" ? "Review references, unresolved inventory objects and supporting resources for selected workloads." : resourceView === "DATA" ? "Review claim consumers, requested capacity and storage migration decisions." : resourceView === "WORKLOADS" ? "Select the application workloads to migrate; supporting resources are reviewed separately." : resourceView === "CONFIGURATION" ? "Review metadata-only configuration evidence without collecting sensitive values." : "Advanced inventory view. Selections here affect the same draft."}</p>
-            </div>
+            <p className={styles.sourceExplorerCaption}>{resourceView === "DEPENDENCIES" ? "Dependency records and source evidence. Use the resource table for manual scope changes." : resourceView === "WORKLOADS" ? "Discovered workloads; primary selection is available above." : resourceView === "CONFIGURATION" ? "Configuration metadata only. Sensitive values are not displayed." : "Full source inventory with optional manual adjustments."}</p>
             {resourceView === "DEPENDENCIES" && (
-              <div className={styles.notice}>
-                <strong>Source reference evidence · {sourceReferences.length} relationships</strong>
-                {sourceReferences.length === 0 ? <p>No references in this snapshot; collect fresh inventory before concluding dependencies are absent.</p> : <ul>{sourceReferences.map((ref, i) => <li key={i}>{ref.owner} → {ref.kind} {ref.name} — {ref.present ? "Found in inventory" : "Not found in inventory"}</li>)}</ul>}
-                <p><strong>{scopedReferences.length} references from selected primary resources</strong> · {missingReferences.length} missing inventory objects · {unselectedReferences.length} not included in draft.</p>
-                {missingReferences.length > 0 && <p>Missing: {missingReferences.map((ref) => ref.kind + " " + ref.name).join(", ")}. Confirm collection coverage before proceeding.</p>}
-                {unselectedReferences.length > 0 && <button type="button" className="button button-secondary" disabled={!canEdit || stale || save.isPending} onClick={includeReferencedDependencies}>Include {unselectedReferences.length} referenced dependencies in draft</button>}
-                <p>Presence in inventory does not establish target readiness or complete discovery. All dependency additions require review.</p>
-              </div>
+              <details className={styles.sourceReferenceDetails}>
+                <summary>View source relationship evidence · {sourceReferences.length} recorded references</summary>
+                {sourceReferences.length === 0 ? <p>No references in this snapshot. This does not confirm that dependencies are absent.</p> : <ul>{sourceReferences.map((ref, i) => <li key={i}><strong>{ref.owner}</strong> → {ref.kind} {ref.name} <span>{ref.present ? "Present in source" : "Missing from inventory"}</span></li>)}</ul>}
+                <p>{missingReferences.length} missing objects · {unselectedReferences.length} referenced resources not in draft. Presence in inventory does not establish target readiness.</p>
+              </details>
             )}
             {resourceView === "DATA" && (
               <div className={styles.notice}>
@@ -1596,55 +1566,8 @@ export function PlanningEditor({
               <p className={styles.caption}>Configuration resources are metadata-only inventory; secrets and Helm values are not exported by this planning view. Artifact collection requires separate authorization.</p>
             )}
             <div className={styles.toolbar}>
-              <button
-                className="button button-secondary"
-                disabled={
-                  !canEdit || stale || save.isPending || !viewResources.length
-                }
-                onClick={() => {
-                  const next = new Map(
-                    draft.resources.map((r) => [resourceKey(r), r]),
-                  );
-                  for (const r of viewResources) {
-                    const item: PlannedResource = {
-                      apiVersion: r.apiVersion,
-                      kind: r.kind,
-                      namespace: r.namespace ?? null,
-                      name: r.name,
-                      treatment: recommendResource(r).resource.treatment,
-                      dependency: false,
-                    };
-                    if (!next.has(resourceKey(item)))
-                      next.set(resourceKey(item), item);
-                  }
-                  change({ ...draft, resources: [...next.values()] });
-                }}
-              >
-                Select all filtered resources (manual override)
-              </button>
-              <button
-                className="button button-secondary"
-                disabled={
-                  !canEdit || stale || save.isPending || !viewResources.length
-                }
-                onClick={() => {
-                  const keys = new Set(
-                    viewResources.map((r) =>
-                      resourceKey({ ...r, namespace: r.namespace ?? null }),
-                    ),
-                  );
-                  change({
-                    ...draft,
-                    resources: draft.resources.filter(
-                      (r) => !keys.has(resourceKey(r)),
-                    ),
-                  });
-                }}
-              >
-                Clear filtered selection
-              </button>
               <span>
-                {viewResources.length} resources shown · Dependencies require review
+                {viewResources.length} source resources shown · Use an individual checkbox only if a manual scope adjustment is necessary
               </span>
             </div>
             <div className={styles.tableScroll}>
@@ -1781,34 +1704,6 @@ export function PlanningEditor({
               </section>
             )}
           </section>
-          <aside className={styles.surface}>
-            <div className={styles.optionScopeSidebar}>
-              <div className={styles.optionScopeHeader}><strong><Boxes size={18}/> Migration scope summary</strong><small>Live overview · current planning draft</small></div>
-              <div className={styles.optionScopeHero}><div><span>Resources in migration draft</span><strong>{draft.resources.length}</strong></div><span className={styles.optionScopeHeroBadge}>{draft.mode==="FULL_CLUSTER"?"Full cluster":"Selected workloads"}</span></div>
-              <div className={styles.optionScopeSummaryTiles}><div><strong>{scopeNamespaces.length}</strong><span>Namespaces</span></div><div><strong>{workloadRelationships.filter(r=>r.selected).length}</strong><span>Workloads</span></div><div><strong>{dependencies}</strong><span>Dependencies</span></div><div><strong>{draft.resources.filter(item=>item.kind==="PersistentVolumeClaim").length}</strong><span>PVCs included</span></div></div>
-              <div className={styles.optionScopeMetric}><span>Namespaces selected</span><strong>{scopeNamespaces.length} / {namespaces.length}</strong><div className={styles.optionScopeTrack}><i style={{width:`${namespaces.length?scopeNamespaces.length/namespaces.length*100:0}%`}}/></div></div>
-              <div className={styles.optionScopeMetric}><span>Workloads included</span><strong>{workloadRelationships.filter(r=>r.selected).length} / {workloadRelationships.length}</strong><div className={styles.optionScopeTrack}><i style={{width:`${workloadRelationships.length?workloadRelationships.filter(r=>r.selected).length/workloadRelationships.length*100:0}%`}}/></div></div>
-              <div className={styles.optionScopeMetric}><span>Draft resources</span><strong>{draft.resources.length}</strong><small>{draft.resources.length-dependencies} explicitly selected · {dependencies} dependency-flagged</small></div>
-              <div className={styles.optionScopeDivider}/>
-              <strong className={styles.optionScopeSubheading}>Selected namespaces</strong>
-              <div className={styles.optionScopeNamespaceList}>{scopeNamespaces.map(ns=><div key={ns}><Boxes size={16}/><span><b>{ns}</b><small>{applicationWorkloads.filter(r=>r.namespace===ns).length} workloads · {workloadRelationships.filter(r=>r.workload.namespace===ns&&r.selected).length} included</small></span></div>)}</div>
-              <div className={styles.optionScopeDivider}/>
-              <strong className={styles.optionScopeSubheading}>Current draft</strong>
-              <div className={styles.optionScopeRow}><span>Selected resources</span><strong>{draft.resources.length-dependencies}</strong></div>
-              <div className={styles.optionScopeRow}><span>Dependency-flagged</span><strong>{dependencies}</strong></div>
-              <div className={styles.optionScopeRow}><span>PVC manifests to review</span><strong>{pendingPvcs.length}</strong></div>
-              {draftOutsideScope>0&&<p className={styles.scopeOutsideNotice}>{draftOutsideScope} draft resources are outside the selected namespaces.</p>}
-              <div className={styles.optionScopeDivider}/>
-              <strong className={styles.optionScopeSubheading}>Assessment evidence</strong>
-              <p className={styles.optionScopeEvidence}>{graph.coverage==="REFERENCES_AVAILABLE"?"Resource references collected":"Resource relationships not collected; reassessment required"}</p>
-              <div className={styles.optionScopeRow}><span>Recorded references</span><strong>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</strong></div>
-              <div className={styles.optionScopeRow}><span>Readiness follow-ups</span><strong>{readiness.issues.length}</strong></div>
-              <div className={styles.optionScopeRow}><span>Data strategy</span><strong>{draft.dataStrategy==="UNDECIDED"?"Pending":"Selected"}</strong></div>
-              <div className={styles.optionScopeSafe}><ShieldCheck size={16}/><span>Source remains unchanged · Execution not enabled</span></div>
-              {draft.mode==="FULL_CLUSTER"&&<p className={styles.warning}>{unaccounted} resources need a treatment decision.</p>}
-              <details className={styles.optionScopeMore}><summary>Review readiness details · {readiness.issues.length} follow-ups</summary><div className={styles.optionScopeReadinessList}>{readiness.issues.length===0?<p>No outstanding draft readiness checks recorded.</p>:readiness.issues.map((issue,index)=><div key={index}><span>{index+1}</span><p><strong>{issue.type.replaceAll("_"," ")}</strong>{issue.detail}</p></div>)}</div><p>Storage checks: {storageCompatibility.length}. Target evidence: {targetCapability.status.toLowerCase()}.</p></details>
-            </div>
-          </aside>
         </div>
       </>)}
       {tab === "remediate" && (
