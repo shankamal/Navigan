@@ -1450,3 +1450,19 @@
 .scopeSelectionBar .scopeSearchLabel{gap:6px;align-self:start}.scopeSelectionBar .scopeSearchLabel .search{height:39px;min-height:39px;box-sizing:border-box;border:1px solid #cbd8e4;border-radius:4px;background:#fff}
 .scopeSelectionBar .scopeSearchLabel .search input{height:100%;min-width:0;background:transparent}
 @media(max-width:650px){.scopeSelectionBar{grid-template-columns:minmax(0,1fr)!important}.sourceJourneySteps button{padding:10px 7px}.sourceJourneySteps button strong{font-size:10px}}
+.targetEvidenceLink { display: inline-flex; align-items: center; gap: 0.35rem; border: 0; background: transparent; color: #315a76; cursor: pointer; font: inherit; font-weight: 700; padding: 0.35rem 0; }
+.targetEvidenceLink:hover { text-decoration: underline; }
+.targetEvidenceLink:focus-visible { outline: 2px solid #315a76; outline-offset: 3px; }
+.targetCompatibilityDrawerOverlay { position: fixed; inset: 0; z-index: 1200; display: flex; justify-content: flex-end; }
+.targetCompatibilityBackdrop { position: absolute; inset: 0; border: 0; background: rgba(17, 35, 52, 0.42); cursor: pointer; }
+.targetCompatibilityDrawer { position: relative; z-index: 1; width: min(100%, 490px); height: 100%; overflow: hidden; display: flex; flex-direction: column; background: #fff; box-shadow: -15px 0 45px rgba(17, 35, 52, 0.2); }
+.targetCompatibilityDrawerHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.3rem; background: #243c54; color: #fff; border-bottom: 3px solid #86bc25; }
+.targetCompatibilityDrawerHeader strong { font-size: 1.05rem; }
+.targetCompatibilityDrawerHeader button { display: grid; place-items: center; padding: 0.35rem; background: transparent; border: 1px solid rgba(255,255,255,0.32); border-radius: 4px; color: #fff; cursor: pointer; }
+.targetCompatibilityDrawerBody { flex: 1; overflow-y: auto; padding: 1.3rem; display: grid; align-content: start; gap: 0.8rem; }
+.targetCompatibilityDrawerBody h3, .targetCompatibilityDrawerBody h4 { margin: 0; color: #243c54; }
+.targetCompatibilityDrawerBody h3 { overflow-wrap: anywhere; }
+.targetCompatibilityStatusPair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0.6rem; }
+.targetCompatibilityStatusPair span { padding: 0.8rem; background: #f1f5f9; border: 1px solid #d8e2eb; border-radius: 5px; font-size: 0.78rem; }
+.targetCompatibilityStatusPair strong { display: block; margin-top: 0.3rem; }
+.targetCompatibilityDrawerFooter { display: flex; justify-content: flex-end; padding: 0.9rem 1.3rem; border-top: 1px solid #d8e2eb; background: #f8fafc; }

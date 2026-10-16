@@ -171,6 +171,13 @@ export function PlanningEditor({
   const artifactInputRef = useRef<HTMLInputElement>(null);
   const [artifactUploading, setArtifactUploading] = useState(false);
   const [artifactUploadMessage, setArtifactUploadMessage] = useState("");
+  const [selectedCompatibilityResource, setSelectedCompatibilityResource] = useState<import("./service").ResourceCompatibilityEvaluation | null>(null);
+  useEffect(() => {
+    if (!selectedCompatibilityResource) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedCompatibilityResource(null); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedCompatibilityResource]);
   // Refresh stale or absent saved target evidence once per migration/target per page session.
   const autoTargetAttempted = useRef(new Set<string>());
   useEffect(() => {
@@ -1017,6 +1024,32 @@ export function PlanningEditor({
           <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence ? "Expired / mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
           <div><span>Migration path</span><strong>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING EVIDENCE"}</strong><small>{schedulingReport?.decision?.reason ?? "Backend compatibility decision unavailable; no approval can be inferred."}</small></div>
         </div>
+        {backendEvaluationCurrent && (() => {
+          const handoff = buildRemediationHandoff(authoritativeResults);
+          return <section className={styles.targetCapabilitySection} aria-label="Prioritized compatibility findings">
+            <div className={styles.targetAssessmentHead}><div><strong>Priority findings</strong><p>Actions and evidence gaps derived from the backend evaluation of your saved scope.</p></div></div>
+            <div className={styles.targetOverview}>
+              <div><span>Required changes</span><strong>{handoff.actions.length}</strong><small>Review treatment in Remediation</small></div>
+              <div><span>Evidence gaps</span><strong>{handoff.evidence.length}</strong><small>Verify before migration approval</small></div>
+              <div><span>Evaluated resources</span><strong>{handoff.resourceCount}</strong><small>Current saved Source scope only</small></div>
+            </div>
+          </section>;
+        })()}
+        <section className={styles.targetCapabilitySection} aria-label="Scoped resource compatibility overview">
+          <div className={styles.targetAssessmentHead}><div><strong>Scoped resource compatibility</strong><p>Select a resource to inspect Source readiness, Target evidence, reasons and next actions without leaving this screen.</p></div></div>
+          {backendEvaluationCurrent ? <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
+            <thead><tr><th>Source resource</th><th>Kind</th><th>Source readiness</th><th>Target compatibility</th><th>Evidence &amp; next action</th></tr></thead>
+            <tbody>{authoritativeResults.map(item => <tr key={JSON.stringify(item.resource)}>
+              <td>{item.resource.namespace ?? "Cluster"}/{item.resource.name}</td>
+              <td>{item.resource.kind}</td>
+              <td>{(item.sourceStatus ?? "NOT_VERIFIED").replaceAll("_", " ")}</td>
+              <td>{(item.targetStatus ?? "PENDING_EVIDENCE").replaceAll("_", " ")}</td>
+              <td><button type="button" className={styles.targetEvidenceLink} onClick={() => setSelectedCompatibilityResource(item)}>View {item.checks.length} checks <ArrowRight size={14}/></button></td>
+            </tr>)}</tbody>
+          </table></div> : <p className={styles.caption}>Authoritative resource results are not current. Save Source scope and refresh Target evidence. Diagnostic checks remain available below, but are not migration approval.</p>}
+        </section>
+        <details className={styles.compatibilityDetails} aria-label="Extended compatibility diagnostics">
+          <summary>View detailed compatibility evidence · Scheduling, API versions, storage and discovery coverage</summary>
         <section className={styles.targetCapabilitySection} aria-label="Workload scheduling evidence">
           <div className={styles.targetAssessmentHead}>
             <div><strong>Workload scheduling evidence</strong><p>Backend-observed CPU/memory fit against target node allocatable capacity. This is not free headroom or confirmed Kubernetes scheduling compatibility.</p></div>
@@ -1196,6 +1229,7 @@ export function PlanningEditor({
           })}</tbody>
         </table></div>
         {p0Compatibility.length === 0 && <p>Save selected workloads in Step 1 and ensure the target evidence is current to generate scoped checks.</p>}</>}
+        </details>
         <div className={styles.workflowStageWarning}>P0 assessment is read-only and evidence-gated. The saved connector inventory confirms discovery, not target compatibility. Kubernetes API support, scheduling capacity, storage, networking, identity and dependencies require verified target-specific observations before migration readiness can be determined.</div>
         <section className={styles.targetCapabilitySection} aria-label="Migration artifact readiness">
           <div className={styles.targetAssessmentHead}><div>
@@ -1224,6 +1258,27 @@ export function PlanningEditor({
           <p className={styles.caption}>Container image transfer and ECR promotion are not implemented. No cluster resources are created by this assessment.</p>
         </section>
       </section>}
+      {tab === "target" && selectedCompatibilityResource && <div className={styles.targetCompatibilityDrawerOverlay}>
+        <button type="button" className={styles.targetCompatibilityBackdrop} aria-label="Close resource compatibility details" onClick={() => setSelectedCompatibilityResource(null)} />
+        <aside role="dialog" aria-modal="true" aria-label="Resource compatibility details" className={styles.targetCompatibilityDrawer}>
+          <div className={styles.targetCompatibilityDrawerHeader}><strong>Resource compatibility details</strong><button type="button" aria-label="Close details" onClick={() => setSelectedCompatibilityResource(null)}><X size={19}/></button></div>
+          <div className={styles.targetCompatibilityDrawerBody}>
+            <h3>{selectedCompatibilityResource.resource.namespace ?? "Cluster"}/{selectedCompatibilityResource.resource.name}</h3>
+            <p className={styles.caption}>{selectedCompatibilityResource.resource.kind} · {selectedCompatibilityResource.resource.apiVersion}</p>
+            <div className={styles.targetCompatibilityStatusPair}>
+              <span>Source · <strong>{(selectedCompatibilityResource.sourceStatus ?? "NOT_VERIFIED").replaceAll("_", " ")}</strong></span>
+              <span>Target · <strong>{(selectedCompatibilityResource.targetStatus ?? "PENDING_EVIDENCE").replaceAll("_", " ")}</strong></span>
+            </div>
+            <h4>Evidence checks · {selectedCompatibilityResource.checks.length}</h4>
+            {selectedCompatibilityResource.checks.map((check,index) => <div className={styles.compatibilityCheck} key={index}>
+              <div><b>{check.capability}</b><span>{check.status.replaceAll("_", " ")}</span></div>
+              <p>{check.reason}</p><small>Next action: {check.nextAction}</small>
+            </div>)}
+            <p className={styles.workflowStageWarning}>This is read-only evidence. Required fixes are recorded separately in the remediation draft; no changes are applied to either cluster.</p>
+          </div>
+          <div className={styles.targetCompatibilityDrawerFooter}><button type="button" className="button button-secondary" onClick={() => setSelectedCompatibilityResource(null)}>Close</button></div>
+        </aside>
+      </div>}
       {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
         <div className={styles.workflowStageHeading}><strong>5. Migration Plan</strong><p>Plan generation follows evidence-backed source-to-target matching, remediation decisions and artifact readiness.</p></div>
         {backendEvaluationCurrent ? (() => {
