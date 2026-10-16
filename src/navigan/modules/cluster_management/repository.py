@@ -1094,3 +1094,14 @@ class Repository:
                 "totalPages": math.ceil(count / int(query["pageSize"])),
             },
         }
+
+    def summary(self):
+        scope, params = scope_clause(self.principal)
+        rows = self.db.execute(
+            "SELECT k.status,count(*) AS n FROM cluster_management.clusters k "
+            "JOIN customer_management.customers c USING(customer_id) "
+            "JOIN environment_management.environments e USING(environment_id) "
+            f"WHERE {VISIBLE_CLUSTER_CONDITION} AND {scope} GROUP BY k.status", params
+        ).fetchall()
+        statuses = {row["status"]: int(row["n"]) for row in rows}
+        return {"total": sum(statuses.values()), "byStatus": statuses, "byProvider": {}}

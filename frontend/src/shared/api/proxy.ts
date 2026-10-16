@@ -15,6 +15,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     return method === "GET";
   if (path[0] === "clusters") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (path.length === 2 && path[1] === "summary") return method === "GET";
     if (!/^CLU-[A-Za-z0-9-]+$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
     if (path.length === 3 && path[2] === "execution-logs")
@@ -130,6 +131,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
 
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (path.length === 2 && path[1] === "summary") return method === "GET";
     if (path.length === 2 && path[1] === "metadata") return method === "GET";
     if (path.length === 2 && path[1] === "bootstrap-remediations")
       return ["GET", "POST"].includes(method);
@@ -172,6 +174,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   }
   if (path[0] !== "customers") return false;
   if (path.length === 1) return ["GET", "POST"].includes(method);
+  if (path.length === 2 && path[1] === "summary") return method === "GET";
   if (!/^CUS-[A-Za-z0-9-]+$/.test(path[1])) return false;
   if (path.length === 2) return ["GET", "PUT"].includes(method);
   const suffix = path.slice(2).join("/");

@@ -191,20 +191,21 @@ export const migrations = {
   analyzeTarget: async (migrationId: string): Promise<TargetAssessmentResponse> =>
     (await apiClient.post(`${base}/${migrationId}/target-assessment`, {}, { headers: writeHeaders({ key: crypto.randomUUID() }) })).data,
 
-  list: async () =>
+  list: async (signal?: AbortSignal) =>
     parseResponse(
       migrationListSchema,
       (
         await apiClient.get(base, {
           params: { page: 0, pageSize: 100 },
+          signal,
         })
       ).data,
     ),
 
-  get: async (migrationId: string) =>
+  get: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       migrationSchema,
-      (await apiClient.get(`${base}/${migrationId}`)).data,
+      (await apiClient.get(`${base}/${migrationId}`, { signal })).data,
     ),
 
   create: async (input: CreateMigrationInput) =>
@@ -263,22 +264,22 @@ export const migrations = {
       ).data,
     ),
 
-  assessment: async (migrationId: string) =>
+  assessment: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       assessmentResponseSchema,
-      (await apiClient.get(`${base}/${migrationId}/assessment`)).data,
+      (await apiClient.get(`${base}/${migrationId}/assessment`, { signal })).data,
     ),
 
-  sourceCatalogue: async (migrationId: string) =>
+  sourceCatalogue: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceCatalogueResponseSchema,
-      (await apiClient.get(`${base}/${migrationId}/source-catalogue`)).data,
+      (await apiClient.get(`${base}/${migrationId}/source-catalogue`, { signal })).data,
     ),
 
-  sourceInventory: async (migrationId: string) =>
+  sourceInventory: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceInventoryResponseSchema,
-      (await apiClient.get(`${base}/${migrationId}/source-inventory`)).data,
+      (await apiClient.get(`${base}/${migrationId}/source-inventory`, { signal })).data,
     ),
 
   update: async (migrationId: string, input: UpdateMigrationInput) =>
@@ -320,12 +321,13 @@ export const migrations = {
 const sourceClustersBase = "/source-clusters";
 
 export const sourceClusters = {
-  list: async (customerId: string) =>
+  list: async (customerId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceClusterListSchema,
       (
         await apiClient.get(sourceClustersBase, {
           params: { customerId },
+          signal,
         })
       ).data,
     ),

@@ -4,6 +4,7 @@ import {
   writeHeaders,
   type WriteOptions,
 } from "@/shared/api/client";
+import { resourceSummary } from "@/shared/api/summary";
 import {
   environmentSchema,
   listSchema,
@@ -27,10 +28,19 @@ import {
 } from "../model/types";
 const base = "/environments";
 export const environments = {
-  list: async (filters: Filters) =>
+  list: async (filters: Filters, signal?: AbortSignal) =>
     parseResponse(
       listSchema,
-      (await apiClient.get(base, { params: filters })).data,
+      (await apiClient.get(base, { params: filters, signal })).data,
+    ),
+  summary: (signal?: AbortSignal) =>
+    resourceSummary(
+      "environments",
+      ["ACTIVE", "SUBMITTED", "UNDER_REVIEW", "DRAFT", "APPROVED", "REJECTED"],
+      ["AWS", "AZURE", "GCP", "OCI"],
+      async (status, cloudProvider, requestSignal) =>
+        (await environments.list({ page: 0, pageSize: 1, sort: "createdAt,desc", status, cloudProvider }, requestSignal)).pagination.totalElements,
+      signal,
     ),
   get: async (id: string) =>
     parseResponse(

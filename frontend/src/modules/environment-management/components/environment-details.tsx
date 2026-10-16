@@ -100,6 +100,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
       setComments("");
       await cache.invalidateQueries({ queryKey: ["environment", id] });
       await cache.invalidateQueries({ queryKey: ["environments"] });
+      await cache.invalidateQueries({ queryKey: ["environment-count"] });
     },
   });
   if (query.isPending) return <Loading label="Loading environment…" />;

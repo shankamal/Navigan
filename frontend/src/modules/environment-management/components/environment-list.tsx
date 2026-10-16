@@ -26,6 +26,7 @@ import { hasPermission } from "@/shared/auth/permissions";
 import { statuses } from "@/modules/customer-management/model/types";
 import {
   useEnvironmentCount,
+  useEnvironmentSummary,
   useEnvironments,
   useMetadata,
 } from "../hooks/queries";
@@ -63,36 +64,10 @@ export function EnvironmentList({
   const [view, setView] = useState<"list" | "board">("list");
   const query = useEnvironments(filters);
   const metadata = useMetadata();
-  const awsCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "AWS",
-  });
-  const azureCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "AZURE",
-  });
-  const gcpCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "GCP",
-  });
-  const ociCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "OCI",
-  });
-  const cloudCounts = [awsCount, azureCount, gcpCount, ociCount];
+  const providerSummary = useEnvironmentSummary(mode === "directory");
   const refresh = () => {
     void query.refetch();
-    [total, active, submitted, review, draft, ...cloudCounts].forEach(
-      (item) => void item.refetch(),
-    );
+    void providerSummary.refetch();
   };
   const total = useEnvironmentCount(undefined, mode === "directory");
   const active = useEnvironmentCount("ACTIVE", mode === "directory");
@@ -301,17 +276,17 @@ export function EnvironmentList({
                     {provider} / {["EKS", "AKS", "GKE", "OKE"][index]}
                   </span>
                   <strong>
-                    {cloudCounts[index].data?.pagination.totalElements ?? "—"}
+                    {providerSummary.data?.byProvider[provider] ?? (providerSummary.data ? 0 : "—")}
                   </strong>
                   <meter
                     min={0}
                     max={Math.max(
                       1,
                       total.data ?? 0,
-                      cloudCounts[index].data?.pagination.totalElements ?? 0,
+                      providerSummary.data?.byProvider[provider] ?? 0,
                     )}
                     value={
-                      cloudCounts[index].data?.pagination.totalElements ?? 0
+                      providerSummary.data?.byProvider[provider] ?? 0
                     }
                     aria-label={`${provider} environment count`}
                   />

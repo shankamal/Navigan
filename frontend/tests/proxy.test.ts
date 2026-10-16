@@ -11,7 +11,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("Same-origin API proxy", () => {
-  it("allows exactly the 18 documented routes", () => {
+  it("allows exactly the 19 documented routes", () => {
     const contract = JSON.parse(
       readFileSync(new URL("../../docs/openapi.json", import.meta.url), "utf8"),
     ) as { paths: Record<string, Record<string, unknown>> };
@@ -25,7 +25,7 @@ describe("Same-origin API proxy", () => {
         expect(isAllowedRoute(method.toUpperCase(), segments)).toBe(true);
         count++;
       }
-    expect(count).toBe(18);
+    expect(count).toBe(19);
     expect(isAllowedRoute("DELETE", ["customers", "CUS-test-123"])).toBe(false);
     expect(
       isAllowedRoute("GET", ["customers", "CUS-test-123", "../secrets"]),

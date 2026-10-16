@@ -279,6 +279,12 @@ def execute(event, principal, correlation):
     if path != BASE and not path.startswith(BASE + "/"):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     parts = path[len(BASE):].strip("/").split("/") if path != BASE else []
+    if parts == ["summary"]:
+        if method != "GET":
+            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")
+        with transaction() as db:
+            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            return response(200, Repository(db, principal).summary(), correlation)
     identifier = parts[0] if parts else None
     if identifier and not re.fullmatch(r"CLU-[A-Za-z0-9-]{1,46}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")

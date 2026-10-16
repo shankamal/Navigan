@@ -2668,7 +2668,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
     ),
     refetchInterval: (state) =>
       state.state.data?.status === "READY" ? 30_000 : 5000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
     retry: false,
@@ -2679,7 +2679,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
     enabled: ["ACTIVE", "READY", "RUNNING"].includes(query.data?.status || ""),
     refetchInterval: (state) =>
       state.state.data?.tunnel.status === "READY" ? 30_000 : 5000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
     retry: false,
@@ -2748,7 +2748,7 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const auditLog = useQuery({
     queryKey: ["cluster-audit-log", id],
     queryFn: () => clusters.auditLog(id),
-    enabled: canViewAudit,
+    enabled: canViewAudit && activeTab === "audit",
     refetchInterval: activeTab === "audit" ? 10_000 : false,
     retry: false,
   });

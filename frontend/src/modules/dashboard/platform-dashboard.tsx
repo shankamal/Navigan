@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -125,6 +126,7 @@ function DonutChart({
 }
 
 export function PlatformDashboard() {
+  const queryClient = useQueryClient();
   const { identity } = useAuth();
   const [currentDate, setCurrentDate] = useState("");
   const [refreshError, setRefreshError] = useState(false);
@@ -227,7 +229,9 @@ export function PlatformDashboard() {
   async function refreshDashboard() {
     setRefreshError(false);
     const results = await Promise.allSettled(
-      dashboardQueries.map((query) => query.refetch({ throwOnError: true })),
+      ["customers", "environment-count", "environments", "cluster-count", "clusters"].map(
+        (key) => queryClient.refetchQueries({ queryKey: [key], type: "active" }, { throwOnError: true }),
+      ),
     );
     setRefreshError(results.some((result) => result.status === "rejected"));
   }
@@ -330,7 +334,7 @@ export function PlatformDashboard() {
     return (
       <ErrorNotice
         error={failedQuery.error}
-        onRetry={() => countQueries.forEach((query) => void query.refetch())}
+        onRetry={() => void refreshDashboard()}
       />
     );
   }

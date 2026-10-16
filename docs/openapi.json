@@ -24,6 +24,33 @@
     }
   ],
   "paths": {
+    "/api/v1/customers/summary": {
+      "get": {
+        "summary": "Tenant-scoped customer metrics grouped by lifecycle and provider",
+        "operationId": "GetCustomerSummary",
+        "tags": ["Customer Management"],
+        "responses": {
+          "200": {
+            "description": "Metrics for customers visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["total", "byStatus", "byProvider"],
+                  "properties": {
+                    "total": { "type": "integer", "minimum": 0 },
+                    "byStatus": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+                    "byProvider": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthenticated" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
     "/api/v1/customers": {
       "post": {
         "summary": "Create Customer",

@@ -291,6 +291,24 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
+  CustomerSummaryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CustomerInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/customers/summary
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: CustomerIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
   GetCustomerRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn:

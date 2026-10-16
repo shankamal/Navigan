@@ -23,7 +23,7 @@ def test_gateway_exposes_every_documented_operation_with_authentication():
     expected = {f'{method.upper()} {path}' for path, methods in contract['paths'].items() for method in methods}
     routes = [r['Properties'] for r in module['Resources'].values() if r['Type'] == 'AWS::ApiGatewayV2::Route']
     assert {p['RouteKey'] for p in routes} == expected
-    assert len(routes) == len(expected) == 18
+    assert len(routes) == len(expected) == 19
     for props in routes:
         assert props['ApiId'] == {'Ref': 'ApiId'}
         assert props['AuthorizationType'] == 'JWT'

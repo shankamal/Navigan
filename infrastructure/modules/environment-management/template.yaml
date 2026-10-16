@@ -304,6 +304,24 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
+  EnvironmentSummaryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - EnvironmentInvokePermission
+    Properties:
+      ApiId:
+        Ref: ApiId
+      RouteKey: GET /api/v1/environments/summary
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: EnvironmentIntegration
+      AuthorizationType: JWT
+      AuthorizerId:
+        Ref: AuthorizerId
+      AuthorizationScopes:
+      - Ref: JwtScope
   GetEnvironmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn:

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -36,6 +37,7 @@ import "./customer-workspace.css";
 import { CustomerMetrics } from "./customer-metrics";
 import { ProviderBadges, StatusBadge } from "./customer-badges";
 export function CustomerListView() {
+  const queryClient = useQueryClient();
   const { identity } = useAuth();
   const [filters, setFilters] = useState<CustomerFilters>({
     page: 0,
@@ -77,14 +79,6 @@ export function CustomerListView() {
   const ociCount = useCustomerCount(undefined, "OCI");
   const providerQueries = [awsCount, azureCount, gcpCount, ociCount];
   const [view, setView] = useState<"list" | "board">("list");
-  const metricQueries = [
-    total,
-    active,
-    submitted,
-    review,
-    draft,
-    ...providerQueries,
-  ];
   const boardStatuses = statuses.filter(
     (status) =>
       ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "ACTIVE"].includes(status) ||
@@ -113,7 +107,7 @@ export function CustomerListView() {
                 disabled={customers.isFetching}
                 onClick={() => {
                   void customers.refetch();
-                  metricQueries.forEach((query) => void query.refetch());
+                  void queryClient.refetchQueries({ queryKey: ["customers", "summary"], type: "active" });
                 }}
               >
                 <RefreshCw

@@ -5,7 +5,7 @@ import { migrations, sourceClusters } from "./service";
 export const useSourceClusters = (customerId: string) =>
   useQuery({
     queryKey: ["source-clusters", customerId],
-    queryFn: () => sourceClusters.list(customerId),
+    queryFn: ({ signal }) => sourceClusters.list(customerId, signal),
     enabled: Boolean(customerId),
     retry: false,
   });
@@ -13,7 +13,7 @@ export const useSourceClusters = (customerId: string) =>
 export const useMigrations = () =>
   useQuery({
     queryKey: ["migrations"],
-    queryFn: () => migrations.list(),
+    queryFn: ({ signal }) => migrations.list(signal),
     retry: false,
   });
 
@@ -43,7 +43,7 @@ export const useCancelMigration = () => {
 export const useMigration = (migrationId: string) =>
   useQuery({
     queryKey: ["migrations", migrationId],
-    queryFn: () => migrations.get(migrationId),
+    queryFn: ({ signal }) => migrations.get(migrationId, signal),
     enabled: Boolean(migrationId),
     retry: false,
   });
@@ -51,7 +51,7 @@ export const useMigration = (migrationId: string) =>
 export const useSourceCatalogue = (migrationId: string) =>
   useQuery({
     queryKey: ["migrations", migrationId, "source-catalogue"],
-    queryFn: () => migrations.sourceCatalogue(migrationId),
+    queryFn: ({ signal }) => migrations.sourceCatalogue(migrationId, signal),
     enabled: Boolean(migrationId),
     retry: false,
     refetchInterval: (query) => (query.state.data?.catalogue ? false : 5_000),
@@ -60,7 +60,7 @@ export const useSourceCatalogue = (migrationId: string) =>
 export const useSourceInventory = (migrationId: string, enabled: boolean) =>
   useQuery({
     queryKey: ["migrations", migrationId, "source-inventory"],
-    queryFn: () => migrations.sourceInventory(migrationId),
+    queryFn: ({ signal }) => migrations.sourceInventory(migrationId, signal),
     enabled: Boolean(migrationId) && enabled,
     retry: 2,
     refetchOnMount: "always",
@@ -70,7 +70,7 @@ export const useSourceInventory = (migrationId: string, enabled: boolean) =>
 export const useMigrationAssessment = (migrationId: string, enabled: boolean) =>
   useQuery({
     queryKey: ["migrations", migrationId, "assessment"],
-    queryFn: () => migrations.assessment(migrationId),
+    queryFn: ({ signal }) => migrations.assessment(migrationId, signal),
     enabled: Boolean(migrationId) && enabled,
     retry: false,
     refetchInterval: (query) =>
