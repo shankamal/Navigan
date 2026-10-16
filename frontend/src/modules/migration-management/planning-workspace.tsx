@@ -938,6 +938,53 @@ export function PlanningEditor({
           Read-only planning view. {editRestriction}
         </div>
       )}
+      {tab === "target" && <section className={styles.targetWorkspace} aria-label="Target assessment and compatibility workspace">
+        <div className={styles.targetWorkspaceIntro}>
+          <div><span className={styles.targetEyebrow}>DESTINATION ASSESSMENT</span><h2>Target readiness at a glance</h2><p>Compare your saved Source scope with the selected destination. Review what is known, what needs evidence and which resources require attention.</p></div>
+          <span className={styles.targetAssessmentVersion}>SOURCE ASSESSMENT v{assessment.assessmentVersion}</span>
+        </div>
+        <div className={styles.targetClusterBanner}>
+          <div className={styles.targetClusterSymbol}><Server size={22}/></div>
+          <div className={styles.targetClusterIdentity}><span>DESTINATION CLUSTER</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Kubernetes {targetEvidence?.snapshot.kubernetesVersion || "version not reported"} · {targetEvidence ? `Captured ${new Date(targetEvidence.createdAt).toLocaleString()}` : "Inventory not captured"}</small></div>
+          <span className={styles.targetClusterEvidence}>{savedTargetMatches ? "PARTIAL EVIDENCE" : targetEvidence && !targetEvidenceCurrent ? "INVENTORY EXPIRED" : "EVIDENCE REQUIRED"}</span>
+          <button type="button" className={`button button-primary ${styles.targetRefreshButton}`} disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Refreshing…" : "Refresh evidence"}</button>
+        </div>
+        {targetError && <div className={styles.warning} role="alert">{targetError}</div>}
+        {targetEvidence && !targetEvidenceCurrent && <p className={styles.targetActionNotice}>The connector inventory has expired. First refresh <Link href={`/clusters/${String(migration.targetConfiguration?.clusterId ?? "")}`}>Cluster Management inventory</Link>, then refresh evidence here.</p>}
+        <div className={styles.targetVerdict}>
+          <div className={styles.targetVerdictHeadline}><ShieldCheck size={23}/><div><span>COMPATIBILITY VERDICT</span><strong>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING VERIFICATION"}</strong><p>{dirty ? "Save Source scope changes before assessment." : !savedScopeCurrent ? "Save the selected Source scope first." : "Target-specific proof is required before migration can be approved."}</p></div></div>
+          <div className={styles.targetVerdictNumbers}><div><strong>{savedDraft?.resources.length ?? 0}</strong><span>Selected resources</span></div><div><strong>{new Set((savedDraft?.resources ?? []).map(item => item.namespace).filter(Boolean)).size}</strong><span>Namespaces</span></div><div><strong>{backendEvaluationCurrent ? authoritativeUnverified + authoritativePartial : p0Unverified}</strong><span>Checks requiring evidence</span></div></div>
+        </div>
+        <div className={styles.targetSectionTitle}><div><h3>Capability assessment</h3><p>Six critical areas checked against destination evidence</p></div><span>Read-only assessment</span></div>
+        <div className={styles.targetReadinessGrid}>{([
+          ["Kubernetes APIs", "kubernetesApi", Layers],
+          ["Compute & scheduling", "compute", Server],
+          ["Storage & CSI", "storage", Database],
+          ["Networking & ingress", "networking", Network],
+          ["Identity & security", "identity", LockKeyhole],
+          ["Controllers & dependencies", "dependencies", Boxes],
+        ] as const).map(([label,key,Icon]) => {
+          const evidence = targetEvidence?.snapshot.capabilityEvidence?.[key];
+          return <div className={styles.targetReadinessItem} key={key}><span className={styles.targetReadinessIcon}><Icon size={19}/></span><div><strong>{label}</strong><p>{evidence?.reason ?? "Target-specific capability evidence is not yet available."}</p></div><span className={styles.targetReadinessStatus}>{evidence?.status === "PARTIAL" ? "PARTIAL" : "NOT VERIFIED"}</span></div>;
+        })}</div>
+        <div className={styles.targetSectionTitle}><div><h3>Priority findings</h3><p>Review before progressing to remediation</p></div></div>
+        <div className={styles.targetFindingsStrip}>{(() => {
+          const handoff = backendEvaluationCurrent ? buildRemediationHandoff(authoritativeResults) : null;
+          return <><div><span>Required changes</span><strong>{handoff ? handoff.actions.length : "—"}</strong><small>{handoff ? "Based on backend evaluation" : "Awaiting verified evaluation"}</small></div><div><span>Evidence gaps</span><strong>{handoff ? handoff.evidence.length : p0Unverified}</strong><small>{handoff ? "Items requiring verification" : "Diagnostic checks, not verified"}</small></div><div><span>Resources evaluated</span><strong>{backendEvaluationCurrent ? authoritativeResults.length : p0Compatibility.length}</strong><small>{backendEvaluationCurrent ? "Current backend evaluation" : "Source scope diagnostics"}</small></div></>;
+        })()}</div>
+        <div className={styles.targetSectionTitle}><div><h3>Scoped resource compatibility</h3><p>Open a resource to inspect evidence and recommended next actions</p></div><span>{backendEvaluationCurrent ? "Backend evaluation" : "Diagnostic preview"}</span></div>
+        <div className={styles.targetResourceTableScroll}><table className={styles.targetResourceTable}><thead><tr><th>Source resource</th><th>Kind</th><th>Source readiness</th><th>Target compatibility</th><th>Evidence</th></tr></thead><tbody>{(backendEvaluationCurrent ? authoritativeResults : p0Compatibility.map(item => ({
+          resource: item.resource,
+          status: "PENDING_EVIDENCE" as const,
+          sourceStatus: item.checks.some(check => check.capability === "Source assessment" && check.status === "BLOCKED") ? "BLOCKED" : item.checks.some(check => check.capability === "Source assessment" && check.status === "REMEDIATION_REQUIRED") ? "REMEDIATION_REQUIRED" : "NOT_VERIFIED",
+          targetStatus: "PENDING_EVIDENCE",
+          checks: item.checks,
+        }))).map(item => <tr key={resourceKey(item.resource)}><td><strong>{item.resource.name}</strong><small>{item.resource.namespace ?? "Cluster-wide"}</small></td><td>{item.resource.kind}</td><td><span className={styles.targetTableStatus}>{(item.sourceStatus ?? "NOT_VERIFIED").replaceAll("_", " ")}</span></td><td><span className={styles.targetTableStatus}>{(item.targetStatus ?? "PENDING_EVIDENCE").replaceAll("_", " ")}</span></td><td><button type="button" className={styles.targetEvidenceLink} onClick={() => setSelectedCompatibilityResource(item)}>View {item.checks.length} checks <ArrowRight size={14}/></button></td></tr>)}</tbody></table></div>
+        {!backendEvaluationCurrent && <p className={styles.targetTableFootnote}>Resource-level entries are Source diagnostics until fresh destination evidence supports a backend evaluation. They do not indicate migration approval.</p>}
+        <div className={styles.targetWorkspaceBottom}><span><ShieldCheck size={16}/> Assessment only · No cluster resources are modified</span><button type="button" className={`button button-primary ${styles.planningContinueButton}`} onClick={() => navigateToStep("remediate")}>Review findings <ArrowRight size={16}/></button></div>
+      </section>}
+      {tab === "target" && <details className={styles.targetAdvancedDisclosure} aria-label="Advanced target evidence and artifact preparation"><summary>Advanced details · Target inventory, compatibility diagnostics &amp; artifact preparation</summary>
+      <div className={styles.targetAdvancedBody}>
       {tab === "target" && <section className={styles.surface} aria-label="Target environment assessment and readiness">
         <div className={styles.workflowStageHeading}><strong>2. Target Assessment &amp; Compatibility</strong><p>Review the destination cluster, evaluate your saved Source scope and understand what needs attention before migration planning.</p></div>
         <p className={styles.caption}>Navigan retrieves destination evidence from the registered connector. Observed inventory does not, by itself, prove workload compatibility.</p>
@@ -1269,6 +1316,7 @@ export function PlanningEditor({
           <p className={styles.caption}>Container image transfer and ECR promotion are not implemented. No cluster resources are created by this assessment.</p>
         </section>
       </section>}
+      </div></details>}
       {tab === "target" && selectedCompatibilityResource && <div className={styles.targetCompatibilityDrawerOverlay}>
         <button type="button" className={styles.targetCompatibilityBackdrop} aria-label="Close resource compatibility details" onClick={() => setSelectedCompatibilityResource(null)} />
         <aside role="dialog" aria-modal="true" aria-label="Resource compatibility details" className={styles.targetCompatibilityDrawer}>
