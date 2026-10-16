@@ -2,6 +2,7 @@
 import { useAuth } from "./auth-provider";
 import { LoginForm } from "./login-form";
 import { type ReactNode } from "react";
+import Image from "next/image";
 import { Cloud, Network } from "lucide-react";
 import { Loading } from "@/shared/components/ui";
 import "./login-workspace.css";
@@ -48,10 +49,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
             with clarity, control and confidence.
           </p>
         </div>
-        <img
+        <Image
           className="login-estate-illustration"
-          src="/graphics/login-cloud-estate.webp"
-          alt=""
+          src="/graphics/Deloitte-Maritime-Transparent.webp"
+          alt="Maritime navigator connecting ships, ports and containers — illustrating Navigan's connected container ecosystem"
+          width={1672}
+          height={941}
+          sizes="(max-width: 700px) 100vw, (max-width: 1050px) 50vw, 55vw"
+          priority
         />
         <section className="login-ecosystem" aria-label="Platform roadmap">
           <h2>Platform roadmap</h2>

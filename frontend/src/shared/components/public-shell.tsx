@@ -9,13 +9,11 @@ export function PublicShell({ children }: { children: ReactNode }) {
     <div className="public-shell login-public-shell">
       <header className="topbar">
         <Link href="/login" className="brand" aria-label="Navigan sign in">
-          {logo ? (
-            <img src={logo} alt="Corporate logo" className="corporate-logo" />
-          ) : (
-            <span className="login-corporate-wordmark">
-              Deloitte<span>.</span>
-            </span>
-          )}
+          <img
+            src={logo || "/logos/deloitte.svg"}
+            alt="Deloitte"
+            className="corporate-logo login-deloitte-logo"
+          />
         </Link>
         <span className="brand-divider" />
         <span className="platform-title">Container Management Platform</span>
