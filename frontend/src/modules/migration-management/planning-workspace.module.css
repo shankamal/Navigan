@@ -1406,3 +1406,47 @@
 .sourceReferenceDetails{margin:0 14px 12px;border:1px solid #dde8f0;border-radius:4px;background:#fafcfe}.sourceReferenceDetails summary{cursor:pointer;padding:10px 12px;color:#356381;font-size:11px;font-weight:700}
 .sourceReferenceDetails ul{list-style:none;margin:0;padding:0 12px}.sourceReferenceDetails li{border-top:1px solid #e5edf3;padding:9px 0;font-size:11px;color:#3f566b;overflow-wrap:anywhere}.sourceReferenceDetails li span{display:block;color:#698398;font-size:10px;margin-top:3px}
 .sourceReferenceDetails p{font-size:11px;color:#687f92;padding:0 12px;line-height:1.5}
+
+/* Evidence counts are observations, not percentages */
+.sourceEvidenceChartRow{grid-template-columns:minmax(65px,.8fr) minmax(70px,1fr) minmax(90px,1.15fr);gap:9px}
+.sourceEvidenceValue{display:grid;justify-items:end;gap:2px;min-width:0}.sourceEvidenceValue>b{font-size:11px;font-weight:750;color:#263f58;white-space:nowrap}.sourceEvidenceValue>small{font-size:9px;color:#687f91}
+
+/* Supporting resources appear alongside workload selection, with separate inclusion decisions */
+.sourceSupportingWorkspace{border:1px solid #dce5ec;background:#fff;margin:12px 0;min-width:0;overflow:hidden;border-radius:5px}
+.sourceSupportingWorkspace .scopeWorkloadTableScroll{margin:0 12px 12px;max-width:calc(100% - 24px);overflow:auto}
+.sourceSupportingWorkspace .scopeWorkloadTable{min-width:760px}
+.sourceSupportingNote{margin:0;padding:9px 14px;font-size:11px;color:#60788d;line-height:1.45;background:#fbfcfe}.sourceDependencyHint{font-size:10px;color:#73879a}
+
+/* Compact review-and-confirm workspace */
+.sourceConfirmPanel{margin:16px 0 12px;background:#fff;border:1px solid #d5e2eb;border-radius:5px;overflow:hidden;box-shadow:0 4px 15px #213d5810}
+.sourceConfirmHeader{padding:15px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f4f8fb;border-bottom:1px solid #e0e9f0}
+.sourceConfirmHeader>div{display:flex;align-items:center;gap:10px;min-width:0}.sourceConfirmHeader svg{color:#4a8032;flex-shrink:0}.sourceConfirmHeader>div>span{display:grid;gap:4px}.sourceConfirmHeader strong{font-size:14px;color:#29445a}.sourceConfirmHeader small{font-size:11px;line-height:1.4;color:#6d8294}
+.sourceConfirmTag{font-size:10px;color:#477336;background:#eaf4e7;border:1px solid #d0e4c9;padding:7px 9px;border-radius:3px;white-space:nowrap}
+.sourceConfirmMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:13px}
+.sourceConfirmMetrics>div{display:grid;gap:5px;border:1px solid #dce6ee;border-top:2px solid #86bc25;background:#fbfcfd;padding:13px;border-radius:4px}.sourceConfirmMetrics strong{color:#27475d;font-size:23px;line-height:1}.sourceConfirmMetrics span{font-size:10px;color:#668196}
+.sourceConfirmTotal{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 13px;padding:11px 13px;background:#edf5f9;border-left:3px solid #4d91ba}.sourceConfirmTotal strong{font-size:12px;color:#24455f}.sourceConfirmTotal span{font-size:11px;color:#627c8e}
+.sourceConfirmPanel .confirmScopeGroups{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));padding:13px;gap:9px}
+.sourceConfirmPanel .confirmScopeGroup{background:#fff;padding:12px;border:1px solid #dde8ee}.sourceConfirmPanel .confirmScopeGroupHeader{flex-wrap:wrap;margin-bottom:4px}.sourceConfirmPanel .confirmScopeGroupHeader strong{display:flex;align-items:center;gap:6px}.sourceConfirmPanel .confirmScopeGroupHeader svg{color:#588aa4}
+.sourceConfirmPanel .confirmScopeGroup details summary{font-size:11px;color:#34739b;cursor:pointer;padding:9px 0 3px}.sourceConfirmPanel .confirmScopeGroup .scopeReviewItems{padding:8px 0 0;gap:5px}
+.sourceConfirmReadiness{display:flex;align-items:center;gap:9px;padding:12px 14px;border-top:1px solid #e1e9f0;background:#f7fafc}.sourceConfirmReadiness svg{color:#63893d;flex-shrink:0}.sourceConfirmReadiness strong{font-size:11px;color:#345a6c}.sourceConfirmReadiness span{font-size:10px;color:#71869a}
+@media(max-width:900px){.sourceConfirmMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceConfirmHeader,.sourceConfirmTotal,.sourceConfirmReadiness{align-items:flex-start;flex-direction:column}}
+
+/* Three-stage Source setup as tabs, not boxed navigation cards */
+.sourceJourney{border:1px solid #dce6ed;border-left:0;border-radius:0;background:#fff;box-shadow:none;padding:11px 14px;gap:9px}
+.sourceJourneySteps{gap:0;border-bottom:1px solid #d8e3ec}
+.sourceJourneySteps{grid-template-columns:repeat(3,minmax(0,1fr))}
+.sourceJourneySteps button{background:transparent;border:0!important;border-bottom:3px solid transparent!important;border-radius:0;box-shadow:none!important;padding:10px 12px 11px;color:#72869a}
+.sourceJourneySteps button:disabled{background:transparent;opacity:.65}.sourceJourneySteps button[aria-current="step"]:disabled{opacity:1;background:#f8fbf4;border-bottom-color:#86bc25!important}
+.sourceJourneySteps button:not(:disabled):hover{background:#f6fafc;border-bottom-color:#a3bc91!important}
+.sourceJourneySteps button[aria-current="step"] .sourceJourneyNumber{background:#4b972d;color:#fff}
+.sourceJourneySteps button:not([aria-current="step"]) .sourceJourneyNumber{background:#edf1f5;color:#698196}
+.sourceJourneySteps button strong{font-size:12px}.sourceJourneySteps button small{font-size:10px}
+.sourceJourneyAction{border-top:0;padding-top:0}
+
+/* Namespace and search inputs share one field rhythm */
+.scopeSelectionBar{grid-template-columns:minmax(200px,1fr) minmax(220px,1fr)!important;gap:12px!important;align-items:start!important}
+.scopeNamespaceField{display:grid;gap:6px;min-width:0;align-self:start}.scopeFieldCaption,.scopeSelectionBar .scopeSearchLabel{font-size:12px;font-weight:650;color:#395670}
+.scopeSelectionBar .scopeNamespacePicker{align-self:start;min-width:0}.scopeSelectionBar .scopeNamespacePicker summary{height:39px;min-height:39px;box-sizing:border-box;background:#fff;border:1px solid #cbd8e4;border-radius:4px;font-size:12px;color:#334f68;padding:9px 11px}
+.scopeSelectionBar .scopeSearchLabel{gap:6px;align-self:start}.scopeSelectionBar .scopeSearchLabel .search{height:39px;min-height:39px;box-sizing:border-box;border:1px solid #cbd8e4;border-radius:4px;background:#fff}
+.scopeSelectionBar .scopeSearchLabel .search input{height:100%;min-width:0;background:transparent}
+@media(max-width:650px){.scopeSelectionBar{grid-template-columns:minmax(0,1fr)!important}.sourceJourneySteps button{padding:10px 7px}.sourceJourneySteps button strong{font-size:10px}}

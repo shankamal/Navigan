@@ -385,7 +385,7 @@ export function PlanningEditor({
   const sourceStages = [
     {name:"Connector",status:sourceCatalogue?"Catalogued":"Not verified",state:sourceCatalogue?"captured":"unknown"},
     {name:"Inventory",status:"Captured",state:"captured"},
-    {name:"Dependencies",status:graph.coverage==="REFERENCES_AVAILABLE"?"Recorded":"Not collected",state:graph.coverage==="REFERENCES_AVAILABLE"?"captured":"unknown"},
+    {name:"Dependencies",status:graph.coverage==="REFERENCES_AVAILABLE"?"Recorded":"Incomplete",state:graph.coverage==="REFERENCES_AVAILABLE"?"captured":"unknown"},
     {name:"Evidence",status:"Partial",state:"partial"},
     {name:"Assessment",status:stale?"Stale":"Available",state:stale?"partial":"captured"},
   ] as const;
@@ -425,6 +425,14 @@ export function PlanningEditor({
     ) : [];
     return { workload, references, selected, observedClaimCandidates };
   });
+  const discoveredSupportingDependencies = workloadRelationships.flatMap(({workload,references,selected}) =>
+    references.filter(ref => ref.kind !== "PersistentVolumeClaim").map(ref => ({
+      ...ref,
+      workloadName: workload.name,
+      workloadSelected: selected,
+      source: resources.find(item => item.kind === ref.kind && item.namespace === ref.namespace && item.name === ref.name),
+    })),
+  );
   const evidenceCoverage = graph.coverage === "REFERENCES_AVAILABLE" ? "References captured" : "Reference evidence unavailable in this snapshot";
   const targetPlatform = String(migration.targetConfiguration?.platform ?? "UNKNOWN").toUpperCase();
   // Provider-specific candidates are guidance, not verified StorageClasses.
@@ -1218,12 +1226,12 @@ export function PlanningEditor({
             </div>
             <div className={styles.sourceEvidenceCard}>
               <strong>Source evidence quality</strong>
-              <div className={styles.sourceEvidenceChart} role="img" aria-label="Source evidence availability: inventory captured, dependency references based on collection coverage, assessment available, full manifests not verified">
+              <div className={styles.sourceEvidenceChart} role="group" aria-label="Source evidence availability and observed counts; bars indicate evidence state, not percentage complete">
                 {sourceStages.slice(1).map(stage=><div key={stage.name} className={styles.sourceEvidenceChartRow}>
-                  <span>{stage.name}</span><div className={styles.sourceEvidenceTrack}><i className={stage.state==="captured"?styles.sourceEvidenceCaptured:stage.state==="partial"?styles.sourceEvidencePartial:styles.sourceEvidenceUnknown}/></div><b>{stage.status}</b>
+                  <span>{stage.name}</span><div className={styles.sourceEvidenceTrack}><i className={stage.state==="captured"?styles.sourceEvidenceCaptured:stage.state==="partial"?styles.sourceEvidencePartial:styles.sourceEvidenceUnknown}/></div><div className={styles.sourceEvidenceValue}><b>{stage.name==="Inventory"?`${resources.length} resources`:stage.name==="Dependencies"?`${graph.edges.length} references`:stage.name==="Assessment"?`${assessment.findings.length} findings`:"Not quantified"}</b><small>{stage.status}</small></div>
                 </div>)}
               </div>
-              <small>{assessment.findings.length} source findings · {graph.edges.length} recorded references. Bars indicate evidence availability, not readiness.</small>
+              <small>Counts reflect observed inventory and assessment data. Bars represent evidence availability—not completion percentages or migration readiness.</small>
             </div>
           </div>
         </section>
@@ -1317,14 +1325,17 @@ export function PlanningEditor({
             </p>
             <div className={styles.scopeOptionSectionTitle}><span>2</span><strong>Assessed source namespaces</strong><small>Only namespaces from the existing Source Assessment are available for planning</small></div>
             <div className={styles.scopeSelectionBar}>
+              <div className={styles.scopeNamespaceField}>
+              <span className={styles.scopeFieldCaption}>Select source namespaces</span>
               <details className={styles.scopeNamespacePicker}>
-                <summary aria-label="Application namespaces">Select namespaces · {scopeNamespaces.length} selected</summary>
+                <summary aria-label="Select source namespaces">{scopeNamespaces.length} namespace{scopeNamespaces.length===1?"":"s"} selected</summary>
                 <div>{namespaces.map(item=><label key={item}>
                   <input type="checkbox" aria-label={`Select namespace ${item}`} checked={scopeNamespaceSet.has(item)}
                     onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setDirty(true);setMessage("");setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} /><span>{item}</span>
                 </label>)}</div>
               </details>
-              <label className={styles.scopeSearchLabel}>Search selected resources
+              </div>
+              <label className={styles.scopeSearchLabel}>Search source resources
                 <div className={styles.search}><Search size={16} /><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Name or kind"/></div>
               </label>
             </div>
@@ -1350,7 +1361,7 @@ export function PlanningEditor({
                           <td>{workload.namespace??"Cluster"}</td>
                           <td>{workload.kind}</td>
                           <td><span className={included?styles.scopeTableIncluded:styles.scopeTableDiscovered}>{included?"Included in draft":"Discovered"}</span></td>
-                          <td>{graph.coverage!=="REFERENCES_AVAILABLE"?"Not collected":references.length+" references"}</td>
+                          <td>{references.length ? `${references.length} observed${graph.coverage!=="REFERENCES_AVAILABLE"?" · incomplete coverage":""}` : graph.coverage!=="REFERENCES_AVAILABLE" ? "Coverage unknown" : "No recorded references"}</td>
                           <td>{included?<span className={styles.scopeTableIncluded}>Included</span>:<button type="button" className={styles.scopeTableAdd} disabled={!canEdit||stale||save.isPending} title={!canEdit?"Read-only planning: editing is unavailable":stale?"Refresh assessment before editing":save.isPending?"Saving draft":"Add workload to migration draft"} onClick={()=>{
                             if(!draft.resources.some(item=>item.kind===workload.kind&&item.namespace===workload.namespace&&item.name===workload.name)){
                               change({...draft,resources:[...draft.resources,{...recommendResource(workload).resource,dependency:false}]});
@@ -1361,6 +1372,26 @@ export function PlanningEditor({
                     </table>
                   </div>
                 </div>
+                <section className={styles.sourceSupportingWorkspace} aria-label="Supporting dependency selection">
+                  <div className={styles.sourceStorageWorkspaceHead}>
+                    <div><Network size={21}/><span><strong>Supporting dependencies</strong><small>Discovered relationships for workloads above. Review Services, ServiceAccounts, configuration and other supporting objects separately from workloads.</small></span></div>
+                    <span>{discoveredSupportingDependencies.length} observed references</span>
+                  </div>
+                  <p className={styles.sourceSupportingNote}>These resources are not application workloads. Some may need recreation or replacement on the target; discovery does not automatically include them in the migration draft.</p>
+                  {discoveredSupportingDependencies.length ? <div className={styles.scopeWorkloadTableScroll}><table className={styles.scopeWorkloadTable}>
+                    <thead><tr><th>Supporting resource</th><th>Referenced by</th><th>Namespace</th><th>Source evidence</th><th>Draft status</th><th>Action</th></tr></thead>
+                    <tbody>{discoveredSupportingDependencies.map((ref,index)=>{
+                      const included=draft.resources.some(item=>item.kind===ref.kind&&item.namespace===ref.namespace&&item.name===ref.name);
+                      return <tr key={`${ref.workloadName}/${ref.kind}/${ref.name}/${index}`}>
+                        <td><strong>{ref.name}</strong><small className={styles.sourceStorageClass}>{ref.kind}</small></td>
+                        <td>{ref.workloadName}</td><td>{ref.namespace??"Cluster"}</td>
+                        <td>{ref.present?"Found in inventory":"Not found in inventory"}{graph.coverage!=="REFERENCES_AVAILABLE"?" · partial coverage":""}</td>
+                        <td><span className={included?styles.scopeTableIncluded:styles.scopeTableDiscovered}>{included?"Included in draft":"Review separately"}</span></td>
+                        <td>{included?<span className={styles.scopeTableIncluded}>Included</span>:ref.source&&ref.workloadSelected?<button type="button" className={styles.scopeTableAdd} disabled={!canEdit||stale||save.isPending} onClick={()=>change({...draft,resources:[...draft.resources,{...recommendResource(ref.source!).resource,dependency:true}]})}>Add to Draft</button>:<span className={styles.sourceDependencyHint}>{!ref.source?"Not inventoried":"Include workload first"}</span>}</td>
+                      </tr>;
+                    })}</tbody>
+                  </table></div>:<p className={styles.sourceSupportingNote}>No supporting references were recorded in the selected source scope. This does not prove none exist.</p>}
+                </section>
                 <section className={styles.sourceStorageWorkspace} aria-label="Data and storage selection">
                   <div className={styles.sourceStorageWorkspaceHead}>
                     <div><Database size={21}/><span><strong>Data &amp; Storage</strong><small>Choose persistent claims associated with this migration. Source evidence does not establish data-transfer readiness.</small></span></div>
@@ -1688,19 +1719,27 @@ export function PlanningEditor({
             </div>
 
                 </section>
-                <details id="source-review-confirmation" className={styles.compactReviewDetails} open><summary>5. Confirm migration scope · {scopeNamespaces.length} namespaces · {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} draft resources</summary>
+                <section id="source-review-confirmation" className={styles.sourceConfirmPanel} aria-label="Confirm migration scope">
+                  <div className={styles.sourceConfirmHeader}><div><ClipboardCheck size={22}/><span><strong>Review selected source scope</strong><small>Confirm the workloads, supporting resources and persistent data included in your migration draft.</small></span></div><span className={styles.sourceConfirmTag}>Step 3 · Review &amp; save</span></div>
+                  <div className={styles.sourceConfirmMetrics}>
+                    <div><strong>{scopeNamespaces.length}</strong><span>Namespaces selected</span></div>
+                    <div><strong>{draft.resources.filter(resource=>!resource.dependency&&["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(resource.kind)).length}</strong><span>Workloads included</span></div>
+                    <div><strong>{draft.resources.filter(resource=>resource.dependency&&resource.kind!=="PersistentVolumeClaim").length}</strong><span>Supporting dependencies</span></div>
+                    <div><strong>{draft.resources.filter(resource=>resource.kind==="PersistentVolumeClaim").length}</strong><span>PVCs included</span></div>
+                  </div>
+                  <div className={styles.sourceConfirmTotal}><strong>{draft.resources.filter(resource=>resource.namespace&&scopeNamespaceSet.has(resource.namespace)).length} draft resources in selected namespaces</strong><span>Assessment v{assessment.assessmentVersion} · Data strategy: {draft.dataStrategy==="UNDECIDED"?"Decision pending":draft.dataStrategy.replaceAll("_"," ").toLowerCase()}</span></div>
                   <div className={styles.confirmScopeGroups}>
                     {scopeNamespaces.map(namespace => {
                       const selectedResources = draft.resources.filter(resource => resource.namespace === namespace);
                       const workloadCount = selectedResources.filter(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(resource.kind)).length;
                       return <div className={styles.confirmScopeGroup} key={namespace}>
-                        <div className={styles.confirmScopeGroupHeader}><strong>{namespace}</strong><small>{workloadCount} workload{workloadCount === 1 ? "" : "s"} · {selectedResources.length} draft resource{selectedResources.length === 1 ? "" : "s"}</small></div>
-                        {selectedResources.length ? <div className={styles.scopeReviewItems}>{selectedResources.map(resource => <span key={resourceKey(resource)} title={`${resource.namespace || "Cluster"} / ${resource.kind} / ${resource.treatment}`}>{resource.name} <small>{resource.kind}</small></span>)}</div> : <p className={styles.confirmScopeMissing}>No workloads added to draft from this namespace. Select its workload in Step 3 using Add to Draft if it should be migrated.</p>}
+                        <div className={styles.confirmScopeGroupHeader}><strong><Boxes size={16}/>{namespace}</strong><small>{workloadCount} workload{workloadCount===1?"":"s"} · {selectedResources.length} resources</small></div>
+                        {selectedResources.length?<details><summary>View {selectedResources.length} included resources</summary><div className={styles.scopeReviewItems}>{selectedResources.map(resource=><span key={resourceKey(resource)} title={`${resource.namespace||"Cluster"} / ${resource.kind} / ${resource.treatment}`}>{resource.name} <small>{resource.kind}</small></span>)}</div></details>:<p className={styles.confirmScopeMissing}>Nothing added from this namespace. Add the required workloads in the selection table above.</p>}
                       </div>;
                     })}
                   </div>
-                </details>
-                <div className={styles.scopeReviewReadiness}><strong>6. Readiness and next steps</strong><span>Data strategy: {draft.dataStrategy === "UNDECIDED" ? "Decision required" : draft.dataStrategy.replaceAll("_", " ")} · {readiness.issues.length} follow-up checks</span></div>
+                  <div className={styles.sourceConfirmReadiness}><ShieldCheck size={16}/><strong>{readiness.issues.length} readiness follow-up{readiness.issues.length===1?"":"s"}</strong><span>Draft selections do not authorize migration execution or prove target compatibility.</span></div>
+                </section>
               </section>
             )}
           </section>
