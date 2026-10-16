@@ -36,19 +36,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <NaviganMark />
           <div>
             <strong>Navigan</strong>
-            <span>Your container command centre</span>
+            <span>Container Management Platform</span>
           </div>
         </div>
         <div className="login-hero-copy">
-          <span className="login-introduction-eyebrow">CLOUD &amp; CONTAINER OPERATIONS</span>
           <h1>
-            Navigate your cloud estate.
+            Navigate your container cloud estate.
             <br />
-            With confidence<span>.</span>
+            With confidence.
           </h1>
+          <h2 className="login-hero-tagline">Manage today. Modernize tomorrow.</h2>
           <p>
-            One connected workspace to discover, manage and modernize your
-            container environments across clouds.
+            Discover, manage and assess container environments across clouds,
+            with intelligent insights and migration planning—all from one secure workspace.
           </p>
         </div>
         <Image
@@ -60,10 +60,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
           sizes="(max-width: 700px) 100vw, (max-width: 1050px) 50vw, 55vw"
           priority
         />
-        <section className="login-ecosystem" aria-label="Platform roadmap">
-          <h2>Platform roadmap</h2>
+        <section className="login-ecosystem" aria-label="Cloud and container platform coverage">
           <div className="login-ecosystem-row">
-            <h3>Clouds</h3>
+            <h3>Cloud platforms</h3>
             <ul>
               {clouds.map(([label, logo]) => (
                 <li key={label}>
@@ -78,7 +77,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             </ul>
           </div>
           <div className="login-ecosystem-row">
-            <h3>Containers</h3>
+            <h3>Container platforms</h3>
             <ul>
               {containers.map(([label, logo]) => (
                 <li key={label}>
@@ -92,7 +91,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
       </section>
       <section className="login-access-panel" aria-label="Secure sign-in">
         <div className="signin-card login-access-card">
-          <div className="login-access-identity"><span><LockKeyhole size={15}/> SECURE WORKSPACE ACCESS</span><ShieldCheck size={20} aria-hidden="true"/></div>
           {configured ? (
             <LoginForm />
           ) : (
@@ -104,6 +102,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </p>
             </>
           )}
+          <div className="login-access-security"><LockKeyhole size={20} aria-hidden="true"/><div><strong>Protected enterprise access</strong><span>Secure authentication for your Navigan workspace.</span></div><ShieldCheck size={17} aria-hidden="true"/></div>
         </div>
       </section>
     </div>

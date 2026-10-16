@@ -228,7 +228,7 @@ export function LoginForm() {
       </h2>
       <p className="muted">
         {mode === "login"
-          ? "Sign in to your cloud and container workspace."
+          ? "Sign in to your container management workspace."
           : mode === "forgot"
             ? "Enter your account email or username to request a reset code."
             : delivery
