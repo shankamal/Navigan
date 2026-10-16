@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
+  AlertCircle,
   Boxes,
   ClipboardCheck,
   Database,
@@ -883,7 +884,7 @@ export function PlanningEditor({
               ? "Review migration draft"
               : tab === "scope" ? "Explore your source cluster" : tab === "target" ? "Target Assessment & Compatibility" : "Plan your migration"
         }
-        description={tab === "scope" ? `${migration.name} · Source discovery, inventory and dependencies` : `${migration.name} · Migration planning`}
+        description={tab === "scope" ? `${migration.name} · Source discovery, inventory and dependencies` : tab === "target" ? "Compare the saved source migration scope with the selected destination cluster." : `${migration.name} · Migration planning`}
         action={
           <Link
             className="button button-secondary"
@@ -895,8 +896,8 @@ export function PlanningEditor({
       />
       <div ref={stepHeadingRef} className={styles.navigationAnchor} />
       <nav className={styles.steps} aria-label="Migration workflow">
-        {([["scope","1 · Source"],["target","2 · Target & Compatibility"],["remediate","3 · Remediation"],["plan","4 · Migration Plan"],["review","5 · Review & Export"]] as const).map(([step,label])=>
-          <button key={step} type="button" aria-current={tab===step?"step":undefined} onClick={()=>navigateToStep(step)}>{label}</button>
+        {([["scope","Source"],["target","Target & Compatibility"],["remediate","Remediation"],["plan","Migration Plan"],["review","Review & Export"]] as const).map(([step,label],index)=>
+          <button key={step} type="button" aria-current={tab===step?"step":undefined} onClick={()=>navigateToStep(step)}><span className={styles.stepNumber}>{index+1}</span>{label}</button>
         )}
       </nav>     {tab === "review" && <section className={styles.guide} aria-label="Migration planning guide">
         <div className={styles.guideHeading}>
@@ -939,20 +940,16 @@ export function PlanningEditor({
         </div>
       )}
       {tab === "target" && <section className={styles.targetWorkspace} aria-label="Target assessment and compatibility workspace">
-        <div className={styles.targetWorkspaceIntro}>
-          <div><span className={styles.targetEyebrow}>DESTINATION ASSESSMENT</span><h2>Target readiness at a glance</h2><p>Compare your saved Source scope with the selected destination. Review what is known, what needs evidence and which resources require attention.</p></div>
-          <span className={styles.targetAssessmentVersion}>SOURCE ASSESSMENT v{assessment.assessmentVersion}</span>
-        </div>
         <div className={styles.targetClusterBanner}>
-          <div className={styles.targetClusterSymbol}><Server size={22}/></div>
-          <div className={styles.targetClusterIdentity}><span>DESTINATION CLUSTER</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Kubernetes {targetEvidence?.snapshot.kubernetesVersion || "version not reported"} · {targetEvidence ? `Captured ${new Date(targetEvidence.createdAt).toLocaleString()}` : "Inventory not captured"}</small></div>
-          <span className={styles.targetClusterEvidence}>{savedTargetMatches ? "PARTIAL EVIDENCE" : targetEvidence && !targetEvidenceCurrent ? "INVENTORY EXPIRED" : "EVIDENCE REQUIRED"}</span>
-          <button type="button" className={`button button-primary ${styles.targetRefreshButton}`} disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Refreshing…" : "Refresh evidence"}</button>
+          <div className={styles.targetClusterSymbol}><PlatformIcon platform="KUBERNETES" size="medium"/></div>
+          <div className={styles.targetClusterIdentity}><span>DESTINATION CLUSTER</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform === "EKS" ? "Amazon EKS" : targetPlatform} · Kubernetes {targetEvidence?.snapshot.kubernetesVersion || "version not reported"} · {targetEvidence ? `Captured ${new Date(targetEvidence.createdAt).toLocaleString()}` : "Inventory not captured"}</small></div>
+          <span className={styles.targetClusterEvidence}><AlertCircle size={13}/>{savedTargetMatches ? "PARTIAL EVIDENCE" : targetEvidence && !targetEvidenceCurrent ? "INVENTORY EXPIRED" : "EVIDENCE REQUIRED"}</span>
+          <button type="button" className={`button button-primary ${styles.targetRefreshButton}`} disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}><Activity size={14}/>{targetRunning ? "Refreshing…" : "Refresh evidence"}</button>
         </div>
         {targetError && <div className={styles.warning} role="alert">{targetError}</div>}
         {targetEvidence && !targetEvidenceCurrent && <p className={styles.targetActionNotice}>The connector inventory has expired. First refresh <Link href={`/clusters/${String(migration.targetConfiguration?.clusterId ?? "")}`}>Cluster Management inventory</Link>, then refresh evidence here.</p>}
         <div className={styles.targetVerdict}>
-          <div className={styles.targetVerdictHeadline}><ShieldCheck size={23}/><div><span>COMPATIBILITY VERDICT</span><strong>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING VERIFICATION"}</strong><p>{dirty ? "Save Source scope changes before assessment." : !savedScopeCurrent ? "Save the selected Source scope first." : "Target-specific proof is required before migration can be approved."}</p></div></div>
+          <div className={styles.targetVerdictHeadline}><AlertCircle size={26}/><div><strong>Migration compatibility: <span>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING VERIFICATION"}</span></strong><p>{dirty ? "Save Source scope changes before assessment." : !savedScopeCurrent ? "Save the selected Source scope first." : "Compatibility has not been verified for all selected resources. Review evidence gaps before migration."}</p></div></div>
           <div className={styles.targetVerdictNumbers}><div><strong>{savedDraft?.resources.length ?? 0}</strong><span>Selected resources</span></div><div><strong>{new Set((savedDraft?.resources ?? []).map(item => item.namespace).filter(Boolean)).size}</strong><span>Namespaces</span></div><div><strong>{backendEvaluationCurrent ? authoritativeUnverified + authoritativePartial : p0Unverified}</strong><span>Checks requiring evidence</span></div></div>
         </div>
         <div className={styles.targetSectionTitle}><div><h3>Capability assessment</h3><p>Six critical areas checked against destination evidence</p></div><span>Read-only assessment</span></div>
@@ -965,12 +962,12 @@ export function PlanningEditor({
           ["Controllers & dependencies", "dependencies", Boxes],
         ] as const).map(([label,key,Icon]) => {
           const evidence = targetEvidence?.snapshot.capabilityEvidence?.[key];
-          return <div className={styles.targetReadinessItem} key={key}><span className={styles.targetReadinessIcon}><Icon size={19}/></span><div><strong>{label}</strong><p>{evidence?.reason ?? "Target-specific capability evidence is not yet available."}</p></div><span className={styles.targetReadinessStatus}>{evidence?.status === "PARTIAL" ? "PARTIAL" : "NOT VERIFIED"}</span></div>;
+          return <div className={styles.targetReadinessItem} key={key}><span className={styles.targetReadinessIcon}><Icon size={20}/></span><div><strong>{label}</strong><p>{evidence?.reason ?? "Target-specific capability evidence is not yet available."}</p></div><span className={styles.targetReadinessStatus}><AlertCircle size={12}/>{evidence?.status === "PARTIAL" ? "PARTIAL" : "NOT VERIFIED"}</span></div>;
         })}</div>
         <div className={styles.targetSectionTitle}><div><h3>Priority findings</h3><p>Review before progressing to remediation</p></div></div>
         <div className={styles.targetFindingsStrip}>{(() => {
           const handoff = backendEvaluationCurrent ? buildRemediationHandoff(authoritativeResults) : null;
-          return <><div><span>Required changes</span><strong>{handoff ? handoff.actions.length : "—"}</strong><small>{handoff ? "Based on backend evaluation" : "Awaiting verified evaluation"}</small></div><div><span>Evidence gaps</span><strong>{handoff ? handoff.evidence.length : p0Unverified}</strong><small>{handoff ? "Items requiring verification" : "Diagnostic checks, not verified"}</small></div><div><span>Resources evaluated</span><strong>{backendEvaluationCurrent ? authoritativeResults.length : p0Compatibility.length}</strong><small>{backendEvaluationCurrent ? "Current backend evaluation" : "Source scope diagnostics"}</small></div></>;
+          return <><div><span className={styles.targetFindingIcon}><AlertCircle size={18}/></span><div><strong>{handoff ? handoff.actions.length : "—"}</strong><small>Required changes</small></div></div><div><span className={styles.targetFindingIcon}><Wrench size={18}/></span><div><strong>{backendEvaluationCurrent ? authoritativeResults.filter(item => item.status === "INCOMPATIBLE").length : "—"}</strong><small>Incompatible resources</small></div></div><div><span className={styles.targetFindingIcon}><ClipboardCheck size={18}/></span><div><strong>{handoff ? handoff.evidence.length : p0Unverified}</strong><small>Evidence gaps</small></div></div></>;
         })()}</div>
         <div className={styles.targetSectionTitle}><div><h3>Scoped resource compatibility</h3><p>Open a resource to inspect evidence and recommended next actions</p></div><span>{backendEvaluationCurrent ? "Backend evaluation" : "Diagnostic preview"}</span></div>
         <div className={styles.targetResourceTableScroll}><table className={styles.targetResourceTable}><thead><tr><th>Source resource</th><th>Kind</th><th>Source readiness</th><th>Target compatibility</th><th>Evidence</th></tr></thead><tbody>{(backendEvaluationCurrent ? authoritativeResults : p0Compatibility.map(item => ({
@@ -983,7 +980,7 @@ export function PlanningEditor({
         {!backendEvaluationCurrent && <p className={styles.targetTableFootnote}>Resource-level entries are Source diagnostics until fresh destination evidence supports a backend evaluation. They do not indicate migration approval.</p>}
         <div className={styles.targetWorkspaceBottom}><span><ShieldCheck size={16}/> Assessment only · No cluster resources are modified</span><button type="button" className={`button button-primary ${styles.planningContinueButton}`} onClick={() => navigateToStep("remediate")}>Review findings <ArrowRight size={16}/></button></div>
       </section>}
-      {tab === "target" && <details className={styles.targetAdvancedDisclosure} aria-label="Advanced target evidence and artifact preparation"><summary>Advanced details · Target inventory, compatibility diagnostics &amp; artifact preparation</summary>
+      {tab === "target" && <details className={styles.targetAdvancedDisclosure} aria-label="Advanced target evidence and artifact preparation"><summary>Show technical target inventory &amp; artifact readiness</summary>
       <div className={styles.targetAdvancedBody}>
       {tab === "target" && <section className={styles.surface} aria-label="Target environment assessment and readiness">
         <div className={styles.workflowStageHeading}><strong>2. Target Assessment &amp; Compatibility</strong><p>Review the destination cluster, evaluate your saved Source scope and understand what needs attention before migration planning.</p></div>
@@ -2397,13 +2394,13 @@ export function PlanningEditor({
         <strong>Before remediation · {scopeGateIssues.length} checks outstanding</strong>
         <ul>{scopeGateIssues.map((issue,index)=><li key={index}>{issue}</li>)}</ul>
       </div>}
-      <footer className={styles.footer}>
+      {tab!=="target" && <footer className={styles.footer}>
         <button className="button button-secondary" type="button" disabled={tab==="scope"} onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)]!)}><ArrowLeft size={16}/> Previous step</button>
         <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
         {tab==="scope" && <button className="button button-secondary" type="button" disabled={!canEdit||stale||save.isPending} onClick={()=>void clearPlanningDraft()}>Clear Draft</button>}
         <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate(preparePlanningDraft(draft,scopeNamespaces))}>{save.isPending?"Saving…":"Save draft"}</button>
-        <button className={`button button-primary ${styles.planningContinueButton}`} type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>{tab==="target"?"Review findings":`Continue to ${tab==="scope"?"target assessment":tab==="remediate"?"migration plan":"review"}`} <ArrowRight size={16}/></button>
-      </footer>
+        <button className={`button button-primary ${styles.planningContinueButton}`} type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>{`Continue to ${tab==="scope"?"target assessment":tab==="remediate"?"migration plan":"review"}`} <ArrowRight size={16}/></button>
+      </footer>}
     </div>
   );
 }
