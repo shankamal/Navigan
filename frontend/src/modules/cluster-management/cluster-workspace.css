@@ -915,3 +915,29 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Respond to the content panel, not the full laptop viewport. */
+@container (max-width: 1000px) {
+  .cluster-portfolio,
+  .cluster-setup-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cluster-setup-sidebar {
+    position: static;
+    max-height: none;
+  }
+  .cluster-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 600px) {
+  .cluster-board,
+  .cluster-setup-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cluster-heading-actions,
+  .cluster-setup-save-buttons {
+    flex-wrap: wrap;
+  }
+}

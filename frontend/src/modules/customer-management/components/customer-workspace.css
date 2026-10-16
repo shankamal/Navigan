@@ -782,3 +782,30 @@
   color: #64748b;
   margin-top: 14px;
 }
+
+/* Adapt to the workspace remaining after sidebar and browser scaling. */
+@container (max-width: 900px) {
+  .customer-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-active {
+    border-left: 0;
+    border-top: 1px solid #e4e8e5;
+    padding: 16px 0 0;
+  }
+  .customer-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 560px) {
+  .customer-board,
+  .customer-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-chart-content,
+  .customer-directory-toolbar,
+  .customer-pagination {
+    flex-wrap: wrap;
+  }
+}

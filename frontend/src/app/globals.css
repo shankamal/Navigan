@@ -8803,3 +8803,47 @@ td {
     display: none;
   }
 }
+
+/* Keep the application shell usable at high operating-system display scaling. */
+.shell-body,
+.content-column,
+.content-column > *,
+.content-column main,
+.content-column main > * {
+  min-width: 0;
+}
+
+.content-column {
+  container-type: inline-size;
+}
+
+.content-column main,
+.content-column .breadcrumb,
+.content-column .app-footer {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.content-column :is(input, select, textarea) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.content-column :is(.table-scroll, [class*="TableScroll"], [class*="tableScroll"]) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+@media (min-width: 901px) and (max-width: 1365px) {
+  .sidebar {
+    width: 220px;
+    flex: 0 0 220px;
+  }
+}
+
+@media (max-height: 760px) {
+  .sidebar {
+    overscroll-behavior-y: contain;
+  }
+}

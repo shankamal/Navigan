@@ -1220,3 +1220,24 @@
 .environment-creation-layout .field > textarea {
   font-size: 14px;
 }
+
+@container (max-width: 900px) {
+  .environment-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .environment-metrics,
+  .environment-portfolio-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 560px) {
+  .environment-board,
+  .environment-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .environment-view-switch,
+  .environment-heading-actions {
+    flex-wrap: wrap;
+  }
+}

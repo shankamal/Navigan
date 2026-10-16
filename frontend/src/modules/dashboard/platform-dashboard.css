@@ -1688,3 +1688,45 @@
 #dashboard-provisioning {
   scroll-margin-top: calc(var(--workspace-topbar-height, 64px) + 150px);
 }
+
+/* Available workspace width is more reliable than the device's pixel width. */
+.command-dashboard {
+  min-width: 0;
+}
+
+.command-dashboard :is(.pd-heading, .pd-actions, .pd-overview-panel, .pd-attention-workspace) {
+  min-width: 0;
+}
+
+@container (max-width: 1250px) {
+  .pd-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pd-overview-groups,
+  .pd-attention-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 800px) {
+  .pd-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pd-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .pd-overview-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 440px) {
+  .pd-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pd-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
