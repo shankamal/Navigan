@@ -881,7 +881,7 @@ export function PlanningEditor({
             ? "Remediation & target mapping"
             : tab === "review"
               ? "Review migration draft"
-              : tab === "scope" ? "Explore your source cluster" : "Plan your migration"
+              : tab === "scope" ? "Explore your source cluster" : tab === "target" ? "Target Assessment & Compatibility" : "Plan your migration"
         }
         description={tab === "scope" ? `${migration.name} · Source discovery, inventory and dependencies` : `${migration.name} · Migration planning`}
         action={
@@ -942,22 +942,25 @@ export function PlanningEditor({
         <div className={styles.workflowStageHeading}><strong>2. Target Assessment &amp; Compatibility</strong><p>Review the destination cluster, evaluate your saved Source scope and understand what needs attention before migration planning.</p></div>
         <p className={styles.caption}>Navigan retrieves destination evidence from the registered connector. Observed inventory does not, by itself, prove workload compatibility.</p>
         <div className={styles.targetAssessmentActions}>
-          <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Refreshing target inventory…" : "Refresh target inventory"}</button>
+          <button type="button" className={`button button-primary ${styles.targetRefreshButton}`} disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Rechecking Target evidence…" : "Recheck Target evidence"}</button>
           <span role="status">{targetRunning ? "Refreshing authorized inventory…" : targetLoading ? "Loading saved inventory evidence…" : targetEvidence ? `Last captured: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "Target evidence not yet captured"}</span>
         </div>
         {targetError && <div role="alert" className={styles.warning}>{targetError}</div>}
+        {targetEvidence && !targetEvidenceCurrent && <div className={styles.workflowStageWarning} role="status">
+          The underlying Target connector inventory has expired. Rechecking this assessment cannot make an expired connector snapshot current. Refresh the registered cluster inventory in <Link href={`/clusters/${String(migration.targetConfiguration?.clusterId ?? "")}`}>Cluster Management</Link>, then recheck Target evidence here.
+        </div>}
         <div className={styles.targetOverview}>
           <div><span>Destination cluster</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Kubernetes {targetEvidence?.snapshot.kubernetesVersion || "version not reported"}</small></div>
           <div><span>Connector inventory</span><strong>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} resources` : "Not captured"}</strong><small>{targetEvidence ? "Reported by registered connector" : "Collected automatically when available"}</small></div>
           <div><span>Compatibility readiness</span><strong>Pending verification</strong><small>Inventory does not establish workload compatibility</small></div>
         </div>
+        <details className={styles.compatibilityDetails} aria-label="Detailed target inventory and connector evidence">
+          <summary>View detailed Target inventory · Resource kinds, node capacity and connector evidence</summary>
         {targetEvidence && <div className={styles.targetObservedResult}>
           <strong>Observed destination · {targetEvidence.snapshot.clusterStatus ?? "Status unknown"}</strong>
           <span>{targetEvidence.snapshot.clusterName} · Revision {targetEvidence.snapshot.sourceRevision ?? "Not reported"} · {targetEvidence.snapshot.resourceCount ?? 0} reported resources</span>
           <small>Evidence: {targetEvidence.evidenceLevel} · Observed {targetEvidence.snapshot.observedAt ? new Date(targetEvidence.snapshot.observedAt).toLocaleString() : "time not reported"} · Inventory completeness not established</small>
         </div>}
-        <details className={styles.compatibilityDetails} aria-label="Detailed target inventory and connector evidence">
-          <summary>View detailed Target inventory · Resource kinds, node capacity and connector evidence</summary>
         {targetEvidence?.snapshot.collectionGaps && <section className={styles.targetCapabilitySection} aria-label="Target connector evidence collection gaps">
           <div className={styles.targetAssessmentHead}><div><strong>Connector collection gaps</strong><p>Missing collection data is not evidence the target cluster lacks a capability.</p></div></div>
           <div className={styles.targetCapabilityGrid}>
@@ -1017,11 +1020,11 @@ export function PlanningEditor({
       </section>}
       {tab === "target" && <section className={styles.surface} aria-label="Source-to-target compatibility">
         <div className={styles.workflowStageHeading}><strong>Source-to-Target compatibility results</strong><p>Evidence-first comparison of the saved migration scope. No direct migration recommendation is issued without verified target capabilities.</p></div>
-        <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but target evidence is unavailable, expired, or does not match the selected cluster and assessment. Refresh evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
+        <div className={styles.workflowStageWarning}>{dirty ? "Unsaved Source scope changes detected. Save the draft before evaluating compatibility." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1." : targetEvidence && !targetEvidenceCurrent ? "Target connector inventory has expired. Refresh the inventory in Cluster Management, then recheck this assessment. Resource-level diagnostic checks are shown below." : !savedTargetMatches ? "Target evidence is missing or does not match this assessment. Recheck the selected destination." : `Evaluating saved scope against current Target evidence · Source assessment v${assessment.assessmentVersion} · Revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Verification remains partial`}</div>
         <div className={styles.compatibilitySnapshot}>
           <div><span>Selected resources</span><strong>{backendEvaluationCurrent ? authoritativeResults.length : p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
           <div><span>Compatibility checks</span><strong>{backendEvaluationCurrent ? authoritativeResults.reduce((count, item) => count + item.checks.length, 0) : p0Checks.length}</strong><small>{backendEvaluationCurrent ? `${authoritativeUnverified} pending · ${authoritativePartial} partial` : `${p0Unverified} not verified`} · {backendEvaluationCurrent ? "Backend evaluation" : "P0 fallback"}</small></div>
-          <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence ? "Expired / mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
+          <div><span>Target evidence</span><strong>{savedTargetMatches ? "Partial" : targetEvidence && !targetEvidenceCurrent ? "Expired" : targetEvidence ? "Mismatched" : "Unavailable"}</strong><small>{savedTargetMatches ? `Connector inventory · ${targetEvidence?.snapshot.resourceCount ?? 0} reported resources` : "Fresh target-bound evidence is required"}</small></div>
           <div><span>Migration path</span><strong>{schedulingReport?.decision?.path?.replaceAll("_", " ") ?? "PENDING EVIDENCE"}</strong><small>{schedulingReport?.decision?.reason ?? "Backend compatibility decision unavailable; no approval can be inferred."}</small></div>
         </div>
         {backendEvaluationCurrent && (() => {
@@ -1037,16 +1040,24 @@ export function PlanningEditor({
         })()}
         <section className={styles.targetCapabilitySection} aria-label="Scoped resource compatibility overview">
           <div className={styles.targetAssessmentHead}><div><strong>Scoped resource compatibility</strong><p>Select a resource to inspect Source readiness, Target evidence, reasons and next actions without leaving this screen.</p></div></div>
-          {backendEvaluationCurrent ? <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
+          <div className={styles.compatibilityMatrixWrap}><table className={styles.compatibilityMatrix}>
             <thead><tr><th>Source resource</th><th>Kind</th><th>Source readiness</th><th>Target compatibility</th><th>Evidence &amp; next action</th></tr></thead>
-            <tbody>{authoritativeResults.map(item => <tr key={JSON.stringify(item.resource)}>
+            <tbody>{(backendEvaluationCurrent ? authoritativeResults : p0Compatibility.map(item => ({
+              resource: item.resource,
+              status: "PENDING_EVIDENCE" as const,
+              sourceStatus: item.checks.some(check => check.capability === "Source assessment" && check.status === "BLOCKED") ? "BLOCKED" :
+                item.checks.some(check => check.capability === "Source assessment" && check.status === "REMEDIATION_REQUIRED") ? "REMEDIATION_REQUIRED" : "NOT_VERIFIED",
+              targetStatus: "PENDING_EVIDENCE",
+              checks: item.checks,
+            }))).map(item => <tr key={JSON.stringify(item.resource)}>
               <td>{item.resource.namespace ?? "Cluster"}/{item.resource.name}</td>
               <td>{item.resource.kind}</td>
               <td>{(item.sourceStatus ?? "NOT_VERIFIED").replaceAll("_", " ")}</td>
               <td>{(item.targetStatus ?? "PENDING_EVIDENCE").replaceAll("_", " ")}</td>
               <td><button type="button" className={styles.targetEvidenceLink} onClick={() => setSelectedCompatibilityResource(item)}>View {item.checks.length} checks <ArrowRight size={14}/></button></td>
             </tr>)}</tbody>
-          </table></div> : <p className={styles.caption}>Authoritative resource results are not current. Save Source scope and refresh Target evidence. Diagnostic checks remain available below, but are not migration approval.</p>}
+          </table></div>
+          {!backendEvaluationCurrent && <p className={styles.caption}>These are diagnostic checks from the saved Source scope, not verified Target compatibility. Collect fresh Target evidence for authoritative results.</p>}
         </section>
         <details className={styles.compatibilityDetails} aria-label="Extended compatibility diagnostics">
           <summary>View detailed compatibility evidence · Scheduling, API versions, storage and discovery coverage</summary>
@@ -2343,7 +2354,7 @@ export function PlanningEditor({
         <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
         {tab==="scope" && <button className="button button-secondary" type="button" disabled={!canEdit||stale||save.isPending} onClick={()=>void clearPlanningDraft()}>Clear Draft</button>}
         <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate(preparePlanningDraft(draft,scopeNamespaces))}>{save.isPending?"Saving…":"Save draft"}</button>
-        <button className="button button-primary" type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>Continue to {tab==="scope"?"target assessment":tab==="target"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
+        <button className={`button button-primary ${styles.planningContinueButton}`} type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>{tab==="target"?"Review findings":`Continue to ${tab==="scope"?"target assessment":tab==="remediate"?"migration plan":"review"}`} <ArrowRight size={16}/></button>
       </footer>
     </div>
   );
