@@ -8899,3 +8899,11 @@ td {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Compact desktop visual density, calibrated against the accepted 75% view.
+   This applies to the authenticated application only; mobile keeps native sizing. */
+@media (min-width: 901px) {
+  .app-shell {
+    zoom: 0.75;
+  }
+}
