@@ -466,18 +466,6 @@
   box-shadow: 0 12px 32px rgb(31 55 25 / 10%);
 }
 
-.approvalPanelBlocked {
-  border-color: #f0c8c8;
-  border-left-color: #df4040;
-  background: #fffafa;
-}
-
-.approvalPanelBlocked .approvalIcon {
-  border-color: #f0c4c4;
-  color: #fff;
-  background: #df4040;
-}
-
 .approvalPanel h2 {
   margin: 6px 0 4px;
   font-size: 0.98rem;
@@ -2365,8 +2353,7 @@
 
 .approvedStatus, .migrationWorkspace .approved {background:#a8d86e; border-color:#96c65c; color:#17351d; font-weight:600;}
 .migrationWorkspace .stageApproved,
-.migrationContextMeta .approvedStatus,
-.approvalStatusLine .approvedStatus {
+.migrationContextMeta .approvedStatus {
   background: #a8d86e;
   border-color: #96c65c;
   color: #17351d;

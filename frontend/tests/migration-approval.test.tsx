@@ -7,6 +7,8 @@ import { MigrationDetails } from "@/modules/migration-management/migration-detai
 const state = vi.hoisted(() => ({
   role: "CLOUD_ENGINEER",
   status: "ASSESSMENT_READY",
+  assessmentPending: false,
+  assessmentError: false,
   deliveryMethod: "MANUAL_HELM",
   action: vi.fn(),
   update: vi.fn(),
@@ -72,8 +74,10 @@ vi.mock("@/modules/migration-management/hooks", () => ({
   }),
   useMigrationAssessment: () => ({
     data: { assessment: null },
-    isPending: false,
-    isError: false,
+    isPending: state.assessmentPending,
+    isFetching: state.assessmentPending,
+    isError: state.assessmentError,
+    refetch: vi.fn(),
   }),
   useSourceInventory: () => ({
     data: { inventory: null },
@@ -156,6 +160,8 @@ describe("Migration approval gate", () => {
   beforeEach(() => {
     state.role = "CLOUD_ENGINEER";
     state.status = "ASSESSMENT_READY";
+    state.assessmentPending = false;
+    state.assessmentError = false;
     state.deliveryMethod = "MANUAL_HELM";
     state.action.mockReset();
     state.action.mockResolvedValue({});
@@ -284,6 +290,37 @@ describe("Migration approval gate", () => {
     expect(
       screen.queryByRole("button", { name: "Approve assessment" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not flash the approval gate while an approved assessment loads", () => {
+    state.status = "APPROVED";
+    state.assessmentPending = true;
+    renderDetails();
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading migration assessment",
+    );
+    expect(screen.queryByText("Approval gate")).not.toBeInTheDocument();
+    expect(screen.queryByText("Independent governance checkpoint")).not.toBeInTheDocument();
+    expect(screen.queryByText("No feasibility report is available")).not.toBeInTheDocument();
+  });
+
+  it("does not display an approval gate for an approved migration with no report", () => {
+    state.status = "APPROVED";
+    renderDetails();
+
+    expect(screen.queryByText("Approval gate")).not.toBeInTheDocument();
+    expect(screen.getByText(/No feasibility report is available/)).toBeInTheDocument();
+  });
+
+  it("waits for assessment evidence before presenting governance actions", () => {
+    state.role = "PLATFORM_ARCHITECT";
+    state.status = "UNDER_REVIEW";
+    state.assessmentPending = true;
+    renderDetails();
+
+    expect(screen.queryByRole("button", { name: "Approve assessment" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading migration assessment");
   });
 
   it("allows the Cloud Engineer to refresh a rejected assessment", async () => {

@@ -67,6 +67,8 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const migration = migrationQuery.data;
   const assessmentQuery = useMigrationAssessment(migrationId, true);
   const assessment = assessmentQuery.data?.assessment ?? null;
+  const assessmentLoading =
+    !assessment && (assessmentQuery.isPending || assessmentQuery.isFetching);
   const criticalFindingCount =
     assessment?.findings.filter((finding) => finding.severity === "BLOCKER")
       .length ?? 0;
@@ -368,6 +370,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const canDecide =
     migration?.status === "UNDER_REVIEW" &&
     hasPermission(identity, "migration.approve");
+  const hasGovernanceAction = canSubmit || canReview || canDecide;
   const canPrepareSource =
     migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
     hasPermission(identity, "migration.edit");
@@ -511,7 +514,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                 assessment.inventorySummary.target.clusterName ??
                 "target cluster"
               }) · ${migration?.status.replaceAll("_", " ").toLowerCase()}`
-            : "Review the trusted feasibility report and govern approval independently from the request creator."
+            : assessmentLoading
+              ? "Loading the migration feasibility report and assessment evidence…"
+              : "Review migration assessment evidence and the next available action."
         }
         className={migration ? styles.assessmentHeading : undefined}
         action={
@@ -532,6 +537,33 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         <div className="panel" role="alert">
           Unable to load this migration assessment.
         </div>
+      )}
+
+      {migration && assessmentLoading && (
+        <section className="panel" role="status" aria-live="polite">
+          <strong>Loading migration assessment</strong>
+          <p className="muted">
+            Retrieving the feasibility report and source inventory. No action is
+            needed while this loads.
+          </p>
+        </section>
+      )}
+
+      {migration && !assessment && assessmentQuery.isError && (
+        <section className="panel" role="alert">
+          <strong>Unable to load the feasibility report</strong>
+          <p className="muted">
+            The migration record is available, but its assessment could not be
+            retrieved. Try loading the report again.
+          </p>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => void assessmentQuery.refetch()}
+          >
+            Retry loading report
+          </button>
+        </section>
       )}
 
       {assessment && (
@@ -592,7 +624,10 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
 
       {migration && (
         <>
-          {!assessment && (
+          {!assessment &&
+            !assessmentLoading &&
+            !assessmentQuery.isError &&
+            hasGovernanceAction && (
             <section className={`panel ${styles.approvalPanel}`}>
               <div className={styles.approvalSummary}>
                 <div className={styles.approvalIcon} aria-hidden="true">
@@ -600,9 +635,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                 </div>
                 <div>
                   <div className={styles.approvalStatusLine}>
-                    <span
-                      className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}
-                    >
+                    <span className="status-badge">
                       {migration.status.replaceAll("_", " ")}
                     </span>
                     <span>Independent governance checkpoint</span>
@@ -612,9 +645,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                       ? "Management decision required"
                       : canReview
                         ? "Assessment ready for independent review"
-                        : canSubmit
-                          ? "Assessment ready to submit"
-                          : "Approval gate"}
+                        : "Assessment ready to submit"}
                   </h2>
                   <p className="muted">
                     Review feasibility, blockers, and remediation evidence
@@ -1094,17 +1125,18 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           {criticalFindingCount > 0 && <p className={styles.reportApprovalNote}>
             Approval blocked: {criticalFindingCount} critical finding{criticalFindingCount === 1 ? "" : "s"} require remediation.
           </p>}
-          {(canSubmit || canReview || canDecide) && <div className={styles.reportDecisionActions}>{approvalControls}</div>}
+          {hasGovernanceAction && <div className={styles.reportDecisionActions}>{approvalControls}</div>}
           {action.isError && (
             <p role="alert">{normalizeApiError(action.error).message}</p>
           )}
         </section>
       )}
-      {migration && !assessment && !assessmentQuery.isPending && (
+      {migration && !assessment && !assessmentLoading && !assessmentQuery.isError &&
+        !hasGovernanceAction && (
         <section className="panel">
           <p className="muted">
-            The feasibility report will appear after source inventory assessment
-            completes.
+            No feasibility report is available for this migration yet. Check
+            the source assessment status before continuing.
           </p>
         </section>
       )}
