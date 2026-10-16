@@ -1259,3 +1259,45 @@
 .sourceFullWidthColumns>aside{max-height:230px;overflow:auto}
 .sourceFullWidthColumns .scopeReview{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 @media(max-width:1100px){.sourceFullWidthColumns .scopeReview{grid-template-columns:minmax(0,1fr)}}
+
+
+/* SOURCE V2: full-page compact workspace, not an analysis-triggered add-on. */
+.sourceDashboard{gap:5px;margin-bottom:7px}
+.sourceSummaryTitle{min-height:27px}
+.sourceDashboardCards{gap:7px}
+.sourceDashboardCards>div{padding:8px 10px}
+.sourceClusterCard{gap:6px}
+.sourceClusterStats{padding-top:5px}
+.sourceChartBody{min-height:90px;gap:8px}
+.sourceDonut{width:76px;height:76px;flex-basis:76px}
+.sourceDonut>span{width:49px;height:49px}
+.sourceDonut b{font-size:16px}
+.sourceLegend{gap:3px}
+.sourceFullWidthColumns{gap:5px}
+.sourceFullWidthColumns>.surface{padding:10px 12px}
+.sourceFullWidthColumns .context{margin:0 0 5px;padding:0;gap:8px}
+.sourceFullWidthColumns .fields{margin:3px 0 6px;padding:4px 0}
+.sourceFullWidthColumns .modes{gap:8px}
+.sourceFullWidthColumns .modes label{padding:7px 10px;min-height:45px}
+.sourceFullWidthColumns .target{margin:5px 0;padding:5px 0;gap:8px}
+.sourceFullWidthColumns .caption{margin:4px 0;font-size:11px}
+.sourceFullWidthColumns .sectionHeading{margin:5px 0}
+.sourceFullWidthColumns .scopeOptionSectionTitle{padding:5px 0;margin:5px 0}
+.sourceFullWidthColumns .scopeSelectionBar{margin:4px 0 6px;padding:6px;gap:7px}
+.sourceFullWidthColumns .scopeNamespaceChips{margin:4px 0 6px}
+.sourceFullWidthColumns .scopeReview{margin:5px 0 10px;padding:8px;gap:6px;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)}
+.sourceFullWidthColumns .scopeReviewHeading{margin:0;padding:0 0 4px}
+.sourceFullWidthColumns .scopeReview>.caption{margin:0}
+.sourceFullWidthColumns .scopeWorkloadTableWrap{min-height:365px;align-self:start}
+.sourceFullWidthColumns .scopeWorkloadTableScroll{max-height:355px}
+.sourceFullWidthColumns .sourceTopologyPanel{container-type:inline-size;align-self:start}
+.sourceFullWidthColumns .sourceTopologyHeading{padding:7px 10px}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmShell){margin:0;box-shadow:none;border:0;border-radius:0}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmHeader){padding:8px 10px;gap:5px}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmHeader h3){font-size:13px}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmHeader p){display:none}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmTools){padding:5px;gap:6px}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmWorkspace){min-height:345px}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmCanvasScroll){height:310px;padding:6px}
+.sourceFullWidthColumns>aside{max-height:none;overflow:visible}
+@media(max-width:1050px){.sourceFullWidthColumns .scopeReview{grid-template-columns:minmax(0,1fr)}}
