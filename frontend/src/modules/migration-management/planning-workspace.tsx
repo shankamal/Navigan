@@ -1147,7 +1147,35 @@ export function PlanningEditor({
           </>;
         })() : <div className={styles.workflowStageWarning}>A current saved Source scope and authoritative target compatibility evaluations are required for the migration plan preview. No plan is generated from stale or unsaved evidence.</div>}
       </section>}
-      {tab === "scope" && (
+      {tab === "scope" && (<>
+        <section className={styles.sourceDashboard} aria-label="Source discovery dashboard">
+          <div className={styles.sourceSummaryTitle}>
+            <div><strong>1. Source · Discover and define migration scope</strong><span>Live summary of the saved source inventory and current planning draft. No target readiness is inferred.</span></div>
+            <div className={styles.sourceStatusPill}>Assessment v{assessment.assessmentVersion} · {stale ? "Refresh required" : "Inventory loaded"}</div>
+          </div>
+          <div className={styles.sourceDashboardCards}>
+            <div className={styles.sourceClusterCard}>
+              <div className={styles.sourceClusterHeading}><PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium"/><div><small>SOURCE CLUSTER</small><strong>{String(migration.sourceConfiguration.clusterName ?? "Self-managed Kubernetes")}</strong><span>Self-managed Kubernetes</span></div></div>
+              <div className={styles.sourceClusterStats}><span><b>{namespaces.length}</b> Assessed namespaces</span><span><b>{applicationWorkloads.length}</b> Discovered workloads</span><span><b>{resources.length}</b> Inventory resources</span></div>
+            </div>
+            <div className={styles.sourceChartCard}>
+              <strong>Workload types</strong>
+              {(() => {const kinds=[...new Set(applicationWorkloads.map(r=>r.kind))].map(kind=>({kind,count:applicationWorkloads.filter(r=>r.kind===kind).length})).sort((a,b)=>b.count-a.count);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=kinds.map((k,i)=>{const start=offset;offset+=k.count/Math.max(applicationWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:applicationWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{applicationWorkloads.length}</b><small>workloads</small></span></div><div className={styles.sourceLegend}>{kinds.slice(0,5).map((k,i)=><div key={k.kind}><i style={{background:colors[i%colors.length]}}/>{k.kind}<b>{k.count}</b></div>)}</div></div>})()}
+            </div>
+            <div className={styles.sourceChartCard}>
+              <strong>Namespace distribution</strong>
+              {(() => {const counts=namespaces.map(name=>({name,count:applicationWorkloads.filter(r=>r.namespace===name).length})).sort((a,b)=>b.count-a.count);const top=counts.slice(0,5);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=counts.map((k,i)=>{const start=offset;offset+=k.count/Math.max(applicationWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:applicationWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{namespaces.length}</b><small>namespaces</small></span></div><div className={styles.sourceLegend}>{top.map((k,i)=><div key={k.name}><i style={{background:colors[i%colors.length]}}/>{k.name}<b>{k.count}</b></div>)}</div></div>})()}
+            </div>
+            <div className={styles.sourceEvidenceCard}>
+              <strong>Source evidence &amp; draft</strong>
+              <div><span>Selected namespaces</span><b>{scopeNamespaces.length} / {namespaces.length}</b></div>
+              <div><span>Included workloads</span><b>{workloadRelationships.filter(item=>item.selected).length}</b></div>
+              <div><span>Draft resources</span><b>{draft.resources.length}</b></div>
+              <div><span>Relationship coverage</span><b>{graph.coverage==="REFERENCES_AVAILABLE"?"Captured":"Not collected"}</b></div>
+              <small>Unknown relationships are never shown as verified connections.</small>
+            </div>
+          </div>
+        </section>
         <div className={styles.columns}>
           <section className={styles.surface}>
             <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Migration details and mode</strong><small>Confirm assessed source, target and planning approach</small></div>
@@ -1686,7 +1714,7 @@ export function PlanningEditor({
             </div>
           </aside>
         </div>
-      )}
+      </>)}
       {tab === "remediate" && (
         <section className={styles.surface}>
           {backendEvaluationCurrent && (() => {
