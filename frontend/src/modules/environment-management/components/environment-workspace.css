@@ -26,12 +26,12 @@
   font-size: 17px;
 }
 .environment-workspace .button-primary {
-  background: #65a449;
-  border-color: #65a449;
-  color: #143322;
+  background: #315a76;
+  border-color: #86bc25;
+  color: #fff;
 }
 .environment-workspace .button-primary:hover {
-  background: #568c3e;
+  background: #254b66;
 }
 .environment-workspace .metrics-grid {
   gap: 14px;
@@ -88,7 +88,7 @@
   color: #475569;
 }
 .environment-view-switch button.selected {
-  background: #eef5e9;
+  background: #f1f5f9;
   border-color: #65a449;
   color: #315522;
 }
@@ -167,8 +167,8 @@
   margin-bottom: 18px;
 }
 .environment-workspace .environment-stepper .active span {
-  background: #65a449;
-  color: #143322;
+  background: #315a76;
+  color: #fff;
 }
 .environment-workspace .environment-fieldset {
   padding: 20px;
@@ -613,13 +613,13 @@
   justify-content: center;
   min-width: 80px;
   padding: 8px 14px;
-  background: #edf5e5;
+  background: #f1f5f9;
   border-radius: 6px;
   color: #315522;
   font-weight: 600;
 }
 .environment-row-open:hover {
-  background: #e1edda;
+  background: #e9eff5;
 }
 .environment-workspace .environment-stepper {
   display: grid;

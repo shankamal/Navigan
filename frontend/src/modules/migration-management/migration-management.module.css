@@ -6,7 +6,7 @@
   padding: 16px 18px;
   border: 1px solid #cfe0bb;
   border-radius: 12px;
-  background: #f6faef;
+  background: #f8fafc;
   color: #29430f;
 }
 
@@ -24,7 +24,7 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   border-bottom: 1px solid #dfe5d9;
-  background: #f7f9f5;
+  background: #f8fafc;
 }
 
 .step {
@@ -54,7 +54,7 @@
   flex: 0 0 32px;
   place-items: center;
   border-radius: 50%;
-  background: #e7ece2;
+  background: #f1f5f9;
 }
 
 .step small,
@@ -79,7 +79,7 @@
 
 .activeStep .stepIcon,
 .completeStep .stepIcon {
-  background: #dff0c6;
+  background: #e9eff5;
   color: #4c8100;
 }
 
@@ -146,7 +146,7 @@
   margin-top: 24px;
   padding: 16px 18px;
   border-radius: 10px;
-  background: #f3f6ef;
+  background: #f8fafc;
 }
 
 .scopeCallout {
@@ -164,7 +164,7 @@
   padding: 20px;
   border: 1px solid #cae1ac;
   border-radius: 12px;
-  background: #f8fbf4;
+  background: #f8fafc;
 }
 
 .sourceRegistration {
@@ -274,7 +274,7 @@
   right: 17px;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #e7eedf;
+  background: #f1f5f9;
   color: #54674a;
   font-size: 11px;
   font-weight: 700;
@@ -350,7 +350,7 @@
 
 .disabledOption {
   opacity: 0.58;
-  background: #f5f6f4;
+  background: #f8fafc;
 }
 
 .checkGrid,
@@ -368,7 +368,7 @@
   padding: 16px;
   border: 1px solid #e0e5dc;
   border-radius: 10px;
-  background: #fafbf9;
+  background: #f8fafc;
 }
 
 .reviewGrid span,
@@ -384,7 +384,7 @@
 
 .finalNotice {
   align-items: flex-start;
-  background: #f6faef;
+  background: #f8fafc;
   color: #34520e;
 }
 
@@ -400,7 +400,7 @@
   min-height: 82px;
   padding: 16px 28px;
   border-top: 1px solid #dfe5d9;
-  background: #fafbf9;
+  background: #f8fafc;
 }
 
 .actions > div:last-child {
@@ -509,7 +509,7 @@
   border: 1px solid #d3e8bc;
   border-radius: 13px;
   color: #4f8211;
-  background: linear-gradient(145deg, #eff9e3, #e2f2cd);
+  background: linear-gradient(145deg, #f1f5f9, #e9eff5);
 }
 
 .approvalStatusLine {
@@ -755,11 +755,11 @@
   right: 8px;
   left: 42px;
   height: 2px;
-  background: #dce3da;
+  background: #e9eff5;
 }
 
 .draft {
-  background: #edf0ed;
+  background: #f1f5f9;
   color: #66716a;
 }
 
@@ -779,7 +779,7 @@
 }
 
 .approved {
-  background: #ddf2d1;
+  background: #e9eff5;
   color: #4e941d;
 }
 
@@ -846,7 +846,7 @@
   min-height: 38px;
   border: 1px solid #ccd5ca;
   border-radius: 7px;
-  background: #fcfdfc;
+  background: #f8fafc;
 }
 
 .filters select {
@@ -886,7 +886,7 @@
 .portfolioTable th {
   padding: 10px 13px;
   border-bottom: 1px solid #dde3db;
-  background: #f4f6f3;
+  background: #f8fafc;
   color: #5a665e;
   font-size: 0.65rem;
   font-weight: 700;
@@ -910,7 +910,7 @@
 }
 
 .portfolioTable tbody tr:hover {
-  background: #f8fbf5;
+  background: #f8fafc;
   box-shadow: inset 3px 0 #80b928;
 }
 
@@ -985,7 +985,7 @@
 }
 
 .stageDraft {
-  background: #edf0ed;
+  background: #f1f5f9;
   color: #59655d;
 }
 
@@ -1005,7 +1005,7 @@
 }
 
 .stageApproved {
-  background: #ddf2d1;
+  background: #e9eff5;
   color: #3f8015;
 }
 
@@ -1050,7 +1050,7 @@
 .rowMenu > summary:hover,
 .rowMenu[open] > summary {
   border-color: #89b94a;
-  background: #eff7e8;
+  background: #f1f5f9;
   color: #52792f;
 }
 
@@ -1092,7 +1092,7 @@
 
 .rowMenu > div > a:hover,
 .rowMenu > div > button:hover {
-  background: #f5f8f3;
+  background: #f8fafc;
 }
 
 .rowMenu > div > button:disabled {
@@ -1193,7 +1193,7 @@
 }
 
 .attentionCard > a:hover {
-  background: #f8faf7;
+  background: #f8fafc;
 }
 
 .attentionCard > a strong,

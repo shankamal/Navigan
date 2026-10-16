@@ -32,13 +32,13 @@
   font-size: 16px;
 }
 .cluster-ui .button-primary {
-  background: #65a449;
-  border-color: #65a449;
-  color: #143322;
+  background: #315a76;
+  border-color: #86bc25;
+  color: #fff;
 }
 .cluster-ui .button-primary:hover:not(:disabled) {
-  background: #568c3e;
-  border-color: #568c3e;
+  background: #254b66;
+  border-color: #86bc25;
 }
 .cluster-ui :is(a, button, input, select, summary):focus-visible {
   outline: 2px solid #568c3e;
@@ -233,7 +233,7 @@
 }
 .cluster-view-toggle button.selected {
   color: #315522;
-  background: #eef5e9;
+  background: #f1f5f9;
   border-color: #65a449;
 }
 .cluster-board {

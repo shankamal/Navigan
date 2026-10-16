@@ -46,7 +46,7 @@
 
 .pd-kpi {
   --pd-tone: #59871d;
-  --pd-tone-soft: #eef7e4;
+  --pd-tone-soft: #f1f5f9;
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -108,7 +108,7 @@
   place-items: center;
   flex: none;
   border-radius: 8px;
-  background: var(--pd-tone-soft, #eef5e7);
+  background: var(--pd-tone-soft, #f1f5f9);
   color: var(--pd-tone, #527b1d);
 }
 
@@ -203,7 +203,7 @@
 
 .pd-card-icon {
   --pd-tone: #4d7227;
-  --pd-tone-soft: #eff5e9;
+  --pd-tone-soft: #f1f5f9;
   width: 34px;
   height: 34px;
 }
@@ -357,7 +357,7 @@
   padding: 10px 12px;
   border: 1px solid #d9e8c9;
   border-radius: 7px;
-  background: #f5faef;
+  background: #f8fafc;
   color: #465742;
   font-size: 0.75rem;
 }
@@ -598,15 +598,15 @@
   height: 82px;
   place-items: center;
   border-radius: 50%;
-  background: conic-gradient(#72a426 var(--progress), #e5ebe2 0);
+  background: conic-gradient(#72a426 var(--progress), #f1f5f9 0);
 }
 
 .pd-ring-blue {
-  background: conic-gradient(#258cca var(--progress), #e5ebe2 0);
+  background: conic-gradient(#258cca var(--progress), #f1f5f9 0);
 }
 
 .pd-ring-violet {
-  background: conic-gradient(#7860ba var(--progress), #e5ebe2 0);
+  background: conic-gradient(#7860ba var(--progress), #f1f5f9 0);
 }
 
 .pd-mini-ring::before {
@@ -642,7 +642,7 @@
   margin: 0 18px 18px;
   padding: 11px 12px;
   border-radius: 7px;
-  background: #f5f7f4;
+  background: #f8fafc;
   color: #5c685f;
   font-size: 0.6875rem;
 }
@@ -691,7 +691,7 @@
 }
 
 .pd-attention-row:hover {
-  background: #fafcf8;
+  background: #f8fafc;
 }
 
 .pd-attention-row-icon {
@@ -713,7 +713,7 @@
 }
 
 .pd-attention-success {
-  background: #edf6e4;
+  background: #f1f5f9;
   color: #56851f;
 }
 
@@ -741,7 +741,7 @@
 
 .pd-activity-table th {
   padding: 10px 16px;
-  background: #f6f8f5;
+  background: #f8fafc;
   font-size: 0.65rem;
 }
 
@@ -767,7 +767,7 @@
   display: inline-flex;
   padding: 3px 8px;
   border-radius: 4px;
-  background: #eef1ee;
+  background: #f1f5f9;
   color: #56635a;
   font-size: 0.65rem;
   font-weight: 700;
@@ -775,7 +775,7 @@
 }
 
 .pd-status-active {
-  background: #e8f5dc;
+  background: #f1f5f9;
   color: #376215;
 }
 
@@ -822,7 +822,7 @@
   padding: 14px 18px;
   border: 1px solid #dce2dd;
   border-radius: 9px;
-  background: #fbfcfa;
+  background: #f8fafc;
 }
 
 .pd-tool-strip > div:first-child {
@@ -903,7 +903,7 @@
 }
 
 .pd-tool-strip > a:hover {
-  background: #eef4e9;
+  background: #f1f5f9;
 }
 
 @container (max-width: 1250px) {
@@ -1000,7 +1000,7 @@
 }
 .pd-kpi {
   --pd-tone: #237448;
-  --pd-tone-soft: #f0f5f2;
+  --pd-tone-soft: #f1f5f9;
   padding: 16px 14px;
 }
 .pd-kpi strong {
@@ -1024,7 +1024,7 @@
   color: #64748b;
 }
 .pd-card-icon {
-  background: #f0f5f2;
+  background: #f8fafc;
   color: #237448;
 }
 .pd-primary-grid {
@@ -1147,7 +1147,7 @@
   background: #f5f6f7;
 }
 .pd-signal {
-  background: #f7f9f8;
+  background: #f8fafc;
   border-color: #dde4df;
   font-size: 12px;
 }
@@ -1188,14 +1188,14 @@
 }
 .dashboard-shell .button-primary,
 .dashboard-shell .pd-review-action {
-  background: #65a449;
-  border-color: #65a449;
-  color: #143322;
+  background: #315a76;
+  border-color: #86bc25;
+  color: #fff;
 }
 .dashboard-shell .button-primary:hover,
 .dashboard-shell .pd-attention-row:hover .pd-review-action {
-  background: #568c3e;
-  border-color: #568c3e;
+  background: #254b66;
+  border-color: #86bc25;
 }
 .dashboard-shell .pd-review-action svg {
   color: currentColor;
