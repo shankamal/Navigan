@@ -8955,6 +8955,7 @@ td {
 .app-shell {
   --action-green: #5e8b1b;
   --action-green-hover: #4b7214;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Open Sans", sans-serif;
 }
 .app-shell .content-column .button-primary {
   background: var(--action-green);
@@ -8977,4 +8978,24 @@ td {
 .app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost):focus-visible {
   outline: 2px solid var(--action-green);
   outline-offset: 2px;
+}
+
+/* Consistent, lightweight interaction polish throughout the platform. */
+.app-shell .content-column :is(.panel, .metric) {
+  border-color: #e1e7ed;
+  border-radius: 12px;
+  box-shadow: 0 2px 9px rgb(20 38 55 / 4%);
+}
+.app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost),
+.app-shell .sidebar :is(.nav-item, .nav-subitem) {
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.app-shell .content-column .button-primary:hover:not(:disabled) {
+  box-shadow: 0 3px 9px rgb(72 108 20 / 15%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost),
+  .app-shell .sidebar :is(.nav-item, .nav-subitem) {
+    transition: none;
+  }
 }

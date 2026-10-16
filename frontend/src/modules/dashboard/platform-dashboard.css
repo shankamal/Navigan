@@ -1804,3 +1804,45 @@
   gap: 14px;
   padding: 12px 16px;
 }
+
+/* Quiet, tactile dashboard surfaces with restrained motion. */
+.command-dashboard :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi) {
+  border: 1px solid #e1e7ed;
+  border-radius: 13px;
+  background-color: #fff;
+  box-shadow: 0 2px 9px rgb(20 38 55 / 4%), 0 13px 30px rgb(20 38 55 / 2%);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.command-dashboard :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi):hover {
+  border-color: #d2dce5;
+  box-shadow: 0 4px 14px rgb(20 38 55 / 6%), 0 16px 35px rgb(20 38 55 / 3%);
+}
+.command-dashboard .pd-attention-row {
+  border-radius: 8px;
+  transition: background-color 150ms ease;
+}
+.dashboard-shell .command-dashboard .pd-review-action {
+  border: 1px solid #5e8b1b;
+  background: #5e8b1b;
+  color: #fff;
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.dashboard-shell .command-dashboard .pd-review-action svg {
+  color: #fff;
+}
+.dashboard-shell .command-dashboard .pd-attention-row:hover .pd-review-action,
+.dashboard-shell .command-dashboard .pd-review-action:hover {
+  border-color: #4b7214;
+  background: #4b7214;
+  color: #fff;
+}
+.dashboard-shell .command-dashboard .pd-review-action:focus-visible {
+  outline: 2px solid #4b7214;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-dashboard :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi, .pd-attention-row, .pd-review-action) {
+    transition: none;
+  }
+}
