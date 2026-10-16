@@ -941,3 +941,8 @@
     flex-wrap: wrap;
   }
 }
+
+.cluster-ui :is(.cluster-board-card, .cluster-lifecycle-chart, .cluster-setup-sidebar) {
+  border-top: 2px solid #86bc25;
+  border-left: 2px solid #86bc25;
+}

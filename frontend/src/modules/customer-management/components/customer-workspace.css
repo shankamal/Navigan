@@ -809,3 +809,8 @@
     flex-wrap: wrap;
   }
 }
+
+.customer-workspace :is(.customer-metrics, .customer-board-card) {
+  border-top: 2px solid #86bc25;
+  border-left: 2px solid #86bc25;
+}

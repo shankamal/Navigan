@@ -1621,3 +1621,21 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Consistent Deloitte green top-left edge on migration assessment cards. */
+.sourceDashboardCards > div,
+.sourceOverviewMetric,
+.scopeKpiBar > div,
+.scopeResourceReviewMetrics > span,
+.targetClusterBanner,
+.targetReadinessItem,
+.targetFindingsStrip,
+.targetWorkspace .targetVerdict {
+  border-top: 2px solid #86bc25;
+  border-left: 2px solid #86bc25;
+}
+
+.targetWorkspace :is(.targetClusterBanner button, .targetWorkspaceBottom button),
+.workspace :is(.planningContinueButton, .targetRefreshButton) {
+  border-color: #86bc25 !important;
+}

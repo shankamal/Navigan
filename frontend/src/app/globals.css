@@ -8907,3 +8907,47 @@ td {
     zoom: 0.75;
   }
 }
+
+/* Sidebar: never show an inner horizontal scrollbar or cut off group labels. */
+.app-shell .sidebar {
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.app-shell .sidebar :is(.clustered-nav-group, .nav-item, .nav-subitem) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-shell .clustered-nav-group .nav-section {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  letter-spacing: 0.04em;
+}
+
+/* Deloitte green is an edge accent, not a card background. */
+.app-shell .nav-item.selected,
+.app-shell .nav-subitem.selected {
+  border-left: 3px solid #86bc25;
+}
+
+.app-shell .nav-item.selected {
+  box-shadow: inset 3px 0 #86bc25;
+}
+
+.app-shell .content-column :is(.panel, .metric, .workspace-card) {
+  border-top: 2px solid #86bc25;
+  border-left: 2px solid #86bc25;
+}
+
+.app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost) {
+  border-color: #86bc25;
+}
+
+.app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost):focus-visible {
+  outline: 2px solid #86bc25;
+  outline-offset: 2px;
+}

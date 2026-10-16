@@ -1241,3 +1241,8 @@
     flex-wrap: wrap;
   }
 }
+
+.environment-workspace :is(.environment-board-card, .environment-metric) {
+  border-top: 2px solid #86bc25;
+  border-left: 2px solid #86bc25;
+}

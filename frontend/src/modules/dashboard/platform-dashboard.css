@@ -1730,3 +1730,13 @@
     justify-content: flex-start;
   }
 }
+
+/* The command center follows the shared Deloitte edge-accent language. */
+.command-dashboard :is(.pd-card, .pd-overview-panel, .pd-attention-workspace, .pd-kpi) {
+  border-top: 2px solid #86bc25;
+  border-left: 2px solid #86bc25;
+}
+
+.command-dashboard :is(.pd-actions button, .pd-review-action, .pd-card-link) {
+  border-color: #86bc25;
+}
