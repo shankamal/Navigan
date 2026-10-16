@@ -8851,8 +8851,8 @@ td {
 /* Compact desktop density: comfortable at browser zoom 100%, without scaling text. */
 @media (min-width: 901px) {
   .sidebar {
-    width: clamp(198px, 17vw, 236px);
-    flex: 0 0 clamp(198px, 17vw, 236px);
+    width: clamp(228px, 18vw, 252px);
+    flex: 0 0 clamp(228px, 18vw, 252px);
   }
 
   .navigation-collapsed .sidebar {
@@ -8900,18 +8900,29 @@ td {
   }
 }
 
-/* Compact desktop visual density, calibrated against the accepted 75% view.
-   This applies to the authenticated application only; mobile keeps native sizing. */
-@media (min-width: 901px) {
-  .app-shell {
-    zoom: 0.75;
-  }
-}
-
-/* Sidebar: never show an inner horizontal scrollbar or cut off group labels. */
+/* Keep the sidebar a normal-sized navigation area, without page-level zoom. */
 .app-shell .sidebar {
   overflow-x: hidden;
+  overflow-y: auto;
+  height: calc(100dvh - var(--workspace-topbar-height, 64px));
+  padding: 12px 10px;
+  gap: 10px;
   box-sizing: border-box;
+}
+
+.app-shell .sidebar .clustered-nav-group {
+  gap: 1px;
+  margin-bottom: 9px;
+}
+
+.app-shell .sidebar .clustered-nav-group .nav-item {
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.app-shell .sidebar .sidebar-footer {
+  display: none;
 }
 
 .app-shell .sidebar :is(.clustered-nav-group, .nav-item, .nav-subitem) {
@@ -8926,6 +8937,8 @@ td {
   text-overflow: clip;
   overflow-wrap: break-word;
   letter-spacing: 0.04em;
+  padding: 0 9px 4px;
+  font-size: 10px;
 }
 
 /* Deloitte green is an edge accent, not a card background. */
@@ -8938,9 +8951,13 @@ td {
   box-shadow: inset 3px 0 #86bc25;
 }
 
-.app-shell .content-column :is(.panel, .metric, .workspace-card) {
-  border-top: 2px solid #86bc25;
-  border-left: 2px solid #86bc25;
+.app-shell .content-column :is(.panel, .metric) {
+  background-image:
+    linear-gradient(#86bc25, #86bc25),
+    linear-gradient(#86bc25, #86bc25);
+  background-position: top left, top left;
+  background-size: 22px 2px, 2px 22px;
+  background-repeat: no-repeat;
 }
 
 .app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost) {

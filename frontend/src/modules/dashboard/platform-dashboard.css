@@ -1731,10 +1731,14 @@
   }
 }
 
-/* The command center follows the shared Deloitte edge-accent language. */
+/* A small corner marker preserves the white card treatment. */
 .command-dashboard :is(.pd-card, .pd-overview-panel, .pd-attention-workspace, .pd-kpi) {
-  border-top: 2px solid #86bc25;
-  border-left: 2px solid #86bc25;
+  background-image:
+    linear-gradient(#86bc25, #86bc25),
+    linear-gradient(#86bc25, #86bc25);
+  background-position: top left, top left;
+  background-size: 22px 2px, 2px 22px;
+  background-repeat: no-repeat;
 }
 
 .command-dashboard :is(.pd-actions button, .pd-review-action, .pd-card-link) {

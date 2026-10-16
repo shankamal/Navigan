@@ -1622,7 +1622,7 @@
   }
 }
 
-/* Consistent Deloitte green top-left edge on migration assessment cards. */
+/* Short Deloitte green corner marker, not a full-length border. */
 .sourceDashboardCards > div,
 .sourceOverviewMetric,
 .scopeKpiBar > div,
@@ -1631,8 +1631,12 @@
 .targetReadinessItem,
 .targetFindingsStrip,
 .targetWorkspace .targetVerdict {
-  border-top: 2px solid #86bc25;
-  border-left: 2px solid #86bc25;
+  background-image:
+    linear-gradient(#86bc25, #86bc25),
+    linear-gradient(#86bc25, #86bc25);
+  background-position: top left, top left;
+  background-size: 22px 2px, 2px 22px;
+  background-repeat: no-repeat;
 }
 
 .targetWorkspace :is(.targetClusterBanner button, .targetWorkspaceBottom button),

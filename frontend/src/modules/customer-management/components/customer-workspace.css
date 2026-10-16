@@ -811,6 +811,10 @@
 }
 
 .customer-workspace :is(.customer-metrics, .customer-board-card) {
-  border-top: 2px solid #86bc25;
-  border-left: 2px solid #86bc25;
+  background-image:
+    linear-gradient(#86bc25, #86bc25),
+    linear-gradient(#86bc25, #86bc25);
+  background-position: top left, top left;
+  background-size: 22px 2px, 2px 22px;
+  background-repeat: no-repeat;
 }
