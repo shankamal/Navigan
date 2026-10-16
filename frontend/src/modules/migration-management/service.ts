@@ -175,6 +175,15 @@ export interface TargetAssessmentResponse {
 }
 
 export const migrations = {
+  prepareArtifactUpload: async (migrationId: string, input: {
+    kind: "MANIFEST_YAML" | "HELM_CHART" | "HELM_VALUES" | "VALIDATION_REPORT";
+    filename: string;
+    sha256: string;
+    sizeBytes: number;
+    contentType: string;
+  }): Promise<{method: "PUT";url: string;key: string;requiredHeaders: Record<string,string>;status: string}> =>
+    (await apiClient.post(`${base}/${migrationId}/artifacts/upload-intent`, input,
+      { headers: writeHeaders({ key: crypto.randomUUID() }) })).data,
   targetCompatibility: async (migrationId: string): Promise<TargetCompatibilityResponse> =>
     (await apiClient.get(`${base}/${migrationId}/target-compatibility`)).data,
   targetAssessment: async (migrationId: string): Promise<TargetAssessmentResponse> =>

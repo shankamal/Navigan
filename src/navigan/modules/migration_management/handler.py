@@ -173,6 +173,9 @@ def route_of(method, path):
     if len(parts) == 2 and parts[1] == "target-compatibility" and method == "GET":
         return "target_compatibility_get", identifier, None
 
+    if len(parts) == 3 and parts[1:] == ["artifacts", "upload-intent"] and method == "POST":
+        return "artifact_upload_intent", identifier, None
+
     if (
         len(parts) == 2
         and parts[1] == "source-catalogue"
@@ -220,6 +223,7 @@ def execute(event, principal, correlation):
         "source_cluster_enrollment",
         "source_cluster_install",
         "target_assessment_run",
+        "artifact_upload_intent",
     }
     idempotent = mutating and route != "source_cluster_enrollment"
 
@@ -275,7 +279,7 @@ def execute(event, principal, correlation):
             model = InstallSourceConnector
         elif action in {"discover", "assess"}:
             model = DiscoveryAction
-        elif route == "target_assessment_run":
+        elif route in {"target_assessment_run", "artifact_upload_intent"}:
             model = None
         else:
             model = MigrationAction
@@ -284,7 +288,7 @@ def execute(event, principal, correlation):
                 mode="json",
                 exclude_none=True,
             )
-        elif body:
+        elif body and route != "artifact_upload_intent":
             raise ApiError(400, "INVALID_REQUEST", "Target discovery accepts an empty JSON body only.")
 
         if idempotent:
@@ -372,6 +376,9 @@ def execute(event, principal, correlation):
 
         if route == "target_assessment_run":
             value = service.analyze_target(identifier)
+            status = 200
+        elif route == "artifact_upload_intent":
+            value = service.prepare_artifact_upload(identifier, body)
             status = 200
         elif route == "source_cluster_create":
             value = service.create_source_cluster(body)

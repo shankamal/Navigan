@@ -18,6 +18,10 @@ Parameters:
   SourceConnectorDeliveryRoleArn:
     Type: String
     Default: arn:aws:iam::000000000000:role/NaviganSourceConnectorDeliveryRole
+  MigrationArtifactAllowedOrigin:
+    Type: String
+    Default: https://navigan.click
+    Description: Exact frontend origin authorized to upload approved migration artifacts
 
 Globals:
   Function:
@@ -38,6 +42,61 @@ Globals:
         DB_SECRET_ARN: {Ref: ApiDatabaseSecretArn}
 
 Resources:
+  MigrationArtifactKey:
+    Type: AWS::KMS::Key
+    Properties:
+      EnableKeyRotation: true
+      Description: Navigan migration artifact encryption
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableAccountIAMPolicies
+            Effect: Allow
+            Principal:
+              AWS: {Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'}
+            Action: 'kms:*'
+            Resource: '*'
+
+  MigrationArtifacts:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      VersioningConfiguration: {Status: Enabled}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: {Fn::GetAtt: [MigrationArtifactKey, Arn]}
+            BucketKeyEnabled: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: [{Ref: MigrationArtifactAllowedOrigin}]
+            AllowedMethods: [PUT]
+            AllowedHeaders: ['Content-Type', 'x-amz-*']
+            MaxAge: 600
+
+  MigrationArtifactsTlsPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: {Ref: MigrationArtifacts}
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - {Fn::GetAtt: [MigrationArtifacts, Arn]}
+              - {Fn::Sub: '${MigrationArtifacts.Arn}/*'}
+            Condition:
+              Bool: {'aws:SecureTransport': 'false'}
+
   MigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -54,6 +113,8 @@ Resources:
             Ref: MigrationConnectorImageDigest
           SOURCE_CONNECTOR_DELIVERY_ROLE_ARN:
             Ref: SourceConnectorDeliveryRoleArn
+          MIGRATION_ARTIFACT_BUCKET: {Ref: MigrationArtifacts}
+          MIGRATION_ARTIFACT_KMS_KEY_ARN: {Fn::GetAtt: [MigrationArtifactKey, Arn]}
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
@@ -66,6 +127,12 @@ Resources:
             - Effect: Allow
               Action: sts:AssumeRole
               Resource: {Ref: SourceConnectorDeliveryRoleArn}
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource: {Fn::Sub: '${MigrationArtifacts.Arn}/customers/*'}
+            - Effect: Allow
+              Action: [kms:GenerateDataKey, kms:Encrypt]
+              Resource: {Fn::GetAtt: [MigrationArtifactKey, Arn]}
 
   MigrationConnectorFunction:
     Type: AWS::Serverless::Function
@@ -290,6 +357,17 @@ Resources:
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: GET /api/v1/migrations/{migrationId}/target-compatibility
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  CreateMigrationArtifactUploadIntentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifacts/upload-intent
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   CreateMigrationRoute:
@@ -522,6 +600,10 @@ Resources:
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
 Outputs:
+  MigrationArtifactBucket:
+    Value: {Ref: MigrationArtifacts}
+  MigrationArtifactKmsKeyArn:
+    Value: {Fn::GetAtt: [MigrationArtifactKey, Arn]}
   MigrationFunctionName:
     Value: {Ref: MigrationFunction}
   MigrationFunctionRoleArn:

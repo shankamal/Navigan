@@ -53,6 +53,46 @@ class Service:
         self.principal = repo.principal
         self.correlation = correlation
 
+    def prepare_artifact_upload(self, identifier, body):
+        """Issue a scoped, encrypted S3 upload intent for a reviewed artifact.
+
+        Upload is a separate, explicitly authorized action from assessment.
+        Successful PUTs remain pending server-side validation.
+        """
+        import os
+        from .artifacts import ArtifactRequest, artifact_key, presign_artifact_put
+
+        self.access.require("migration.edit")
+        migration = self.repo.get(identifier)
+        assessment = self.repo.get_assessment(identifier).get("assessment")
+        if not assessment:
+            raise ApiError(409, "SOURCE_ASSESSMENT_REQUIRED", "Save a Source assessment before preparing migration artifacts.")
+        if not migration.get("planning_draft"):
+            raise ApiError(409, "SOURCE_SCOPE_REQUIRED", "Save the Source migration scope before preparing artifacts.")
+        bucket = os.environ.get("MIGRATION_ARTIFACT_BUCKET", "")
+        kms_key = os.environ.get("MIGRATION_ARTIFACT_KMS_KEY_ARN", "")
+        if not bucket or not kms_key:
+            raise ApiError(503, "ARTIFACT_STORAGE_UNAVAILABLE", "Migration artifact storage is not configured.")
+        expected = {"kind", "filename", "sha256", "sizeBytes", "contentType"}
+        if set(body) != expected or type(body.get("sizeBytes")) is not int:
+            raise ApiError(400, "INVALID_ARTIFACT", "Provide kind, filename, SHA-256, integer sizeBytes and contentType only.")
+        try:
+            request = ArtifactRequest(
+                customer_id=str(migration["customer_id"]), migration_id=identifier,
+                assessment_version=int(assessment["assessmentVersion"]),
+                kind=body["kind"], filename=body["filename"],
+                sha256=body["sha256"], size_bytes=body["sizeBytes"],
+                content_type=body["contentType"],
+            )
+            artifact_key(request)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ApiError(400, "INVALID_ARTIFACT", str(exc)) from exc
+        import boto3
+        return presign_artifact_put(
+            boto3.client("s3"), bucket=bucket, kms_key_id=kms_key,
+            request=request,
+        )
+
     def analyze_target(self, identifier):
         """Capture existing Cluster Management connector inventory, read-only."""
         self.access.require("migration.edit")

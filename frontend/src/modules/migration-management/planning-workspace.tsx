@@ -157,7 +157,7 @@ export function PlanningEditor({
       ? (migration.planningDraft as unknown as MigrationPlanningDraft)
       : emptyDraft(assessment),
   );
-  const workflowSteps = ["scope", "target", "compatibility", "remediate", "plan", "review"] as const;
+  const workflowSteps = ["scope", "target", "remediate", "plan", "review"] as const;
   type WorkflowStep = (typeof workflowSteps)[number];
   const [tab, setTab] = useState<WorkflowStep>("scope");
   const [targetEvidence, setTargetEvidence] = useState<import("./service").TargetAssessmentRecord | null>(null);
@@ -166,10 +166,15 @@ export function PlanningEditor({
   const [targetLoading, setTargetLoading] = useState(false);
   const [targetRunning, setTargetRunning] = useState(false);
   const [targetError, setTargetError] = useState("");
+  const [artifactKind, setArtifactKind] = useState<"MANIFEST_YAML" | "HELM_CHART" | "HELM_VALUES" | "VALIDATION_REPORT">("MANIFEST_YAML");
+  const [artifactFile, setArtifactFile] = useState<File | null>(null);
+  const artifactInputRef = useRef<HTMLInputElement>(null);
+  const [artifactUploading, setArtifactUploading] = useState(false);
+  const [artifactUploadMessage, setArtifactUploadMessage] = useState("");
   // Refresh stale or absent saved target evidence once per migration/target per page session.
   const autoTargetAttempted = useRef(new Set<string>());
   useEffect(() => {
-    if (tab !== "target" && tab !== "compatibility") return;
+    if (tab !== "target") return;
     let active = true;
     const clusterId = String(migration.targetConfiguration?.clusterId ?? "");
     const key = [migration.migrationId, assessment.assessmentVersion, clusterId].join(":");
@@ -216,7 +221,7 @@ export function PlanningEditor({
     return () => { active = false; };
   }, [tab, migration.migrationId, migration.targetConfiguration?.clusterId, migration.targetConfiguration?.platform, assessment.assessmentVersion, canEdit]);
   useEffect(() => {
-    if (tab !== "compatibility" && tab !== "remediate" && tab !== "plan" && tab !== "review") return;
+    if (tab !== "target" && tab !== "remediate" && tab !== "plan" && tab !== "review") return;
     let active = true;
     setSchedulingReport(null);
     setSchedulingError("");
@@ -243,6 +248,40 @@ export function PlanningEditor({
     } finally { setTargetRunning(false); }
   }
 
+  async function uploadReviewedArtifact() {
+    if (!artifactFile || artifactUploading) return;
+    setArtifactUploading(true);
+    setArtifactUploadMessage("");
+    try {
+      if (artifactFile.size === 0 || artifactFile.size > 20 * 1024 * 1024) throw new Error("Files must be between 1 byte and 20 MiB.");
+      const allowedExtensions: Record<typeof artifactKind, RegExp> = {
+        MANIFEST_YAML: /\.ya?ml$/i, HELM_CHART: /\.tgz$/i,
+        HELM_VALUES: /\.ya?ml$/i, VALIDATION_REPORT: /\.json$/i,
+      };
+      if (!allowedExtensions[artifactKind].test(artifactFile.name)) throw new Error("File extension does not match the selected artifact type.");
+      const contentType = artifactKind === "HELM_CHART" ? "application/gzip" : artifactKind === "VALIDATION_REPORT" ? "application/json" : "application/yaml";
+      const bytes = await artifactFile.arrayBuffer();
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const sha256 = Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+      const intent = await migrations.prepareArtifactUpload(migration.migrationId, {
+        kind: artifactKind, filename: artifactFile.name, sha256,
+        sizeBytes: artifactFile.size, contentType,
+      });
+      const result = await fetch(intent.url, {
+        method: "PUT", headers: intent.requiredHeaders, body: artifactFile,
+      });
+      if (!result.ok) throw new Error(`S3 upload failed (HTTP ${result.status}).`);
+      setArtifactUploadMessage(`${artifactFile.name} uploaded to the encrypted migration workspace. Validation and deployment readiness are still pending.`);
+      setArtifactFile(null);
+      if (artifactInputRef.current) artifactInputRef.current.value = "";
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown upload error";
+      setArtifactUploadMessage(`Artifact preparation failed: ${message}`);
+    } finally {
+      setArtifactUploading(false);
+    }
+  }
+
   const stepHeadingRef = useRef<HTMLDivElement>(null);
   function navigateToStep(next: WorkflowStep) {
     setTab(next);
@@ -250,7 +289,7 @@ export function PlanningEditor({
   }
   const { setLabel } = useWorkspacePage();
   useEffect(() => {
-    const names: Record<WorkflowStep,string> = {scope:"Source discovery & scope",target:"Target discovery & readiness",compatibility:"Source-to-target compatibility",remediate:"Remediation",plan:"Migration planning",review:"Review & export"};
+    const names: Record<WorkflowStep,string> = {scope:"Source discovery & scope",target:"Target assessment & compatibility",remediate:"Remediation",plan:"Migration planning",review:"Review & export"};
     setLabel(names[tab]);
     return () => setLabel("");
   },[tab,setLabel]);
@@ -849,7 +888,7 @@ export function PlanningEditor({
       />
       <div ref={stepHeadingRef} className={styles.navigationAnchor} />
       <nav className={styles.steps} aria-label="Migration workflow">
-        {([["scope","1 · Source"],["target","2 · Target"],["compatibility","3 · Compatibility"],["remediate","4 · Remediation"],["plan","5 · Migration Plan"],["review","6 · Review & Export"]] as const).map(([step,label])=>
+        {([["scope","1 · Source"],["target","2 · Target & Compatibility"],["remediate","3 · Remediation"],["plan","4 · Migration Plan"],["review","5 · Review & Export"]] as const).map(([step,label])=>
           <button key={step} type="button" aria-current={tab===step?"step":undefined} onClick={()=>navigateToStep(step)}>{label}</button>
         )}
       </nav>     {tab === "review" && <section className={styles.guide} aria-label="Migration planning guide">
@@ -893,15 +932,15 @@ export function PlanningEditor({
         </div>
       )}
       {tab === "target" && <section className={styles.surface} aria-label="Target environment assessment and readiness">
-        <div className={styles.workflowStageHeading}><strong>2. Target Environment Assessment &amp; Readiness</strong><p>Understand the selected destination, capture available connector evidence, and identify what must be verified before matching source workloads.</p></div>
-        <p className={styles.caption}>Navigan automatically retrieves the destination inventory. Review reported evidence and outstanding checks before continuing to Compatibility.</p>
+        <div className={styles.workflowStageHeading}><strong>2. Target Assessment &amp; Compatibility</strong><p>Review the destination cluster, evaluate your saved Source scope and understand what needs attention before migration planning.</p></div>
+        <p className={styles.caption}>Navigan retrieves destination evidence from the registered connector. Observed inventory does not, by itself, prove workload compatibility.</p>
         <div className={styles.targetAssessmentActions}>
           <button type="button" className="button button-primary" disabled={targetRunning || targetLoading || !canEdit || targetPlatform !== "EKS"} onClick={runTargetAnalysis}>{targetRunning ? "Refreshing target inventory…" : "Refresh target inventory"}</button>
           <span role="status">{targetRunning ? "Refreshing authorized inventory…" : targetLoading ? "Loading saved inventory evidence…" : targetEvidence ? `Last captured: ${new Date(targetEvidence.createdAt).toLocaleString()}` : "Target evidence not yet captured"}</span>
         </div>
         {targetError && <div role="alert" className={styles.warning}>{targetError}</div>}
         <div className={styles.targetOverview}>
-          <div><span>Destination cluster</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Existing cluster</small></div>
+          <div><span>Destination cluster</span><strong>{targetEvidence?.snapshot.clusterName || assessment.inventorySummary.target.clusterName || "Not configured"}</strong><small>{targetPlatform} · Kubernetes {targetEvidence?.snapshot.kubernetesVersion || "version not reported"}</small></div>
           <div><span>Connector inventory</span><strong>{targetEvidence ? `${targetEvidence.snapshot.resourceCount ?? 0} resources` : "Not captured"}</strong><small>{targetEvidence ? "Reported by registered connector" : "Collected automatically when available"}</small></div>
           <div><span>Compatibility readiness</span><strong>Pending verification</strong><small>Inventory does not establish workload compatibility</small></div>
         </div>
@@ -910,6 +949,8 @@ export function PlanningEditor({
           <span>{targetEvidence.snapshot.clusterName} · Revision {targetEvidence.snapshot.sourceRevision ?? "Not reported"} · {targetEvidence.snapshot.resourceCount ?? 0} reported resources</span>
           <small>Evidence: {targetEvidence.evidenceLevel} · Observed {targetEvidence.snapshot.observedAt ? new Date(targetEvidence.snapshot.observedAt).toLocaleString() : "time not reported"} · Inventory completeness not established</small>
         </div>}
+        <details className={styles.compatibilityDetails} aria-label="Detailed target inventory and connector evidence">
+          <summary>View detailed Target inventory · Resource kinds, node capacity and connector evidence</summary>
         {targetEvidence?.snapshot.collectionGaps && <section className={styles.targetCapabilitySection} aria-label="Target connector evidence collection gaps">
           <div className={styles.targetAssessmentHead}><div><strong>Connector collection gaps</strong><p>Missing collection data is not evidence the target cluster lacks a capability.</p></div></div>
           <div className={styles.targetCapabilityGrid}>
@@ -945,6 +986,7 @@ export function PlanningEditor({
             {targetEvidence.snapshot.nodeCapacity.map((node, i) => <div key={node.name ?? i}><strong>{node.name ?? "Unknown node"}</strong><span>OBSERVED</span><p>Allocatable CPU: {node.allocatableCpu} · Memory: {node.allocatableMemory}</p></div>)}
           </div> : <p className={styles.caption}>No allocatable capacity values reported by the connector.</p>}
         </section>}
+        </details>
         <section className={styles.targetCapabilitySection} aria-label="Target readiness evidence">
           <div className={styles.targetAssessmentHead}><div><strong>Target capability evidence</strong><p>Partial observations show what the connector discovered, not proof of compatibility with selected source workloads.</p></div><span className={styles.targetEvidenceUnknown}>Migration readiness · Pending verification</span></div>
           <div className={styles.targetCapabilityGrid}>
@@ -964,10 +1006,10 @@ export function PlanningEditor({
             })}
           </div>
         </section>
-        <div className={styles.workflowStageWarning}>Inventory collection is read-only and does not establish migration readiness. Continue to Compatibility with the saved Source Draft; unsupported or absent target evidence remains Not Verified.</div>
+        <div className={styles.workflowStageWarning}>Inventory collection is read-only. Required capabilities without complete evidence remain Not Verified.</div>
       </section>}
-      {tab === "compatibility" && <section className={styles.surface} aria-label="Source-to-target compatibility">
-        <div className={styles.workflowStageHeading}><strong>3. Source-to-Target Mapping &amp; Compatibility</strong><p>Evidence-first comparison of the selected migration scope. No compatibility score or direct migration recommendation is issued without verified target capabilities.</p></div>
+      {tab === "target" && <section className={styles.surface} aria-label="Source-to-target compatibility">
+        <div className={styles.workflowStageHeading}><strong>Source-to-Target compatibility results</strong><p>Evidence-first comparison of the saved migration scope. No direct migration recommendation is issued without verified target capabilities.</p></div>
         <div className={styles.workflowStageWarning}>{dirty ? "Unsaved source scope changes detected. Save the draft before compatibility is evaluated." : !savedScopeCurrent ? "A current saved Source Draft is required. Save the selected workloads in Step 1 before evaluating compatibility." : !savedTargetMatches ? "Saved scope is available, but target evidence is unavailable, expired, or does not match the selected cluster and assessment. Refresh evidence in Step 2." : `Evaluating saved scope against target evidence · Source assessment v${assessment.assessmentVersion} · Target revision ${targetEvidence?.snapshot.sourceRevision ?? "unknown"} · Evidence remains partial`}</div>
         <div className={styles.compatibilitySnapshot}>
           <div><span>Selected resources</span><strong>{backendEvaluationCurrent ? authoritativeResults.length : p0Compatibility.length}</strong><small>Assessment version {assessment.assessmentVersion}</small></div>
@@ -1155,6 +1197,32 @@ export function PlanningEditor({
         </table></div>
         {p0Compatibility.length === 0 && <p>Save selected workloads in Step 1 and ensure the target evidence is current to generate scoped checks.</p>}</>}
         <div className={styles.workflowStageWarning}>P0 assessment is read-only and evidence-gated. The saved connector inventory confirms discovery, not target compatibility. Kubernetes API support, scheduling capacity, storage, networking, identity and dependencies require verified target-specific observations before migration readiness can be determined.</div>
+        <section className={styles.targetCapabilitySection} aria-label="Migration artifact readiness">
+          <div className={styles.targetAssessmentHead}><div>
+            <strong>Migration artifact readiness</strong>
+            <p>Selected Source metadata is available for planning. Physical manifest, Helm and image collection requires an authorized preparation workflow.</p>
+          </div><span className={styles.targetEvidenceUnknown}>Not ready for execution</span></div>
+          <div className={styles.targetCapabilityGrid}>
+            <div><strong>YAML manifests</strong><span>NOT COLLECTED</span><p>Source discovery contains sanitized metadata, not deployable manifest files.</p></div>
+            <div><strong>Helm charts and values</strong><span>NOT COLLECTED</span><p>Resolve release ownership and collect approved packages and values securely.</p></div>
+            <div><strong>Container images</strong><span>REFERENCES ONLY</span><p>Verify immutable digests, source registry access and target pull permissions before deciding whether ECR promotion is needed.</p></div>
+            <div><strong>PVC data</strong><span>{draft.dataStrategy === "UNDECIDED" ? "STRATEGY PENDING" : "STRATEGY RECORDED"}</span><p>A recorded strategy does not establish data transfer or restore readiness.</p></div>
+          </div>
+          <details className={styles.compatibilityDetails} aria-label="Upload reviewed migration artifacts">
+            <summary>Prepare approved YAML, Helm or validation artifacts · Manual upload</summary>
+            <p>Upload only files reviewed for this migration. Do not include Kubernetes Secret manifests, credentials, tokens or private application data. Upload does not authorize deployment.</p>
+            <div className={styles.targetAssessmentActions}>
+              <label>Artifact type <select aria-label="Migration artifact type" value={artifactKind} onChange={event => {setArtifactKind(event.target.value as typeof artifactKind);setArtifactFile(null);}}>
+                <option value="MANIFEST_YAML">YAML manifest</option><option value="HELM_CHART">Helm chart archive (.tgz)</option><option value="HELM_VALUES">Helm values (.yaml)</option><option value="VALIDATION_REPORT">Validation report (.json)</option>
+              </select></label>
+              <label>Reviewed file <input ref={artifactInputRef} key={artifactKind} aria-label="Reviewed migration artifact file" type="file" accept={artifactKind === "HELM_CHART" ? ".tgz" : artifactKind === "VALIDATION_REPORT" ? ".json" : ".yaml,.yml"} onChange={event => setArtifactFile(event.target.files?.[0] ?? null)} /></label>
+              <button className="button button-secondary" type="button" disabled={!artifactFile || artifactUploading || !canEdit || dirty || !savedScopeCurrent} onClick={() => void uploadReviewedArtifact()}>{artifactUploading ? "Uploading…" : "Upload to migration workspace"}</button>
+            </div>
+            {artifactUploadMessage && <p role="status">{artifactUploadMessage}</p>}
+            <p className={styles.caption}>Requires migration artifact storage deployed in the Navigan backend. Uploaded objects remain unverified until server-side integrity and content validation is implemented.</p>
+          </details>
+          <p className={styles.caption}>Container image transfer and ECR promotion are not implemented. No cluster resources are created by this assessment.</p>
+        </section>
       </section>}
       {tab === "plan" && <section className={styles.surface} aria-label="Migration Plan">
         <div className={styles.workflowStageHeading}><strong>5. Migration Plan</strong><p>Plan generation follows evidence-backed source-to-target matching, remediation decisions and artifact readiness.</p></div>
@@ -1217,7 +1285,7 @@ export function PlanningEditor({
               <p>Grouped source resources, not assumed connections. View details for the evidence-backed application map.</p>
             </div>
             <div className={styles.sourceChartCard}>
-              <strong>Workload mix</strong>
+              <strong>Workload allocations</strong>
               {(() => {const kinds=[...new Set(sourceWorkloads.map(r=>r.kind))].map(kind=>({kind,count:sourceWorkloads.filter(r=>r.kind===kind).length})).sort((a,b)=>b.count-a.count);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=kinds.map((k,i)=>{const start=offset;offset+=k.count/Math.max(sourceWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:sourceWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{sourceWorkloads.length}</b><small>workloads</small></span></div><div className={styles.sourceLegend}>{kinds.slice(0,5).map((k,i)=><div key={k.kind}><i style={{background:colors[i%colors.length]}}/>{k.kind}<b>{k.count}</b></div>)}</div></div>})()}
             </div>
             <div className={styles.sourceChartCard}>
@@ -2220,7 +2288,7 @@ export function PlanningEditor({
         <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
         {tab==="scope" && <button className="button button-secondary" type="button" disabled={!canEdit||stale||save.isPending} onClick={()=>void clearPlanningDraft()}>Clear Draft</button>}
         <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate(preparePlanningDraft(draft,scopeNamespaces))}>{save.isPending?"Saving…":"Save draft"}</button>
-        <button className="button button-primary" type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>Continue to {tab==="scope"?"target":tab==="target"?"compatibility":tab==="compatibility"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
+        <button className="button button-primary" type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>Continue to {tab==="scope"?"target assessment":tab==="target"?"remediation":tab==="remediate"?"migration plan":"review"} <ArrowRight size={16}/></button>
       </footer>
     </div>
   );
