@@ -942,11 +942,3 @@
   }
 }
 
-.cluster-ui :is(.cluster-board-card, .cluster-lifecycle-chart, .cluster-setup-sidebar) {
-  background-image:
-    linear-gradient(#86bc25, #86bc25),
-    linear-gradient(#86bc25, #86bc25);
-  background-position: top left, top left;
-  background-size: 22px 2px, 2px 22px;
-  background-repeat: no-repeat;
-}

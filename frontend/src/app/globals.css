@@ -8941,7 +8941,7 @@ td {
   font-size: 10px;
 }
 
-/* Deloitte green is an edge accent, not a card background. */
+/* Keep Deloitte green for navigation selection, not decorative card corners. */
 .app-shell .nav-item.selected,
 .app-shell .nav-subitem.selected {
   border-left: 3px solid #86bc25;
@@ -8951,20 +8951,30 @@ td {
   box-shadow: inset 3px 0 #86bc25;
 }
 
-.app-shell .content-column :is(.panel, .metric) {
-  background-image:
-    linear-gradient(#86bc25, #86bc25),
-    linear-gradient(#86bc25, #86bc25);
-  background-position: top left, top left;
-  background-size: 22px 2px, 2px 22px;
-  background-repeat: no-repeat;
+/* A restrained, darker green for actions; neutral white cards remain uncluttered. */
+.app-shell {
+  --action-green: #5e8b1b;
+  --action-green-hover: #4b7214;
 }
-
-.app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost) {
-  border-color: #86bc25;
+.app-shell .content-column .button-primary {
+  background: var(--action-green);
+  border-color: var(--action-green);
+  color: #fff;
+  box-shadow: none;
 }
-
+.app-shell .content-column .button-primary:hover:not(:disabled) {
+  background: var(--action-green-hover);
+  border-color: var(--action-green-hover);
+}
+.app-shell .content-column :is(.button-secondary, .button-ghost) {
+  border-color: #91ad70;
+  color: #426519;
+}
+.app-shell .content-column :is(.button-secondary, .button-ghost):hover:not(:disabled) {
+  background: #f1f6eb;
+  border-color: var(--action-green);
+}
 .app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost):focus-visible {
-  outline: 2px solid #86bc25;
+  outline: 2px solid var(--action-green);
   outline-offset: 2px;
 }

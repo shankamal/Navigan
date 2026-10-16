@@ -1731,18 +1731,15 @@
   }
 }
 
-/* A small corner marker preserves the white card treatment. */
-.command-dashboard :is(.pd-card, .pd-overview-panel, .pd-attention-workspace, .pd-kpi) {
-  background-image:
-    linear-gradient(#86bc25, #86bc25),
-    linear-gradient(#86bc25, #86bc25);
-  background-position: top left, top left;
-  background-size: 22px 2px, 2px 22px;
-  background-repeat: no-repeat;
-}
-
 .command-dashboard :is(.pd-actions button, .pd-review-action, .pd-card-link) {
-  border-color: #86bc25;
+  border-color: #91ad70;
+}
+.command-dashboard :is(.pd-review-action, .pd-card-link) {
+  color: #416319;
+}
+.command-dashboard .pd-review-action:hover:not(:disabled) {
+  border-color: #5e8b1b;
+  background: #f1f6eb;
 }
 
 /* Enterprise dashboard type scale: clear hierarchy without presentation-sized text. */

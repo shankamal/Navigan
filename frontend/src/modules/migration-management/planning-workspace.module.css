@@ -684,8 +684,8 @@
 
 
 /* Explicit namespace analysis and source-evidence relationship mapping */
-.scopeFilterActions .button,.scopeFilterActions button{background:#315a76!important;border-color:#86bc25!important;color:#fff!important;font-weight:700}
-.scopeFilterActions button:hover:not(:disabled){background:#254b66!important}
+.scopeFilterActions .button,.scopeFilterActions button{background:#5e8b1b!important;border-color:#5e8b1b!important;color:#fff!important;font-weight:700}
+.scopeFilterActions button:hover:not(:disabled){background:#4b7214!important}
 .scopeFilterActions button:disabled{background:#e9eff5!important;color:#6a7a59!important}
 .scopeInstructions{border-left:3px solid #4381b9;background:#f1f7fd;padding:10px 12px;margin:12px 0 9px}
 .scopeInstructions strong{font-size:12px}
@@ -923,7 +923,7 @@
 .scopeWorkloadTable tr:hover td{background:#f8fafc}
 .scopeTableIncluded{font-size:11px;color:#3d7e18;font-weight:750}
 .scopeTableDiscovered{font-size:11px;color:#647d92}
-.scopeTableAdd{background:#86bc25;border:1px solid #71ab20;color:#1d3518;border-radius:4px;padding:8px 12px;font-size:11px;font-weight:750;cursor:pointer;white-space:nowrap}
+.scopeTableAdd{background:#5e8b1b;border:1px solid #5e8b1b;color:#fff;border-radius:4px;padding:8px 12px;font-size:11px;font-weight:750;cursor:pointer;white-space:nowrap}
 .scopeTableAdd:hover{background:#9bcf41}
 .scopeTableAdd:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:780px){.scopeWorkloadTableHeading{align-items:flex-start;flex-direction:column}.scopeWorkloadTableScroll{overflow-x:auto}}
@@ -1466,8 +1466,8 @@
 .targetCompatibilityStatusPair span { padding: 0.8rem; background: #f1f5f9; border: 1px solid #d8e2eb; border-radius: 5px; font-size: 0.78rem; }
 .targetCompatibilityStatusPair strong { display: block; margin-top: 0.3rem; }
 .targetCompatibilityDrawerFooter { display: flex; justify-content: flex-end; padding: 0.9rem 1.3rem; border-top: 1px solid #d8e2eb; background: #f8fafc; }
-.targetRefreshButton, .planningContinueButton { background: #315a76 !important; border: 1px solid #86bc25 !important; color: #fff !important; box-shadow: none !important; }
-.targetRefreshButton:hover:not(:disabled), .planningContinueButton:hover:not(:disabled) { background: #254b66 !important; }
+.targetRefreshButton, .planningContinueButton { background: #5e8b1b !important; border: 1px solid #5e8b1b !important; color: #fff !important; box-shadow: none !important; }
+.targetRefreshButton:hover:not(:disabled), .planningContinueButton:hover:not(:disabled) { background: #4b7214 !important; }
 .targetRefreshButton:disabled, .planningContinueButton:disabled { opacity: .55; cursor: not-allowed; }
 .compatibilitySnapshot { grid-template-columns: repeat(4,minmax(0,1fr)); }
 .compatibilitySnapshot>div { padding: 11px 13px; }
@@ -1622,24 +1622,7 @@
   }
 }
 
-/* Short Deloitte green corner marker, not a full-length border. */
-.sourceDashboardCards > div,
-.sourceOverviewMetric,
-.scopeKpiBar > div,
-.scopeResourceReviewMetrics > span,
-.targetClusterBanner,
-.targetReadinessItem,
-.targetFindingsStrip,
-.targetWorkspace .targetVerdict {
-  background-image:
-    linear-gradient(#86bc25, #86bc25),
-    linear-gradient(#86bc25, #86bc25);
-  background-position: top left, top left;
-  background-size: 22px 2px, 2px 22px;
-  background-repeat: no-repeat;
-}
-
 .targetWorkspace :is(.targetClusterBanner button, .targetWorkspaceBottom button),
 .workspace :is(.planningContinueButton, .targetRefreshButton) {
-  border-color: #86bc25 !important;
+  border-color: #5e8b1b !important;
 }
