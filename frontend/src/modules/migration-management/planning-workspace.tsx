@@ -1295,13 +1295,13 @@ export function PlanningEditor({
               </div>
             </div>
             {scopeNamespaces.length>0 && <div className={styles.scopeNamespaceChips}><strong>{scopeNamespaces.length} selected</strong>{scopeNamespaces.map(ns=><span key={ns}>{ns}<small>{applicationWorkloads.filter(r=>r.namespace===ns).length} workloads</small></span>)}</div>}
-            {scopeReviewOpen && (
+            {(
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
-                  <strong>3. Select application workloads</strong>
+                  <strong>Selected source workloads &amp; dependencies</strong>
                   <span>{draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} total draft resources in selected namespaces · Assessment v{assessment.assessmentVersion}</span>
                 </div>
-                <p className={styles.caption}>Review discovered workloads and use Add to Draft to include them in the migration scope.</p>
+                <p className={styles.caption}>Workloads are visible immediately. Add to Draft controls migration scope; Analyze selected scope confirms the current selection.</p>
                 <div className={styles.scopeWorkloadTableWrap}>
                   <div className={styles.scopeWorkloadTableHeading}>
                     <div><strong>Choose workloads for migration</strong><p>Choose workloads directly. A discovered workload is not included until added to the draft.</p></div>
