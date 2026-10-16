@@ -7,6 +7,10 @@ import {
   Boxes,
   ClipboardCheck,
   Database,
+  Server,
+  Layers,
+  Activity,
+  Network,
   LockKeyhole,
   Search,
   ShieldCheck,
@@ -353,6 +357,12 @@ export function PlanningEditor({
     (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))));
 
   const graph = graphFromSanitizedInventory(resources);
+  const sourceWorkloads = resources.filter(r => ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind));
+  const discoveredNamespaces = [...new Set(resources.map(r => r.namespace).filter((name): name is string => Boolean(name)))];
+  const sourceNodeCount = resources.filter(r => r.kind === "Node").length;
+  const sourceIngressCount = resources.filter(r => ["Ingress", "Gateway", "HTTPRoute"].includes(r.kind)).length;
+  const sourceServiceCount = resources.filter(r => r.kind === "Service").length;
+  const sourceStorageCount = resources.filter(r => ["PersistentVolumeClaim", "PersistentVolume"].includes(r.kind)).length;
   const sourceReferences = graph.edges
     .filter((edge) => {
       const owner = graph.nodes.find((node) => node.id === edge.from);
@@ -794,15 +804,15 @@ export function PlanningEditor({
             <Boxes />
           )
         }
-        eyebrow="MIGRATION PLANNING"
+        eyebrow={tab === "scope" ? "SOURCE CLUSTER ASSESSMENT" : "MIGRATION PLANNING"}
         title={
           tab === "remediate"
             ? "Remediation & target mapping"
             : tab === "review"
               ? "Review migration draft"
-              : "Plan your migration"
+              : tab === "scope" ? "Explore your source cluster" : "Plan your migration"
         }
-        description={`${migration.name} · Self-managed Kubernetes → Amazon EKS`}
+        description={tab === "scope" ? `${migration.name} · Source discovery, inventory and dependencies` : `${migration.name} · Migration planning`}
         action={
           <Link
             className="button button-secondary"
@@ -1150,35 +1160,53 @@ export function PlanningEditor({
       {tab === "scope" && (<>
         <section className={styles.sourceDashboard} aria-label="Source discovery dashboard">
           <div className={styles.sourceSummaryTitle}>
-            <div><strong>1. Source · Discover and define migration scope</strong><span>Live summary of the saved source inventory and current planning draft. No target readiness is inferred.</span></div>
+            <div><strong>Source cluster overview</strong><span>Observed source inventory · Kubernetes {inventory.sourceKubernetesVersion || "version not reported"}</span></div>
             <div className={styles.sourceStatusPill}>Assessment v{assessment.assessmentVersion} · {stale ? "Refresh required" : "Inventory loaded"}</div>
+          </div>
+          <div className={styles.sourceOverviewRow}>
+            <div className={styles.sourceOverviewIdentity}>
+              <small>Source cluster</small>
+              <div><PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium"/><strong>{String(migration.sourceConfiguration.clusterName ?? "Self-managed Kubernetes")}</strong></div>
+              <span>Self-managed Kubernetes · Inventory v{inventory.inventoryVersion}</span>
+            </div>
+            <div className={styles.sourceOverviewMetric}><Server size={25}/><small>Nodes</small><strong>{sourceNodeCount || "—"}</strong><span>{sourceNodeCount ? "Discovered" : "Not in inventory"}</span></div>
+            <div className={styles.sourceOverviewMetric}><Layers size={25}/><small>Namespaces</small><strong>{discoveredNamespaces.length}</strong><span>Discovered</span></div>
+            <div className={styles.sourceOverviewMetric}><Boxes size={25}/><small>Workloads</small><strong>{sourceWorkloads.length}</strong><span>Controllers &amp; jobs</span></div>
+            <div className={styles.sourceOverviewMetric}><Activity size={25}/><small>Resources</small><strong>{resources.length}</strong><span>Inventory objects</span></div>
+            <div className={styles.sourceAssessmentProgress}>
+              <strong>Source assessment progress</strong>
+              <div className={styles.sourceProgressStages}>{["Connector","Inventory","Dependencies","Evidence","Assessment"].map((name,index)=><div key={name}><span className={index<2?styles.sourceProgressComplete:styles.sourceProgressPending}>{index<2?"✓":index+1}</span><small>{name}</small></div>)}</div>
+              <p>Inventory captured. Remaining stages require verified source evidence.</p>
+            </div>
           </div>
           <div className={styles.sourceDashboardCards}>
             <div className={styles.sourceClusterCard}>
-              <div className={styles.sourceClusterHeading}><PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium"/><div><small>SOURCE CLUSTER</small><strong>{String(migration.sourceConfiguration.clusterName ?? "Self-managed Kubernetes")}</strong><span>Self-managed Kubernetes</span></div></div>
-              <div className={styles.sourceClusterStats}><span><b>{namespaces.length}</b> Assessed namespaces</span><span><b>{applicationWorkloads.length}</b> Discovered workloads</span><span><b>{resources.length}</b> Inventory resources</span></div>
+              <div className={styles.sourceTopologyTitle}><Network size={18}/><strong>Source topology &amp; dependencies</strong><a href="#source-topology-detail">View details ↗</a></div>
+              <div className={styles.sourceTopologyFlow}><div><strong>{sourceIngressCount}</strong><span>Ingress / Routes</span></div><ArrowRight size={18}/><div><strong>{sourceServiceCount}</strong><span>Services</span></div><ArrowRight size={18}/><div><strong>{sourceWorkloads.length}</strong><span>Workloads</span></div></div>
+              <div className={styles.sourceTopologyMeta}><span><Database size={14}/> {sourceStorageCount} storage objects</span><span><Network size={14}/> {graph.edges.length} recorded references</span></div>
+              <p>Resource categories are not assumed dependency links. Open the detailed map for observed relationships.</p>
             </div>
             <div className={styles.sourceChartCard}>
-              <strong>Workload types</strong>
-              {(() => {const kinds=[...new Set(applicationWorkloads.map(r=>r.kind))].map(kind=>({kind,count:applicationWorkloads.filter(r=>r.kind===kind).length})).sort((a,b)=>b.count-a.count);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=kinds.map((k,i)=>{const start=offset;offset+=k.count/Math.max(applicationWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:applicationWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{applicationWorkloads.length}</b><small>workloads</small></span></div><div className={styles.sourceLegend}>{kinds.slice(0,5).map((k,i)=><div key={k.kind}><i style={{background:colors[i%colors.length]}}/>{k.kind}<b>{k.count}</b></div>)}</div></div>})()}
+              <strong>Workload mix</strong>
+              {(() => {const kinds=[...new Set(sourceWorkloads.map(r=>r.kind))].map(kind=>({kind,count:sourceWorkloads.filter(r=>r.kind===kind).length})).sort((a,b)=>b.count-a.count);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=kinds.map((k,i)=>{const start=offset;offset+=k.count/Math.max(sourceWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:sourceWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{sourceWorkloads.length}</b><small>workloads</small></span></div><div className={styles.sourceLegend}>{kinds.slice(0,5).map((k,i)=><div key={k.kind}><i style={{background:colors[i%colors.length]}}/>{k.kind}<b>{k.count}</b></div>)}</div></div>})()}
             </div>
             <div className={styles.sourceChartCard}>
-              <strong>Namespace distribution</strong>
-              {(() => {const counts=namespaces.map(name=>({name,count:applicationWorkloads.filter(r=>r.namespace===name).length})).sort((a,b)=>b.count-a.count);const top=counts.slice(0,5);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=counts.map((k,i)=>{const start=offset;offset+=k.count/Math.max(applicationWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:applicationWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{namespaces.length}</b><small>namespaces</small></span></div><div className={styles.sourceLegend}>{top.map((k,i)=><div key={k.name}><i style={{background:colors[i%colors.length]}}/>{k.name}<b>{k.count}</b></div>)}</div></div>})()}
+              <strong>Namespace allocation</strong>
+              {(() => {const counts=discoveredNamespaces.map(name=>({name,count:sourceWorkloads.filter(r=>r.namespace===name).length})).sort((a,b)=>b.count-a.count);const top=counts.slice(0,5);const colors=["#2c86df","#86bc25","#8664c9","#f0ae32","#7c91a8"];let offset=0;const stops=counts.map((k,i)=>{const start=offset;offset+=k.count/Math.max(sourceWorkloads.length,1)*100;return `${colors[i%colors.length]} ${start}% ${offset}%`;});return <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:sourceWorkloads.length?`conic-gradient(${stops.join(",")})`:"#e4eaf0"}}><span><b>{discoveredNamespaces.length}</b><small>namespaces</small></span></div><div className={styles.sourceLegend}>{top.map((k,i)=><div key={k.name}><i style={{background:colors[i%colors.length]}}/>{k.name}<b>{k.count}</b></div>)}</div></div>})()}
             </div>
             <div className={styles.sourceEvidenceCard}>
-              <strong>Source evidence &amp; draft</strong>
-              <div><span>Selected namespaces</span><b>{scopeNamespaces.length} / {namespaces.length}</b></div>
-              <div><span>Included workloads</span><b>{workloadRelationships.filter(item=>item.selected).length}</b></div>
-              <div><span>Draft resources</span><b>{draft.resources.length}</b></div>
+              <strong>Source evidence quality</strong>
+              <div><span>Inventory objects</span><b>{resources.length}</b></div>
+              <div><span>Source assessment findings</span><b>{assessment.findings.length}</b></div>
+              <div><span>Recorded dependencies</span><b>{graph.edges.length}</b></div>
               <div><span>Relationship coverage</span><b>{graph.coverage==="REFERENCES_AVAILABLE"?"Captured":"Not collected"}</b></div>
-              <small>Unknown relationships are never shown as verified connections.</small>
+              <small>Source observations only · no target compatibility score.</small>
             </div>
           </div>
         </section>
         <div className={styles.sourceFullWidthColumns}>
           <section className={styles.surface}>
-            <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Migration details and mode</strong><small>Confirm assessed source, target and planning approach</small></div>
+            <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Source scope and migration mode</strong><small>Confirm source inventory and choose the workload selection approach</small></div>
             <div className={styles.context}>
               <div>
                 <span>Migration name</span>
@@ -1231,37 +1259,6 @@ export function PlanningEditor({
                 )}
               </div>
             </fieldset>
-            <div className={styles.target}>
-              <PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium" />
-              <div>
-                <span>Assessed source</span>
-                <strong>
-                  {String(
-                    migration.sourceConfiguration.clusterName ??
-                      "Self-managed Kubernetes",
-                  )}
-                </strong>
-              </div>
-              <ArrowRight size={18} />
-              <PlatformIcon platform={targetPlatform} size="medium" />
-              <div>
-                <span>Selected target (unverified)</span>
-                <strong>
-                  {assessment.inventorySummary.target.clusterName ??
-                    "Target not selected"}
-                </strong>
-                <small>
-                  {String(migration.targetConfiguration.environmentId ?? "")} ·{" "}
-                  {String(migration.targetConfiguration.awsRegion ?? "")}
-                </small>
-              </div>
-            </div>
-            <p className={styles.caption}>
-              Target changes require a fresh assessment.{" "}
-              <Link href="/clusters/new">
-                Create a cluster through Cluster Management
-              </Link>
-            </p>
             <div className={styles.sectionHeading}>
               <h2>
                 {draft.mode === "FULL_CLUSTER"
@@ -1327,7 +1324,7 @@ export function PlanningEditor({
                     </table>
                   </div>
                 </div>
-                <section className={styles.sourceTopologyPanel} aria-label="Source topology and dependencies">
+                <section id="source-topology-detail" className={styles.sourceTopologyPanel} aria-label="Source topology and dependencies">
                   <div className={styles.sourceTopologyHeading}>
                     <strong>Source topology &amp; dependencies</strong>
                     <span>Discovered references within the selected migration scope · no assumed connections</span>
