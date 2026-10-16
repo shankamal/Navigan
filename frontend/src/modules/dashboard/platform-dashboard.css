@@ -1744,3 +1744,66 @@
 .command-dashboard :is(.pd-actions button, .pd-review-action, .pd-card-link) {
   border-color: #86bc25;
 }
+
+/* Enterprise dashboard type scale: clear hierarchy without presentation-sized text. */
+.command-dashboard {
+  gap: 12px;
+  font-size: 13px;
+}
+.command-dashboard .pd-heading h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.command-dashboard .pd-heading .muted,
+.command-dashboard .pd-overview-heading p,
+.command-dashboard .pd-overview-detail {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.command-dashboard .pd-overview-panel {
+  padding: 14px 16px 16px;
+}
+.command-dashboard .pd-overview-groups {
+  gap: 12px;
+}
+.command-dashboard .pd-overview-heading {
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.command-dashboard .pd-overview-heading h2,
+.command-dashboard .pd-card-heading h2 {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.command-dashboard .pd-overview-metric {
+  grid-template-rows: minmax(30px, auto) 72px 34px auto auto;
+  padding-inline: 6px;
+}
+.command-dashboard .pd-overview-label {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.command-dashboard .pd-overview-visual .pd-donut {
+  width: 78px;
+  height: 78px;
+}
+.command-dashboard .pd-overview-visual .pd-donut-center strong {
+  font-size: 17px;
+}
+.command-dashboard .pd-overview-value {
+  font-size: 25px;
+  line-height: 36px;
+}
+.command-dashboard .pd-kpi {
+  min-height: 86px;
+  padding: 10px 12px;
+}
+.command-dashboard .pd-kpi-copy strong {
+  font-size: 1.4rem;
+}
+.command-dashboard .pd-attention-workspace {
+  gap: 14px;
+  padding: 12px 16px;
+}

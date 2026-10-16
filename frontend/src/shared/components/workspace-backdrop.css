@@ -19,7 +19,7 @@
 }
 .app-shell[class] > header.topbar .corporate-wordmark {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 23px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -1px;
   white-space: nowrap;
@@ -207,7 +207,7 @@
 .app-shell[class] main#main-content .pd-heading h1 {
   color: #263447;
   font-family: "Open Sans", Arial, sans-serif;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.02em;
@@ -216,8 +216,8 @@
 /* Keep the icon, title and description aligned across every heading variant. */
 .app-shell[class] main#main-content .page-heading-copy,
 .app-shell[class] main#main-content .pd-heading > div:first-child {
-  min-height: 78px;
-  padding-top: 18px;
+  min-height: 64px;
+  padding-top: 16px;
   flex: 1;
   min-width: 0;
   max-width: none;
@@ -225,7 +225,7 @@
 .app-shell[class] main#main-content .page-heading .muted,
 .app-shell[class] main#main-content .pd-heading .muted {
   font-family: "Open Sans", Arial, sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
   color: #64748b;
@@ -361,7 +361,7 @@
 /* Portal identity and sticky navigation branding. */
 .app-shell[class] > header.topbar .platform-title {
   font-family: "Open Sans", Arial, sans-serif;
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1.35;
   font-weight: 600;
   letter-spacing: 0;
@@ -380,8 +380,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 76px;
-  margin-bottom: 16px;
+  min-height: 60px;
+  margin-bottom: 10px;
   background: #293647;
   border-bottom: 1px solid #475569;
 }
@@ -390,7 +390,7 @@
   align-items: center;
   gap: 10px;
   color: #fff;
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1.35;
   font-weight: 600;
   letter-spacing: -0.02em;
