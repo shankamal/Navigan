@@ -1188,3 +1188,41 @@
 .compatibilityCheck p{margin:6px 0 4px;line-height:1.55;color:#465d70;font-size:11px}
 .compatibilityCheck small{display:block;color:#53724b;font-size:10px;line-height:1.5}
 @media(max-width:900px){.compatibilityDetails{min-width:260px}}
+
+
+/* DEV Source-stage compact split view: existing scope controls and evidence-only topology. */
+.scopeReview {
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+  gap: 8px 10px;
+  padding: 10px;
+  margin: 8px 0 12px;
+}
+.scopeReview > :not(.scopeWorkloadTableWrap):not(.sourceTopologyPanel) {
+  grid-column: 1 / -1;
+}
+.scopeWorkloadTableWrap, .sourceTopologyPanel {
+  grid-column: auto;
+  min-width: 0;
+}
+.sourceTopologyPanel {
+  border: 1px solid #dce5ed;
+  background: #fff;
+  overflow: hidden;
+}
+.sourceTopologyHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  padding: 9px 11px;
+  border-bottom: 1px solid #e2e9ef;
+}
+.sourceTopologyHeading strong { font-size: 13px; color: #233a50; }
+.sourceTopologyHeading span { font-size: 11px; color: #63758a; }
+.scopeReview .scopeWorkloadTableScroll { max-height: 470px; overflow: auto; }
+.scopeReview .scopeWorkloadTable { min-width: 530px; }
+@media (max-width: 1250px) {
+  .scopeReview { grid-template-columns: minmax(0, 1fr); }
+  .scopeReview > * { grid-column: 1 / -1; }
+}
