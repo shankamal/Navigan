@@ -2385,12 +2385,19 @@
 .assessmentHeadingActions>a{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 @media(max-width:720px){.assessmentHeadingActions{justify-content:flex-start}.assessmentHeadingActions>a{white-space:normal}}
 .connectionCard,
+.portfolioPanel,
+.attentionPanel {
+  border-color: var(--navigan-panel-border, #dfe5ea);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
 .optionCard,
 .checkCard,
-.portfolioPanel,
-.attentionPanel,
 .attentionCard,
 .metricCard,
 .boardCard {
-  border-left: 3px solid #86bc25;
+  border-color: var(--navigan-card-border, #ceddc4);
+  border-radius: 9px;
+  box-shadow: none;
 }

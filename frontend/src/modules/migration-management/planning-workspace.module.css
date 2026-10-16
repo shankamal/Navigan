@@ -1627,18 +1627,34 @@
   border-color: #5e8b1b !important;
 }
 
-/* The same understated single-edge treatment throughout planning. */
+/* Theme-consistent summary cards; no category strips on individual rows. */
 .sourceDashboardCards > div,
 .sourceOverviewMetric,
 .scopeKpiBar > div,
 .scopeResourceReviewMetrics > span,
+.sourceConfirmMetrics > div,
+.targetReadinessItem {
+  border: 1px solid var(--navigan-card-border, #ceddc4);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+}
+
+/* Full task panels remain neutral while selected resources keep their
+   existing semantic status indicators. */
 .sourceConfirmPanel,
 .targetWorkspace,
 .targetClusterBanner,
-.targetReadinessItem,
 .targetFindingsStrip,
 .migrationSummaryPanel,
 .artifactReadinessPanel,
-.sourceMapLauncher {
-  border-left: 3px solid #86bc25;
+.sourceMapLauncher,
+.sourceJourney,
+.targetAssessmentPanel,
+.intelligencePanel,
+.applicationMap {
+  border: 1px solid var(--navigan-panel-border, #dfe5ea);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
 }

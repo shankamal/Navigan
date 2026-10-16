@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: "Open Sans", Arial, sans-serif;
+  --font-sans: "Geist Sans", Arial, sans-serif;
   --color-brand: #86bc25;
-  --color-ink: #151918;
+  --color-ink: #202833;
 }
 :root {
   --green: #86bc25;
-  --green-deep: #33691e;
-  --green-surface: #f1f5f9;
-  --text: #151918;
-  --muted: #5d6862;
-  --border: #dce2dd;
+  --green-deep: #2f6b2d;
+  --green-surface: #f5f7fa;
+  --text: #202833;
+  --muted: #63717f;
+  --border: #dfe5ea;
   --surface: #f5f7fa;
   --danger: #a32430;
 }
@@ -20,7 +20,7 @@
 }
 body {
   margin: 0;
-  font-family: "Open Sans", Arial, sans-serif;
+  font-family: "Geist Sans", Arial, sans-serif;
   color: var(--text);
   background: var(--surface);
   font-size: 14px;
@@ -8953,9 +8953,9 @@ td {
 
 /* A restrained, darker green for actions; neutral white cards remain uncluttered. */
 .app-shell {
-  --action-green: #5e8b1b;
-  --action-green-hover: #4b7214;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Open Sans", sans-serif;
+  --action-green: #2f6b2d;
+  --action-green-hover: #255624;
+  font-family: "Geist Sans", Arial, sans-serif;
 }
 .app-shell .content-column .button-primary {
   background: var(--action-green);
@@ -9000,35 +9000,4 @@ td {
   }
 }
 
-/* Consistent Deloitte accent: a single, rounded left edge on card surfaces. */
-.app-shell .content-column :is(
-  .panel,
-  .metric,
-  .pd-card,
-  .pd-overview-panel,
-  .pd-attention-workspace,
-  .pd-kpi,
-  .customer-metrics,
-  .customer-board-card,
-  .environment-metrics,
-  .environment-board-card,
-  .environment-metric,
-  .environment-baseline-panel,
-  .cluster-board-card,
-  .cluster-lifecycle-chart,
-  .cluster-setup-sidebar,
-  .cluster-directory-panel,
-  .cluster-directory-metric,
-  .migration-report-route,
-  .migration-kpi-strip,
-  .migration-inventory-panel,
-  .migration-governance-card
-) {
-  border-left: 3px solid #86bc25;
-}
-/* Replace old top-edge and category-colored strips with the shared left edge. */
-.app-shell .content-column .metric::before,
-.app-shell .content-column .pd-kpi::before,
-.app-shell .content-column .cluster-directory-metric::before {
-  content: none;
-}
+/* Navigan's unified card, panel and accent rules live in navigan-theme.css. */
