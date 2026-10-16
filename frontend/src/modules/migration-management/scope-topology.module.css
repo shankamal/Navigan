@@ -306,3 +306,29 @@
 .hmInspectorFoot{margin-top:auto;border-top:1px solid #e5edf3;padding-top:11px;color:#8394a3;line-height:1.5;font-size:10px}
 @media(max-width:1120px){.hmWorkspace{grid-template-columns:145px minmax(0,1fr)}.hmInspector{grid-column:1/-1;border-left:0;border-top:1px solid #e0e8ef;min-height:140px}.hmSidebarFooter{margin-top:20px}}
 @media(max-width:680px){.hmWorkspace{display:block}.hmNamespaces{border-right:0;border-bottom:1px solid #e0e8ef}.hmHeader{align-items:flex-start;flex-direction:column}.hmSearch{max-width:none;flex-basis:100%}.hmCanvasScroll{height:400px}.hmZoom{margin-left:0}}
+
+
+/* Container-aware embed: a Source panel may be much narrower than the browser. */
+.hmShell{container-type:inline-size;margin:0;box-shadow:none}
+@container (max-width: 900px){
+ .hmWorkspace{grid-template-columns:120px minmax(0,1fr);min-height:340px}
+ .hmInspector{grid-column:1/-1;border-left:0;border-top:1px solid #e0e8ef;min-height:90px}
+ .hmNamespaces{padding:6px 4px}
+ .hmSidebarFooter{display:none}
+ .hmHeader{padding:8px 10px;gap:6px}
+ .hmHeader h3{font-size:13px}
+ .hmHeader p{display:none}
+ .hmLegend{gap:5px}
+ .hmTools{padding:5px;gap:5px}
+ .hmSearch{min-width:120px;padding:5px}
+ .hmCanvasScroll{height:300px;padding:5px}
+ .hmStats{padding:5px}
+ .hmStats span{padding:3px 5px}
+}
+@container (max-width: 500px){
+ .hmWorkspace{display:block}
+ .hmNamespaces{display:flex;flex-flow:row wrap;border-bottom:1px solid #e0e8ef}
+ .hmSidebarTitle{width:100%}
+ .hmNamespace,.hmNamespaceActive{width:auto;flex:1 1 110px}
+ .hmInspector{min-height:0}
+}
