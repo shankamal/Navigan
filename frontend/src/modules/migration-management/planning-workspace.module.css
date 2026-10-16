@@ -1317,3 +1317,26 @@
 .sourceChartCard>strong,.sourceEvidenceCard>strong{color:#1b3558}.sourceChartBody{min-height:115px}.sourceEvidenceCard{gap:12px}.sourceEvidenceCard>div{font-size:11px}.sourceEvidenceCard small{margin-top:3px}
 @media(max-width:1150px){.sourceOverviewRow{grid-template-columns:repeat(4,minmax(0,1fr))}.sourceOverviewIdentity,.sourceAssessmentProgress{grid-column:span 2}.sourceDashboardCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:780px){.sourceOverviewRow,.sourceDashboardCards{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceOverviewIdentity,.sourceAssessmentProgress,.sourceDashboardCards>div{grid-column:1/-1}}
+
+/* Source quality and application scope legibility improvements. */
+.sourceProgressStages small em{display:block;font-style:normal;font-weight:500;color:#687e96;margin-top:3px}
+.sourceProgressStages .sourceProgressPartial{background:#fff2d3;border-color:#dcae49;color:#805b17}
+.sourceTopologyOverviewGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:16px 0 10px}
+.sourceTopologyOverviewGrid>div{display:grid;justify-items:center;align-content:center;gap:5px;min-height:76px;background:#f8fbff;border:1px solid #d3e2f4;border-top:3px solid #4b91e2;padding:8px 3px;min-width:0}
+.sourceTopologyOverviewGrid svg{color:#1869d5}.sourceTopologyOverviewGrid strong{font-size:18px;color:#123769}.sourceTopologyOverviewGrid span{font-size:9px;color:#52708d;text-align:center;overflow-wrap:anywhere}
+.sourceEvidenceCard>.sourceEvidenceChart{display:grid;gap:10px;border:0;padding:4px 0 0;min-width:0}
+.sourceEvidenceChartRow{display:grid;grid-template-columns:minmax(74px,.9fr) minmax(45px,1.1fr) minmax(76px,auto);gap:7px;align-items:center;min-width:0}
+.sourceEvidenceChartRow>span{font-size:10px;color:#395473}.sourceEvidenceChartRow>b{font-size:10px;font-weight:650;color:#395473;text-align:right}
+.sourceEvidenceTrack{height:10px;background:#e6edf5;border-radius:8px;overflow:hidden}.sourceEvidenceTrack i{height:100%;display:block;border-radius:8px}
+.sourceEvidenceCaptured{background:#43a466;width:100%}.sourceEvidencePartial{background:#e3b143;width:55%}.sourceEvidenceUnknown{background:#a8b6c7;width:15%}
+.sourceEvidenceCard>small{font-size:10px;line-height:1.45}
+.scopeSelectionBar .scopeNamespacePicker>div{padding:7px;min-width:0;max-height:260px}
+.scopeSelectionBar .scopeNamespacePicker label{display:grid!important;grid-template-columns:18px minmax(0,1fr);align-items:center;column-gap:9px;row-gap:0;width:100%;box-sizing:border-box;min-height:34px;text-align:left;white-space:normal;overflow:hidden}
+.scopeSelectionBar .scopeNamespacePicker label input[type="checkbox"]{display:block;grid-column:1;width:16px!important;height:16px!important;margin:0!important;align-self:center;flex:none}
+.scopeSelectionBar .scopeNamespacePicker label span{display:block;grid-column:2;min-width:0;overflow-wrap:anywhere;line-height:1.35;font-size:12px;color:#2e455b}
+.sourceFullWidthColumns .scopeReview{grid-template-columns:minmax(0,1fr)!important;gap:12px;padding:12px}
+.sourceFullWidthColumns .scopeReview>.scopeWorkloadTableWrap,.sourceFullWidthColumns .scopeReview>.sourceTopologyPanel{grid-column:1/-1;width:100%;min-width:0;align-self:stretch}
+.sourceFullWidthColumns .scopeWorkloadTableWrap{min-height:0}.sourceFullWidthColumns .scopeWorkloadTableScroll{max-height:345px;overflow:auto}
+.sourceFullWidthColumns .sourceTopologyPanel{min-height:485px}.sourceFullWidthColumns .sourceTopologyPanel :global(.hmWorkspace){min-height:455px}.sourceFullWidthColumns .sourceTopologyPanel :global(.hmCanvasScroll){height:435px;padding:12px}
+.sourceFullWidthColumns .sourceTopologyPanel :global(.hmHeader p){display:block}
+@media(max-width:760px){.sourceTopologyOverviewGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceEvidenceChartRow{grid-template-columns:minmax(72px,1fr) minmax(42px,1fr) minmax(70px,auto)}.sourceFullWidthColumns .sourceTopologyPanel :global(.hmCanvasScroll){height:340px}}

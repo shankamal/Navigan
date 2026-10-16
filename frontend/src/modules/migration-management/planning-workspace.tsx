@@ -27,6 +27,7 @@ import { PageHeading } from "@/shared/components/ui";
 import {
   useMigration,
   useMigrationAssessment,
+  useSourceCatalogue,
   useSourceInventory,
 } from "./hooks";
 import type {
@@ -36,6 +37,7 @@ import type {
   PlannedResource,
   RemediationDraft,
   SourceInventory,
+  SourceCatalogueResponse,
   SourceInventoryResource,
 } from "./model";
 import { PlatformIcon } from "./platform-icon";
@@ -87,6 +89,7 @@ export function MigrationPlanningWorkspace({
 }) {
   const migration = useMigration(migrationId);
   const assessment = useMigrationAssessment(migrationId, true);
+  const catalogue = useSourceCatalogue(migrationId);
   const inventory = useSourceInventory(
     migrationId,
     Boolean(assessment.data?.assessment),
@@ -116,6 +119,7 @@ export function MigrationPlanningWorkspace({
       migration={migration.data}
       assessment={assessment.data.assessment}
       inventory={inventory.data.inventory}
+      sourceCatalogue={catalogue.data?.catalogue ?? null}
     />
   );
 }
@@ -124,10 +128,12 @@ export function PlanningEditor({
   migration,
   assessment,
   inventory,
+  sourceCatalogue = null,
 }: {
   migration: Migration;
   assessment: Assessment;
   inventory: SourceInventory;
+  sourceCatalogue?: SourceCatalogueResponse["catalogue"];
 }) {
   const { identity } = useAuth();
   const cache = useQueryClient();
@@ -359,7 +365,16 @@ export function PlanningEditor({
   const graph = graphFromSanitizedInventory(resources);
   const sourceWorkloads = resources.filter(r => ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind));
   const discoveredNamespaces = [...new Set(resources.map(r => r.namespace).filter((name): name is string => Boolean(name)))];
-  const sourceNodeCount = resources.filter(r => r.kind === "Node").length;
+  const inventoryNodeCount = resources.filter(r => r.kind === "Node").length;
+  const sourceNodeCount = sourceCatalogue?.nodeCount ?? (inventoryNodeCount || null);
+  const sourceVersion = sourceCatalogue?.sourceKubernetesVersion || inventory.sourceKubernetesVersion || assessment.sourceKubernetesVersion || "Not reported";
+  const sourceStages = [
+    {name:"Connector",status:sourceCatalogue?"Catalogued":"Not verified",state:sourceCatalogue?"captured":"unknown"},
+    {name:"Inventory",status:"Captured",state:"captured"},
+    {name:"Dependencies",status:graph.coverage==="REFERENCES_AVAILABLE"?"Recorded":"Not collected",state:graph.coverage==="REFERENCES_AVAILABLE"?"captured":"unknown"},
+    {name:"Evidence",status:"Partial",state:"partial"},
+    {name:"Assessment",status:stale?"Stale":"Available",state:stale?"partial":"captured"},
+  ] as const;
   const sourceIngressCount = resources.filter(r => ["Ingress", "Gateway", "HTTPRoute"].includes(r.kind)).length;
   const sourceServiceCount = resources.filter(r => r.kind === "Service").length;
   const sourceStorageCount = resources.filter(r => ["PersistentVolumeClaim", "PersistentVolume"].includes(r.kind)).length;
@@ -1160,31 +1175,36 @@ export function PlanningEditor({
       {tab === "scope" && (<>
         <section className={styles.sourceDashboard} aria-label="Source discovery dashboard">
           <div className={styles.sourceSummaryTitle}>
-            <div><strong>Source cluster overview</strong><span>Observed source inventory · Kubernetes {inventory.sourceKubernetesVersion || "version not reported"}</span></div>
+            <div><strong>Source cluster overview</strong><span>Observed source inventory · Kubernetes {sourceVersion}</span></div>
             <div className={styles.sourceStatusPill}>Assessment v{assessment.assessmentVersion} · {stale ? "Refresh required" : "Inventory loaded"}</div>
           </div>
           <div className={styles.sourceOverviewRow}>
             <div className={styles.sourceOverviewIdentity}>
               <small>Source cluster</small>
               <div><PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium"/><strong>{String(migration.sourceConfiguration.clusterName ?? "Self-managed Kubernetes")}</strong></div>
-              <span>Self-managed Kubernetes · Inventory v{inventory.inventoryVersion}</span>
+              <span>Kubernetes {sourceVersion} · Inventory v{inventory.inventoryVersion}</span>
             </div>
-            <div className={styles.sourceOverviewMetric}><Server size={25}/><small>Nodes</small><strong>{sourceNodeCount || "—"}</strong><span>{sourceNodeCount ? "Discovered" : "Not in inventory"}</span></div>
+            <div className={styles.sourceOverviewMetric}><Server size={25}/><small>Nodes</small><strong>{sourceNodeCount ?? "—"}</strong><span>{sourceCatalogue ? "From source catalogue" : sourceNodeCount !== null ? "Discovered" : "Not reported"}</span></div>
             <div className={styles.sourceOverviewMetric}><Layers size={25}/><small>Namespaces</small><strong>{discoveredNamespaces.length}</strong><span>Discovered</span></div>
             <div className={styles.sourceOverviewMetric}><Boxes size={25}/><small>Workloads</small><strong>{sourceWorkloads.length}</strong><span>Controllers &amp; jobs</span></div>
             <div className={styles.sourceOverviewMetric}><Activity size={25}/><small>Resources</small><strong>{resources.length}</strong><span>Inventory objects</span></div>
             <div className={styles.sourceAssessmentProgress}>
               <strong>Source assessment progress</strong>
-              <div className={styles.sourceProgressStages}>{["Connector","Inventory","Dependencies","Evidence","Assessment"].map((name,index)=><div key={name}><span className={index<2?styles.sourceProgressComplete:styles.sourceProgressPending}>{index<2?"✓":index+1}</span><small>{name}</small></div>)}</div>
-              <p>Inventory captured. Remaining stages require verified source evidence.</p>
+              <div className={styles.sourceProgressStages}>{sourceStages.map((stage,index)=><div key={stage.name}><span className={stage.state==="captured"?styles.sourceProgressComplete:stage.state==="partial"?styles.sourceProgressPartial:styles.sourceProgressPending}>{stage.state==="captured"?"✓":index+1}</span><small>{stage.name}<em>{stage.status}</em></small></div>)}</div>
+              <p>Evidence states reflect the available APIs; they are not completion percentages.</p>
             </div>
           </div>
           <div className={styles.sourceDashboardCards}>
             <div className={styles.sourceClusterCard}>
               <div className={styles.sourceTopologyTitle}><Network size={18}/><strong>Source topology &amp; dependencies</strong><a href="#source-topology-detail">View details ↗</a></div>
-              <div className={styles.sourceTopologyFlow}><div><strong>{sourceIngressCount}</strong><span>Ingress / Routes</span></div><ArrowRight size={18}/><div><strong>{sourceServiceCount}</strong><span>Services</span></div><ArrowRight size={18}/><div><strong>{sourceWorkloads.length}</strong><span>Workloads</span></div></div>
-              <div className={styles.sourceTopologyMeta}><span><Database size={14}/> {sourceStorageCount} storage objects</span><span><Network size={14}/> {graph.edges.length} recorded references</span></div>
-              <p>Resource categories are not assumed dependency links. Open the detailed map for observed relationships.</p>
+              <div className={styles.sourceTopologyOverviewGrid}>
+                <div><Network size={18}/><strong>{sourceIngressCount}</strong><span>Ingress &amp; Routes</span></div>
+                <div><Activity size={18}/><strong>{sourceServiceCount}</strong><span>Services</span></div>
+                <div><Boxes size={18}/><strong>{sourceWorkloads.length}</strong><span>Workloads</span></div>
+                <div><Database size={18}/><strong>{sourceStorageCount}</strong><span>Storage</span></div>
+              </div>
+              <div className={styles.sourceTopologyMeta}><span><Network size={14}/> {graph.edges.length} recorded relationships</span><span>{graph.coverage==="REFERENCES_AVAILABLE"?"Dependency evidence captured":"Relationships not collected"}</span></div>
+              <p>Grouped source resources, not assumed connections. View details for the evidence-backed application map.</p>
             </div>
             <div className={styles.sourceChartCard}>
               <strong>Workload mix</strong>
@@ -1196,11 +1216,12 @@ export function PlanningEditor({
             </div>
             <div className={styles.sourceEvidenceCard}>
               <strong>Source evidence quality</strong>
-              <div><span>Inventory objects</span><b>{resources.length}</b></div>
-              <div><span>Source assessment findings</span><b>{assessment.findings.length}</b></div>
-              <div><span>Recorded dependencies</span><b>{graph.edges.length}</b></div>
-              <div><span>Relationship coverage</span><b>{graph.coverage==="REFERENCES_AVAILABLE"?"Captured":"Not collected"}</b></div>
-              <small>Source observations only · no target compatibility score.</small>
+              <div className={styles.sourceEvidenceChart} role="img" aria-label="Source evidence availability: inventory captured, dependency references based on collection coverage, assessment available, full manifests not verified">
+                {sourceStages.slice(1).map(stage=><div key={stage.name} className={styles.sourceEvidenceChartRow}>
+                  <span>{stage.name}</span><div className={styles.sourceEvidenceTrack}><i className={stage.state==="captured"?styles.sourceEvidenceCaptured:stage.state==="partial"?styles.sourceEvidencePartial:styles.sourceEvidenceUnknown}/></div><b>{stage.status}</b>
+                </div>)}
+              </div>
+              <small>{assessment.findings.length} source findings · {graph.edges.length} recorded references. Bars indicate evidence availability, not readiness.</small>
             </div>
           </div>
         </section>
@@ -1278,7 +1299,7 @@ export function PlanningEditor({
                 <summary aria-label="Application namespaces">Select namespaces · {scopeNamespaces.length} selected</summary>
                 <div>{namespaces.map(item=><label key={item}>
                   <input type="checkbox" aria-label={`Select namespace ${item}`} checked={scopeNamespaceSet.has(item)}
-                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setDirty(true);setMessage("");setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} />{item}
+                    onChange={event=>{setScopeNamespaces(current=>event.target.checked?[...new Set([...current,item])]:current.filter(name=>name!==item));setDirty(true);setMessage("");setScopeReviewOpen(false);setScopeAnalysisNamespace(null);setScopeAnalysisSignature(null);}} /><span>{item}</span>
                 </label>)}</div>
               </details>
               <label className={styles.scopeSearchLabel}>Search selected resources
