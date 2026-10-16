@@ -8,6 +8,10 @@ import {
   ClipboardCheck,
   Database,
   LockKeyhole,
+  Layers,
+  Server,
+  Activity,
+  Network,
   Search,
   ShieldCheck,
   Wrench,
@@ -352,6 +356,27 @@ export function PlanningEditor({
     (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))));
 
   const graph = graphFromSanitizedInventory(resources);
+  const sourceWorkloads = resources.filter(r => ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"].includes(r.kind));
+  const sourceNamespaces = [...new Set(resources.map(r => r.namespace).filter((n): n is string => Boolean(n)))];
+  const sourceNodeCount = resources.filter(r => r.kind === "Node").length;
+  const sourceMix = [
+    {kind:"Deployment", color:"#1672ee"}, {kind:"StatefulSet", color:"#28a267"},
+    {kind:"DaemonSet", color:"#efb400"}, {kind:"Job", color:"#f58220"},
+    {kind:"CronJob", color:"#8134d8"},
+  ].map(item => ({...item, count:sourceWorkloads.filter(r=>r.kind===item.kind).length}));
+  const sourceMixGradient = sourceMix.reduce((acc,item)=>{
+    const end=acc.offset+(sourceWorkloads.length?item.count/sourceWorkloads.length*100:0);
+    return {offset:end, stops:[...acc.stops,`${item.color} ${acc.offset}% ${end}%`]};
+  },{offset:0,stops:[] as string[]}).stops.join(", ");
+  const namespaceMix = sourceNamespaces.map((name,index)=>({name,count:sourceWorkloads.filter(r=>r.namespace===name).length,color:["#1672ee","#8134d8","#28a267","#efb400","#8090aa"][index%5]}));
+  const namespaceGradient = namespaceMix.reduce((acc,item)=>{
+    const end=acc.offset+(sourceWorkloads.length?item.count/sourceWorkloads.length*100:0);
+    return {offset:end,stops:[...acc.stops,`${item.color} ${acc.offset}% ${end}%`]};
+  },{offset:0,stops:[] as string[]}).stops.join(", ");
+  const sourceIngressCount = resources.filter(r=>["Ingress", "Gateway", "HTTPRoute"].includes(r.kind)).length;
+  const sourceServiceCount = resources.filter(r=>r.kind==="Service").length;
+  const sourceStorageCount = resources.filter(r=>["PersistentVolumeClaim", "PersistentVolume"].includes(r.kind)).length;
+  const sourceAssessmentStages = ["Connector configured","Inventory discovery","Dependency analysis","Evidence collection","Source assessment"];
   const sourceReferences = graph.edges
     .filter((edge) => {
       const owner = graph.nodes.find((node) => node.id === edge.from);
@@ -793,15 +818,15 @@ export function PlanningEditor({
             <Boxes />
           )
         }
-        eyebrow="MIGRATION PLANNING"
+        eyebrow={tab === "scope" ? "SOURCE DISCOVERY & ASSESSMENT" : "MIGRATION PLANNING"}
         title={
           tab === "remediate"
             ? "Remediation & target mapping"
             : tab === "review"
               ? "Review migration draft"
-              : "Plan your migration"
+              : tab === "scope" ? "Explore your source cluster" : "Plan your migration"
         }
-        description={`${migration.name} · Self-managed Kubernetes → Amazon EKS`}
+        description={tab === "scope" ? `${migration.name} · Source Kubernetes inventory and dependency evidence` : `${migration.name} · Migration planning`}
         action={
           <Link
             className="button button-secondary"
@@ -1147,9 +1172,57 @@ export function PlanningEditor({
         })() : <div className={styles.workflowStageWarning}>A current saved Source scope and authoritative target compatibility evaluations are required for the migration plan preview. No plan is generated from stale or unsaved evidence.</div>}
       </section>}
       {tab === "scope" && (
+        <>
+        <section className={styles.sourceDashboard} aria-label="Source cluster overview">
+          <div className={styles.sourceSummaryGrid}>
+            <div className={styles.sourceIdentity}>
+              <small>Source cluster</small>
+              <div><PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium" /><strong>{String(migration.sourceConfiguration.clusterName ?? "Source Kubernetes")}</strong></div>
+              <span className={styles.sourceEvidenceBadge}>Assessment v{assessment.assessmentVersion}</span>
+              <p>Kubernetes {inventory.sourceKubernetesVersion || "version not reported"} · Inventory observed {new Date(inventory.observedAt).toLocaleDateString()}</p>
+            </div>
+            <div className={styles.sourceMetric}><Server size={27}/><small>Nodes</small><strong>{sourceNodeCount || "—"}</strong><span>{sourceNodeCount ? "Discovered node objects" : "Not recorded in inventory"}</span></div>
+            <div className={styles.sourceMetric}><Layers size={27}/><small>Namespaces</small><strong>{sourceNamespaces.length}</strong><span>With discovered resources</span></div>
+            <div className={styles.sourceMetric}><Boxes size={27}/><small>Workloads</small><strong>{sourceWorkloads.length}</strong><span>Discovered controllers & jobs</span></div>
+            <div className={styles.sourceMetric}><Activity size={27}/><small>Source evidence</small><strong>{graph.coverage === "REFERENCES_AVAILABLE" ? "Captured" : "Partial"}</strong><span>{graph.edges.length} dependency references</span></div>
+            <div className={styles.sourceProgress}>
+              <strong>Source assessment progress</strong>
+              <div className={styles.sourceProgressTrack}>{sourceAssessmentStages.map((stage,index)=><div key={stage} className={index < 2 ? styles.sourceStageDone : styles.sourceStagePending}><span>{index < 2 ? "✓" : index + 1}</span><small>{stage}</small></div>)}</div>
+              <p>Discovery inventory is available. Remaining evidence must be verified from the source connector; progress is not inferred from resource counts.</p>
+            </div>
+          </div>
+          <div className={styles.sourceInsights}>
+            <div className={styles.sourceInsightPanel}>
+              <header><Network size={19}/><strong>Source topology & dependencies</strong></header>
+              <div className={styles.sourceTopologyOverview}>
+                <div><strong>{sourceIngressCount}</strong><span>Ingress / Routes</span></div>
+                <ArrowRight size={19}/>
+                <div><strong>{sourceServiceCount}</strong><span>Services</span></div>
+                <ArrowRight size={19}/>
+                <div><strong>{sourceWorkloads.length}</strong><span>Workloads</span></div>
+              </div>
+              <div className={styles.sourceTopologyDetails}><span><Database size={14}/> {sourceStorageCount} storage resources</span><span><Network size={14}/> {graph.edges.length} observed dependency references</span></div>
+              <p>Resource categories are shown in typical request-flow order, not as verified links. {graph.coverage === "REFERENCES_AVAILABLE" ? "Recorded references are available for detailed review." : "Dependency relationships require source-side evidence collection."}</p>
+            </div>
+            <div className={styles.sourceInsightPanel}>
+              <header><Boxes size={19}/><strong>Workload mix</strong></header>
+              <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:sourceWorkloads.length?`conic-gradient(${sourceMixGradient})`:"#e6eaf0"}}><div><b>{sourceWorkloads.length}</b><small>Workloads</small></div></div><ul>{sourceMix.map(item=><li key={item.kind}><i style={{background:item.color}}/>{item.kind}<strong>{item.count}</strong></li>)}</ul></div>
+            </div>
+            <div className={styles.sourceInsightPanel}>
+              <header><ShieldCheck size={19}/><strong>Source evidence quality</strong></header>
+              <div className={styles.sourceEvidenceList}><div><span>Inventory resources</span><strong>{resources.length}</strong></div><div><span>Dependency references</span><strong>{graph.edges.length}</strong></div><div><span>Reference coverage</span><strong>{graph.coverage === "REFERENCES_AVAILABLE" ? "Available" : "Unverified"}</strong></div><div><span>Assessment findings</span><strong>{assessment.findings.length}</strong></div></div>
+              <p>Source-only observations; no target compatibility or migration readiness scoring.</p>
+            </div>
+            <div className={styles.sourceInsightPanel}>
+              <header><Layers size={19}/><strong>Namespace allocation</strong></header>
+              <div className={styles.sourceChartBody}><div className={styles.sourceDonut} style={{background:sourceWorkloads.length?`conic-gradient(${namespaceGradient})`:"#e6eaf0"}}><div><b>{sourceNamespaces.length}</b><small>Namespaces</small></div></div><ul>{namespaceMix.slice(0,5).map(item=><li key={item.name}><i style={{background:item.color}}/><span title={item.name}>{item.name}</span><strong>{item.count}</strong></li>)}</ul></div>
+              <p>{sourceNamespaces.length} namespaces with source resources · workload count by namespace</p>
+            </div>
+          </div>
+        </section>
         <div className={styles.columns}>
           <section className={styles.surface}>
-            <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Migration details and mode</strong><small>Confirm assessed source, target and planning approach</small></div>
+            <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Source scope and migration mode</strong><small>Review the assessed source and choose how much of its inventory to include</small></div>
             <div className={styles.context}>
               <div>
                 <span>Migration name</span>
@@ -1202,37 +1275,6 @@ export function PlanningEditor({
                 )}
               </div>
             </fieldset>
-            <div className={styles.target}>
-              <PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium" />
-              <div>
-                <span>Assessed source</span>
-                <strong>
-                  {String(
-                    migration.sourceConfiguration.clusterName ??
-                      "Self-managed Kubernetes",
-                  )}
-                </strong>
-              </div>
-              <ArrowRight size={18} />
-              <PlatformIcon platform={targetPlatform} size="medium" />
-              <div>
-                <span>Selected target (unverified)</span>
-                <strong>
-                  {assessment.inventorySummary.target.clusterName ??
-                    "Target not selected"}
-                </strong>
-                <small>
-                  {String(migration.targetConfiguration.environmentId ?? "")} ·{" "}
-                  {String(migration.targetConfiguration.awsRegion ?? "")}
-                </small>
-              </div>
-            </div>
-            <p className={styles.caption}>
-              Target changes require a fresh assessment.{" "}
-              <Link href="/clusters/new">
-                Create a cluster through Cluster Management
-              </Link>
-            </p>
             <div className={styles.sectionHeading}>
               <h2>
                 {draft.mode === "FULL_CLUSTER"
@@ -1651,6 +1693,7 @@ export function PlanningEditor({
             </div>
           </aside>
         </div>
+        </>
       )}
       {tab === "remediate" && (
         <section className={styles.surface}>
