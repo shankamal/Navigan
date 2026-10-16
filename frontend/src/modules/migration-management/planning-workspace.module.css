@@ -1340,3 +1340,20 @@
 .sourceFullWidthColumns .sourceTopologyPanel{min-height:485px}.sourceFullWidthColumns .sourceTopologyPanel :global(.hmWorkspace){min-height:455px}.sourceFullWidthColumns .sourceTopologyPanel :global(.hmCanvasScroll){height:435px;padding:12px}
 .sourceFullWidthColumns .sourceTopologyPanel :global(.hmHeader p){display:block}
 @media(max-width:760px){.sourceTopologyOverviewGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceEvidenceChartRow{grid-template-columns:minmax(72px,1fr) minmax(42px,1fr) minmax(70px,auto)}.sourceFullWidthColumns .sourceTopologyPanel :global(.hmCanvasScroll){height:340px}}
+
+/* Source-stage guided journey: keeps storage and the next action discoverable. */
+.sourceJourney{position:sticky;top:6px;z-index:12;border:1px solid #d3e0ed;background:#f8fbff;box-shadow:0 4px 16px #23486a12;padding:10px 12px;margin:0 0 12px;border-left:3px solid #86bc25;display:grid;gap:9px}
+.sourceJourneyIntro{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.sourceJourneyIntro strong{font-size:13px;color:#213f5d}.sourceJourneyIntro span{font-size:11px;color:#687e92}
+.sourceJourneySteps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.sourceJourneySteps button{display:flex;align-items:center;gap:8px;min-width:0;text-align:left;border:1px solid #d8e3ec;background:#fff;border-radius:4px;padding:8px 9px;cursor:pointer;color:#354b64}
+.sourceJourneySteps button>span:nth-child(2){display:grid;gap:3px;min-width:0;flex:1}.sourceJourneySteps strong{font-size:11px;overflow-wrap:anywhere}.sourceJourneySteps small{font-size:9px;color:#698095;overflow-wrap:anywhere}.sourceJourneySteps svg{flex-shrink:0;color:#90a5ba}
+.sourceJourneyNumber{width:24px;height:24px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;background:#e9eef6;color:#45617b}
+.sourceJourneySteps button[aria-current="step"]{border-color:#7caf3c;background:#f3faed;box-shadow:inset 0 0 0 1px #a0ca6c}.sourceJourneySteps button[aria-current="step"] .sourceJourneyNumber{background:#4c972e;color:white}
+.sourceJourneySteps button:nth-child(3){border-left:3px solid #e4b142}.sourceJourney>p{font-size:10px;color:#64798b;line-height:1.4;margin:0}.sourceJourney>p strong{color:#294866}
+.sourceJourneyAnchor,#scope-selection-review,#source-resource-review,#source-review-confirmation{scroll-margin-top:190px}
+.sourceNextActions{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #d7e5f2;background:#f4f9ff;border-left:3px solid #4390dc;padding:11px 13px;margin:10px 0;min-width:0}
+.sourceNextActions>div{display:grid;gap:4px;min-width:0}.sourceNextActions strong{font-size:12px;color:#254b6c}.sourceNextActions span{font-size:11px;color:#647e93;line-height:1.4}.sourceNextActions button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0}
+.sourceStorageReminder{display:flex;align-items:center;gap:12px;border:1px solid #f0daaa;border-left:3px solid #dca747;background:#fffaf0;padding:12px 13px;margin:10px 0;min-width:0}
+.sourceStorageReminder>svg{color:#b27d25;flex-shrink:0}.sourceStorageReminder>div{flex:1;min-width:0}.sourceStorageReminder strong{font-size:12px;color:#73531d}.sourceStorageReminder p{font-size:11px;color:#826c46;line-height:1.5;margin:4px 0 0}.sourceStorageReminder button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0}
+@media(max-width:1000px){.sourceJourneySteps{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceJourney{position:relative;top:auto}.sourceJourneyAnchor,#scope-selection-review,#source-resource-review,#source-review-confirmation{scroll-margin-top:18px}}
+@media(max-width:700px){.sourceJourneySteps{grid-template-columns:minmax(0,1fr)}.sourceNextActions,.sourceStorageReminder{align-items:stretch;flex-direction:column}.sourceNextActions button,.sourceStorageReminder button{justify-content:center}}

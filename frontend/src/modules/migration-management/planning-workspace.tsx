@@ -287,6 +287,13 @@ export function PlanningEditor({
   const [message, setMessage] = useState("");
   const [dirty, setDirty] = useState(false);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
+  const [sourceGuideStep, setSourceGuideStep] = useState<"scope" | "workloads" | "storage" | "confirm">("scope");
+  function goToSourceStep(step: "scope" | "workloads" | "storage" | "confirm") {
+    setSourceGuideStep(step);
+    if (step === "storage") setResourceView("DATA");
+    const id = step === "scope" ? "source-scope-setup" : step === "workloads" ? "scope-selection-review" : step === "storage" ? "source-resource-review" : "source-review-confirmation";
+    window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   const [scopeAnalysisNamespace, setScopeAnalysisNamespace] = useState<string | null>(null);
   const [scopeAnalysisSignature, setScopeAnalysisSignature] = useState<string | null>(null);
   const stale =
@@ -1225,8 +1232,23 @@ export function PlanningEditor({
             </div>
           </div>
         </section>
+        <nav className={styles.sourceJourney} aria-label="Source setup guided steps">
+          <div className={styles.sourceJourneyIntro}><strong>Complete your Source setup</strong><span>Follow these four steps. Data &amp; Storage is a required review point, separate from workload selection.</span></div>
+          <div className={styles.sourceJourneySteps}>
+            {([
+              ["scope", "1", "Define scope", `${scopeNamespaces.length} namespaces selected`],
+              ["workloads", "2", "Review workloads", `${workloadRelationships.filter(item=>item.selected).length} included in draft`],
+              ["storage", "3", "Data & Storage", pendingPvcs.length ? `${pendingPvcs.length} PVCs to review` : "Check persistent data"],
+              ["confirm", "4", "Confirm & save", dirty ? "Unsaved changes" : "Review draft readiness"],
+            ] as const).map(([step,number,title,detail])=><button key={step} type="button" aria-current={sourceGuideStep===step?"step":undefined} onClick={()=>goToSourceStep(step)}>
+              <span className={styles.sourceJourneyNumber}>{number}</span><span><strong>{title}</strong><small>{detail}</small></span><ArrowRight size={15}/>
+            </button>)}
+          </div>
+          <p><strong>How it works:</strong> Analyze selected scope reviews discovery evidence; <b>Add to Draft</b> includes resources. Then review PVCs and data strategy before saving and continuing to Target.</p>
+        </nav>
         <div className={styles.sourceFullWidthColumns}>
           <section className={styles.surface}>
+            <div id="source-scope-setup" className={styles.sourceJourneyAnchor}/>
             <div className={styles.scopeOptionSectionTitle}><span>1</span><strong>Source scope and migration mode</strong><small>Confirm source inventory and choose the workload selection approach</small></div>
             <div className={styles.context}>
               <div>
@@ -1308,11 +1330,20 @@ export function PlanningEditor({
               <div className={styles.scopeFilterActions}>
                 <button type="button" className="button button-primary" aria-expanded={scopeReviewOpen}
                   aria-controls="scope-selection-review"
-                  onClick={()=>{setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(true);}}
+                  onClick={()=>{setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(true);goToSourceStep("workloads");}}
                   disabled={!scopeNamespaces.length}>Analyze selected scope</button>
               </div>
             </div>
             {scopeNamespaces.length>0 && <div className={styles.scopeNamespaceChips}><strong>{scopeNamespaces.length} selected</strong>{scopeNamespaces.map(ns=><span key={ns}>{ns}<small>{applicationWorkloads.filter(r=>r.namespace===ns).length} workloads</small></span>)}</div>}
+            <div className={styles.sourceNextActions}>
+              <div><strong>Next: Review the discovered workloads</strong><span>Check source dependencies and explicitly add the workloads you want to migrate.</span></div>
+              <button type="button" className="button button-primary" disabled={!scopeNamespaces.length} onClick={()=>goToSourceStep("workloads")}>Review workloads <ArrowRight size={15}/></button>
+            </div>
+            <div className={styles.sourceStorageReminder}>
+              <Database size={23}/>
+              <div><strong>Don't miss Data &amp; Storage</strong><p>{pendingPvcs.length ? `${pendingPvcs.length} persistent volume claim${pendingPvcs.length===1?"":"s"} in the selected source scope.` : "Check whether any persistent data needs migration."} Workload analysis does not automatically confirm storage mappings or the data strategy.</p></div>
+              <button type="button" className="button button-secondary" onClick={()=>goToSourceStep("storage")}>Review Data &amp; Storage <ArrowRight size={15}/></button>
+            </div>
             {(
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
                 <div className={styles.scopeReviewHeading}>
@@ -1379,6 +1410,10 @@ export function PlanningEditor({
                     readOnly
                   />
                 </section>
+                <div className={styles.sourceNextActions}>
+                  <div><strong>Next: Data &amp; Storage</strong><span>Review persistent volume claims, target mapping proposals and data migration strategy.</span></div>
+                  <button type="button" className="button button-primary" onClick={()=>goToSourceStep("storage")}>Review storage <ArrowRight size={15}/></button>
+                </div>
                 <section className={styles.scopeResourceReview} aria-label="Resource Review and Migration Actions">
                   <div className={styles.scopeResourceReviewHead}><strong>4. Resource Review &amp; Migration Actions</strong><p>Review dependencies, configuration, storage, and migration treatments. Use the tabs below for detailed resource decisions.</p></div>
                   <div className={styles.scopeResourceReviewMetrics}><span><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b> Supporting resources</span><span><b>{pendingPvcs.length}</b> PVCs to review</span><span><b>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</b> Recorded references</span></div>
@@ -1397,7 +1432,7 @@ export function PlanningEditor({
                 </div>
                 </details>
 
-            <div className={styles.scopeReviewTabbedActions}>
+            <div id="source-resource-review" className={styles.scopeReviewTabbedActions}>
             <nav className={styles.scopeViews} aria-label="Scope resource views">
               {([
                 ["DEPENDENCIES", "Dependencies"],
@@ -1410,7 +1445,7 @@ export function PlanningEditor({
                   key={view}
                   type="button"
                   aria-current={resourceView === view ? "page" : undefined}
-                  onClick={() => setResourceView(view)}
+                  onClick={() => {setResourceView(view);setSourceGuideStep(view==="DATA"?"storage":"workloads");}}
                 >
                   {label}
                 </button>
@@ -1686,10 +1721,14 @@ export function PlanningEditor({
               resources. Historical Jobs and node agents need explicit treatment
               decisions.
             </p>
+            <div className={styles.sourceNextActions}>
+              <div><strong>Next: Confirm your Source draft</strong><span>Ensure workload selection, dependency decisions and Data &amp; Storage review are complete.</span></div>
+              <button type="button" className="button button-primary" onClick={()=>goToSourceStep("confirm")}>Review &amp; confirm <ArrowRight size={15}/></button>
+            </div>
             </div>
 
                 </section>
-                <details className={styles.compactReviewDetails} open><summary>5. Confirm migration scope · {scopeNamespaces.length} namespaces · {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} draft resources</summary>
+                <details id="source-review-confirmation" className={styles.compactReviewDetails} open><summary>5. Confirm migration scope · {scopeNamespaces.length} namespaces · {draft.resources.filter(resource => resource.namespace && scopeNamespaceSet.has(resource.namespace)).length} draft resources</summary>
                   <div className={styles.confirmScopeGroups}>
                     {scopeNamespaces.map(namespace => {
                       const selectedResources = draft.resources.filter(resource => resource.namespace === namespace);
