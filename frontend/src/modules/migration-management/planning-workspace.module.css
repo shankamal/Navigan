@@ -1349,6 +1349,8 @@
 .sourceJourneySteps button>span:nth-child(2){display:grid;gap:3px;min-width:0;flex:1}.sourceJourneySteps strong{font-size:11px;overflow-wrap:anywhere}.sourceJourneySteps small{font-size:9px;color:#698095;overflow-wrap:anywhere}.sourceJourneySteps svg{flex-shrink:0;color:#90a5ba}
 .sourceJourneyNumber{width:24px;height:24px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;background:#e9eef6;color:#45617b}
 .sourceJourneySteps button[aria-current="step"]{border-color:#7caf3c;background:#f3faed;box-shadow:inset 0 0 0 1px #a0ca6c}.sourceJourneySteps button[aria-current="step"] .sourceJourneyNumber{background:#4c972e;color:white}
+.sourceJourneySteps button:disabled{cursor:default;opacity:.57;background:#f4f6f8}.sourceJourneySteps button[aria-current="step"]:disabled{opacity:1;background:#f3faed}.sourceJourneySteps button:not(:disabled):hover{border-color:#86bc25;background:#f5faef}
+.sourceJourneyAction{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #dde8f0;padding-top:9px}.sourceJourneyAction>span{font-size:11px;color:#58728a;line-height:1.4}.sourceJourneyAction button{display:inline-flex;align-items:center;gap:7px;flex-shrink:0}
 .sourceJourneySteps button:nth-child(3){border-left:3px solid #e4b142}.sourceJourney>p{font-size:10px;color:#64798b;line-height:1.4;margin:0}.sourceJourney>p strong{color:#294866}
 .sourceJourneyAnchor,#scope-selection-review,#source-resource-review,#source-review-confirmation{scroll-margin-top:190px}
 .sourceNextActions{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #d7e5f2;background:#f4f9ff;border-left:3px solid #4390dc;padding:11px 13px;margin:10px 0;min-width:0}
@@ -1356,4 +1358,31 @@
 .sourceStorageReminder{display:flex;align-items:center;gap:12px;border:1px solid #f0daaa;border-left:3px solid #dca747;background:#fffaf0;padding:12px 13px;margin:10px 0;min-width:0}
 .sourceStorageReminder>svg{color:#b27d25;flex-shrink:0}.sourceStorageReminder>div{flex:1;min-width:0}.sourceStorageReminder strong{font-size:12px;color:#73531d}.sourceStorageReminder p{font-size:11px;color:#826c46;line-height:1.5;margin:4px 0 0}.sourceStorageReminder button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0}
 @media(max-width:1000px){.sourceJourneySteps{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceJourney{position:relative;top:auto}.sourceJourneyAnchor,#scope-selection-review,#source-resource-review,#source-review-confirmation{scroll-margin-top:18px}}
-@media(max-width:700px){.sourceJourneySteps{grid-template-columns:minmax(0,1fr)}.sourceNextActions,.sourceStorageReminder{align-items:stretch;flex-direction:column}.sourceNextActions button,.sourceStorageReminder button{justify-content:center}}
+@media(max-width:700px){.sourceJourneySteps{grid-template-columns:repeat(2,minmax(0,1fr))}.sourceJourneyAction,.sourceNextActions,.sourceStorageReminder{align-items:stretch;flex-direction:column}.sourceJourneyAction button,.sourceNextActions button,.sourceStorageReminder button{justify-content:center}}
+
+/* Source summary, focused resource map and review presentation */
+.optionScopeHeader strong{display:flex;align-items:center;gap:8px}.optionScopeHeader svg{color:#548c31}
+.optionScopeHero{display:flex;justify-content:space-between;align-items:center;gap:10px;background:linear-gradient(110deg,#263f58,#385d71);padding:15px;color:#fff;border-radius:5px}
+.optionScopeHero>div{display:grid;gap:4px}.optionScopeHero>div>span{font-size:10px;color:#d3e3ec}.optionScopeHero>div>strong{font-size:29px;line-height:1;font-weight:750}
+.optionScopeHeroBadge{font-size:10px;color:#e8f5dc;background:#ffffff23;padding:6px 8px;border:1px solid #ffffff30;border-radius:3px;text-align:center}
+.optionScopeSummaryTiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.optionScopeSummaryTiles>div{display:grid;gap:4px;padding:11px;border:1px solid #dce8ee;background:#f7fafc;border-top:2px solid #86bc25;border-radius:4px}
+.optionScopeSummaryTiles strong{font-size:20px;color:#263f58}.optionScopeSummaryTiles span{font-size:10px;color:#668096}
+.optionScopeReadinessList{display:grid;gap:7px;margin-top:10px}.optionScopeReadinessList>div{display:flex;gap:8px;padding:9px;background:#f7fafc;border:1px solid #e2ebf1;border-radius:4px}
+.optionScopeReadinessList>div>span{flex:0 0 20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#e5eef7;color:#345e79;font-weight:700}
+.optionScopeReadinessList p{margin:0;display:grid;gap:3px;overflow-wrap:anywhere}.optionScopeReadinessList strong{color:#2d4c68;font-size:10px}
+.scopeResourceReview{border-color:#d4e2e9;box-shadow:0 5px 20px #284f6810}
+.scopeResourceReviewHead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px;background:linear-gradient(105deg,#f5f9fc,#eff5f8)}
+.scopeResourceReviewTitle{display:flex;gap:11px;align-items:center}.scopeResourceReviewTitle>span{height:35px;width:35px;flex-shrink:0;display:grid;place-items:center;background:#e0eee0;color:#477c2b;border-radius:5px}.scopeResourceReviewTitle>div{min-width:0}
+.scopeResourceReviewTag{font-size:10px;white-space:nowrap;color:#4a7341;background:#e9f4e5;border:1px solid #cfe1c8;padding:6px 8px;border-radius:3px}
+.scopeResourceReviewMetrics>span{display:grid;grid-template-columns:auto 1fr;column-gap:9px;row-gap:4px;background:#fff;padding:14px;box-shadow:0 2px 8px #345a6b0b}
+.scopeResourceReviewMetrics svg{color:#5685a2;grid-row:1/3}.scopeResourceReviewMetrics b{font-size:21px;color:#263f58;line-height:1}.scopeResourceReviewMetrics small{color:#668096;font-size:10px}
+.sourceMapLauncher{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 15px;margin:12px 0;background:#f6f9fc;border:1px solid #dbe7f0;border-left:3px solid #86bc25}
+.sourceMapLauncher>div{display:flex;align-items:center;gap:10px;min-width:0}.sourceMapLauncher>div>svg{flex-shrink:0;color:#3a7694}.sourceMapLauncher span{display:grid;gap:3px}.sourceMapLauncher strong{font-size:12px;color:#294760}.sourceMapLauncher small{font-size:11px;color:#658095;line-height:1.4}.sourceMapLauncher button{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.sourceMapLink{border:0;background:none;color:#286f9e;text-decoration:underline;font-size:11px;cursor:pointer;padding:3px}
+.sourceMapBackdrop{position:fixed;inset:0;z-index:1000;background:#17283dc9;display:grid;place-items:center;padding:24px}
+.sourceMapBackdrop .sourceTopologyPanel{width:min(1100px,96vw);height:min(730px,88vh);min-width:0;display:flex;flex-direction:column;overflow:auto;border-radius:7px;box-shadow:0 24px 70px #0a1c2a77}
+.sourceMapBackdrop .sourceTopologyHeading{position:sticky;top:0;z-index:3;background:#f7fafc;padding:13px 16px;align-items:center}.sourceMapBackdrop .sourceTopologyHeading>div{display:grid;gap:4px}.sourceMapBackdrop .sourceTopologyHeading button{display:flex;align-items:center;gap:6px}
+.remediationDetailSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+.remediationDetailSummary>div{display:grid;gap:5px;min-width:0;border:1px solid #dce8f0;background:#f7fafc;border-radius:4px;padding:10px 12px}.remediationDetailSummary span{font-size:10px;color:#6a8195}.remediationDetailSummary strong{font-size:12px;color:#29435a;overflow-wrap:anywhere}
+.remediationDetailSummary strong[data-severity="BLOCKER"]{color:#ae403a}.remediationDetailSummary strong[data-severity="WARNING"]{color:#a66c20}
+@media(max-width:720px){.scopeResourceReviewHead,.sourceMapLauncher{flex-direction:column;align-items:stretch}.scopeResourceReviewTag{align-self:start}.sourceMapLauncher button{justify-content:center}.sourceMapBackdrop{padding:8px}.sourceMapBackdrop .sourceTopologyPanel{width:100%;height:94vh}}

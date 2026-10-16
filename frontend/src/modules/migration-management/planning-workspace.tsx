@@ -15,6 +15,7 @@ import {
   Search,
   ShieldCheck,
   Wrench,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -288,6 +289,13 @@ export function PlanningEditor({
   const [dirty, setDirty] = useState(false);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [sourceGuideStep, setSourceGuideStep] = useState<"scope" | "workloads" | "storage" | "confirm">("scope");
+  const [sourceMapOpen, setSourceMapOpen] = useState(false);
+  useEffect(() => {
+    if (!sourceMapOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSourceMapOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [sourceMapOpen]);
   function goToSourceStep(step: "scope" | "workloads" | "storage" | "confirm") {
     setSourceGuideStep(step);
     if (step === "storage") setResourceView("DATA");
@@ -1203,7 +1211,7 @@ export function PlanningEditor({
           </div>
           <div className={styles.sourceDashboardCards}>
             <div className={styles.sourceClusterCard}>
-              <div className={styles.sourceTopologyTitle}><Network size={18}/><strong>Source topology &amp; dependencies</strong><a href="#source-topology-detail">View details ↗</a></div>
+              <div className={styles.sourceTopologyTitle}><Network size={18}/><strong>Source topology &amp; dependencies</strong><button type="button" className={styles.sourceMapLink} onClick={()=>setSourceMapOpen(true)}>Open resource map ↗</button></div>
               <div className={styles.sourceTopologyOverviewGrid}>
                 <div><Network size={18}/><strong>{sourceIngressCount}</strong><span>Ingress &amp; Routes</span></div>
                 <div><Activity size={18}/><strong>{sourceServiceCount}</strong><span>Services</span></div>
@@ -1233,18 +1241,24 @@ export function PlanningEditor({
           </div>
         </section>
         <nav className={styles.sourceJourney} aria-label="Source setup guided steps">
-          <div className={styles.sourceJourneyIntro}><strong>Complete your Source setup</strong><span>Follow these four steps. Data &amp; Storage is a required review point, separate from workload selection.</span></div>
+          <div className={styles.sourceJourneyIntro}><strong>Source setup</strong><span>Follow the stages in order; earlier stages remain available for review.</span></div>
           <div className={styles.sourceJourneySteps}>
             {([
               ["scope", "1", "Define scope", `${scopeNamespaces.length} namespaces selected`],
               ["workloads", "2", "Review workloads", `${workloadRelationships.filter(item=>item.selected).length} included in draft`],
               ["storage", "3", "Data & Storage", pendingPvcs.length ? `${pendingPvcs.length} PVCs to review` : "Check persistent data"],
               ["confirm", "4", "Confirm & save", dirty ? "Unsaved changes" : "Review draft readiness"],
-            ] as const).map(([step,number,title,detail])=><button key={step} type="button" aria-current={sourceGuideStep===step?"step":undefined} onClick={()=>goToSourceStep(step)}>
-              <span className={styles.sourceJourneyNumber}>{number}</span><span><strong>{title}</strong><small>{detail}</small></span><ArrowRight size={15}/>
+            ] as const).map(([step,number,title,detail],index)=><button key={step} type="button" aria-current={sourceGuideStep===step?"step":undefined} disabled={index >= ["scope","workloads","storage","confirm"].indexOf(sourceGuideStep)} onClick={()=>goToSourceStep(step)}>
+              <span className={styles.sourceJourneyNumber}>{number}</span><span><strong>{title}</strong><small>{index < ["scope","workloads","storage","confirm"].indexOf(sourceGuideStep)?"Completed · ":""}{detail}</small></span>
             </button>)}
           </div>
-          <p><strong>How it works:</strong> Analyze selected scope reviews discovery evidence; <b>Add to Draft</b> includes resources. Then review PVCs and data strategy before saving and continuing to Target.</p>
+          <div className={styles.sourceJourneyAction}>
+            <span>{sourceGuideStep==="scope"?"Choose namespaces, then analyze their resources.":sourceGuideStep==="workloads"?"Review dependencies and use Add to Draft for migration scope.":sourceGuideStep==="storage"?"Review PVCs, mappings and data strategy below.":"Review readiness and save your Source draft below."}</span>
+            {sourceGuideStep!=="confirm"&&<button type="button" className="button button-primary" disabled={sourceGuideStep==="scope"&&!scopeNamespaces.length} onClick={()=>{
+              if(sourceGuideStep==="scope"){setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(true);goToSourceStep("workloads");}
+              else goToSourceStep(sourceGuideStep==="workloads"?"storage":"confirm");
+            }}>{sourceGuideStep==="scope"?"Analyze selected scope":sourceGuideStep==="workloads"?"Continue to Data & Storage":"Continue to confirmation"} <ArrowRight size={15}/></button>}
+          </div>
         </nav>
         <div className={styles.sourceFullWidthColumns}>
           <section className={styles.surface}>
@@ -1327,22 +1341,11 @@ export function PlanningEditor({
               <label className={styles.scopeSearchLabel}>Search selected resources
                 <div className={styles.search}><Search size={16} /><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Name or kind"/></div>
               </label>
-              <div className={styles.scopeFilterActions}>
-                <button type="button" className="button button-primary" aria-expanded={scopeReviewOpen}
-                  aria-controls="scope-selection-review"
-                  onClick={()=>{setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(true);goToSourceStep("workloads");}}
-                  disabled={!scopeNamespaces.length}>Analyze selected scope</button>
-              </div>
             </div>
             {scopeNamespaces.length>0 && <div className={styles.scopeNamespaceChips}><strong>{scopeNamespaces.length} selected</strong>{scopeNamespaces.map(ns=><span key={ns}>{ns}<small>{applicationWorkloads.filter(r=>r.namespace===ns).length} workloads</small></span>)}</div>}
-            <div className={styles.sourceNextActions}>
-              <div><strong>Next: Review the discovered workloads</strong><span>Check source dependencies and explicitly add the workloads you want to migrate.</span></div>
-              <button type="button" className="button button-primary" disabled={!scopeNamespaces.length} onClick={()=>goToSourceStep("workloads")}>Review workloads <ArrowRight size={15}/></button>
-            </div>
             <div className={styles.sourceStorageReminder}>
               <Database size={23}/>
-              <div><strong>Don't miss Data &amp; Storage</strong><p>{pendingPvcs.length ? `${pendingPvcs.length} persistent volume claim${pendingPvcs.length===1?"":"s"} in the selected source scope.` : "Check whether any persistent data needs migration."} Workload analysis does not automatically confirm storage mappings or the data strategy.</p></div>
-              <button type="button" className="button button-secondary" onClick={()=>goToSourceStep("storage")}>Review Data &amp; Storage <ArrowRight size={15}/></button>
+              <div><strong>Data &amp; Storage follows workload review</strong><p>{pendingPvcs.length ? `${pendingPvcs.length} persistent volume claim${pendingPvcs.length===1?"":"s"} in the selected source scope.` : "Check whether any persistent data needs migration."} Workload analysis does not automatically confirm storage mappings or the data strategy.</p></div>
             </div>
             {(
               <section id="scope-selection-review" className={styles.scopeReview} aria-label="Selected migration scope review">
@@ -1376,10 +1379,15 @@ export function PlanningEditor({
                     </table>
                   </div>
                 </div>
-                <section id="source-topology-detail" className={styles.sourceTopologyPanel} aria-label="Source topology and dependencies">
+                <div className={styles.sourceMapLauncher}>
+                  <div><Network size={20}/><span><strong>Application resource map</strong><small>Open the interactive relationship view when you need to inspect selected workloads and dependencies.</small></span></div>
+                  <button type="button" className="button button-secondary" onClick={()=>setSourceMapOpen(true)}>View map <ArrowRight size={15}/></button>
+                </div>
+                {sourceMapOpen&&<div className={styles.sourceMapBackdrop} role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSourceMapOpen(false);}}>
+                <section id="source-topology-detail" role="dialog" aria-modal="true" aria-label="Application resource map" className={styles.sourceTopologyPanel}>
                   <div className={styles.sourceTopologyHeading}>
-                    <strong>Source topology &amp; dependencies</strong>
-                    <span>Discovered references within the selected migration scope · no assumed connections</span>
+                    <div><strong>Application resource map</strong><span>Source relationships within selected namespaces · no assumed connections</span></div>
+                    <button type="button" className="button button-secondary" autoFocus onClick={()=>setSourceMapOpen(false)}><X size={15}/> Close</button>
                   </div>
                   <ScopeTopology
                     namespaces={scopeNamespaces}
@@ -1410,13 +1418,10 @@ export function PlanningEditor({
                     readOnly
                   />
                 </section>
-                <div className={styles.sourceNextActions}>
-                  <div><strong>Next: Data &amp; Storage</strong><span>Review persistent volume claims, target mapping proposals and data migration strategy.</span></div>
-                  <button type="button" className="button button-primary" onClick={()=>goToSourceStep("storage")}>Review storage <ArrowRight size={15}/></button>
-                </div>
+                </div>}
                 <section className={styles.scopeResourceReview} aria-label="Resource Review and Migration Actions">
-                  <div className={styles.scopeResourceReviewHead}><strong>4. Resource Review &amp; Migration Actions</strong><p>Review dependencies, configuration, storage, and migration treatments. Use the tabs below for detailed resource decisions.</p></div>
-                  <div className={styles.scopeResourceReviewMetrics}><span><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b> Supporting resources</span><span><b>{pendingPvcs.length}</b> PVCs to review</span><span><b>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</b> Recorded references</span></div>
+                  <div className={styles.scopeResourceReviewHead}><div className={styles.scopeResourceReviewTitle}><span><Layers size={19}/></span><div><strong>Resource Review &amp; Migration Actions</strong><p>Inspect evidence and decide how each selected resource will be treated on the target.</p></div></div><span className={styles.scopeResourceReviewTag}>Step 3 · Technical review</span></div>
+                  <div className={styles.scopeResourceReviewMetrics}><span><Boxes size={19}/><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b><small>Supporting resources</small></span><span><Database size={19}/><b>{pendingPvcs.length}</b><small>PVCs to review</small></span><span><Network size={19}/><b>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</b><small>Recorded references</small></span></div>
                 <details className={styles.compactReviewDetails}><summary>4. Dependencies and storage · evidence and recommendations</summary>
                 <p className={styles.scopeReviewData}>Suggested dependencies from observed references: {uniqueSuggestions.filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace)).length} · Reference coverage: {graph.coverage === "REFERENCES_AVAILABLE" ? "Collected" : "Unknown; reassessment required"}</p>
                 <div className={styles.scopeIntelligence}>
@@ -1721,10 +1726,6 @@ export function PlanningEditor({
               resources. Historical Jobs and node agents need explicit treatment
               decisions.
             </p>
-            <div className={styles.sourceNextActions}>
-              <div><strong>Next: Confirm your Source draft</strong><span>Ensure workload selection, dependency decisions and Data &amp; Storage review are complete.</span></div>
-              <button type="button" className="button button-primary" onClick={()=>goToSourceStep("confirm")}>Review &amp; confirm <ArrowRight size={15}/></button>
-            </div>
             </div>
 
                 </section>
@@ -1746,7 +1747,9 @@ export function PlanningEditor({
           </section>
           <aside className={styles.surface}>
             <div className={styles.optionScopeSidebar}>
-              <div className={styles.optionScopeHeader}><strong>Migration scope summary</strong><small>Current planning draft</small></div>
+              <div className={styles.optionScopeHeader}><strong><Boxes size={18}/> Migration scope summary</strong><small>Live overview · current planning draft</small></div>
+              <div className={styles.optionScopeHero}><div><span>Resources in migration draft</span><strong>{draft.resources.length}</strong></div><span className={styles.optionScopeHeroBadge}>{draft.mode==="FULL_CLUSTER"?"Full cluster":"Selected workloads"}</span></div>
+              <div className={styles.optionScopeSummaryTiles}><div><strong>{scopeNamespaces.length}</strong><span>Namespaces</span></div><div><strong>{workloadRelationships.filter(r=>r.selected).length}</strong><span>Workloads</span></div><div><strong>{dependencies}</strong><span>Dependencies</span></div><div><strong>{pendingPvcs.length}</strong><span>PVCs</span></div></div>
               <div className={styles.optionScopeMetric}><span>Namespaces selected</span><strong>{scopeNamespaces.length} / {namespaces.length}</strong><div className={styles.optionScopeTrack}><i style={{width:`${namespaces.length?scopeNamespaces.length/namespaces.length*100:0}%`}}/></div></div>
               <div className={styles.optionScopeMetric}><span>Workloads included</span><strong>{workloadRelationships.filter(r=>r.selected).length} / {workloadRelationships.length}</strong><div className={styles.optionScopeTrack}><i style={{width:`${workloadRelationships.length?workloadRelationships.filter(r=>r.selected).length/workloadRelationships.length*100:0}%`}}/></div></div>
               <div className={styles.optionScopeMetric}><span>Draft resources</span><strong>{draft.resources.length}</strong><small>{draft.resources.length-dependencies} explicitly selected · {dependencies} dependency-flagged</small></div>
@@ -1767,7 +1770,7 @@ export function PlanningEditor({
               <div className={styles.optionScopeRow}><span>Data strategy</span><strong>{draft.dataStrategy==="UNDECIDED"?"Pending":"Selected"}</strong></div>
               <div className={styles.optionScopeSafe}><ShieldCheck size={16}/><span>Source remains unchanged · Execution not enabled</span></div>
               {draft.mode==="FULL_CLUSTER"&&<p className={styles.warning}>{unaccounted} resources need a treatment decision.</p>}
-              <details className={styles.optionScopeMore}><summary>Review readiness details</summary><ul>{readiness.issues.map((issue,index)=><li key={index}>{issue.type.replaceAll("_"," ")} — {issue.detail}</li>)}</ul><p>Storage checks: {storageCompatibility.length}. Target evidence: {targetCapability.status.toLowerCase()}.</p></details>
+              <details className={styles.optionScopeMore}><summary>Review readiness details · {readiness.issues.length} follow-ups</summary><div className={styles.optionScopeReadinessList}>{readiness.issues.length===0?<p>No outstanding draft readiness checks recorded.</p>:readiness.issues.map((issue,index)=><div key={index}><span>{index+1}</span><p><strong>{issue.type.replaceAll("_"," ")}</strong>{issue.detail}</p></div>)}</div><p>Storage checks: {storageCompatibility.length}. Target evidence: {targetCapability.status.toLowerCase()}.</p></details>
             </div>
           </aside>
         </div>
@@ -1982,6 +1985,12 @@ export function PlanningEditor({
                   <div className={styles.recommendationHeader} aria-live="polite">
                     <div><strong>Guided recommendation</strong><span>Rule-based · {finding.severity} · {findingCategory(finding.category)}</span></div>
                     <span>{acceptedSuggestion ? "Decision in draft" : "Decision required"}</span>
+                  </div>
+                  <div className={styles.remediationDetailSummary}>
+                    <div><span>Severity</span><strong data-severity={finding.severity}>{finding.severity}</strong></div>
+                    <div><span>Category</span><strong>{findingCategory(finding.category)}</strong></div>
+                    <div><span>Draft decision</span><strong>{acceptedSuggestion?"Recorded":"Pending"}</strong></div>
+                    <div><span>Evidence</span><strong>{acceptedSuggestion&&remediation.evidenceReference?"Referenced":"Required"}</strong></div>
                   </div>
                   <div className={styles.recommendationProblem}>
                     <strong>{finding.code.replaceAll("_"," ").toLowerCase().replace(/^./,letter=>letter.toUpperCase())}</strong>
