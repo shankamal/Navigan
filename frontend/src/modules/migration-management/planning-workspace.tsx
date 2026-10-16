@@ -37,6 +37,7 @@ import type {
 import { PlatformIcon } from "./platform-icon";
 
 import { graphFromSanitizedInventory } from "./migration-graph";
+import { ScopeTopology } from "./scope-topology";
 import { restorePlanningNamespaces, preparePlanningDraft } from "./planning-draft-scope";
 import { saveAndContinueToTarget, confirmAndClearDraft } from "./planning-draft-actions";
 import { evaluateScopeReadiness } from "./migration-readiness";
@@ -1298,6 +1299,40 @@ export function PlanningEditor({
                     </table>
                   </div>
                 </div>
+                <section className={styles.sourceTopologyPanel} aria-label="Source topology and dependencies">
+                  <div className={styles.sourceTopologyHeading}>
+                    <strong>Source topology &amp; dependencies</strong>
+                    <span>Discovered references within the selected migration scope · no assumed connections</span>
+                  </div>
+                  <ScopeTopology
+                    namespaces={scopeNamespaces}
+                    coverageKnown={graph.coverage === "REFERENCES_AVAILABLE"}
+                    resources={workloadRelationships.map(({workload, references, selected:included}) => ({
+                      kind: workload.kind,
+                      namespace: workload.namespace ?? null,
+                      name: workload.name,
+                      selected: included,
+                      references: references.map(ref => ({
+                        kind: ref.kind,
+                        name: ref.name,
+                        present: ref.present,
+                      })),
+                      potentialClaims: [],
+                    }))}
+                    supportingResources={resources.filter(r =>
+                      Boolean(r.namespace && scopeNamespaceSet.has(r.namespace)) &&
+                      !workloadKinds.has(r.kind)
+                    ).map(r => ({
+                      kind: r.kind,
+                      namespace: r.namespace ?? null,
+                      name: r.name,
+                      selected: draft.resources.some(item =>
+                        item.kind === r.kind && item.namespace === r.namespace && item.name === r.name
+                      ),
+                    }))}
+                    readOnly
+                  />
+                </section>
                 <section className={styles.scopeResourceReview} aria-label="Resource Review and Migration Actions">
                   <div className={styles.scopeResourceReviewHead}><strong>4. Resource Review &amp; Migration Actions</strong><p>Review dependencies, configuration, storage, and migration treatments. Use the tabs below for detailed resource decisions.</p></div>
                   <div className={styles.scopeResourceReviewMetrics}><span><b>{resources.filter(r=>r.namespace&&scopeNamespaceSet.has(r.namespace)&&["Service","Ingress","ConfigMap","Secret","ServiceAccount","NetworkPolicy","PersistentVolumeClaim"].includes(r.kind)).length}</b> Supporting resources</span><span><b>{pendingPvcs.length}</b> PVCs to review</span><span><b>{graph.coverage==="REFERENCES_AVAILABLE"?sourceReferences.length:0}</b> Recorded references</span></div>
