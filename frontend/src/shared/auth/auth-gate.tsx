@@ -1,7 +1,8 @@
 "use client";
 import { useAuth } from "./auth-provider";
 import { LoginForm } from "./login-form";
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Cloud, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Loading } from "@/shared/components/ui";
@@ -24,7 +25,23 @@ const containers = [
 ];
 export function AuthGate({ children }: { children: ReactNode }) {
   const { identity, loading, configured } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const onLoginPage = pathname === "/login";
+
+  useEffect(() => {
+    if (loading) return;
+    if (identity && onLoginPage) router.replace("/dashboard");
+    if (!identity && !onLoginPage) router.replace("/login");
+  }, [identity, loading, onLoginPage, router]);
+
   if (loading) return <Loading label="Checking your session…" />;
+  if (!identity && !onLoginPage) {
+    return <Loading label="Opening secure sign-in…" />;
+  }
+  if (identity && onLoginPage) {
+    return <Loading label="Opening your dashboard…" />;
+  }
   if (identity) return <>{children}</>;
   return (
     <div className="signin-layout navigan-signin">
