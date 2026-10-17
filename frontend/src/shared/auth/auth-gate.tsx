@@ -51,10 +51,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       >
         <div className="login-product-brand">
           <NaviganMark />
-          <div>
-            <strong>Navigan</strong>
-            <span>Container Management Platform</span>
-          </div>
+          <strong>Navigan</strong>
         </div>
         <div className="login-hero-copy">
           <h1>
@@ -64,8 +61,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </h1>
           <h2 className="login-hero-tagline">Manage today. Modernize tomorrow.</h2>
           <p>
-            Discover, manage and assess container environments across clouds,
-            with intelligent insights and migration planning—all from one secure workspace.
+            Discover, manage and modernize container workloads across clouds—all
+            from one secure workspace.
           </p>
         </div>
         <Image

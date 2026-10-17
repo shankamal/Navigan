@@ -97,7 +97,7 @@
   line-height: 1.3;
   letter-spacing: -0.6px;
 }
-.navigan-signin .login-product-brand span {
+.navigan-signin .login-product-brand > div span {
   display: block;
   margin-top: 5px;
   color: #64748b;
@@ -540,7 +540,7 @@
   letter-spacing: -.9px;
   color: #1a334d;
 }
-.navigan-signin .login-product-brand span {
+.navigan-signin .login-product-brand > div span {
   margin-top: 1px;
   font-size: 12px;
   letter-spacing: .01em;
@@ -652,16 +652,16 @@
   .login-public-shell .navigan-signin .login-estate-illustration {max-height:240px}
 }
 
-/* Approved maritime login design: clear type scale, faded hero, complete platform coverage. */
+/* Maritime login: editorial headline and an image-led hero with full platform coverage. */
 .login-public-shell .signin-layout.navigan-signin {
   grid-template-columns: minmax(0,60%) minmax(0,40%);
   background: #f5f8fb;
 }
 .login-public-shell .navigan-signin .login-introduction {
-  grid-template-columns: minmax(0,1fr);
-  grid-template-rows: 107px auto minmax(115px,1fr) auto;
-  gap: 11px;
-  padding: 26px 40px 20px;
+  grid-template-columns: minmax(240px, .25fr) minmax(0, .75fr);
+  grid-template-rows: minmax(154px,auto) minmax(0,1fr) auto;
+  gap: 14px 26px;
+  padding: 32px 44px 18px;
   background: #fff;
   min-height: 0;
   border-right: 0;
@@ -669,69 +669,71 @@
 .login-public-shell .navigan-signin .login-product-brand {
   grid-column: 1;
   grid-row: 1;
-  gap: 16px;
-  align-self: center;
+  gap: 12px;
+  align-self: start;
+  padding-top: 4px;
 }
 .login-public-shell .navigan-signin .login-product-brand strong {
-  font-size: clamp(31px,3vw,43px);
-  font-weight: 750;
-  line-height: 1.08;
-  letter-spacing: -.055em;
+  font-size: clamp(28px,2.1vw,36px);
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -.047em;
   color: #112849;
 }
-.login-public-shell .navigan-signin .login-product-brand span {
+.login-public-shell .navigan-signin .login-product-brand > div span {
   font-size: 11px;
   letter-spacing: .12em;
   margin-top: 7px;
   color: #364e67;
 }
 .login-public-shell .navigan-signin .login-hero-copy {
-  grid-column: 1;
-  grid-row: 2;
+  grid-column: 2;
+  grid-row: 1;
   align-self: start;
+  padding-top: 3px;
 }
 .login-public-shell .navigan-signin .login-hero-copy h1 {
   font-family: inherit;
-  font-size: clamp(28px,2.25vw,35px);
-  font-weight: 720;
-  letter-spacing: -.032em;
-  line-height: 1.19;
+  font-size: clamp(28px,2.1vw,36px);
+  font-weight: 700;
+  letter-spacing: -.037em;
+  line-height: 1.22;
   color: #12294a;
   max-width: 800px;
 }
 .login-public-shell .navigan-signin .login-hero-tagline {
-  font-size: clamp(16px,1.48vw,21px);
-  line-height: 1.35;
-  letter-spacing: -.025em;
-  font-weight: 660;
-  margin: 11px 0 5px;
+  font-size: clamp(15px,1.12vw,18px);
+  line-height: 1.4;
+  letter-spacing: -.018em;
+  font-weight: 630;
+  margin: 15px 0 8px;
   color: #1a385b;
 }
 .login-public-shell .navigan-signin .login-hero-copy p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.55;
   font-weight: 400;
   color: #5c7490;
-  max-width: 680px;
+  max-width: 560px;
 }
 .login-public-shell .navigan-signin .login-estate-illustration {
   display: block;
-  grid-column: 1;
-  grid-row: 3;
+  grid-column: 1/-1;
+  grid-row: 2;
   justify-self: center;
-  width: 100%;
+  width: min(100%, 970px);
   height: 100%;
   min-height: 0;
-  max-height: 320px;
+  max-height: none;
   object-fit: contain;
-  object-position: 50% 50%;
-  opacity: .61;
-  filter: saturate(.75);
+  object-position: 50% 48%;
+  opacity: .7;
+  filter: saturate(.78);
 }
 .login-public-shell .navigan-signin .login-ecosystem {
-  grid-column: 1;
-  grid-row: 4;
+  grid-column: 1/-1;
+  grid-row: 3;
   align-self: end;
   width: 100%;
   padding-top: 9px;
@@ -843,16 +845,32 @@
 
 @media (min-width:701px) and (max-height:790px) {
   .login-public-shell .navigan-signin .login-introduction {
-    grid-template-rows: 72px auto minmax(85px,1fr) auto;
-    padding: 13px 28px 11px;
-    gap: 6px;
+    grid-template-rows: minmax(125px,auto) minmax(0,1fr) auto;
+    padding: 18px 28px 12px;
+    gap: 9px 18px;
   }
-  .login-public-shell .navigan-signin .login-product-brand strong { font-size: 31px; }
+  .login-public-shell .navigan-signin .login-product-brand strong { font-size: 29px; }
   .login-public-shell .navigan-signin .login-hero-copy h1 {font-size:27px}
-  .login-public-shell .navigan-signin .login-hero-tagline {font-size:16px;margin:6px 0 3px}
+  .login-public-shell .navigan-signin .login-hero-tagline {font-size:15px;margin:9px 0 5px}
   .login-public-shell .navigan-signin .login-hero-copy p {font-size:11px}
-  .login-public-shell .navigan-signin .login-estate-illustration {max-height:260px}
   .login-public-shell .navigan-signin .login-ecosystem-row {padding:3px 0}
+}
+@media (min-width:701px) and (max-width:1599px) {
+  .login-public-shell .navigan-signin .login-introduction {
+    grid-template-columns: minmax(0,1fr);
+    grid-template-rows: 62px auto minmax(105px,1fr) auto;
+    gap: 8px;
+  }
+  .login-public-shell .navigan-signin .login-product-brand {grid-column:1;grid-row:1}
+  .login-public-shell .navigan-signin .login-hero-copy {grid-column:1;grid-row:2}
+  .login-public-shell .navigan-signin .login-estate-illustration {grid-column:1;grid-row:3}
+  .login-public-shell .navigan-signin .login-ecosystem {grid-column:1;grid-row:4}
+  .login-public-shell .navigan-signin .login-hero-copy h1 {font-size:clamp(25px,2.25vw,31px)}
+}
+@media (min-width:701px) and (max-width:1599px) and (max-height:790px) {
+  .login-public-shell .navigan-signin .login-introduction {
+    grid-template-rows: 56px auto minmax(85px,1fr) auto;
+  }
 }
 @media (min-width:701px) and (max-width:1190px) {
   .login-public-shell .signin-layout.navigan-signin {grid-template-columns:minmax(0,57%) minmax(0,43%)}
