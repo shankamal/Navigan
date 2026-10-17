@@ -336,6 +336,9 @@ export function PlanningEditor({
   const [dirty, setDirty] = useState(false);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [sourceGuideStep, setSourceGuideStep] = useState<"scope" | "workloads" | "confirm">("scope");
+  const [sourceTechnicalOpen, setSourceTechnicalOpen] = useState(false);
+  const [sourceNamespaceQuery, setSourceNamespaceQuery] = useState("");
+  const [sourceAnalyzePending, setSourceAnalyzePending] = useState(false);
   const [sourceMapOpen, setSourceMapOpen] = useState(false);
   useEffect(() => {
     if (!sourceMapOpen) return;
@@ -357,11 +360,7 @@ export function PlanningEditor({
   const resources = inventory.resources.filter(
     (r): r is SourceInventoryResource & { name: string } => Boolean(r.name),
   );
-  const namespaces = [
-    ...new Set(
-      resources.map((r) => r.namespace).filter((n): n is string => typeof n === "string" && n.length > 0 && assessedNamespaces.includes(n)),
-    ),
-  ].sort();
+  const namespaces = [...new Set(assessedNamespaces)].sort();
   const filtered = resources.filter(
     (r) =>
       (draft.mode === "FULL_CLUSTER" || (r.namespace && scopeNamespaceSet.has(r.namespace))) &&
@@ -590,7 +589,7 @@ export function PlanningEditor({
   const currentScopeSignature = JSON.stringify(draft.resources.filter(resource=>resource.namespace && scopeNamespaceSet.has(resource.namespace)).map(resourceKey).sort());
   const scopeGateIssues = [
     ...(!scopeNamespaces.length ? ["Select one or more namespaces for scope analysis."] : []),
-    ...(scopeAnalysisNamespace !== scopeNamespaceKey || scopeAnalysisSignature !== currentScopeSignature ? ["Run Analyze selected scope for your current selection."] : []),
+    ...(scopeAnalysisNamespace !== scopeNamespaceKey ? ["Analyze the currently selected namespaces before saving."] : []),
     ...(!draft.resources.some(resource => !resource.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(resource.kind) && resource.namespace && scopeNamespaceSet.has(resource.namespace)) ? ["Select at least one workload in the selected namespaces."] : []),
     ...(stale ? ["The assessment changed. Refresh the planning draft before continuing."] : []),
   ];
@@ -714,6 +713,82 @@ export function PlanningEditor({
         : [...draft.resources, item],
     });
   }
+  function setSourceNamespaceIncluded(name: string, included: boolean) {
+    setScopeNamespaces(current => included ? [...new Set([...current, name])] : current.filter(item => item !== name));
+    setScopeAnalysisNamespace(null);
+    setScopeAnalysisSignature(null);
+    setDirty(true);
+    setMessage("");
+  }
+  function setSourceResourceIncluded(resource: SourceInventoryResource & { name: string }, included: boolean, dependency: boolean) {
+    const key = resourceKey({ ...resource, namespace: resource.namespace ?? null });
+    const existing = draft.resources.some(item => resourceKey(item) === key);
+    if (included === existing) return;
+    const nextResources = included
+      ? [...draft.resources, { ...recommendResource(resource).resource, dependency }]
+      : draft.resources.filter(item => resourceKey(item) !== key);
+    const nextMappings = resource.kind === "PersistentVolumeClaim" && included
+      ? [...(draft.storageMappings ?? []).filter(item => item.namespace !== resource.namespace || item.sourceClaim !== resource.name), suggestedMapping(resource)]
+      : resource.kind === "PersistentVolumeClaim" && !included
+        ? (draft.storageMappings ?? []).filter(item => item.namespace !== resource.namespace || item.sourceClaim !== resource.name)
+        : draft.storageMappings;
+    change({ ...draft, resources: nextResources, storageMappings: nextMappings });
+  }
+  async function analyzeSourceNamespaces() {
+    if (!scopeNamespaces.length || !canEdit || stale || sourceAnalyzePending) return;
+    setSourceAnalyzePending(true);
+    setMessage("");
+    try {
+      // Refresh the existing Source evidence; this does not invent live cluster access.
+      const [inventoryResponse, assessmentResponse] = await Promise.all([
+        migrations.sourceInventory(migration.migrationId),
+        migrations.assessment(migration.migrationId),
+      ]);
+      if (!inventoryResponse.inventory || !assessmentResponse.assessment) {
+        setMessage("Source evidence is not available yet. Complete Source Assessment before analyzing namespaces.");
+        return;
+      }
+      if (inventoryResponse.inventory.inventoryDigest !== assessmentResponse.assessment.inventoryDigest ||
+          assessmentResponse.assessment.assessmentVersion !== assessment.assessmentVersion ||
+          inventoryResponse.inventory.inventoryDigest !== inventory.inventoryDigest) {
+        await Promise.all([
+          cache.invalidateQueries({ queryKey: ["migrations", migration.migrationId, "source-inventory"] }),
+          cache.invalidateQueries({ queryKey: ["migrations", migration.migrationId, "assessment"] }),
+        ]);
+        setMessage("Source assessment evidence changed. Refresh the page and review the latest namespace inventory before selecting a scope.");
+        return;
+      }
+      const freshResources = inventoryResponse.inventory.resources.filter((item): item is SourceInventoryResource & {name: string} => Boolean(item.name));
+      const inScope = freshResources.filter(item => item.namespace && scopeNamespaceSet.has(item.namespace));
+      const workloads = inScope.filter(item => ["Deployment", "StatefulSet", "DaemonSet", "CronJob", "Job"].includes(item.kind));
+      const pvcs = inScope.filter(item => item.kind === "PersistentVolumeClaim");
+      const referenced = workloads.flatMap(item => recommendDependencies(item, freshResources))
+        .filter(item => item.resource.namespace && scopeNamespaceSet.has(item.resource.namespace) &&
+          freshResources.some(found => resourceKey({ ...found, namespace: found.namespace ?? null }) === resourceKey(item.resource)));
+      const next = new Map(draft.resources.filter(item => item.namespace && scopeNamespaceSet.has(item.namespace)).map(item => [resourceKey(item), item]));
+      for (const resource of [...workloads, ...pvcs]) {
+        const proposal = recommendResource(resource).resource;
+        const key = resourceKey(proposal);
+        if (!next.has(key)) next.set(key, { ...proposal, dependency: resource.kind === "PersistentVolumeClaim" });
+      }
+      for (const suggestion of referenced) {
+        const key = resourceKey(suggestion.resource);
+        if (!next.has(key)) next.set(key, { ...suggestion.resource, dependency: true });
+      }
+      const additions = pvcs.filter(pvc => !(draft.storageMappings ?? []).some(item => item.namespace === pvc.namespace && item.sourceClaim === pvc.name));
+      change({ ...draft, mode: "SELECTED_WORKLOADS", resources: [...next.values()],
+        storageMappings: [...(draft.storageMappings ?? []).filter(item => scopeNamespaceSet.has(item.namespace)), ...additions.map(suggestedMapping)] });
+      setScopeAnalysisNamespace(scopeNamespaceKey);
+      setScopeAnalysisSignature(null);
+      setSourceGuideStep("workloads");
+      setMessage(`Reviewed ${workloads.length} workloads and ${pvcs.length} PVCs against the available Source evidence. Confirm any external databases or missing references manually.`);
+    } catch (error: unknown) {
+      const api = normalizeApiError(error);
+      setMessage(`Source evidence refresh failed · ${api.code}: ${api.message}. The existing selection has not been changed.`);
+    } finally {
+      setSourceAnalyzePending(false);
+    }
+  }
   const save = useMutation({
     mutationFn: async (nextDraft?: MigrationPlanningDraft) => {
       const payload = nextDraft ?? preparePlanningDraft(draft, scopeNamespaces);
@@ -735,9 +810,9 @@ export function PlanningEditor({
         // namespace selected without an actual saved resource in it.
         const represented = new Set(payload.resources.map(item => item.namespace).filter(Boolean));
         const selection = payload.selectedNamespaces ?? [];
-        const safeLegacyScope = selection.length > 0 &&
-          selection.every(name => represented.has(name)) &&
-          [...represented].every(name => selection.includes(name!));
+        const safeLegacyScope = (selection.length === 0 && payload.resources.length === 0) ||
+          (selection.length > 0 && selection.every(name => represented.has(name)) &&
+          [...represented].every(name => selection.includes(name!)));
         if (!rejectedNamespaceField || !safeLegacyScope) throw error;
         const { selectedNamespaces: _unsupported, ...legacyDraft } = payload;
         setMessage("The running backend uses the older draft schema. Saving the resource-backed selection using legacy format.");
@@ -790,6 +865,7 @@ export function PlanningEditor({
       setScopeReviewOpen(false);
       setScopeAnalysisNamespace(null);
       setScopeAnalysisSignature(null);
+      setSourceGuideStep("scope");
       setMessage("Planning draft cleared. Source assessment and inventory were preserved.");
     } catch {
       // Failed save leaves existing selection and draft intact.
@@ -882,9 +958,9 @@ export function PlanningEditor({
             ? "Remediation & target mapping"
             : tab === "review"
               ? "Review migration draft"
-              : tab === "scope" ? "Explore your source cluster" : tab === "target" ? "Target Assessment & Compatibility" : "Plan your migration"
+              : tab === "scope" ? "Source migration planning" : tab === "target" ? "Target Assessment & Compatibility" : "Plan your migration"
         }
-        description={tab === "scope" ? `${migration.name} · Source discovery, inventory and dependencies` : tab === "target" ? "Compare the saved source migration scope with the selected destination cluster." : `${migration.name} · Migration planning`}
+        description={tab === "scope" ? `${migration.name} · Choose namespaces, analyze dependencies, review and save` : tab === "target" ? "Compare the saved source migration scope with the selected destination cluster." : `${migration.name} · Migration planning`}
         action={
           <Link
             className="button button-secondary"
@@ -1362,6 +1438,105 @@ export function PlanningEditor({
         })() : <div className={styles.workflowStageWarning}>A current saved Source scope and authoritative target compatibility evaluations are required for the migration plan preview. No plan is generated from stale or unsaved evidence.</div>}
       </section>}
       {tab === "scope" && (<>
+        <section className={styles.guidedSource} aria-label="Source migration planning">
+          <div className={styles.guidedSourceTopbar}>
+            <div className={styles.guidedSourceIdentity}>
+              <span className={styles.guidedSourceEyebrow}>SOURCE ASSESSMENT · VERSION {assessment.assessmentVersion}</span>
+              <h2>Plan your source migration</h2>
+              <p>Select the namespaces you need, review the supporting resources, and save a migration scope for Target compatibility assessment.</p>
+            </div>
+            <div className={styles.guidedSourceCluster}>
+              <PlatformIcon platform="SELF_MANAGED_KUBERNETES" size="medium"/>
+              <div><small>Source cluster</small><strong>{String(migration.sourceConfiguration.clusterName ?? "Self-managed Kubernetes")}</strong><span>Kubernetes {sourceVersion} · {sourceNodeCount ?? "—"} nodes</span></div>
+            </div>
+          </div>
+          <nav className={styles.guidedSourceProgress} aria-label="Source planning steps">
+            {([
+              ["scope", "01", "Choose namespaces"],
+              ["workloads", "02", "Analyze dependencies"],
+              ["confirm", "03", "Review & save"],
+            ] as const).map(([step, number, label], index) => (
+              <button key={step} type="button" aria-current={sourceGuideStep === step ? "step" : undefined}
+                disabled={index > ["scope", "workloads", "confirm"].indexOf(sourceGuideStep)}
+                onClick={() => setSourceGuideStep(step)}>
+                <span>{number}</span><strong>{label}</strong>
+              </button>
+            ))}
+          </nav>
+          {sourceGuideStep === "scope" && <div className={styles.guidedSourceCard}>
+            <div className={styles.guidedSourceCardHead}>
+              <div><span className={styles.guidedSourceEyebrow}>STEP 1 OF 3</span><h3>Choose namespaces</h3><p>Select any assessed namespaces, including all of them. Target compatibility will be evaluated after you save this scope.</p></div>
+              <span className={styles.guidedSourceCount}><strong>{scopeNamespaces.length}</strong> selected of {namespaces.length}</span>
+            </div>
+            <div className={styles.guidedSourceMode}>
+              <div><Boxes size={19}/><span><strong>Selected scope migration</strong><small>Available now · choose specific namespaces or all assessed namespaces</small></span></div>
+              <span className={styles.guidedSourceEnabled}>Selected</span>
+            </div>
+            <div className={styles.guidedSourceModeDisabled} aria-disabled="true"><LockKeyhole size={17}/><span><strong>Full cluster migration</strong><small>Not available yet</small></span><span>Coming later</span></div>
+            <div className={styles.guidedSourceListHeading}>
+              <label className={styles.guidedSourceFilter}><Search size={16}/><input aria-label="Search assessed namespaces" placeholder="Search namespaces" value={sourceNamespaceQuery} onChange={event => setSourceNamespaceQuery(event.target.value)}/></label>
+              <button type="button" className={styles.guidedSourceInlineAction} disabled={!canEdit || stale || save.isPending || !namespaces.length} onClick={() => {
+                const allSelected = namespaces.every(item => scopeNamespaceSet.has(item));
+                setScopeNamespaces(allSelected ? [] : namespaces);
+                setScopeAnalysisNamespace(null); setDirty(true); setMessage("");
+              }}>{namespaces.every(item => scopeNamespaceSet.has(item)) ? "Clear selection" : "Select all namespaces"}</button>
+            </div>
+            <div className={styles.guidedSourceNamespaceList}>
+              {namespaces.filter(item => item.toLowerCase().includes(sourceNamespaceQuery.trim().toLowerCase())).map(item => (
+                <label key={item} className={scopeNamespaceSet.has(item) ? styles.guidedSourceNamespaceSelected : ""}>
+                  <input type="checkbox" checked={scopeNamespaceSet.has(item)} disabled={!canEdit || stale || save.isPending} onChange={event => setSourceNamespaceIncluded(item, event.target.checked)}/>
+                  <span><strong>{item}</strong><small>{sourceWorkloads.filter(resource => resource.namespace === item).length} workloads · {resources.filter(resource => resource.namespace === item && resource.kind === "PersistentVolumeClaim").length} PVCs</small></span>
+                  <span className={styles.guidedSourceNamespaceMeta}>{resources.filter(resource => resource.namespace === item).length} resources</span>
+                </label>
+              ))}
+              {!namespaces.length && <p>No assessed namespace inventory is available. Return to Source Assessment to collect the inventory.</p>}
+              {namespaces.length > 0 && !namespaces.some(item => item.toLowerCase().includes(sourceNamespaceQuery.trim().toLowerCase())) && <p>No matching namespaces.</p>}
+            </div>
+            <div className={styles.guidedSourceBottom}><span>{scopeNamespaces.length} namespaces selected · Source inventory only; target readiness is not yet checked.</span><button type="button" className="button button-primary" disabled={!canEdit || stale || !scopeNamespaces.length || sourceAnalyzePending} onClick={() => void analyzeSourceNamespaces()}>{sourceAnalyzePending ? "Analyzing Source evidence…" : "Analyze selected namespaces"} <ArrowRight size={16}/></button></div>
+          </div>}
+          {sourceGuideStep === "workloads" && <div className={styles.guidedSourceCard}>
+            <div className={styles.guidedSourceCardHead}><div><span className={styles.guidedSourceEyebrow}>STEP 2 OF 3</span><h3>Review workloads & dependencies</h3><p>Workloads and PVCs from the selected namespaces are included by default. Review each recommendation and adjust the draft as needed.</p></div><span className={styles.guidedSourceCount}><strong>{draft.resources.filter(item => item.namespace && scopeNamespaceSet.has(item.namespace)).length}</strong> draft resources</span></div>
+            <div className={styles.guidedSourceStats}><div><strong>{scopeNamespaces.length}</strong><span>Namespaces</span></div><div><strong>{workloadRelationships.filter(item => item.selected).length}</strong><span>Workloads included</span></div><div><strong>{draft.resources.filter(item => item.kind === "PersistentVolumeClaim" && item.namespace && scopeNamespaceSet.has(item.namespace)).length}</strong><span>PVCs included</span></div><div><strong>{discoveredSupportingDependencies.length}</strong><span>Observed dependency references</span></div></div>
+            <div className={styles.guidedSourceReviewGrid}>
+              <div className={styles.guidedSourceReviewSection}><header><div><Boxes size={18}/><strong>Application workloads</strong></div><span>{applicationWorkloads.length} discovered</span></header>
+                {applicationWorkloads.map(resource => {
+                  const included = draft.resources.some(item => resourceKey(item) === resourceKey({...resource,namespace:resource.namespace ?? null}));
+                  return <label key={resourceKey({...resource,namespace:resource.namespace ?? null})}><input type="checkbox" checked={included} disabled={!canEdit || stale || save.isPending} onChange={event => setSourceResourceIncluded(resource,event.target.checked,false)}/><span><strong>{resource.name}</strong><small>{resource.namespace} · {resource.kind}</small></span><em>{included ? "Included" : "Excluded"}</em></label>;
+                })}
+                {!applicationWorkloads.length && <p>No workload controllers were inventoried in this scope.</p>}
+              </div>
+              <div className={styles.guidedSourceReviewSection}><header><div><Database size={18}/><strong>Data & storage · PVCs</strong></div><span>{relevantPvcs.length} discovered</span></header>
+                {relevantPvcs.map(resource => {
+                  const included = draft.resources.some(item => resourceKey(item) === resourceKey({...resource,namespace:resource.namespace ?? null}));
+                  return <label key={resourceKey({...resource,namespace:resource.namespace ?? null})}><input type="checkbox" checked={included} disabled={!canEdit || stale || save.isPending} onChange={event => setSourceResourceIncluded(resource,event.target.checked,true)}/><span><strong>{resource.name}</strong><small>{resource.namespace} · {typeof resource.requestedStorage === "string" ? resource.requestedStorage : "Capacity unknown"}</small></span><em>{included ? "Included" : "Excluded"}</em></label>;
+                })}
+                {!relevantPvcs.length && <p>No PVC objects reported. Verify claim templates and external databases with the application owner.</p>}
+              </div>
+            </div>
+            <details className={styles.guidedSourceDependencies}><summary><Network size={17}/> Supporting resource dependencies <span>{discoveredSupportingDependencies.length} observed references</span></summary>
+              {discoveredSupportingDependencies.length ? [...new Map(discoveredSupportingDependencies.map(item => [`${item.namespace}/${item.kind}/${item.name}`,item])).values()].map(item => {
+                const included = draft.resources.some(resource => resource.namespace === item.namespace && resource.kind === item.kind && resource.name === item.name);
+                return <div key={`${item.namespace}/${item.kind}/${item.name}`}><span><strong>{item.name}</strong><small>{item.namespace} · {item.kind} · referenced by {item.workloadName}</small></span>{item.source && <button type="button" disabled={!canEdit || stale || save.isPending} onClick={() => setSourceResourceIncluded(item.source!, !included, true)}>{included ? "Included" : "Add to draft"}</button>}{!item.source && <small>Not inventoried · verify manually</small>}</div>;
+              }) : <p>No dependencies recorded. Missing references do not prove that an application is dependency-free.</p>}
+            </details>
+            <p className={styles.guidedSourceCaution}><ShieldCheck size={17}/> Source evidence: {evidenceCoverage}. External databases, storage transfer and application consistency require manual confirmation. Target compatibility is evaluated next.</p>
+            <div className={styles.guidedSourceBottom}><button type="button" className="button button-secondary" onClick={() => setSourceGuideStep("scope")}><ArrowLeft size={16}/> Change namespaces</button><button type="button" className="button button-primary" disabled={!draft.resources.some(item => !item.dependency && ["Deployment","StatefulSet","DaemonSet","Job","CronJob"].includes(item.kind) && item.namespace && scopeNamespaceSet.has(item.namespace))} onClick={() => setSourceGuideStep("confirm")}>Review source scope <ArrowRight size={16}/></button></div>
+          </div>}
+          {sourceGuideStep === "confirm" && <div className={styles.guidedSourceCard}>
+            <div className={styles.guidedSourceCardHead}><div><span className={styles.guidedSourceEyebrow}>STEP 3 OF 3</span><h3>Review & save source scope</h3><p>Confirm what will be assessed against the target. Saving creates a planning draft, not a migration execution.</p></div><span className={styles.guidedSourceCount}><strong>{draft.resources.length}</strong> draft resources</span></div>
+            <div className={styles.guidedSourceStats}><div><strong>{scopeNamespaces.length}</strong><span>Namespaces</span></div><div><strong>{draft.resources.filter(item => !item.dependency && ["Deployment","StatefulSet","DaemonSet","CronJob","Job"].includes(item.kind)).length}</strong><span>Workloads</span></div><div><strong>{draft.resources.filter(item => item.dependency && item.kind !== "PersistentVolumeClaim").length}</strong><span>Dependencies</span></div><div><strong>{draft.resources.filter(item => item.kind === "PersistentVolumeClaim").length}</strong><span>PVCs</span></div></div>
+            <div className={styles.guidedSourceScopeRows}>{scopeNamespaces.map(name => {
+              const items = draft.resources.filter(item => item.namespace === name);
+              return <div key={name}><span><Layers size={16}/><strong>{name}</strong></span><span>{items.filter(item => !item.dependency).length} workloads · {items.filter(item => item.kind === "PersistentVolumeClaim").length} PVCs · {items.length} resources</span></div>;
+            })}</div>
+            <label className={styles.guidedSourceStrategy}>Data migration strategy <select value={draft.dataStrategy} disabled={!canEdit || stale || save.isPending} onChange={event => change({...draft,dataStrategy:event.target.value as MigrationPlanningDraft["dataStrategy"]})}><option value="UNDECIDED">Decide later · requires review</option><option value="BACKUP_RESTORE">Backup and restore</option><option value="REPLICATION">Replication</option><option value="NO_PERSISTENT_DATA">No persistent data</option></select></label>
+            <p className={styles.guidedSourceCaution}><AlertCircle size={17}/> {readiness.issues.length} source readiness follow-ups. PVC inclusion does not copy data. External databases and missing references need confirmation during migration planning.</p>
+            {!!scopeGateIssues.length && <div className={styles.guidedSourceIssues} role="status">{scopeGateIssues.join(" ")}</div>}
+            <div className={styles.guidedSourceBottom}><button type="button" className="button button-secondary" onClick={() => setSourceGuideStep("workloads")}><ArrowLeft size={16}/> Edit resources</button><button type="button" className="button button-primary" disabled={!canEdit || stale || save.isPending || !!scopeGateIssues.length} onClick={() => void continueToTarget()}>{save.isPending ? "Saving draft…" : "Save scope & continue to Target"} <ArrowRight size={16}/></button></div>
+          </div>}
+          <div className={styles.guidedSourceUtility}><button type="button" onClick={() => setSourceTechnicalOpen(current => !current)}>{sourceTechnicalOpen ? "Hide technical inventory" : "Explore technical inventory"} <ArrowRight size={14}/></button><button type="button" disabled={!canEdit || stale || save.isPending} onClick={() => void clearPlanningDraft()}>Clear draft</button></div>
+        </section>
+        {sourceTechnicalOpen && <>
         <section className={styles.sourceDashboard} aria-label="Source discovery dashboard">
           <div className={styles.sourceSummaryTitle}>
             <div><strong>Source cluster overview</strong><span>Observed source inventory · Kubernetes {sourceVersion}</span></div>
@@ -1428,7 +1603,7 @@ export function PlanningEditor({
           <div className={styles.sourceJourneyAction}>
             <span>{sourceGuideStep==="scope"?"Choose namespaces, then analyze their resources.":sourceGuideStep==="workloads"?"Add workloads and PVCs to the draft, then confirm your data strategy.":"Review readiness and save your Source draft below."}</span>
             {sourceGuideStep!=="confirm"&&<button type="button" className="button button-primary" disabled={sourceGuideStep==="scope"&&!scopeNamespaces.length} onClick={()=>{
-              if(sourceGuideStep==="scope"){setScopeAnalysisNamespace(scopeNamespaceKey);setScopeAnalysisSignature(currentScopeSignature);setScopeReviewOpen(true);goToSourceStep("workloads");}
+              if(sourceGuideStep==="scope") { void analyzeSourceNamespaces(); }
               else goToSourceStep("confirm");
             }}>{sourceGuideStep==="scope"?"Analyze selected scope":"Review selected scope"} <ArrowRight size={15}/></button>}
           </div>
@@ -1468,6 +1643,7 @@ export function PlanningEditor({
                       <input
                         type="radio"
                         name="migration-mode"
+                        disabled={mode === "FULL_CLUSTER"}
                         checked={draft.mode === mode}
                         onChange={() => change({ ...draft, mode })}
                       />
@@ -1923,6 +2099,7 @@ export function PlanningEditor({
             )}
           </section>
         </div>
+        </>}
       </>)}
       {tab === "remediate" && (
         <section className={styles.surface}>
@@ -2390,16 +2567,15 @@ export function PlanningEditor({
           </button>
         </section>
       )}
-      {tab==="scope" && scopeGateIssues.length>0 && <div className={styles.scopeGateNotice} role="status" aria-label="Required scope checks">
+      {tab==="scope" && sourceTechnicalOpen && scopeGateIssues.length>0 && <div className={styles.scopeGateNotice} role="status" aria-label="Required scope checks">
         <strong>Before remediation · {scopeGateIssues.length} checks outstanding</strong>
         <ul>{scopeGateIssues.map((issue,index)=><li key={index}>{issue}</li>)}</ul>
       </div>}
-      {tab!=="target" && <footer className={styles.footer}>
-        <button className="button button-secondary" type="button" disabled={tab==="scope"} onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)]!)}><ArrowLeft size={16}/> Previous step</button>
+      {tab!=="target" && tab!=="scope" && <footer className={styles.footer}>
+        <button className="button button-secondary" type="button" onClick={()=>navigateToStep(workflowSteps[Math.max(0,workflowSteps.indexOf(tab)-1)]!)}><ArrowLeft size={16}/> Previous step</button>
         <p>{save.isPending?"Saving draft…":message||(dirty?"Unsaved planning changes":`Assessment v${assessment.assessmentVersion} · Draft only`)}</p>
-        {tab==="scope" && <button className="button button-secondary" type="button" disabled={!canEdit||stale||save.isPending} onClick={()=>void clearPlanningDraft()}>Clear Draft</button>}
         <button className="button button-secondary" type="button" disabled={!canEdit||stale||!dirty||save.isPending} onClick={()=>save.mutate(preparePlanningDraft(draft,scopeNamespaces))}>{save.isPending?"Saving…":"Save draft"}</button>
-        <button className={`button button-primary ${styles.planningContinueButton}`} type="button" disabled={tab==="review"||save.isPending||(tab==="scope"&&(!canEdit||stale||scopeGateIssues.length>0))} title={tab==="scope"&&scopeGateIssues.length?scopeGateIssues[0]:undefined} onClick={()=>{if(tab==="scope")void continueToTarget();else navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!);}}>{`Continue to ${tab==="scope"?"target assessment":tab==="remediate"?"migration plan":"review"}`} <ArrowRight size={16}/></button>
+        <button className={`button button-primary ${styles.planningContinueButton}`} type="button" disabled={tab==="review"||save.isPending} onClick={()=>navigateToStep(workflowSteps[Math.min(workflowSteps.length-1,workflowSteps.indexOf(tab)+1)]!)}>{`Continue to ${tab==="remediate"?"migration plan":"review"}`} <ArrowRight size={16}/></button>
       </footer>}
     </div>
   );
