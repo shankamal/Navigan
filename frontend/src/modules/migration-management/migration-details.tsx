@@ -1111,26 +1111,23 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           }}
         />
       )}
-      {assessment && (
-        <section className={styles.reportDecisionBar}>
-          <div className={styles.reportPlanAction}>
-            <div>
-              <strong>Migration planning</strong>
-              <span>Select workloads, resolve findings and prepare a draft migration plan. No infrastructure changes are made.</span>
-            </div>
-            <Link href={`/migrations/${migrationId}/plan`} className="button button-primary">
-              Open migration workspace <ArrowRight size={17} />
-            </Link>
-          </div>
-          {criticalFindingCount > 0 && <p className={styles.reportApprovalNote}>
-            Approval blocked: {criticalFindingCount} critical finding{criticalFindingCount === 1 ? "" : "s"} require remediation.
-          </p>}
-          {hasGovernanceAction && <div className={styles.reportDecisionActions}>{approvalControls}</div>}
-          {action.isError && (
-            <p role="alert">{normalizeApiError(action.error).message}</p>
-          )}
-        </section>
-      )}
+      {assessment &&
+        (hasGovernanceAction || criticalFindingCount > 0 || action.isError) && (
+          <section className={styles.reportDecisionBar}>
+            {criticalFindingCount > 0 && (
+              <p className={styles.reportApprovalNote}>
+                Approval blocked: {criticalFindingCount} critical finding
+                {criticalFindingCount === 1 ? "" : "s"} require remediation.
+              </p>
+            )}
+            {hasGovernanceAction && (
+              <div className={styles.reportDecisionActions}>{approvalControls}</div>
+            )}
+            {action.isError && (
+              <p role="alert">{normalizeApiError(action.error).message}</p>
+            )}
+          </section>
+        )}
       {migration && !assessment && !assessmentLoading && !assessmentQuery.isError &&
         !hasGovernanceAction && (
         <section className="panel">

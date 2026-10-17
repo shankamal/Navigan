@@ -1,6 +1,7 @@
 import {
   AlertOctagon,
   AlertTriangle,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   CircleHelp,
@@ -8,6 +9,7 @@ import {
   Database,
   FileText,
   Network,
+  Search,
   Server,
   ShieldCheck,
   UserRound,
@@ -17,6 +19,7 @@ import {
 import { useMemo, useState } from "react";
 
 import "./assessment-report.css";
+import "./assessment-workbench.css";
 
 import type {
   Assessment,
@@ -286,7 +289,7 @@ const inventoryTabs: Array<{
 
 const reportTabGroups = [
   { label: "Assessment", tabs: inventoryTabs.slice(0, 4) },
-  { label: "Inventory details", tabs: inventoryTabs.slice(4) },
+  { label: "Explore inventory", tabs: inventoryTabs.slice(4) },
 ];
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -632,6 +635,159 @@ function InventoryPanel({
   );
 }
 
+function FindingsReviewTable({ findings }: { findings: Finding[] }) {
+  if (findings.length === 0) {
+    return (
+      <div className="migration-report-empty">
+        <CheckCircle2 size={28} aria-hidden="true" />
+        <div>
+          <h3>No matching findings</h3>
+          <p>
+            Adjust the search or filters to review other assessment results.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="migration-workbench-findings-list">
+      <div className="migration-workbench-findings-heading" aria-hidden="true">
+        <span>Finding</span>
+        <span>Affected resource</span>
+        <span>Evidence</span>
+        <span>Recommended action</span>
+        <span>Status</span>
+      </div>
+      {findings.map((finding, index) => {
+        const FindingIcon = severityIcon(finding.category);
+        const rowEvidenceCount =
+          finding.evidenceCount ??
+          finding.evidenceReferences?.length ??
+          (finding.resourceName || finding.namespace ? 1 : 0);
+        return (
+          <details
+            className="migration-workbench-finding"
+            key={findingKey(finding, index)}
+          >
+            <summary className="migration-workbench-finding-row">
+              <div className="migration-workbench-finding-title">
+                <FindingIcon size={17} aria-hidden="true" />
+                <div>
+                  <strong>{finding.message}</strong>
+                  <small>
+                    {finding.ruleId ?? finding.code} ·{" "}
+                    {finding.category.replaceAll("_", " ")}
+                  </small>
+                  <span
+                    className={`migration-severity migration-severity-${finding.severity.toLowerCase()}`}
+                  >
+                    {finding.severity === "BLOCKER"
+                      ? "Critical"
+                      : finding.severity}
+                  </span>
+                </div>
+              </div>
+              <div className="migration-workbench-finding-resource">
+                <strong>
+                  {finding.resourceName ?? "Cluster-level finding"}
+                </strong>
+                <small>
+                  {[finding.resourceKind, finding.namespace]
+                    .filter(Boolean)
+                    .join(" · ") || "Cluster scoped"}
+                </small>
+              </div>
+              <div className="migration-workbench-finding-evidence">
+                <FileText size={15} aria-hidden="true" />
+                {rowEvidenceCount > 0
+                  ? `${rowEvidenceCount} item${rowEvidenceCount === 1 ? "" : "s"}`
+                  : "Pending"}
+              </div>
+              <div className="migration-workbench-finding-remediation">
+                <span>
+                  {finding.targetTreatment ??
+                    finding.remediation ??
+                    "Review this resource before migration planning."}
+                </span>
+                <small>Owner: {findingOwner(finding)}</small>
+              </div>
+              <div className="migration-workbench-finding-status">
+                <span
+                  className={`migration-remediation-status migration-remediation-status-${findingStatus(
+                    finding,
+                  )
+                    .toLowerCase()
+                    .replaceAll(" ", "-")}`}
+                >
+                  {findingStatus(finding)}
+                </span>
+                <small>View details</small>
+              </div>
+            </summary>
+            <div className="migration-workbench-finding-details">
+              <div>
+                <h4>Assessment evidence</h4>
+                {finding.evidenceReferences?.length ? (
+                  <ul>
+                    {finding.evidenceReferences.map((evidence, i) => (
+                      <li key={`${evidence}-${i}`}>{evidence}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>
+                    Detailed evidence references were not supplied by the
+                    assessment API.
+                  </p>
+                )}
+                {finding.dependencies && finding.dependencies.length > 0 && (
+                  <p>
+                    <strong>Dependencies:</strong>{" "}
+                    {finding.dependencies.join(", ")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <h4>Remediation and validation</h4>
+                {finding.resolutionSteps?.length ? (
+                  <ol>
+                    {finding.resolutionSteps.map((step, i) => (
+                      <li key={`${step}-${i}`}>{step}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p>
+                    {finding.remediation ??
+                      finding.targetTreatment ??
+                      "Engineering review required."}
+                  </p>
+                )}
+                {finding.validationSteps &&
+                  finding.validationSteps.length > 0 && (
+                    <>
+                      <strong>Validation</strong>
+                      <ul>
+                        {finding.validationSteps.map((step, i) => (
+                          <li key={`${step}-${i}`}>{step}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                {finding.automationLevel && (
+                  <p>
+                    Automation:{" "}
+                    {finding.automationLevel.replaceAll("_", " ").toLowerCase()}
+                  </p>
+                )}
+              </div>
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AssessmentReportCard({
   report,
   inventory,
@@ -649,7 +805,11 @@ export function AssessmentReportCard({
     status?: string;
   };
 }) {
-  const [activeTab, setActiveTab] = useState<ReportTab>("summary");
+  const [activeTab, setActiveTab] = useState<ReportTab>("findings");
+  const [findingSearch, setFindingSearch] = useState("");
+  const [dispositionFilter, setDispositionFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [findingLimit, setFindingLimit] = useState(12);
   const target = report.inventorySummary.target;
   const resourceKinds = Object.entries(
     report.inventorySummary.resourceKinds,
@@ -675,10 +835,6 @@ export function AssessmentReportCard({
   );
   const criticalFindingCount = severityCounts.BLOCKER;
   const hasCriticalFindings = criticalFindingCount > 0;
-  const orderedClassifications = [...classifications].reverse();
-  const firstVisibleDisposition = orderedClassifications.find((item) =>
-    report.findings.some((finding) => finding.disposition === item.code),
-  )?.code;
   const priorityFindings = [...report.findings]
     .sort((left, right) => {
       const rank = { BLOCKER: 3, WARNING: 2, INFO: 1 };
@@ -753,6 +909,39 @@ export function AssessmentReportCard({
   const advancedNotDetectedCount = advancedChecks.filter(
     (check) => check.status === "not-detected",
   ).length;
+  const filteredFindings = useMemo(() => {
+    const query = findingSearch.trim().toLowerCase();
+    return report.findings
+      .filter((finding) => {
+        if (
+          dispositionFilter !== "all" &&
+          finding.disposition !== dispositionFilter
+        )
+          return false;
+        if (severityFilter !== "all" && finding.severity !== severityFilter)
+          return false;
+        if (!query) return true;
+        return [
+          finding.message,
+          finding.code,
+          finding.ruleId,
+          finding.category,
+          finding.namespace,
+          finding.resourceKind,
+          finding.resourceName,
+          finding.remediation,
+          finding.targetTreatment,
+          finding.owner,
+          finding.ownerTeam,
+        ].some((value) => value?.toLowerCase().includes(query));
+      })
+      .sort((left, right) => {
+        const rank = { BLOCKER: 3, WARNING: 2, INFO: 1 };
+        return rank[right.severity] - rank[left.severity];
+      });
+  }, [report.findings, findingSearch, dispositionFilter, severityFilter]);
+
+  const selectReportTab = (tab: ReportTab) => setActiveTab(tab);
 
   return (
     <section
@@ -889,6 +1078,37 @@ export function AssessmentReportCard({
         })}
       </div>
 
+      <div
+        className="migration-workbench-distribution"
+        aria-label="Assessment disposition"
+      >
+        <div
+          className="migration-workbench-distribution-bar"
+          role="img"
+          aria-label={`${classification.SEAMLESS} ready, ${classification.AUTOMATED_CHANGE} automated, ${classification.MANUAL_CHANGE} requiring remediation and ${classification.BLOCKER} blocked resources`}
+        >
+          {classifications.map((item) => (
+            <span
+              key={item.code}
+              style={{
+                flexGrow: classification[item.code],
+                backgroundColor: item.color,
+              }}
+              title={`${item.label}: ${classification[item.code]}`}
+            />
+          ))}
+        </div>
+        <div className="migration-workbench-distribution-legend">
+          {classifications.map((item) => (
+            <span key={item.code}>
+              <i style={{ backgroundColor: item.color }} aria-hidden="true" />
+              {dispositionDetails[item.code].label}{" "}
+              <strong>{classification[item.code]}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+
       <details className="migration-report-reading-guide">
         <summary>
           <CircleHelp size={18} aria-hidden="true" />
@@ -992,7 +1212,7 @@ export function AssessmentReportCard({
                     aria-label={`${tab.label}${
                       countLabel !== undefined ? ` (${countLabel})` : ""
                     }`}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => selectReportTab(tab.id)}
                     key={tab.id}
                   >
                     <TabIcon size={15} aria-hidden="true" />
@@ -1125,117 +1345,83 @@ export function AssessmentReportCard({
           )}
 
           {activeTab === "findings" && report.findings.length > 0 && (
-            <section className="migration-findings-section">
-              <div className="migration-section-heading">
+            <section className="migration-findings-section migration-workbench-review">
+              <div className="migration-section-heading migration-workbench-review-heading">
                 <div>
-                  <h3>Detailed compatibility findings</h3>
+                  <h3>Findings to address</h3>
                   <p>
-                    Expand a category to review evidence and recommended action.
+                    Review assessment evidence, target treatments and
+                    remediation owners. Select a row for details.
                   </p>
                 </div>
+                <span>
+                  {filteredFindings.length} of {report.findings.length} findings
+                </span>
               </div>
-              <div className="migration-finding-groups">
-                {orderedClassifications.map((item) => {
-                  const findings = report.findings.filter(
-                    (finding) => finding.disposition === item.code,
-                  );
-                  if (findings.length === 0) return null;
-
-                  const details = dispositionDetails[item.code];
-                  const GroupIcon = details.icon;
-                  return (
-                    <details
-                      className={`migration-finding-group migration-finding-group-${item.code.toLowerCase()}`}
-                      key={item.code}
-                      open={item.code === firstVisibleDisposition}
-                    >
-                      <summary>
-                        <GroupIcon size={19} aria-hidden="true" />
-                        <div>
-                          <h4>
-                            {details.label} <span>{findings.length}</span>
-                          </h4>
-                          <p>{details.explanation}</p>
-                        </div>
-                      </summary>
-                      <div className="migration-finding-list">
-                        {findings.map((finding, index) => (
-                          <article
-                            key={findingKey(finding, index)}
-                            className="migration-finding"
-                          >
-                            <div className="migration-finding-description">
-                              <div>
-                                <span
-                                  className={`migration-severity migration-severity-${finding.severity.toLowerCase()}`}
-                                >
-                                  {finding.severity}
-                                </span>
-                                <span>
-                                  {finding.category.replaceAll("_", " ")}
-                                </span>
-                              </div>
-                              <h5>{finding.message}</h5>
-                              <p>
-                                {finding.namespace && (
-                                  <span>Namespace: {finding.namespace}</span>
-                                )}
-                                {finding.resourceKind && (
-                                  <span>Type: {finding.resourceKind}</span>
-                                )}
-                                {finding.resourceName && (
-                                  <span>Resource: {finding.resourceName}</span>
-                                )}
-                              </p>
-                            </div>
-                            <div className="migration-finding-action">
-                              <span>
-                                <ClipboardCheck size={16} aria-hidden="true" />
-                                Recommended action
-                              </span>
-                              <p>
-                                {finding.targetTreatment ??
-                                  finding.remediation ??
-                                  "Review this resource before migration planning."}
-                              </p>
-                              {finding.automationLevel && (
-                                <small>
-                                  Delivery:{" "}
-                                  {finding.automationLevel
-                                    .toLowerCase()
-                                    .replaceAll("_", " ")}
-                                </small>
-                              )}
-                              {finding.resolutionSteps &&
-                                finding.resolutionSteps.length > 0 && (
-                                  <div className="migration-resolution-guide">
-                                    <strong>Resolution steps</strong>
-                                    <ol>
-                                      {finding.resolutionSteps.map((step) => (
-                                        <li key={step}>{step}</li>
-                                      ))}
-                                    </ol>
-                                  </div>
-                                )}
-                              {finding.validationSteps &&
-                                finding.validationSteps.length > 0 && (
-                                  <div className="migration-resolution-guide">
-                                    <strong>Validation</strong>
-                                    <ul>
-                                      {finding.validationSteps.map((step) => (
-                                        <li key={step}>{step}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    </details>
-                  );
-                })}
+              <div className="migration-workbench-filters">
+                <label className="migration-workbench-search">
+                  <Search size={16} aria-hidden="true" />
+                  <span className="visually-hidden">Search findings</span>
+                  <input
+                    type="search"
+                    placeholder="Search findings, resources or namespaces"
+                    value={findingSearch}
+                    onChange={(event) => {
+                      setFindingSearch(event.target.value);
+                      setFindingLimit(12);
+                    }}
+                  />
+                </label>
+                <label>
+                  <span className="visually-hidden">Filter by disposition</span>
+                  <select
+                    value={dispositionFilter}
+                    onChange={(event) => {
+                      setDispositionFilter(event.target.value);
+                      setFindingLimit(12);
+                    }}
+                  >
+                    <option value="all">All treatments</option>
+                    <option value="SEAMLESS">Ready as-is</option>
+                    <option value="AUTOMATED_CHANGE">Automated changes</option>
+                    <option value="MANUAL_CHANGE">Manual changes</option>
+                    <option value="BLOCKER">Blockers</option>
+                  </select>
+                </label>
+                <label>
+                  <span className="visually-hidden">Filter by severity</span>
+                  <select
+                    value={severityFilter}
+                    onChange={(event) => {
+                      setSeverityFilter(event.target.value);
+                      setFindingLimit(12);
+                    }}
+                  >
+                    <option value="all">All severities</option>
+                    <option value="BLOCKER">Critical</option>
+                    <option value="WARNING">Warning</option>
+                    <option value="INFO">Informational</option>
+                  </select>
+                </label>
               </div>
+              <FindingsReviewTable
+                findings={filteredFindings.slice(0, findingLimit)}
+              />
+              {filteredFindings.length > findingLimit && (
+                <div className="migration-workbench-more">
+                  <span>
+                    Showing {findingLimit} of {filteredFindings.length} matching
+                    findings
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFindingLimit((current) => current + 12)}
+                  >
+                    Show more findings{" "}
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -1451,125 +1637,130 @@ export function AssessmentReportCard({
           )}
         </main>
 
-        <aside className="migration-report-sidebar">
-          <section className="migration-governance-card">
-            <div className="migration-sidebar-heading">
-              <h3>Governance &amp; decision</h3>
-              <ShieldCheck size={18} aria-hidden="true" />
-            </div>
-            {governance?.status && (
-              <span
-                className="migration-governance-status"
-                data-status={governance.status}
-              >
-                {governance.status.replaceAll("_", " ")}
-              </span>
-            )}
-            <dl>
+        <aside
+          className="migration-workbench-governance"
+          aria-label="Assessment governance"
+        >
+          <div className="migration-workbench-governance-strip">
+            <div className="migration-workbench-governance-status">
+              <ShieldCheck size={19} aria-hidden="true" />
               <div>
-                <dt>Checkpoint</dt>
-                <dd>
-                  {report.governance?.checkpoint ??
-                    "Independent assessment review"}
-                </dd>
+                <span>Assessment decision</span>
+                <strong data-status={governance?.status ?? "PENDING"}>
+                  {governance?.status?.replaceAll("_", " ") ?? "Pending review"}
+                </strong>
               </div>
-              <div>
-                <dt>
-                  <UserRound size={13} aria-hidden="true" /> Reviewer
-                </dt>
-                <dd>
-                  {report.governance?.reviewerName ?? "Not assigned"}
-                  {report.governance?.reviewerRole
-                    ? ` · ${report.governance.reviewerRole}`
-                    : ""}
-                </dd>
-              </div>
-              <div>
-                <dt>
-                  <CalendarDays size={13} aria-hidden="true" /> Due date
-                </dt>
-                <dd>{report.governance?.dueDate ?? "Not assigned"}</dd>
-              </div>
-            </dl>
-
-            <div className="migration-governance-section">
-              <h4>Policy checks</h4>
-              {policyChecks.map((check) => (
-                <div key={check.label}>
-                  <span>{check.label}</span>
-                  <strong
-                    className={
-                      check.value === "Passed"
-                        ? "migration-policy-passed"
-                        : check.value === "Pending integration"
-                          ? "migration-policy-pending"
-                          : "migration-policy-issue"
-                    }
-                  >
-                    {check.value}
-                  </strong>
-                </div>
-              ))}
             </div>
-
-            <div className="migration-governance-section">
-              <h4>Approval conditions</h4>
-              <ul>
-                {approvalConditions.map((condition) => (
-                  <li key={condition}>{condition}</li>
-                ))}
-              </ul>
+            <div>
+              <span>Independent reviewer</span>
+              <strong>
+                {report.governance?.reviewerName ?? "Not assigned"}
+              </strong>
             </div>
-          </section>
-
-          <section className="migration-next-action">
-            <h3>Recommended next action</h3>
-            <p>
-              {criticalFindingCount > 0
-                ? `Resolve ${criticalFindingCount} blocker${criticalFindingCount === 1 ? "" : "s"}, confirm remediation owners and refresh the assessment.`
-                : governance?.status === "APPROVED"
-                  ? "Prepare the migration plan for the approved scope. Confirm waves, validation, cutover and rollback before separately authorized execution."
-                  : governance?.status === "UNDER_REVIEW" ||
-                      governance?.status === "SUBMITTED"
-                    ? "Complete the independent assessment review using the existing approval controls."
+            <div>
+              <span>Remediation ownership</span>
+              <strong>
+                {classification.MANUAL_CHANGE} manual items to review
+              </strong>
+            </div>
+            <div className="migration-workbench-next-step">
+              <span>Recommended next step</span>
+              <strong>
+                {criticalFindingCount > 0
+                  ? `Resolve ${criticalFindingCount} critical findings`
+                  : governance?.status === "APPROVED"
+                    ? "Prepare approved migration scope and plan"
                     : governance?.status === "REJECTED"
-                      ? "Address the review feedback and refresh the assessment before resubmitting."
-                      : "Review planned changes and approval conditions, then submit for independent review."}
-            </p>
-          </section>
-
-          <section>
-            <h3>Audit metadata</h3>
-            <dl>
-              <div>
-                <dt>Report ID</dt>
-                <dd>
-                  {report.auditMetadata?.reportId ?? "Pending integration"}
-                </dd>
-              </div>
-              <div>
-                <dt>Report version</dt>
-                <dd>
-                  {report.auditMetadata?.reportVersion ??
-                    `v${report.assessmentVersion}`}
-                </dd>
-              </div>
-              <div>
-                <dt>Inventory hash</dt>
-                <dd title={report.inventoryDigest}>
-                  {report.inventoryDigest.slice(0, 12)}…
-                </dd>
-              </div>
-              <div>
-                <dt>Generated by</dt>
-                <dd>{report.auditMetadata?.generatedBy ?? report.createdBy}</dd>
-              </div>
-              <div>
-                <dt>Generated</dt>
-                <dd>{reportDate(report.createdAt)}</dd>
-              </div>
-            </dl>
-          </section>
+                      ? "Address review feedback"
+                      : "Complete independent assessment review"}
+              </strong>
+            </div>
+          </div>
+          <details className="migration-workbench-report-details">
+            <summary>
+              Report details, policy checks &amp; approval conditions
+            </summary>
+            <div className="migration-workbench-governance-details">
+              <section>
+                <h4>Governance &amp; decision</h4>
+                <dl>
+                  <div>
+                    <dt>Checkpoint</dt>
+                    <dd>
+                      {report.governance?.checkpoint ??
+                        "Independent assessment review"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <UserRound size={13} aria-hidden="true" /> Reviewer
+                    </dt>
+                    <dd>
+                      {report.governance?.reviewerName ?? "Not assigned"}
+                      {report.governance?.reviewerRole
+                        ? ` · ${report.governance.reviewerRole}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <CalendarDays size={13} aria-hidden="true" /> Due date
+                    </dt>
+                    <dd>{report.governance?.dueDate ?? "Not assigned"}</dd>
+                  </div>
+                </dl>
+                <h4>Policy checks</h4>
+                <dl>
+                  {policyChecks.map((check) => (
+                    <div key={check.label}>
+                      <dt>{check.label}</dt>
+                      <dd>{check.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+              <section>
+                <h4>Approval conditions</h4>
+                <ul>
+                  {approvalConditions.map((condition) => (
+                    <li key={condition}>{condition}</li>
+                  ))}
+                </ul>
+                <h4>Report provenance</h4>
+                <dl>
+                  <div>
+                    <dt>Report ID</dt>
+                    <dd>
+                      {report.auditMetadata?.reportId ?? "Pending integration"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Version</dt>
+                    <dd>
+                      {report.auditMetadata?.reportVersion ??
+                        `v${report.assessmentVersion}`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Inventory hash</dt>
+                    <dd title={report.inventoryDigest}>
+                      {report.inventoryDigest.slice(0, 12)}…
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Generated by</dt>
+                    <dd>
+                      {report.auditMetadata?.generatedBy ?? report.createdBy}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Generated</dt>
+                    <dd>{reportDate(report.createdAt)}</dd>
+                  </div>
+                </dl>
+              </section>
+            </div>
+          </details>
         </aside>
       </div>
     </section>

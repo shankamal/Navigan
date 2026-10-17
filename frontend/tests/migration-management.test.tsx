@@ -492,7 +492,7 @@ describe("Migration UI", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Assessment summary")).toBeInTheDocument();
     expect(screen.getByText("Assessed")).toBeInTheDocument();
-    expect(screen.getByText("Critical")).toBeInTheDocument();
+    expect(screen.getAllByText("Critical").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Findings (2)" }));
     expect(
       screen.getAllByText("Load balancer translation required."),
@@ -500,6 +500,35 @@ describe("Migration UI", () => {
     expect(
       screen.getAllByText("A second load balancer translation is required."),
     ).toHaveLength(1);
-    expect(screen.getByText("Automated changes")).toBeInTheDocument();
+    expect(screen.getAllByText("Automated changes").length).toBeGreaterThan(0);
+    const search = screen.getByRole("searchbox", { name: "Search findings" });
+    fireEvent.change(search, { target: { value: "second load balancer" } });
+    expect(
+      screen.getByText("A second load balancer translation is required."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Load balancer translation required."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by disposition" }),
+      {
+        target: { value: "MANUAL_CHANGE" },
+      },
+    );
+    expect(screen.getByText("No matching findings")).toBeInTheDocument();
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by disposition" }),
+      {
+        target: { value: "AUTOMATED_CHANGE" },
+      },
+    );
+    expect(
+      screen.getAllByText("Load balancer translation required.").length,
+    ).toBe(1);
+    expect(
+      screen.getByText("Report details, policy checks & approval conditions"),
+    ).toBeInTheDocument();
   });
 });
