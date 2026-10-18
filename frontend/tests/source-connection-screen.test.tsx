@@ -90,9 +90,9 @@ describe("Source connection screen", () => {
     });
     expect(screen.queryByLabelText(/AWS account ID/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Kubeconfig path/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Connector delivery/)).toHaveValue(
-      "MANUAL_HELM",
-    );
+    expect(
+      screen.getByRole("combobox", { name: /Connector delivery method/ }),
+    ).toHaveValue("MANUAL_HELM");
   });
   it("loads every active customer page", async () => {
     api.customers.mockImplementation(async ({ page }) => ({
@@ -119,7 +119,7 @@ describe("Source connection screen", () => {
     );
     fireEvent.submit(
       screen
-        .getByRole("button", { name: /Save assessment & use source/ })
+        .getByRole("button", { name: /Use source connection/ })
         .closest("form")!,
     );
     await screen.findByRole("button", { name: "Verify connection" });
@@ -148,7 +148,7 @@ describe("Source connection screen", () => {
     );
     fireEvent.submit(
       screen
-        .getByRole("button", { name: /Save assessment & use source/ })
+        .getByRole("button", { name: /Use source connection/ })
         .closest("form")!,
     );
     fireEvent.click(
@@ -181,7 +181,7 @@ describe("Source connection screen", () => {
       target: { value: "i-0123456789abcdef0" },
     });
     const form = screen
-      .getByRole("button", { name: /Save assessment & connect source/ })
+      .getByRole("button", { name: /Connect source/ })
       .closest("form")!;
     fireEvent.submit(form);
     await screen.findByRole("alert");
@@ -192,4 +192,86 @@ describe("Source connection screen", () => {
       api.createDraft.mock.calls[1][1],
     );
   });
+});
+
+it("offers reuse for an existing SSM registration without installing a new connector", async () => {
+  api.list.mockResolvedValue({
+    items: [
+      {
+        ...source,
+        deliveryConfiguration: {
+          accountId: "123456789012",
+          region: "ap-south-1",
+          managedInstanceId: "i-0123456789abcdef0",
+          kubeconfigPath: "/etc/kubernetes/admin.conf",
+        },
+      },
+    ],
+  });
+  open();
+  await identify();
+  fireEvent.change(screen.getByLabelText(/Source cluster name/), {
+    target: { value: "different-display-name" },
+  });
+  fireEvent.change(screen.getByLabelText(/AWS region/), {
+    target: { value: "ap-south-1" },
+  });
+  fireEvent.change(screen.getByLabelText(/AWS account ID/), {
+    target: { value: "123456789012" },
+  });
+  fireEvent.change(screen.getByLabelText(/SSM managed instance ID/), {
+    target: { value: "i-0123456789abcdef0" },
+  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Reuse connection/ }),
+  );
+  expect(screen.getByRole("radio", { name: /Use a connected/ })).toBeChecked();
+  fireEvent.submit(
+    screen
+      .getByRole("button", { name: "Use source connection" })
+      .closest("form")!,
+  );
+  await screen.findByRole("button", { name: "Verify connection" });
+  expect(api.createSource).not.toHaveBeenCalled();
+  expect(api.install).not.toHaveBeenCalled();
+});
+
+it("saves a draft without starting connector installation", async () => {
+  api.createSource.mockResolvedValue({
+    ...source,
+    status: "PENDING_ENROLLMENT",
+  });
+  open();
+  await identify();
+  fireEvent.change(screen.getByLabelText(/Source cluster name/), {
+    target: { value: "another-source-cluster" },
+  });
+  fireEvent.change(screen.getByLabelText(/AWS region/), {
+    target: { value: "ap-south-1" },
+  });
+  fireEvent.change(screen.getByLabelText(/AWS account ID/), {
+    target: { value: "123456789012" },
+  });
+  fireEvent.change(screen.getByLabelText(/SSM managed instance ID/), {
+    target: { value: "i-0123456789abcdef0" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await screen.findByRole("button", { name: "Verify connection" });
+  expect(api.createDraft).toHaveBeenCalledTimes(1);
+  expect(api.install).not.toHaveBeenCalled();
+  expect(api.enroll).not.toHaveBeenCalled();
+});
+
+it("shows field-level errors when Save draft is clicked with missing mandatory inputs", async () => {
+  open();
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Assessment name must contain 8–100 characters.",
+  );
+  expect(screen.getByLabelText(/Assessment name/)).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(api.createSource).not.toHaveBeenCalled();
+  expect(api.createDraft).not.toHaveBeenCalled();
 });
