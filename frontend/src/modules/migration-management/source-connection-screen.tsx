@@ -12,6 +12,7 @@ import {
   Clock3,
   Info,
   ShieldCheck,
+  LoaderCircle,
 } from "lucide-react";
 import { customersService } from "@/modules/customer-management/services/customers";
 import { normalizeApiError } from "@/shared/api/client";
@@ -74,7 +75,7 @@ export function SourceConnectionScreen({
   const [commandId, setCommandId] = useState("");
   const [resumeId, setResumeId] = useState("");
   const writeKeys = useRef(new Map<string, string>());
-  const locked = busy;
+  const locked = busy || Boolean(checkingUntil);
 
   function stableKey(operation: string, input: unknown) {
     const fingerprint = JSON.stringify([operation, input]);
@@ -268,24 +269,51 @@ export function SourceConnectionScreen({
     }
   }
 
-  // Only poll during an installation requested here. Do not remount the form,
-  // start discovery, fetch assessments, or poll forever on installation failure.
+  // Background checks never toggle the form's busy state or replace its panels.
+  const pollingSourceId = source?.sourceClusterId;
   useEffect(() => {
-    if (!checkingUntil || !source) return;
-    if (Date.now() >= checkingUntil) {
-      setCheckingUntil(0);
-      return;
-    }
-    const timer = setTimeout(() => {
+    if (!checkingUntil || !pollingSourceId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function check() {
+      if (cancelled) return;
       if (Date.now() >= checkingUntil) {
         setCheckingUntil(0);
         setNotice(
           "Automatic connection checks stopped after two minutes. Verify again or retry installation.",
         );
-      } else void verifyConnection();
-    }, 5_000);
-    return () => clearTimeout(timer);
-  }, [checkingUntil, source, busy]);
+        return;
+      }
+      try {
+        const current = await sourceClusters.get(pollingSourceId!);
+        if (cancelled) return;
+        const age =
+          Date.now() -
+          Date.parse(
+            typeof current.connectorLastSeenAt === "string"
+              ? current.connectorLastSeenAt
+              : "",
+          );
+        if (current.status === "CONNECTED" && age >= -30_000 && age < 120_000) {
+          setSource(current);
+          setVerifiedAt(new Date().toISOString());
+          setCheckingUntil(0);
+          setNotice(
+            "Connector established. A recent heartbeat has been received. Kubernetes access will be checked during discovery.",
+          );
+          return;
+        }
+      } catch {
+        // Keep the installation indicator steady through transient poll failures.
+      }
+      if (!cancelled) timer = setTimeout(check, 5_000);
+    }
+    timer = setTimeout(check, 5_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [checkingUntil, pollingSourceId]);
 
   async function deliver(registered: SourceClusterRegistration) {
     if (registered.deliveryMethod === "AWS_SSM") {
@@ -527,7 +555,17 @@ export function SourceConnectionScreen({
     setError("");
     setVerifiedAt("");
   }
-  const canSave = !busy && (!resumeId || Boolean(draft));
+  const activeCustomerSources = connectedSources.filter((item) => {
+    const age =
+      Date.now() -
+      Date.parse(
+        typeof item.connectorLastSeenAt === "string"
+          ? item.connectorLastSeenAt
+          : "",
+      );
+    return item.status === "CONNECTED" && age >= -30_000 && age < 120_000;
+  });
+  const canSave = !locked && (!resumeId || Boolean(draft));
 
   return (
     <div className={styles.screen}>
@@ -610,7 +648,7 @@ export function SourceConnectionScreen({
               <p>Provide a name for this assessment and select the customer.</p>
             </div>
           </div>
-          <fieldset disabled={busy} className={styles.identityGrid}>
+          <fieldset disabled={locked} className={styles.identityGrid}>
             <label>
               Assessment name <span>*</span>
               <input
@@ -651,6 +689,10 @@ export function SourceConnectionScreen({
                   }
                   onChange={(e) => {
                     setCustomer(e.target.value);
+                    setSource(null);
+                    setVerifiedAt("");
+                    setCommandId("");
+                    setEnrollment(null);
                     setExistingId("");
                     setSearch("");
                   }}
@@ -693,6 +735,27 @@ export function SourceConnectionScreen({
           )}
           {customersQuery.isSuccess && !customersQuery.data.length && (
             <p>No active customers are available within your access.</p>
+          )}
+          {activeCustomerSources.length > 0 && !source && (
+            <div className={styles.reuseBanner} role="status">
+              <CheckCircle2 size={20} aria-hidden="true" />
+              <div>
+                <strong>
+                  Connector is already established for this customer
+                </strong>
+                <p>
+                  {activeCustomerSources.map((item) => item.name).join(", ")}.
+                  Reuse a connected cluster to avoid another installation.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => chooseExisting(activeCustomerSources[0])}
+              >
+                Use connected cluster <ArrowRight size={15} />
+              </button>
+            </div>
           )}
           {reuseCandidate && (
             <div className={styles.reuseBanner}>
@@ -1289,9 +1352,11 @@ export function SourceConnectionScreen({
             <div>
               <h2>Connection verification</h2>
               <p>
-                {verifiedAt
-                  ? "Connected · recent connector heartbeat verified"
-                  : "Verify your source connector connection. Kubernetes access is checked during discovery."}
+                {checkingUntil
+                  ? "Installing connector and waiting for its first heartbeat…"
+                  : verifiedAt
+                    ? "Connected · recent connector heartbeat verified"
+                    : "Verify your source connector connection. Kubernetes access is checked during discovery."}
               </p>
             </div>
             <p className={styles.context}>
@@ -1300,6 +1365,26 @@ export function SourceConnectionScreen({
               {displaySource?.region || region || "Region not selected"}
             </p>
           </div>
+          {Boolean(checkingUntil) && (
+            <div
+              className={styles.installationProgress}
+              role="status"
+              aria-live="polite"
+            >
+              <LoaderCircle
+                className={styles.spinner}
+                size={20}
+                aria-hidden="true"
+              />
+              <div>
+                <strong>Connector installation in progress</strong>
+                <p>
+                  Waiting for the source cluster to connect. Status updates
+                  automatically; you can stay on this screen.
+                </p>
+              </div>
+            </div>
+          )}
           <div className={styles.verificationBottom}>
             <ol className={styles.checks}>
               <li>
@@ -1341,15 +1426,28 @@ export function SourceConnectionScreen({
               </li>
             </ol>
             <div className={styles.actions}>
-              <>
+              <button
+                type="submit"
+                name="intent"
+                value="draft"
+                disabled={!canSave}
+              >
+                {draft ? "Save changes" : "Save draft"}
+              </button>
+              {draft && source ? (
                 <button
-                  type="submit"
-                  name="intent"
-                  value="draft"
-                  disabled={!canSave}
+                  className={styles.primary}
+                  type="button"
+                  onClick={verifyConnection}
+                  disabled={locked}
                 >
-                  {draft ? "Save changes" : "Save draft"}
+                  {checkingUntil
+                    ? "Installation in progress…"
+                    : busy
+                      ? "Checking connection…"
+                      : "Verify connection"}
                 </button>
+              ) : (
                 <button
                   className={styles.primary}
                   type="submit"
@@ -1363,34 +1461,24 @@ export function SourceConnectionScreen({
                       ? "Connect source"
                       : "Use source connection"}
                 </button>
-              </>
-              {draft && source && (
-                <>
-                  <button
-                    className={styles.primary}
-                    type="button"
-                    onClick={verifyConnection}
-                    disabled={busy}
-                  >
-                    {busy ? "Checking connection…" : "Verify connection"}
-                  </button>
-                  {!verifiedAt &&
-                    !checkingUntil &&
-                    (mode === "REGISTER" || source.status !== "CONNECTED") && (
-                      <button
-                        type="button"
-                        onClick={retryDelivery}
-                        disabled={busy}
-                      >
-                        {source.deliveryMethod === "AWS_SSM"
-                          ? commandId
-                            ? "Retry installation"
-                            : "Install connector"
-                          : "Generate enrollment configuration"}
-                      </button>
-                    )}
-                </>
               )}
+              {draft &&
+                source &&
+                !verifiedAt &&
+                !checkingUntil &&
+                (commandId || source.status !== "CONNECTED") && (
+                  <button
+                    type="button"
+                    onClick={retryDelivery}
+                    disabled={locked}
+                  >
+                    {source.deliveryMethod === "AWS_SSM"
+                      ? commandId
+                        ? "Retry installation"
+                        : "Install connector"
+                      : "Generate enrollment configuration"}
+                  </button>
+                )}
               <button
                 type="button"
                 disabled
