@@ -157,3 +157,34 @@ If installation fails after the SSM command is issued, inspect its command ID
 in AWS Systems Manager Run Command for the source account. Streaming those
 sanitized logs in Navigan is a separate read-only API enhancement and is not
 implemented by this release.
+
+### Safe follow-up after the full nested change-set preview (18 October)
+
+The full nested MigrationManagement preview created by
+`stage-migration-source-connector-dev.sh` proposed dozens of API Gateway route
+replacements, IAM permission replacements, and new S3/KMS infrastructure.
+**Do not execute** that change set. In particular, do not replace existing
+migration API routes to activate the source connector.
+
+A narrower, review-only script reuses the successfully uploaded 27.7 MB
+Lambda package and patches the **deployed processed** MigrationManagement
+child template rather than swapping in the full current SAM template:
+
+```bash
+git pull --ff-only origin new_migration_approach_18oct26
+AWS_PROFILE=navigan AWS_REGION=ap-south-1 bash scripts/stage-migration-source-connector-lambda-only-dev.sh
+```
+
+The script must produce a root change set that modifies only
+`MigrationManagement` and a nested change set limited to:
+
+- `MigrationFunction`: in-place code and connector environment update
+- `MigrationConnectorFunction`: in-place code update
+- `MigrationFunctionRole`: in-place scoped `sts:AssumeRole` permission
+- `InstallSourceClusterConnectorRoute`: add one new route, only when absent
+
+It checks the existing API for the install route and fails safely if it already
+exists. It does **not** execute a change set, build a container, provision an
+artifact bucket/KMS key, or modify other capability templates. If the preview
+includes any other resources or replacements, stop and reconcile before any
+deployment.
