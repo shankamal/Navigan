@@ -36,6 +36,48 @@ if not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", token):
 if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
     raise SystemExit("Invalid connector image digest.")
 
+# Self-managed Kubernetes does not automatically authenticate its kubelet to
+# private ECR, even when the installer can access AWS Systems Manager. Create
+# an image pull secret from the source host's scoped AWS role, not from a
+# credential embedded in the SSM command or the deployment image.
+registry = repository.split("/", 1)[0]
+private_ecr = re.fullmatch(
+    r"[0-9]{12}\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com", registry
+)
+pull_secret_manifest = ""
+pod_pull_secrets = ""
+if private_ecr:
+    ecr_password = subprocess.check_output(
+        ["aws", "ecr", "get-login-password", "--region", private_ecr.group(1)],
+        text=True,
+        stderr=subprocess.PIPE,
+    ).strip()
+    if not ecr_password:
+        raise SystemExit("Private ECR pull authentication is unavailable.")
+    docker_auth = base64.b64encode(("AWS:" + ecr_password).encode()).decode()
+    docker_config = json.dumps({
+        "auths": {registry: {"username": "AWS", "password": ecr_password,
+                             "auth": docker_auth}}
+    }, separators=(",", ":"))
+    encoded_config = base64.b64encode(docker_config.encode()).decode()
+    pull_secret_manifest = f"""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: navigan-migration-image-pull
+  namespace: navigan-migration
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: {encoded_config}
+"""
+    pod_pull_secrets = """      imagePullSecrets:
+      - name: navigan-migration-image-pull
+"""
+    # The ECR password expires. Keep this refreshable by the installer rather
+    # than including the registry token in long-lived connector settings.
+    del ecr_password, docker_auth, docker_config
+
 body = json.dumps({
     "sourceClusterId": source_id,
     "enrollmentToken": token,
@@ -63,6 +105,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: navigan-migration
+{pull_secret_manifest}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -149,7 +192,7 @@ spec:
         app.kubernetes.io/name: navigan-source-connector
     spec:
       serviceAccountName: navigan-source-connector
-      automountServiceAccountToken: false
+{pod_pull_secrets}      automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
