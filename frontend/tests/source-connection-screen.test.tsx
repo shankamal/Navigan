@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SourceConnectionScreen } from "@/modules/migration-management/source-connection-screen";
 
@@ -196,7 +202,7 @@ describe("Source connection screen", () => {
     fireEvent.submit(form);
     await screen.findByRole("alert");
     fireEvent.submit(form);
-    await screen.findByRole("button", { name: "Verify connection" });
+    await screen.findByRole("button", { name: "Installation in progress…" });
     expect(api.createSource).toHaveBeenCalledTimes(1);
     expect(api.createDraft.mock.calls[0][1]).toBe(
       api.createDraft.mock.calls[1][1],
@@ -332,4 +338,82 @@ it("restores a draft with editable name and source selection, persists changes w
   expect(screen.getByLabelText(/Source cluster name/)).toBeEnabled();
   expect(screen.getByLabelText(/AWS account ID/)).toBeEnabled();
   expect(screen.getByLabelText(/SSM managed instance ID/)).toBeEnabled();
+});
+
+it("shows an established connector message only for the selected customer with a recent heartbeat", async () => {
+  open();
+  await identify();
+  expect(
+    await screen.findByText(
+      "Connector is already established for this customer",
+    ),
+  ).toBeVisible();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Use connected cluster" }),
+  );
+  expect(screen.getByLabelText(/^Connected source cluster/)).toHaveValue(
+    source.sourceClusterId,
+  );
+  expect(api.install).not.toHaveBeenCalled();
+});
+
+it("keeps installation progress steady during polling and replaces Connect source with Verify connection", async () => {
+  api.list.mockResolvedValue({ items: [] });
+  api.createSource.mockResolvedValue({
+    ...source,
+    status: "PENDING_ENROLLMENT",
+  });
+  api.get.mockResolvedValue({ ...source, status: "PENDING_ENROLLMENT" });
+  api.install.mockResolvedValue({ commandId: "command-1" });
+  open();
+  await identify();
+  for (const [label, value] of [
+    [/Source cluster name/, "new-cluster"],
+    [/AWS region/, "ap-south-1"],
+    [/AWS account ID/, "123456789012"],
+    [/SSM managed instance ID/, "i-0123456789abcdef0"],
+  ] as const) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+  vi.useFakeTimers();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Connect source" }));
+  });
+  const progress = screen.getByText("Connector installation in progress");
+  expect(
+    screen.queryByRole("button", { name: "Connect source" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Installation in progress…" }),
+  ).toBeDisabled();
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(screen.getByText("Connector installation in progress")).toBe(
+      progress,
+    );
+    expect(
+      screen.getByRole("button", { name: "Installation in progress…" }),
+    ).toBeDisabled();
+    api.get.mockResolvedValue({
+      ...source,
+      connectorLastSeenAt: new Date().toISOString(),
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(
+      screen.queryByText("Connector installation in progress"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Verify connection" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Verify connection" }),
+    ).toBeEnabled();
+    expect(api.install).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
 });
