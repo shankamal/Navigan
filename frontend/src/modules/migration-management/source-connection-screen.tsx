@@ -74,7 +74,7 @@ export function SourceConnectionScreen({
   const [commandId, setCommandId] = useState("");
   const [resumeId, setResumeId] = useState("");
   const writeKeys = useRef(new Map<string, string>());
-  const locked = Boolean(source || draft || resumeId);
+  const locked = busy;
 
   function stableKey(operation: string, input: unknown) {
     const fingerprint = JSON.stringify([operation, input]);
@@ -161,7 +161,9 @@ export function SourceConnectionScreen({
               "/etc/kubernetes/admin.conf",
           ),
         );
-        setNotice("Draft restored. Verify the source connection to continue.");
+        setNotice(
+          "Draft restored. Edit the assessment name or change its source cluster, then save changes. Shared cluster details are shown for reference.",
+        );
       })
       .catch((failure) => {
         if (active)
@@ -228,6 +230,14 @@ export function SourceConnectionScreen({
 
   async function verifyConnection() {
     if (busy || !validateAction("verify") || !source) return;
+    if (
+      !draft ||
+      draft.name !== name.trim() ||
+      draft.sourceConfiguration?.sourceClusterId !== source.sourceClusterId
+    ) {
+      setError("Save your changes before verifying the source connection.");
+      return;
+    }
     setBusy(true);
     setError("");
     setVerifiedAt("");
@@ -373,7 +383,21 @@ export function SourceConnectionScreen({
         }
         setSource(registered);
       }
-      if (!draft) {
+      if (draft) {
+        setDraft(
+          await migrations.update(draft.migrationId, {
+            version: draft.version,
+            name: name.trim(),
+            source: {
+              platform: "SELF_MANAGED_KUBERNETES",
+              sourceClusterId: registered.sourceClusterId,
+              accessMode: "READ_ONLY_CONNECTOR",
+              discoveryMode: "MANUAL",
+            },
+            changeReason: "Update source connection assessment draft",
+          }),
+        );
+      } else {
         const input = {
           customerId: customer,
           name: name.trim(),
@@ -499,10 +523,11 @@ export function SourceConnectionScreen({
     setMode("EXISTING");
     setFieldErrors({});
     setExistingId(item.sourceClusterId);
+    setSource(null);
     setError("");
     setVerifiedAt("");
   }
-  const canSave = !busy && !draft && !resumeId;
+  const canSave = !busy && (!resumeId || Boolean(draft));
 
   return (
     <div className={styles.screen}>
@@ -536,6 +561,18 @@ export function SourceConnectionScreen({
           ))
             return;
           const key = target.name as keyof ConnectionFieldErrors;
+          if (
+            mode === "REGISTER" &&
+            source &&
+            key &&
+            key !== "name" &&
+            key !== "customer"
+          ) {
+            setSource(null);
+            setVerifiedAt("");
+            setCommandId("");
+            setEnrollment(null);
+          }
           if (key && fieldErrors[key])
             setFieldErrors((current) => ({ ...current, [key]: undefined }));
         }}
@@ -573,10 +610,7 @@ export function SourceConnectionScreen({
               <p>Provide a name for this assessment and select the customer.</p>
             </div>
           </div>
-          <fieldset
-            disabled={Boolean(draft) || busy || Boolean(resumeId)}
-            className={styles.identityGrid}
-          >
+          <fieldset disabled={busy} className={styles.identityGrid}>
             <label>
               Assessment name <span>*</span>
               <input
@@ -610,7 +644,10 @@ export function SourceConnectionScreen({
                   }
                   value={customer}
                   disabled={
-                    locked || customersQuery.isPending || customersQuery.isError
+                    Boolean(draft) ||
+                    locked ||
+                    customersQuery.isPending ||
+                    customersQuery.isError
                   }
                   onChange={(e) => {
                     setCustomer(e.target.value);
@@ -746,6 +783,10 @@ export function SourceConnectionScreen({
                     checked={mode === "EXISTING"}
                     onChange={() => {
                       setMode("EXISTING");
+                      setSource(null);
+                      setVerifiedAt("");
+                      setCommandId("");
+                      setEnrollment(null);
                       setFieldErrors({});
                     }}
                   />
@@ -759,6 +800,10 @@ export function SourceConnectionScreen({
                     checked={mode === "REGISTER"}
                     onChange={() => {
                       setMode("REGISTER");
+                      setSource(null);
+                      setVerifiedAt("");
+                      setCommandId("");
+                      setEnrollment(null);
                       setFieldErrors({});
                     }}
                   />
@@ -779,6 +824,7 @@ export function SourceConnectionScreen({
                     value={existingId || source?.sourceClusterId || ""}
                     onChange={(e) => {
                       setExistingId(e.target.value);
+                      setSource(null);
                       setVerifiedAt("");
                     }}
                   >
@@ -806,7 +852,9 @@ export function SourceConnectionScreen({
                       )}
                   </select>
                   <small>
-                    Reuse a customer connection across multiple assessments.
+                    Select another connected cluster, or choose Register new
+                    cluster to enter new connection details. Shared cluster
+                    details below are read-only.
                   </small>
                 </label>
                 {sourcesQuery.isError && (
@@ -1293,31 +1341,29 @@ export function SourceConnectionScreen({
               </li>
             </ol>
             <div className={styles.actions}>
-              {!draft && (
-                <>
-                  <button
-                    type="submit"
-                    name="intent"
-                    value="draft"
-                    disabled={!canSave}
-                  >
-                    Save draft
-                  </button>
-                  <button
-                    className={styles.primary}
-                    type="submit"
-                    name="intent"
-                    value="connect"
-                    disabled={!canSave}
-                  >
-                    {busy
-                      ? "Saving connection…"
-                      : mode === "REGISTER"
-                        ? "Connect source"
-                        : "Use source connection"}
-                  </button>
-                </>
-              )}
+              <>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="draft"
+                  disabled={!canSave}
+                >
+                  {draft ? "Save changes" : "Save draft"}
+                </button>
+                <button
+                  className={styles.primary}
+                  type="submit"
+                  name="intent"
+                  value="connect"
+                  disabled={!canSave}
+                >
+                  {busy
+                    ? "Saving connection…"
+                    : mode === "REGISTER"
+                      ? "Connect source"
+                      : "Use source connection"}
+                </button>
+              </>
               {draft && source && (
                 <>
                   <button
