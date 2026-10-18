@@ -1,4 +1,5 @@
 import copy
+import os
 from datetime import datetime, timezone
 import secrets
 import uuid
@@ -455,15 +456,31 @@ class Service:
         self.access.require_customer(body["customerId"])
         self.repo.require_customer_visible(body["customerId"])
 
+        target = body.get("target")
+        if body["source"].get("discoveryMode") == "MANUAL" and os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") != "true":
+            raise ApiError(400, "SOURCE_FIRST_DISABLED", "The source-first workflow is not enabled on this instance.")
+        if not target:
+            if os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") != "true":
+                raise ApiError(400, "TARGET_REQUIRED", "Select the target environment first.")
+            body["source"]["discoveryMode"] = "MANUAL"
+            source_id = body["source"].get("sourceClusterId")
+            if not source_id:
+                raise ApiError(400, "SOURCE_CLUSTER_REQUIRED", "Register or select a source cluster first.")
+            source = self.repo.get_source_cluster(source_id)
+            if source["customer_id"] != body["customerId"] or source["status"] == "REVOKED":
+                raise ApiError(409, "SOURCE_CLUSTER_UNAVAILABLE", "Select an available source cluster belonging to this customer.")
+
         row = {
             "migration_id": "MIG-" + uuid.uuid4().hex,
             "customer_id": body["customerId"],
             "name": body["name"],
             "description": body.get("description"),
             "source_platform": body["source"]["platform"],
-            "target_platform": body["target"]["platform"],
+            # P0 destination family only; an empty configuration means no
+            # target environment or cluster has been selected yet.
+            "target_platform": target["platform"] if target else "EKS",
             "source_configuration": body["source"],
-            "target_configuration": body["target"],
+            "target_configuration": target or {},
             "migration_scope": body["scope"],
             "execution_mode": "ASSESSMENT_ONLY",
             "status": "DRAFT",
@@ -853,3 +870,4 @@ class Service:
             result[connector_field] = serialize(connector)
 
         return result
+
