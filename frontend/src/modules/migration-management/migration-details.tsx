@@ -9,7 +9,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useClusters } from "@/modules/cluster-management/hooks/queries";
 import { normalizeApiError } from "@/shared/api/client";
@@ -53,6 +53,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     "/etc/kubernetes/admin.conf",
   );
   const [sourceError, setSourceError] = useState("");
+  const automaticInstallAttempt = useRef("");
   const [assessmentNamespaces, setAssessmentNamespaces] = useState<string[]>(
     [],
   );
@@ -386,6 +387,36 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const sourceSetupRequired =
     migration?.status === "SOURCE_ENROLLMENT_PENDING" ||
     (migration?.status === "DRAFT" && !sourceCatalogue);
+
+  useEffect(() => {
+    const source = effectiveSourceCluster;
+    if (
+      !sourceSetupRequired ||
+      !canPrepareSource ||
+      sourceRegistrationMissing ||
+      !source ||
+      source.deliveryMethod !== "AWS_SSM" ||
+      source.status === "CONNECTED" ||
+      sourceCatalogue ||
+      sourceInstallation ||
+      automaticInstallation.isPending ||
+      automaticInstallation.isError
+    ) {
+      return;
+    }
+    const attempt = `${source.sourceClusterId}:${source.version}`;
+    if (automaticInstallAttempt.current === attempt) return;
+    automaticInstallAttempt.current = attempt;
+    automaticInstallation.mutate();
+  }, [
+    automaticInstallation,
+    canPrepareSource,
+    effectiveSourceCluster,
+    sourceCatalogue,
+    sourceInstallation,
+    sourceRegistrationMissing,
+    sourceSetupRequired,
+  ]);
 
   useEffect(() => {
     if (assessmentNamespaces.length === 0) {
@@ -924,34 +955,77 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
               ) : (
                 <>
                   <div>
-                    <strong>Source connector setup required</strong>
+                    <strong>Establishing source connection</strong>
                     <p className="muted">
                       {effectiveSourceCluster?.deliveryMethod === "AWS_SSM"
-                        ? "Install the read-only connector through the approved AWS Systems Manager delivery role."
+                        ? "Navigan automatically installs the read-only connector through AWS Systems Manager, then checks for the source inventory."
                         : "Reissue a short-lived setup file for the existing registered source cluster. This does not create another source cluster or migration request."}
                     </p>
                   </div>
+                  {effectiveSourceCluster?.deliveryMethod === "AWS_SSM" && (
+                    <ol
+                      className={styles.sourceConnectionProgress}
+                      aria-label="Source connection progress"
+                    >
+                      <li>
+                        <CheckCircle2 size={16} aria-hidden="true" />
+                        <span>1. Source registered</span>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">
+                          {sourceInstallation ? "✓" : "2"}
+                        </span>
+                        <span>
+                          {sourceInstallation
+                            ? "2. Installation submitted"
+                            : automaticInstallation.isError
+                              ? "2. Installation needs attention"
+                              : "2. Starting installation"}
+                        </span>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">3</span>
+                        <span>3. Inventory pending</span>
+                      </li>
+                    </ol>
+                  )}
                   {sourceInstallation ? (
                     <div role="status">
-                      <strong>Connector installation started</strong>
+                      <strong>Source connector installation submitted</strong>
                       <p className="muted">
                         Systems Manager command {sourceInstallation.commandId}{" "}
-                        is running on {sourceInstallation.managedInstanceId}.
+                        was submitted for {sourceInstallation.managedInstanceId}
+                        . Navigan is checking for the first inventory snapshot
+                        automatically. This command ID can also be used to
+                        inspect execution details in AWS Systems Manager.
                       </p>
                     </div>
                   ) : effectiveSourceCluster?.deliveryMethod === "AWS_SSM" ? (
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      disabled={
-                        !canPrepareSource || automaticInstallation.isPending
-                      }
-                      onClick={() => automaticInstallation.mutate()}
-                    >
-                      {automaticInstallation.isPending
-                        ? "Starting secure installation…"
-                        : "Install source connector"}
-                    </button>
+                    effectiveSourceCluster.status === "CONNECTED" ? (
+                      <p role="status" className="muted">
+                        Source connector connected. Waiting for its next
+                        inventory report; no installation is required.
+                      </p>
+                    ) : automaticInstallation.isError ? (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        disabled={!canPrepareSource}
+                        onClick={() => {
+                          setSourceError("");
+                          automaticInstallation.reset();
+                          automaticInstallation.mutate();
+                        }}
+                      >
+                        Retry source connection
+                      </button>
+                    ) : (
+                      <p role="status" className="muted">
+                        {automaticInstallation.isPending
+                          ? "Starting secure connector installation through AWS Systems Manager…"
+                          : "Preparing automatic source connection…"}
+                      </p>
+                    )
                   ) : sourceEnrollment ? (
                     <button
                       type="button"
@@ -989,6 +1063,19 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
 
           {migration.status === "INVENTORY_READY" && (
             <section className={`panel ${styles.connectionCard}`}>
+              {sourceCatalogue && (
+                <div role="status" className={styles.sourceConnectedNotice}>
+                  <CheckCircle2 size={20} aria-hidden="true" />
+                  <div>
+                    <strong>Source connection established</strong>
+                    <p className="muted">
+                      Kubernetes {sourceCatalogue.sourceKubernetesVersion} ·{" "}
+                      {sourceCatalogue.namespaces.length} namespaces discovered.
+                      You can now review the workloads for migration.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div>
                 <h2>Continue migration assessment</h2>
                 <p className="muted">

@@ -31,11 +31,22 @@ export interface SchedulingEvidenceResult {
 }
 
 export interface ResourceCompatibilityEvaluation {
-  resource: {apiVersion: string; kind: string; namespace: string | null; name: string};
-  status: "INCOMPATIBLE" | "REMEDIATION_REQUIRED" | "PENDING_EVIDENCE" | "COMPATIBLE";
+  resource: {
+    apiVersion: string;
+    kind: string;
+    namespace: string | null;
+    name: string;
+  };
+  status:
+    "INCOMPATIBLE" | "REMEDIATION_REQUIRED" | "PENDING_EVIDENCE" | "COMPATIBLE";
   sourceStatus?: string;
   targetStatus?: string;
-  checks: {capability: string; status: string; reason: string; nextAction: string}[];
+  checks: {
+    capability: string;
+    status: string;
+    reason: string;
+    nextAction: string;
+  }[];
 }
 
 export interface DiscoveryCoverageReport {
@@ -55,13 +66,13 @@ export interface DiscoveryCoverageReport {
         complete: boolean;
       };
     };
-    capabilities: Record<string, {status: string; reason: string}>;
+    capabilities: Record<string, { status: string; reason: string }>;
   };
   target: {
     inventoryResourceCount: number | null;
     freshness: "CURRENT" | "STALE" | "UNKNOWN";
     discoveryAccepted: boolean;
-    capabilities: Record<string, {status: string; reason: string}>;
+    capabilities: Record<string, { status: string; reason: string }>;
   };
   note: string;
 }
@@ -72,13 +83,31 @@ export interface WorkloadAssessmentReport {
   workloadCount: number;
   targetClusterId: string | null;
   workloads: {
-    source: {apiVersion: string; kind: string; namespace: string | null; name: string};
+    source: {
+      apiVersion: string;
+      kind: string;
+      namespace: string | null;
+      name: string;
+    };
     plannedTreatment: string;
     compatibilityStatus: string;
     dependencyEvidenceStatus: string;
-    observedDependencies: {kind: string; namespace: string | null; name: string}[];
-    unresolvedDependencies: {kind: string; namespace: string | null; name: string}[];
-    checks: {capability: string; status: string; reason: string; nextAction: string}[];
+    observedDependencies: {
+      kind: string;
+      namespace: string | null;
+      name: string;
+    }[];
+    unresolvedDependencies: {
+      kind: string;
+      namespace: string | null;
+      name: string;
+    }[];
+    checks: {
+      capability: string;
+      status: string;
+      reason: string;
+      nextAction: string;
+    }[];
   }[];
   limitations: string[];
 }
@@ -145,21 +174,43 @@ export interface TargetAssessmentRecord {
     collectionLimitations?: Record<string, string>;
     resourceKinds?: Record<string, number>;
     discoveredApiVersions?: string[];
-    storageDiscovery?: { StorageClass?: "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED"; CSIDriver?: "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED" };
+    storageDiscovery?: {
+      StorageClass?:
+        "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED";
+      CSIDriver?:
+        "AVAILABLE" | "PERMISSION_DENIED" | "UNAVAILABLE" | "NOT_REPORTED";
+    };
     storageClasses?: string[];
-    storageClassDetails?: { name: string; provisioner?: string | null; volumeBindingMode?: string | null; reclaimPolicy?: string | null }[];
+    storageClassDetails?: {
+      name: string;
+      provisioner?: string | null;
+      volumeBindingMode?: string | null;
+      reclaimPolicy?: string | null;
+    }[];
     csiDrivers?: string[];
-    nodeCapacity?: { name?: string; allocatableCpu: string; allocatableMemory: string }[];
+    nodeCapacity?: {
+      name?: string;
+      allocatableCpu: string;
+      allocatableMemory: string;
+    }[];
     nodeCapacityCoverage?: { observedNodes: number; nodesWithCapacity: number };
-    capabilityEvidence?: Record<"kubernetesApi" | "compute" | "storage" | "networking" | "identity" | "dependencies", {
-      status: "PARTIAL" | "NOT_VERIFIED";
-      reason: string;
-      observedApiVersions?: string[];
-      observedStorageClassCount?: number;
-      observedCSIDriverCount?: number;
-      observedNodeCount?: number;
-      observedServiceCount?: number;
-    }>;
+    capabilityEvidence?: Record<
+      | "kubernetesApi"
+      | "compute"
+      | "storage"
+      | "networking"
+      | "identity"
+      | "dependencies",
+      {
+        status: "PARTIAL" | "NOT_VERIFIED";
+        reason: string;
+        observedApiVersions?: string[];
+        observedStorageClassCount?: number;
+        observedCSIDriverCount?: number;
+        observedNodeCount?: number;
+        observedServiceCount?: number;
+      }
+    >;
     unclassifiedResourceCount?: number;
     inventoryExpiresAt?: string | null;
     kubernetesVersion?: string;
@@ -175,21 +226,48 @@ export interface TargetAssessmentResponse {
 }
 
 export const migrations = {
-  prepareArtifactUpload: async (migrationId: string, input: {
-    kind: "MANIFEST_YAML" | "HELM_CHART" | "HELM_VALUES" | "VALIDATION_REPORT";
-    filename: string;
-    sha256: string;
-    sizeBytes: number;
-    contentType: string;
-  }): Promise<{method: "PUT";url: string;key: string;requiredHeaders: Record<string,string>;status: string}> =>
-    (await apiClient.post(`${base}/${migrationId}/artifacts/upload-intent`, input,
-      { headers: writeHeaders({ key: crypto.randomUUID() }) })).data,
-  targetCompatibility: async (migrationId: string): Promise<TargetCompatibilityResponse> =>
+  prepareArtifactUpload: async (
+    migrationId: string,
+    input: {
+      kind:
+        "MANIFEST_YAML" | "HELM_CHART" | "HELM_VALUES" | "VALIDATION_REPORT";
+      filename: string;
+      sha256: string;
+      sizeBytes: number;
+      contentType: string;
+    },
+  ): Promise<{
+    method: "PUT";
+    url: string;
+    key: string;
+    requiredHeaders: Record<string, string>;
+    status: string;
+  }> =>
+    (
+      await apiClient.post(
+        `${base}/${migrationId}/artifacts/upload-intent`,
+        input,
+        { headers: writeHeaders({ key: crypto.randomUUID() }) },
+      )
+    ).data,
+  targetCompatibility: async (
+    migrationId: string,
+  ): Promise<TargetCompatibilityResponse> =>
     (await apiClient.get(`${base}/${migrationId}/target-compatibility`)).data,
-  targetAssessment: async (migrationId: string): Promise<TargetAssessmentResponse> =>
+  targetAssessment: async (
+    migrationId: string,
+  ): Promise<TargetAssessmentResponse> =>
     (await apiClient.get(`${base}/${migrationId}/target-assessment`)).data,
-  analyzeTarget: async (migrationId: string): Promise<TargetAssessmentResponse> =>
-    (await apiClient.post(`${base}/${migrationId}/target-assessment`, {}, { headers: writeHeaders({ key: crypto.randomUUID() }) })).data,
+  analyzeTarget: async (
+    migrationId: string,
+  ): Promise<TargetAssessmentResponse> =>
+    (
+      await apiClient.post(
+        `${base}/${migrationId}/target-assessment`,
+        {},
+        { headers: writeHeaders({ key: crypto.randomUUID() }) },
+      )
+    ).data,
 
   list: async (signal?: AbortSignal) =>
     parseResponse(
@@ -267,19 +345,28 @@ export const migrations = {
   assessment: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       assessmentResponseSchema,
-      (await apiClient.get(`${base}/${migrationId}/assessment`, { signal })).data,
+      (await apiClient.get(`${base}/${migrationId}/assessment`, { signal }))
+        .data,
     ),
 
   sourceCatalogue: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceCatalogueResponseSchema,
-      (await apiClient.get(`${base}/${migrationId}/source-catalogue`, { signal })).data,
+      (
+        await apiClient.get(`${base}/${migrationId}/source-catalogue`, {
+          signal,
+        })
+      ).data,
     ),
 
   sourceInventory: async (migrationId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceInventoryResponseSchema,
-      (await apiClient.get(`${base}/${migrationId}/source-inventory`, { signal })).data,
+      (
+        await apiClient.get(`${base}/${migrationId}/source-inventory`, {
+          signal,
+        })
+      ).data,
     ),
 
   update: async (migrationId: string, input: UpdateMigrationInput) =>
@@ -389,7 +476,9 @@ export const sourceClusters = {
           },
           {
             headers: writeHeaders({
-              key: crypto.randomUUID(),
+              // Reusing this key on remount/retry returns the original SSM
+              // command instead of launching another installation.
+              key: `source-connector-install:${sourceClusterId}:v${version}`,
               version,
             }),
           },

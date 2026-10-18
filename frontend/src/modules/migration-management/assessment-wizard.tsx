@@ -265,7 +265,17 @@ export function AssessmentWizard() {
     setSourceInstallation(null);
 
     try {
-      setMigration(await createMigrationDraft(sourceClusterId));
+      const created = await createMigrationDraft(sourceClusterId);
+      setMigration(created);
+      const existing = availableSourceClusters.find(
+        (item) => item.sourceClusterId === sourceClusterId,
+      );
+      if (
+        existing?.deliveryMethod === "AWS_SSM" &&
+        existing.status !== "CONNECTED"
+      ) {
+        await startSourceInstallation(existing);
+      }
     } catch (error) {
       setSourceError(normalizeApiError(error).message);
     } finally {
@@ -326,10 +336,30 @@ export function AssessmentWizard() {
       setSourceClusterId(registered.sourceClusterId);
       setSourceEnrollment(enrollment);
       setMigration(created);
+      if (registered.deliveryMethod === "AWS_SSM") {
+        await startSourceInstallation(registered);
+      }
     } catch (error) {
       setSourceError(normalizeApiError(error).message);
     } finally {
       setSourceBusy(false);
+    }
+  }
+
+  async function startSourceInstallation(source: SourceClusterRegistration) {
+    try {
+      setSourceInstallation(
+        await sourceClusters.install(source.sourceClusterId, source.version),
+      );
+    } catch (error) {
+      const failure = normalizeApiError(error);
+      setSourceError(
+        failure.code === "SOURCE_CONNECTOR_ARTIFACT_UNAVAILABLE"
+          ? "The platform administrator must configure the server-side source connector image and API endpoint before automatic installation can start."
+          : failure.code === "SOURCE_DELIVERY_ROLE_NOT_APPROVED"
+            ? "The AWS SSM delivery role is not approved for this source cluster. Contact the platform administrator."
+            : failure.message,
+      );
     }
   }
 
@@ -347,20 +377,7 @@ export function AssessmentWizard() {
     setSourceBusy(true);
     setSourceError("");
     try {
-      const installation = await sourceClusters.install(
-        selectedSource.sourceClusterId,
-        selectedSource.version,
-      );
-      setSourceInstallation(installation);
-    } catch (error) {
-      const failure = normalizeApiError(error);
-      setSourceError(
-        failure.code === "SOURCE_CONNECTOR_ARTIFACT_UNAVAILABLE"
-          ? "The platform administrator must configure the server-side source connector image and API endpoint before AWS SSM installation can start."
-          : failure.code === "SOURCE_DELIVERY_ROLE_NOT_APPROVED"
-            ? "The AWS SSM delivery role is not approved for this source cluster. Contact the platform administrator."
-            : failure.message,
-      );
+      await startSourceInstallation(selectedSource);
     } finally {
       setSourceBusy(false);
     }
@@ -1033,9 +1050,12 @@ export function AssessmentWizard() {
                             ? "Inventory ready"
                             : sourceInstallation
                               ? "Connector installation requested"
-                              : selectedSource.deliveryMethod === "AWS_SSM"
-                                ? "AWS SSM installation required"
-                                : "Waiting for connector setup"}
+                              : sourceBusy &&
+                                  selectedSource.deliveryMethod === "AWS_SSM"
+                                ? "Starting secure connector installation"
+                                : selectedSource.deliveryMethod === "AWS_SSM"
+                                  ? "Waiting for source connection"
+                                  : "Waiting for connector setup"}
                         </dd>
                       </div>
                       <div>
@@ -1044,13 +1064,42 @@ export function AssessmentWizard() {
                       </div>
                     </dl>
 
+                    {selectedSource.deliveryMethod === "AWS_SSM" &&
+                      !sourceCatalogue && (
+                        <ol
+                          className={styles.sourceConnectionProgress}
+                          aria-label="Source connection progress"
+                        >
+                          <li>
+                            <CheckCircle2 size={16} aria-hidden="true" />
+                            <span>1. Source registered</span>
+                          </li>
+                          <li>
+                            <span aria-hidden="true">
+                              {sourceInstallation ? "✓" : "2"}
+                            </span>
+                            <span>
+                              {sourceInstallation
+                                ? "2. Installation submitted"
+                                : sourceError
+                                  ? "2. Installation needs attention"
+                                  : "2. Starting installation"}
+                            </span>
+                          </li>
+                          <li>
+                            <span aria-hidden="true">3</span>
+                            <span>3. Inventory pending</span>
+                          </li>
+                        </ol>
+                      )}
+
                     {!sourceCatalogue &&
                       selectedSource.deliveryMethod === "AWS_SSM" && (
                         <div className={styles.bootstrapNotice}>
                           {sourceInstallation ? (
                             <div role="status" aria-live="polite">
                               <strong>
-                                Source connector installation requested
+                                Connecting source cluster automatically
                               </strong>
                               <p>
                                 AWS Systems Manager command{" "}
@@ -1061,27 +1110,42 @@ export function AssessmentWizard() {
                                 when inventory is received.
                               </p>
                             </div>
-                          ) : (
-                            <>
+                          ) : sourceBusy ? (
+                            <div role="status" aria-live="polite">
                               <strong>
-                                Install the read-only source connector
+                                Starting secure source connection…
                               </strong>
                               <p>
-                                Use the approved AWS Systems Manager delivery
-                                role to install the connector on the selected
-                                managed instance. No local setup download is
-                                required.
+                                Registering the source and submitting the AWS
+                                Systems Manager installation command.
                               </p>
-                              <button
-                                type="button"
-                                className="button button-primary"
-                                disabled={sourceBusy}
-                                onClick={() => void installSourceConnector()}
-                              >
-                                {sourceBusy
-                                  ? "Starting secure installation…"
-                                  : "Install source connector"}
-                              </button>
+                            </div>
+                          ) : selectedSource.status === "CONNECTED" ? (
+                            <div role="status" aria-live="polite">
+                              <strong>Connector connected</strong>
+                              <p>
+                                Waiting for the source catalogue. Navigan checks
+                                for incoming inventory automatically.
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <strong>Automatic source connection</strong>
+                              <p>
+                                Navigan starts AWS Systems Manager installation
+                                as part of source registration. If installation
+                                did not start, you can retry the same command
+                                without creating another source cluster.
+                              </p>
+                              {sourceError && (
+                                <button
+                                  type="button"
+                                  className="button button-secondary"
+                                  onClick={() => void installSourceConnector()}
+                                >
+                                  Retry source connection
+                                </button>
+                              )}
                             </>
                           )}
                         </div>

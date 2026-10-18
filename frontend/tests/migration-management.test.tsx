@@ -248,7 +248,7 @@ function openSourceConnectionStep() {
 }
 
 describe("Migration UI", () => {
-  it("starts AWS SSM connector installation without demanding manual bootstrap settings", async () => {
+  it("automatically starts AWS SSM installation when the source is registered", async () => {
     catalogueAvailability.ready = false;
     vi.mocked(sourceClusters.enroll).mockClear();
     vi.mocked(sourceClusters.install).mockClear();
@@ -274,17 +274,12 @@ describe("Migration UI", () => {
         screen.getByRole("button", { name: "Register source cluster" }),
       );
 
-      const install = await screen.findByRole("button", {
-        name: "Install source connector",
-      });
-      expect(install).toBeEnabled();
       expect(
         screen.queryByRole("button", { name: /Download connector setup/i }),
       ).not.toBeInTheDocument();
       expect(sourceClusters.enroll).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: /continue/i })).toBeDisabled();
 
-      fireEvent.click(install);
       await waitFor(() => {
         expect(sourceClusters.install).toHaveBeenCalledWith(
           "SRC-" + "c".repeat(32),
@@ -294,6 +289,9 @@ describe("Migration UI", () => {
           "11111111-2222-3333-4444-555555555555",
         );
       });
+      expect(
+        screen.queryByRole("button", { name: "Install source connector" }),
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/image and API endpoint are not configured/i),
       ).not.toBeInTheDocument();

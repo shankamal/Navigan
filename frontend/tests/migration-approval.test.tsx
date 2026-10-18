@@ -231,18 +231,18 @@ describe("Migration approval gate", () => {
   it("starts automatic installation for an AWS SSM source", async () => {
     state.status = "SOURCE_ENROLLMENT_PENDING";
     state.deliveryMethod = "AWS_SSM";
+    state.catalogueReady = false;
     renderDetails();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Install source connector" }),
-    );
 
     await waitFor(() =>
       expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1),
     );
     expect(
-      await screen.findByText("Connector installation started"),
+      await screen.findByText("Source connector installation submitted"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Install source connector" }),
+    ).not.toBeInTheDocument();
   });
 
   it("resumes a saved draft at source installation instead of showing an empty report", async () => {
@@ -252,19 +252,13 @@ describe("Migration approval gate", () => {
     renderDetails();
 
     expect(
-      screen.getByRole("button", { name: "Install source connector" }),
-    ).toBeEnabled();
-    expect(
       screen.queryByText(/No feasibility report is available/i),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Install source connector" }),
-    );
     await waitFor(() => {
       expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1);
       expect(
-        screen.getByText("Connector installation started"),
+        screen.getByText("Source connector installation submitted"),
       ).toBeInTheDocument();
     });
   });
