@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,6 +6,9 @@ import {
   MigrationCreatePage,
   MigrationManagementPage,
 } from "@/modules/migration-management";
+import { sourceClusters } from "@/modules/migration-management/service";
+
+const catalogueAvailability = vi.hoisted(() => ({ ready: true }));
 
 vi.mock("@/shared/auth/auth-provider", () => ({
   useAuth: () => ({
@@ -121,26 +124,28 @@ vi.mock("@/modules/migration-management/hooks", () => ({
           migrationId,
           version: 4,
           status: "INVENTORY_READY",
-          catalogue: {
-            catalogueVersion: 1,
-            migrationVersion: 3,
-            schemaVersion: 1,
-            observedAt: "2026-10-05T12:30:00Z",
-            sourceKubernetesVersion: "v1.37.1",
-            inventoryDigest: "a".repeat(64),
-            nodeCount: 3,
-            architectures: ["amd64"],
-            namespaces: [
-              {
-                name: "retailflow",
-                resourceCounts: {
-                  Deployment: 2,
-                  Service: 1,
-                },
-              },
-            ],
-            createdAt: "2026-10-05T12:30:01Z",
-          },
+          catalogue: catalogueAvailability.ready
+            ? {
+                catalogueVersion: 1,
+                migrationVersion: 3,
+                schemaVersion: 1,
+                observedAt: "2026-10-05T12:30:00Z",
+                sourceKubernetesVersion: "v1.37.1",
+                inventoryDigest: "a".repeat(64),
+                nodeCount: 3,
+                architectures: ["amd64"],
+                namespaces: [
+                  {
+                    name: "retailflow",
+                    resourceCounts: {
+                      Deployment: 2,
+                      Service: 1,
+                    },
+                  },
+                ],
+                createdAt: "2026-10-05T12:30:01Z",
+              }
+            : null,
         }
       : undefined,
     isError: false,
@@ -149,21 +154,26 @@ vi.mock("@/modules/migration-management/hooks", () => ({
 
 vi.mock("@/modules/migration-management/service", () => ({
   sourceClusters: {
-    create: vi.fn(async () => ({
-      sourceClusterId: "SRC-" + "c".repeat(32),
-      customerId: "CUS-active",
-      customerName: "Active customer",
-      name: "retailflow-source",
-      distribution: "kubeadm",
-      locationType: "ON_PREMISES",
-      cloudProvider: null,
-      region: "Chennai DC",
-      registrationMethod: "LOCAL_KUBECONFIG",
-      deliveryMethod: "MANUAL_HELM",
-      deliveryConfiguration: {},
-      status: "PENDING_ENROLLMENT",
-      version: 1,
-    })),
+    create: vi.fn(
+      async (input: {
+        delivery: { method: string };
+        location: { type: string; cloudProvider?: string };
+      }) => ({
+        sourceClusterId: "SRC-" + "c".repeat(32),
+        customerId: "CUS-active",
+        customerName: "Active customer",
+        name: "retailflow-source",
+        distribution: "kubeadm",
+        locationType: input.location.type,
+        cloudProvider: input.location.cloudProvider ?? null,
+        region: "Chennai DC",
+        registrationMethod: "LOCAL_KUBECONFIG",
+        deliveryMethod: input.delivery.method,
+        deliveryConfiguration: {},
+        status: "PENDING_ENROLLMENT",
+        version: 1,
+      }),
+    ),
     enroll: vi.fn(async () => ({
       enrollmentId: "SCE-" + "d".repeat(32),
       sourceClusterId: "SRC-" + "c".repeat(32),
@@ -220,7 +230,118 @@ vi.mock("@/modules/migration-management/service", () => ({
   },
 }));
 
+function openSourceConnectionStep() {
+  render(<MigrationCreatePage />);
+  fireEvent.change(screen.getByRole("textbox", { name: /Assessment name/i }), {
+    target: { value: "RetailFlow migration feasibility" },
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: /Active customer/i }), {
+    target: { value: "CUS-active" },
+  });
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /Target environment/i }),
+    {
+      target: { value: "ENV-active" },
+    },
+  );
+  fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+}
+
 describe("Migration UI", () => {
+  it("starts AWS SSM connector installation without demanding manual bootstrap settings", async () => {
+    catalogueAvailability.ready = false;
+    vi.mocked(sourceClusters.enroll).mockClear();
+    vi.mocked(sourceClusters.install).mockClear();
+
+    try {
+      openSourceConnectionStep();
+      fireEvent.change(screen.getByLabelText("Source cluster name"), {
+        target: { value: "retailflow-source" },
+      });
+      fireEvent.change(screen.getByLabelText("Region or location (optional)"), {
+        target: { value: "ap-south-1" },
+      });
+      fireEvent.change(screen.getByLabelText("AWS account ID"), {
+        target: { value: "905418045935" },
+      });
+      fireEvent.change(
+        screen.getByLabelText("Control-plane managed instance ID"),
+        {
+          target: { value: "i-08e28d9b2242cbd53" },
+        },
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Register source cluster" }),
+      );
+
+      const install = await screen.findByRole("button", {
+        name: "Install source connector",
+      });
+      expect(install).toBeEnabled();
+      expect(
+        screen.queryByRole("button", { name: /Download connector setup/i }),
+      ).not.toBeInTheDocument();
+      expect(sourceClusters.enroll).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: /continue/i })).toBeDisabled();
+
+      fireEvent.click(install);
+      await waitFor(() => {
+        expect(sourceClusters.install).toHaveBeenCalledWith(
+          "SRC-" + "c".repeat(32),
+          1,
+        );
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "11111111-2222-3333-4444-555555555555",
+        );
+      });
+      expect(
+        screen.queryByText(/image and API endpoint are not configured/i),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /continue/i })).toBeDisabled();
+    } finally {
+      catalogueAvailability.ready = true;
+    }
+  });
+
+  it("uses a manual setup file for an on-premises source instead of AWS SSM", async () => {
+    catalogueAvailability.ready = false;
+    vi.mocked(sourceClusters.enroll).mockClear();
+    vi.mocked(sourceClusters.install).mockClear();
+
+    try {
+      openSourceConnectionStep();
+      fireEvent.change(screen.getByLabelText("Source cluster name"), {
+        target: { value: "retailflow-source" },
+      });
+      fireEvent.change(screen.getByLabelText("Cluster location"), {
+        target: { value: "ON_PREMISES" },
+      });
+
+      expect(
+        screen.getByRole("combobox", { name: /Connector delivery/i }),
+      ).toHaveValue("MANUAL_HELM");
+      expect(
+        screen.getByRole("option", { name: /AWS Systems Manager/i }),
+      ).toBeDisabled();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Register source cluster" }),
+      );
+
+      expect(
+        await screen.findByRole("button", {
+          name: "Download connector setup",
+        }),
+      ).toBeEnabled();
+      expect(sourceClusters.enroll).toHaveBeenCalledTimes(1);
+      expect(sourceClusters.install).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("button", { name: "Install source connector" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      catalogueAvailability.ready = true;
+    }
+  });
+
   it("presents the assessment-only workflow", () => {
     render(<MigrationManagementPage />);
 
