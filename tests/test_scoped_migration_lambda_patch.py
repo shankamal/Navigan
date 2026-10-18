@@ -3,7 +3,7 @@
 import unittest
 
 from scoped_migration_lambda_patch import (
-    ALLOWED, BUCKET, ROLE, stage_templates, verify_change_set,
+    ALLOWED, BUCKET, INDIRECT_INTEGRATIONS, ROLE, stage_templates, verify_change_set,
 )
 
 
@@ -45,17 +45,42 @@ class ScopedPreviewTests(unittest.TestCase):
         self.assertNotIn("InstallSourceClusterConnectorRoute", new_child["Resources"])
 
     def test_refuse_replacement_or_broad_nested_changes(self):
-        def record(name, action, replacement):
+        def record(name, action, replacement, resource_type="AWS::Lambda::Function", details=None):
             return {"ResourceChange": {"LogicalResourceId": name, "Action": action,
-                                       "Replacement": replacement}}
+                                       "Replacement": replacement, "ResourceType": resource_type,
+                                       "Details": details or []}}
         okay = {"Status": "CREATE_COMPLETE", "Changes": [
             record(name, "Modify", "False")
             for name in ALLOWED
         ]}
+        for integration, function in INDIRECT_INTEGRATIONS.items():
+            okay["Changes"].append(record(
+                integration, "Modify", "False", "AWS::ApiGatewayV2::Integration",
+                [{"ChangeSource": "ResourceAttribute", "CausingEntity": f"{function}.Arn",
+                  "Evaluation": "Dynamic"}],
+            ))
         verify_change_set(okay)
         okay["Changes"].append(record("CreateMigrationRoute", "Modify", "True"))
         with self.assertRaises(ValueError):
             verify_change_set(okay)
+
+    def test_refuse_direct_integration_update_even_without_replacement(self):
+        changes = [{"ResourceChange": {"LogicalResourceId": name, "Action": "Modify",
+                                       "Replacement": "False"}} for name in ALLOWED]
+        for integration, function in INDIRECT_INTEGRATIONS.items():
+            changes.append({"ResourceChange": {
+                "LogicalResourceId": integration, "ResourceType": "AWS::ApiGatewayV2::Integration",
+                "Action": "Modify", "Replacement": "False",
+                "Details": [{"ChangeSource": "ResourceAttribute", "CausingEntity": f"{function}.Arn"}],
+            }})
+        response = {"Status": "CREATE_COMPLETE", "Changes": changes}
+        verify_change_set(response)
+        changes[-1]["ResourceChange"]["Details"] = [{"ChangeSource": "DirectModification"}]
+        with self.assertRaises(ValueError):
+            verify_change_set(response)
+        changes[-1]["ResourceChange"]["Details"] = []
+        with self.assertRaises(ValueError):
+            verify_change_set(response)
 
 
 if __name__ == "__main__":

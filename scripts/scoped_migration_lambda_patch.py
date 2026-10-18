@@ -19,6 +19,13 @@ ALLOWED = {
     "MigrationConnectorFunction",
     "MigrationFunctionRole",
 }
+# CloudFormation also reports integrations that reference the updated Lambda
+# ARNs as indirect modifications, even though their template definitions are
+# byte-for-byte unchanged. Require a reference-only cause for these two.
+INDIRECT_INTEGRATIONS = {
+    "MigrationIntegration": "MigrationFunction",
+    "MigrationConnectorIntegration": "MigrationConnectorFunction",
+}
 
 
 def _template(response):
@@ -102,11 +109,29 @@ def verify_change_set(response):
     if response.get("Status") != "CREATE_COMPLETE":
         raise ValueError("Change set is not ready")
     changes = {item.get("ResourceChange", {}).get("LogicalResourceId"): item.get("ResourceChange", {}) for item in response.get("Changes", [])}
-    if set(changes) != ALLOWED or len(response.get("Changes", [])) != len(ALLOWED):
+    expected = ALLOWED | set(INDIRECT_INTEGRATIONS)
+    if set(changes) != expected or len(response.get("Changes", [])) != len(expected):
         raise ValueError("Unsafe DEV change set: unexpected resources")
     for name, change in changes.items():
         if change.get("Action") != "Modify" or change.get("Replacement") not in (None, False, "False"):
             raise ValueError(f"Unsafe action or resource replacement for {name}")
+    for integration, function in INDIRECT_INTEGRATIONS.items():
+        change = changes[integration]
+        if change.get("ResourceType") != "AWS::ApiGatewayV2::Integration":
+            raise ValueError(f"Unexpected resource type for {integration}")
+        details = change.get("Details") or []
+        if not details:
+            raise ValueError(f"Cannot verify indirect-only change for {integration}: no details")
+        for detail in details:
+            source = detail.get("ChangeSource")
+            cause = detail.get("CausingEntity", "")
+            if source not in ("ResourceAttribute", "ResourceReference") or not (
+                cause == function or cause.startswith(f"{function}.")
+            ):
+                raise ValueError(
+                    f"Unsafe change to {integration}: expected only references to {function}; "
+                    f"got {source}: {cause}"
+                )
 
 
 def main():
