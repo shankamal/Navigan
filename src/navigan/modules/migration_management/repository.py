@@ -46,7 +46,10 @@ class Repository:
     def get_source_cluster(self, identifier, lock=False):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(
-            "SELECT s.*,c.name AS customer_name "
+            "SELECT s.*,c.name AS customer_name,"
+            "(SELECT max(sc.last_seen_at) FROM migration_management.source_cluster_connectors sc "
+            "WHERE sc.source_cluster_id=s.source_cluster_id AND sc.status='ACTIVE' "
+            "AND sc.expires_at>now()) AS connector_last_seen_at "
             "FROM migration_management.source_clusters s "
             "JOIN customer_management.customers c USING(customer_id) "
             "WHERE s.source_cluster_id=%s AND "
