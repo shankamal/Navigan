@@ -52,6 +52,38 @@ the DEV build with increased pip download timeout and retry settings passed
 into the SAM build container. It still presents the CloudFormation change set
 for approval and verifies the deployed Lambda environment.
 
+### DEV repair when the full stack encounters an existing API route conflict
+
+On 18 October, the full DEV SAM release rolled back because Cluster Management
+attempted to create an API Gateway route that already exists:
+`POST /api/v1/clusters/{clusterId}/connector/upgrade`. Do **not** remove the
+working route or repeat the full SAM release against this conflicted stack.
+
+For the already published connector image, run the separate guarded,
+**parameter-only** activation instead:
+
+```bash
+git pull --ff-only origin new_migration_approach_18oct26
+AWS_PROFILE=navigan AWS_REGION=ap-south-1 \
+  bash scripts/activate-migration-source-connector-dev.sh \
+  --image-tag dev-8aec3981a2e1-20261018130607
+```
+
+This command uses CloudFormation's **existing deployed root template**, keeps
+all non-image parameters unchanged, and will execute only if its change set
+contains exactly one non-replacing modification to `MigrationManagement`.
+It asks for confirmation before execution. If the deployed template lacks the
+connector image parameters, the script stops without deploying. It checks the
+Migration Lambda's final repository/digest environment values and then pins
+the verified DEV parameters in the local SAM configuration.
+
+**Important limitation:** this repair configures the published connector image;
+it does **not** deploy changed Lambda installer code or resolve the pre-existing
+API route ownership conflict. The latter requires a separately planned,
+reviewed root-stack reconciliation before a full backend release. Thus the
+automatic source installation is not yet proven end to end; verify connector
+enrollment and first inventory before declaring it ready.
+
 ## Source cluster: private image-pull permission
 
 For the P0 self-managed AWS kubeadm lab, the EC2/SSM **control-plane instance

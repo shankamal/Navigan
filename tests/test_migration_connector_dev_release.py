@@ -16,6 +16,10 @@ PIN_SCRIPT = ROOT / "scripts" / "pin_source_connector_dev.py"
 spec = importlib.util.spec_from_file_location("pin_source_connector_dev", PIN_SCRIPT)
 pin_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pin_module)
+SCOPED_SCRIPT = ROOT / "scripts" / "source_connector_scoped_change.py"
+scoped_spec = importlib.util.spec_from_file_location("source_connector_scoped_change", SCOPED_SCRIPT)
+scoped_module = importlib.util.module_from_spec(scoped_spec)
+scoped_spec.loader.exec_module(scoped_module)
 
 REPOSITORY = (
     "905418045935.dkr.ecr.ap-south-1.amazonaws.com/"
@@ -30,6 +34,72 @@ def parse_parameters(config, environment):
 
 
 class DevConnectorReleaseTests(unittest.TestCase):
+    def test_scoped_update_preserves_all_other_stack_parameters(self):
+        source = [
+            {"ParameterKey": "DatabaseName", "ParameterValue": "dev-db"},
+            {"ParameterKey": "ApiDatabaseSecretArn", "ParameterValue": "sensitive-ref"},
+            {"ParameterKey": "MigrationConnectorImageRepository", "ParameterValue": ""},
+            {"ParameterKey": "MigrationConnectorImageDigest", "ParameterValue": ""},
+        ]
+        output = scoped_module.prepare_parameters(source, REPOSITORY, DIGEST)
+        self.assertEqual(output, [
+            {"ParameterKey": "DatabaseName", "UsePreviousValue": True},
+            {"ParameterKey": "ApiDatabaseSecretArn", "UsePreviousValue": True},
+            {"ParameterKey": "MigrationConnectorImageRepository", "ParameterValue": REPOSITORY},
+            {"ParameterKey": "MigrationConnectorImageDigest", "ParameterValue": DIGEST},
+        ])
+
+    def test_scoped_update_rejects_missing_or_duplicate_image_parameters(self):
+        with self.assertRaises(ValueError):
+            scoped_module.prepare_parameters(
+                [{"ParameterKey": "MigrationConnectorImageRepository"}], REPOSITORY, DIGEST
+            )
+        with self.assertRaises(ValueError):
+            scoped_module.prepare_parameters(
+                [{"ParameterKey": "MigrationConnectorImageRepository"}] * 2 +
+                [{"ParameterKey": "MigrationConnectorImageDigest"}], REPOSITORY, DIGEST
+            )
+
+    def test_change_set_must_only_modify_existing_migration_nested_stack(self):
+        allowed = {
+            "Status": "CREATE_COMPLETE",
+            "Changes": [{"ResourceChange": {
+                "LogicalResourceId": "MigrationManagement",
+                "ResourceType": "AWS::CloudFormation::Stack",
+                "Action": "Modify",
+                "Replacement": "False",
+            }}],
+        }
+        scoped_module.ensure_migration_only(allowed)
+        rejected = [
+            {**allowed, "Status": "FAILED"},
+            {**allowed, "Changes": []},
+            {**allowed, "Changes": allowed["Changes"] * 2},
+            {**allowed, "Changes": [{"ResourceChange": {
+                **allowed["Changes"][0]["ResourceChange"],
+                "LogicalResourceId": "ClusterManagement",
+            }}]},
+            {**allowed, "Changes": [{"ResourceChange": {
+                **allowed["Changes"][0]["ResourceChange"],
+                "Replacement": "True",
+            }}]},
+        ]
+        for case in rejected:
+            with self.subTest(case=case), self.assertRaises(ValueError):
+                scoped_module.ensure_migration_only(case)
+
+    def test_scoped_release_has_strict_dev_and_change_set_guards(self):
+        script = (ROOT / "scripts" / "activate-migration-source-connector-dev.sh").read_text()
+        self.assertIn('EXPECTED_ACCOUNT="905418045935"', script)
+        self.assertIn('DEV_STACK="navigan-ashok-dev"', script)
+        self.assertIn('"new_migration_approach_18oct26"', script)
+        self.assertIn('--use-previous-template', script)
+        self.assertIn('source_connector_scoped_change.py" verify', script)
+        self.assertIn('Execute this MigrationManagement-only DEV change set?', script)
+        self.assertIn('aws cloudformation execute-change-set', script)
+        self.assertNotIn('sam deploy', script)
+        self.assertNotIn('stack-name navigan-frontend', script)
+
     def test_pinning_preserves_production_and_other_dev_parameters(self):
         before = (ROOT / "samconfig.toml").read_text(encoding="utf-8")
         before_prod = before.split("[prod.validate.parameters]", 1)[1]
