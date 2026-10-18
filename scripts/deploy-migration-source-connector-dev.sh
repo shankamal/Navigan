@@ -3,10 +3,24 @@
 # Intentionally never deploys production or changes the source Kubernetes cluster.
 set -euo pipefail
 
-if [[ "${1:-}" != "--deploy-dev" || "$#" -ne 1 ]]; then
-  echo "Usage: AWS_PROFILE=navigan $0 --deploy-dev" >&2
-  exit 2
-fi
+case "${1:-}" in
+  --deploy-dev)
+    if [[ "$#" -ne 1 ]]; then
+      echo "Usage: AWS_PROFILE=navigan $0 --deploy-dev" >&2
+      exit 2
+    fi
+    ;;
+  --resume-dev)
+    if [[ "$#" -ne 2 || ! "${2:-}" =~ ^dev-[0-9a-f]{12}-[0-9]{14}$ ]]; then
+      echo "Usage: AWS_PROFILE=navigan $0 --resume-dev dev-<commit>-<UTC timestamp>" >&2
+      exit 2
+    fi
+    ;;
+  *)
+    echo "Usage: AWS_PROFILE=navigan $0 --deploy-dev | --resume-dev <existing-image-tag>" >&2
+    exit 2
+    ;;
+esac
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 export AWS_PROFILE="${AWS_PROFILE:-navigan}"
@@ -73,7 +87,7 @@ if REPOSITORY_URI="$(aws ecr describe-repositories \
   --repository-names "$REPOSITORY_NAME" \
   --query 'repositories[0].repositoryUri' --output text 2>"$RELEASE_DIR/ecr-lookup-error")"; then
   :
-elif grep -q 'RepositoryNotFoundException' "$RELEASE_DIR/ecr-lookup-error"; then
+elif [[ "$1" == "--deploy-dev" ]] && grep -q 'RepositoryNotFoundException' "$RELEASE_DIR/ecr-lookup-error"; then
   echo "Creating private ECR repository $REPOSITORY_NAME"
   REPOSITORY_URI="$(aws ecr create-repository \
     --repository-name "$REPOSITORY_NAME" \
@@ -91,22 +105,27 @@ if [[ "$REPOSITORY_URI" != "$EXPECTED_URI" ]]; then
   exit 1
 fi
 
-REGISTRY="${REPOSITORY_URI%%/*}"
-TAG="dev-$(git -C "$ROOT" rev-parse --short=12 HEAD)-$(date -u +%Y%m%d%H%M%S)"
-aws ecr get-login-password |
-  docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
+if [[ "$1" == "--resume-dev" ]]; then
+  TAG="$2"
+  echo "Reusing previously published DEV connector $TAG (no image rebuild or push)."
+else
+  REGISTRY="${REPOSITORY_URI%%/*}"
+  TAG="dev-$(git -C "$ROOT" rev-parse --short=12 HEAD)-$(date -u +%Y%m%d%H%M%S)"
+  aws ecr get-login-password |
+    docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
 
-echo "Building and publishing immutable source connector $TAG"
-docker buildx build \
-  --progress=plain \
-  --platform linux/amd64 \
-  --provenance=false \
-  --sbom=false \
-  --pull \
-  --push \
-  --file "$RELEASE_DIR/migration_connector/Dockerfile" \
-  --tag "$REPOSITORY_URI:$TAG" \
-  "$RELEASE_DIR"
+  echo "Building and publishing immutable source connector $TAG"
+  docker buildx build \
+    --progress=plain \
+    --platform linux/amd64 \
+    --provenance=false \
+    --sbom=false \
+    --pull \
+    --push \
+    --file "$RELEASE_DIR/migration_connector/Dockerfile" \
+    --tag "$REPOSITORY_URI:$TAG" \
+    "$RELEASE_DIR"
+fi
 
 DIGEST="$(aws ecr describe-images \
   --repository-name "$REPOSITORY_NAME" \
@@ -125,7 +144,21 @@ python3 "$ROOT/scripts/pin_source_connector_dev.py" \
 cd "$RELEASE_DIR"
 echo "Validating DEV application and building backend packages"
 sam validate --config-env dev --config-file "$RELEASE_DIR/samconfig.toml"
-sam build --config-env dev --config-file "$RELEASE_DIR/samconfig.toml"
+# Python dependencies are fetched inside the SAM build container. Give PyPI
+# downloads sufficient time on WSL/office networks without silently switching
+# away from the Lambda-compatible container build environment.
+python3 - "$RELEASE_DIR/build-env.json" <<'PY'
+import json
+import pathlib
+import sys
+pathlib.Path(sys.argv[1]).write_text(json.dumps({"Parameters": {
+    "PIP_DEFAULT_TIMEOUT": "180",
+    "PIP_RETRIES": "10",
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+}}), encoding="utf-8")
+PY
+sam build --config-env dev --config-file "$RELEASE_DIR/samconfig.toml" \
+  --container-env-var-file "$RELEASE_DIR/build-env.json"
 
 echo "Review the CloudFormation changeset carefully; only DEV is authorized."
 sam deploy --config-env dev --config-file "$RELEASE_DIR/samconfig.toml" \

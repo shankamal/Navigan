@@ -35,6 +35,23 @@ The guarded release script:
 No production stack, ECS service, application database or source Kubernetes
 cluster is changed by this release script.
 
+### Resume after a temporary SAM/PyPI download timeout
+
+If the connector image was successfully pushed but SAM stopped at
+`PythonPipBuilder:ResolveDependencies` due to a network read timeout, reuse the
+existing immutable image tag from that run:
+
+```bash
+AWS_PROFILE=navigan AWS_REGION=ap-south-1 \
+  bash scripts/deploy-migration-source-connector-dev.sh \
+  --resume-dev dev-<12-character-commit>-<UTC-timestamp>
+```
+
+This skips Docker publishing, queries ECR for the existing digest and retries
+the DEV build with increased pip download timeout and retry settings passed
+into the SAM build container. It still presents the CloudFormation change set
+for approval and verifies the deployed Lambda environment.
+
 ## Source cluster: private image-pull permission
 
 For the P0 self-managed AWS kubeadm lab, the EC2/SSM **control-plane instance
