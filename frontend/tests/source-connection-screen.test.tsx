@@ -9,6 +9,8 @@ const api = vi.hoisted(() => ({
   get: vi.fn(),
   createSource: vi.fn(),
   createDraft: vi.fn(),
+  getDraft: vi.fn(),
+  updateDraft: vi.fn(),
   install: vi.fn(),
   enroll: vi.fn(),
 }));
@@ -23,7 +25,11 @@ vi.mock("@/modules/migration-management/service", () => ({
     install: api.install,
     enroll: api.enroll,
   },
-  migrations: { create: api.createDraft, get: vi.fn() },
+  migrations: {
+    create: api.createDraft,
+    get: api.getDraft,
+    update: api.updateDraft,
+  },
 }));
 const source = {
   sourceClusterId: "SRC-" + "a".repeat(32),
@@ -75,6 +81,10 @@ beforeEach(() => {
     name: "Payments migration",
     status: "DRAFT",
     version: 1,
+    sourceConfiguration: {
+      sourceClusterId: source.sourceClusterId,
+      discoveryMode: "MANUAL",
+    },
   });
 });
 describe("Source connection screen", () => {
@@ -274,4 +284,52 @@ it("shows field-level errors when Save draft is clicked with missing mandatory i
   );
   expect(api.createSource).not.toHaveBeenCalled();
   expect(api.createDraft).not.toHaveBeenCalled();
+});
+
+it("restores a draft with editable name and source selection, persists changes without creating another assessment", async () => {
+  const draft = {
+    migrationId: "MIG-demo",
+    name: "Payments migration",
+    customerId: "CUS-demo",
+    status: "DRAFT",
+    version: 3,
+    sourceConfiguration: {
+      sourceClusterId: source.sourceClusterId,
+      discoveryMode: "MANUAL",
+    },
+  };
+  api.getDraft.mockResolvedValue(draft);
+  api.updateDraft.mockResolvedValue({
+    ...draft,
+    name: "Revised migration",
+    version: 4,
+  });
+  window.history.replaceState({}, "", "/migrations/new?draft=MIG-demo");
+  open();
+  const name = await screen.findByDisplayValue("Payments migration");
+  expect(name).toBeEnabled();
+  expect(screen.getByRole("radio", { name: /Register a new/ })).toBeEnabled();
+  expect(screen.getByLabelText(/^Connected source cluster/)).toBeEnabled();
+  fireEvent.change(name, { target: { value: "Revised migration" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(api.updateDraft).toHaveBeenCalledWith(
+      "MIG-demo",
+      expect.objectContaining({
+        version: 3,
+        name: "Revised migration",
+        source: expect.objectContaining({
+          sourceClusterId: source.sourceClusterId,
+          discoveryMode: "MANUAL",
+        }),
+      }),
+    ),
+  );
+  expect(api.createDraft).not.toHaveBeenCalled();
+  expect(api.createSource).not.toHaveBeenCalled();
+  expect(api.install).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("radio", { name: /Register a new/ }));
+  expect(screen.getByLabelText(/Source cluster name/)).toBeEnabled();
+  expect(screen.getByLabelText(/AWS account ID/)).toBeEnabled();
+  expect(screen.getByLabelText(/SSM managed instance ID/)).toBeEnabled();
 });
