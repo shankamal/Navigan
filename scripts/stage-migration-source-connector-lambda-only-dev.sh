@@ -74,7 +74,11 @@ fi
 
 ROUTE_IDS="$(aws apigatewayv2 get-routes --api-id "$API_ID" \
   --query 'Items[?RouteKey==`POST /api/v1/source-clusters/{sourceClusterId}/install`].RouteId' --output json)"
-ROUTE_ID="$(python3 -c 'import json,sys; ids=json.loads(sys.argv[1]); sys.exit("Expected one installed source route" if len(ids)!=1 else 0); print(ids[0])' "$ROUTE_IDS")"
+ROUTE_ID="$(python3 -c 'import json,sys; ids=json.loads(sys.argv[1]); print(ids[0] if len(ids)==1 else "")' "$ROUTE_IDS")"
+if [[ -z "$ROUTE_ID" ]]; then
+  echo "Expected exactly one existing source install route; stop for review." >&2
+  exit 1
+fi
 ROUTE_JSON="$(aws apigatewayv2 get-route --api-id "$API_ID" --route-id "$ROUTE_ID" --output json)"
 INTEGRATION_ID="$(aws cloudformation describe-stack-resource --stack-name "$CHILD_STACK" \
   --logical-resource-id MigrationIntegration --query StackResourceDetail.PhysicalResourceId --output text)"
