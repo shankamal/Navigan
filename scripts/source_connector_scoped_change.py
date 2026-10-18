@@ -30,6 +30,14 @@ def prepare_parameters(existing, repository, digest):
     return result
 
 
+def preserve_parameters(existing):
+    """Preserve all deployed root values when adding literals to a nested stack."""
+    names = [entry["ParameterKey"] for entry in existing]
+    if not names or len(names) != len(set(names)):
+        raise ValueError("Root stack parameters are missing or duplicated.")
+    return [{"ParameterKey": name, "UsePreviousValue": True} for name in names]
+
+
 def ensure_migration_only(changeset):
     if changeset.get("Status") != "CREATE_COMPLETE":
         raise ValueError("The DEV change set is not ready for execution.")
@@ -60,6 +68,9 @@ def main():
     prepare.add_argument("--output", type=Path, required=True)
     prepare.add_argument("--repository", required=True)
     prepare.add_argument("--digest", required=True)
+    preserve = subcommands.add_parser("preserve")
+    preserve.add_argument("--existing", type=Path, required=True)
+    preserve.add_argument("--output", type=Path, required=True)
     verify = subcommands.add_parser("verify")
     verify.add_argument("--changeset", type=Path, required=True)
     args = parser.parse_args()
@@ -69,6 +80,10 @@ def main():
         result = prepare_parameters(existing, args.repository, args.digest)
         args.output.write_text(json.dumps(result), encoding="utf-8")
         print("Prepared parameter-only DEV update; existing values preserved.")
+    elif args.operation == "preserve":
+        existing = json.loads(args.existing.read_text(encoding="utf-8"))
+        args.output.write_text(json.dumps(preserve_parameters(existing)), encoding="utf-8")
+        print("Prepared DEV update with every deployed root parameter value preserved.")
     else:
         ensure_migration_only(json.loads(args.changeset.read_text(encoding="utf-8")))
         print("Verified: this DEV change set modifies MigrationManagement only.")

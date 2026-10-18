@@ -20,6 +20,10 @@ SCOPED_SCRIPT = ROOT / "scripts" / "source_connector_scoped_change.py"
 scoped_spec = importlib.util.spec_from_file_location("source_connector_scoped_change", SCOPED_SCRIPT)
 scoped_module = importlib.util.module_from_spec(scoped_spec)
 scoped_spec.loader.exec_module(scoped_module)
+PATCH_SCRIPT = ROOT / "scripts" / "patch_migration_nested_template.py"
+patch_spec = importlib.util.spec_from_file_location("patch_migration_nested_template", PATCH_SCRIPT)
+patch_module = importlib.util.module_from_spec(patch_spec)
+patch_spec.loader.exec_module(patch_module)
 
 REPOSITORY = (
     "905418045935.dkr.ecr.ap-south-1.amazonaws.com/"
@@ -34,6 +38,75 @@ def parse_parameters(config, environment):
 
 
 class DevConnectorReleaseTests(unittest.TestCase):
+    def test_deployed_template_patch_does_not_change_other_capabilities(self):
+        old_url = (
+            "https://s3.ap-south-1.amazonaws.com/"
+            "aws-sam-cli-managed-default-samclisourcebucket-xj9yzigmdgri/old.template"
+        )
+        new_url = old_url.replace("old.template", "new.template")
+        root = {"TemplateBody": {
+            "AWSTemplateFormatVersion": "2010-09-09",
+            "Parameters": {"SomeParameter": {"Type": "String"}},
+            "Resources": {
+                "ClusterManagement": {"Type": "AWS::CloudFormation::Stack",
+                                      "Properties": {"TemplateURL": "https://unchanged/cluster"}},
+                "MigrationManagement": {
+                    "Type": "AWS::CloudFormation::Stack",
+                    "Properties": {"TemplateURL": old_url, "Parameters": {
+                        "JwtScope": {"Ref": "JwtScope"}}}},
+            },
+        }}
+        import copy
+        snapshot = copy.deepcopy(root)
+        result = patch_module.patch_template(
+            root, new_url, REPOSITORY, DIGEST,
+            "arn:aws:iam::905418045935:role/NaviganSourceConnectorDeliveryRole",
+        )
+        self.assertEqual(root, snapshot)
+        self.assertEqual(result["Resources"]["ClusterManagement"],
+                         root["TemplateBody"]["Resources"]["ClusterManagement"])
+        self.assertEqual(result["Parameters"],
+                         root["TemplateBody"]["Parameters"])
+        migration = result["Resources"]["MigrationManagement"]
+        self.assertEqual(migration["Properties"]["TemplateURL"], new_url)
+        self.assertEqual(migration["Properties"]["Parameters"]["JwtScope"],
+                         {"Ref": "JwtScope"})
+        self.assertEqual(migration["Properties"]["Parameters"]["MigrationConnectorImageDigest"],
+                         DIGEST)
+
+        with self.assertRaises(ValueError):
+            patch_module.patch_template(root, old_url, REPOSITORY, DIGEST,
+                                        "arn:aws:iam::905418045935:role/NaviganSourceConnectorDeliveryRole")
+        with self.assertRaises(ValueError):
+            patch_module.patch_template({"TemplateBody": "old YAML"}, new_url,
+                                        REPOSITORY, DIGEST,
+                                        "arn:aws:iam::905418045935:role/NaviganSourceConnectorDeliveryRole")
+
+    def test_stage_script_creates_nested_preview_but_never_executes(self):
+        script = (ROOT / "scripts" / "stage-migration-source-connector-dev.sh").read_text()
+        self.assertIn('DEV_STACK="navigan-ashok-dev"', script)
+        self.assertIn('ACCOUNT="905418045935"', script)
+        self.assertIn('"new_migration_approach_18oct26"', script)
+        self.assertIn('git -C "$ROOT" archive HEAD', script)
+        self.assertIn('--template-stage Processed', script)
+        self.assertIn('patch_migration_nested_template.py', script)
+        self.assertIn('--include-nested-stacks', script)
+        self.assertIn('source_connector_scoped_change.py" verify', script)
+        self.assertNotIn('execute-change-set', script)
+        self.assertNotIn('sam deploy', script)
+
+    def test_preserve_all_existing_root_stack_parameters(self):
+        original = [
+            {"ParameterKey": "JwtScope", "ParameterValue": "navigan/api"},
+            {"ParameterKey": "SourceConnectorDeliveryRoleArn", "ParameterValue": "role"},
+        ]
+        self.assertEqual(scoped_module.preserve_parameters(original), [
+            {"ParameterKey": "JwtScope", "UsePreviousValue": True},
+            {"ParameterKey": "SourceConnectorDeliveryRoleArn", "UsePreviousValue": True},
+        ])
+        with self.assertRaises(ValueError):
+            scoped_module.preserve_parameters([])
+
     def test_scoped_update_preserves_all_other_stack_parameters(self):
         source = [
             {"ParameterKey": "DatabaseName", "ParameterValue": "dev-db"},

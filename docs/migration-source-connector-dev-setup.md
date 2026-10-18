@@ -84,6 +84,38 @@ reviewed root-stack reconciliation before a full backend release. Thus the
 automatic source installation is not yet proven end to end; verify connector
 enrollment and first inventory before declaring it ready.
 
+### Deployed root template predates the connector image parameters
+
+The attempted previous-template activation correctly stopped on 18 October
+because `navigan-ashok-dev` does not have the two connector-image parameters.
+The deployed `MigrationManagement` resource is a nested stack referencing an
+older S3 template, and the conflicting `UpgradeConnectorRoute` is **not** a
+resource owned by the currently deployed Cluster Management nested stack.
+
+To avoid reintroducing that route conflict, stage a **migration-only preview**
+from the existing processed CloudFormation root template:
+
+```bash
+git pull --ff-only origin new_migration_approach_18oct26
+AWS_PROFILE=navigan AWS_REGION=ap-south-1 \
+  bash scripts/stage-migration-source-connector-dev.sh \
+  --image-tag dev-8aec3981a2e1-20261018130607
+```
+
+This script builds the currently committed Migration Management Lambda only,
+uploads its package into the existing SAM artifacts bucket, fetches the
+**deployed processed root template**, and changes only its MigrationManagement
+child template URL and three child parameters. It preserves every existing root
+parameter value and all other capability resource definitions. It creates a
+nested CloudFormation change set, verifies that the root would only modify
+MigrationManagement, and prints changes inside the nested module.
+
+**It does not execute the change set.** The operator must review and share the
+root and nested change-set details before any execution is approved, including
+checking for newly created API Gateway routes and unexpected resource changes.
+Publishing SAM package objects and creating a change set can incur minimal
+storage/API costs, but do not change the running application infrastructure.
+
 ## Source cluster: private image-pull permission
 
 For the P0 self-managed AWS kubeadm lab, the EC2/SSM **control-plane instance
