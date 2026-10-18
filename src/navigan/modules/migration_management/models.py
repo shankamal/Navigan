@@ -47,6 +47,7 @@ class Model(BaseModel):
 
 class SourceCluster(Model):
     platform: Platform
+    discoveryMode: Literal["MANUAL"] | None = None
     sourceClusterId: str | None = Field(
         default=None,
         pattern=r"^SRC-[a-f0-9]{32}$",
@@ -364,7 +365,7 @@ class CreateMigration(Model):
     name: str = Field(min_length=8, max_length=100)
     description: str | None = Field(default=None, max_length=4000)
     source: SourceCluster
-    target: EksTarget
+    target: EksTarget | None = None
     scope: MigrationScope = Field(default_factory=MigrationScope)
 
     @model_validator(mode="after")
@@ -900,3 +901,4 @@ class AssessmentReport(Model):
                 "An assessment with blockers cannot score 100."
             )
         return self
+
