@@ -83,6 +83,7 @@ class DevConnectorReleaseTests(unittest.TestCase):
         self.assertIn('sam deploy --config-env dev', script)
         self.assertIn('PIP_DEFAULT_TIMEOUT', script)
         self.assertIn('PIP_RETRIES', script)
+        self.assertIn('sam build --use-container', script)
         self.assertIn('--container-env-var-file', script)
         self.assertIn('--confirm-changeset', script)
         self.assertNotIn('--config-env prod', script)

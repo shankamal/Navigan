@@ -157,7 +157,7 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({"Parameters": {
     "PIP_DISABLE_PIP_VERSION_CHECK": "1",
 }}), encoding="utf-8")
 PY
-sam build --config-env dev --config-file "$RELEASE_DIR/samconfig.toml" \
+sam build --use-container --config-env dev --config-file "$RELEASE_DIR/samconfig.toml" \
   --container-env-var-file "$RELEASE_DIR/build-env.json"
 
 echo "Review the CloudFormation changeset carefully; only DEV is authorized."
