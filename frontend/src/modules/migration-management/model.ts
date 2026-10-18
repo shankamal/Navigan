@@ -320,8 +320,10 @@ export interface UpdateSourceClusterDeliveryInput {
 
 export interface UpdateMigrationInput {
   version: number;
+  name?: string;
   planningDraft?: MigrationPlanningDraft;
   source?: {
+    discoveryMode?: "MANUAL";
     platform: "SELF_MANAGED_KUBERNETES";
     sourceClusterId?: string;
     clusterName?: string;
@@ -384,4 +386,3 @@ export interface MigrationPlanningDraft {
     "UNDECIDED" | "BACKUP_RESTORE" | "REPLICATION" | "NO_PERSISTENT_DATA";
   notes: string;
 }
-
