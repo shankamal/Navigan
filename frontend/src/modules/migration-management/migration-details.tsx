@@ -243,17 +243,26 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
 
   const automaticInstallation = useMutation({
     mutationFn: async () => {
-      if (!effectiveSourceCluster) {
+      if (!effectiveSourceCluster || !migration) {
         throw new Error("The registered source cluster is unavailable.");
       }
-      return sourceClusters.install(
-        effectiveSourceCluster.sourceClusterId,
-        effectiveSourceCluster.version,
+      // Enrollment increments the source version after SSM submission.
+      // Fetch it fresh so retry uses a new installation idempotency key.
+      const latest = (await sourceClusters.list(migration.customerId)).items.find(
+        (item) => item.sourceClusterId === effectiveSourceCluster.sourceClusterId,
       );
+      if (!latest || latest.status === "REVOKED") {
+        throw new Error("The registered source cluster is unavailable.");
+      }
+      return sourceClusters.install(latest.sourceClusterId, latest.version);
     },
-    onSuccess: (installation) => {
+    onSuccess: async (installation) => {
       setSourceInstallation(installation);
       setSourceError("");
+      setRegisteredSource(null);
+      await cache.invalidateQueries({
+        queryKey: ["source-clusters", migration?.customerId],
+      });
     },
     onError: (error) => {
       setSourceError(normalizeApiError(error).message);
@@ -980,7 +989,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                             ? "2. Installation submitted"
                             : automaticInstallation.isError
                               ? "2. Installation needs attention"
-                              : "2. Starting installation"}
+                              : effectiveSourceCluster?.status === "CONNECTED"
+                                ? "2. Installation not verified"
+                                : "2. Starting installation"}
                         </span>
                       </li>
                       <li>
@@ -991,7 +1002,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                   )}
                   {sourceInstallation ? (
                     <div role="status">
-                      <strong>Source connector installation submitted</strong>
+                      <strong>Source connector installation requested</strong>
                       <p className="muted">
                         Systems Manager command {sourceInstallation.commandId}{" "}
                         was submitted for {sourceInstallation.managedInstanceId}
@@ -1003,22 +1014,14 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                   ) : effectiveSourceCluster?.deliveryMethod === "AWS_SSM" ? (
                     effectiveSourceCluster.status === "CONNECTED" ? (
                       <p role="status" className="muted">
-                        Source connector connected. Waiting for its next
-                        inventory report; no installation is required.
+                        Connector enrollment was accepted, but no source inventory
+                        has arrived. Installation is not yet verified.
                       </p>
                     ) : automaticInstallation.isError ? (
-                      <button
-                        type="button"
-                        className="button button-secondary"
-                        disabled={!canPrepareSource}
-                        onClick={() => {
-                          setSourceError("");
-                          automaticInstallation.reset();
-                          automaticInstallation.mutate();
-                        }}
-                      >
-                        Retry source connection
-                      </button>
+                      <p role="alert" className="muted">
+                        Automatic installation could not start. You can retry
+                        without registering the source again.
+                      </p>
                     ) : (
                       <p role="status" className="muted">
                         {automaticInstallation.isPending
@@ -1050,6 +1053,26 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                         : "Prepare new connector setup"}
                     </button>
                   )}
+                  {effectiveSourceCluster?.deliveryMethod === "AWS_SSM" &&
+                    !sourceCatalogue &&
+                    !sourceInstallation &&
+                    (effectiveSourceCluster.status === "CONNECTED" ||
+                      automaticInstallation.isError) && (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        disabled={!canPrepareSource || automaticInstallation.isPending}
+                        onClick={() => {
+                          setSourceError("");
+                          automaticInstallation.reset();
+                          automaticInstallation.mutate();
+                        }}
+                      >
+                        {automaticInstallation.isPending
+                          ? "Retrying connector installation…"
+                          : "Retry connector installation"}
+                      </button>
+                    )}
                   {enrollment.isError && (
                     <p role="alert">
                       {normalizeApiError(enrollment.error).message}

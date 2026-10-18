@@ -377,7 +377,17 @@ export function AssessmentWizard() {
     setSourceBusy(true);
     setSourceError("");
     try {
-      await startSourceInstallation(selectedSource);
+      // Enrollment changes the version; never retry an old SSM command key.
+      const latest = (await sourceClusters.list(customer)).items.find(
+        (item) => item.sourceClusterId === selectedSource.sourceClusterId,
+      );
+      if (!latest || latest.status === "REVOKED") {
+        setSourceError("The registered source cluster is unavailable.");
+        return;
+      }
+      await startSourceInstallation(latest);
+    } catch (error) {
+      setSourceError(normalizeApiError(error).message);
     } finally {
       setSourceBusy(false);
     }
@@ -1083,7 +1093,9 @@ export function AssessmentWizard() {
                                 ? "2. Installation submitted"
                                 : sourceError
                                   ? "2. Installation needs attention"
-                                  : "2. Starting installation"}
+                                  : selectedSource.status === "CONNECTED"
+                                    ? "2. Installation not verified"
+                                    : "2. Starting installation"}
                             </span>
                           </li>
                           <li>
@@ -1122,11 +1134,20 @@ export function AssessmentWizard() {
                             </div>
                           ) : selectedSource.status === "CONNECTED" ? (
                             <div role="status" aria-live="polite">
-                              <strong>Connector connected</strong>
+                              <strong>Connector enrollment accepted</strong>
                               <p>
-                                Waiting for the source catalogue. Navigan checks
-                                for incoming inventory automatically.
+                                No source inventory has arrived. Enrollment alone
+                                does not confirm that the connector is running.
+                                Retry installation if the previous attempt failed.
                               </p>
+                              <button
+                                type="button"
+                                className="button button-secondary"
+                                disabled={sourceBusy}
+                                onClick={() => void installSourceConnector()}
+                              >
+                                Retry connector installation
+                              </button>
                             </div>
                           ) : (
                             <>

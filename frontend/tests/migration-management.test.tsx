@@ -9,6 +9,9 @@ import {
 import { sourceClusters } from "@/modules/migration-management/service";
 
 const catalogueAvailability = vi.hoisted(() => ({ ready: true }));
+const connectedSourceState = vi.hoisted(() => ({
+  items: [] as Record<string, unknown>[],
+}));
 
 vi.mock("@/shared/auth/auth-provider", () => ({
   useAuth: () => ({
@@ -104,7 +107,7 @@ vi.mock("@/modules/migration-management/hooks", () => ({
     isError: false,
   }),
   useSourceClusters: () => ({
-    data: { items: [] },
+    data: { items: connectedSourceState.items },
     isPending: false,
     isError: false,
   }),
@@ -154,6 +157,7 @@ vi.mock("@/modules/migration-management/hooks", () => ({
 
 vi.mock("@/modules/migration-management/service", () => ({
   sourceClusters: {
+    list: vi.fn(async () => ({ items: connectedSourceState.items })),
     create: vi.fn(
       async (input: {
         delivery: { method: string };
@@ -297,6 +301,50 @@ describe("Migration UI", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /continue/i })).toBeDisabled();
     } finally {
+      catalogueAvailability.ready = true;
+    }
+  });
+
+  it("can retry an enrolled source without inventory using its latest version", async () => {
+    catalogueAvailability.ready = false;
+    const sourceId = "SRC-" + "f".repeat(32);
+    connectedSourceState.items = [{
+      sourceClusterId: sourceId,
+      customerId: "CUS-active",
+      name: "Previously enrolled source",
+      distribution: "kubeadm",
+      locationType: "CLOUD",
+      cloudProvider: "AWS",
+      region: "ap-south-1",
+      deliveryMethod: "AWS_SSM",
+      status: "CONNECTED",
+      version: 2,
+    }];
+    vi.mocked(sourceClusters.install).mockClear();
+
+    try {
+      openSourceConnectionStep();
+      fireEvent.click(screen.getByLabelText(/Use a connected source cluster/i));
+      fireEvent.change(
+        screen.getByRole("combobox", { name: "Connected source cluster" }),
+        { target: { value: sourceId } },
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Use selected source cluster" }),
+      );
+
+      const retry = await screen.findByRole("button", {
+        name: "Retry connector installation",
+      });
+      expect(
+        screen.getByText(/Enrollment alone does not confirm/i),
+      ).toBeInTheDocument();
+      fireEvent.click(retry);
+      await waitFor(() => {
+        expect(sourceClusters.install).toHaveBeenCalledWith(sourceId, 2);
+      });
+    } finally {
+      connectedSourceState.items = [];
       catalogueAvailability.ready = true;
     }
   });
