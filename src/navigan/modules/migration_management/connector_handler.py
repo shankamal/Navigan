@@ -242,6 +242,8 @@ def source_migration(db, source_cluster_id, statuses, lock=False):
         "FROM migration_management.migrations "
         "WHERE source_configuration->>'sourceClusterId'=%s "
         "AND status=ANY(%s) "
+        "AND NOT (status='DRAFT' AND "
+        "COALESCE(source_configuration->>'discoveryMode','')='MANUAL') "
         "ORDER BY updated_at,migration_id LIMIT 1"
         + (" FOR UPDATE" if lock else ""),
         [source_cluster_id, list(statuses)],
