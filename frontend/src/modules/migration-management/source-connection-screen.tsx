@@ -6,8 +6,11 @@ import Link from "next/link";
 import {
   ArrowLeft,
   CheckCircle2,
-  PlugZap,
-  Server,
+  ArrowRight,
+  Network,
+  Settings,
+  Clock3,
+  Info,
   ShieldCheck,
 } from "lucide-react";
 import { customersService } from "@/modules/customer-management/services/customers";
@@ -20,6 +23,10 @@ import type {
   SourceClusterRegistration,
   SourceEnrollment,
 } from "./model";
+import {
+  validateSourceConnection,
+  type ConnectionFieldErrors,
+} from "./source-connection-validation";
 import styles from "./source-connection-screen.module.css";
 
 const journey = [
@@ -59,6 +66,8 @@ export function SourceConnectionScreen({
   const [enrollment, setEnrollment] = useState<SourceEnrollment | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<ConnectionFieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
   const [notice, setNotice] = useState("");
   const [verifiedAt, setVerifiedAt] = useState("");
   const [checkingUntil, setCheckingUntil] = useState(0);
@@ -95,10 +104,7 @@ export function SourceConnectionScreen({
   });
   const sourcesQuery = useSourceClusters(customer);
   const connectedSources = (sourcesQuery.data?.items ?? []).filter(
-    (item) => item.customerId === customer && item.status === "CONNECTED",
-  );
-  const selectedCustomer = customersQuery.data?.find(
-    (item) => item.customerId === customer,
+    (item) => item.customerId === customer && item.status !== "REVOKED",
   );
   const customerOptions =
     customersQuery.data?.filter(
@@ -136,6 +142,25 @@ export function SourceConnectionScreen({
         setCustomer(migration.customerId);
         setDraft(migration);
         setSource(registered);
+        setMode("EXISTING");
+        setExistingId(registered.sourceClusterId);
+        setClusterName(registered.name);
+        setDistribution(registered.distribution || "Kubernetes (kubeadm)");
+        setLocation(registered.locationType);
+        setProvider(registered.cloudProvider || "AWS");
+        setRegion(registered.region || "");
+        setDelivery(registered.deliveryMethod);
+        setAccount(String(registered.deliveryConfiguration.accountId || ""));
+        setInstance(
+          String(registered.deliveryConfiguration.managedInstanceId || ""),
+        );
+        setRole(String(registered.deliveryConfiguration.roleArn || ""));
+        setKubeconfig(
+          String(
+            registered.deliveryConfiguration.kubeconfigPath ||
+              "/etc/kubernetes/admin.conf",
+          ),
+        );
         setNotice("Draft restored. Verify the source connection to continue.");
       })
       .catch((failure) => {
@@ -154,8 +179,55 @@ export function SourceConnectionScreen({
     };
   }, [initialDraftId]);
 
+  function validateAction(action: "save" | "verify" | "continue") {
+    const next = validateSourceConnection(
+      {
+        name,
+        customer,
+        mode,
+        registered: Boolean(source),
+        sourceId: source?.sourceClusterId || existingId,
+        clusterName,
+        platform,
+        distribution,
+        location,
+        provider,
+        region,
+        delivery,
+        account,
+        instance,
+        role,
+        kubeconfig,
+      },
+      action,
+      verifiedAt,
+    );
+    setFieldErrors(next);
+    const first = Object.keys(next)[0];
+    if (first) {
+      requestAnimationFrame(() => {
+        formRef.current
+          ?.querySelector<HTMLElement>(`[name="${first}"]`)
+          ?.focus();
+        if (!formRef.current?.querySelector(`[name="${first}"]`))
+          formRef.current
+            ?.querySelector<HTMLElement>("[data-validation-summary]")
+            ?.focus();
+      });
+      return false;
+    }
+    return true;
+  }
+
+  function continueToDiscovery() {
+    if (!validateAction("continue")) return;
+    setNotice(
+      "Source connection verified. Source Discovery will be enabled in the next workflow increment.",
+    );
+  }
+
   async function verifyConnection() {
-    if (!source || busy) return;
+    if (busy || !validateAction("verify") || !source) return;
     setBusy(true);
     setError("");
     setVerifiedAt("");
@@ -240,21 +312,28 @@ export function SourceConnectionScreen({
 
   async function register(event: FormEvent) {
     event.preventDefault();
-    if (busy || platform !== "SELF_MANAGED") return;
+    if (busy || !validateAction("save")) return;
+    const installNow =
+      (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") !==
+      "draft";
     setBusy(true);
     setError("");
     setVerifiedAt("");
     try {
       let registered = source;
+      if (!registered && possibleMatch && mode === "REGISTER")
+        throw new Error(
+          "This SSM host and kubeconfig already have a registration for this customer. Use the existing source connection instead.",
+        );
       if (!registered) {
         if (mode === "EXISTING") {
           registered = await sourceClusters.get(existingId);
           if (
             registered.customerId !== customer ||
-            registered.status !== "CONNECTED"
+            registered.status === "REVOKED"
           )
             throw new Error(
-              "Select a connected cluster belonging to this customer.",
+              "Select an available source registration belonging to this customer.",
             );
         } else {
           const input: CreateSourceClusterInput = {
@@ -324,7 +403,7 @@ export function SourceConnectionScreen({
         url.searchParams.set("draft", created.migrationId);
         window.history.replaceState(null, "", url);
       }
-      if (mode === "REGISTER" && !commandId && !enrollment)
+      if (installNow && mode === "REGISTER" && !commandId && !enrollment)
         await deliver(registered);
       else
         setNotice(
@@ -386,19 +465,58 @@ export function SourceConnectionScreen({
     URL.revokeObjectURL(url);
   }
 
+  const displaySource =
+    source ??
+    connectedSources.find((item) => item.sourceClusterId === existingId);
+  const possibleMatch =
+    !locked && mode === "REGISTER"
+      ? (sourcesQuery.data?.items ?? []).find((item) => {
+          if (item.customerId !== customer || item.status === "REVOKED")
+            return false;
+          const config = item.deliveryConfiguration ?? {};
+          return (
+            delivery === "AWS_SSM" &&
+            account.trim() &&
+            instance.trim() &&
+            region.trim() &&
+            config.accountId === account.trim() &&
+            config.managedInstanceId === instance.trim() &&
+            config.region === region.trim() &&
+            config.kubeconfigPath === kubeconfig.trim()
+          );
+        })
+      : undefined;
+  const reuseCandidate =
+    possibleMatch ??
+    (!locked && mode === "REGISTER"
+      ? connectedSources.find(
+          (item) =>
+            clusterName.trim() &&
+            item.name.toLowerCase() === clusterName.trim().toLowerCase(),
+        )
+      : undefined);
+  function chooseExisting(item: SourceClusterRegistration) {
+    setMode("EXISTING");
+    setFieldErrors({});
+    setExistingId(item.sourceClusterId);
+    setError("");
+    setVerifiedAt("");
+  }
+  const canSave = !busy && !draft && !resumeId;
+
   return (
-    <main className={styles.screen}>
+    <div className={styles.screen}>
       <header className={styles.heading}>
-        <div>
-          <p className={styles.eyebrow}>MIGRATION / NEW ASSESSMENT</p>
-          <h1>New Migration Assessment</h1>
-          <p>
-            Connect your source cluster to begin an application migration
-            assessment.
-          </p>
+        <div className={styles.titleGroup}>
+          <Network size={25} aria-hidden="true" />
+          <div>
+            <h1>New Migration Assessment</h1>
+            <p>Connect a source cluster to begin.</p>
+          </div>
         </div>
         <Link href="/migrations" className={styles.back}>
-          <ArrowLeft size={16} /> Back to migrations
+          <ArrowLeft size={15} />
+          Back to assessments
         </Link>
       </header>
       <ol className={styles.journey} aria-label="Migration workflow">
@@ -409,163 +527,290 @@ export function SourceConnectionScreen({
           </li>
         ))}
       </ol>
-      <div className={styles.layout}>
-        <form onSubmit={register} className={styles.form}>
-          <section className={styles.section}>
-            <div className={styles.sectionTitle}>
-              <span>01</span>
-              <div>
-                <h2>Assessment details</h2>
-                <p>Give this migration its own name and customer context.</p>
-              </div>
+      <form
+        onChange={(event) => {
+          const target: EventTarget = event.target;
+          if (!(
+            target instanceof HTMLInputElement ||
+            target instanceof HTMLSelectElement
+          ))
+            return;
+          const key = target.name as keyof ConnectionFieldErrors;
+          if (key && fieldErrors[key])
+            setFieldErrors((current) => ({ ...current, [key]: undefined }));
+        }}
+        ref={formRef}
+        noValidate
+        onSubmit={register}
+        className={styles.form}
+      >
+        {Object.values(fieldErrors).some(Boolean) && (
+          <div
+            className={styles.validationSummary}
+            role="alert"
+            tabIndex={-1}
+            data-validation-summary
+          >
+            <strong>Check the highlighted fields</strong>
+            <ul>
+              {Object.entries(fieldErrors)
+                .filter(([, message]) => Boolean(message))
+                .map(([key, message]) => (
+                  <li key={key} id={`source-error-${key}`}>
+                    {message}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
+        <section
+          className={`${styles.panel} ${styles.identity}`}
+          aria-labelledby="assessment-details-title"
+        >
+          <div className={styles.panelHeading}>
+            <div>
+              <h2 id="assessment-details-title">Assessment identity</h2>
+              <p>Provide a name for this assessment and select the customer.</p>
             </div>
-            <fieldset disabled={Boolean(draft) || busy || Boolean(resumeId)}>
-              <div className={styles.grid}>
+          </div>
+          <fieldset
+            disabled={Boolean(draft) || busy || Boolean(resumeId)}
+            className={styles.identityGrid}
+          >
+            <label>
+              Assessment name <span>*</span>
+              <input
+                required
+                minLength={8}
+                maxLength={100}
+                name="name"
+                title="Use 8–100 characters to identify this migration assessment."
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-errormessage={
+                  fieldErrors.name ? "source-error-name" : undefined
+                }
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Payments migration"
+              />
+              <small>
+                A unique name for this assessment. {name.length}/100 characters.
+              </small>
+            </label>
+            <div className={styles.customerField}>
+              <label>
+                Active customer <span>*</span>
+                <select
+                  required
+                  name="customer"
+                  title="Select an active customer within your access. Cluster connections belong to that customer."
+                  aria-invalid={Boolean(fieldErrors.customer)}
+                  aria-errormessage={
+                    fieldErrors.customer ? "source-error-customer" : undefined
+                  }
+                  value={customer}
+                  disabled={
+                    locked || customersQuery.isPending || customersQuery.isError
+                  }
+                  onChange={(e) => {
+                    setCustomer(e.target.value);
+                    setExistingId("");
+                    setSearch("");
+                  }}
+                >
+                  <option value="">
+                    {customersQuery.isPending
+                      ? "Loading active customers…"
+                      : "Select an active customer"}
+                  </option>
+                  {customerOptions.map((item) => (
+                    <option key={item.customerId} value={item.customerId}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+                <small>Select the customer that owns this migration.</small>
+              </label>
+              <details className={styles.customerSearch}>
+                <summary>Find customer by name or ID</summary>
                 <label>
-                  Assessment name <span>*</span>
+                  Search active customers
                   <input
-                    required
-                    minLength={8}
-                    maxLength={100}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Retail Payments – Kubernetes to EKS"
+                    disabled={locked}
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Customer name or ID"
                   />
-                  <small>8–100 characters · {name.length}/100</small>
                 </label>
-                <div>
-                  <label htmlFor="customer-search">
-                    Find an active customer
-                    <input
-                      disabled={locked}
-                      id="customer-search"
-                      type="search"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search by customer name or ID"
-                    />
-                  </label>
-                  <label htmlFor="source-customer">
-                    Active customer <span>*</span>
-                    <select
-                      id="source-customer"
-                      required
-                      value={customer}
-                      onChange={(e) => {
-                        setCustomer(e.target.value);
-                        setExistingId("");
-                      }}
-                      disabled={
-                        locked ||
-                        customersQuery.isPending ||
-                        customersQuery.isError
-                      }
-                    >
-                      <option value="">
-                        {customersQuery.isPending
-                          ? "Loading active customers…"
-                          : "Select an active customer"}
-                      </option>
-                      {customerOptions.map((item) => (
-                        <option key={item.customerId} value={item.customerId}>
-                          {item.name} · {item.customerId}
-                        </option>
-                      ))}
-                    </select>
-                    <small>
-                      Only active customers within your access are listed.
-                    </small>
-                  </label>
-                </div>
-              </div>
-            </fieldset>
-            {customersQuery.isError && (
-              <p role="alert">
-                Unable to load customers.{" "}
-                <button type="button" onClick={() => customersQuery.refetch()}>
-                  Retry customer list
-                </button>
-              </p>
-            )}
-            {customersQuery.isSuccess && !customersQuery.data.length && (
-              <p>No active customers are available within your access.</p>
-            )}
-          </section>
-          <section className={styles.section}>
-            <div className={styles.sectionTitle}>
-              <span>02</span>
+              </details>
+            </div>
+          </fieldset>
+          {customersQuery.isError && (
+            <p role="alert" className={styles.error}>
+              Unable to load customers.{" "}
+              <button type="button" onClick={() => customersQuery.refetch()}>
+                Retry customer list
+              </button>
+            </p>
+          )}
+          {customersQuery.isSuccess && !customersQuery.data.length && (
+            <p>No active customers are available within your access.</p>
+          )}
+          {reuseCandidate && (
+            <div className={styles.reuseBanner}>
+              <img src="/logos/kubernetes.svg" alt="" />
               <div>
-                <h2>Source cluster</h2>
+                <strong>{reuseCandidate.name}</strong>
+                <span>
+                  <CheckCircle2 size={14} />
+                  Existing registration available
+                </span>
                 <p>
-                  Register once per cluster. Reuse the connection across
-                  assessments.
+                  {possibleMatch
+                    ? "The same SSM host and kubeconfig are already registered for this customer."
+                    : "A cluster with this name is already registered. Check its details before registering another connection."}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => chooseExisting(reuseCandidate)}
+              >
+                Reuse connection <ArrowRight size={15} />
+              </button>
             </div>
-            <fieldset disabled={locked || busy}>
-              <div
-                className={styles.choices}
+          )}
+          {displaySource && (
+            <div className={styles.reuseBanner}>
+              <img src="/logos/kubernetes.svg" alt="" />
+              <div>
+                <strong>{displaySource.name}</strong>
+                <span>
+                  <CheckCircle2 size={14} />
+                  {mode === "EXISTING"
+                    ? "Existing connection selected"
+                    : "Source cluster registered"}
+                </span>
+                <p>
+                  {mode === "EXISTING"
+                    ? "The existing connector will be reused. No additional installation is required."
+                    : "This cluster registration is linked to your assessment."}
+                </p>
+              </div>
+              <span className={styles.badge}>
+                {verifiedAt
+                  ? "Connected"
+                  : displaySource.status === "CONNECTED"
+                    ? "Verify connection"
+                    : "Awaiting connection"}
+              </span>
+            </div>
+          )}
+        </section>
+        <div className={styles.columns}>
+          <section
+            className={styles.panel}
+            aria-labelledby="source-cluster-title"
+          >
+            <div className={styles.panelHeading}>
+              <Network size={20} />
+              <div>
+                <h2 id="source-cluster-title">
+                  Source cluster{" "}
+                  <span
+                    className={styles.tooltip}
+                    tabIndex={0}
+                    role="img"
+                    aria-label="Register once per customer-owned cluster. Reuse its connector across assessments."
+                  >
+                    <Info size={13} />
+                    <span role="tooltip">
+                      Register once per customer-owned cluster. Reuse its
+                      connector across assessments.
+                    </span>
+                  </span>
+                </h2>
+                <p>Provide details about the source Kubernetes cluster.</p>
+              </div>
+              <fieldset
+                disabled={locked || busy}
+                className={styles.segment}
                 role="radiogroup"
                 aria-label="Source registration"
               >
-                <label className={mode === "REGISTER" ? styles.selected : ""}>
-                  <input
-                    type="radio"
-                    name="source-mode"
-                    checked={mode === "REGISTER"}
-                    onChange={() => setMode("REGISTER")}
-                  />
-                  <Server size={20} />
-                  <strong>Register a new source cluster</strong>
-                  <small>Establish a new cluster connection</small>
-                </label>
                 <label className={mode === "EXISTING" ? styles.selected : ""}>
                   <input
                     type="radio"
                     name="source-mode"
+                    aria-label="Use a connected source cluster"
                     checked={mode === "EXISTING"}
-                    onChange={() => setMode("EXISTING")}
+                    onChange={() => {
+                      setMode("EXISTING");
+                      setFieldErrors({});
+                    }}
                   />
-                  <PlugZap size={20} />
-                  <strong>Use a connected source cluster</strong>
-                  <small>Reuse an existing customer connection</small>
+                  Use connected cluster
                 </label>
-              </div>
-            </fieldset>
+                <label className={mode === "REGISTER" ? styles.selected : ""}>
+                  <input
+                    type="radio"
+                    name="source-mode"
+                    aria-label="Register a new source cluster"
+                    checked={mode === "REGISTER"}
+                    onChange={() => {
+                      setMode("REGISTER");
+                      setFieldErrors({});
+                    }}
+                  />
+                  Register new cluster
+                </label>
+              </fieldset>
+            </div>
             {mode === "EXISTING" ? (
-              <label>
-                Connected source cluster <span>*</span>
-                <select
-                  required
-                  disabled={locked || !customer || busy}
-                  value={existingId || source?.sourceClusterId || ""}
-                  onChange={(e) => setExistingId(e.target.value)}
-                >
-                  <option value="">
-                    {!customer
-                      ? "Select a customer first"
-                      : "Select a connected source cluster"}
-                  </option>
-                  {connectedSources.map((item) => (
-                    <option
-                      key={item.sourceClusterId}
-                      value={item.sourceClusterId}
-                    >
-                      {item.name} · {item.distribution ?? "Kubernetes"} ·{" "}
-                      {item.region ?? item.locationType}
+              <>
+                <label>
+                  Connected source cluster <span>*</span>
+                  <select
+                    required
+                    disabled={locked || !customer || busy}
+                    name="sourceId"
+                    title="Reuse a connected cluster belonging to this customer. No additional connector is installed."
+                    aria-invalid={Boolean(fieldErrors.sourceId)}
+                    value={existingId || source?.sourceClusterId || ""}
+                    onChange={(e) => {
+                      setExistingId(e.target.value);
+                      setVerifiedAt("");
+                    }}
+                  >
+                    <option value="">
+                      {!customer
+                        ? "Select a customer first"
+                        : "Select a connected source cluster"}
                     </option>
-                  ))}
-                </select>
-                {customer &&
-                  sourcesQuery.isSuccess &&
-                  !connectedSources.length && (
-                    <small>
-                      No connected clusters found. Register a new source
-                      cluster.
-                    </small>
-                  )}
+                    {connectedSources.map((item) => (
+                      <option
+                        key={item.sourceClusterId}
+                        value={item.sourceClusterId}
+                      >
+                        {item.name} · {item.region ?? item.locationType}
+                      </option>
+                    ))}
+                    {source &&
+                      !connectedSources.some(
+                        (item) =>
+                          item.sourceClusterId === source.sourceClusterId,
+                      ) && (
+                        <option value={source.sourceClusterId}>
+                          {source.name}
+                        </option>
+                      )}
+                  </select>
+                  <small>
+                    Reuse a customer connection across multiple assessments.
+                  </small>
+                </label>
                 {sourcesQuery.isError && (
-                  <small role="alert">
+                  <p role="alert" className={styles.error}>
                     Unable to load source clusters.{" "}
                     <button
                       type="button"
@@ -573,133 +818,292 @@ export function SourceConnectionScreen({
                     >
                       Retry
                     </button>
-                  </small>
+                  </p>
                 )}
-              </label>
+                {customer &&
+                  sourcesQuery.isSuccess &&
+                  !connectedSources.length &&
+                  !source && (
+                    <p className={styles.empty}>
+                      No connected clusters found. Register a new source
+                      cluster.
+                    </p>
+                  )}
+                {displaySource && (
+                  <dl className={styles.facts}>
+                    <div>
+                      <dt>Source platform</dt>
+                      <dd>Self-managed Kubernetes</dd>
+                    </div>
+                    <div>
+                      <dt>Kubernetes distribution</dt>
+                      <dd>{displaySource.distribution ?? "Kubernetes"}</dd>
+                    </div>
+                    <div>
+                      <dt>Cluster location</dt>
+                      <dd>
+                        {displaySource.locationType === "CLOUD"
+                          ? "Cloud virtual machines"
+                          : displaySource.locationType === "ON_PREMISES"
+                            ? "Customer data centre"
+                            : "Other"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Cloud provider</dt>
+                      <dd>{displaySource.cloudProvider ?? "Not applicable"}</dd>
+                    </div>
+                    <div>
+                      <dt>Region / site</dt>
+                      <dd>{displaySource.region ?? "Not specified"}</dd>
+                    </div>
+                  </dl>
+                )}
+              </>
             ) : (
-              <fieldset disabled={locked || busy}>
-                <div className={styles.grid}>
+              <fieldset disabled={locked || busy} className={styles.grid}>
+                <label>
+                  Source cluster name <span>*</span>
+                  <input
+                    required
+                    minLength={3}
+                    maxLength={100}
+                    pattern="[A-Za-z0-9][A-Za-z0-9._ -]*"
+                    name="clusterName"
+                    title="A friendly name for the source Kubernetes cluster. Register a cluster once and reuse its connection."
+                    aria-invalid={Boolean(fieldErrors.clusterName)}
+                    aria-errormessage={
+                      fieldErrors.clusterName
+                        ? "source-error-clusterName"
+                        : undefined
+                    }
+                    value={clusterName}
+                    onChange={(e) => setClusterName(e.target.value)}
+                    placeholder="navigan-migration-lab"
+                  />
+                  <small>Name of your Kubernetes cluster.</small>
+                </label>
+                <label>
+                  Source platform <span>*</span>
+                  <select
+                    required
+                    name="platform"
+                    title="Select the source platform. Kubernetes installed on EC2 is Self-managed Kubernetes."
+                    aria-invalid={Boolean(fieldErrors.platform)}
+                    aria-errormessage={
+                      fieldErrors.platform ? "source-error-platform" : undefined
+                    }
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value)}
+                  >
+                    <option value="SELF_MANAGED">
+                      Self-managed Kubernetes
+                    </option>
+                    <option value="AWS">AWS</option>
+                    <option disabled>Azure — planned</option>
+                    <option disabled>Google Cloud — planned</option>
+                    <option disabled>Red Hat OpenShift — planned</option>
+                    <option disabled>Other — planned</option>
+                  </select>
+                  <small>Where your Kubernetes cluster is hosted.</small>
+                </label>
+                <label>
+                  Kubernetes distribution <span>*</span>
+                  <select
+                    required
+                    name="distribution"
+                    title="Select the Kubernetes distribution or installation method."
+                    aria-invalid={Boolean(fieldErrors.distribution)}
+                    aria-errormessage={
+                      fieldErrors.distribution
+                        ? "source-error-distribution"
+                        : undefined
+                    }
+                    value={distribution}
+                    onChange={(e) => setDistribution(e.target.value)}
+                  >
+                    {[
+                      "Kubernetes (kubeadm)",
+                      "K3s",
+                      "RKE2",
+                      "Other self-managed Kubernetes",
+                    ].map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                  <small>Kubernetes distribution or installer.</small>
+                </label>
+                <label>
+                  Cluster location <span>*</span>
+                  <select
+                    required
+                    name="location"
+                    title="Choose customer data centre, cloud virtual machines or another location."
+                    aria-invalid={Boolean(fieldErrors.location)}
+                    aria-errormessage={
+                      fieldErrors.location ? "source-error-location" : undefined
+                    }
+                    value={location}
+                    onChange={(e) => {
+                      const next = e.target.value as typeof location;
+                      setLocation(next);
+                      if (next !== "CLOUD") setDelivery("MANUAL_HELM");
+                    }}
+                  >
+                    <option value="CLOUD">Cloud virtual machines</option>
+                    <option value="ON_PREMISES">
+                      Customer data centre / On-premises
+                    </option>
+                    <option value="OTHER">Other location</option>
+                  </select>
+                  <small>Location of the source infrastructure.</small>
+                </label>
+                {location === "CLOUD" && (
                   <label>
-                    Source cluster name <span>*</span>
-                    <input
-                      required
-                      minLength={3}
-                      maxLength={100}
-                      pattern="[A-Za-z0-9][A-Za-z0-9._ -]*"
-                      value={clusterName}
-                      onChange={(e) => setClusterName(e.target.value)}
-                      placeholder="payments-source-cluster"
-                    />
-                  </label>
-                  <label>
-                    Source platform <span>*</span>
+                    Cloud provider <span>*</span>
                     <select
-                      value={platform}
-                      onChange={(e) => setPlatform(e.target.value)}
+                      required
+                      name="provider"
+                      title="Select the provider hosting the source cluster virtual machines."
+                      aria-invalid={Boolean(fieldErrors.provider)}
+                      aria-errormessage={
+                        fieldErrors.provider
+                          ? "source-error-provider"
+                          : undefined
+                      }
+                      value={provider}
+                      onChange={(e) => setProvider(e.target.value)}
                     >
-                      <option value="SELF_MANAGED">
-                        Self-managed Kubernetes
-                      </option>
-                      <option value="AWS">AWS</option>
+                      <option value="AWS">AWS EC2</option>
                       <option disabled>Azure — planned</option>
                       <option disabled>Google Cloud — planned</option>
-                      <option disabled>Red Hat OpenShift — planned</option>
-                      <option disabled>Other — planned</option>
+                      <option disabled>OCI — planned</option>
+                      <option disabled>Other cloud — planned</option>
                     </select>
+                    <small>Kubernetes on EC2 is self-managed.</small>
                   </label>
-                  <label>
-                    Kubernetes distribution <span>*</span>
-                    <select
-                      value={distribution}
-                      onChange={(e) => setDistribution(e.target.value)}
-                    >
-                      {[
-                        "Kubernetes (kubeadm)",
-                        "K3s",
-                        "RKE2",
-                        "Other self-managed Kubernetes",
-                      ].map((item) => (
-                        <option key={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Cluster location <span>*</span>
-                    <select
-                      value={location}
-                      onChange={(e) => {
-                        const next = e.target.value as typeof location;
-                        setLocation(next);
-                        if (next !== "CLOUD") setDelivery("MANUAL_HELM");
-                      }}
-                    >
-                      <option value="ON_PREMISES">
-                        Customer data centre / On-premises
-                      </option>
-                      <option value="CLOUD">Cloud virtual machines</option>
-                      <option value="OTHER">Other location</option>
-                    </select>
-                  </label>
-                  {location === "CLOUD" && (
-                    <label>
-                      Cloud provider <span>*</span>
-                      <select
-                        value={provider}
-                        onChange={(e) => setProvider(e.target.value)}
-                      >
-                        <option value="AWS">AWS — EC2 instances</option>
-                        <option disabled>Azure — planned</option>
-                        <option disabled>Google Cloud — planned</option>
-                        <option disabled>OCI — planned</option>
-                        <option disabled>Other cloud — planned</option>
-                      </select>
-                      <small>
-                        Kubernetes on EC2 remains a self-managed cluster.
-                      </small>
-                    </label>
-                  )}
-                  <label>
-                    {location === "CLOUD"
-                      ? "AWS region"
-                      : "Region or site location"}{" "}
-                    <span>*</span>
-                    <input
-                      required
-                      maxLength={64}
-                      value={region}
-                      onChange={(e) => setRegion(e.target.value)}
-                      placeholder={
-                        location === "CLOUD" ? "ap-south-1" : "Chennai DC1"
-                      }
-                    />
-                  </label>
-                </div>
-                {platform === "AWS" && (
-                  <p className={styles.warning}>
-                    AWS managed services such as EKS and ECS will be added as
-                    source paths later. For Kubernetes installed on EC2, select
-                    Self-managed Kubernetes and AWS as the cloud provider.
-                  </p>
                 )}
+                <label>
+                  {location === "CLOUD"
+                    ? "AWS region"
+                    : "Region or site location"}{" "}
+                  <span>*</span>
+                  <input
+                    required
+                    maxLength={64}
+                    name="region"
+                    title="AWS region such as ap-south-1, or the site name for an on-premises cluster."
+                    aria-invalid={Boolean(fieldErrors.region)}
+                    aria-errormessage={
+                      fieldErrors.region ? "source-error-region" : undefined
+                    }
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    placeholder={
+                      location === "CLOUD" ? "ap-south-1" : "Chennai DC1"
+                    }
+                  />
+                  <small>
+                    {location === "CLOUD"
+                      ? "AWS region of the source cluster."
+                      : "Customer site or data-centre location."}
+                  </small>
+                </label>
               </fieldset>
             )}
+            {platform === "AWS" && mode === "REGISTER" && (
+              <p className={styles.warning}>
+                Managed AWS source paths are planned. For Kubernetes on EC2,
+                select Self-managed Kubernetes.
+              </p>
+            )}
           </section>
-          {mode === "REGISTER" && (
-            <section className={styles.section}>
-              <div className={styles.sectionTitle}>
-                <span>03</span>
-                <div>
-                  <h2>Connection method</h2>
-                  <p>
-                    Choose how to deliver the connector into your source
-                    cluster.
-                  </p>
-                </div>
+          <section
+            className={styles.panel}
+            aria-labelledby="connector-delivery-title"
+          >
+            <div className={styles.panelHeading}>
+              <Settings size={20} />
+              <div>
+                <h2 id="connector-delivery-title">
+                  Connector delivery{" "}
+                  <span
+                    className={styles.tooltip}
+                    tabIndex={0}
+                    role="img"
+                    aria-label="SSM installs remotely. Helm and GitOps provide enrollment configuration for your cluster administrator."
+                  >
+                    <Info size={13} />
+                    <span role="tooltip">
+                      SSM installs remotely. Helm and GitOps provide enrollment
+                      configuration for your cluster administrator.
+                    </span>
+                  </span>
+                </h2>
+                <p>
+                  {mode === "EXISTING"
+                    ? "Use the connector already registered for this cluster."
+                    : "Specify how the connector will be deployed to your source cluster."}
+                </p>
               </div>
+            </div>
+            {mode === "EXISTING" ? (
+              <>
+                {displaySource ? (
+                  <>
+                    <dl className={styles.facts}>
+                      <div>
+                        <dt>Connector delivery</dt>
+                        <dd>
+                          {displaySource.deliveryMethod === "AWS_SSM"
+                            ? "AWS Systems Manager"
+                            : displaySource.deliveryMethod === "GITOPS"
+                              ? "GitOps"
+                              : "Helm configuration"}
+                        </dd>
+                      </div>
+                      {displaySource.deliveryMethod === "AWS_SSM" &&
+                        [
+                          ["AWS account ID", "accountId"],
+                          ["SSM managed instance ID", "managedInstanceId"],
+                          ["Kubeconfig path", "kubeconfigPath"],
+                        ].map(([label, key]) => (
+                          <div key={key}>
+                            <dt>{label}</dt>
+                            <dd>
+                              {String(
+                                displaySource.deliveryConfiguration?.[key] ??
+                                  "Not specified",
+                              )}
+                            </dd>
+                          </div>
+                        ))}
+                    </dl>
+                    <p className={styles.reuseNote}>
+                      <ShieldCheck size={18} />
+                      Existing connector will be reused. No additional pod
+                      installation.
+                    </p>
+                  </>
+                ) : (
+                  <p className={styles.empty}>
+                    Select a connected source cluster to view its connection
+                    details.
+                  </p>
+                )}
+              </>
+            ) : (
               <fieldset disabled={locked || busy}>
                 <label>
-                  Connector delivery <span>*</span>
+                  Connector delivery method <span>*</span>
                   <select
+                    required
+                    name="delivery"
+                    title="Choose AWS Systems Manager, a Helm configuration download or GitOps delivery."
+                    aria-invalid={Boolean(fieldErrors.delivery)}
+                    aria-errormessage={
+                      fieldErrors.delivery ? "source-error-delivery" : undefined
+                    }
                     value={delivery}
                     onChange={(e) =>
                       setDelivery(e.target.value as typeof delivery)
@@ -716,69 +1120,108 @@ export function SourceConnectionScreen({
                     </option>
                     <option value="GITOPS">GitOps delivery</option>
                   </select>
+                  <small>
+                    {delivery === "AWS_SSM"
+                      ? "Use SSM to deploy and manage the connector."
+                      : "Generate configuration for your approved deployment process."}
+                  </small>
                 </label>
                 {delivery === "AWS_SSM" ? (
-                  <div className={styles.grid}>
-                    <label>
-                      AWS account ID <span>*</span>
-                      <input
-                        required
-                        inputMode="numeric"
-                        pattern="[0-9]{12}"
-                        maxLength={12}
-                        value={account}
-                        onChange={(e) => setAccount(e.target.value)}
-                        placeholder="12-digit source AWS account ID"
-                      />
-                    </label>
-                    <label>
-                      SSM managed instance ID <span>*</span>
-                      <input
-                        required
-                        pattern="(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)"
-                        value={instance}
-                        onChange={(e) => setInstance(e.target.value)}
-                        placeholder="i-0123456789abcdef0"
-                      />
-                      <small>
-                        Control-plane or administration host with Kubernetes API
-                        access.
-                      </small>
-                    </label>
-                    <label className={styles.full}>
-                      Cross-account role ARN{" "}
-                      <small>
-                        Optional for same-account access; required when using a
-                        cross-account role.
-                      </small>
-                      <input
-                        pattern="arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+"
-                        maxLength={2048}
-                        value={role}
-                        onChange={(e) => setRole(e.target.value)}
-                        placeholder="arn:aws:iam::123456789012:role/NaviganSourceConnector"
-                      />
-                    </label>
-                    <label className={styles.full}>
-                      Kubeconfig path on the source host <span>*</span>
-                      <input
-                        required
-                        pattern="/[A-Za-z0-9._/-]+"
-                        maxLength={512}
-                        value={kubeconfig}
-                        onChange={(e) => setKubeconfig(e.target.value)}
-                      />
-                      <small>
-                        Path on the SSM managed host, not on your browser or
-                        laptop.
-                      </small>
-                    </label>
-                  </div>
+                  <>
+                    <div className={styles.grid}>
+                      <label>
+                        AWS account ID <span>*</span>
+                        <input
+                          required
+                          inputMode="numeric"
+                          pattern="[0-9]{12}"
+                          maxLength={12}
+                          name="account"
+                          title="Exactly 12 digits for the AWS account that owns the managed source host."
+                          aria-invalid={Boolean(fieldErrors.account)}
+                          aria-errormessage={
+                            fieldErrors.account
+                              ? "source-error-account"
+                              : undefined
+                          }
+                          value={account}
+                          onChange={(e) => setAccount(e.target.value)}
+                          placeholder="123456789012"
+                        />
+                        <small>12-digit source AWS account ID.</small>
+                      </label>
+                      <label>
+                        SSM managed instance ID <span>*</span>
+                        <input
+                          required
+                          pattern="(i-[0-9a-f]{8,17}|mi-[A-Za-z0-9-]+)"
+                          name="instance"
+                          title="The SSM managed control-plane or administration host with Kubernetes API access."
+                          aria-invalid={Boolean(fieldErrors.instance)}
+                          aria-errormessage={
+                            fieldErrors.instance
+                              ? "source-error-instance"
+                              : undefined
+                          }
+                          value={instance}
+                          onChange={(e) => setInstance(e.target.value)}
+                          placeholder="i-0123456789abcdef0"
+                        />
+                        <small>
+                          Control-plane or administration host with cluster
+                          access.
+                        </small>
+                      </label>
+                      <label className={styles.full}>
+                        Kubeconfig path on the source host <span>*</span>
+                        <input
+                          required
+                          pattern="/[A-Za-z0-9._/-]+"
+                          maxLength={512}
+                          name="kubeconfig"
+                          title="An absolute path on the source host, not a path on your laptop."
+                          aria-invalid={Boolean(fieldErrors.kubeconfig)}
+                          aria-errormessage={
+                            fieldErrors.kubeconfig
+                              ? "source-error-kubeconfig"
+                              : undefined
+                          }
+                          value={kubeconfig}
+                          onChange={(e) => setKubeconfig(e.target.value)}
+                        />
+                        <small>
+                          Path on the managed host, not your laptop.
+                        </small>
+                      </label>
+                    </div>
+                    <details className={styles.advanced}>
+                      <summary>
+                        Advanced <small>(optional)</small>
+                        <span>Cross-account role</span>
+                      </summary>
+                      <label>
+                        Cross-account role ARN
+                        <input
+                          pattern="arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+"
+                          maxLength={2048}
+                          name="role"
+                          title="Optional for same-account access; supply the approved IAM role ARN when using a cross-account role."
+                          aria-invalid={Boolean(fieldErrors.role)}
+                          aria-errormessage={
+                            fieldErrors.role ? "source-error-role" : undefined
+                          }
+                          value={role}
+                          onChange={(e) => setRole(e.target.value)}
+                          placeholder="arn:aws:iam::123456789012:role/NaviganSourceConnector"
+                        />
+                        <small>Required when using a cross-account role.</small>
+                      </label>
+                    </details>
+                  </>
                 ) : (
                   <p className={styles.methodNote}>
-                    Navigan generates a short-lived enrollment configuration.
-                    Your cluster administrator applies the connector using the
-                    existing approved Helm chart
+                    Download the short-lived enrollment configuration and apply
+                    the approved Helm chart
                     {delivery === "GITOPS"
                       ? " through your GitOps repository"
                       : ""}
@@ -786,68 +1229,94 @@ export function SourceConnectionScreen({
                   </p>
                 )}
               </fieldset>
-            </section>
-          )}
-          <section className={styles.section} aria-label="Connection status">
-            <div className={styles.sectionTitle}>
-              <span>
-                <ShieldCheck size={19} />
-              </span>
-              <div>
-                <h2>Connection status</h2>
-                <p>
-                  {verifiedAt
-                    ? "Connected · recent connector heartbeat verified"
-                    : source
-                      ? "Registered · awaiting verification"
-                      : "Not connected"}
-                </p>
-              </div>
-              {verifiedAt && <CheckCircle2 color="#438000" />}
-            </div>
-            <div aria-live="polite">
-              {notice && <p>{notice}</p>}
-              {verifiedAt && (
-                <small>Verified {new Date(verifiedAt).toLocaleString()}</small>
-              )}
-              {commandId && <small>SSM command: {commandId}</small>}
-              {draft && <small>Assessment ID: {draft.migrationId}</small>}
-            </div>
-            {error && (
-              <p role="alert" className={styles.error}>
-                {error}
-              </p>
             )}
-            {enrollment && (
+          </section>
+        </div>
+        <section
+          className={`${styles.panel} ${styles.verification}`}
+          aria-label="Connection status"
+        >
+          <div className={styles.verificationHeading}>
+            <CheckCircle2 size={19} />
+            <div>
+              <h2>Connection verification</h2>
               <p>
-                <button type="button" onClick={downloadEnrollment}>
-                  Download enrollment configuration
-                </button>{" "}
-                <small>
-                  Expires {new Date(enrollment.expiresAt).toLocaleString()}.
-                  Keep the downloaded credential private.
-                </small>
+                {verifiedAt
+                  ? "Connected · recent connector heartbeat verified"
+                  : "Verify your source connector connection. Kubernetes access is checked during discovery."}
               </p>
-            )}
+            </div>
+            <p className={styles.context}>
+              Source: {displaySource?.name || clusterName || "Not selected"}{" "}
+              <span>·</span>{" "}
+              {displaySource?.region || region || "Region not selected"}
+            </p>
+          </div>
+          <div className={styles.verificationBottom}>
+            <ol className={styles.checks}>
+              <li>
+                <CheckCircle2
+                  size={19}
+                  className={source ? styles.complete : ""}
+                />
+                <div>
+                  <strong>Cluster registered</strong>
+                  <small>
+                    {source
+                      ? "Assessment linked to source"
+                      : "Register or select source"}
+                  </small>
+                </div>
+              </li>
+              <li>
+                <Clock3
+                  size={19}
+                  className={verifiedAt ? styles.complete : ""}
+                />
+                <div>
+                  <strong>Connector heartbeat</strong>
+                  <small>
+                    {verifiedAt
+                      ? "Recent heartbeat verified"
+                      : checkingUntil
+                        ? "Checking connection…"
+                        : "Awaiting verification"}
+                  </small>
+                </div>
+              </li>
+              <li>
+                <ShieldCheck size={19} />
+                <div>
+                  <strong>Kubernetes access</strong>
+                  <small>Validated during discovery</small>
+                </div>
+              </li>
+            </ol>
             <div className={styles.actions}>
               {!draft && (
-                <button
-                  className={styles.primary}
-                  type="submit"
-                  disabled={
-                    busy ||
-                    !customer ||
-                    !name.trim() ||
-                    platform !== "SELF_MANAGED" ||
-                    (mode === "EXISTING" && !existingId)
-                  }
-                >
-                  {busy
-                    ? "Saving connection…"
-                    : mode === "REGISTER"
-                      ? "Save assessment & connect source"
-                      : "Save assessment & use source"}
-                </button>
+                <>
+                  <button
+                    type="submit"
+                    name="intent"
+                    value="draft"
+                    disabled={!canSave}
+                  >
+                    Save draft
+                  </button>
+                  <button
+                    className={styles.primary}
+                    type="submit"
+                    name="intent"
+                    value="connect"
+                    disabled={!canSave}
+                  >
+                    {busy
+                      ? "Saving connection…"
+                      : mode === "REGISTER"
+                        ? "Connect source"
+                        : "Use source connection"}
+                  </button>
+                </>
               )}
               {draft && source && (
                 <>
@@ -859,73 +1328,65 @@ export function SourceConnectionScreen({
                   >
                     {busy ? "Checking connection…" : "Verify connection"}
                   </button>
-                  {!verifiedAt && (
-                    <button
-                      type="button"
-                      onClick={retryDelivery}
-                      disabled={busy || Boolean(checkingUntil)}
-                    >
-                      {source.deliveryMethod === "AWS_SSM"
-                        ? "Retry installation"
-                        : "Generate enrollment configuration"}
-                    </button>
-                  )}
+                  {!verifiedAt &&
+                    !checkingUntil &&
+                    (mode === "REGISTER" || source.status !== "CONNECTED") && (
+                      <button
+                        type="button"
+                        onClick={retryDelivery}
+                        disabled={busy}
+                      >
+                        {source.deliveryMethod === "AWS_SSM"
+                          ? commandId
+                            ? "Retry installation"
+                            : "Install connector"
+                          : "Generate enrollment configuration"}
+                      </button>
+                    )}
                 </>
               )}
+              <button
+                type="button"
+                disabled
+                onClick={continueToDiscovery}
+                title="Requires a saved assessment, a recently verified source connection, and an available Source Discovery screen."
+              >
+                Continue to discovery <ArrowRight size={15} />
+              </button>
             </div>
+          </div>
+          <div aria-live="polite" className={styles.feedback}>
+            {notice && <p>{notice}</p>}
             {verifiedAt && (
-              <p className={styles.next}>
-                Source connection is complete. Source Discovery is the next
-                screen to be built.
-              </p>
+              <small>Verified {new Date(verifiedAt).toLocaleString()}</small>
             )}
-          </section>
-        </form>
-        <aside
-          className={styles.summary}
-          aria-label="Source connection summary"
-        >
-          <div className={styles.summaryIcon}>
-            <PlugZap size={25} />
           </div>
-          <p className={styles.eyebrow}>STEP 1 OF 6</p>
-          <h2>Connect your source</h2>
-          <p>
-            Establish the connection before discovering applications and
-            selecting migration scope.
-          </p>
-          <dl>
-            <dt>Assessment</dt>
-            <dd>{name || "Not entered"}</dd>
-            <dt>Customer</dt>
-            <dd>
-              {selectedCustomer?.name || source?.customerName || "Not selected"}
-            </dd>
-            <dt>Source cluster</dt>
-            <dd>{source?.name || clusterName || "Not selected"}</dd>
-            <dt>Connection</dt>
-            <dd>
-              {verifiedAt
-                ? "Connected"
-                : source
-                  ? "Awaiting verification"
-                  : "Not connected"}
-            </dd>
-            <dt>Target</dt>
-            <dd>Selected later</dd>
-          </dl>
-          <div className={styles.assurance}>
-            <ShieldCheck size={19} />
-            <p>
-              Source access is read-only. Discovery starts in the next stage.
+          {error && (
+            <p role="alert" className={styles.error}>
+              {error}
             </p>
-          </div>
-          <p className={styles.small}>
-            One connector registration per cluster. A customer account can have
-            multiple connected clusters.
-          </p>
-        </aside>
-      </div>
-    </main>
+          )}
+          {enrollment && (
+            <p>
+              <button type="button" onClick={downloadEnrollment}>
+                Download enrollment configuration
+              </button>
+              <small>
+                Expires {new Date(enrollment.expiresAt).toLocaleString()}. Keep
+                this credential private.
+              </small>
+            </p>
+          )}
+          {(draft || commandId) && (
+            <details className={styles.technical}>
+              <summary>Connection reference</summary>
+              {draft && <p>Assessment ID: {draft.migrationId}</p>}
+              {source && <p>Source ID: {source.sourceClusterId}</p>}
+              {commandId && <p>SSM command: {commandId}</p>}
+            </details>
+          )}
+        </section>
+      </form>
+    </div>
   );
 }
