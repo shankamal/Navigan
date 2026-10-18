@@ -166,10 +166,14 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         },
         changeReason: "Attach registered source cluster",
       });
-      const issuedEnrollment = await sourceClusters.enroll(
-        registered.sourceClusterId,
-        registered.version,
-      );
+      // AWS SSM starts its own server-side enrollment during installation.
+      const issuedEnrollment =
+        registered.deliveryMethod === "AWS_SSM"
+          ? null
+          : await sourceClusters.enroll(
+              registered.sourceClusterId,
+              registered.version,
+            );
       return { registered, issuedEnrollment };
     },
     onSuccess: async ({ registered, issuedEnrollment }) => {
@@ -372,13 +376,16 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     hasPermission(identity, "migration.approve");
   const hasGovernanceAction = canSubmit || canReview || canDecide;
   const canPrepareSource =
-    migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
+    ["DRAFT", "SOURCE_ENROLLMENT_PENDING"].includes(migration?.status ?? "") &&
     hasPermission(identity, "migration.edit");
   const canEditAssessment = hasPermission(identity, "migration.edit");
   const sourceRegistrationMissing =
-    migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
+    ["DRAFT", "SOURCE_ENROLLMENT_PENDING"].includes(migration?.status ?? "") &&
     !sourceClustersQuery.isPending &&
     (!sourceClusterId || !sourceCluster);
+  const sourceSetupRequired =
+    migration?.status === "SOURCE_ENROLLMENT_PENDING" ||
+    (migration?.status === "DRAFT" && !sourceCatalogue);
 
   useEffect(() => {
     if (assessmentNamespaces.length === 0) {
@@ -516,7 +523,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
               }) · ${migration?.status.replaceAll("_", " ").toLowerCase()}`
             : assessmentLoading
               ? "Loading the migration feasibility report and assessment evidence…"
-              : "Review migration assessment evidence and the next available action."
+              : sourceSetupRequired
+                ? "Resume this draft by connecting the source cluster and collecting its read-only inventory."
+                : "Review migration assessment evidence and the next available action."
         }
         className={migration ? styles.assessmentHeading : undefined}
         action={
@@ -525,9 +534,14 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
               <ArrowLeft size={17} />
               Back to migrations
             </Link>
-            {assessment && <Link href={`/migrations/${migrationId}/plan`} className="button button-primary">
-              Open migration workspace <ArrowRight size={17} />
-            </Link>}
+            {assessment && (
+              <Link
+                href={`/migrations/${migrationId}/plan`}
+                className="button button-primary"
+              >
+                Open migration workspace <ArrowRight size={17} />
+              </Link>
+            )}
           </div>
         }
       />
@@ -628,40 +642,40 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
             !assessmentLoading &&
             !assessmentQuery.isError &&
             hasGovernanceAction && (
-            <section className={`panel ${styles.approvalPanel}`}>
-              <div className={styles.approvalSummary}>
-                <div className={styles.approvalIcon} aria-hidden="true">
-                  <ShieldCheck size={24} />
-                </div>
-                <div>
-                  <div className={styles.approvalStatusLine}>
-                    <span className="status-badge">
-                      {migration.status.replaceAll("_", " ")}
-                    </span>
-                    <span>Independent governance checkpoint</span>
+              <section className={`panel ${styles.approvalPanel}`}>
+                <div className={styles.approvalSummary}>
+                  <div className={styles.approvalIcon} aria-hidden="true">
+                    <ShieldCheck size={24} />
                   </div>
-                  <h2>
-                    {canDecide
-                      ? "Management decision required"
-                      : canReview
-                        ? "Assessment ready for independent review"
-                        : "Assessment ready to submit"}
-                  </h2>
-                  <p className="muted">
-                    Review feasibility, blockers, and remediation evidence
-                    before authorizing migration planning. Approval does not
-                    change either cluster.
-                  </p>
+                  <div>
+                    <div className={styles.approvalStatusLine}>
+                      <span className="status-badge">
+                        {migration.status.replaceAll("_", " ")}
+                      </span>
+                      <span>Independent governance checkpoint</span>
+                    </div>
+                    <h2>
+                      {canDecide
+                        ? "Management decision required"
+                        : canReview
+                          ? "Assessment ready for independent review"
+                          : "Assessment ready to submit"}
+                    </h2>
+                    <p className="muted">
+                      Review feasibility, blockers, and remediation evidence
+                      before authorizing migration planning. Approval does not
+                      change either cluster.
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className={styles.approvalActions}>{approvalControls}</div>
+                <div className={styles.approvalActions}>{approvalControls}</div>
 
-              {action.isError && (
-                <p role="alert">{normalizeApiError(action.error).message}</p>
-              )}
-            </section>
-          )}
+                {action.isError && (
+                  <p role="alert">{normalizeApiError(action.error).message}</p>
+                )}
+              </section>
+            )}
 
           {migration.status === "REJECTED" && canEditAssessment && (
             <section className={`panel ${styles.connectionCard}`}>
@@ -695,7 +709,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
             </section>
           )}
 
-          {migration.status === "SOURCE_ENROLLMENT_PENDING" && (
+          {sourceSetupRequired && (
             <section
               className={`panel ${styles.bootstrapNotice} ${
                 sourceRegistrationMissing
@@ -1121,22 +1135,28 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
               </p>
             )}
             {hasGovernanceAction && (
-              <div className={styles.reportDecisionActions}>{approvalControls}</div>
+              <div className={styles.reportDecisionActions}>
+                {approvalControls}
+              </div>
             )}
             {action.isError && (
               <p role="alert">{normalizeApiError(action.error).message}</p>
             )}
           </section>
         )}
-      {migration && !assessment && !assessmentLoading && !assessmentQuery.isError &&
-        !hasGovernanceAction && (
-        <section className="panel">
-          <p className="muted">
-            No feasibility report is available for this migration yet. Check
-            the source assessment status before continuing.
-          </p>
-        </section>
-      )}
+      {migration &&
+        !assessment &&
+        !assessmentLoading &&
+        !assessmentQuery.isError &&
+        !hasGovernanceAction &&
+        !sourceSetupRequired && (
+          <section className="panel">
+            <p className="muted">
+              No feasibility report is available for this migration yet. Check
+              the source assessment status before continuing.
+            </p>
+          </section>
+        )}
     </>
   );
 }

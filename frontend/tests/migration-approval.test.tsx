@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   status: "ASSESSMENT_READY",
   assessmentPending: false,
   assessmentError: false,
+  catalogueReady: true,
   deliveryMethod: "MANUAL_HELM",
   action: vi.fn(),
   update: vi.fn(),
@@ -89,23 +90,25 @@ vi.mock("@/modules/migration-management/hooks", () => ({
       migrationId: "MIG-" + "a".repeat(32),
       version: 7,
       status: state.status,
-      catalogue: {
-        catalogueVersion: 1,
-        migrationVersion: 6,
-        schemaVersion: 1,
-        observedAt: "2026-10-06T19:29:02Z",
-        sourceKubernetesVersion: "v1.31.0",
-        inventoryDigest: "a".repeat(64),
-        nodeCount: 3,
-        architectures: ["amd64"],
-        namespaces: [
-          {
-            name: "retailflow",
-            resourceCounts: { Deployment: 2, Service: 1 },
-          },
-        ],
-        createdAt: "2026-10-06T19:29:02Z",
-      },
+      catalogue: state.catalogueReady
+        ? {
+            catalogueVersion: 1,
+            migrationVersion: 6,
+            schemaVersion: 1,
+            observedAt: "2026-10-06T19:29:02Z",
+            sourceKubernetesVersion: "v1.31.0",
+            inventoryDigest: "a".repeat(64),
+            nodeCount: 3,
+            architectures: ["amd64"],
+            namespaces: [
+              {
+                name: "retailflow",
+                resourceCounts: { Deployment: 2, Service: 1 },
+              },
+            ],
+            createdAt: "2026-10-06T19:29:02Z",
+          }
+        : null,
     },
     isPending: false,
     isError: false,
@@ -162,6 +165,7 @@ describe("Migration approval gate", () => {
     state.status = "ASSESSMENT_READY";
     state.assessmentPending = false;
     state.assessmentError = false;
+    state.catalogueReady = true;
     state.deliveryMethod = "MANUAL_HELM";
     state.action.mockReset();
     state.action.mockResolvedValue({});
@@ -241,6 +245,30 @@ describe("Migration approval gate", () => {
     ).toBeInTheDocument();
   });
 
+  it("resumes a saved draft at source installation instead of showing an empty report", async () => {
+    state.status = "DRAFT";
+    state.deliveryMethod = "AWS_SSM";
+    state.catalogueReady = false;
+    renderDetails();
+
+    expect(
+      screen.getByRole("button", { name: "Install source connector" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByText(/No feasibility report is available/i),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Install source connector" }),
+    );
+    await waitFor(() => {
+      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1);
+      expect(
+        screen.getByText("Connector installation started"),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("resumes an inventory-ready migration and starts assessment", async () => {
     state.status = "INVENTORY_READY";
     renderDetails();
@@ -301,8 +329,12 @@ describe("Migration approval gate", () => {
       "Loading migration assessment",
     );
     expect(screen.queryByText("Approval gate")).not.toBeInTheDocument();
-    expect(screen.queryByText("Independent governance checkpoint")).not.toBeInTheDocument();
-    expect(screen.queryByText("No feasibility report is available")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Independent governance checkpoint"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No feasibility report is available"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not display an approval gate for an approved migration with no report", () => {
@@ -310,7 +342,9 @@ describe("Migration approval gate", () => {
     renderDetails();
 
     expect(screen.queryByText("Approval gate")).not.toBeInTheDocument();
-    expect(screen.getByText(/No feasibility report is available/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No feasibility report is available/),
+    ).toBeInTheDocument();
   });
 
   it("waits for assessment evidence before presenting governance actions", () => {
@@ -319,8 +353,12 @@ describe("Migration approval gate", () => {
     state.assessmentPending = true;
     renderDetails();
 
-    expect(screen.queryByRole("button", { name: "Approve assessment" })).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading migration assessment");
+    expect(
+      screen.queryByRole("button", { name: "Approve assessment" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading migration assessment",
+    );
   });
 
   it("allows the Cloud Engineer to refresh a rejected assessment", async () => {
