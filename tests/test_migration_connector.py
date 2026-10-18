@@ -613,3 +613,14 @@ def test_source_catalogue_rejects_invalid_digest():
         )
 
     assert error.value.code == "INVALID_INVENTORY_DIGEST"
+
+
+def test_manual_source_connection_drafts_are_not_automatically_discovered():
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = None
+    result = source_assignment(db, {"connector_id": "SCC-" + "c" * 32, "source_cluster_id": "SRC-" + "d" * 32}, NOW, "source-first")
+    query = db.execute.call_args_list[0].args[0]
+    assert "COALESCE(source_configuration->>'discoveryMode','')='MANUAL'" in query
+    assert "AND NOT (status='DRAFT'" in query
+    assert result["assignmentType"] == "NONE"
+    assert result["status"] == "IDLE"
