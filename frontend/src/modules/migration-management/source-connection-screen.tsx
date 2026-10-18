@@ -103,6 +103,22 @@ export function SourceConnectionScreen({
     },
     retry: false,
   });
+  const customerDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (customerDefaultApplied.current || !customersQuery.data) return;
+    customerDefaultApplied.current = true;
+    if (
+      customer ||
+      initialDraftId ||
+      new URLSearchParams(window.location.search).get("draft")
+    )
+      return;
+    const dbSchenker = customersQuery.data.find(
+      (item) =>
+        item.name.toLowerCase().replace(/[^a-z0-9]/g, "") === "dbschenker",
+    );
+    if (dbSchenker) setCustomer(dbSchenker.customerId);
+  }, [customersQuery.data, customer, initialDraftId]);
   const sourcesQuery = useSourceClusters(customer);
   const connectedSources = (sourcesQuery.data?.items ?? []).filter(
     (item) => item.customerId === customer && item.status !== "REVOKED",
@@ -224,9 +240,8 @@ export function SourceConnectionScreen({
 
   function continueToDiscovery() {
     if (!validateAction("continue")) return;
-    setNotice(
-      "Source connection verified. Source Discovery will be enabled in the next workflow increment.",
-    );
+    if (draft)
+      window.location.assign(`/migrations/${draft.migrationId}/discovery`);
   }
 
   async function verifyConnection() {
@@ -1481,9 +1496,9 @@ export function SourceConnectionScreen({
                 )}
               <button
                 type="button"
-                disabled
+                disabled={locked || !draft || !verifiedAt}
                 onClick={continueToDiscovery}
-                title="Requires a saved assessment, a recently verified source connection, and an available Source Discovery screen."
+                title="Continue to source inventory discovery and source-only assessment."
               >
                 Continue to discovery <ArrowRight size={15} />
               </button>

@@ -1,6 +1,6 @@
 "use client";
 import { useMigration } from "./hooks";
-import { MigrationDetails } from "./migration-details";
+import { SourceDiscoveryScreen } from "./source-discovery-screen";
 import { SourceConnectionScreen } from "./source-connection-screen";
 
 export function SourceConnectionEntry({
@@ -17,9 +17,10 @@ export function SourceConnectionEntry({
         <button onClick={() => query.refetch()}>Retry</button>
       </p>
     );
-  return query.data.sourceConfiguration.discoveryMode === "MANUAL" ? (
+  return query.data.sourceConfiguration.discoveryMode === "MANUAL" &&
+    query.data.status === "DRAFT" ? (
     <SourceConnectionScreen initialDraftId={migrationId} />
   ) : (
-    <MigrationDetails migrationId={migrationId} />
+    <SourceDiscoveryScreen migrationId={migrationId} />
   );
 }

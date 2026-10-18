@@ -861,7 +861,7 @@ def score(dispositions, target_blockers, target_warnings):
     return result
 
 
-def assess(source_inventory, target_runtime, target_configuration):
+def assess(source_inventory, target_runtime, target_configuration, *, source_only=False):
     resources = source_inventory["resources"]
     findings = []
     dispositions = ["SEAMLESS"] * len(resources)
@@ -878,68 +878,74 @@ def assess(source_inventory, target_runtime, target_configuration):
     target_blockers = 0
     target_warnings = 0
 
-    if target_status in {"NOT_REPORTED", "STALE"}:
-        target_blockers += 1
-        findings.append(
-            finding(
-                code="TARGET_RUNTIME_UNAVAILABLE",
-                severity="BLOCKER",
-                category="WORKLOAD",
-                disposition="BLOCKER",
-                message=(
-                    "The selected EKS target does not have a fresh "
-                    "runtime inventory."
-                ),
-                remediation=(
-                    "Restore the target cluster connector and obtain "
-                    "a fresh healthy runtime inventory."
-                ),
-            )
-        )
-    elif target_status != "READY":
-        target_warnings += 1
-        findings.append(
-            finding(
-                code="TARGET_RUNTIME_DEGRADED",
-                severity="WARNING",
-                category="WORKLOAD",
-                disposition="MANUAL_CHANGE",
-                message=(
-                    "The selected EKS target is not reporting READY."
-                ),
-                remediation=(
-                    "Resolve target cluster health warnings before "
-                    "migration."
-                ),
-            )
-        )
-
     metrics = target_runtime.get("metrics") or {}
     node_count = metrics.get("nodeCount")
     ready_nodes = metrics.get("readyNodeCount")
-
-    if (
-        isinstance(node_count, int)
-        and isinstance(ready_nodes, int)
-        and ready_nodes < node_count
-    ):
-        target_blockers += 1
-        findings.append(
-            finding(
-                code="TARGET_NODES_NOT_READY",
-                severity="BLOCKER",
-                category="WORKLOAD",
-                disposition="BLOCKER",
-                message=(
-                    f"Only {ready_nodes} of {node_count} target "
-                    "nodes are ready."
-                ),
-                remediation=(
-                    "Restore all target nodes to Ready state before "
-                    "migration."
-                ),
+    if source_only:
+        target_status = "NOT_ASSESSED"
+    else:
+        if target_status in {"NOT_REPORTED", "STALE"}:
+            target_blockers += 1
+            findings.append(
+                finding(
+                    code="TARGET_RUNTIME_UNAVAILABLE",
+                    severity="BLOCKER",
+                    category="WORKLOAD",
+                    disposition="BLOCKER",
+                    message=(
+                        "The selected EKS target does not have a fresh "
+                        "runtime inventory."
+                    ),
+                    remediation=(
+                        "Restore the target cluster connector and obtain "
+                        "a fresh healthy runtime inventory."
+                    ),
+                )
             )
-        )
+        elif target_status != "READY":
+            target_warnings += 1
+            findings.append(
+                finding(
+                    code="TARGET_RUNTIME_DEGRADED",
+                    severity="WARNING",
+                    category="WORKLOAD",
+                    disposition="MANUAL_CHANGE",
+                    message=(
+                        "The selected EKS target is not reporting READY."
+                    ),
+                    remediation=(
+                        "Resolve target cluster health warnings before "
+                        "migration."
+                    ),
+                )
+            )
+
+        metrics = target_runtime.get("metrics") or {}
+        node_count = metrics.get("nodeCount")
+        ready_nodes = metrics.get("readyNodeCount")
+
+        if (
+            isinstance(node_count, int)
+            and isinstance(ready_nodes, int)
+            and ready_nodes < node_count
+        ):
+            target_blockers += 1
+            findings.append(
+                finding(
+                    code="TARGET_NODES_NOT_READY",
+                    severity="BLOCKER",
+                    category="WORKLOAD",
+                    disposition="BLOCKER",
+                    message=(
+                        f"Only {ready_nodes} of {node_count} target "
+                        "nodes are ready."
+                    ),
+                    remediation=(
+                        "Restore all target nodes to Ready state before "
+                        "migration."
+                    ),
+                )
+            )
 
     classification = Counter(dispositions)
     kind_counts = Counter(
@@ -968,6 +974,7 @@ def assess(source_inventory, target_runtime, target_configuration):
             for item in findings
         ),
         "inventorySummary": {
+            "assessmentMode": "SOURCE_ONLY" if source_only else "TARGET_COMPATIBILITY",
             "resourceCount": len(resources),
             "resourceKinds": dict(sorted(kind_counts.items())),
             "classification": {

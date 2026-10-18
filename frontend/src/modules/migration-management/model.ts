@@ -95,6 +95,8 @@ export const assessmentSchema = z.object({
   compatibilityScore: z.number().int().min(0).max(100),
   containsBlockers: z.boolean(),
   inventorySummary: z.object({
+    sourceClusterId: z.string().nullable().optional(),
+    assessmentMode: z.enum(["SOURCE_ONLY", "TARGET_COMPATIBILITY"]).optional(),
     resourceCount: z.number().int().nonnegative(),
     resourceKinds: z
       .record(z.string(), z.number().int().nonnegative())

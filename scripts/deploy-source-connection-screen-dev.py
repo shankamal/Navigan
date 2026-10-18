@@ -12,7 +12,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 ACCOUNT = "905418045935"
 STACK = "navigan-ashok-dev"
-FILES = ["models.py", "service.py", "repository.py", "connector_handler.py"]
+FILES = ["models.py", "service.py", "repository.py", "connector_handler.py", "assessment_engine.py"]
 
 
 def main():

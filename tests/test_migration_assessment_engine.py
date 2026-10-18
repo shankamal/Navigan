@@ -198,3 +198,11 @@ def test_blocks_target_with_unready_nodes():
         item["code"] == "TARGET_NODES_NOT_READY"
         for item in report["findings"]
     )
+
+
+def test_source_only_assessment_defers_target_checks_but_retains_source_findings():
+    report = assess(inventory([deployment(hostNetwork=True)]), {}, {}, source_only=True)
+    assert report['inventorySummary']['assessmentMode'] == 'SOURCE_ONLY'
+    assert report['inventorySummary']['target']['status'] == 'NOT_ASSESSED'
+    assert not any(item['code'].startswith('TARGET_') for item in report['findings'])
+    assert report['findings']  # Source concerns still require review.

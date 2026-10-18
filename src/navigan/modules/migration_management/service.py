@@ -831,6 +831,17 @@ class Service:
                 "The request creator cannot review or approve it.",
             )
 
+        if (
+            action == "submit"
+            and current["source_configuration"].get("discoveryMode") == "MANUAL"
+            and not current["target_configuration"].get("clusterId")
+        ):
+            raise ApiError(
+                409,
+                "TARGET_SELECTION_REQUIRED",
+                "Complete source scope and target compatibility before submitting for migration review.",
+            )
+
         connector = None
         if action in {"discover", "assess"}:
             connector_token = body.get("connectorToken")

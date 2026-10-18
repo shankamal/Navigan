@@ -301,7 +301,7 @@ export const migrations = {
   discover: async (
     migrationId: string,
     version: number,
-    connectorToken: string,
+    connectorToken?: string,
   ) =>
     parseResponse(
       migrationSchema,

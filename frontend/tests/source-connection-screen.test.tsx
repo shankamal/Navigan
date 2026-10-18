@@ -417,3 +417,23 @@ it("keeps installation progress steady during polling and replaces Connect sourc
     vi.useRealTimers();
   }
 });
+
+it("defaults a new assessment to the accessible active DB Schenker record without hardcoding its ID", async () => {
+  api.customers.mockResolvedValue({
+    items: [
+      {
+        customerId: "CUS-real-db-record",
+        name: "DB Schenker",
+        status: "ACTIVE",
+      },
+    ],
+    pagination: { totalPages: 1 },
+  });
+  open();
+  await screen.findByRole("option", { name: "DB Schenker" });
+  await waitFor(() =>
+    expect(screen.getByLabelText(/Active customer/)).toHaveValue(
+      "CUS-real-db-record",
+    ),
+  );
+});

@@ -714,10 +714,13 @@ def submit_source_inventory(
             "The migration configuration changed during discovery.",
         )
 
-    target_runtime = resolve_target_runtime(
-        db,
-        migration,
-        now,
+    source_only = (
+        migration["source_configuration"].get("discoveryMode") == "MANUAL"
+        and not migration["target_configuration"].get("clusterId")
+    )
+    target_runtime = (
+        {"status": "NOT_ASSESSED", "metrics": {}}
+        if source_only else resolve_target_runtime(db, migration, now)
     )
 
     next_inventory = db.execute(
@@ -788,7 +791,10 @@ def submit_source_inventory(
         source_inventory,
         target_runtime,
         migration["target_configuration"],
+        source_only=source_only,
     )
+
+    generated["inventorySummary"]["sourceClusterId"] = migration["source_configuration"].get("sourceClusterId")
 
     next_assessment = db.execute(
         "SELECT coalesce(max(assessment_version),0) + 1 "

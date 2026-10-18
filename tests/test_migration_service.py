@@ -593,3 +593,16 @@ def test_source_first_rejects_a_source_from_another_customer(monkeypatch):
     with pytest.raises(ApiError) as error:
         Service(repo, Access("creator", {"migration.create"}), "source-first").create(body)
     assert error.value.code == "SOURCE_CLUSTER_UNAVAILABLE"
+
+
+def test_source_only_assessment_cannot_skip_target_selection_and_submit():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.submit"})
+    created = Service(repo, access, "corr-1").create(create_body())
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "ASSESSMENT_READY"
+    repo.rows[identifier]["source_configuration"]["discoveryMode"] = "MANUAL"
+    repo.rows[identifier]["target_configuration"] = {}
+    with pytest.raises(ApiError) as error:
+        Service(repo, access, "corr-2").change(identifier, "submit", {"version":1,"reason":"Skip target selection"})
+    assert error.value.code == "TARGET_SELECTION_REQUIRED"

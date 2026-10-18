@@ -624,3 +624,25 @@ def test_manual_source_connection_drafts_are_not_automatically_discovered():
     assert "AND NOT (status='DRAFT'" in query
     assert result["assignmentType"] == "NONE"
     assert result["status"] == "IDLE"
+
+
+def test_manual_source_inventory_completes_without_a_target(monkeypatch):
+    db = MagicMock()
+    migration = migration_row('DISCOVERING')
+    migration['source_configuration']['discoveryMode'] = 'MANUAL'
+    migration['target_configuration'] = {}
+    db.execute.return_value.fetchone.side_effect = [
+        migration, {'inventory_version': 1}, {'assessment_version': 1},
+    ]
+    monkeypatch.setattr(connector_handler, 'Repository', MagicMock())
+    resolve = MagicMock(side_effect=AssertionError('Target must not be queried'))
+    monkeypatch.setattr(connector_handler, 'resolve_target_runtime', resolve)
+    result = connector_handler.submit_source_inventory(
+        db, connector(status='ACTIVE'), source_inventory_report(), NOW, 'source-only-test'
+    )
+    assert result['status'] == 'ASSESSMENT_READY'
+    resolve.assert_not_called()
+    inserts = [call.args for call in db.execute.call_args_list
+               if 'INSERT INTO migration_management.migration_assessments' in call.args[0]]
+    assert len(inserts) == 1
+    assert 'SOURCE_ONLY' in inserts[0][1][9]
