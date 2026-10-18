@@ -88,6 +88,8 @@ class DevConnectorReleaseTests(unittest.TestCase):
         self.assertIn('ACCOUNT="905418045935"', script)
         self.assertIn('"new_migration_approach_18oct26"', script)
         self.assertIn('git -C "$ROOT" archive HEAD', script)
+        self.assertIn('ls-remote --exit-code origin refs/heads/new_migration_approach_18oct26', script)
+        self.assertNotIn('rev-parse origin/new_migration_approach_18oct26', script)
         self.assertIn('--template-stage Processed', script)
         self.assertIn('patch_migration_nested_template.py', script)
         self.assertIn('--include-nested-stacks', script)

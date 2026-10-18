@@ -30,7 +30,8 @@ if [[ "$(git -C "$ROOT" branch --show-current)" != "new_migration_approach_18oct
   echo "Wrong git branch for DEV release." >&2
   exit 1
 fi
-if [[ "$(git -C "$ROOT" rev-parse HEAD)" != "$(git -C "$ROOT" rev-parse origin/new_migration_approach_18oct26)" ]]; then
+REMOTE_HEAD="$(git -C "$ROOT" ls-remote --exit-code origin refs/heads/new_migration_approach_18oct26 | awk '{print $1}')"
+if [[ ! "$REMOTE_HEAD" =~ ^[0-9a-f]{40}$ || "$(git -C "$ROOT" rev-parse HEAD)" != "$REMOTE_HEAD" ]]; then
   echo "Pull the latest approved DEV branch before preparing the release." >&2
   exit 1
 fi
