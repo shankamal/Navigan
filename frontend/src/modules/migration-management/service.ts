@@ -286,13 +286,13 @@ export const migrations = {
       (await apiClient.get(`${base}/${migrationId}`, { signal })).data,
     ),
 
-  create: async (input: CreateMigrationInput) =>
+  create: async (input: CreateMigrationInput, idempotencyKey?: string) =>
     parseResponse(
       migrationSchema,
       (
         await apiClient.post(base, input, {
           headers: writeHeaders({
-            key: crypto.randomUUID(),
+            key: idempotencyKey ?? crypto.randomUUID(),
           }),
         })
       ).data,
@@ -408,6 +408,8 @@ export const migrations = {
 const sourceClustersBase = "/source-clusters";
 
 export const sourceClusters = {
+  get: async (sourceClusterId: string) =>
+    parseResponse(sourceClusterSchema, (await apiClient.get(`${sourceClustersBase}/${sourceClusterId}`)).data),
   list: async (customerId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceClusterListSchema,
@@ -419,12 +421,12 @@ export const sourceClusters = {
       ).data,
     ),
 
-  create: async (input: CreateSourceClusterInput) =>
+  create: async (input: CreateSourceClusterInput, idempotencyKey?: string) =>
     parseResponse(
       sourceClusterSchema,
       (
         await apiClient.post(sourceClustersBase, input, {
-          headers: writeHeaders({ key: crypto.randomUUID() }),
+          headers: writeHeaders({ key: idempotencyKey ?? crypto.randomUUID() }),
         })
       ).data,
     ),
@@ -486,3 +488,4 @@ export const sourceClusters = {
       ).data,
     ),
 };
+
