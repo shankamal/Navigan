@@ -8,7 +8,7 @@ from scoped_migration_lambda_patch import (
 
 
 class ScopedPreviewTests(unittest.TestCase):
-    def test_only_two_lambdas_role_and_install_route_change(self):
+    def test_only_two_lambdas_and_role_change_existing_routes_unchanged(self):
         root = {"TemplateBody": {"Resources": {
             "SharedPlatform": {"Type": "AWS::CloudFormation::Stack", "Properties": {"TemplateURL": "untouched"}},
             "MigrationManagement": {"Type": "AWS::CloudFormation::Stack", "Properties": {
@@ -42,15 +42,14 @@ class ScopedPreviewTests(unittest.TestCase):
         self.assertEqual(new_child["Resources"]["ExistingRoute"],
                          child["TemplateBody"]["Resources"]["ExistingRoute"])
         self.assertEqual(new_child["Resources"]["MigrationFunction"]["Properties"]["Environment"]["Variables"]["SOURCE_CONNECTOR_DELIVERY_ROLE_ARN"], ROLE)
-        self.assertEqual(new_child["Resources"]["InstallSourceClusterConnectorRoute"]["Properties"]["RouteKey"],
-                         "POST /api/v1/source-clusters/{sourceClusterId}/install")
+        self.assertNotIn("InstallSourceClusterConnectorRoute", new_child["Resources"])
 
     def test_refuse_replacement_or_broad_nested_changes(self):
         def record(name, action, replacement):
             return {"ResourceChange": {"LogicalResourceId": name, "Action": action,
                                        "Replacement": replacement}}
         okay = {"Status": "CREATE_COMPLETE", "Changes": [
-            record(name, "Add" if name == "InstallSourceClusterConnectorRoute" else "Modify", None if name == "InstallSourceClusterConnectorRoute" else "False")
+            record(name, "Modify", "False")
             for name in ALLOWED
         ]}
         verify_change_set(okay)

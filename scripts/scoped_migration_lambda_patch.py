@@ -3,7 +3,7 @@
 
 Never reconstructs API Gateway routes or infrastructure from a local SAM
 template. Changes are limited to two Lambda packages, one inline IAM grant,
-an image/environment pin, and the missing source install route.
+and an image/environment pin. Existing API routes are preserved.
 """
 
 import argparse
@@ -14,13 +14,10 @@ from pathlib import Path
 ROOT_RESOURCE = "MigrationManagement"
 BUCKET = "aws-sam-cli-managed-default-samclisourcebucket-xj9yzigmdgri"
 ROLE = "arn:aws:iam::905418045935:role/NaviganSourceConnectorDeliveryRole"
-INSTALL_ROUTE = "InstallSourceClusterConnectorRoute"
-INSTALL_KEY = "POST /api/v1/source-clusters/{sourceClusterId}/install"
 ALLOWED = {
     "MigrationFunction",
     "MigrationConnectorFunction",
     "MigrationFunctionRole",
-    INSTALL_ROUTE,
 }
 
 
@@ -88,15 +85,6 @@ def stage_templates(root_response, child_response, template_url, code_key, repo,
         },
     })
 
-    if INSTALL_ROUTE in resources:
-        raise ValueError("Install route already owned by deployed child stack; inspect before updating")
-    base = resources.get("CreateSourceClusterEnrollmentRoute", {})
-    if base.get("Type") != "AWS::ApiGatewayV2::Route":
-        raise ValueError("Missing existing source cluster enrollment route")
-    addition = copy.deepcopy(base)
-    addition["Properties"]["RouteKey"] = INSTALL_KEY
-    resources[INSTALL_ROUTE] = addition
-
     modified = {
         name for name in resources if resources.get(name) != original_child["Resources"].get(name)
     }
@@ -117,8 +105,7 @@ def verify_change_set(response):
     if set(changes) != ALLOWED or len(response.get("Changes", [])) != len(ALLOWED):
         raise ValueError("Unsafe DEV change set: unexpected resources")
     for name, change in changes.items():
-        expected = "Add" if name == INSTALL_ROUTE else "Modify"
-        if change.get("Action") != expected or change.get("Replacement") not in (None, False, "False"):
+        if change.get("Action") != "Modify" or change.get("Replacement") not in (None, False, "False"):
             raise ValueError(f"Unsafe action or resource replacement for {name}")
 
 
@@ -149,7 +136,7 @@ def main():
     )
     args.root_output.write_text(json.dumps(root, indent=2) + "\n")
     args.child_output.write_text(json.dumps(child, indent=2) + "\n")
-    print("Prepared deployed-template update: 2 Lambda packages, 1 IAM grant, image env, install route.")
+    print("Prepared deployed-template update: 2 Lambda packages, 1 IAM grant, image env; routes untouched.")
 
 
 if __name__ == "__main__":

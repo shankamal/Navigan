@@ -72,12 +72,29 @@ if [[ "$API_ID" == None || -z "$API_ID" ]]; then
   exit 1
 fi
 
-EXISTING_ROUTE="$(aws apigatewayv2 get-routes --api-id "$API_ID" \
-  --query 'Items[?RouteKey==`POST /api/v1/source-clusters/{sourceClusterId}/install`].RouteId | [0]' --output text)"
-if [[ "$EXISTING_ROUTE" != None && -n "$EXISTING_ROUTE" ]]; then
-  echo "Install API route already exists ($EXISTING_ROUTE). Stop to reconcile ownership." >&2
-  exit 1
-fi
+ROUTE_IDS="$(aws apigatewayv2 get-routes --api-id "$API_ID" \
+  --query 'Items[?RouteKey==`POST /api/v1/source-clusters/{sourceClusterId}/install`].RouteId' --output json)"
+ROUTE_ID="$(python3 -c 'import json,sys; ids=json.loads(sys.argv[1]); sys.exit("Expected one installed source route" if len(ids)!=1 else 0); print(ids[0])' "$ROUTE_IDS")"
+ROUTE_JSON="$(aws apigatewayv2 get-route --api-id "$API_ID" --route-id "$ROUTE_ID" --output json)"
+INTEGRATION_ID="$(aws cloudformation describe-stack-resource --stack-name "$CHILD_STACK" \
+  --logical-resource-id MigrationIntegration --query StackResourceDetail.PhysicalResourceId --output text)"
+AUTHORIZER_ID="$(aws cloudformation describe-stacks --stack-name "$CHILD_STACK" \
+  --query 'Stacks[0].Parameters[?ParameterKey==`AuthorizerId`].ParameterValue | [0]' --output text)"
+JWT_SCOPE="$(aws cloudformation describe-stacks --stack-name "$CHILD_STACK" \
+  --query 'Stacks[0].Parameters[?ParameterKey==`JwtScope`].ParameterValue | [0]' --output text)"
+python3 - "$ROUTE_JSON" "integrations/$INTEGRATION_ID" "$AUTHORIZER_ID" "$JWT_SCOPE" <<'PY'
+import json
+import sys
+route = json.loads(sys.argv[1])
+target, authorizer, scope = sys.argv[2:]
+if (route.get("RouteKey") != "POST /api/v1/source-clusters/{sourceClusterId}/install"
+        or route.get("Target") != target
+        or route.get("AuthorizationType") != "JWT"
+        or route.get("AuthorizerId") != authorizer
+        or scope not in (route.get("AuthorizationScopes") or [])):
+    raise SystemExit("Existing install route target/JWT settings differ from MigrationManagement; stop for review.")
+print("Verified existing source install API route and JWT settings; preserving it unchanged.")
+PY
 
 TMP="$(mktemp -d /var/tmp/navigan-lambda-stage.XXXXXX)"
 cleanup() { if [[ "$TMP" == /var/tmp/navigan-lambda-stage.* ]]; then rm -rf -- "$TMP"; fi; }

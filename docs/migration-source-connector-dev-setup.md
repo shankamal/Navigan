@@ -175,16 +175,16 @@ git pull --ff-only origin new_migration_approach_18oct26
 AWS_PROFILE=navigan AWS_REGION=ap-south-1 bash scripts/stage-migration-source-connector-lambda-only-dev.sh
 ```
 
-The script must produce a root change set that modifies only
+After verifying the existing install route targets the expected migration integration
+and uses JWT authorization, the script must produce a root change set that modifies only
 `MigrationManagement` and a nested change set limited to:
 
 - `MigrationFunction`: in-place code and connector environment update
 - `MigrationConnectorFunction`: in-place code update
 - `MigrationFunctionRole`: in-place scoped `sts:AssumeRole` permission
-- `InstallSourceClusterConnectorRoute`: add one new route, only when absent
 
-It checks the existing API for the install route and fails safely if it already
-exists. It does **not** execute a change set, build a container, provision an
+It preserves the already-existing install route and fails safely if its
+integration target or JWT authorization does not match the deployed migration API. It does **not** execute a change set, build a container, provision an
 artifact bucket/KMS key, or modify other capability templates. If the preview
 includes any other resources or replacements, stop and reconcile before any
 deployment.
