@@ -269,10 +269,11 @@ export interface CreateMigrationInput {
   name: string;
   source: {
     platform: "SELF_MANAGED_KUBERNETES";
+    discoveryMode?: "MANUAL";
     sourceClusterId?: string;
     accessMode: "READ_ONLY_CONNECTOR";
   };
-  target: {
+  target?: {
     platform: "EKS";
     targetType: "EXISTING_CLUSTER";
     environmentId: string;
@@ -383,3 +384,4 @@ export interface MigrationPlanningDraft {
     "UNDECIDED" | "BACKUP_RESTORE" | "REPLICATION" | "NO_PERSISTENT_DATA";
   notes: string;
 }
+
