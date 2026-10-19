@@ -520,7 +520,7 @@ SOURCE_INVENTORY_KEYS = {
         "imagePullSecretCount",
     },
     "Deployment": {"replicas", "strategyType", "pod", "dependencyReferences"},
-    "StatefulSet": {"replicas", "strategyType", "pod", "dependencyReferences"},
+    "StatefulSet": {"replicas", "strategyType", "pod", "dependencyReferences", "volumeClaimTemplateNames"},
     "DaemonSet": {"replicas", "strategyType", "pod", "dependencyReferences"},
     "Job": {"replicas", "strategyType", "pod", "dependencyReferences"},
     "CronJob": {"replicas", "strategyType", "pod", "dependencyReferences"},
@@ -714,6 +714,17 @@ class SourceInventoryReport(Model):
                     if pair in seen_references:
                         raise ValueError("Duplicate inventory dependency reference.")
                     seen_references.add(pair)
+
+            if kind == "StatefulSet":
+                templates = resource.get("volumeClaimTemplateNames", [])
+                if (
+                    not isinstance(templates, list)
+                    or len(templates) > 100
+                    or any(not isinstance(name, str) or not 0 < len(name) <= 253 for name in templates)
+                ):
+                    raise ValueError("Invalid StatefulSet volume claim template names.")
+                if len(set(templates)) != len(templates):
+                    raise ValueError("Duplicate StatefulSet volume claim template name.")
 
             if kind == "Ingress":
                 backends = resource.get("backendServiceReferences", [])

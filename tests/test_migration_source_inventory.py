@@ -322,3 +322,56 @@ def test_rejects_unexpected_ingress_backend_payload():
     ]
     with pytest.raises(ValidationError, match="Invalid ingress backend reference"):
         SourceInventoryReport.model_validate(payload)
+
+
+def statefulset_inventory():
+    inventory = build_inventory([{
+        "apiVersion": "apps/v1",
+        "kind": "StatefulSet",
+        "metadata": {"name": "postgres", "namespace": "retailflow"},
+        "spec": {"volumeClaimTemplates": [{
+            "metadata": {"name": "data"},
+            "spec": {"storageClassName": "private-storage-config"},
+        }]},
+    }])
+    return {
+        **inventory,
+        "migrationVersion": 4,
+        "observedAt": "2026-10-19T08:30:00Z",
+        "sourceKubernetesVersion": "v1.37.1",
+    }
+
+
+def test_accepts_connector_statefulset_claim_template_names_without_raw_configuration():
+    import json
+
+    report = statefulset_inventory()
+    validated = SourceInventoryReport.model_validate(report)
+    assert validated.resources[0]["volumeClaimTemplateNames"] == ["data"]
+    assert "private-storage-config" not in json.dumps(report)
+
+
+@pytest.mark.parametrize("names", [None, "data", [{}], [""], ["x" * 254], ["data", "data"], [str(i) for i in range(101)]])
+def test_rejects_invalid_statefulset_claim_template_metadata(names):
+    report = statefulset_inventory()
+    report["resources"][0]["volumeClaimTemplateNames"] = names
+    with pytest.raises(ValidationError, match="StatefulSet volume claim template"):
+        SourceInventoryReport.model_validate(report)
+
+
+def test_all_supported_collector_resource_kinds_match_backend_inventory_contract():
+    from migration_connector.inventory import SUPPORTED_KINDS
+
+    for kind in sorted(SUPPORTED_KINDS):
+        inventory = build_inventory([{
+            "apiVersion": "v1",
+            "kind": kind,
+            "metadata": {"name": "example", "namespace": "retailflow"},
+            "spec": {"template": {"spec": {}}, "jobTemplate": {"spec": {"template": {"spec": {}}}}},
+        }])
+        SourceInventoryReport.model_validate({
+            **inventory,
+            "migrationVersion": 1,
+            "observedAt": "2026-10-19T08:30:00Z",
+            "sourceKubernetesVersion": "v1.37.1",
+        })
