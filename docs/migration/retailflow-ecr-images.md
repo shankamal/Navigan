@@ -68,3 +68,7 @@ Original controller templates are backed up under /opt/navigan/retailflow-ecr/ba
 The source host stores reusable image patches in /opt/navigan/retailflow-ecr/source-image-patches.json, and the local checkout gets retailflow-source-ecr-result.json. These are live-controller updates and exported patches; no inaccessible application Git repository is silently edited. Integrate the generated image and imagePullSecrets patches into the actual deployment repository before subsequently reapplying original manifests, to prevent reverting source image references.
 
 After successful checks, use Navigan's Refresh cluster evidence action and configure its source registry host as 905418045935.dkr.ecr.ap-south-1.amazonaws.com. Newly rolled application Pods should report ECR references. Retained old Jobs may still show historical Docker Hub references until their normal cleanup. The target environment is not accessed.
+
+### Docker platform metadata recovery
+
+The mirror script retries the specific Docker/containerd push errors `does not provide any platform` and `does not provide the specified platform` by resolving the source's linux/amd64 child manifest with Docker Buildx, pulling that immutable digest, and tagging the digest reference. It verifies architecture and the original inspected image ID before retrying the push. Other push errors remain failures. This recovery requires Docker Buildx, does not prune the local image store or change Docker settings, and does not modify live source workloads. ECR availability is still checked before recording the mapping.
