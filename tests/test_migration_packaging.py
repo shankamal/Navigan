@@ -69,9 +69,9 @@ def test_rbac_is_read_only_and_limits_assessment_resources():
     assert role["kind"] == "ClusterRole"
     assert binding["roleRef"]["name"] == role["metadata"]["name"]
     expected = {
-        "": {"nodes", "namespaces", "services", "persistentvolumeclaims",
+        "": {"pods", "nodes", "namespaces", "services", "persistentvolumeclaims",
              "serviceaccounts", "configmaps", "secrets"},
-        "apps": {"deployments", "statefulsets", "daemonsets"},
+        "apps": {"replicasets", "deployments", "statefulsets", "daemonsets"},
         "batch": {"jobs", "cronjobs"},
         "networking.k8s.io": {"ingresses", "networkpolicies"},
         "autoscaling": {"horizontalpodautoscalers"},

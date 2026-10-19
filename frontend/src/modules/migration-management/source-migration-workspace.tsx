@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Boxes,
   CheckCircle2,
-  GitBranch,
   Info,
   LockKeyhole,
   Network,
@@ -32,6 +31,7 @@ import {
   sourceClusters,
   type TargetCompatibilityResponse,
 } from "./service";
+import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import {
   applicationKinds,
@@ -41,15 +41,6 @@ import {
   selectedApplicationScope,
 } from "./source-migration-scope";
 import styles from "./source-migration-workspace.module.css";
-
-const methods: [MigrationDeploymentSource["method"], string][] = [
-  ["UNKNOWN", "Not identified"],
-  ["HELM", "Helm chart"],
-  ["MANIFESTS", "Kubernetes manifests"],
-  ["SCRIPT", "Deployment script"],
-  ["REPOSITORY", "Repository / GitOps"],
-  ["OTHER", "Other mechanism"],
-];
 
 export function SourceMigrationWorkspace({
   migration: initial,
@@ -76,9 +67,9 @@ export function SourceMigrationWorkspace({
     saved?.selectedNamespaces ?? [],
   );
   const [search, setSearch] = useState("");
-  const [deploymentSources, setDeploymentSources] = useState<
-    MigrationDeploymentSource[]
-  >(saved?.deploymentSources ?? []);
+  const [deploymentSources] = useState<MigrationDeploymentSource[]>(
+    saved?.deploymentSources ?? [],
+  );
   const [dataStrategy, setDataStrategy] = useState<
     MigrationPlanningDraft["dataStrategy"]
   >(saved?.dataStrategy ?? "UNDECIDED");
@@ -199,33 +190,6 @@ export function SourceMigrationWorkspace({
       markDirty();
     }
   }
-  function updateDeployment(
-    key: string,
-    changes: Partial<MigrationDeploymentSource>,
-  ) {
-    const workload = scope.workloads.find((r) => scopeKey(r) === key)!;
-    setDeploymentSources((current) => {
-      const existing = current.find((s) => scopeKey(s.workload) === key);
-      return [
-        ...current.filter((s) => scopeKey(s.workload) !== key),
-        {
-          workload: {
-            apiVersion: workload.apiVersion,
-            kind: workload.kind,
-            namespace: workload.namespace ?? null,
-            name: workload.name,
-          },
-          method: "UNKNOWN",
-          bundleName: "",
-          reference: "",
-          releaseName: "",
-          ...existing,
-          ...changes,
-        },
-      ];
-    });
-    markDirty();
-  }
   async function saveScope(continueToTarget = false) {
     if (!scope.workloads.length) {
       setError(
@@ -317,13 +281,6 @@ export function SourceMigrationWorkspace({
       setBusy(false);
     }
   }
-  const chosenSources = deploymentSources.filter((s) =>
-    selected.has(scopeKey(s.workload)),
-  );
-  const unidentified =
-    scope.workloads.length -
-    chosenSources.filter((s) => s.method !== "UNKNOWN" && s.reference.trim())
-      .length;
   return (
     <div className={styles.workspace}>
       <header className={styles.pageHeading}>
@@ -631,117 +588,11 @@ export function SourceMigrationWorkspace({
               </label>
             )}
           </section>
-          <section
-            className={styles.panel}
-            aria-label="Deployment source identification"
-          >
-            <div className={styles.sectionHeading}>
-              <div>
-                <h2>
-                  <GitBranch size={20} />
-                  4. Identify original deployment sources
-                </h2>
-                <p>
-                  Record the existing delivery mechanism for each selected
-                  workload. Use the same bundle name for workloads managed by
-                  one chart, script or repository.
-                </p>
-              </div>
-              <span className={styles.badge}>User-provided metadata</span>
-            </div>
-            {!scope.workloads.length && (
-              <p className={styles.empty}>
-                Select application workloads to capture their deployment
-                sources.
-              </p>
-            )}
-            {scope.workloads.map((r) => {
-              const key = scopeKey(r);
-              const source = deploymentSources.find(
-                (s) => scopeKey(s.workload) === key,
-              );
-              return (
-                <fieldset
-                  className={styles.deployment}
-                  key={key}
-                  disabled={busy || !canEdit}
-                >
-                  <legend>
-                    {r.namespace} / {r.name}
-                  </legend>
-                  <label>
-                    Deployment method
-                    <select
-                      aria-label={`Deployment method for ${r.name}`}
-                      title="Record how this workload was originally deployed. This is user-provided metadata."
-                      value={source?.method ?? "UNKNOWN"}
-                      onChange={(e) =>
-                        updateDeployment(key, {
-                          method: e.target
-                            .value as MigrationDeploymentSource["method"],
-                        })
-                      }
-                    >
-                      {methods.map(([value, label]) => (
-                        <option value={value} key={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Shared bundle name
-                    <input
-                      aria-label={`Bundle name for ${r.name}`}
-                      title="Use the same bundle name for workloads deployed together by one chart, script or manifest collection."
-                      maxLength={200}
-                      value={source?.bundleName ?? ""}
-                      placeholder="e.g. payments-platform"
-                      onChange={(e) =>
-                        updateDeployment(key, { bundleName: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Repository, chart or artifact reference
-                    <input
-                      aria-label={`Artifact reference for ${r.name}`}
-                      title="Optional repository URL or artifact path. Do not include credentials or secret values."
-                      maxLength={1000}
-                      value={source?.reference ?? ""}
-                      placeholder="Repository URL or artifact path — no credentials"
-                      onChange={(e) =>
-                        updateDeployment(key, { reference: e.target.value })
-                      }
-                    />
-                  </label>
-                  {source?.method === "HELM" && (
-                    <label>
-                      Helm release name
-                      <input
-                        maxLength={100}
-                        value={source.releaseName}
-                        onChange={(e) =>
-                          updateDeployment(key, { releaseName: e.target.value })
-                        }
-                      />
-                    </label>
-                  )}
-                </fieldset>
-              );
-            })}
-            <div className={styles.info}>
-              <strong>
-                Selective extraction · Awaiting original artifacts
-              </strong>
-              <p>
-                Selected workload identities and observed dependencies will
-                define the extraction boundary. Original Helm values, YAML and
-                deployment scripts have not been collected or analyzed. No
-                deployment snippet has been generated.
-              </p>
-            </div>
-          </section>
+          <DeploymentEvidencePanel
+            migration={migration}
+            selectedKeys={selected}
+            inventoryDigest={inventory.inventoryDigest}
+          />
           <footer className={styles.actions}>
             <span>
               {scope.workloads.length} workloads selected ·{" "}
@@ -914,13 +765,12 @@ export function SourceMigrationWorkspace({
               {currentCompatibility?.decision.path ?? "not evaluated"}
             </li>
             <li>
-              Deployment source identification:{" "}
-              {unidentified > 0
-                ? `${unidentified} workloads need a source reference`
-                : "metadata recorded"}
+              Deployment source identification: Deployment source evidence and
+              original artifact extraction require review.
             </li>
             <li>
-              Original artifact analysis and selective extraction: pending
+              Selected artifact extraction and rendered package validation:
+              pending
             </li>
             <li>Adapted deployment package and validation: pending</li>
             <li>

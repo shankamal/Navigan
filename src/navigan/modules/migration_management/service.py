@@ -54,6 +54,107 @@ class Service:
         self.principal = repo.principal
         self.correlation = correlation
 
+    def require_source_first(self):
+        if os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") != "true":
+            raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+
+    def deployment_source_configuration(self, identifier):
+        self.require_source_first()
+        source = self.repo.get_source_cluster(identifier)
+        configuration = (source.get("delivery_configuration") or {}).get("deploymentDiscovery") or {"repositories": [], "registries": []}
+        return {"sourceClusterId": identifier, "version": source["version"], "configuration": configuration,
+                "githubOrganizations": self.repo.deployment_connections(source["customer_id"]),
+                "registryAdapters": ["AWS_ECR", "PUBLIC_DOCKER_HUB"]}
+
+    def save_deployment_sources(self, identifier, body):
+        self.require_source_first()
+        self.access.require("migration.edit")
+        source = self.repo.get_source_cluster(identifier, lock=True)
+        self.access.require_customer(source["customer_id"], source["created_by"])
+        if source["version"] != body["version"]:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload deployment sources before saving.")
+        artifacts = [a for r in (source.get("delivery_configuration") or {}).get("deploymentAnalysis", {}).get("repositories", []) for a in r.get("artifacts", [])]
+        for mapping in body["configuration"].get("confirmations", []):
+            if not any(all(mapping[k] == a.get(k) for k in ("repository", "commit", "filePath")) for a in artifacts):
+                raise ApiError(400, "DEPLOYMENT_SOURCE_NOT_ANALYZED", "Confirm a deployment artifact returned by source analysis.")
+        self.repo.save_deployment_configuration(source, "deploymentDiscovery", body["configuration"], self.correlation)
+        return self.deployment_source_configuration(identifier)
+
+    def deployment_context(self, identifier):
+        self.require_source_first()
+        migration = self.repo.get(identifier)
+        source_id = migration["source_configuration"].get("sourceClusterId")
+        if not source_id:
+            raise ApiError(409, "SOURCE_CLUSTER_REQUIRED", "Connect a registered source cluster first.")
+        source = self.repo.get_source_cluster(source_id)
+        if source["customer_id"] != migration["customer_id"]:
+            raise ApiError(403, "SOURCE_CUSTOMER_MISMATCH", "The source cluster belongs to another customer.")
+        return migration, source
+
+    def deployment_evidence(self, identifier):
+        from .deployment_sources import build_report
+        migration, source = self.deployment_context(identifier)
+        inventory = self.repo.get_source_inventory(identifier).get("inventory")
+        return build_report(migration, inventory, source)
+
+    def analyze_deployment_sources(self, identifier, body):
+        import time
+        from .deployment_sources import analyze_repository, check_image, config_digest, WORKLOADS, repository_read_token
+        self.access.require("migration.edit")
+        migration, source = self.deployment_context(identifier)
+        self.access.require_customer(migration["customer_id"], migration["created_by"])
+        if migration["version"] != body["version"]:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest assessment before analyzing deployment sources.")
+        if body.get("refreshCluster"):
+            if migration["status"] != "ASSESSMENT_READY":
+                raise ApiError(409, "SOURCE_REFRESH_NOT_READY", "Refresh cluster evidence after the current source assessment completes.")
+            current = self.repo.get(identifier, lock=True)
+            if current["version"] != body["version"]:
+                raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest assessment.")
+            row = copy.deepcopy(current)
+            row.update(status="DISCOVERY_PENDING", version=current["version"] + 1,
+                       updated_by=self.principal.user_id, change_reason="Refresh running images and deployment metadata")
+            self.repo.save(row, current, "MIGRATION_DEPLOYMENT_EVIDENCE_REFRESH", self.correlation)
+            return {"migrationId": identifier, "migration": serialize(row), "refreshRequested": True}
+        inventory = self.repo.get_source_inventory(identifier).get("inventory")
+        if not inventory:
+            raise ApiError(409, "SOURCE_INVENTORY_REQUIRED", "Complete source discovery before analyzing deployment sources.")
+        configuration = (source.get("delivery_configuration") or {}).get("deploymentDiscovery") or {"repositories": [], "registries": []}
+        deadline = time.monotonic() + 18
+        repositories = []
+        from navigan.modules.cluster_management.repository import Repository as ClusterRepository
+        cluster_repo = ClusterRepository(self.repo.db, self.principal)
+        for entry in configuration["repositories"]:
+            if time.monotonic() >= deadline:
+                repositories.append({"repository": entry["repository"], "status": "PENDING", "artifacts": [], "gaps": ["Analysis time budget reached. Narrow the repository directory and retry."]})
+                continue
+            try:
+                organization, name = entry["repository"].split("/", 1)
+                connection = cluster_repo.active_github_connection(source["customer_id"], organization)
+                token = None
+                if connection:
+                    token = repository_read_token(connection["installation_id"], name)
+                repositories.append(analyze_repository(entry, token, deadline=deadline))
+            except Exception:
+                # Do not persist upstream exception bodies, repository contents or credentials.
+                repositories.append({"repository": entry["repository"], "status": "UNAVAILABLE", "artifacts": [],
+                                     "gaps": ["Repository could not be inspected. Check the customer GitHub App access, revision and directory; public repositories use anonymous access."]})
+        images = sorted({c["image"] for r in inventory["resources"] if r.get("kind") in WORKLOADS
+                         for field in ("containers", "initContainers") for c in (r.get("pod") or {}).get(field, []) if c.get("image")})
+        checks = []
+        for image in images:
+            if time.monotonic() >= deadline:
+                checks.append({"image": image, "status": "PENDING", "reason": "Analysis time budget reached. Retry registry analysis after narrowing repository scope."})
+                continue
+            try:
+                checks.append(check_image(image, (source.get("delivery_configuration") or {}).get("accountId"), configuration["registries"]))
+            except Exception:
+                checks.append({"image": image, "status": "UNAVAILABLE", "reason": "Image metadata could not be read. Check registry access, image existence and configured adapter."})
+        analysis = {"configurationDigest": config_digest(configuration), "repositories": repositories, "images": checks,
+                    "analyzedAt": datetime.now(timezone.utc).isoformat()}
+        self.repo.save_deployment_configuration(source, "deploymentAnalysis", analysis, self.correlation)
+        return self.deployment_evidence(identifier)
+
     def prepare_artifact_upload(self, identifier, body):
         """Issue a scoped, encrypted S3 upload intent for a reviewed artifact.
 

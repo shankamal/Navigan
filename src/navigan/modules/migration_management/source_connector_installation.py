@@ -122,10 +122,10 @@ rules:
 - nonResourceURLs: ["/version"]
   verbs: ["get"]
 - apiGroups: [""]
-  resources: ["nodes","namespaces","services","persistentvolumeclaims","serviceaccounts","configmaps","secrets"]
+  resources: ["pods","nodes","namespaces","services","persistentvolumeclaims","serviceaccounts","configmaps","secrets"]
   verbs: ["list"]
 - apiGroups: ["apps"]
-  resources: ["deployments","statefulsets","daemonsets"]
+  resources: ["replicasets","deployments","statefulsets","daemonsets"]
   verbs: ["list"]
 - apiGroups: ["batch"]
   resources: ["jobs","cronjobs"]
@@ -402,3 +402,4 @@ class SourceConnectorInstaller:
             "managedInstanceId": configuration["managedInstanceId"],
             "status": "INSTALLATION_STARTED",
         }
+

@@ -452,6 +452,10 @@ def collect_inventory(assignment, request=kubernetes_request):
                         "Inventory resource limit exceeded."
                     )
 
+    from .deployment_evidence import collect_runtime
+    for namespace in namespaces:
+        collect_runtime(urllib.parse.quote(namespace, safe=""), request, sanitized)
+
     if scope.get("includeClusterScopedResources") is True:
         for path in CLUSTER_RESOURCE_PATHS:
             api_version, kind = RESOURCE_TYPE_BY_PATH[path]

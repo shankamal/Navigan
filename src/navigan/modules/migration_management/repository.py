@@ -204,7 +204,7 @@ class Repository:
             "RETURNING *",
             [
                 delivery["method"],
-                json_text(delivery.get("awsSsm") or {}),
+                json_text({**{k: v for k, v in (source_cluster.get("delivery_configuration") or {}).items() if k in {"deploymentDiscovery", "deploymentAnalysis"}}, **(delivery.get("awsSsm") or {})}),
                 self.principal.user_id,
                 source_cluster["source_cluster_id"],
             ],
@@ -219,6 +219,31 @@ class Repository:
             },
         )
         return updated
+
+    def save_deployment_configuration(self, source, key, value, correlation):
+        # Source-scoped JSON survives assessment creation, deletion and delivery changes.
+        if key not in {"deploymentDiscovery", "deploymentAnalysis"}:
+            raise ValueError("Invalid deployment configuration key.")
+        row = self.db.execute(
+            "UPDATE migration_management.source_clusters SET "
+            "delivery_configuration=jsonb_set(delivery_configuration,%s,%s::jsonb),"
+            "version=version+1,updated_at=now(),updated_by=%s "
+            "WHERE source_cluster_id=%s AND version=%s RETURNING *",
+            [[key], json_text(value), self.principal.user_id, source["source_cluster_id"], source["version"]],
+        ).fetchone()
+        if not row:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the source connection before saving deployment sources.")
+        self.audit_source_cluster(source["source_cluster_id"], "SOURCE_DEPLOYMENT_" + key.upper(), correlation,
+                                  {"repositoryCount": len(value.get("repositories", []))})
+        return row
+
+    def deployment_connections(self, customer_id):
+        self.require_customer_visible(customer_id)
+        return [row["organization_login"] for row in self.db.execute(
+            "SELECT organization_login FROM cluster_management.github_app_connections "
+            "WHERE customer_id=%s AND status='ACTIVE' AND installation_id IS NOT NULL ORDER BY organization_login",
+            [customer_id],
+        ).fetchall()]
 
     def create_source_enrollment(
         self,

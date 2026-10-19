@@ -29,6 +29,7 @@ from .models import (
     UpdateSourceClusterDelivery,
     UpdateMigration,
 )
+from .deployment_sources import SaveDeploymentSources, AnalyzeDeploymentSources
 from .repository import Repository
 from .service import Service, TRANSITIONS
 from .source_connector_installation import SourceConnectorInstaller
@@ -132,6 +133,8 @@ def route_of(method, path):
         identifier = parts[0]
         if not re.fullmatch(r"SRC-[a-f0-9]{32}", identifier):
             raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+        if len(parts) == 2 and parts[1] == "deployment-sources" and method in {"GET", "PUT"}:
+            return ("deployment_sources_get" if method == "GET" else "deployment_sources_save"), identifier, None
         if len(parts) == 1 and method == "GET":
             return "source_cluster_get", identifier, None
         if len(parts) == 1 and method == "PUT":
@@ -168,6 +171,8 @@ def route_of(method, path):
 
     if len(parts) == 1 and method == "GET":
         return "get", identifier, None
+    if len(parts) == 2 and parts[1] == "deployment-evidence" and method in {"GET", "POST"}:
+        return ("deployment_evidence_get" if method == "GET" else "deployment_evidence_run"), identifier, None
     if len(parts) == 2 and parts[1] == "target-assessment" and method in {"GET", "POST"}:
         return ("target_assessment_get" if method == "GET" else "target_assessment_run"), identifier, None
 
@@ -225,6 +230,8 @@ def execute(event, principal, correlation):
         "source_cluster_install",
         "target_assessment_run",
         "artifact_upload_intent",
+        "deployment_sources_save",
+        "deployment_evidence_run",
     }
     idempotent = mutating and route != "source_cluster_enrollment"
 
@@ -266,7 +273,11 @@ def execute(event, principal, correlation):
                     "Use an integer version.",
                 ) from None
 
-        if route == "create":
+        if route == "deployment_sources_save":
+            model = SaveDeploymentSources
+        elif route == "deployment_evidence_run":
+            model = AnalyzeDeploymentSources
+        elif route == "create":
             model = CreateMigration
         elif route == "update":
             model = UpdateMigration
@@ -334,6 +345,10 @@ def execute(event, principal, correlation):
                     value["installationCheck"] = Service(repo, access, correlation).source_installation_check(source)
             elif route == "list":
                 value = repo.list(query_of(event))
+            elif route == "deployment_sources_get":
+                value = Service(repo, access, correlation).deployment_source_configuration(identifier)
+            elif route == "deployment_evidence_get":
+                value = Service(repo, access, correlation).deployment_evidence(identifier)
             elif route == "source_catalogue":
                 value = repo.get_source_catalogue(identifier)
             elif route == "source_inventory":
@@ -384,7 +399,13 @@ def execute(event, principal, correlation):
 
         service = Service(repo, access, correlation)
 
-        if route == "target_assessment_run":
+        if route == "deployment_sources_save":
+            value = service.save_deployment_sources(identifier, body)
+            status = 200
+        elif route == "deployment_evidence_run":
+            value = service.analyze_deployment_sources(identifier, body)
+            status = 200
+        elif route == "target_assessment_run":
             value = service.analyze_target(identifier)
             status = 200
         elif route == "artifact_upload_intent":

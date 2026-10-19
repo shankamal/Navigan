@@ -154,7 +154,8 @@ def test_collects_only_selected_namespaces_and_safe_resources():
     requested_paths = " ".join(observed).lower()
     for forbidden in (
         "events",
-        "/pods",
+        "/pods/log",
+        "/pods/exec",
     ):
         assert forbidden not in requested_paths
     assert "/roles" in requested_paths

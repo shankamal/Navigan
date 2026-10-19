@@ -20,6 +20,7 @@ import {
   sourceDiscoveryRunning,
   sourceWorkspaceReady,
 } from "./source-discovery-state";
+import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
 import styles from "./source-discovery-screen.module.css";
@@ -31,7 +32,6 @@ const workloadKinds = new Set([
   "Job",
   "CronJob",
 ]);
-
 
 export function useSourceDiscoverySnapshot(
   migrationId: string,
@@ -223,7 +223,9 @@ export function SourceDiscoveryScreen({
   async function refreshStatus() {
     await Promise.all([
       query.refetch({ cancelRefetch: false }),
-      sourceId ? sourceQuery.refetch({ cancelRefetch: false }) : Promise.resolve(),
+      sourceId
+        ? sourceQuery.refetch({ cancelRefetch: false })
+        : Promise.resolve(),
     ]);
   }
 
@@ -285,7 +287,10 @@ export function SourceDiscoveryScreen({
           <ArrowLeft size={15} /> Back to assessments
         </Link>
       </header>
-      <MigrationWorkflow active={2} completed={sourceFresh || ready ? [1] : []} />
+      <MigrationWorkflow
+        active={2}
+        completed={sourceFresh || ready ? [1] : []}
+      />
       <section
         className={`${shared.panel} ${styles.context}`}
         aria-label="Migration context"
@@ -555,8 +560,12 @@ export function SourceDiscoveryScreen({
                           onClick={() => {
                             setNamespace(item.name);
                             setResourcePage(0);
-                            resourceInventoryRef.current?.focus({ preventScroll: true });
-                            resourceInventoryRef.current?.scrollIntoView({ block: "start" });
+                            resourceInventoryRef.current?.focus({
+                              preventScroll: true,
+                            });
+                            resourceInventoryRef.current?.scrollIntoView({
+                              block: "start",
+                            });
                           }}
                           aria-controls="application-resource-inventory"
                         >
@@ -604,8 +613,9 @@ export function SourceDiscoveryScreen({
             and kubeconfig contents are not displayed.
           </p>
           <p className={styles.note}>
-            <Info size={17} /> Target compatibility, deployment artifacts and
-            AI-guided transformation are evaluated in later workflow steps.
+            <Info size={17} /> Target compatibility, selective artifact
+            extraction and deployment adaptation are evaluated in later workflow
+            steps.
           </p>
         </section>
       </div>
@@ -696,6 +706,18 @@ export function SourceDiscoveryScreen({
           </div>
         )}
       </section>
+      {sourceOwned && (
+        <div id="deployment-evidence">
+          <DeploymentEvidencePanel
+            migration={migration}
+            inventoryDigest={inventory?.inventoryDigest}
+            onRefresh={() => {
+              setTimedOut(false);
+              void query.refetch();
+            }}
+          />
+        </div>
+      )}
       <section className={shared.panel} aria-labelledby="source-findings">
         <div className={styles.sectionHeading}>
           <div>

@@ -1,0 +1,236 @@
+.panel {
+  border: 1px solid #dce3dd;
+  background: white;
+  padding: 24px;
+  margin-block: 20px;
+  color: #243329;
+  font: inherit;
+}
+.panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  margin: 0 0 8px;
+  font-weight: 650;
+}
+.panel h3 {
+  font-size: 15px;
+}
+.panel p {
+  margin: 8px 0;
+  line-height: 1.55;
+}
+.panel small {
+  display: block;
+  color: #5c6c61;
+  line-height: 1.5;
+  margin-block: 5px;
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 20px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.panel button,
+.link {
+  font: inherit;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #cdd8cf;
+  background: white;
+  padding: 9px 13px;
+  color: #233c2b;
+  cursor: pointer;
+  text-decoration: none;
+}
+.panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.panel button:focus-visible,
+.panel input:focus-visible,
+.panel textarea:focus-visible,
+.panel summary:focus-visible {
+  outline: 2px solid #4d8313;
+  outline-offset: 3px;
+}
+.panel .primary {
+  background: #284f1d;
+  color: white;
+  border-color: #284f1d;
+}
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 22px 0;
+}
+.metrics span {
+  background: #f3f6f1;
+  padding: 12px 16px;
+  font-size: 13px;
+}
+.metrics strong {
+  margin-right: 8px;
+  font-size: 20px;
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid #dce3dd;
+  margin-block: 14px;
+}
+.tabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+}
+.tabs button[aria-pressed="true"] {
+  border-bottom-color: #639127;
+  background: #f4f7f1;
+}
+.scroll {
+  overflow-x: auto;
+}
+.panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+.panel th {
+  background: #f5f7f5;
+  color: #506357;
+  font-weight: 600;
+}
+.panel th,
+.panel td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #e7ece6;
+  vertical-align: top;
+  min-width: 140px;
+}
+.panel code {
+  display: block;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  color: #4c6151;
+  line-height: 1.7;
+}
+.panel td {
+  max-width: 360px;
+  overflow-wrap: anywhere;
+}
+.panel summary {
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.badge {
+  display: inline-block;
+  color: #6a5820;
+  background: #faf5e6;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.note {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  background: #f4f7ef;
+  border-left: 3px solid #7ba83b;
+  padding: 14px;
+  margin-block: 16px;
+  font-size: 13px;
+}
+.caption {
+  color: #6a776c;
+  font-size: 12px;
+  padding-top: 12px;
+}
+.cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+}
+.cards article {
+  border: 1px solid #e0e6de;
+  padding: 16px;
+  font-size: 13px;
+  max-height: 450px;
+  overflow: auto;
+}
+.form {
+  background: #f8faf6;
+  border: 1px solid #dce3d6;
+  padding: 20px;
+  margin-block: 18px;
+}
+.repo {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr auto;
+  gap: 12px;
+  border: 1px solid #dce3d6;
+  margin-block: 14px;
+}
+.form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  margin-block: 12px;
+}
+.form input,
+.form textarea {
+  font: inherit;
+  color: #25382c;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #c6d2c5;
+  background: white;
+}
+.error {
+  color: #a22525;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+@media (max-width: 900px) {
+  .heading {
+    flex-direction: column;
+  }
+  .repo {
+    grid-template-columns: 1fr;
+  }
+  .panel {
+    padding: 16px;
+  }
+}
+
+.panel select {
+  font: inherit;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #c6d2c5;
+  background: white;
+  color: inherit;
+}

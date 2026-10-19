@@ -8,6 +8,26 @@ import {
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SourceMigrationWorkspace } from "@/modules/migration-management/source-migration-workspace";
+vi.mock("@/modules/migration-management/deployment-evidence-service", () => ({
+  deploymentDiscovery: {
+    evidence: vi
+      .fn()
+      .mockResolvedValue({
+        inventoryDigest: "a".repeat(64),
+        workloads: [],
+        repositories: [],
+        images: [],
+        limitations: [],
+      }),
+    settings: vi
+      .fn()
+      .mockResolvedValue({
+        version: 2,
+        configuration: { repositories: [], registries: [] },
+        githubOrganizations: [],
+      }),
+  },
+}));
 const api = vi.hoisted(() => ({
   update: vi.fn(),
   source: vi.fn(),
@@ -132,7 +152,7 @@ it("uses the six-stage application migration flow and never auto-selects all wor
   expect(save).toBeDisabled();
   expect(api.targets).not.toHaveBeenCalled();
 });
-it("saves only the selected workload, its dependencies and supplied Helm metadata before target selection", async () => {
+it("saves only the selected workload, its dependencies without asking for deployment metadata before target selection", async () => {
   open();
   fireEvent.click(
     within(screen.getByLabelText("Source namespaces")).getByRole("checkbox"),
@@ -140,16 +160,14 @@ it("saves only the selected workload, its dependencies and supplied Helm metadat
   fireEvent.click(
     screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
   );
-  fireEvent.change(screen.getByLabelText("Deployment method for payment-api"), {
-    target: { value: "HELM" },
-  });
-  fireEvent.change(screen.getByLabelText("Bundle name for payment-api"), {
-    target: { value: "payments-chart" },
-  });
-  fireEvent.change(
-    screen.getByLabelText("Artifact reference for payment-api"),
-    { target: { value: "https://example.test/payments.git/charts" } },
-  );
+  expect(
+    screen.queryByLabelText("Deployment method for payment-api"),
+  ).not.toBeInTheDocument();
+  expect(
+    await screen.findByRole("link", {
+      name: /resolve deployment sources in discovery/,
+    }),
+  ).toBeVisible();
   fireEvent.click(
     screen.getByRole("button", { name: "Save & continue to target" }),
   );
@@ -161,8 +179,7 @@ it("saves only the selected workload, its dependencies and supplied Helm metadat
     "payment-api-config",
   ]);
   expect(draft.selectedNamespaces).toEqual(["payments"]);
-  expect(draft.deploymentSources[0].method).toBe("HELM");
-  expect(draft.deploymentSources[0].bundleName).toBe("payments-chart");
+  expect(draft.deploymentSources).toEqual([]);
   await screen.findByRole("heading", {
     name: "Choose a Navigan-managed destination",
   });

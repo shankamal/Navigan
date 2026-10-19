@@ -359,6 +359,8 @@ def dependency_references(resource):
 def sanitize_workload(resource):
     spec = mapping(resource.get("spec"))
     result = common(resource)
+    from .deployment_evidence import deployment_metadata
+    result["deploymentMetadata"] = deployment_metadata(resource)
     result["replicas"] = spec.get("replicas")
     result["strategyType"] = limited_text(
         mapping(spec.get("strategy")).get("type")

@@ -539,11 +539,11 @@ SOURCE_INVENTORY_KEYS = {
         "automountServiceAccountToken",
         "imagePullSecretCount",
     },
-    "Deployment": {"replicas", "strategyType", "pod", "dependencyReferences"},
-    "StatefulSet": {"replicas", "strategyType", "pod", "dependencyReferences", "volumeClaimTemplateNames"},
-    "DaemonSet": {"replicas", "strategyType", "pod", "dependencyReferences"},
-    "Job": {"replicas", "strategyType", "pod", "dependencyReferences"},
-    "CronJob": {"replicas", "strategyType", "pod", "dependencyReferences"},
+    "Deployment": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
+    "StatefulSet": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence", "volumeClaimTemplateNames"},
+    "DaemonSet": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
+    "Job": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
+    "CronJob": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
     "Service": {
         "type",
         "externalTrafficPolicy",
@@ -757,6 +757,10 @@ class SourceInventoryReport(Model):
                     if backend["name"] in seen_backends:
                         raise ValueError("Duplicate ingress backend reference.")
                     seen_backends.add(backend["name"])
+
+            if "deploymentMetadata" in resource or "runtimeEvidence" in resource:
+                from .deployment_sources import validate_deployment_inventory
+                validate_deployment_inventory(resource)
 
             api_version = resource.get("apiVersion")
             if (

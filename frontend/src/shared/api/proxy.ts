@@ -94,10 +94,11 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 2) return ["GET", "PUT"].includes(method);
     if (path.length !== 3) return false;
 
+    if (path[2] === "deployment-evidence")
+      return method === "GET" || method === "POST";
     if (path[2] === "target-assessment")
       return method === "GET" || method === "POST";
-    if (path[2] === "target-compatibility")
-      return method === "GET";
+    if (path[2] === "target-compatibility") return method === "GET";
 
     if (
       ["source-catalogue", "source-inventory", "assessment"].includes(path[2])
@@ -122,6 +123,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^SRC-[a-f0-9]{32}$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 3 && path[2] === "deployment-sources")
+      return method === "GET" || method === "PUT";
     return (
       path.length === 3 &&
       ["enrollments", "install"].includes(path[2]) &&

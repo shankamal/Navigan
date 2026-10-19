@@ -1,8 +1,34 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SourceDiscoveryScreen } from "@/modules/migration-management/source-discovery-screen";
 import { sourceWorkspaceReady } from "@/modules/migration-management/source-discovery-state";
+vi.mock("@/modules/migration-management/deployment-evidence-service", () => ({
+  deploymentDiscovery: {
+    evidence: vi
+      .fn()
+      .mockResolvedValue({
+        inventoryDigest: "a".repeat(64),
+        workloads: [],
+        repositories: [],
+        images: [],
+        limitations: [],
+      }),
+    settings: vi
+      .fn()
+      .mockResolvedValue({
+        version: 2,
+        configuration: { repositories: [], registries: [] },
+        githubOrganizations: [],
+      }),
+  },
+}));
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   catalogue: vi.fn(),
@@ -274,7 +300,6 @@ it("refreshes connector diagnostics together with migration status", async () =>
   await waitFor(() => expect(api.source).toHaveBeenCalledWith("SRC-db", true));
 });
 
-
 it("keeps manual refresh available while connector status is being fetched", async () => {
   api.source.mockImplementation(() => new Promise(() => {}));
   open();
@@ -284,29 +309,51 @@ it("keeps manual refresh available while connector status is being fetched", asy
   expect(button).toHaveAttribute("aria-busy", "true");
 });
 
-
 it("brings the selected namespace resources into view and moves keyboard focus", async () => {
   const scroll = vi.fn();
-  const previous = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
-  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scroll });
+  const previous = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "scrollIntoView",
+  );
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scroll,
+  });
   try {
-    api.inventory.mockResolvedValue({ inventory: {
-      ...inventory,
-      resources: [...inventory.resources, {
-        apiVersion: "apps/v1", kind: "Deployment", namespace: "other", name: "other-api",
-      }],
-    }});
+    api.inventory.mockResolvedValue({
+      inventory: {
+        ...inventory,
+        resources: [
+          ...inventory.resources,
+          {
+            apiVersion: "apps/v1",
+            kind: "Deployment",
+            namespace: "other",
+            name: "other-api",
+          },
+        ],
+      },
+    });
     open();
-    fireEvent.click(await screen.findByRole("button", { name: "View resources" }));
-    const region = screen.getByRole("region", { name: "Application resource inventory" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "View resources" }),
+    );
+    const region = screen.getByRole("region", {
+      name: "Application resource inventory",
+    });
     expect(region).toHaveFocus();
     expect(scroll).toHaveBeenCalledWith({ block: "start" });
-    expect(within(region).getByText("Showing resources in payments.")).toBeVisible();
-    expect(within(region).getByRole("combobox", { name: "Namespace" })).toHaveValue("payments");
+    expect(
+      within(region).getByText("Showing resources in payments."),
+    ).toBeVisible();
+    expect(
+      within(region).getByRole("combobox", { name: "Namespace" }),
+    ).toHaveValue("payments");
     expect(within(region).getByText("api")).toBeVisible();
     expect(within(region).queryByText("other-api")).not.toBeInTheDocument();
   } finally {
-    if (previous) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previous);
+    if (previous)
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previous);
     else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   }
 });
