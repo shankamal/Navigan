@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -84,6 +84,7 @@ export function SourceDiscoveryScreen({
   const [filter, setFilter] = useState("");
   const [namespace, setNamespace] = useState("");
   const [resourcePage, setResourcePage] = useState(0);
+  const resourceInventoryRef = useRef<HTMLElement>(null);
   const migration = query.data?.migration;
   const catalogue = query.data?.catalogue;
   const inventory = query.data?.inventory;
@@ -576,7 +577,10 @@ export function SourceDiscoveryScreen({
                           onClick={() => {
                             setNamespace(item.name);
                             setResourcePage(0);
+                            resourceInventoryRef.current?.focus({ preventScroll: true });
+                            resourceInventoryRef.current?.scrollIntoView({ block: "start" });
                           }}
+                          aria-controls="application-resource-inventory"
                         >
                           View resources
                         </button>
@@ -627,11 +631,21 @@ export function SourceDiscoveryScreen({
           </p>
         </section>
       </div>
-      <section className={shared.panel} aria-labelledby="resource-evidence">
+      <section
+        id="application-resource-inventory"
+        ref={resourceInventoryRef}
+        tabIndex={-1}
+        className={`${shared.panel} ${styles.resourceInventory}`}
+        aria-labelledby="resource-evidence"
+      >
         <div className={styles.sectionHeading}>
           <div>
             <h2 id="resource-evidence">Application resource inventory</h2>
-            <p>Source namespace, workload and associated resource evidence.</p>
+            <p aria-live="polite">
+              {namespace
+                ? `Showing resources in ${namespace}.`
+                : "Source namespace, workload and associated resource evidence."}
+            </p>
           </div>
           <label>
             Namespace
