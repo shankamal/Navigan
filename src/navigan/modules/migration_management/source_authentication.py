@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import ipaddress
 import json
+import os
 import re
 import socket
 import ssl
@@ -132,6 +133,37 @@ def ecr_session_policy(account, region):
     }
 
 
+class RegistryRoleAuthorizationRequired(ValueError):
+    pass
+
+
+def registry_role_allowed(role):
+    # Additional ARNs are configured by the deployment operator, never by a browser request.
+    try:
+        allowed = json.loads(os.environ.get("SOURCE_REGISTRY_ALLOWED_ROLE_ARNS", "[]"))
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(allowed, list) or any(not isinstance(v, str) for v in allowed):
+        return False
+    return bool(
+        re.fullmatch(r"arn:aws:iam::[0-9]{12}:role/navigan-source-discovery/[A-Za-z0-9+=,.@_-]+", role)
+    ) or role in {v.strip() for v in allowed if v.strip()}
+
+
+def validate_registry_role(host, role, mode):
+    account, _ = ecr_identity(host)
+    if not re.fullmatch(
+        r"arn:aws:iam::" + account + r":role/[A-Za-z0-9+=,.@_-]+(?:/[A-Za-z0-9+=,.@_-]+)*", role
+    ):
+        raise ValueError("Enter an IAM role ARN in the registry account.")
+    if mode == "AWS_ROLE" and not re.fullmatch(
+        r"arn:aws:iam::" + account + r":role/navigan-source-discovery/[A-Za-z0-9+=,.@_-]+", role
+    ):
+        raise ValueError(
+            "New role setup uses the navigan-source-discovery/ IAM path. Choose Existing IAM role to reuse another role."
+        )
+
+
 def ecr_client(host, entry, *, verify_trust=False, boto3_module=None):
     if boto3_module is None:
         import boto3 as boto3_module
@@ -142,13 +174,16 @@ def ecr_client(host, entry, *, verify_trust=False, boto3_module=None):
         "region_name": region,
         "config": Config(connect_timeout=2, read_timeout=2, retries={"max_attempts": 0}),
     }
-    if entry.get("mode") != "AWS_ROLE":
+    if entry.get("mode") not in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
         return boto3_module.client("ecr", **options)
     role = entry.get("roleArn", "")
-    if not re.fullmatch(
-        r"arn:aws:iam::" + account + r":role/navigan-source-discovery/[A-Za-z0-9+=,.@_-]+", role
-    ) or not entry.get("externalId"):
-        raise ValueError("Use a registry-account role under the navigan-source-discovery/ IAM path.")
+    validate_registry_role(host, role, entry.get("mode"))
+    if not entry.get("externalId"):
+        raise ValueError("Save the connection to generate an External ID.")
+    if not registry_role_allowed(role):
+        raise RegistryRoleAuthorizationRequired(
+            "The deployment administrator must authorize this exact existing role ARN using --registry-role-arn before verification. Its trust policy must also require the displayed External ID."
+        )
     sts = boto3_module.client("sts", **options)
     request = {
         "RoleArn": role,
@@ -279,7 +314,7 @@ def configure(source, configuration, credentials, previous, verify, app_token):
         mode = change["mode"]
         github = key.startswith("github:")
         if (github and mode not in {"PUBLIC", "APP", "TOKEN"}) or (
-            not github and mode not in {"PUBLIC", "AWS_ROLE", "TOKEN", "BEARER"}
+            not github and mode not in {"PUBLIC", "AWS_ROLE", "AWS_EXISTING_ROLE", "TOKEN", "BEARER"}
         ):
             raise ApiError(
                 400, "INVALID_AUTHENTICATION", "Choose an authentication method supported by this connection."
@@ -302,8 +337,8 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                     400, "REGISTRY_PROVIDER_MISMATCH", "Select the provider matching the registry hostname."
                 )
             if (
-                (provider == "AWS_ECR" and mode != "AWS_ROLE")
-                or (provider != "AWS_ECR" and mode == "AWS_ROLE")
+                (provider == "AWS_ECR" and mode not in {"AWS_ROLE", "AWS_EXISTING_ROLE"})
+                or (provider != "AWS_ECR" and mode in {"AWS_ROLE", "AWS_EXISTING_ROLE"})
                 or (provider == "GOOGLE_AR" and mode == "BEARER")
             ):
                 raise ApiError(
@@ -350,7 +385,7 @@ def configure(source, configuration, credentials, previous, verify, app_token):
             }
         else:
             role_data = {}
-            if mode == "AWS_ROLE":
+            if mode in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
                 host = key.removeprefix("registry:")
                 try:
                     account, region = ecr_identity(host)
@@ -361,17 +396,12 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                         "Use an AWS ECR private registry hostname for IAM authentication.",
                     ) from None
                 role_data.update(accountId=account, region=region)
-                if mode == "AWS_ROLE":
+                if mode in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
                     role = change.get("roleArn") or old.get("roleArn", "")
-                    if not re.fullmatch(
-                        r"arn:aws:iam::" + account + r":role/navigan-source-discovery/[A-Za-z0-9+=,.@_-]+",
-                        role,
-                    ):
-                        raise ApiError(
-                            400,
-                            "INVALID_REGISTRY_ROLE",
-                            "Enter a role ARN in the registry account under the navigan-source-discovery/ IAM path.",
-                        )
+                    try:
+                        validate_registry_role(host, role, mode)
+                    except ValueError as error:
+                        raise ApiError(400, "INVALID_REGISTRY_ROLE", str(error)) from None
                     role_data.update(
                         roleArn=role, externalId=old.get("externalId") or "navigan-" + str(uuid4())
                     )
@@ -415,10 +445,10 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                         raise ValueError("Replace legacy platform IAM access with a customer registry role.")
                     host = key[9:]
                     credential = {"mode": entry["mode"], **read_credential(source, key, entry)}
-                    aws_mode = entry["mode"] in {"AWS_IAM", "AWS_ROLE"}
+                    aws_mode = entry["mode"] in {"AWS_IAM", "AWS_ROLE", "AWS_EXISTING_ROLE"}
                     aws_client = ecr_client(host, entry, verify_trust=True) if aws_mode else None
                     registry_read(host, credential, aws=aws_mode, aws_client=aws_client)
-                    if entry["mode"] == "AWS_ROLE":
+                    if entry["mode"] in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
                         entry["trustValidated"] = True
                     message = (
                         "Registry API access verified. Each referenced image is checked during discovery."
@@ -426,6 +456,9 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                 entry.update(
                     status="CONNECTED", message=message, verifiedAt=datetime.now(timezone.utc).isoformat()
                 )
+            except RegistryRoleAuthorizationRequired as error:
+                entry.update(status="ROLE_AUTHORIZATION_REQUIRED", message=str(error))
+                entry.pop("verifiedAt", None)
             except Exception:
                 entry.update(
                     status="ACCESS_FAILED",

@@ -170,7 +170,7 @@ class Service:
                 parts = image_parts(image)
                 key = "registry:" + parts["registry"]
                 auth = authentication.get(key, {})
-                if ".dkr.ecr." in parts["registry"] and auth.get("mode") != "AWS_ROLE":
+                if ".dkr.ecr." in parts["registry"] and auth.get("mode") not in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
                     raise ValueError("Configure a customer IAM role for this registry before analysis.")
                 if parts["registry"] in configuration["registries"] and auth.get("mode") in {"TOKEN", "BEARER", "PUBLIC"}:
                     if key not in registry_credentials:
@@ -180,7 +180,7 @@ class Service:
                     payload = registry_read(parts["registry"], credential, "/v2/" + parts["repository"] + "/manifests/" + ref, parts["repository"])
                     checks.append({"image": image, "status": "AVAILABLE", "registryDigest": payload.get("_registryDigest"), "architectures": sorted({m.get("platform", {}).get("architecture") for m in payload.get("manifests", []) if m.get("platform", {}).get("architecture")}), "reason": "Read-only registry manifest access succeeded."})
                 else:
-                    if auth.get("mode") == "AWS_ROLE" and key not in registry_clients:
+                    if auth.get("mode") in {"AWS_ROLE", "AWS_EXISTING_ROLE"} and key not in registry_clients:
                         registry_clients[key] = ecr_client(parts["registry"], auth)
                     checks.append(check_image(image, None, configuration["registries"], aws_client=registry_clients.get(key)))
             except Exception:

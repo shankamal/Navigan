@@ -316,7 +316,8 @@ def test_customer_ecr_role_is_bound_to_registry_not_cluster_account(source):
             auth.configure(source, config, [{**change, "roleArn": role}], {}, False, lambda _: None)
 
 
-def test_ecr_role_uses_temporary_session_and_tests_external_id():
+@pytest.mark.parametrize("existing", [False, True])
+def test_ecr_role_uses_temporary_session_and_tests_external_id(monkeypatch, existing):
     from unittest.mock import MagicMock
     from botocore.exceptions import ClientError
 
@@ -342,6 +343,9 @@ def test_ecr_role_uses_temporary_session_and_tests_external_id():
         "roleArn": "arn:aws:iam::111111111111:role/navigan-source-discovery/ReadOnly",
         "externalId": "navigan-bound-id",
     }
+    if existing:
+        entry.update(mode="AWS_EXISTING_ROLE", roleArn="arn:aws:iam::111111111111:role/team/ExistingEcrRole")
+        monkeypatch.setenv("SOURCE_REGISTRY_ALLOWED_ROLE_ARNS", json.dumps([entry["roleArn"]]))
     assert (
         auth.ecr_client(
             "111111111111.dkr.ecr.eu-west-1.amazonaws.com", entry, verify_trust=True, boto3_module=aws
@@ -463,3 +467,61 @@ def test_google_token_username_and_legacy_iam_rejected(source, store):
             "registry:" + host: {"status": "CONNECTED", "mode": "AWS_IAM"},
         },
     )
+
+
+def test_existing_role_can_be_saved_but_requires_exact_operator_authorization(source, monkeypatch):
+    from unittest.mock import MagicMock
+
+    host = "111111111111.dkr.ecr.us-west-2.amazonaws.com"
+    arn = "arn:aws:iam::111111111111:role/team/ExistingEcrRole"
+    config = {"repositories": [], "registries": [host]}
+    key = "registry:" + host
+    states = auth.configure(
+        source, config, [{"key": key, "mode": "AWS_EXISTING_ROLE", "roleArn": arn}], {}, False, lambda _: None
+    )
+    entry = states[key]
+    assert entry["roleArn"] == arn and entry["externalId"]
+    aws = MagicMock()
+    monkeypatch.delenv("SOURCE_REGISTRY_ALLOWED_ROLE_ARNS", raising=False)
+    with pytest.raises(auth.RegistryRoleAuthorizationRequired):
+        auth.ecr_client(host, entry, verify_trust=True, boto3_module=aws)
+    aws.client.assert_not_called()
+    monkeypatch.setenv(
+        "SOURCE_REGISTRY_ALLOWED_ROLE_ARNS", json.dumps(["arn:aws:iam::111111111111:role/team/AnotherRole"])
+    )
+    assert not auth.registry_role_allowed(arn)
+    monkeypatch.setenv("SOURCE_REGISTRY_ALLOWED_ROLE_ARNS", json.dumps([arn]))
+    assert auth.registry_role_allowed(arn)
+    with pytest.raises(ValueError):
+        auth.validate_registry_role("905418045935.dkr.ecr.ap-south-1.amazonaws.com", arn, "AWS_EXISTING_ROLE")
+
+
+def test_existing_role_keeps_external_id_when_switching_role_paths(source):
+    host = "111111111111.dkr.ecr.us-west-2.amazonaws.com"
+    key = "registry:" + host
+    config = {"repositories": [], "registries": [host]}
+    states = auth.configure(
+        source,
+        config,
+        [
+            {
+                "key": key,
+                "mode": "AWS_ROLE",
+                "roleArn": "arn:aws:iam::111111111111:role/navigan-source-discovery/Role",
+            }
+        ],
+        {},
+        False,
+        lambda _: None,
+    )
+    previous_id = states[key]["externalId"]
+    updated = auth.configure(
+        source,
+        config,
+        [{"key": key, "mode": "AWS_EXISTING_ROLE", "roleArn": "arn:aws:iam::111111111111:role/ExistingRole"}],
+        states,
+        False,
+        lambda _: None,
+    )
+    assert updated[key]["externalId"] == previous_id
+    assert updated[key]["status"] == "NOT_VERIFIED"

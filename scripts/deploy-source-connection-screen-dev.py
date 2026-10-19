@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--registry-role-arn", action="append", default=[], help="Authorize an exact existing registry role ARN outside the standard IAM path; repeat for multiple roles.")
     parser.add_argument(
         "--upgrade-source-connector",
         action="store_true",
@@ -41,6 +42,10 @@ def main():
         help="Resume routes, permissions, environment and optional connector upgrade after both Lambda code uploads succeeded.",
     )
     args = parser.parse_args()
+    for role in args.registry_role_arn:
+        import re
+        if not re.fullmatch(r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_-]+(?:/[A-Za-z0-9+=,.@_-]+)*", role):
+            parser.error("Use an exact IAM role ARN without wildcards.")
 
     def aws(*parts):
         output = subprocess.check_output(
@@ -241,6 +246,7 @@ def main():
 
 
 def finish_deployment(aws, stack, child, function_name, backup, args):
+    aws.registry_role_arns = getattr(args, "registry_role_arn", [])
     configure_deployment_discovery(aws, stack, child, function_name, backup)
     if args.upgrade_source_connector:
         subprocess.check_call(
@@ -315,8 +321,15 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
             "DEV migration deployment discovery routes",
         )
     variables["SOURCE_REGISTRY_PRINCIPAL_ARN"] = config["Role"]
+    existing = json.loads(variables.get("SOURCE_REGISTRY_ALLOWED_ROLE_ARNS", "[]"))
+    if not isinstance(existing, list) or any(not isinstance(role, str) for role in existing):
+        raise SystemExit("Existing registry role authorization must be a JSON list of exact role ARNs.")
+    approved = sorted(set(existing) | set(getattr(aws, "registry_role_arns", [])))
+    if any(not re.fullmatch(r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_-]+(?:/[A-Za-z0-9+=,.@_-]+)*", role) for role in approved):
+        raise SystemExit("Existing registry role authorization must contain exact IAM role ARNs without wildcards.")
+    variables["SOURCE_REGISTRY_ALLOWED_ROLE_ARNS"] = json.dumps(approved)
     statements = [
-        {"Effect": "Allow", "Action": ["sts:AssumeRole"], "Resource": "arn:aws:iam::*:role/navigan-source-discovery/*"},
+        {"Effect": "Allow", "Action": ["sts:AssumeRole"], "Resource": ["arn:aws:iam::*:role/navigan-source-discovery/*", *approved]},
         {"Effect": "Allow", "Action": ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:GetSecretValue"],
          "Resource": f"arn:aws:secretsmanager:ap-south-1:{ACCOUNT}:secret:navigan/source-connections/*"},
     ]

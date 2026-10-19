@@ -80,9 +80,12 @@ def test_wrong_customer_registration_stops_before_any_kubernetes_write(monkeypat
     assert "exec" in calls[0]
 
 
+@pytest.mark.parametrize("existing_role", [None, "arn:aws:iam::111111111111:role/team/ExistingEcrRole"])
 @pytest.mark.parametrize("finish_only", [False, True])
 @pytest.mark.parametrize("routes_exist", [False, True])
-def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path, finish_only, routes_exist):
+def test_packaging_new_files_preserves_stack_lambda_names(
+    monkeypatch, tmp_path, finish_only, routes_exist, existing_role
+):
     """New ZIP entries must never overwrite the AWS function identity."""
     import io
     import sys
@@ -182,6 +185,12 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path,
         elif parts[:2] == ["apigatewayv2", "create-deployment"]:
             result = {"DeploymentId": "deployment-1"}
         elif parts[:2] == ["iam", "put-role-policy"]:
+            policy = json.loads(Path(parts[-1].removeprefix("file://")).read_text())
+            statement = next(v for v in policy["Statement"] if v["Action"] == ["sts:AssumeRole"])
+            assert statement["Resource"] == [
+                "arn:aws:iam::*:role/navigan-source-discovery/*",
+                *([existing_role] if existing_role else []),
+            ]
             return ""  # AWS returns success with an empty body, not JSON.
         else:
             raise AssertionError(f"Unexpected AWS operation: {parts}")
@@ -209,7 +218,8 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path,
         sys,
         "argv",
         ["deploy-source-connection-screen-dev.py", "--apply", "--upgrade-source-connector"]
-        + (["--finish-deployment"] if finish_only else []),
+        + (["--finish-deployment"] if finish_only else [])
+        + (["--registry-role-arn", existing_role] if existing_role else []),
     )
     deploy.main()
     assert [name for name, _ in updates] == (

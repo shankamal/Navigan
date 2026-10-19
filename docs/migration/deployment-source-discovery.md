@@ -104,3 +104,15 @@ Azure labels identify the application client ID / ACR repository-token username 
 The DEV deployment policy no longer grants the backend its own ECR GetAuthorizationToken/DescribeImages shortcut for deployment discovery. Those operations use the explicitly configured customer role, even in the shared DEV AWS account.
 
 After saving an AWS role connection, Download AWS role setup exports a CloudFormation JSON template containing the selected role name/path, exact backend principal, generated External ID and read-only ECR metadata permissions. Deploy it in the registry account using CloudFormation, then verify the connection. An existing role must have its policies updated instead of being created again. No IAM role was created by the development agent.
+
+## Existing IAM role reuse
+
+AWS authentication now offers **Create new IAM role** and **Existing IAM role** separately. Both use temporary credentials and the same bounded read-only ECR session policy. The existing-role mode takes a registry-account role ARN, retains the connection's generated External ID and does not generate a role-creation download. The administrator adds the displayed trust statement to the existing trust policy without removing existing EC2/EKS/service principals, and attaches the ECR metadata read policy separately.
+
+Existing roles in the dedicated `/navigan-source-discovery/` path work under the existing deployment authorization. For an existing role outside that path, the deployment operator authorizes its exact ARN once, without broadening the caller to arbitrary IAM roles:
+
+```bash
+python3 scripts/deploy-source-connection-screen-dev.py --profile navigan --apply --registry-role-arn arn:aws:iam::905418045935:role/YOUR_EXISTING_ROLE_NAME
+```
+
+The flag is repeatable and preserves previously authorized ARNs. It configures an exact-resource STS permission and `SOURCE_REGISTRY_ALLOWED_ROLE_ARNS` (a server-controlled JSON list). A browser cannot add to this list. Configuring a connection does not modify the IAM role or its trust policy; an unauthorized ARN produces ROLE_AUTHORIZATION_REQUIRED rather than using fallback platform credentials. Registry-account binding, correct/absent/incorrect External ID checks, and the read-only session policy are enforced for both role methods. Names/paths of existing roles are retained.

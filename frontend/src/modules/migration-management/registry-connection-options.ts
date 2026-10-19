@@ -24,7 +24,10 @@ export function detectRegistryProvider(host: string): string {
 }
 export function registryMethods(provider: string): [string, string][] {
   if (provider === "AWS_ECR")
-    return [["AWS_ROLE", "Customer IAM role · temporary AWS credentials"]];
+    return [
+      ["AWS_ROLE", "Create new IAM role"],
+      ["AWS_EXISTING_ROLE", "Existing IAM role"],
+    ];
   if (provider === "AZURE_ACR")
     return [
       ["TOKEN", "Service principal or ACR repository token"],

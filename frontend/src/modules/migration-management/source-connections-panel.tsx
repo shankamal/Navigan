@@ -141,6 +141,14 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             onChange={(e) =>
               change(key, {
                 mode: e.target.value,
+                ...(github
+                  ? {}
+                  : {
+                      roleArn:
+                        e.target.value === "AWS_EXISTING_ROLE"
+                          ? (saved?.roleArn ?? "")
+                          : registryRoleArn(host),
+                    }),
                 token: "",
                 username:
                   value.provider === "GOOGLE_AR" ? "oauth2accesstoken" : "",
@@ -163,24 +171,46 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             )}
           </select>
         </label>
-        {!github && value.mode === "AWS_ROLE" && (
+        {!github && ["AWS_ROLE", "AWS_EXISTING_ROLE"].includes(value.mode) && (
           <>
             <label>
-              Registry read-only role ARN *
+              {value.mode === "AWS_EXISTING_ROLE"
+                ? "Existing IAM role ARN *"
+                : "Registry read-only role ARN *"}
               <input
                 required
                 value={value.roleArn ?? ""}
                 placeholder={`arn:aws:iam::${ecr?.[1] ?? "123456789012"}:role/navigan-source-discovery/NaviganRegistryReadOnly`}
-                title="A role in the registry account, using IAM path /navigan-source-discovery/. Navigan never uses the source cluster role for this connection."
+                title={
+                  value.mode === "AWS_EXISTING_ROLE"
+                    ? "Enter your existing registry-account role ARN. It must trust Navigan with the generated External ID and permit read-only ECR discovery."
+                    : "New role setup uses IAM path /navigan-source-discovery/."
+                }
                 onChange={(e) => change(key, { roleArn: e.target.value })}
               />
             </label>
             <small>
-              Save connections first to generate your External ID. Ask the
-              registry account administrator to create the role with the trust
-              and read-only permissions below, then select Save and verify
-              access. Role setup can be tested in this DEV account too.
+              {value.mode === "AWS_EXISTING_ROLE"
+                ? "Save this existing role connection to generate an External ID. Add the trust statement below to the existing role and attach the read-only ECR policy, then verify. Preserve existing trust statements (including EC2 or other services). No new role is created."
+                : "Save connections first to generate your External ID. Create the new role using the setup below, then verify access."}
             </small>
+            {value.mode === "AWS_EXISTING_ROLE" && (
+              <small>
+                For a role outside /navigan-source-discovery/, the deployment
+                administrator must authorize its exact ARN once using{" "}
+                <code>--registry-role-arn YOUR_EXISTING_ROLE_ARN</code> with the
+                DEV deployment script. This does not change the role’s own trust
+                or permissions.
+              </small>
+            )}
+            {value.mode === "AWS_EXISTING_ROLE" && (
+              <small>
+                Merge the displayed trust statement into the existing trust
+                policy; keep existing EC2, EKS and other service trust
+                statements. Attach the displayed ECR permissions as an
+                additional policy.
+              </small>
+            )}
             {saved?.externalId ? (
               <>
                 <label>
@@ -194,40 +224,47 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
                 {settings.data?.registryPrincipalArn ? (
                   <details>
                     <summary>Customer role trust and permissions</summary>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const template = registryRoleTemplate(
-                          host,
-                          saved.roleArn!,
-                          settings.data!.registryPrincipalArn!,
-                          saved.externalId!,
-                        );
-                        const url = URL.createObjectURL(
-                          new Blob([JSON.stringify(template, null, 2)], {
-                            type: "application/json",
-                          }),
-                        );
-                        const link = document.createElement("a");
-                        link.href = url;
-                        link.download = "navigan-registry-role.json";
-                        link.click();
-                        setTimeout(() => URL.revokeObjectURL(url), 1000);
-                      }}
-                    >
-                      Download AWS role setup
-                    </button>
-                    <small>
-                      Deploy the downloaded CloudFormation template in the
-                      registry account ({ecr?.[1]}), then verify access. It
-                      creates the chosen role, IAM path, External ID trust and
-                      read-only metadata permissions. If the role already
-                      exists, update its policies instead of creating it again.
-                    </small>
-                    <p>
-                      Create the role with IAM path{" "}
-                      <code>/navigan-source-discovery/</code>.
-                    </p>
+                    {value.mode === "AWS_ROLE" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const template = registryRoleTemplate(
+                            host,
+                            saved.roleArn!,
+                            settings.data!.registryPrincipalArn!,
+                            saved.externalId!,
+                          );
+                          const url = URL.createObjectURL(
+                            new Blob([JSON.stringify(template, null, 2)], {
+                              type: "application/json",
+                            }),
+                          );
+                          const link = document.createElement("a");
+                          link.href = url;
+                          link.download = "navigan-registry-role.json";
+                          link.click();
+                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                        }}
+                      >
+                        Download AWS role setup
+                      </button>
+                    )}
+                    {value.mode === "AWS_ROLE" && (
+                      <small>
+                        Deploy the downloaded CloudFormation template in the
+                        registry account ({ecr?.[1]}), then verify access. It
+                        creates the chosen role, IAM path, External ID trust and
+                        read-only metadata permissions. If the role already
+                        exists, update its policies instead of creating it
+                        again.
+                      </small>
+                    )}
+                    {value.mode === "AWS_ROLE" && (
+                      <p>
+                        Create the role with IAM path{" "}
+                        <code>/navigan-source-discovery/</code>.
+                      </p>
+                    )}
                     <label>
                       Trust policy
                       <textarea
@@ -444,14 +481,14 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
     if (
       changes.some(
         (c) =>
-          c.mode === "AWS_ROLE" &&
-          !/^arn:aws:iam::[0-9]{12}:role\/navigan-source-discovery\/[A-Za-z0-9+=,.@_-]+$/.test(
+          ["AWS_ROLE", "AWS_EXISTING_ROLE"].includes(c.mode) &&
+          !/^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_-]+(?:\/[A-Za-z0-9+=,.@_-]+)*$/.test(
             c.roleArn ?? "",
           ),
       )
     ) {
       setError(
-        "Enter the registry role ARN under the navigan-source-discovery/ IAM path, then save to generate an External ID.",
+        "Enter a valid registry-account role ARN, then save to generate an External ID.",
       );
       return;
     }

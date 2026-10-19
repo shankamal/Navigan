@@ -366,3 +366,56 @@ it("generates an AWS role template with the exact path, External ID and read-onl
     ),
   ).toThrow();
 });
+
+it("allows an existing IAM role without offering role creation downloads", async () => {
+  const host = settings.configuration.registries[0];
+  const arn = "arn:aws:iam::905418045935:role/team/ExistingEcrRole";
+  api.saveSettings.mockResolvedValue({
+    ...settings,
+    registryPrincipalArn: "arn:aws:iam::905418045935:role/Backend",
+    readyForDiscovery: false,
+    authentication: {
+      ["registry:" + host]: {
+        mode: "AWS_EXISTING_ROLE",
+        provider: "AWS_ECR",
+        roleArn: arn,
+        externalId: "navigan-existing-id",
+        status: "NOT_VERIFIED",
+      },
+    },
+  });
+  open();
+  const method = await screen.findByLabelText(
+    "Authentication for registry:" + host,
+  );
+  expect(
+    screen.getByRole("option", { name: "Existing IAM role" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("option", { name: "Create new IAM role" }),
+  ).toBeInTheDocument();
+  fireEvent.change(method, { target: { value: "AWS_EXISTING_ROLE" } });
+  fireEvent.change(screen.getByLabelText("Existing IAM role ARN *"), {
+    target: { value: arn },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save connections" }));
+  await waitFor(() =>
+    expect(api.saveSettings).toHaveBeenCalledWith(
+      "SRC-db",
+      2,
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({ mode: "AWS_EXISTING_ROLE", roleArn: arn }),
+      ]),
+      false,
+    ),
+  );
+  expect(
+    await screen.findByLabelText("Navigan-generated External ID"),
+  ).toHaveValue("navigan-existing-id");
+  fireEvent.click(screen.getByText("Customer role trust and permissions"));
+  expect(
+    screen.queryByRole("button", { name: "Download AWS role setup" }),
+  ).toBeNull();
+  expect(screen.getByText(/Merge the displayed trust statement/)).toBeVisible();
+});
