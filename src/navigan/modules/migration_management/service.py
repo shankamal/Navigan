@@ -170,6 +170,8 @@ class Service:
                 parts = image_parts(image)
                 key = "registry:" + parts["registry"]
                 auth = authentication.get(key, {})
+                if ".dkr.ecr." in parts["registry"] and auth.get("mode") != "AWS_ROLE":
+                    raise ValueError("Configure a customer IAM role for this registry before analysis.")
                 if parts["registry"] in configuration["registries"] and auth.get("mode") in {"TOKEN", "BEARER", "PUBLIC"}:
                     if key not in registry_credentials:
                         registry_credentials[key] = {"mode": auth["mode"], **read_credential(source, key, auth)}

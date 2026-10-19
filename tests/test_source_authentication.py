@@ -190,15 +190,15 @@ def test_repository_verifies_revision_and_directory_and_reuses_token(source, sto
 
 def test_registry_account_is_independent_but_unconfigured_secret_is_rejected(source, store):
     config = {"repositories": [], "registries": ["111111111111.dkr.ecr.ap-south-1.amazonaws.com"]}
-    states = auth.configure(
-        source,
-        config,
-        [{"key": "registry:" + config["registries"][0], "mode": "AWS_IAM"}],
-        {},
-        False,
-        lambda _: None,
-    )
-    assert states["registry:" + config["registries"][0]]["accountId"] == "111111111111"
+    with pytest.raises(ApiError):
+        auth.configure(
+            source,
+            config,
+            [{"key": "registry:" + config["registries"][0], "mode": "AWS_IAM"}],
+            {},
+            False,
+            lambda _: None,
+        )
     with pytest.raises(ApiError):
         auth.configure(
             source,
@@ -394,3 +394,72 @@ def test_cloud_registry_token_is_independent_of_source_account(source, store, mo
     )
     assert states["registry:" + host]["status"] == "CONNECTED"
     assert seen[0][0] == host and seen[0][1]["token"] == "read-token"
+
+
+def test_provider_hostname_and_method_validation(source, store):
+    config = {"repositories": [], "registries": ["customer.azurecr.io"]}
+    for change in [
+        {
+            "key": "registry:customer.azurecr.io",
+            "provider": "GOOGLE_AR",
+            "mode": "TOKEN",
+            "username": "oauth2accesstoken",
+            "token": "secret",
+        },
+        {
+            "key": "registry:customer.azurecr.io",
+            "provider": "AZURE_ACR",
+            "mode": "AWS_ROLE",
+            "roleArn": "arn:aws:iam::111111111111:role/navigan-source-discovery/Role",
+        },
+    ]:
+        with pytest.raises(ApiError):
+            auth.configure(source, config, [change], {}, False, lambda _: None)
+    assert not store.values
+    states = auth.configure(
+        source,
+        config,
+        [
+            {
+                "key": "registry:customer.azurecr.io",
+                "provider": "AZURE_ACR",
+                "mode": "TOKEN",
+                "username": "application-client-id",
+                "token": "secret",
+            }
+        ],
+        {},
+        False,
+        lambda _: None,
+    )
+    assert states["registry:customer.azurecr.io"]["provider"] == "AZURE_ACR"
+    assert '"secret"' not in json.dumps(states)
+
+
+def test_google_token_username_and_legacy_iam_rejected(source, store):
+    host = "europe-west1-docker.pkg.dev"
+    config = {"repositories": [], "registries": [host]}
+    change = {
+        "key": "registry:" + host,
+        "provider": "GOOGLE_AR",
+        "mode": "TOKEN",
+        "username": "wrong",
+        "token": "oauth-token",
+    }
+    with pytest.raises(ApiError):
+        auth.configure(source, config, [change], {}, False, lambda _: None)
+    states = auth.configure(
+        source, config, [{**change, "username": "oauth2accesstoken"}], {}, False, lambda _: None
+    )
+    assert states["registry:" + host]["provider"] == "GOOGLE_AR"
+    with pytest.raises(ValidationError):
+        SaveDeploymentSources.model_validate(
+            {"version": 1, "configuration": {}, "credentials": [{"key": "registry:test", "mode": "AWS_IAM"}]}
+        )
+    assert not auth.ready(
+        {"repositories": [{"repository": "a/b"}], "registries": [host]},
+        {
+            "github:a/b": {"status": "CONNECTED", "mode": "PUBLIC"},
+            "registry:" + host: {"status": "CONNECTED", "mode": "AWS_IAM"},
+        },
+    )

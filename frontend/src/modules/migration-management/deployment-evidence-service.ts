@@ -28,6 +28,7 @@ export interface DeploymentSourceSettings {
       verifiedAt?: string;
       message?: string;
       roleArn?: string;
+      provider?: string;
       externalId?: string;
       accountId?: string;
       region?: string;
@@ -127,6 +128,7 @@ export const deploymentDiscovery = {
       username?: string;
       token?: string;
       roleArn?: string;
+      provider?: string;
     }[] = [],
     verify = false,
   ): Promise<DeploymentSourceSettings> =>

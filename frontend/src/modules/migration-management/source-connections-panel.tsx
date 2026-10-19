@@ -16,6 +16,14 @@ import {
   deploymentDiscovery,
   type DeploymentSourcesConfiguration,
 } from "./deployment-evidence-service";
+import {
+  registryProviders,
+  detectRegistryProvider,
+  registryMethods,
+  registryRoleArn,
+  registryPlaceholder,
+  registryRoleTemplate,
+} from "./registry-connection-options";
 import styles from "./deployment-evidence-panel.module.css";
 
 type Credential = {
@@ -24,6 +32,7 @@ type Credential = {
   username?: string;
   token?: string;
   roleArn?: string;
+  provider?: string;
 };
 const normalizeRepo = (value: string) =>
   value
@@ -53,51 +62,68 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
   const [notice, setNotice] = useState("");
   const configuration = draft ?? settings.data?.configuration;
   const dirty = draft !== null || Object.keys(credentials).length > 0;
+  function defaults(key: string): Credential {
+    const saved = settings.data?.authentication?.[key];
+    if (key.startsWith("github:"))
+      return { key, mode: saved?.mode ?? "PUBLIC" };
+    const host = key.slice(9);
+    const provider = saved?.provider || detectRegistryProvider(host);
+    const allowed = registryMethods(provider);
+    const mode = allowed.some(([mode]) => mode === saved?.mode)
+      ? saved!.mode
+      : allowed[0][0];
+    return {
+      key,
+      provider,
+      mode,
+      roleArn: saved?.roleArn || registryRoleArn(host),
+      ...(provider === "GOOGLE_AR" ? { username: "oauth2accesstoken" } : {}),
+    };
+  }
   function change(key: string, value: Partial<Credential>) {
     setCredentials((old) => ({
       ...old,
-      [key]: {
-        ...(old[key] ?? {
-          key,
-          roleArn: settings.data?.authentication?.[key]?.roleArn,
-          mode:
-            settings.data?.authentication?.[key]?.mode ??
-            (key.startsWith("github:")
-              ? "PUBLIC"
-              : key.includes(".dkr.ecr.")
-                ? "AWS_IAM"
-                : "PUBLIC"),
-        }),
-        ...value,
-      },
+      [key]: { ...(old[key] ?? defaults(key)), ...value },
     }));
+  }
+  function providerField(key: string) {
+    const value = credentials[key] ?? defaults(key);
+    return (
+      <label>
+        Registry provider *
+        <select
+          aria-label={`Registry provider for ${key}`}
+          value={value.provider}
+          onChange={(e) => {
+            const provider = e.target.value;
+            change(key, {
+              provider,
+              mode: registryMethods(provider)[0][0],
+              token: "",
+              username: provider === "GOOGLE_AR" ? "oauth2accesstoken" : "",
+            });
+          }}
+          title="Choose where the source images are stored, independently of the cluster provider."
+        >
+          {registryProviders.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
   }
   function authFields(key: string, github: boolean) {
     const saved = settings.data?.authentication?.[key];
-    const value = credentials[key] ?? {
-      key,
-      roleArn: saved?.roleArn,
-      mode:
-        saved?.mode ??
-        (github ? "PUBLIC" : key.includes(".dkr.ecr.") ? "AWS_IAM" : "PUBLIC"),
-    };
+    const value = credentials[key] ?? defaults(key);
     const host = key.slice(9);
     const ecr = /^([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com$/.exec(
       host,
     );
-    const provider = ecr
-      ? "AWS ECR"
-      : host.endsWith(".azurecr.io")
-        ? "Azure Container Registry"
-        : host.endsWith(".pkg.dev") ||
-            host.endsWith(".gcr.io") ||
-            host === "gcr.io"
-          ? "Google container registry"
-          : host === "ghcr.io"
-            ? "GitHub Container Registry"
-            : host === "docker.io"
-              ? "Docker Hub"
-              : "OCI / Docker Registry V2";
+    const provider =
+      registryProviders.find(([id]) => id === value.provider)?.[1] ??
+      "Container registry";
     return (
       <>
         {!github && (
@@ -113,27 +139,28 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             aria-label={`Authentication for ${key}`}
             value={value.mode}
             onChange={(e) =>
-              change(key, { mode: e.target.value, token: "", username: "" })
+              change(key, {
+                mode: e.target.value,
+                token: "",
+                username:
+                  value.provider === "GOOGLE_AR" ? "oauth2accesstoken" : "",
+              })
             }
             title="Choose read-only access for source discovery."
           >
-            <option value="PUBLIC">Public / anonymous</option>
             {github ? (
-              <option value="APP">Existing customer GitHub App</option>
-            ) : ecr ? (
               <>
-                <option value="AWS_IAM">AWS ECR · Navigan IAM role</option>
-                <option value="AWS_ROLE">
-                  AWS ECR · Customer IAM role (any account)
-                </option>
+                <option value="PUBLIC">Public / anonymous</option>
+                <option value="APP">Existing customer GitHub App</option>
+                <option value="TOKEN">Fine-grained GitHub token</option>
               </>
-            ) : null}
-            <option value="TOKEN">
-              {github
-                ? "Fine-grained GitHub token"
-                : "Registry username and access token"}
-            </option>
-            {!github && <option value="BEARER">Registry bearer token</option>}
+            ) : (
+              registryMethods(value.provider ?? "OTHER").map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))
+            )}
           </select>
         </label>
         {!github && value.mode === "AWS_ROLE" && (
@@ -143,7 +170,7 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
               <input
                 required
                 value={value.roleArn ?? ""}
-                placeholder={`arn:aws:iam::${ecr?.[1] ?? "123456789012"}:role/navigan-source-discovery/RegistryReadOnly`}
+                placeholder={`arn:aws:iam::${ecr?.[1] ?? "123456789012"}:role/navigan-source-discovery/NaviganRegistryReadOnly`}
                 title="A role in the registry account, using IAM path /navigan-source-discovery/. Navigan never uses the source cluster role for this connection."
                 onChange={(e) => change(key, { roleArn: e.target.value })}
               />
@@ -167,6 +194,36 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
                 {settings.data?.registryPrincipalArn ? (
                   <details>
                     <summary>Customer role trust and permissions</summary>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const template = registryRoleTemplate(
+                          host,
+                          saved.roleArn!,
+                          settings.data!.registryPrincipalArn!,
+                          saved.externalId!,
+                        );
+                        const url = URL.createObjectURL(
+                          new Blob([JSON.stringify(template, null, 2)], {
+                            type: "application/json",
+                          }),
+                        );
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = "navigan-registry-role.json";
+                        link.click();
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                      }}
+                    >
+                      Download AWS role setup
+                    </button>
+                    <small>
+                      Deploy the downloaded CloudFormation template in the
+                      registry account ({ecr?.[1]}), then verify access. It
+                      creates the chosen role, IAM path, External ID trust and
+                      read-only metadata permissions. If the role already
+                      exists, update its policies instead of creating it again.
+                    </small>
                     <p>
                       Create the role with IAM path{" "}
                       <code>/navigan-source-discovery/</code>.
@@ -250,10 +307,17 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
         )}
         {!github && value.mode === "TOKEN" && (
           <label>
-            Registry username *{" "}
+            {value.provider === "AZURE_ACR"
+              ? "Application (client) ID or ACR token username *"
+              : value.provider === "GOOGLE_AR"
+                ? "Google token username"
+                : value.provider === "HARBOR"
+                  ? "Robot account username *"
+                  : "Registry username *"}{" "}
             <input
               autoComplete="off"
               value={value.username ?? ""}
+              readOnly={value.provider === "GOOGLE_AR"}
               onChange={(e) => change(key, { username: e.target.value })}
               title="The username associated with a read-only registry token."
             />
@@ -261,7 +325,13 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
         )}
         {["TOKEN", "BEARER"].includes(value.mode) && (
           <label>
-            {github ? "GitHub token" : "Registry token"}{" "}
+            {github
+              ? "GitHub token"
+              : value.provider === "AZURE_ACR"
+                ? "Client secret or ACR token password"
+                : value.provider === "GOOGLE_AR"
+                  ? "Google access token"
+                  : "Registry token"}{" "}
             {saved?.secretConfigured
               ? "(saved securely; leave blank to keep)"
               : "*"}
@@ -289,6 +359,27 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
               </small>
             )}
           </label>
+        )}
+        {!github && saved?.mode === "AWS_IAM" && (
+          <p role="status">
+            Replace the previous platform IAM connection with a customer-managed
+            registry role. Save to generate its External ID.
+          </p>
+        )}
+        {!github && value.provider === "AZURE_ACR" && (
+          <small>
+            For service-principal access, enter the application client ID and
+            client secret. Assign only the registry/repository read permissions
+            required for discovery. Native identity federation is not connected
+            by this method.
+          </small>
+        )}
+        {!github && value.provider === "GOOGLE_AR" && (
+          <small>
+            Use a short-lived Google OAuth access token with Artifact Registry
+            read access. The username is oauth2accesstoken. Replace the token
+            when it expires; automatic federation is not available yet.
+          </small>
         )}
         <small role="status">
           {dirty
@@ -343,10 +434,11 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             : "registry:" + c.key.slice(9).trim().toLowerCase()) === key,
       );
       if (entered) return [{ ...entered, key }];
-      if (!settings.data?.authentication?.[key])
-        return [
-          { key, mode: key.includes(".dkr.ecr.") ? "AWS_IAM" : "PUBLIC" },
-        ];
+      if (
+        !settings.data?.authentication?.[key] ||
+        settings.data.authentication[key].mode === "AWS_IAM"
+      )
+        return [defaults(key)];
       return [];
     });
     if (
@@ -559,21 +651,52 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             </small>
             {configuration.registries.map((host, i) => (
               <div className={styles.connectionCard} key={i}>
+                {providerField("registry:" + host)}
                 <label>
                   Registry hostname *
                   <input
                     required
                     value={host}
-                    placeholder="905418045935.dkr.ecr.ap-south-1.amazonaws.com"
+                    placeholder={registryPlaceholder(
+                      (
+                        credentials["registry:" + host] ??
+                        defaults("registry:" + host)
+                      ).provider ?? "OTHER",
+                    )}
+                    maxLength={253}
                     title="Use a hostname without https:// or an image path. Use the customer IAM role option for a separately authorized AWS account."
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const nextHost = e.target.value;
                       setDraft({
                         ...configuration,
                         registries: configuration.registries.map((h, j) =>
-                          j === i ? e.target.value : h,
+                          j === i ? nextHost : h,
                         ),
-                      })
-                    }
+                      });
+                      setCredentials((old) => {
+                        const previousKey = "registry:" + host;
+                        const nextKey = "registry:" + nextHost;
+                        const detected = detectRegistryProvider(
+                          nextHost.trim().toLowerCase(),
+                        );
+                        const provider =
+                          detected !== "OTHER"
+                            ? detected
+                            : (old[previousKey]?.provider ?? "OTHER");
+                        const next = { ...old };
+                        delete next[previousKey];
+                        next[nextKey] = {
+                          key: nextKey,
+                          provider,
+                          mode: registryMethods(provider)[0][0],
+                          roleArn: registryRoleArn(nextHost),
+                          username:
+                            provider === "GOOGLE_AR" ? "oauth2accesstoken" : "",
+                          token: "",
+                        };
+                        return next;
+                      });
+                    }}
                   />
                 </label>
                 {authFields("registry:" + host, false)}

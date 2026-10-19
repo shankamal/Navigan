@@ -67,7 +67,8 @@ class DeploymentMapping(StrictModel):
 
 class SourceCredential(StrictModel):
     key: str = Field(min_length=1, max_length=270)
-    mode: str = Field(pattern=r"^(PUBLIC|APP|AWS_IAM|AWS_ROLE|TOKEN|BEARER)$")
+    mode: str = Field(pattern=r"^(PUBLIC|APP|AWS_ROLE|TOKEN|BEARER)$")
+    provider: str = Field(default="", pattern=r"^(|AWS_ECR|AZURE_ACR|GOOGLE_AR|DOCKER_HUB|GHCR|HARBOR|OTHER)$")
     roleArn: str = Field(default="", max_length=2048, pattern=r"^[A-Za-z0-9+=,.@_:/-]*$")
     username: str = Field(default="", max_length=200, pattern=r"^[^\r\n:]*$")
     token: str = Field(default="", max_length=10000, repr=False, pattern=r"^[!-~]*$")

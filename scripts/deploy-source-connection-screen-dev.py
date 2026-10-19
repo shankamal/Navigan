@@ -317,14 +317,8 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
     variables["SOURCE_REGISTRY_PRINCIPAL_ARN"] = config["Role"]
     statements = [
         {"Effect": "Allow", "Action": ["sts:AssumeRole"], "Resource": "arn:aws:iam::*:role/navigan-source-discovery/*"},
-        {"Effect": "Allow", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"},
         {"Effect": "Allow", "Action": ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:GetSecretValue"],
          "Resource": f"arn:aws:secretsmanager:ap-south-1:{ACCOUNT}:secret:navigan/source-connections/*"},
-        {
-            "Effect": "Allow",
-            "Action": ["ecr:DescribeImages"],
-            "Resource": f"arn:aws:ecr:ap-south-1:{ACCOUNT}:repository/*",
-        }
     ]
     cluster_child = next(
         (o["OutputValue"] for o in stack["Outputs"] if o["OutputKey"] == "ClusterManagementStackId"), None

@@ -87,10 +87,13 @@ it("offers editable source settings and sends write-only credentials with verifi
           token: "read-only-secret",
           username: "",
         },
-        {
+        expect.objectContaining({
           key: "registry:" + settings.configuration.registries[0],
-          mode: "AWS_IAM",
-        },
+          mode: "AWS_ROLE",
+          provider: "AWS_ECR",
+          roleArn:
+            "arn:aws:iam::905418045935:role/navigan-source-discovery/NaviganRegistryReadOnly",
+        }),
       ]),
       true,
     ),
@@ -247,11 +250,119 @@ it("recognizes a non-AWS registry without offering an ECR role", async () => {
     configuration: { repositories: [], registries: ["customer.azurecr.io"] },
   });
   open();
-  expect(await screen.findByText("Azure Container Registry")).toBeVisible();
+  expect(
+    await screen.findByLabelText(
+      "Registry provider for registry:customer.azurecr.io",
+    ),
+  ).toHaveValue("AZURE_ACR");
   expect(
     screen.queryByRole("option", { name: /Customer IAM role/ }),
   ).toBeNull();
   expect(
-    screen.getByRole("option", { name: "Registry username and access token" }),
+    screen.getByRole("option", {
+      name: "Service principal or ACR repository token",
+    }),
   ).toBeVisible();
+});
+
+it("offers explicit providers and removes the platform IAM option", async () => {
+  open();
+  const host = settings.configuration.registries[0];
+  expect(
+    await screen.findByLabelText("Registry provider for registry:" + host),
+  ).toHaveValue("AWS_ECR");
+  expect(
+    screen.queryByRole("option", { name: "AWS ECR · Navigan IAM role" }),
+  ).toBeNull();
+  expect(screen.getByLabelText("Registry read-only role ARN *")).toHaveValue(
+    "arn:aws:iam::905418045935:role/navigan-source-discovery/NaviganRegistryReadOnly",
+  );
+  for (const name of [
+    "Azure Container Registry",
+    "Google Artifact Registry / GCR",
+    "Docker Hub",
+    "GitHub Container Registry",
+    "Harbor",
+    "Other OCI / Docker registry",
+  ])
+    expect(screen.getByRole("option", { name })).toBeInTheDocument();
+});
+
+it("keeps a provider selected before entering the registry hostname", async () => {
+  api.settings.mockResolvedValue({
+    ...settings,
+    configuration: { repositories: [], registries: [""] },
+  });
+  open();
+  fireEvent.change(
+    await screen.findByLabelText("Registry provider for registry:"),
+    { target: { value: "GOOGLE_AR" } },
+  );
+  fireEvent.change(screen.getByLabelText("Registry hostname *"), {
+    target: { value: "asia-south1-docker.pkg.dev" },
+  });
+  expect(
+    screen.getByLabelText(
+      "Registry provider for registry:asia-south1-docker.pkg.dev",
+    ),
+  ).toHaveValue("GOOGLE_AR");
+  expect(screen.getByLabelText("Google token username")).toHaveValue(
+    "oauth2accesstoken",
+  );
+  expect(
+    screen.getByRole("option", { name: "Google OAuth access token" }),
+  ).toBeVisible();
+  fireEvent.change(screen.getByLabelText(/^Google access token/), {
+    target: { value: "short-lived-token" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save connections" }));
+  await waitFor(() =>
+    expect(api.saveSettings).toHaveBeenCalledWith(
+      "SRC-db",
+      2,
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "GOOGLE_AR",
+          mode: "TOKEN",
+          username: "oauth2accesstoken",
+          token: "short-lived-token",
+        }),
+      ]),
+      false,
+    ),
+  );
+});
+
+it("generates an AWS role template with the exact path, External ID and read-only permissions", async () => {
+  const { registryRoleTemplate } =
+    await import("@/modules/migration-management/registry-connection-options");
+  const template = registryRoleTemplate(
+    "905418045935.dkr.ecr.ap-south-1.amazonaws.com",
+    "arn:aws:iam::905418045935:role/navigan-source-discovery/NaviganRegistryReadOnly",
+    "arn:aws:iam::999999999999:role/Backend",
+    "navigan-generated-id",
+  );
+  const role = template.Resources.RegistryDiscoveryRole.Properties;
+  expect(role.RoleName).toBe("NaviganRegistryReadOnly");
+  expect(role.Path).toBe("/navigan-source-discovery/");
+  expect(
+    role.AssumeRolePolicyDocument.Statement[0].Condition.StringEquals[
+      "sts:ExternalId"
+    ],
+  ).toBe("navigan-generated-id");
+  expect(
+    role.Policies[0].PolicyDocument.Statement.flatMap((s) => s.Action),
+  ).toEqual(["ecr:GetAuthorizationToken", "ecr:DescribeImages"]);
+  expect(role.Policies[0].PolicyDocument.Statement[1].Resource).toBe(
+    "arn:aws:ecr:ap-south-1:905418045935:repository/*",
+  );
+  expect(() =>
+    registryRoleTemplate(
+      "905418045935.dkr.ecr.ap-south-1.amazonaws.com",
+      "arn:aws:iam::111111111111:role/navigan-source-discovery/Role",
+      "principal",
+      "id",
+    ),
+  ).toThrow();
 });

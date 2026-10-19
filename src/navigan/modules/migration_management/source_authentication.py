@@ -101,6 +101,16 @@ def request(url, authorization=None, accept=None):
         conn.close()
 
 
+def registry_provider(host):
+    if re.fullmatch(r"[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com", host):
+        return "AWS_ECR"
+    if host.endswith(".azurecr.io"):
+        return "AZURE_ACR"
+    if host.endswith((".pkg.dev", ".gcr.io")) or host == "gcr.io":
+        return "GOOGLE_AR"
+    return {"docker.io": "DOCKER_HUB", "ghcr.io": "GHCR"}.get(host, "OTHER")
+
+
 def ecr_identity(host):
     match = re.fullmatch(r"([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com", host)
     if not match:
@@ -269,12 +279,49 @@ def configure(source, configuration, credentials, previous, verify, app_token):
         mode = change["mode"]
         github = key.startswith("github:")
         if (github and mode not in {"PUBLIC", "APP", "TOKEN"}) or (
-            not github and mode not in {"PUBLIC", "AWS_IAM", "AWS_ROLE", "TOKEN", "BEARER"}
+            not github and mode not in {"PUBLIC", "AWS_ROLE", "TOKEN", "BEARER"}
         ):
             raise ApiError(
                 400, "INVALID_AUTHENTICATION", "Choose an authentication method supported by this connection."
             )
         old = result[key]
+        provider = ""
+        if not github:
+            detected = registry_provider(key[9:])
+            provider = change.get("provider") or old.get("provider") or detected
+            if provider not in {
+                "AWS_ECR",
+                "AZURE_ACR",
+                "GOOGLE_AR",
+                "DOCKER_HUB",
+                "GHCR",
+                "HARBOR",
+                "OTHER",
+            } or (detected != "OTHER" and provider != detected):
+                raise ApiError(
+                    400, "REGISTRY_PROVIDER_MISMATCH", "Select the provider matching the registry hostname."
+                )
+            if (
+                (provider == "AWS_ECR" and mode != "AWS_ROLE")
+                or (provider != "AWS_ECR" and mode == "AWS_ROLE")
+                or (provider == "GOOGLE_AR" and mode == "BEARER")
+            ):
+                raise ApiError(
+                    400,
+                    "INVALID_AUTHENTICATION",
+                    "Select a connection method supported by this registry provider.",
+                )
+            if (
+                provider == "GOOGLE_AR"
+                and mode == "TOKEN"
+                and change.get("token")
+                and change.get("username") != "oauth2accesstoken"
+            ):
+                raise ApiError(
+                    400,
+                    "INVALID_REGISTRY_USERNAME",
+                    "Google access-token authentication uses username oauth2accesstoken.",
+                )
         secret = change.get("token", "")
         if mode in {"TOKEN", "BEARER"}:
             if not secret and (old.get("mode") != mode or not old.get("secretConfigured")):
@@ -303,7 +350,7 @@ def configure(source, configuration, credentials, previous, verify, app_token):
             }
         else:
             role_data = {}
-            if mode in {"AWS_IAM", "AWS_ROLE"}:
+            if mode == "AWS_ROLE":
                 host = key.removeprefix("registry:")
                 try:
                     account, region = ecr_identity(host)
@@ -329,6 +376,8 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                         roleArn=role, externalId=old.get("externalId") or "navigan-" + str(uuid4())
                     )
             result[key] = {"mode": mode, "secretConfigured": False, "status": "NOT_VERIFIED", **role_data}
+        if not github:
+            result[key]["provider"] = provider
     # Revision/directory changes invalidate repository verification, even if credentials are unchanged.
     before = (source.get("delivery_configuration") or {}).get("deploymentDiscovery", {})
     for entry in configuration["repositories"]:
@@ -362,6 +411,8 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                     )
                     message = "Repository contents, revision and directory are accessible."
                 else:
+                    if entry["mode"] == "AWS_IAM":
+                        raise ValueError("Replace legacy platform IAM access with a customer registry role.")
                     host = key[9:]
                     credential = {"mode": entry["mode"], **read_credential(source, key, entry)}
                     aws_mode = entry["mode"] in {"AWS_IAM", "AWS_ROLE"}
@@ -390,6 +441,7 @@ def ready(configuration, authentication):
         and configuration.get("registries")
         and all(
             authentication.get(key, {}).get("status") == "CONNECTED"
+            and authentication.get(key, {}).get("mode") != "AWS_IAM"
             for key in [
                 *("github:" + r["repository"] for r in configuration["repositories"]),
                 *("registry:" + h for h in configuration["registries"]),
