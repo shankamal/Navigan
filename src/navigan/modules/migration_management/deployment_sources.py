@@ -506,21 +506,21 @@ def build_report(migration, inventory, source):
         candidates = []
         for artifact in artifacts:
             identity = artifact.get("resource") or {}
-            identity_match = (identity.get("kind"), identity.get("name"), identity.get("namespace")) == (
-                resource["kind"],
-                resource.get("name"),
-                resource.get("namespace"),
-            ) and identity.get("apiVersion") == resource.get("apiVersion")
+            same_identity = all(identity.get(key) == resource.get(key) for key in ("apiVersion", "kind", "name"))
+            identity_match = same_identity and identity.get("namespace") == resource.get("namespace")
+            # Namespace may be supplied by kubectl, Helm or Kustomize at deploy
+            # time. Retain a name/kind match as an explicitly unverified candidate.
+            namespace_unspecified = same_identity and not identity.get("namespace") and bool(resource.get("namespace"))
             helm_match = (
                 chart
                 and artifact.get("format") == "HELM"
                 and chart == artifact.get("chartName", "") + "-" + artifact.get("chartVersion", "")
             )
-            if identity_match or helm_match:
+            if identity_match or namespace_unspecified or helm_match:
                 candidates.append(
                     {
                         **artifact,
-                        "match": "RESOURCE_IDENTITY" if identity_match else "CHART_METADATA",
+                        "match": "RESOURCE_IDENTITY" if identity_match else "NAMESPACE_UNSPECIFIED" if namespace_unspecified else "CHART_METADATA",
                         "deployedCommitVerified": False,
                     }
                 )
@@ -539,6 +539,8 @@ def build_report(migration, inventory, source):
         gaps = []
         if not candidates:
             gaps.append("Original deployment artifact has not been mapped.")
+        if any(a["match"] == "NAMESPACE_UNSPECIFIED" for a in candidates):
+            gaps.append("Repository manifest omits the namespace. Deployment-time namespace mapping needs confirmation; name matching does not prove ownership.")
         if len(candidates) > 1 and not confirmed:
             gaps.append("Multiple deployment artifacts match; confirm the deployed source.")
         if candidates:
@@ -555,7 +557,7 @@ def build_report(migration, inventory, source):
             {
                 "workload": {k: resource.get(k) for k in ("apiVersion", "kind", "namespace", "name")},
                 "applicationVersion": labels.get("app.kubernetes.io/version"),
-                "artifactFormat": "Helm" if chart or release else "Unresolved",
+                "artifactFormat": "Helm" if chart or release else "Kubernetes manifests (candidate)" if any(a.get("format") == "MANIFESTS" for a in candidates) else "Unresolved",
                 "deliveryTool": delivery,
                 "helmChart": chart,
                 "helmRelease": release,

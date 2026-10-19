@@ -328,3 +328,92 @@ it("shows which workload references each registry image", async () => {
     ),
   ).toBeVisible();
 });
+
+it("requires individual namespace review for manifests without namespace", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    workloads: [
+      {
+        ...row,
+        artifactFormat: "Kubernetes manifests (candidate)",
+        deliveryTool: "Unresolved",
+        candidates: [
+          {
+            ...row.candidates[0],
+            format: "MANIFESTS",
+            match: "NAMESPACE_UNSPECIFIED",
+            filePath: "base/api.yaml",
+          },
+        ],
+      },
+    ],
+  });
+  open();
+  expect(
+    await screen.findByText(/Manifest namespace unspecified/),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Confirm unique source mappings" }),
+  ).not.toBeInTheDocument();
+  const confirm = screen.getByRole("button", { name: "Confirm source" });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  expect(api.saveSettings.mock.calls[0][2].confirmations[0].namespace).toBe(
+    "payments",
+  );
+});
+
+it("separates missing repository mapping from runtime evidence", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    workloads: [
+      {
+        ...row,
+        workload: { ...workload, kind: "CronJob" },
+        candidates: [],
+        mappingStatus: "UNRESOLVED",
+        runtimeStatus: "NO_RUNNING_EVIDENCE",
+      },
+    ],
+  });
+  open();
+  expect(await screen.findByText("Repository not mapped")).toBeVisible();
+  expect(screen.getByText(/No running Pod observed/)).toBeVisible();
+  expect(
+    screen.getByText(/Scheduled or completed Jobs may have no running Pods/),
+  ).toBeVisible();
+});
+
+it("filters Git workload mapping and registry evidence by the same namespace", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    workloads: [
+      row,
+      {
+        ...row,
+        workload: { ...workload, namespace: "platform", name: "operator" },
+        containers: [
+          { ...row.containers[0], configuredImage: "quay.io/operator:v1" },
+        ],
+      },
+    ],
+    images: [
+      { image: "customer/api:1.2", status: "AVAILABLE" },
+      { image: "quay.io/operator:v1", status: "NOT_CONNECTED" },
+    ],
+  });
+  open();
+  const filter = await screen.findByRole("combobox", {
+    name: "Evidence namespace",
+  });
+  fireEvent.change(filter, { target: { value: "payments" } });
+  expect(screen.getByText("api")).toBeVisible();
+  expect(screen.queryByText("operator")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Container registry" }));
+  expect(screen.getByText("customer/api:1.2")).toBeVisible();
+  expect(screen.queryByText("quay.io/operator:v1")).not.toBeInTheDocument();
+  fireEvent.change(filter, { target: { value: "platform" } });
+  expect(screen.getByText("Registry not configured")).toBeVisible();
+  expect(screen.getByText(/Image availability is unknown/)).toBeVisible();
+});

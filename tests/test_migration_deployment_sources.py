@@ -406,3 +406,28 @@ def test_github_expressions_are_workflows_not_helm_templates():
     assert formats[".github/workflows/images.yml"] == "GITHUB_ACTIONS"
     assert formats["deploy/plain.yaml"] == "TEMPLATE"
     assert formats["charts/shop/templates/api.yaml"] == "HELM_TEMPLATE"
+
+
+@pytest.mark.parametrize("manifest_namespace,kind,expected", [
+    (None, "Deployment", "NAMESPACE_UNSPECIFIED"),
+    ("shop", "Deployment", "RESOURCE_IDENTITY"),
+    ("another", "Deployment", None),
+    (None, "StatefulSet", None),
+])
+def test_namespace_omitted_manifests_remain_candidates_not_verified(manifest_namespace, kind, expected):
+    item = sanitize_resource(deployment())
+    item.pop("deploymentMetadata")
+    artifact = {"repository": "customer/shop", "commit": COMMIT, "filePath": "api.yaml", "format": "MANIFESTS", "resource": {**IDENTITY, "kind": kind, "namespace": manifest_namespace}}
+    config = {"repositories": [], "registries": []}
+    source = {"source_cluster_id": "SRC-db", "delivery_configuration": {"deploymentDiscovery": config, "deploymentAnalysis": {"configurationDigest": config_digest(config), "repositories": [{"artifacts": [artifact]}]}}}
+    row = build_report({"migration_id": "MIG-db"}, {"resources": [item]}, source)["workloads"][0]
+    if expected:
+        assert row["mappingStatus"] == "CANDIDATE"
+        assert row["candidates"][0]["match"] == expected
+        assert row["candidates"][0]["deployedCommitVerified"] is False
+        assert row["artifactFormat"] == "Kubernetes manifests (candidate)"
+        if expected == "NAMESPACE_UNSPECIFIED":
+            assert any("namespace mapping needs confirmation" in gap for gap in row["gaps"])
+    else:
+        assert row["mappingStatus"] == "UNRESOLVED"
+        assert not row["candidates"]

@@ -41,6 +41,7 @@ export function DeploymentEvidencePanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState("workloads");
+  const [evidenceNamespace, setEvidenceNamespace] = useState("");
   const [choices, setChoices] = useState<Record<string, number>>({});
   const query = useQuery({
     queryKey: ["deployment-evidence", migration.migrationId, inventoryDigest],
@@ -59,11 +60,27 @@ export function DeploymentEvidencePanel({
   const evidence = query.data;
   const matching =
     !inventoryDigest || evidence?.inventoryDigest === inventoryDigest;
-  const workloads = matching
-    ? (evidence?.workloads ?? []).filter(
-        (r) => !selectedKeys || selectedKeys.has(scopeKey(r.workload)),
-      )
-    : [];
+  const allWorkloads = matching ? (evidence?.workloads ?? []) : [];
+  const workloads = allWorkloads.filter((r) =>
+    selectedKeys
+      ? selectedKeys.has(scopeKey(r.workload))
+      : !evidenceNamespace || r.workload.namespace === evidenceNamespace,
+  );
+  const evidenceNamespaces = [
+    ...new Set(
+      allWorkloads
+        .map((r) => r.workload.namespace)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ].sort();
+  const images =
+    evidenceNamespace && !selectedKeys
+      ? (evidence?.images ?? []).filter((image) =>
+          workloads.some((w) =>
+            w.containers.some((c) => c.configuredImage === image.image),
+          ),
+        )
+      : (evidence?.images ?? []);
   const needsRuntime = workloads.some((w) =>
     ["NOT_COLLECTED", "UNAVAILABLE"].includes(w.runtimeStatus),
   );
@@ -423,7 +440,9 @@ export function DeploymentEvidencePanel({
           {!selectedKeys &&
             workloads.some(
               (w) =>
-                w.candidates.length === 1 && w.mappingStatus !== "CONFIRMED",
+                w.candidates.length === 1 &&
+                w.candidates[0].match !== "NAMESPACE_UNSPECIFIED" &&
+                w.mappingStatus !== "CONFIRMED",
             ) && (
               <button
                 disabled={!canEdit || !!busy || editing || !settings.data}
@@ -432,6 +451,7 @@ export function DeploymentEvidencePanel({
                     workloads.filter(
                       (w) =>
                         w.candidates.length === 1 &&
+                        w.candidates[0].match !== "NAMESPACE_UNSPECIFIED" &&
                         w.mappingStatus !== "CONFIRMED",
                     ),
                   )
@@ -481,8 +501,36 @@ export function DeploymentEvidencePanel({
               ))}
             </nav>
           )}
+          {!selectedKeys && (
+            <label>
+              Evidence namespace
+              <select
+                aria-label="Evidence namespace"
+                value={evidenceNamespace}
+                onChange={(event) => setEvidenceNamespace(event.target.value)}
+              >
+                <option value="">All namespaces</option>
+                {evidenceNamespaces.map((namespace) => (
+                  <option key={namespace} value={namespace}>
+                    {namespace}
+                  </option>
+                ))}
+              </select>
+              <small>
+                Filters workload and container registry rows. Repository
+                structure lists the connected repository artifacts.
+              </small>
+            </label>
+          )}
           {(selectedKeys || tab === "workloads") && (
             <div className={styles.scroll}>
+              <p>
+                Repository mapping, registry access and running Pod evidence are
+                separate checks. A workload can run with an available image
+                while its original deployment artifact remains unmapped.
+                Platform components and generated Jobs may not exist in the
+                connected application repository.
+              </p>
               <table>
                 <thead>
                   <tr>
@@ -509,7 +557,13 @@ export function DeploymentEvidencePanel({
                         )}
                       </td>
                       <td>
-                        {w.artifactFormat} · {w.deliveryTool}
+                        {w.artifactFormat === "Unresolved"
+                          ? "Artifact type not detected"
+                          : w.artifactFormat}{" "}
+                        ·{" "}
+                        {w.deliveryTool === "Unresolved"
+                          ? "Delivery tool not detected"
+                          : w.deliveryTool}
                         {w.helmChart && <small>Chart: {w.helmChart}</small>}
                         {w.helmRelease && (
                           <small>Release: {w.helmRelease}</small>
@@ -520,6 +574,12 @@ export function DeploymentEvidencePanel({
                             title="Candidate only; deployed commit has not been verified."
                           >
                             {c.repository} / {c.filePath}
+                            {c.match === "NAMESPACE_UNSPECIFIED" && (
+                              <small>
+                                Manifest namespace unspecified — confirm
+                                deployment namespace and ownership.
+                              </small>
+                            )}
                             <code>
                               Inspected commit: {c.commit.slice(0, 12)}
                             </code>
@@ -570,17 +630,28 @@ export function DeploymentEvidencePanel({
                             ? "User-confirmed source"
                             : w.mappingStatus === "CANDIDATE"
                               ? "Candidate · needs confirmation"
-                              : "Source unresolved"}
+                              : "Repository not mapped"}
                         </span>
                         <small>
                           Runtime:{" "}
-                          {w.runtimeStatus.toLowerCase().replaceAll("_", " ")}
+                          {w.runtimeStatus === "NO_RUNNING_EVIDENCE"
+                            ? "No running Pod observed"
+                            : w.runtimeStatus
+                                .toLowerCase()
+                                .replaceAll("_", " ")}
+                          {w.runtimeStatus === "NO_RUNNING_EVIDENCE" &&
+                            ["Job", "CronJob"].includes(w.workload.kind) && (
+                              <small>
+                                Scheduled or completed Jobs may have no running
+                                Pods. This alone does not indicate failure.
+                              </small>
+                            )}
                         </small>
                         {w.candidates.length > 1 && (
                           <small>Multiple matching artifacts</small>
                         )}
                         {!selectedKeys &&
-                          w.candidates.length > 1 &&
+                          w.candidates.length > 0 &&
                           w.mappingStatus !== "CONFIRMED" && (
                             <div>
                               <select
@@ -657,7 +728,7 @@ export function DeploymentEvidencePanel({
                         <small>
                           {a.resource.kind} ·{" "}
                           {a.resource.namespace ||
-                            "Namespace unspecified / cluster scoped"}{" "}
+                            "Namespace not specified in manifest"}{" "}
                           · {a.resource.name}
                         </small>
                       )}
@@ -705,7 +776,7 @@ export function DeploymentEvidencePanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {evidence.images.map((i) => (
+                  {images.map((i) => (
                     <tr key={i.image}>
                       <td>
                         <code>{i.image}</code>
@@ -723,8 +794,14 @@ export function DeploymentEvidencePanel({
                           ))}
                       </td>
                       <td>
-                        {i.status}
-                        <small>{i.reason}</small>
+                        {i.status === "NOT_CONNECTED"
+                          ? "Registry not configured"
+                          : i.status}
+                        <small>
+                          {i.status === "NOT_CONNECTED"
+                            ? "This image's registry has not been connected for inspection. Image availability is unknown."
+                            : i.reason}
+                        </small>
                       </td>
                       <td>
                         <code>{i.registryDigest || "Digest not reported"}</code>
