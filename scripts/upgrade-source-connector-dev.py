@@ -54,12 +54,12 @@ def main():
     args = parser.parse_args()
 
     def aws(*parts):
-        return json.loads(
-            subprocess.check_output(
-                ["aws", "--profile", args.profile, "--region", "ap-south-1", "--output", "json", *parts],
-                text=True,
-            )
+        output = subprocess.check_output(
+            ["aws", "--profile", args.profile, "--region", "ap-south-1", "--output", "json", *parts],
+            text=True,
         )
+        # Successful write-only operations (for example IAM put-role-policy) emit no JSON.
+        return json.loads(output) if output.strip() else {}
 
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
     if branch != "new_migration_approach_18oct26" or aws("sts", "get-caller-identity")["Account"] != ACCOUNT:

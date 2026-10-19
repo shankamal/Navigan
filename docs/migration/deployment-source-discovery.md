@@ -37,6 +37,8 @@ git pull --ff-only origin new_migration_approach_18oct26
 python3 scripts/deploy-source-connection-screen-dev.py --profile navigan --apply --upgrade-source-connector
 ```
 
+If both Lambda code updates succeeded but the configuration phase stopped, add `--finish-deployment` to the same command. This resumes routes, IAM, environment and the optional connector upgrade without downloading dependencies or re-uploading Lambda packages. Successful write-only AWS CLI operations with empty stdout are accepted.
+
 The script backs up the current two Lambda ZIPs/configuration, bundles pinned PyYAML and updated migration modules, adds only the four new JWT routes using the existing integration/authorizer/scopes, grants migration metadata-read permissions, and reuses GitHub App settings from the current DEV cluster function. It does not alter the database schema.
 
 The optional connector upgrade targets the approved DB Schenker DEV lab only: SSM instance i-08e28d9b2242cbd53, source SRC-2f0e434335e04ef0bdccd74cb3322f2c. It first authenticates the existing connector and checks that source identity. It adds Pods/ReplicaSets list permissions and mounts a versioned code-only ConfigMap into the existing deployment. It preserves registration, credential references and the connector image. No new connector enrollment, duplicate deployment, interactive SSM session or Docker build is needed. A failed rollout requests the previous deployment revision. This is a DEV runtime override; a future normal connector image build must contain these modules too.

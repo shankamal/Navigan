@@ -34,15 +34,20 @@ def main():
         action="store_true",
         help="Also update the existing DB Schenker DEV connector through SSM; no interactive session or re-enrollment.",
     )
+    parser.add_argument(
+        "--finish-deployment",
+        action="store_true",
+        help="Resume routes, permissions, environment and optional connector upgrade after both Lambda code uploads succeeded.",
+    )
     args = parser.parse_args()
 
     def aws(*parts):
-        return json.loads(
-            subprocess.check_output(
-                ["aws", "--profile", args.profile, "--region", "ap-south-1", "--output", "json", *parts],
-                text=True,
-            )
+        output = subprocess.check_output(
+            ["aws", "--profile", args.profile, "--region", "ap-south-1", "--output", "json", *parts],
+            text=True,
         )
+        # Successful write-only operations (for example IAM put-role-policy) emit no JSON.
+        return json.loads(output) if output.strip() else {}
 
     aws.profile = args.profile
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
@@ -58,6 +63,29 @@ def main():
         raise SystemExit("Unexpected migration nested stack.")
     backup = Path(tempfile.mkdtemp(prefix="navigan-source-connection-dev-"))
     backup.chmod(0o700)
+    if args.finish_deployment:
+        function_name = aws(
+            "cloudformation",
+            "describe-stack-resource",
+            "--stack-name",
+            child,
+            "--logical-resource-id",
+            "MigrationFunction",
+        )["StackResourceDetail"]["PhysicalResourceId"]
+        config = aws("lambda", "get-function-configuration", "--function-name", function_name)
+        if (
+            config.get("State") != "Active"
+            or config.get("LastUpdateStatus") != "Successful"
+            or not config.get("FunctionArn", "").startswith(f"arn:aws:lambda:ap-south-1:{ACCOUNT}:function:")
+        ):
+            raise SystemExit("DEV MigrationFunction is not stable; finish deployment stopped.")
+        if not args.apply:
+            print(
+                "Ready to finish DEV discovery configuration without re-uploading Lambda packages. Use --apply."
+            )
+            return
+        finish_deployment(aws, stack, child, function_name, backup, args)
+        return
     staged = []
     for logical in ["MigrationFunction", "MigrationConnectorFunction"]:
         function_name = aws(
@@ -208,7 +236,11 @@ def main():
     verified = aws("lambda", "get-function-configuration", "--function-name", name)
     if verified.get("Environment", {}).get("Variables", {}).get("MIGRATION_SOURCE_FIRST_ENABLED") != "true":
         raise SystemExit("DEV flag verification failed.")
-    configure_deployment_discovery(aws, stack, child, staged[0][1], backup)
+    finish_deployment(aws, stack, child, staged[0][1], backup, args)
+
+
+def finish_deployment(aws, stack, child, function_name, backup, args):
+    configure_deployment_discovery(aws, stack, child, function_name, backup)
     if args.upgrade_source_connector:
         subprocess.check_call(
             [

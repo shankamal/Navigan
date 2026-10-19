@@ -80,7 +80,9 @@ def test_wrong_customer_registration_stops_before_any_kubernetes_write(monkeypat
     assert "exec" in calls[0]
 
 
-def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path):
+@pytest.mark.parametrize("finish_only", [False, True])
+@pytest.mark.parametrize("routes_exist", [False, True])
+def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path, finish_only, routes_exist):
     """New ZIP entries must never overwrite the AWS function identity."""
     import io
     import sys
@@ -94,6 +96,19 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path)
             if file_name != "deployment_sources.py":
                 archive.writestr(prefix + file_name, "# original deployed module\n")
     updates = []
+    calls = []
+    routes = [
+        "GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "GET /api/v1/migrations/{migrationId}/deployment-evidence",
+        "POST /api/v1/migrations/{migrationId}/deployment-evidence",
+    ]
+    protection = {
+        "Target": "integrations/dev-integration",
+        "AuthorizationType": "JWT",
+        "AuthorizerId": "dev-jwt",
+        "AuthorizationScopes": ["navigan/api"],
+    }
 
     def configuration(function_name):
         return {
@@ -102,13 +117,20 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path)
             "State": "Active",
             "LastUpdateStatus": "Successful",
             "RevisionId": "revision-" + function_name,
-            "Environment": {"Variables": {"MIGRATION_SOURCE_FIRST_ENABLED": "true"}},
+            "Role": f"arn:aws:iam::{deploy.ACCOUNT}:role/dev-migration-role",
+            "Environment": {
+                "Variables": {
+                    "MIGRATION_SOURCE_FIRST_ENABLED": "true",
+                    "MIGRATION_CONNECTOR_API_BASE_URL": "https://devapi123.execute-api.ap-south-1.amazonaws.com/v1/api/v1",
+                }
+            },
         }
 
     def check_output(command, **kwargs):
         if command[0] == "git":
             return "new_migration_approach_18oct26\n"
         parts = command[7:]
+        calls.append(parts)
         if parts[:2] == ["sts", "get-caller-identity"]:
             result = {"Account": deploy.ACCOUNT}
         elif parts[:2] == ["cloudformation", "describe-stacks"]:
@@ -140,6 +162,27 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path)
             result = configuration(parts[parts.index("--function-name") + 1])
         elif parts[:2] == ["lambda", "update-function-configuration"]:
             result = {}
+        elif parts[:2] == ["cloudformation", "list-stack-resources"]:
+            result = {
+                "StackResourceSummaries": [
+                    {"LogicalResourceId": "MigrationIntegration", "PhysicalResourceId": "dev-integration"}
+                ]
+            }
+        elif parts[:2] == ["apigatewayv2", "get-routes"]:
+            result = {
+                "Items": [{"RouteKey": "GET /api/v1/migrations/{migrationId}", **protection}]
+                + ([{"RouteKey": route, **protection} for route in routes] if routes_exist else [])
+            }
+        elif parts[:2] == ["apigatewayv2", "create-route"]:
+            request = json.loads(Path(parts[-1].removeprefix("file://")).read_text())
+            assert all(request[k] == v for k, v in protection.items())
+            result = {"RouteId": "new-route"}
+        elif parts[:2] == ["apigatewayv2", "get-stage"]:
+            result = {"AutoDeploy": False}
+        elif parts[:2] == ["apigatewayv2", "create-deployment"]:
+            result = {"DeploymentId": "deployment-1"}
+        elif parts[:2] == ["iam", "put-role-policy"]:
+            return ""  # AWS returns success with an empty body, not JSON.
         else:
             raise AssertionError(f"Unexpected AWS operation: {parts}")
         return json.dumps(result)
@@ -149,6 +192,9 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path)
             wheels = Path(command[command.index("--dest") + 1])
             with zipfile.ZipFile(wheels / "PyYAML-test.whl", "w") as wheel:
                 wheel.writestr("yaml/__init__.py", "# test dependency\n")
+        elif "upgrade-source-connector-dev.py" in " ".join(command):
+            assert "--apply" in command
+            calls.append(["connector-upgrade"])
         else:
             assert command[0] == "aws" and "wait" in command
         return 0
@@ -159,10 +205,20 @@ def test_packaging_new_files_preserves_stack_lambda_names(monkeypatch, tmp_path)
     monkeypatch.setattr(
         deploy.urllib.request, "urlopen", lambda *args, **kwargs: io.BytesIO(original.getvalue())
     )
-    monkeypatch.setattr(deploy, "configure_deployment_discovery", lambda *args: None)
-    monkeypatch.setattr(sys, "argv", ["deploy-source-connection-screen-dev.py", "--apply"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["deploy-source-connection-screen-dev.py", "--apply", "--upgrade-source-connector"]
+        + (["--finish-deployment"] if finish_only else []),
+    )
     deploy.main()
-    assert [name for name, _ in updates] == ["DEV-MigrationConnectorFunction", "DEV-MigrationFunction"]
+    assert [name for name, _ in updates] == (
+        [] if finish_only else ["DEV-MigrationConnectorFunction", "DEV-MigrationFunction"]
+    )
+    assert sum(c[:2] == ["iam", "put-role-policy"] for c in calls) == 1
+    assert sum(c[:2] == ["apigatewayv2", "create-route"] for c in calls) == (0 if routes_exist else 4)
+    assert calls[-1] == ["connector-upgrade"]
+    assert (tmp_path / "deployment-discovery-environment.json").exists()
     for name, artifact in updates:
         with zipfile.ZipFile(artifact.removeprefix("fileb://")) as archive:
             assert prefix + "deployment_sources.py" in archive.namelist()
