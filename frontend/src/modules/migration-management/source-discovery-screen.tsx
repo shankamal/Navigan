@@ -227,8 +227,8 @@ export function SourceDiscoveryScreen({
 
   async function refreshStatus() {
     await Promise.all([
-      query.refetch(),
-      sourceId ? sourceQuery.refetch() : Promise.resolve(),
+      query.refetch({ cancelRefetch: false }),
+      sourceId ? sourceQuery.refetch({ cancelRefetch: false }) : Promise.resolve(),
     ]);
   }
 
@@ -416,7 +416,8 @@ export function SourceDiscoveryScreen({
             </button>
           )}
           <button
-            disabled={busy || query.isFetching || sourceQuery.isFetching}
+            disabled={busy}
+            aria-busy={query.isFetching || sourceQuery.isFetching}
             onClick={refreshStatus}
           >
             Refresh status

@@ -273,3 +273,13 @@ it("refreshes connector diagnostics together with migration status", async () =>
   fireEvent.click(button);
   await waitFor(() => expect(api.source).toHaveBeenCalledWith("SRC-db", true));
 });
+
+
+it("keeps manual refresh available while connector status is being fetched", async () => {
+  api.source.mockImplementation(() => new Promise(() => {}));
+  open();
+  const button = await screen.findByRole("button", { name: "Refresh status" });
+  await waitFor(() => expect(api.source).toHaveBeenCalled());
+  expect(button).toBeEnabled();
+  expect(button).toHaveAttribute("aria-busy", "true");
+});
