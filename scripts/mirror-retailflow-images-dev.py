@@ -166,42 +166,29 @@ def ensure_repository(aws, repository):
     )["repository"]
 
 
-def recover_platform_push(docker, source, inspected, target):
-    """Recover only the known containerd platform lookup failure, without pruning."""
-    print("Recovering Docker platform metadata using a pinned linux/amd64 manifest.", flush=True)
-    raw = json.loads(docker(["docker", "buildx", "imagetools", "inspect", "--raw", source]))
-    if isinstance(raw.get("manifests"), list):
+def platform_reference(docker, source):
+    """Resolve the architecture before touching Docker's local image store."""
+    descriptor = json.loads(docker([
+        "docker", "buildx", "imagetools", "inspect", "--format", "{{json .Manifest}}", source,
+    ]))
+    if isinstance(descriptor.get("manifests"), list):
         candidates = [
-            item for item in raw["manifests"]
+            item for item in descriptor["manifests"]
             if item.get("platform", {}).get("os") == "linux"
             and item.get("platform", {}).get("architecture") == "amd64"
             and item.get("platform", {}).get("variant", "") in {"", "v1"}
         ]
         if len(candidates) != 1:
-            raise ValueError("Source manifest does not identify exactly one linux/amd64 image; recovery stopped.")
+            raise ValueError("Source manifest does not identify exactly one linux/amd64 image; copy stopped.")
         digest = candidates[0].get("digest", "")
     else:
-        descriptor = json.loads(docker([
-            "docker", "buildx", "imagetools", "inspect", "--format", "{{json .Manifest}}", source,
-        ]))
         digest = descriptor.get("digest", "")
     if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
-        raise ValueError("Source manifest digest is invalid; recovery stopped.")
+        raise ValueError("Source manifest digest is invalid; copy stopped.")
     repository = source.split("@", 1)[0]
     if ":" in repository.rsplit("/", 1)[-1]:
         repository = repository.rsplit(":", 1)[0]
-    pinned = repository + "@" + digest
-    # Pulling a child manifest by digest avoids the containerd --platform path.
-    docker(["docker", "pull", pinned])
-    recovered = json.loads(docker(["docker", "image", "inspect", "--format", "{{json .}}", pinned]))
-    if recovered.get("Os") != "linux" or recovered.get("Architecture") != "amd64":
-        raise ValueError("Recovered image is not linux/amd64; no image was pushed.")
-    if recovered.get("Id") != inspected["Id"]:
-        raise ValueError("Source image identity changed during platform recovery; rerun to inspect the current image.")
-    # The digest reference retains the manifest metadata that ID-based tagging
-    # may lose in the containerd image store. It cannot follow a moving tag.
-    docker(["docker", "tag", pinned, target])
-    docker(["docker", "push", target])
+    return repository + "@" + digest
 
 
 def mirror(aws, images, *, docker=run):
@@ -221,9 +208,13 @@ def mirror(aws, images, *, docker=run):
             mappings.append({"source": image, "destination": image, "status": "ALREADY_IN_ECR"})
             continue
         print("Copying " + identity["source"], flush=True)
-        docker(["docker", "pull", "--platform", "linux/amd64", identity["source"]])
+        pinned = platform_reference(docker, identity["source"])
+        print("  Pinned linux/amd64 source: " + pinned, flush=True)
+        # Pull the child digest directly. --platform on a multi-platform tag can
+        # leave broken platform metadata in the containerd image store.
+        docker(["docker", "pull", pinned])
         inspected = json.loads(
-            docker(["docker", "image", "inspect", "--format", "{{json .}}", identity["source"]])
+            docker(["docker", "image", "inspect", "--format", "{{json .}}", pinned])
         )
         if inspected.get("Architecture") != "amd64" or inspected.get("Os") != "linux":
             raise ValueError("Pulled image platform does not match the source lab.")
@@ -247,16 +238,10 @@ def mirror(aws, images, *, docker=run):
                 raise
             existing = []
         if not existing:
-            # Tag the inspected immutable local image ID, not a possibly moving source tag.
-            docker(["docker", "tag", inspected["Id"], target])
-            try:
-                docker(["docker", "push", target])
-            except CommandError as error:
-                if not any(message in str(error) for message in (
-                    "does not provide any platform", "does not provide the specified platform",
-                )):
-                    raise
-                recover_platform_push(docker, identity["source"], inspected, target)
+            # Tag the pinned manifest reference, not an index or config ID.
+            # Docker IDs have different meanings across image-store backends.
+            docker(["docker", "tag", pinned, target])
+            docker(["docker", "push", target])
             existing = aws(
                 "ecr",
                 "describe-images",
@@ -271,7 +256,7 @@ def mirror(aws, images, *, docker=run):
         mappings.append(
             {
                 "source": identity["source"],
-                "sourceResolvedReferences": inspected.get("RepoDigests", []),
+                "sourceResolvedReferences": [pinned],
                 "destination": target,
                 "destinationDigestReference": expected_uri + "@" + digest,
                 "platform": "linux/amd64",

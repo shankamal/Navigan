@@ -46,12 +46,12 @@ def test_invalid_or_credentialed_references_are_rejected(image):
         mirror.source_identity(image)
 
 
-@pytest.mark.parametrize("platform_failure", [False, True])
-def test_mirror_pushes_inspected_image_id_and_verifies_ecr_without_exposing_password(capsys, platform_failure):
+@pytest.mark.parametrize("local_id", ["config", "manifest", "wrong-platform"])
+def test_mirror_pushes_pinned_manifest_and_verifies_ecr_without_exposing_password(capsys, local_id):
     import base64
 
     calls = []
-    image_id = "sha256:" + "a" * 64
+    image_id = "sha256:" + ("a" if local_id == "config" else "d") * 64
     digest = "sha256:" + "b" * 64
     pushed = False
     push_attempts = 0
@@ -83,27 +83,32 @@ def test_mirror_pushes_inspected_image_id_and_verifies_ecr_without_exposing_pass
     def docker(command, input=None):
         nonlocal pushed, push_attempts
         docker_calls.append((command, input))
-        if "--raw" in command:
-            return json.dumps({"manifests": [{"digest": digest, "platform": {"os": "linux", "architecture": "amd64"}}]})
+        if "imagetools" in command:
+            return json.dumps({"digest": "sha256:" + "e" * 64, "manifests": [{"digest": digest, "platform": {"os": "linux", "architecture": "amd64"}}]})
         if "inspect" in command:
             return json.dumps(
-                {"Id": image_id, "Architecture": "amd64", "Os": "linux", "RepoDigests": ["python@" + digest]}
+                {"Id": image_id, "Architecture": "arm64" if local_id == "wrong-platform" else "amd64", "Os": "linux", "RepoDigests": ["python@" + digest]}
             )
         if "login" in command:
             assert "secret-ecr-token" not in command and input == "secret-ecr-token\n"
         if "push" in command:
             push_attempts += 1
-            if platform_failure and push_attempts == 1:
-                raise mirror.CommandError("image with reference target was found but does not provide any platform")
             pushed = True
         return ""
 
+    if local_id == "wrong-platform":
+        with pytest.raises(ValueError, match="platform does not match"):
+            mirror.mirror(aws, ["docker.io/library/python:3.12-alpine"], docker=docker)
+        assert not any("push" in command for command, _ in docker_calls)
+        return
     result = mirror.mirror(aws, ["docker.io/library/python:3.12-alpine"], docker=docker)
     tag_call = next(c for c, _ in docker_calls if "tag" in c)
-    assert tag_call[2] == image_id
-    assert push_attempts == (2 if platform_failure else 1)
-    if platform_failure:
-        assert ["docker", "tag", "docker.io/library/python@" + digest, result[0]["destination"]] in [c for c, _ in docker_calls]
+    pinned = "docker.io/library/python@" + digest
+    assert tag_call[2] == pinned
+    assert ["docker", "pull", pinned] in [c for c, _ in docker_calls]
+    assert all("--platform" not in c for c, _ in docker_calls)
+    assert result[0]["sourceResolvedReferences"] == [pinned]
+    assert push_attempts == 1
     assert result[0]["destinationDigestReference"].endswith("@" + digest)
     assert result[0]["destination"].startswith(mirror.REGISTRY + "/retailflow/docker.io/library/python:")
     assert "secret-ecr-token" not in capsys.readouterr().out
@@ -175,51 +180,29 @@ def test_discovery_does_not_print_pod_env_or_other_namespace_payload(monkeypatch
     assert all("apply" not in c and "patch" not in c for c in commands)
 
 
-def test_platform_recovery_pulls_child_digest_and_tags_pinned_reference(capsys):
-    config_id = "sha256:" + "a" * 64
-    child_digest = "sha256:" + "b" * 64
-    source = "docker.io/library/python:3.12-alpine"
-    target = mirror.REGISTRY + "/retailflow/docker.io/library/python:test"
-    calls = []
-
+@pytest.mark.parametrize("source", ["docker.io/library/python:3", "docker.io/library/python@sha256:" + "f" * 64])
+def test_resolves_child_manifest_before_local_pull(source):
+    child = "sha256:" + "b" * 64
+    commands = []
     def docker(command):
-        calls.append(command)
-        if "--raw" in command:
-            return json.dumps({"manifests": [
-                {"digest": child_digest, "platform": {"os": "linux", "architecture": "amd64"}},
-                {"digest": "sha256:" + "c" * 64, "platform": {"os": "linux", "architecture": "arm64"}},
-            ]})
-        if "inspect" in command:
-            return json.dumps({"Id": config_id, "Os": "linux", "Architecture": "amd64"})
-        return ""
-
-    mirror.recover_platform_push(docker, source, {"Id": config_id}, target)
-    pinned = "docker.io/library/python@" + child_digest
-    assert ["docker", "pull", pinned] in calls
-    assert ["docker", "tag", pinned, target] in calls
-    assert calls[-1] == ["docker", "push", target]
-    assert not any("prune" in command for command in calls)
-    assert "Recovering Docker platform metadata" in capsys.readouterr().out
+        commands.append(command)
+        return json.dumps({"manifests": [
+            {"digest": "sha256:" + "c" * 64, "platform": {"os": "linux", "architecture": "arm64"}},
+            {"digest": child, "platform": {"os": "linux", "architecture": "amd64"}},
+        ]})
+    assert mirror.platform_reference(docker, source) == "docker.io/library/python@" + child
+    assert len(commands) == 1
+    assert commands[0][-1] == source
 
 
-@pytest.mark.parametrize("mode", ["ambiguous", "missing", "digest", "architecture", "identity"])
-def test_platform_recovery_fails_closed_for_unverified_images(mode):
-    digest = "sha256:" + "b" * 64
-    selected = {"digest": digest, "platform": {"os": "linux", "architecture": "amd64"}}
-    pushed = []
-
-    def docker(command):
-        if "--raw" in command:
-            entries = [selected, selected] if mode == "ambiguous" else [] if mode == "missing" else [selected]
-            if mode == "digest":
-                selected["digest"] = "invalid"
-            return json.dumps({"manifests": entries})
-        if "inspect" in command:
-            return json.dumps({"Id": "changed" if mode == "identity" else "original", "Os": "linux", "Architecture": "arm64" if mode == "architecture" else "amd64"})
-        if "push" in command:
-            pushed.append(command)
-        return ""
-
+@pytest.mark.parametrize("mode", ["ambiguous", "missing", "digest"])
+def test_resolution_rejects_unverified_manifest(mode):
+    selected = {"digest": "bad" if mode == "digest" else "sha256:" + "b" * 64, "platform": {"os": "linux", "architecture": "amd64"}}
+    entries = [selected, selected] if mode == "ambiguous" else [] if mode == "missing" else [selected]
     with pytest.raises(ValueError):
-        mirror.recover_platform_push(docker, "docker.io/library/python:3", {"Id": "original"}, "target")
-    assert not pushed
+        mirror.platform_reference(lambda command: json.dumps({"manifests": entries}), "docker.io/library/python:3")
+
+
+def test_single_platform_manifest_is_pinned_by_registry_digest():
+    digest = "sha256:" + "b" * 64
+    assert mirror.platform_reference(lambda command: json.dumps({"digest": digest}), "docker.io/library/python:3") == "docker.io/library/python@" + digest
