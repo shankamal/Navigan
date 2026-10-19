@@ -62,9 +62,12 @@ class Service:
         self.require_source_first()
         source = self.repo.get_source_cluster(identifier)
         configuration = (source.get("delivery_configuration") or {}).get("deploymentDiscovery") or {"repositories": [], "registries": []}
+        from .source_authentication import ready
+        authentication = (source.get("delivery_configuration") or {}).get("deploymentAuthentication", {})
         return {"sourceClusterId": identifier, "version": source["version"], "configuration": configuration,
+                "authentication": {k: {f: v for f, v in entry.items() if f != "secretVersion"} for k, entry in authentication.items()}, "readyForDiscovery": ready(configuration, authentication),
                 "githubOrganizations": self.repo.deployment_connections(source["customer_id"]),
-                "registryAdapters": ["AWS_ECR", "PUBLIC_DOCKER_HUB"]}
+                "registryAdapters": ["AWS_ECR", "REGISTRY_V2"]}
 
     def save_deployment_sources(self, identifier, body):
         self.require_source_first()
@@ -77,8 +80,21 @@ class Service:
         for mapping in body["configuration"].get("confirmations", []):
             if not any(all(mapping[k] == a.get(k) for k in ("repository", "commit", "filePath")) for a in artifacts):
                 raise ApiError(400, "DEPLOYMENT_SOURCE_NOT_ANALYZED", "Confirm a deployment artifact returned by source analysis.")
-        self.repo.save_deployment_configuration(source, "deploymentDiscovery", body["configuration"], self.correlation)
+        from .source_authentication import configure
+        previous = (source.get("delivery_configuration") or {}).get("deploymentAuthentication", {})
+        authentication = configure(source, body["configuration"], body.get("credentials", []), previous, body.get("verify", False), lambda name: self.source_repository_app_token(source, name))
+        row = self.repo.save_deployment_configuration(source, "deploymentDiscovery", body["configuration"], self.correlation)
+        self.repo.save_deployment_configuration(row, "deploymentAuthentication", authentication, self.correlation)
         return self.deployment_source_configuration(identifier)
+
+    def source_repository_app_token(self, source, repository):
+        from .deployment_sources import repository_read_token
+        from navigan.modules.cluster_management.repository import Repository as ClusterRepository
+        organization, name = repository.split("/", 1)
+        connection = ClusterRepository(self.repo.db, self.principal).active_github_connection(source["customer_id"], organization)
+        if not connection:
+            return None
+        return repository_read_token(connection["installation_id"], name)
 
     def deployment_context(self, identifier):
         self.require_source_first()
@@ -99,13 +115,17 @@ class Service:
 
     def analyze_deployment_sources(self, identifier, body):
         import time
-        from .deployment_sources import analyze_repository, check_image, config_digest, WORKLOADS, repository_read_token
+        from .deployment_sources import analyze_repository, check_image, config_digest, WORKLOADS
         self.access.require("migration.edit")
         migration, source = self.deployment_context(identifier)
         self.access.require_customer(migration["customer_id"], migration["created_by"])
         if migration["version"] != body["version"]:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest assessment before analyzing deployment sources.")
         if body.get("refreshCluster"):
+            from .source_authentication import ready
+            delivery = source.get("delivery_configuration") or {}
+            if not ready(delivery.get("deploymentDiscovery", {}), delivery.get("deploymentAuthentication", {})):
+                raise ApiError(409, "SOURCE_CONNECTIONS_REQUIRED", "Verify source connections above, or save the inventory-only choice, before refreshing discovery.")
             if migration["status"] != "ASSESSMENT_READY":
                 raise ApiError(409, "SOURCE_REFRESH_NOT_READY", "Refresh cluster evidence after the current source assessment completes.")
             current = self.repo.get(identifier, lock=True)
@@ -122,18 +142,14 @@ class Service:
         configuration = (source.get("delivery_configuration") or {}).get("deploymentDiscovery") or {"repositories": [], "registries": []}
         deadline = time.monotonic() + 18
         repositories = []
-        from navigan.modules.cluster_management.repository import Repository as ClusterRepository
-        cluster_repo = ClusterRepository(self.repo.db, self.principal)
+        from .source_authentication import repository_token, read_credential, registry_read
+        authentication = (source.get("delivery_configuration") or {}).get("deploymentAuthentication", {})
         for entry in configuration["repositories"]:
             if time.monotonic() >= deadline:
                 repositories.append({"repository": entry["repository"], "status": "PENDING", "artifacts": [], "gaps": ["Analysis time budget reached. Narrow the repository directory and retry."]})
                 continue
             try:
-                organization, name = entry["repository"].split("/", 1)
-                connection = cluster_repo.active_github_connection(source["customer_id"], organization)
-                token = None
-                if connection:
-                    token = repository_read_token(connection["installation_id"], name)
+                token = repository_token(source, entry["repository"], authentication.get("github:" + entry["repository"], {}), lambda name: self.source_repository_app_token(source, name))
                 repositories.append(analyze_repository(entry, token, deadline=deadline))
             except Exception:
                 # Do not persist upstream exception bodies, repository contents or credentials.
@@ -147,7 +163,17 @@ class Service:
                 checks.append({"image": image, "status": "PENDING", "reason": "Analysis time budget reached. Retry registry analysis after narrowing repository scope."})
                 continue
             try:
-                checks.append(check_image(image, (source.get("delivery_configuration") or {}).get("accountId"), configuration["registries"]))
+                from .deployment_sources import image_parts
+                parts = image_parts(image)
+                key = "registry:" + parts["registry"]
+                auth = authentication.get(key, {})
+                if parts["registry"] in configuration["registries"] and auth.get("mode") in {"TOKEN", "BEARER", "PUBLIC"} and ".dkr.ecr." not in parts["registry"]:
+                    credential = {"mode": auth["mode"], **read_credential(source, key, auth)}
+                    ref = parts["digest"] or parts["tag"]
+                    payload = registry_read(parts["registry"], credential, "/v2/" + parts["repository"] + "/manifests/" + ref, parts["repository"])
+                    checks.append({"image": image, "status": "AVAILABLE", "registryDigest": payload.get("_registryDigest"), "architectures": sorted({m.get("platform", {}).get("architecture") for m in payload.get("manifests", []) if m.get("platform", {}).get("architecture")}), "reason": "Read-only registry manifest access succeeded."})
+                else:
+                    checks.append(check_image(image, (source.get("delivery_configuration") or {}).get("accountId"), configuration["registries"]))
             except Exception:
                 checks.append({"image": image, "status": "UNAVAILABLE", "reason": "Image metadata could not be read. Check registry access, image existence and configured adapter."})
         analysis = {"configurationDigest": config_digest(configuration), "repositories": repositories, "images": checks,
@@ -1095,6 +1121,12 @@ class Service:
 
         connector = None
         if action in {"discover", "assess"}:
+            if os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") == "true" and current["source_configuration"].get("sourceClusterId"):
+                from .source_authentication import ready
+                source = self.repo.get_source_cluster(current["source_configuration"]["sourceClusterId"])
+                delivery = source.get("delivery_configuration") or {}
+                if not ready(delivery.get("deploymentDiscovery", {}), delivery.get("deploymentAuthentication", {})):
+                    raise ApiError(409, "SOURCE_CONNECTIONS_REQUIRED", "Configure and verify source repositories and registries, or explicitly choose inventory-only discovery.")
             connector_token = body.get("connectorToken")
             if connector_token:
                 connector = self.repo.create_discovery_connector(

@@ -21,6 +21,7 @@ FILES = [
     "connector_handler.py",
     "assessment_engine.py",
     "deployment_sources.py",
+    "source_authentication.py",
     "source_connector_installation.py",
 ]
 
@@ -154,7 +155,7 @@ def main():
             zipfile.ZipFile(io.BytesIO(original)) as old,
             zipfile.ZipFile(artifact, "w", zipfile.ZIP_DEFLATED) as new,
         ):
-            missing = {prefix + name for name in FILES if name != "deployment_sources.py"} - set(
+            missing = {prefix + name for name in FILES if name not in {"deployment_sources.py", "source_authentication.py"}} - set(
                 old.namelist()
             )
             if missing:
@@ -314,6 +315,9 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
             "DEV migration deployment discovery routes",
         )
     statements = [
+        {"Effect": "Allow", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"},
+        {"Effect": "Allow", "Action": ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:GetSecretValue"],
+         "Resource": f"arn:aws:secretsmanager:ap-south-1:{ACCOUNT}:secret:navigan/source-connections/*"},
         {
             "Effect": "Allow",
             "Action": ["ecr:DescribeImages"],

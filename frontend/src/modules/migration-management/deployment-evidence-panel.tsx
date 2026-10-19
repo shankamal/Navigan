@@ -19,11 +19,13 @@ export function DeploymentEvidencePanel({
   selectedKeys,
   inventoryDigest,
   onRefresh,
+  hideConnections = false,
 }: {
   migration: Migration;
   selectedKeys?: Set<string>;
   inventoryDigest?: string;
   onRefresh?: () => void;
+  hideConnections?: boolean;
 }) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
@@ -209,20 +211,35 @@ export function DeploymentEvidencePanel({
         </div>
         {!selectedKeys && (
           <div className={styles.actions}>
-            <button
-              disabled={!canEdit || !!busy || !settings.data || editing}
-              title="Register repositories and registries once for this customer’s source cluster."
-              onClick={() => {
-                setDraft(structuredClone(settings.data!.configuration));
-                setRegistryText(
-                  settings.data!.configuration.registries.join("\n"),
-                );
-                setEditing(true);
-                setError("");
-              }}
-            >
-              Manage deployment sources
-            </button>
+            {!hideConnections && (
+              <button
+                disabled={!canEdit || !!busy || !settings.data || editing}
+                title="Register repositories and registries once for this customer’s source cluster."
+                onClick={() => {
+                  setDraft(structuredClone(settings.data!.configuration));
+                  setRegistryText(
+                    settings.data!.configuration.registries.join("\n"),
+                  );
+                  setEditing(true);
+                  setError("");
+                }}
+              >
+                Manage deployment sources
+              </button>
+            )}
+            {!needsRuntime && migration.status === "ASSESSMENT_READY" && (
+              <button
+                disabled={
+                  !canEdit ||
+                  !!busy ||
+                  editing ||
+                  (hideConnections && !settings.data?.readyForDiscovery)
+                }
+                onClick={() => void perform("refresh")}
+              >
+                Refresh cluster evidence
+              </button>
+            )}
             <button
               className={styles.primary}
               disabled={
@@ -730,7 +747,8 @@ export function DeploymentEvidencePanel({
                     !canEdit ||
                     !!busy ||
                     editing ||
-                    migration.status !== "ASSESSMENT_READY"
+                    migration.status !== "ASSESSMENT_READY" ||
+                    (hideConnections && !settings.data?.readyForDiscovery)
                   }
                   onClick={() => void perform("refresh")}
                 >

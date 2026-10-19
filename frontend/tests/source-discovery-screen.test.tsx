@@ -8,25 +8,23 @@ import {
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SourceDiscoveryScreen } from "@/modules/migration-management/source-discovery-screen";
+import { deploymentDiscovery } from "@/modules/migration-management/deployment-evidence-service";
 import { sourceWorkspaceReady } from "@/modules/migration-management/source-discovery-state";
 vi.mock("@/modules/migration-management/deployment-evidence-service", () => ({
   deploymentDiscovery: {
-    evidence: vi
-      .fn()
-      .mockResolvedValue({
-        inventoryDigest: "a".repeat(64),
-        workloads: [],
-        repositories: [],
-        images: [],
-        limitations: [],
-      }),
-    settings: vi
-      .fn()
-      .mockResolvedValue({
-        version: 2,
-        configuration: { repositories: [], registries: [] },
-        githubOrganizations: [],
-      }),
+    evidence: vi.fn().mockResolvedValue({
+      inventoryDigest: "a".repeat(64),
+      workloads: [],
+      repositories: [],
+      images: [],
+      limitations: [],
+    }),
+    settings: vi.fn().mockResolvedValue({
+      version: 2,
+      readyForDiscovery: true,
+      configuration: { repositories: [], registries: [] },
+      githubOrganizations: [],
+    }),
   },
 }));
 const api = vi.hoisted(() => ({
@@ -356,4 +354,29 @@ it("brings the selected namespace resources into view and moves keyboard focus",
       Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previous);
     else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   }
+});
+
+it("requires connection setup before discovery and renders it before progress", async () => {
+  vi.mocked(deploymentDiscovery.settings).mockResolvedValue({
+    version: 2,
+    configuration: { repositories: [], registries: [] },
+    githubOrganizations: [],
+    registryAdapters: [],
+    sourceClusterId: "SRC-db",
+    readyForDiscovery: false,
+  });
+  api.get.mockResolvedValue({ ...migration, status: "DRAFT" });
+  open();
+  const connections = await screen.findByRole("region", {
+    name: "Source connections",
+  });
+  const progress = screen.getByRole("region", { name: "Discovery progress" });
+  expect(
+    connections.compareDocumentPosition(progress) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Discover source inventory" }),
+  ).toBeDisabled();
+  expect(api.discover).not.toHaveBeenCalled();
 });

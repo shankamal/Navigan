@@ -14,7 +14,7 @@ def camel(key):
 
 def serialize(row):
     return {
-        camel(key): value.isoformat() if hasattr(value, "isoformat") else value
+        camel(key): ({k: v for k, v in value.items() if k != "deploymentAuthentication"} if key == "delivery_configuration" and isinstance(value, dict) else value.isoformat() if hasattr(value, "isoformat") else value)
         for key, value in row.items()
     }
 
@@ -204,7 +204,7 @@ class Repository:
             "RETURNING *",
             [
                 delivery["method"],
-                json_text({**{k: v for k, v in (source_cluster.get("delivery_configuration") or {}).items() if k in {"deploymentDiscovery", "deploymentAnalysis"}}, **(delivery.get("awsSsm") or {})}),
+                json_text({**{k: v for k, v in (source_cluster.get("delivery_configuration") or {}).items() if k in {"deploymentDiscovery", "deploymentAnalysis", "deploymentAuthentication"}}, **(delivery.get("awsSsm") or {})}),
                 self.principal.user_id,
                 source_cluster["source_cluster_id"],
             ],
@@ -222,7 +222,7 @@ class Repository:
 
     def save_deployment_configuration(self, source, key, value, correlation):
         # Source-scoped JSON survives assessment creation, deletion and delivery changes.
-        if key not in {"deploymentDiscovery", "deploymentAnalysis"}:
+        if key not in {"deploymentDiscovery", "deploymentAnalysis", "deploymentAuthentication"}:
             raise ValueError("Invalid deployment configuration key.")
         row = self.db.execute(
             "UPDATE migration_management.source_clusters SET "

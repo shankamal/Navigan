@@ -40,6 +40,13 @@ class RepositorySource(StrictModel):
     revision: str = Field(default="main", min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_./-]+$")
     directory: str = Field(default="", max_length=500, pattern=r"^[A-Za-z0-9_./-]*$")
 
+    @field_validator("repository", mode="before")
+    @classmethod
+    def normalize_repository(cls, value):
+        if isinstance(value, str):
+            return value.strip().removeprefix("https://github.com/").removesuffix("/").removesuffix(".git")
+        return value
+
     @field_validator("directory")
     @classmethod
     def safe_directory(cls, value):
@@ -58,10 +65,25 @@ class DeploymentMapping(StrictModel):
     filePath: str = Field(min_length=1, max_length=1000)
 
 
+class SourceCredential(StrictModel):
+    key: str = Field(min_length=1, max_length=270)
+    mode: str = Field(pattern=r"^(PUBLIC|APP|AWS_IAM|TOKEN|BEARER)$")
+    username: str = Field(default="", max_length=200, pattern=r"^[^\r\n:]*$")
+    token: str = Field(default="", max_length=10000, repr=False, pattern=r"^[!-~]*$")
+
+
 class DeploymentSourcesConfig(StrictModel):
+    inventoryOnly: bool = False
     repositories: list[RepositorySource] = Field(default_factory=list, max_length=3)
     registries: list[str] = Field(default_factory=list, max_length=10)
     confirmations: list[DeploymentMapping] = Field(default_factory=list, max_length=2000)
+
+    @field_validator("repositories")
+    @classmethod
+    def unique_repositories(cls, entries):
+        if len({r.repository for r in entries}) != len(entries):
+            raise ValueError("Configure each repository once.")
+        return entries
 
     @field_validator("registries")
     @classmethod
@@ -76,6 +98,8 @@ class DeploymentSourcesConfig(StrictModel):
 class SaveDeploymentSources(StrictModel):
     version: int = Field(gt=0)
     configuration: DeploymentSourcesConfig
+    credentials: list[SourceCredential] = Field(default_factory=list, max_length=13)
+    verify: bool = False
 
 
 class AnalyzeDeploymentSources(StrictModel):

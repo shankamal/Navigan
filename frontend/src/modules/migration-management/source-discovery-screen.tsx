@@ -20,6 +20,8 @@ import {
   sourceDiscoveryRunning,
   sourceWorkspaceReady,
 } from "./source-discovery-state";
+import { SourceConnectionsPanel } from "./source-connections-panel";
+import { deploymentDiscovery } from "./deployment-evidence-service";
 import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
@@ -102,6 +104,12 @@ export function SourceDiscoveryScreen({
         ? 5000
         : false,
     refetchOnWindowFocus: false,
+  });
+  const connectionSettings = useQuery({
+    queryKey: ["deployment-sources", sourceId],
+    queryFn: ({ signal }) => deploymentDiscovery.settings(sourceId, signal),
+    enabled: Boolean(sourceId),
+    retry: false,
   });
   const seen = sourceQuery.data?.connectorLastSeenAt;
   const heartbeatAge =
@@ -337,6 +345,9 @@ export function SourceDiscoveryScreen({
           </button>
         </p>
       )}
+      {sourceOwned && (
+        <SourceConnectionsPanel key={sourceId} sourceId={sourceId} />
+      )}
       <section
         className={`${shared.panel} ${styles.run}`}
         aria-label="Discovery progress"
@@ -366,6 +377,13 @@ export function SourceDiscoveryScreen({
             </p>
           </div>
         </div>
+        {(canStart || canAssess) &&
+          !connectionSettings.data?.readyForDiscovery && (
+            <p role="status">
+              Complete Source connections above and verify access, or save the
+              inventory-only choice, before starting discovery.
+            </p>
+          )}
         <div className={styles.runActions}>
           {(canStart || canAssess) && (
             <button
@@ -375,7 +393,8 @@ export function SourceDiscoveryScreen({
                 recovering ||
                 !sourceOwned ||
                 query.isError ||
-                !sourceFresh
+                !sourceFresh ||
+                !connectionSettings.data?.readyForDiscovery
               }
               onClick={run}
             >
@@ -709,6 +728,7 @@ export function SourceDiscoveryScreen({
       {sourceOwned && (
         <div id="deployment-evidence">
           <DeploymentEvidencePanel
+            hideConnections
             migration={migration}
             inventoryDigest={inventory?.inventoryDigest}
             onRefresh={() => {

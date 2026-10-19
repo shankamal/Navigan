@@ -234,3 +234,68 @@
   background: white;
   color: inherit;
 }
+
+.connectionFields {
+  border: 0;
+  padding: 0;
+  margin: 20px 0 0;
+  min-width: 0;
+}
+.connectionFields h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+.connectionCard {
+  padding: 18px;
+  background: #f7f9f7;
+  border: 1px solid #dce3dd;
+  margin: 14px 0;
+  display: grid;
+  gap: 12px;
+}
+.connectionGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 14px;
+}
+.connectionFields label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.connectionFields input:not([type="checkbox"]),
+.connectionFields select {
+  width: 100%;
+  box-sizing: border-box;
+  background: white;
+  color: inherit;
+  border: 1px solid #b9c7bc;
+  padding: 10px;
+  font: inherit;
+  min-height: 40px;
+}
+.connectionFields .inventoryChoice {
+  display: flex;
+  align-items: start;
+  margin-top: 24px;
+  line-height: 1.5;
+}
+.connectionFields input[type="checkbox"] {
+  accent-color: #568400;
+  margin-top: 3px;
+}
+.connectionFields select:focus-visible {
+  outline: 2px solid #4d8313;
+  outline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .connectionGrid {
+    grid-template-columns: 1fr;
+  }
+  .connectionCard {
+    padding: 12px;
+  }
+}

@@ -1,5 +1,6 @@
 import { apiClient, writeHeaders } from "@/shared/api/client";
 export interface DeploymentSourcesConfiguration {
+  inventoryOnly?: boolean;
   repositories: { repository: string; revision: string; directory: string }[];
   registries: string[];
   confirmations?: {
@@ -18,6 +19,17 @@ export interface DeploymentSourceSettings {
   configuration: DeploymentSourcesConfiguration;
   githubOrganizations: string[];
   registryAdapters: string[];
+  authentication?: Record<
+    string,
+    {
+      mode: string;
+      status: string;
+      secretConfigured?: boolean;
+      verifiedAt?: string;
+      message?: string;
+    }
+  >;
+  readyForDiscovery?: boolean;
 }
 export interface RegistryImageEvidence {
   image: string;
@@ -104,11 +116,18 @@ export const deploymentDiscovery = {
     id: string,
     version: number,
     configuration: DeploymentSourcesConfiguration,
+    credentials: {
+      key: string;
+      mode: string;
+      username?: string;
+      token?: string;
+    }[] = [],
+    verify = false,
   ): Promise<DeploymentSourceSettings> =>
     (
       await apiClient.put(
         `/source-clusters/${id}/deployment-sources`,
-        { version, configuration },
+        { version, configuration, credentials, verify },
         headers(version),
       )
     ).data,

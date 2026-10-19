@@ -64,6 +64,18 @@ Resources:
               Action: kms:Decrypt
               Resource: {Ref: SecretsKmsKeyArn}
             - Effect: Allow
+              Action:
+                - secretsmanager:CreateSecret
+                - secretsmanager:PutSecretValue
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/source-connections/*
+            - Effect: Allow
+              Action: ecr:GetAuthorizationToken
+              Resource: '*'
+            - Effect: Allow
+              Action: ecr:DescribeImages
+              Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+            - Effect: Allow
               Action: sts:AssumeRole
               Resource: {Ref: SourceConnectorDeliveryRoleArn}
 

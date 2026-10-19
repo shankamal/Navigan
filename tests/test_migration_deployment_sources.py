@@ -293,7 +293,7 @@ def test_candidate_is_not_verified_and_legacy_metadata_remains_unresolved():
 
 
 @pytest.mark.parametrize(
-    "bad", ["https://github.com/customer/repo", "owner/repo?token=x", "owner/repo/extra"]
+    "bad", ["https://github.com/user:password@customer/repo", "owner/repo?token=x", "owner/repo/extra"]
 )
 def test_repository_credentials_and_non_repository_inputs_rejected(bad):
     with pytest.raises(ValidationError):
@@ -336,6 +336,7 @@ def service_context(monkeypatch):
 
 def test_refresh_preserves_previous_evidence_and_requires_current_version(monkeypatch):
     service, repo, migration, source = service_context(monkeypatch)
+    source["delivery_configuration"]["deploymentDiscovery"] = {"inventoryOnly": True}
     with pytest.raises(ApiError, match="Reload"):
         service.analyze_deployment_sources("MIG-db", {"version": 4, "refreshCluster": True})
     service.analyze_deployment_sources("MIG-db", {"version": 5, "refreshCluster": True})
