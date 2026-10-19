@@ -1,8 +1,24 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitBranch, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import {
+  GitBranch,
+  LoaderCircle,
+  Plus,
+  Trash2,
+  Box,
+  Database,
+  Clock3,
+  CheckCircle2,
+  CircleMinus,
+  ChevronRight,
+  Search,
+  Info,
+  AlertTriangle,
+  ExternalLink,
+} from "lucide-react";
+import { EvidenceDrawer } from "./evidence-drawer";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
 import { normalizeApiError } from "@/shared/api/client";
@@ -21,12 +37,14 @@ export function DeploymentEvidencePanel({
   inventoryDigest,
   onRefresh,
   hideConnections = false,
+  footerAction,
 }: {
   migration: Migration;
   selectedKeys?: Set<string>;
   inventoryDigest?: string;
   onRefresh?: () => void;
   hideConnections?: boolean;
+  footerAction?: ReactNode;
 }) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
@@ -41,6 +59,8 @@ export function DeploymentEvidencePanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [search, setSearch] = useState("");
+  const [inspectedKey, setInspectedKey] = useState<string | null>(null);
   const [tab, setTab] = useState("workloads");
   const [evidenceNamespace, setEvidenceNamespace] = useState("");
   const [snapshots, setSnapshots] = useState<
@@ -65,10 +85,20 @@ export function DeploymentEvidencePanel({
   const matching =
     !inventoryDigest || evidence?.inventoryDigest === inventoryDigest;
   const allWorkloads = matching ? (evidence?.workloads ?? []) : [];
-  const workloads = allWorkloads.filter((r) =>
-    selectedKeys
-      ? selectedKeys.has(scopeKey(r.workload))
-      : !evidenceNamespace || r.workload.namespace === evidenceNamespace,
+  const inspected = allWorkloads.find(
+    (w) =>
+      scopeKey(w.workload) === inspectedKey &&
+      (!selectedKeys || selectedKeys.has(scopeKey(w.workload))),
+  );
+  const workloads = allWorkloads.filter(
+    (r) =>
+      (!search ||
+        `${r.workload.name} ${r.workload.namespace ?? ""} ${r.containers.map((c) => c.configuredImage).join(" ")}`
+          .toLowerCase()
+          .includes(search.toLowerCase())) &&
+      (selectedKeys
+        ? selectedKeys.has(scopeKey(r.workload))
+        : !evidenceNamespace || r.workload.namespace === evidenceNamespace),
   );
   const evidenceNamespaces = [
     ...new Set(
@@ -78,7 +108,7 @@ export function DeploymentEvidencePanel({
     ),
   ].sort();
   const images =
-    evidenceNamespace && !selectedKeys
+    (evidenceNamespace || search) && !selectedKeys
       ? (evidence?.images ?? []).filter((image) =>
           workloads.some((w) =>
             w.containers.some((c) => c.configuredImage === image.image),
@@ -88,6 +118,7 @@ export function DeploymentEvidencePanel({
   async function loadSnapshot(w: (typeof workloads)[number]) {
     if (!w.clusterSnapshot || w.clusterSnapshot.resource) return;
     const key = scopeKey(w.workload);
+    const snapshotKey = `${w.clusterSnapshot.inventoryDigest}/${key}`;
     try {
       const result = await cache.fetchQuery({
         queryKey: [
@@ -114,11 +145,11 @@ export function DeploymentEvidencePanel({
         throw new Error(
           "This workload was not found in the matching inventory snapshot.",
         );
-      setSnapshots((old) => ({ ...old, [key]: { resource } }));
+      setSnapshots((old) => ({ ...old, [snapshotKey]: { resource } }));
     } catch (failure) {
       setSnapshots((old) => ({
         ...old,
-        [key]: {
+        [snapshotKey]: {
           error:
             failure instanceof Error
               ? failure.message
@@ -278,23 +309,27 @@ export function DeploymentEvidencePanel({
   }
   return (
     <section
-      className={styles.panel}
+      className={`${styles.panel} ${hideConnections ? styles.workbench : ""}`}
       aria-label="Deployment sources and versions"
     >
-      <div className={styles.heading}>
-        <div>
-          <h2>
-            <GitBranch size={20} />
-            {selectedKeys
-              ? "4. Deployment sources and versions"
-              : "Deployment sources and versions"}
-          </h2>
-          <p>
-            {selectedKeys
-              ? "Detected evidence for selected workloads. Resolve missing sources in discovery."
-              : "Discover how applications are deployed and which container versions are running."}
-          </p>
-        </div>
+      <div
+        className={hideConnections ? styles.evidenceActions : styles.heading}
+      >
+        {!hideConnections && (
+          <div>
+            <h2>
+              <GitBranch size={20} />
+              {selectedKeys
+                ? "4. Deployment sources and versions"
+                : "Deployment sources and versions"}
+            </h2>
+            <p>
+              {selectedKeys
+                ? "Detected evidence for selected workloads. Resolve missing sources in discovery."
+                : "Discover how applications are deployed and which container versions are running."}
+            </p>
+          </div>
+        )}
         {!selectedKeys && (
           <div className={styles.actions}>
             {!hideConnections && (
@@ -313,21 +348,23 @@ export function DeploymentEvidencePanel({
                 Manage deployment sources
               </button>
             )}
-            {!needsRuntime && migration.status === "ASSESSMENT_READY" && (
-              <button
-                disabled={
-                  !canEdit ||
-                  !!busy ||
-                  editing ||
-                  (hideConnections && !settings.data?.readyForDiscovery)
-                }
-                onClick={() => void perform("refresh")}
-              >
-                Refresh cluster evidence
-              </button>
-            )}
+            {!hideConnections &&
+              !needsRuntime &&
+              migration.status === "ASSESSMENT_READY" && (
+                <button
+                  disabled={
+                    !canEdit ||
+                    !!busy ||
+                    editing ||
+                    (hideConnections && !settings.data?.readyForDiscovery)
+                  }
+                  onClick={() => void perform("refresh")}
+                >
+                  Refresh cluster evidence
+                </button>
+              )}
             <button
-              className={styles.primary}
+              className={hideConnections ? undefined : styles.primary}
               disabled={
                 !canEdit ||
                 !!busy ||
@@ -345,6 +382,7 @@ export function DeploymentEvidencePanel({
                 ? "Analyzing sources…"
                 : "Analyze deployment sources"}
             </button>
+            {footerAction}
           </div>
         )}
       </div>
@@ -507,29 +545,19 @@ export function DeploymentEvidencePanel({
       {evidence && (
         <>
           {evidence.coverage && (
-            <div className={styles.note} role="status">
-              <strong>
-                Deployment evidence:{" "}
-                {evidence.coverage.status === "WITH_GAPS"
-                  ? "review required"
-                  : "collected"}
-              </strong>
-              <p>
-                {evidence.coverage.namespaceCount} discovered namespaces ·{" "}
-                {evidence.coverage.workloadCount} workloads ·{" "}
-                {evidence.coverage.repositoryMappedCount} with Git candidates ·{" "}
-                {evidence.coverage.registryVerifiedWorkloadCount} with all image
-                registries verified · {evidence.coverage.runtimeObservedCount}{" "}
-                with runtime observations.
-              </p>
-              <p>
-                Analysis covers all discovered namespaces by default. Namespace
-                filters only change this view. Discovery completion is separate
-                from deployment evidence completeness.
-              </p>
-            </div>
+            <p className={styles.coverageLine}>
+              {evidence.coverage.namespaceCount} namespaces ·{" "}
+              {evidence.coverage.workloadCount} workloads ·{" "}
+              {evidence.coverage.registryVerifiedWorkloadCount} with image
+              registries verified · {evidence.coverage.repositoryMappedCount}{" "}
+              with Git candidates{" "}
+              <span title="Discovery completion does not mean every deployment detail is verified.">
+                Evidence review required
+              </span>
+            </p>
           )}
           {!selectedKeys &&
+            (!hideConnections || tab === "sources") &&
             workloads.some(
               (w) =>
                 w.candidates.length === 1 &&
@@ -553,28 +581,6 @@ export function DeploymentEvidencePanel({
                 Confirm unique source mappings
               </button>
             )}
-          <div className={styles.metrics}>
-            <span>
-              <strong>{workloads.length}</strong>{" "}
-              {selectedKeys ? "selected" : "discovered"} workloads
-            </span>
-            <span>
-              <strong>
-                {workloads.filter((w) => w.candidates.length).length}
-              </strong>{" "}
-              candidate source mappings
-            </span>
-            <span>
-              <strong>
-                {
-                  workloads.filter((w) =>
-                    w.containers.some((c) => c.observedDigests.length),
-                  ).length
-                }
-              </strong>{" "}
-              workloads with running digests
-            </span>
-          </div>
           {!selectedKeys && (
             <nav className={styles.tabs} aria-label="Deployment evidence views">
               {[
@@ -594,10 +600,10 @@ export function DeploymentEvidencePanel({
             </nav>
           )}
           {!selectedKeys && (
-            <label>
-              Evidence namespace
+            <div className={styles.toolbar}>
               <select
                 aria-label="Evidence namespace"
+                title="Filter this view only; migration scope is selected in the workspace."
                 value={evidenceNamespace}
                 onChange={(event) => setEvidenceNamespace(event.target.value)}
               >
@@ -608,235 +614,477 @@ export function DeploymentEvidencePanel({
                   </option>
                 ))}
               </select>
-              <small>
-                Filters workload and container registry rows. Repository
-                structure lists the connected repository artifacts.
-              </small>
-            </label>
+              <label className={styles.search}>
+                <Search size={16} />
+                <input
+                  type="search"
+                  aria-label="Search workloads"
+                  placeholder="Search workloads, namespace or image…"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              <span>
+                {workloads.length} workload{workloads.length === 1 ? "" : "s"}
+              </span>
+            </div>
           )}
           {(selectedKeys || tab === "workloads") && (
             <div className={styles.scroll}>
-              <p>
-                Repository mapping, registry access and running Pod evidence are
-                separate checks. A workload can run with an available image
-                while its original deployment artifact remains unmapped.
-                Platform components and generated Jobs may not exist in the
-                connected application repository.
-              </p>
               <table>
                 <thead>
                   <tr>
                     <th>Workload</th>
-                    <th>Deployment source</th>
-                    <th>Container versions</th>
-                    <th>Evidence</th>
+                    <th>Namespace</th>
+                    <th>Deployment evidence</th>
+                    <th>Registry</th>
+                    <th>Runtime</th>
+                    <th>
+                      <span className={styles.srOnly}>Inspect workload</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {workloads.map((w) => (
-                    <tr
-                      key={`${w.workload.namespace}/${w.workload.kind}/${w.workload.name}`}
-                    >
-                      <td>
-                        <strong>{w.workload.name}</strong>
-                        <small>
-                          {w.workload.namespace} · {w.workload.kind}
-                        </small>
-                        {w.applicationVersion && (
-                          <small>
-                            Reported application version: {w.applicationVersion}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        {w.artifactFormat === "Unresolved"
-                          ? w.clusterSnapshot
-                            ? "Cluster inventory available; original artifact unmapped"
-                            : "Artifact type not detected"
-                          : w.artifactFormat}{" "}
-                        ·{" "}
-                        {w.deliveryTool === "Unresolved"
-                          ? "Delivery tool not detected"
-                          : w.deliveryTool}
-                        {w.clusterSnapshot && (
-                          <details
-                            onToggle={(event) => {
-                              if (event.currentTarget.open)
-                                void loadSnapshot(w);
-                            }}
+                  {workloads.map((w) => {
+                    const Icon =
+                      w.workload.kind === "StatefulSet"
+                        ? Database
+                        : ["Job", "CronJob"].includes(w.workload.kind)
+                          ? Clock3
+                          : Box;
+                    const available =
+                      w.containers.length > 0 &&
+                      w.containers.every(
+                        (c) => c.registryEvidence?.status === "AVAILABLE",
+                      );
+                    const observed = w.runtimeStatus === "OBSERVED";
+                    return (
+                      <tr
+                        key={scopeKey(w.workload)}
+                        className={
+                          inspectedKey === scopeKey(w.workload)
+                            ? styles.selectedRow
+                            : undefined
+                        }
+                      >
+                        <td>
+                          <button
+                            className={styles.workloadButton}
+                            aria-haspopup="dialog"
+                            aria-label={`Inspect ${w.workload.name} in ${w.workload.namespace || "cluster"}`}
+                            onClick={() =>
+                              setInspectedKey(scopeKey(w.workload))
+                            }
                           >
-                            <summary>Review captured cluster inventory</summary>
-                            <p>
-                              Read-only sanitized evidence from{" "}
-                              {w.clusterSnapshot.observedAt ||
-                                "the saved discovery"}
-                              . This is not a deployable manifest; deployment
-                              commands and secret/configuration values are not
-                              captured.
-                            </p>
-                            <code>
-                              Inventory digest:{" "}
-                              {w.clusterSnapshot.inventoryDigest ||
-                                "Unavailable"}
-                            </code>
-                            <pre className={styles.snapshot}>
-                              {snapshots[scopeKey(w.workload)]?.error ||
-                                JSON.stringify(
-                                  w.clusterSnapshot.resource ??
-                                    snapshots[scopeKey(w.workload)]?.resource,
-                                  null,
-                                  2,
-                                ) ||
-                                "Loading captured inventory…"}
-                            </pre>
-                          </details>
-                        )}
-                        {w.deliveryEvidenceBasis === "FIELD_MANAGER" && (
+                            <Icon size={21} />
+                            <span>
+                              <strong>{w.workload.name}</strong>
+                              <small>{w.workload.kind}</small>
+                            </span>
+                          </button>
+                        </td>
+                        <td>{w.workload.namespace || "Cluster-scoped"}</td>
+                        <td>
+                          <span>
+                            {w.artifactFormat === "Unresolved"
+                              ? w.clusterSnapshot
+                                ? "Cluster snapshot"
+                                : "Not detected"
+                              : w.artifactFormat}
+                          </span>
                           <small>
-                            Field manager indicates who changed fields; it does
-                            not prove the complete deployment pipeline or Git
-                            revision.
+                            {w.mappingStatus === "CONFIRMED"
+                              ? "User-confirmed source"
+                              : w.candidates.length
+                                ? "Candidate · needs confirmation"
+                                : "Repository not mapped"}
                           </small>
-                        )}
-                        {w.helmChart && <small>Chart: {w.helmChart}</small>}
-                        {w.helmRelease && (
-                          <small>Release: {w.helmRelease}</small>
-                        )}
-                        {w.candidates.map((c) => (
-                          <small
-                            key={`${c.repository}/${c.filePath}/${c.commit}`}
-                            title="Candidate only; deployed commit has not been verified."
+                        </td>
+                        <td>
+                          <span
+                            className={
+                              available ? styles.successText : styles.mutedText
+                            }
                           >
-                            {c.repository} / {c.filePath}
-                            {c.match === "NAMESPACE_UNSPECIFIED" && (
-                              <small>
-                                Manifest namespace unspecified — confirm
-                                deployment namespace and ownership.
-                              </small>
-                            )}
-                            <code>
-                              Inspected commit: {c.commit.slice(0, 12)}
-                            </code>
-                          </small>
-                        ))}
-                      </td>
-                      <td>
-                        {w.containers.map((c) => (
-                          <details key={`${c.containerType}/${c.name}`}>
-                            <summary>
-                              {c.name}
-                              {c.containerType === "INIT" ? " (init)" : ""}
-                              <small>{c.configuredImage}</small>
-                            </summary>
-                            <p>{c.runningPodCount} observed Pods</p>
-                            {c.observedDigests.length ? (
-                              c.observedDigests.map((d) => (
-                                <code key={d}>{d}</code>
-                              ))
+                            {available ? (
+                              <CheckCircle2 size={14} />
                             ) : (
-                              <small>Running digest not reported</small>
-                            )}
-                            {c.multipleRunningVersions && (
-                              <small>
-                                Multiple image identities — review rollout
-                                state.
-                              </small>
-                            )}
-                            {c.digestComparison === "DIFFERENT" && (
-                              <small>
-                                Digests differ. A multi-architecture image index
-                                can also differ from a runtime platform digest.
-                              </small>
-                            )}
-                            <small>
-                              Registry:{" "}
-                              {c.registryEvidence?.status ?? "Not analyzed"}
-                            </small>
-                          </details>
-                        ))}
-                        {!w.containers.length && (
-                          <small>No container references reported.</small>
-                        )}
-                      </td>
-                      <td>
-                        <span className={styles.badge}>
-                          {w.mappingStatus === "CONFIRMED"
-                            ? "User-confirmed source"
-                            : w.mappingStatus === "CANDIDATE"
-                              ? "Candidate · needs confirmation"
-                              : "Repository not mapped"}
-                        </span>
-                        <small>
-                          Runtime:{" "}
-                          {w.runtimeStatus === "NO_RUNNING_EVIDENCE"
-                            ? "No running Pod observed"
-                            : w.runtimeStatus
-                                .toLowerCase()
-                                .replaceAll("_", " ")}
-                          {w.runtimeStatus === "NO_RUNNING_EVIDENCE" &&
-                            ["Job", "CronJob"].includes(w.workload.kind) && (
-                              <small>
-                                Scheduled or completed Jobs may have no running
-                                Pods. This alone does not indicate failure.
-                              </small>
-                            )}
-                        </small>
-                        {w.candidates.length > 1 && (
-                          <small>Multiple matching artifacts</small>
-                        )}
-                        {!selectedKeys &&
-                          w.candidates.length > 0 &&
-                          w.mappingStatus !== "CONFIRMED" && (
-                            <div>
-                              <select
-                                aria-label={`Source artifact for ${w.workload.name}`}
-                                value={choices[scopeKey(w.workload)] ?? 0}
-                                onChange={(e) =>
-                                  setChoices((c) => ({
-                                    ...c,
-                                    [scopeKey(w.workload)]: Number(
-                                      e.target.value,
-                                    ),
-                                  }))
-                                }
-                              >
-                                {w.candidates.map((c, i) => (
-                                  <option key={i} value={i}>
-                                    {c.repository}/{c.filePath}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                disabled={
-                                  !canEdit ||
-                                  !!busy ||
-                                  editing ||
-                                  !settings.data
-                                }
-                                onClick={() => void confirmMappings([w])}
-                              >
-                                Confirm source
-                              </button>
-                            </div>
-                          )}
-                      </td>
-                    </tr>
-                  ))}
+                              <CircleMinus size={14} />
+                            )}{" "}
+                            {available ? "Available" : "Needs review"}
+                          </span>
+                          <small>
+                            {w.containers.length} container
+                            {w.containers.length === 1 ? "" : "s"}
+                          </small>
+                        </td>
+                        <td>
+                          <span
+                            className={
+                              observed ? styles.successText : styles.mutedText
+                            }
+                          >
+                            {observed ? (
+                              <CheckCircle2 size={14} />
+                            ) : (
+                              <CircleMinus size={14} />
+                            )}{" "}
+                            {observed
+                              ? "Observed"
+                              : w.runtimeStatus === "NO_RUNNING_EVIDENCE"
+                                ? "No active Pod"
+                                : w.runtimeStatus
+                                    .toLowerCase()
+                                    .replaceAll("_", " ")}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className={styles.inspectButton}
+                            aria-label={`View evidence for ${w.workload.name} in ${w.workload.namespace || "cluster"}`}
+                            onClick={() =>
+                              setInspectedKey(scopeKey(w.workload))
+                            }
+                          >
+                            <ChevronRight size={17} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {!workloads.length && (
                 <p>
                   {selectedKeys
                     ? "Select workloads to review deployment evidence."
-                    : "Complete source inventory discovery to see workload evidence."}
+                    : allWorkloads.length
+                      ? "No workloads match these filters."
+                      : "Complete source inventory discovery to see workload evidence."}
                 </p>
               )}
             </div>
           )}
+          {inspected &&
+            (() => {
+              const w = inspected;
+              return (
+                <EvidenceDrawer
+                  key={`${inventoryDigest}/${scopeKey(w.workload)}`}
+                  title={w.workload.name}
+                  subtitle={`${w.workload.kind} · ${w.workload.namespace || "Cluster-scoped"}`}
+                  onClose={() => setInspectedKey(null)}
+                >
+                  <section className={styles.drawerSection}>
+                    <h3>Repository evidence</h3>
+                    <dl className={styles.evidenceFacts}>
+                      {!w.candidates.length && (
+                        <div>
+                          <dt>Artifact type</dt>
+                          <dd>
+                            {w.artifactFormat === "Unresolved"
+                              ? "Original artifact not mapped"
+                              : w.artifactFormat}
+                          </dd>
+                        </div>
+                      )}
+                      {w.applicationVersion && (
+                        <div>
+                          <dt>Application version</dt>
+                          <dd>{w.applicationVersion}</dd>
+                        </div>
+                      )}
+                      {w.helmChart && (
+                        <div>
+                          <dt>Helm chart</dt>
+                          <dd>{w.helmChart}</dd>
+                        </div>
+                      )}
+                      {w.helmRelease && (
+                        <div>
+                          <dt>Helm release</dt>
+                          <dd>{w.helmRelease}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {w.candidates.map((c) => (
+                      <div
+                        className={styles.repoEvidence}
+                        key={`${c.repository}/${c.filePath}/${c.commit}`}
+                      >
+                        <div className={styles.artifactRow}>
+                          <span title={w.artifactFormat}>
+                            {w.artifactFormat ===
+                            "Kubernetes manifests (candidate)"
+                              ? "Manifest candidate"
+                              : w.artifactFormat}
+                          </span>{" "}
+                          <a
+                            href={`https://github.com/${c.repository}/blob/${c.commit}/${c.filePath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <GitBranch size={16} />
+                            {c.repository}
+                            <ExternalLink size={13} />
+                          </a>
+                        </div>
+                        <dl className={styles.evidenceFacts}>
+                          <div>
+                            <dt>Path</dt>
+                            <dd>{c.filePath}</dd>
+                          </div>
+                          <div>
+                            <dt>Inspected commit</dt>
+                            <dd title={c.commit}>{c.commit.slice(0, 12)}</dd>
+                          </div>
+                        </dl>
+                        {c.match === "NAMESPACE_UNSPECIFIED" &&
+                          w.mappingStatus !== "CONFIRMED" && (
+                            <small>
+                              Manifest namespace unspecified — confirm
+                              deployment namespace and ownership.
+                            </small>
+                          )}
+                      </div>
+                    ))}
+                    {!w.candidates.length && (
+                      <p className={styles.mutedText}>
+                        Repository not mapped. Review captured cluster evidence
+                        below.
+                      </p>
+                    )}
+                    {w.candidates.length > 0 && (
+                      <div className={styles.provenanceNote}>
+                        <AlertTriangle size={18} />
+                        <div>
+                          <strong>Deployed Git revision not verified.</strong>
+                          <small>
+                            Repository matches do not prove the deployed Git
+                            revision.
+                          </small>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                  <section className={styles.drawerSection}>
+                    <h3>Delivery evidence</h3>
+                    <p>
+                      {w.deliveryTool === "Unresolved"
+                        ? "Delivery tool not detected"
+                        : w.deliveryTool}
+                      {w.deliveryEvidenceBasis === "FIELD_MANAGER" &&
+                      !w.deliveryTool.includes("field-manager")
+                        ? " (field-manager evidence)"
+                        : ""}
+                    </p>
+                    {w.deliveryEvidenceBasis === "FIELD_MANAGER" && (
+                      <small title="Field manager indicates who changed fields; it does not prove the complete deployment pipeline or Git revision.">
+                        Detected via Kubernetes field-manager metadata.{" "}
+                        <Info size={13} />
+                      </small>
+                    )}
+                  </section>
+                  <section className={styles.drawerSection}>
+                    <h3>Container versions</h3>
+                    <div className={styles.containerTableHeading}>
+                      <span>Container</span>
+                      <span>Image (truncated)</span>
+                      <span>Registry</span>
+                    </div>
+                    {w.containers.map((c) => (
+                      <details
+                        className={styles.containerEvidence}
+                        key={`${c.containerType}/${c.name}`}
+                      >
+                        <summary>
+                          <span>
+                            {c.name}
+                            {c.containerType === "INIT" ? " (init)" : ""}
+                          </span>
+                          <small title={c.configuredImage}>
+                            <span>
+                              {c.configuredImage.includes("/") &&
+                              /[.:]/.test(c.configuredImage.split("/")[0])
+                                ? c.configuredImage.split("/")[0]
+                                : "docker.io"}
+                            </span>
+                            <span>
+                              {c.configuredImage
+                                .split("/")
+                                .at(-1)
+                                ?.replace(
+                                  /(@sha256:[a-f0-9]{12})[a-f0-9]+/i,
+                                  "$1…",
+                                )}
+                            </span>
+                          </small>
+                          <span
+                            className={
+                              c.registryEvidence?.status === "AVAILABLE"
+                                ? styles.successText
+                                : styles.mutedText
+                            }
+                          >
+                            {c.registryEvidence?.status === "AVAILABLE" ? (
+                              <CheckCircle2 size={13} />
+                            ) : (
+                              <CircleMinus size={13} />
+                            )}{" "}
+                            {c.registryEvidence?.status === "AVAILABLE"
+                              ? "Available"
+                              : "Review"}
+                          </span>
+                        </summary>
+                        <code>{c.configuredImage}</code>
+                        <p>{c.runningPodCount} observed Pods</p>
+                        {c.observedDigests.length ? (
+                          c.observedDigests.map((d) => <code key={d}>{d}</code>)
+                        ) : (
+                          <small>Running digest not reported</small>
+                        )}
+                        {c.multipleRunningVersions && (
+                          <small>
+                            Multiple image identities — review rollout state.
+                          </small>
+                        )}
+                        {c.digestComparison === "DIFFERENT" && (
+                          <small>
+                            Digests differ. A multi-architecture image index can
+                            also differ from a runtime platform digest.
+                          </small>
+                        )}
+                        <small>
+                          Registry:{" "}
+                          {c.registryEvidence?.status ?? "Not analyzed"}
+                        </small>
+                      </details>
+                    ))}
+                    {!w.containers.length && (
+                      <small>No container references reported.</small>
+                    )}
+                  </section>
+                  <section className={styles.drawerSection}>
+                    <h3>Runtime status</h3>
+                    <span
+                      className={
+                        w.mappingStatus === "CONFIRMED"
+                          ? styles.confirmedLabel
+                          : styles.badge
+                      }
+                    >
+                      {w.mappingStatus === "CONFIRMED"
+                        ? "User-confirmed source"
+                        : w.mappingStatus === "CANDIDATE"
+                          ? "Candidate · needs confirmation"
+                          : "Repository not mapped"}
+                    </span>
+                    <small>
+                      Runtime:{" "}
+                      {w.runtimeStatus === "NO_RUNNING_EVIDENCE"
+                        ? "No running Pod observed"
+                        : w.runtimeStatus.toLowerCase().replaceAll("_", " ")}
+                      {w.runtimeStatus === "NO_RUNNING_EVIDENCE" &&
+                        ["Job", "CronJob"].includes(w.workload.kind) && (
+                          <small>
+                            Scheduled or completed Jobs may have no running
+                            Pods. This alone does not indicate failure.
+                          </small>
+                        )}
+                    </small>
+                    {w.candidates.length > 1 && (
+                      <small>Multiple matching artifacts</small>
+                    )}
+                    {!selectedKeys &&
+                      w.candidates.length > 0 &&
+                      w.mappingStatus !== "CONFIRMED" && (
+                        <div>
+                          <select
+                            aria-label={`Source artifact for ${w.workload.name}`}
+                            value={choices[scopeKey(w.workload)] ?? 0}
+                            onChange={(e) =>
+                              setChoices((c) => ({
+                                ...c,
+                                [scopeKey(w.workload)]: Number(e.target.value),
+                              }))
+                            }
+                          >
+                            {w.candidates.map((c, i) => (
+                              <option key={i} value={i}>
+                                {c.repository}/{c.filePath}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            disabled={
+                              !canEdit || !!busy || editing || !settings.data
+                            }
+                            onClick={() => void confirmMappings([w])}
+                          >
+                            Confirm source
+                          </button>
+                        </div>
+                      )}
+                  </section>
+                  {w.clusterSnapshot && (
+                    <section className={styles.drawerSection}>
+                      <h3>Captured inventory</h3>{" "}
+                      {w.clusterSnapshot && (
+                        <details
+                          onToggle={(event) => {
+                            if (event.currentTarget.open) void loadSnapshot(w);
+                          }}
+                        >
+                          <summary>Review captured cluster inventory</summary>
+                          <p>
+                            Read-only sanitized evidence from{" "}
+                            {w.clusterSnapshot.observedAt ||
+                              "the saved discovery"}
+                            . This is not a deployable manifest; deployment
+                            commands and secret/configuration values are not
+                            captured.
+                          </p>
+                          <code>
+                            Inventory digest:{" "}
+                            {w.clusterSnapshot.inventoryDigest || "Unavailable"}
+                          </code>
+                          <pre className={styles.snapshot}>
+                            {snapshots[
+                              `${w.clusterSnapshot.inventoryDigest}/${scopeKey(w.workload)}`
+                            ]?.error ||
+                              JSON.stringify(
+                                w.clusterSnapshot.resource ??
+                                  snapshots[
+                                    `${w.clusterSnapshot.inventoryDigest}/${scopeKey(w.workload)}`
+                                  ]?.resource,
+                                null,
+                                2,
+                              ) ||
+                              "Loading captured inventory…"}
+                          </pre>
+                        </details>
+                      )}
+                    </section>
+                  )}
+                  {w.gaps.length > 0 && (
+                    <details className={styles.drawerSection}>
+                      <summary>Evidence gaps ({w.gaps.length})</summary>
+                      {w.gaps.map((gap) => (
+                        <p key={gap}>{gap}</p>
+                      ))}
+                    </details>
+                  )}
+                </EvidenceDrawer>
+              );
+            })()}
           {!selectedKeys && tab === "sources" && (
             <div className={styles.cards}>
               <article>
                 <h3>Cluster evidence for every discovered workload</h3>
+                <p>
+                  Filters apply to workload evidence below. Connected repository
+                  artifacts remain visible across namespaces.
+                </p>
                 <p>
                   Original Git artifacts and captured cluster inventory are
                   separate sources. Workloads without matching Git artifacts
@@ -1037,10 +1285,12 @@ export function DeploymentEvidencePanel({
             </Link>
           ) : (
             <p className={styles.caption}>
-              Cluster observed: {evidence.observedAt || "Not reported"} ·
-              Sources analyzed: {evidence.analyzedAt || "Not analyzed"}.
-              Repository matches do not verify the deployed Git revision.
-              Selected artifact extraction follows scope selection.
+              <Info size={15} /> Select a workload to inspect repository, image
+              and runtime evidence. Cluster observed:{" "}
+              {evidence.observedAt || "Not reported"} · Sources analyzed:{" "}
+              {evidence.analyzedAt || "Not analyzed"}. Repository matches do not
+              verify the deployed Git revision. Selected artifact extraction
+              follows scope selection.
             </p>
           )}
         </>

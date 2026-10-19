@@ -327,3 +327,282 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+.discoveryScreen {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.discoveryScreen > header {
+  margin-bottom: 14px;
+}
+.discoveryScreen > header h1 {
+  font-size: 24px;
+  letter-spacing: -0.5px;
+}
+.discoveryScreen > header > div > svg {
+  display: none;
+}
+.context {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin: 0 0 18px;
+  padding: 0;
+}
+.context > div {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  border-right: 1px solid #dfe5ea;
+  padding-right: 24px;
+}
+.context > div:last-child {
+  border-right: 0;
+}
+.context > div > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.context small {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+.context span {
+  font-size: 12px;
+}
+.discoveryScreen > ol {
+  margin: 12px 0 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.runComplete {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 20px !important;
+}
+.runComplete .phase {
+  align-items: flex-start;
+}
+.runComplete .phase > svg {
+  width: 36px;
+  height: 36px;
+}
+.runComplete .phase h2 {
+  font-size: 16px;
+}
+.runComplete .phase p {
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 420px;
+}
+.reviewSummary {
+  display: flex;
+  gap: 12px;
+  border-left: 1px solid #dfe5ea;
+  padding-left: 22px;
+  color: #9b5709;
+}
+.reviewSummary > svg {
+  flex-shrink: 0;
+}
+.reviewSummary p {
+  color: #63717f;
+  font-size: 12px;
+  margin: 4px 0;
+}
+.reviewSummary button {
+  background: transparent;
+  border: 0;
+  color: #0566bd;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.completedActions button {
+  background: white;
+  padding: 8px 10px;
+  color: #536477;
+  font: inherit;
+  border: 1px solid #ccd7e1;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.secondaryDetails {
+  margin: 14px 0;
+  background: white;
+  border: 1px solid #dfe5ea;
+  border-radius: 3px;
+  scroll-margin-top: 90px;
+}
+.secondaryDetails > summary {
+  cursor: pointer;
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #34495e;
+}
+.secondaryDetails > summary span {
+  float: right;
+  font-size: 12px;
+  font-weight: 400;
+  color: #63717f;
+}
+.secondaryDetails > div,
+.secondaryDetails > section {
+  margin: 0 16px 16px;
+}
+.secondaryDetails .metrics {
+  margin: 0 16px 16px;
+}
+.secondaryDetails .metrics > div {
+  padding: 16px;
+}
+.footer {
+  padding: 12px 0 !important;
+  margin-top: 12px;
+  border: 0 !important;
+  background: transparent !important;
+}
+.footer strong {
+  font-size: 13px;
+}
+.footer a {
+  border-radius: 3px;
+  font-size: 14px;
+  padding: 10px 16px;
+}
+@media (max-width: 1100px) {
+  .runComplete {
+    grid-template-columns: 1fr 1fr;
+  }
+  .completedActions {
+    grid-column: 1 / -1;
+  }
+  .context {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+}
+@media (max-width: 700px) {
+  .context {
+    align-items: flex-start;
+  }
+  .context > div {
+    border: 0;
+  }
+  .runComplete {
+    grid-template-columns: 1fr;
+  }
+  .reviewSummary {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .secondaryDetails > summary span {
+    float: none;
+    display: block;
+    margin-top: 4px;
+  }
+}
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 700px) {
+  .footerActions {
+    flex-wrap: wrap;
+  }
+}
+.discoveryScreen[class] {
+  display: flex;
+  flex-direction: column;
+}
+.discoveryScreen[class] > ol button {
+  border: 0;
+  background: transparent;
+  color: #63717f;
+  padding: 8px 0;
+  border-radius: 0;
+}
+.discoveryScreen[class] > ol li {
+  border: 0;
+}
+.discoveryScreen[class] > ol li[aria-current="step"] button {
+  color: #2f6b2d;
+}
+.discoveryScreen[class] > ol button > span {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.discoveryScreen[class] > .footer {
+  order: 2;
+}
+.discoveryScreen[class] > .secondaryDetails {
+  order: 3;
+}
+.discoveryScreen[class] > .context {
+  margin-bottom: 8px;
+}
+.discoveryScreen[class] > ol {
+  margin: 0 0 8px;
+}
+.discoveryScreen[class] > #source-connections {
+  margin: 8px 0 16px;
+}
+.discoveryScreen[class] > .runComplete {
+  padding: 16px 18px !important;
+  margin-bottom: 18px;
+}
+.runComplete .phase p {
+  margin: 4px 0 0;
+}
+.discoveryScreen[class] .reviewSummary button {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #0566bd;
+}
+.discoveryScreen[class] .runComplete h2 {
+  margin: 0;
+}
+.discoveryScreen[class] .runComplete .phase > svg {
+  width: 32px;
+  height: 32px;
+}
+.discoveryScreen[class] > footer {
+  padding: 8px 0 !important;
+}
+.context small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.discoveryScreen[class] > ol button {
+  padding: 4px 0;
+  line-height: 1.35;
+}
+.discoveryScreen[class] .reviewSummary button {
+  min-height: 0;
+  height: auto;
+  line-height: 1.4;
+}
+.discoveryScreen[class] > ol li:has(svg) button > span {
+  background: #2f6b2d;
+  color: white;
+  border-color: #2f6b2d;
+}

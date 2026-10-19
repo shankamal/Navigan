@@ -137,6 +137,7 @@ it("enables workspace only for completed matching evidence and shows source fact
   });
   expect(link).toHaveAttribute("href", "/migrations/MIG-demo/plan");
   expect(await screen.findByText("DB Schenker")).toBeVisible();
+  fireEvent.click(screen.getByText("Namespace & resource inventory"));
   expect(screen.getByText("api")).toBeVisible();
   expect(screen.queryByText(/compatibility score/i)).not.toBeInTheDocument();
   expect(api.discover).not.toHaveBeenCalled();
@@ -341,6 +342,8 @@ it("brings the selected namespace resources into view and moves keyboard focus",
       },
     });
     open();
+    await screen.findByText("Namespace & resource inventory");
+    fireEvent.click(screen.getByText("Namespace & resource inventory"));
     fireEvent.click(
       await screen.findByRole("button", { name: "View resources" }),
     );
@@ -425,7 +428,11 @@ it("keeps platform findings available separately from application findings", asy
     },
   });
   open();
-  expect(await screen.findByText("Application concern")).toBeVisible();
+  await screen.findByText("Application concern");
+  fireEvent.click(
+    screen.getByText("Source assessment findings", { selector: "summary" }),
+  );
+  expect(screen.getByText("Application concern")).toBeVisible();
   expect(screen.queryByText("Platform concern")).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole("combobox", { name: "Findings view" }), {
     target: { value: "platform" },

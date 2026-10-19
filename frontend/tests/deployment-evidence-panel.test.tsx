@@ -129,6 +129,9 @@ it("shows discovered evidence without running analysis or asking for a deploymen
   expect(api.analyze).not.toHaveBeenCalled();
   expect(api.saveSettings).not.toHaveBeenCalled();
   expect(api.refresh).not.toHaveBeenCalled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  );
   fireEvent.click(screen.getByText("api-container"));
   expect(screen.getByText("Running digest not reported")).toBeVisible();
 });
@@ -353,6 +356,9 @@ it("requires individual namespace review for manifests without namespace", async
     ],
   });
   open();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Inspect api in payments" }),
+  );
   expect(
     await screen.findByText(/Manifest namespace unspecified/),
   ).toBeVisible();
@@ -383,6 +389,10 @@ it("separates missing repository mapping from runtime evidence", async () => {
   });
   open();
   expect(await screen.findByText("Repository not mapped")).toBeVisible();
+  expect(screen.getByText("No active Pod")).toBeVisible();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  );
   expect(screen.getByText(/No running Pod observed/)).toBeVisible();
   expect(
     screen.getByText(/Scheduled or completed Jobs may have no running Pods/),
@@ -451,14 +461,15 @@ it("shows all discovered workloads by default with evidence completeness and rea
     ],
   });
   open();
-  expect(
-    await screen.findByText("Deployment evidence: review required"),
-  ).toBeVisible();
+  expect(await screen.findByText("Evidence review required")).toBeVisible();
   expect(screen.getByText("api")).toBeVisible();
   expect(screen.getByText("worker")).toBeVisible();
   expect(
     screen.getByRole("combobox", { name: "Evidence namespace" }),
   ).toHaveValue("");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  );
   fireEvent.click(screen.getByText("Review captured cluster inventory"));
   expect(screen.getByText(/This is not a deployable manifest/)).toBeVisible();
   expect(screen.getByText(/"kind": "Deployment"/)).toBeVisible();
@@ -501,6 +512,9 @@ it("loads a digest-matching snapshot on demand and refuses stale inventory", asy
     inventory: { inventoryDigest: "different", resources: [] },
   });
   open();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Inspect api in payments" }),
+  );
   const summary = await screen.findByText("Review captured cluster inventory");
   expect(inventoryApi.sourceInventory).not.toHaveBeenCalled();
   fireEvent.click(summary);
@@ -510,4 +524,63 @@ it("loads a digest-matching snapshot on demand and refuses stale inventory", asy
   expect(
     await screen.findByText(/Inventory changed. Refresh the discovery view/),
   ).toBeVisible();
+});
+
+it("opens evidence on demand and restores focus when Escape closes the drawer", async () => {
+  open();
+  const trigger = await screen.findByRole("button", {
+    name: "Inspect api in payments",
+  });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  trigger.focus();
+  fireEvent.click(trigger);
+  const drawer = screen.getByRole("dialog", { name: "api" });
+  expect(drawer).toHaveFocus();
+  expect(
+    within(drawer).getByText("Deployed Git revision not verified."),
+  ).toBeVisible();
+  expect(document.body.style.overflow).toBe("hidden");
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(document.body.style.overflow).not.toBe("hidden");
+  expect(trigger).toHaveFocus();
+});
+
+it("searches names and images without changing migration scope or running analysis", async () => {
+  open();
+  const search = await screen.findByRole("searchbox", {
+    name: "Search workloads",
+  });
+  fireEvent.change(search, { target: { value: "missing" } });
+  expect(screen.getByText("No workloads match these filters.")).toBeVisible();
+  fireEvent.change(search, { target: { value: "customer/api:1.2" } });
+  expect(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  ).toBeVisible();
+  expect(api.analyze).not.toHaveBeenCalled();
+  expect(api.saveSettings).not.toHaveBeenCalled();
+});
+
+it("does not repeat namespace confirmation instructions after a mapping is confirmed", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    workloads: [
+      {
+        ...row,
+        mappingStatus: "CONFIRMED",
+        candidates: [{ ...row.candidates[0], match: "NAMESPACE_UNSPECIFIED" }],
+      },
+    ],
+  });
+  open();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Inspect api in payments" }),
+  );
+  expect(
+    screen.queryByText(/Manifest namespace unspecified/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Confirm source" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText("Deployed Git revision not verified.")).toBeVisible();
 });

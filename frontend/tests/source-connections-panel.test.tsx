@@ -29,14 +29,16 @@ const settings = {
   authentication: {},
   readyForDiscovery: false,
 };
-function open() {
+function open(
+  props: Partial<React.ComponentProps<typeof SourceConnectionsPanel>> = {},
+) {
   return render(
     <QueryClientProvider
       client={
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <SourceConnectionsPanel sourceId="SRC-db" />
+      <SourceConnectionsPanel sourceId="SRC-db" {...props} />
     </QueryClientProvider>,
   );
 }
@@ -418,4 +420,40 @@ it("allows an existing IAM role without offering role creation downloads", async
     screen.queryByRole("button", { name: "Download AWS role setup" }),
   ).toBeNull();
   expect(screen.getByText(/Merge the displayed trust statement/)).toBeVisible();
+});
+
+it("summarizes verified connections and opens configuration only on request", async () => {
+  api.settings.mockResolvedValue({
+    ...settings,
+    readyForDiscovery: true,
+    authentication: {
+      "github:customer/app": {
+        mode: "TOKEN",
+        status: "CONNECTED",
+        secretConfigured: true,
+      },
+      ["registry:" + settings.configuration.registries[0]]: {
+        mode: "AWS_ROLE",
+        status: "CONNECTED",
+      },
+    },
+  });
+  open({
+    compact: true,
+    connectorConnected: true,
+    connectorName: "Source cluster",
+  });
+  const manage = await screen.findByRole("button", {
+    name: "Manage connections",
+  });
+  await waitFor(() => expect(manage).toBeEnabled());
+  expect(screen.getAllByText("Verified")).toHaveLength(2);
+  expect(
+    screen.queryByLabelText("Authentication for github:customer/app"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(manage);
+  expect(
+    screen.getByLabelText("Authentication for github:customer/app"),
+  ).toBeVisible();
+  expect(api.saveSettings).not.toHaveBeenCalled();
 });

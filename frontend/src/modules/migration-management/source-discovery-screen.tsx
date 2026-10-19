@@ -12,6 +12,9 @@ import {
   Network,
   ShieldCheck,
   Info,
+  AlertTriangle,
+  Building2,
+  FileText,
 } from "lucide-react";
 import { customersService } from "@/modules/customer-management/services/customers";
 import { normalizeApiError } from "@/shared/api/client";
@@ -290,7 +293,7 @@ export function SourceDiscoveryScreen({
       </div>
     );
   const phase = ready
-    ? "Source assessment complete"
+    ? "Inventory & assessment complete"
     : recovering
       ? "Restoring source connection"
       : waitingForConnector
@@ -301,54 +304,83 @@ export function SourceDiscoveryScreen({
             ? "Source discovery in progress"
             : "Ready to discover your source";
 
+  const workspaceControls = (
+    <div className={styles.footerActions}>
+      {ready && migration.status === "ASSESSMENT_READY" && (
+        <button
+          disabled={
+            busy ||
+            recovering ||
+            !sourceOwned ||
+            query.isError ||
+            !sourceFresh ||
+            !connectionSettings.data?.readyForDiscovery
+          }
+          onClick={run}
+        >
+          {busy ? "Starting…" : "Run discovery again"}
+        </button>
+      )}
+      {ready && !query.isError ? (
+        <Link className={shared.back} href={`/migrations/${migrationId}/plan`}>
+          Open Migration Workspace <ArrowRight size={16} />
+        </Link>
+      ) : (
+        <button
+          disabled
+          title="Requires completed discovery, matching inventory and assessment evidence, and a successful status refresh."
+        >
+          Open Migration Workspace <ArrowRight size={16} />
+        </button>
+      )}
+    </div>
+  );
   return (
-    <div className={shared.screen}>
+    <div className={`${shared.screen} ${styles.discoveryScreen}`}>
       <header className={shared.heading}>
         <div className={shared.titleGroup}>
           <Network size={25} />
           <div>
-            <h1>Source Discovery & Assessment</h1>
-            <p>Understand the source before choosing what to migrate.</p>
+            <h1>Source discovery &amp; assessment</h1>
           </div>
         </div>
         <Link className={shared.back} href="/migrations">
           <ArrowLeft size={15} /> Back to assessments
         </Link>
       </header>
+      <section className={styles.context} aria-label="Migration context">
+        <div>
+          <FileText size={18} aria-hidden="true" />
+          <div>
+            <small>Assessment</small>
+            <strong>{migration.name}</strong>
+          </div>
+        </div>
+        <div>
+          <Building2 size={18} aria-hidden="true" />
+          <div>
+            <small>Customer</small>
+            <strong>{customerQuery.data?.name ?? migration.customerId}</strong>
+          </div>
+        </div>
+        <div>
+          <Network size={18} aria-hidden="true" />
+          <div>
+            <small>Source cluster</small>
+            <strong>
+              {(sourceQuery.data?.name ?? sourceId) || "No source selected"}
+            </strong>
+            <span>
+              {sourceQuery.data?.distribution ?? "Distribution not reported"} ·{" "}
+              {sourceQuery.data?.region ?? "Location not reported"}
+            </span>
+          </div>
+        </div>
+      </section>
       <MigrationWorkflow
         active={2}
         completed={sourceFresh || ready ? [1] : []}
       />
-      <section
-        className={`${shared.panel} ${styles.context}`}
-        aria-label="Migration context"
-      >
-        <div>
-          <small>ASSESSMENT</small>
-          <strong>{migration.name}</strong>
-          <span>{migrationId}</span>
-        </div>
-        <div>
-          <small>CUSTOMER</small>
-          <strong>{customerQuery.data?.name ?? migration.customerId}</strong>
-          <span>Target environment selected in workspace</span>
-        </div>
-        <div>
-          <small>SOURCE CLUSTER</small>
-          <strong>
-            {(sourceQuery.data?.name ?? sourceId) || "No source selected"}
-          </strong>
-          <span>
-            {sourceQuery.data?.distribution ?? "Distribution not reported"} ·{" "}
-            {sourceQuery.data?.region ?? "Location not reported"}
-          </span>
-        </div>
-        <div>
-          <small>DISCOVERY ACCESS</small>
-          <strong>Read-only connector</strong>
-          <span>All namespaces · supported resources · read-only</span>
-        </div>
-      </section>
       {(sourceQuery.isError ||
         customerQuery.isError ||
         (sourceQuery.data && !sourceOwned)) && (
@@ -370,10 +402,13 @@ export function SourceDiscoveryScreen({
           key={sourceId}
           sourceId={sourceId}
           assessmentComplete={ready}
+          compact
+          connectorConnected={sourceFresh}
+          connectorName={sourceQuery.data?.name}
         />
       )}
       <section
-        className={`${shared.panel} ${styles.run}`}
+        className={`${shared.panel} ${styles.run} ${ready ? styles.runComplete : ""}`}
         aria-label="Discovery progress"
       >
         <div className={styles.phase}>
@@ -408,10 +443,33 @@ export function SourceDiscoveryScreen({
               inventory-only choice, before starting discovery.
             </p>
           )}
-        <div className={styles.runActions}>
-          {(canStart ||
-            canAssess ||
-            (ready && migration.status === "ASSESSMENT_READY")) && (
+        {ready && (
+          <div className={styles.reviewSummary}>
+            <AlertTriangle size={22} />
+            <div>
+              <strong>Deployment evidence needs review</strong>
+              <p>
+                Review repository mapping, image versions and runtime evidence
+                below.
+              </p>
+              <button
+                onClick={() => {
+                  const details = document.getElementById(
+                    "assessment-findings-details",
+                  ) as HTMLDetailsElement | null;
+                  if (details) {
+                    details.open = true;
+                    details.scrollIntoView({ block: "start" });
+                  }
+                }}
+              >
+                View assessment findings <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className={ready ? styles.completedActions : styles.runActions}>
+          {(canStart || canAssess) && (
             <button
               className={shared.primary}
               disabled={
@@ -486,30 +544,32 @@ export function SourceDiscoveryScreen({
           </div>
         )}
         {recoveryMessage && <p role="status">{recoveryMessage}</p>}
-        <ol className={styles.phases}>
-          {[
-            "Namespace catalogue",
-            "Detailed source inventory",
-            "Source assessment",
-          ].map((label, index) => (
-            <li key={label}>
-              <CheckCircle2
-                size={16}
-                className={
-                  (index === 0 ? catalogue : index === 1 ? inventory : ready)
-                    ? shared.complete
-                    : styles.pending
-                }
-              />
-              {label}
-              <span>
-                {(index === 0 ? catalogue : index === 1 ? inventory : ready)
-                  ? "Complete"
-                  : "Pending"}
-              </span>
-            </li>
-          ))}
-        </ol>
+        {!ready && (
+          <ol className={styles.phases}>
+            {[
+              "Namespace catalogue",
+              "Detailed source inventory",
+              "Source assessment",
+            ].map((label, index) => (
+              <li key={label}>
+                <CheckCircle2
+                  size={16}
+                  className={
+                    (index === 0 ? catalogue : index === 1 ? inventory : ready)
+                      ? shared.complete
+                      : styles.pending
+                  }
+                />
+                {label}
+                <span>
+                  {(index === 0 ? catalogue : index === 1 ? inventory : ready)
+                    ? "Complete"
+                    : "Pending"}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
         {timedOut && !waitingForConnector && !recovering && (
           <p role="status" className={styles.caution}>
             Discovery is taking longer than expected. Check the source connector
@@ -529,234 +589,11 @@ export function SourceDiscoveryScreen({
           </p>
         )}
       </section>
-      <div className={styles.metrics}>
-        {[
-          ["Namespaces", catalogue ? namespaces.length : null],
-          [
-            "Application workloads",
-            inventory
-              ? Object.entries(kinds)
-                  .filter(([kind]) => workloadKinds.has(kind))
-                  .reduce((sum, [, count]) => sum + count, 0)
-              : null,
-          ],
-          ["Resources assessed", inventory?.resourceCount ?? null],
-          ["Source findings", assessment ? findings.length : null],
-        ].map(([label, count]) => (
-          <div className={shared.panel} key={String(label)}>
-            <span>{label}</span>
-            <strong>{count ?? "—"}</strong>
-            <small>
-              {count === null
-                ? "Awaiting discovery"
-                : "Reported source evidence"}
-            </small>
-          </div>
-        ))}
-      </div>
-      <div className={styles.columns}>
-        <section className={shared.panel} aria-labelledby="source-namespaces">
-          <div className={styles.sectionHeading}>
-            <div>
-              <h2 id="source-namespaces">Discovered namespaces</h2>
-              <p>
-                Inspect inventory here. Select migration scope in the workspace.
-              </p>
-            </div>
-            <label>
-              Find namespace
-              <input
-                type="search"
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
-                placeholder="Namespace name"
-              />
-            </label>
-          </div>
-          {!catalogue ? (
-            <p className={shared.empty}>
-              Namespace evidence will appear after discovery completes.
-            </p>
-          ) : (
-            <div className={styles.tableScroll}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Namespace</th>
-                    <th>Workloads</th>
-                    <th>Services</th>
-                    <th>PVCs</th>
-                    <th>Inspect</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matchedNamespaces.map((item) => (
-                    <tr key={item.name}>
-                      <td>
-                        <strong>{item.name}</strong>
-                      </td>
-                      <td>
-                        {Object.entries(item.resourceCounts)
-                          .filter(([kind]) => workloadKinds.has(kind))
-                          .reduce((sum, [, count]) => sum + count, 0)}
-                      </td>
-                      <td>{item.resourceCounts.Service ?? 0}</td>
-                      <td>{item.resourceCounts.PersistentVolumeClaim ?? 0}</td>
-                      <td>
-                        <button
-                          onClick={() => {
-                            setNamespace(item.name);
-                            setResourcePage(0);
-                            resourceInventoryRef.current?.focus({
-                              preventScroll: true,
-                            });
-                            resourceInventoryRef.current?.scrollIntoView({
-                              block: "start",
-                            });
-                          }}
-                          aria-controls="application-resource-inventory"
-                        >
-                          View resources
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!matchedNamespaces.length && <p>No matching namespaces.</p>}
-            </div>
-          )}
-        </section>
-        <section className={shared.panel} aria-labelledby="source-evidence">
-          <h2 id="source-evidence">Source evidence</h2>
-          <dl className={shared.facts}>
-            <div>
-              <dt>Kubernetes version</dt>
-              <dd>
-                {inventory?.sourceKubernetesVersion ??
-                  catalogue?.sourceKubernetesVersion ??
-                  "Not reported"}
-              </dd>
-            </div>
-            <div>
-              <dt>Nodes</dt>
-              <dd>{catalogue?.nodeCount ?? "Not reported"}</dd>
-            </div>
-            <div>
-              <dt>Architectures</dt>
-              <dd>{catalogue?.architectures.join(", ") || "Not reported"}</dd>
-            </div>
-            <div>
-              <dt>Observed at</dt>
-              <dd>
-                {inventory?.observedAt ??
-                  catalogue?.observedAt ??
-                  "Not reported"}
-              </dd>
-            </div>
-          </dl>
-          <p className={styles.note}>
-            <ShieldCheck size={17} /> Sanitized inventory only. Secret values
-            and kubeconfig contents are not displayed.
-          </p>
-          <p className={styles.note}>
-            <Info size={17} /> Target compatibility, selective artifact
-            extraction and deployment adaptation are evaluated in later workflow
-            steps.
-          </p>
-        </section>
-      </div>
-      <section
-        id="application-resource-inventory"
-        ref={resourceInventoryRef}
-        tabIndex={-1}
-        className={`${shared.panel} ${styles.resourceInventory}`}
-        aria-labelledby="resource-evidence"
-      >
-        <div className={styles.sectionHeading}>
-          <div>
-            <h2 id="resource-evidence">Application resource inventory</h2>
-            <p aria-live="polite">
-              {namespace
-                ? `Showing resources in ${namespace}.`
-                : "Source namespace, workload and associated resource evidence."}
-            </p>
-          </div>
-          <label>
-            Namespace
-            <select
-              value={namespace}
-              onChange={(event) => {
-                setNamespace(event.target.value);
-                setResourcePage(0);
-              }}
-            >
-              <option value="">All discovered namespaces</option>
-              {namespaces.map((item) => (
-                <option key={item.name}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {!inventory ? (
-          <p className={shared.empty}>
-            Run the source assessment to collect detailed resources.
-          </p>
-        ) : (
-          <div className={styles.tableScroll}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Namespace</th>
-                  <th>Resource</th>
-                  <th>Kind</th>
-                  <th>API version</th>
-                </tr>
-              </thead>
-              <tbody>
-                {namespaceResources
-                  .slice(currentPage * 100, (currentPage + 1) * 100)
-                  .map((item, index) => (
-                    <tr
-                      key={`${item.kind}/${item.namespace}/${item.name}/${index}`}
-                    >
-                      <td>{item.namespace ?? "Cluster-scoped"}</td>
-                      <td>{item.name ?? "Not reported"}</td>
-                      <td>{item.kind}</td>
-                      <td>{item.apiVersion}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-            <p>
-              Showing {namespaceResources.length ? currentPage * 100 + 1 : 0}–
-              {Math.min((currentPage + 1) * 100, namespaceResources.length)} of{" "}
-              {namespaceResources.length} matching resources.
-            </p>
-            <div className={styles.pagination}>
-              <button
-                disabled={currentPage === 0}
-                onClick={() => setResourcePage(currentPage - 1)}
-              >
-                Previous resources
-              </button>
-              <span>
-                Page {currentPage + 1} of {pageCount}
-              </span>
-              <button
-                disabled={currentPage + 1 >= pageCount}
-                onClick={() => setResourcePage(currentPage + 1)}
-              >
-                Next resources
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
       {sourceOwned && (
         <div id="deployment-evidence">
           <DeploymentEvidencePanel
             hideConnections
+            footerAction={workspaceControls}
             migration={migration}
             inventoryDigest={inventory?.inventoryDigest}
             onRefresh={() => {
@@ -766,99 +603,334 @@ export function SourceDiscoveryScreen({
           />
         </div>
       )}
-      <section className={shared.panel} aria-labelledby="source-findings">
-        <div className={styles.sectionHeading}>
-          <div>
-            <h2 id="source-findings">Source assessment findings</h2>
-            <p>
-              Source concerns to review during planning. These are not target
-              compatibility results.
-            </p>
-          </div>
-          <span className={shared.badge}>
-            {ready ? "Assessment complete" : "Awaiting assessment"}
+      <details
+        className={styles.secondaryDetails}
+        id="source-inventory-details"
+      >
+        <summary>
+          Namespace & resource inventory{" "}
+          <span>
+            {catalogue
+              ? `${namespaces.length} namespaces · ${inventory?.resourceCount ?? "—"} resources`
+              : "Awaiting discovery"}
           </span>
+        </summary>
+        <div className={styles.metrics}>
+          {[
+            ["Namespaces", catalogue ? namespaces.length : null],
+            [
+              "Application workloads",
+              inventory
+                ? Object.entries(kinds)
+                    .filter(([kind]) => workloadKinds.has(kind))
+                    .reduce((sum, [, count]) => sum + count, 0)
+                : null,
+            ],
+            ["Resources assessed", inventory?.resourceCount ?? null],
+            ["Source findings", assessment ? findings.length : null],
+          ].map(([label, count]) => (
+            <div className={shared.panel} key={String(label)}>
+              <span>{label}</span>
+              <strong>{count ?? "—"}</strong>
+              <small>
+                {count === null
+                  ? "Awaiting discovery"
+                  : "Reported source evidence"}
+              </small>
+            </div>
+          ))}
         </div>
-        {assessment && (
-          <div className={styles.findingControls}>
+        <div className={styles.columns}>
+          <section className={shared.panel} aria-labelledby="source-namespaces">
+            <div className={styles.sectionHeading}>
+              <div>
+                <h2 id="source-namespaces">Discovered namespaces</h2>
+                <p>
+                  Inspect inventory here. Select migration scope in the
+                  workspace.
+                </p>
+              </div>
+              <label>
+                Find namespace
+                <input
+                  type="search"
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                  placeholder="Namespace name"
+                />
+              </label>
+            </div>
+            {!catalogue ? (
+              <p className={shared.empty}>
+                Namespace evidence will appear after discovery completes.
+              </p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Namespace</th>
+                      <th>Workloads</th>
+                      <th>Services</th>
+                      <th>PVCs</th>
+                      <th>Inspect</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchedNamespaces.map((item) => (
+                      <tr key={item.name}>
+                        <td>
+                          <strong>{item.name}</strong>
+                        </td>
+                        <td>
+                          {Object.entries(item.resourceCounts)
+                            .filter(([kind]) => workloadKinds.has(kind))
+                            .reduce((sum, [, count]) => sum + count, 0)}
+                        </td>
+                        <td>{item.resourceCounts.Service ?? 0}</td>
+                        <td>
+                          {item.resourceCounts.PersistentVolumeClaim ?? 0}
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => {
+                              setNamespace(item.name);
+                              setResourcePage(0);
+                              resourceInventoryRef.current?.focus({
+                                preventScroll: true,
+                              });
+                              resourceInventoryRef.current?.scrollIntoView({
+                                block: "start",
+                              });
+                            }}
+                            aria-controls="application-resource-inventory"
+                          >
+                            View resources
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!matchedNamespaces.length && <p>No matching namespaces.</p>}
+              </div>
+            )}
+          </section>
+          <section className={shared.panel} aria-labelledby="source-evidence">
+            <h2 id="source-evidence">Source evidence</h2>
+            <dl className={shared.facts}>
+              <div>
+                <dt>Kubernetes version</dt>
+                <dd>
+                  {inventory?.sourceKubernetesVersion ??
+                    catalogue?.sourceKubernetesVersion ??
+                    "Not reported"}
+                </dd>
+              </div>
+              <div>
+                <dt>Nodes</dt>
+                <dd>{catalogue?.nodeCount ?? "Not reported"}</dd>
+              </div>
+              <div>
+                <dt>Architectures</dt>
+                <dd>{catalogue?.architectures.join(", ") || "Not reported"}</dd>
+              </div>
+              <div>
+                <dt>Observed at</dt>
+                <dd>
+                  {inventory?.observedAt ??
+                    catalogue?.observedAt ??
+                    "Not reported"}
+                </dd>
+              </div>
+            </dl>
+            <p className={styles.note}>
+              <ShieldCheck size={17} /> Sanitized inventory only. Secret values
+              and kubeconfig contents are not displayed.
+            </p>
+            <p className={styles.note}>
+              <Info size={17} /> Target compatibility, selective artifact
+              extraction and deployment adaptation are evaluated in later
+              workflow steps.
+            </p>
+          </section>
+        </div>
+        <section
+          id="application-resource-inventory"
+          ref={resourceInventoryRef}
+          tabIndex={-1}
+          className={`${shared.panel} ${styles.resourceInventory}`}
+          aria-labelledby="resource-evidence"
+        >
+          <div className={styles.sectionHeading}>
+            <div>
+              <h2 id="resource-evidence">Application resource inventory</h2>
+              <p aria-live="polite">
+                {namespace
+                  ? `Showing resources in ${namespace}.`
+                  : "Source namespace, workload and associated resource evidence."}
+              </p>
+            </div>
             <label>
-              Findings view
+              Namespace
               <select
-                aria-label="Findings view"
-                value={findingGroup}
-                onChange={(event) => setFindingGroup(event.target.value)}
+                value={namespace}
+                onChange={(event) => {
+                  setNamespace(event.target.value);
+                  setResourcePage(0);
+                }}
               >
-                <option value="application">
-                  Application and shared dependencies (
-                  {findings.filter((item) => !isPlatform(item)).length})
-                </option>
-                <option value="platform">
-                  Platform namespaces ({findings.filter(isPlatform).length})
-                </option>
-                <option value="all">All findings ({findings.length})</option>
+                <option value="">All discovered namespaces</option>
+                {namespaces.map((item) => (
+                  <option key={item.name}>{item.name}</option>
+                ))}
               </select>
             </label>
-            <p>
-              Grouped by known platform namespaces. All findings remain
-              available; confirm application dependencies when selecting
-              migration scope.
+          </div>
+          {!inventory ? (
+            <p className={shared.empty}>
+              Run the source assessment to collect detailed resources.
             </p>
+          ) : (
+            <div className={styles.tableScroll}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Namespace</th>
+                    <th>Resource</th>
+                    <th>Kind</th>
+                    <th>API version</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {namespaceResources
+                    .slice(currentPage * 100, (currentPage + 1) * 100)
+                    .map((item, index) => (
+                      <tr
+                        key={`${item.kind}/${item.namespace}/${item.name}/${index}`}
+                      >
+                        <td>{item.namespace ?? "Cluster-scoped"}</td>
+                        <td>{item.name ?? "Not reported"}</td>
+                        <td>{item.kind}</td>
+                        <td>{item.apiVersion}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              <p>
+                Showing {namespaceResources.length ? currentPage * 100 + 1 : 0}–
+                {Math.min((currentPage + 1) * 100, namespaceResources.length)}{" "}
+                of {namespaceResources.length} matching resources.
+              </p>
+              <div className={styles.pagination}>
+                <button
+                  disabled={currentPage === 0}
+                  onClick={() => setResourcePage(currentPage - 1)}
+                >
+                  Previous resources
+                </button>
+                <span>
+                  Page {currentPage + 1} of {pageCount}
+                </span>
+                <button
+                  disabled={currentPage + 1 >= pageCount}
+                  onClick={() => setResourcePage(currentPage + 1)}
+                >
+                  Next resources
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      </details>
+      <details
+        className={styles.secondaryDetails}
+        id="assessment-findings-details"
+      >
+        <summary>
+          Source assessment findings{" "}
+          <span>
+            {assessment ? `${findings.length} findings` : "Awaiting assessment"}
+          </span>
+        </summary>
+        <section className={shared.panel} aria-labelledby="source-findings">
+          <div className={styles.sectionHeading}>
+            <div>
+              <h2 id="source-findings">Source assessment findings</h2>
+              <p>
+                Source concerns to review during planning. These are not target
+                compatibility results.
+              </p>
+            </div>
+            <span className={shared.badge}>
+              {ready ? "Assessment complete" : "Awaiting assessment"}
+            </span>
           </div>
-        )}
-        {!assessment ? (
-          <p className={shared.empty}>No assessment has completed yet.</p>
-        ) : !findings.length ? (
-          <p>
-            No source findings were reported by the current assessment rules.
-          </p>
-        ) : (
-          <div className={styles.findings}>
-            {!visibleFindings.length && <p>No findings in this view.</p>}
-            {visibleFindings.map((item, index) => (
-              <article key={`${item.code}/${index}`}>
-                <span className={styles.severity}>{item.severity}</span>
-                <div>
-                  <strong>{item.message}</strong>
-                  <p>
-                    {item.namespace ?? "Source cluster"}
-                    {item.resourceName ? ` · ${item.resourceName}` : ""} ·{" "}
-                    {item.category}
-                  </p>
-                  {item.remediation && <p>{item.remediation}</p>}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-      <footer className={`${shared.panel} ${styles.footer}`}>
-        <div>
-          <strong>
-            {ready
-              ? "Ready to choose migration scope"
-              : "Complete source discovery and assessment to continue"}
-          </strong>
-          <p>
-            The workspace continues with source scope, target selection and
-            compatibility, review and approval, then execution.
-          </p>
-        </div>
-        {ready && !query.isError ? (
-          <Link
-            className={shared.back}
-            href={`/migrations/${migrationId}/plan`}
-          >
-            Open Migration Workspace <ArrowRight size={16} />
-          </Link>
-        ) : (
+          {assessment && (
+            <div className={styles.findingControls}>
+              <label>
+                Findings view
+                <select
+                  aria-label="Findings view"
+                  value={findingGroup}
+                  onChange={(event) => setFindingGroup(event.target.value)}
+                >
+                  <option value="application">
+                    Application and shared dependencies (
+                    {findings.filter((item) => !isPlatform(item)).length})
+                  </option>
+                  <option value="platform">
+                    Platform namespaces ({findings.filter(isPlatform).length})
+                  </option>
+                  <option value="all">All findings ({findings.length})</option>
+                </select>
+              </label>
+              <p>
+                Grouped by known platform namespaces. All findings remain
+                available; confirm application dependencies when selecting
+                migration scope.
+              </p>
+            </div>
+          )}
+          {!assessment ? (
+            <p className={shared.empty}>No assessment has completed yet.</p>
+          ) : !findings.length ? (
+            <p>
+              No source findings were reported by the current assessment rules.
+            </p>
+          ) : (
+            <div className={styles.findings}>
+              {!visibleFindings.length && <p>No findings in this view.</p>}
+              {visibleFindings.map((item, index) => (
+                <article key={`${item.code}/${index}`}>
+                  <span className={styles.severity}>{item.severity}</span>
+                  <div>
+                    <strong>{item.message}</strong>
+                    <p>
+                      {item.namespace ?? "Source cluster"}
+                      {item.resourceName
+                        ? ` · ${item.resourceName}`
+                        : ""} · {item.category}
+                    </p>
+                    {item.remediation && <p>{item.remediation}</p>}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </details>
+      {!sourceOwned && (
+        <footer className={`${shared.panel} ${styles.footer}`}>
+          <p>Confirm the source connection to continue.</p>
           <button
             disabled
-            title="Requires completed discovery, matching inventory and assessment evidence, and a successful status refresh."
+            title="Requires verified source ownership and completed matching inventory and assessment evidence."
           >
             Open Migration Workspace <ArrowRight size={16} />
           </button>
-        )}
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
