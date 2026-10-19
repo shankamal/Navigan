@@ -349,12 +349,6 @@ class SourceCatalogueReport(Model):
                 "Each namespace may appear only once."
             )
 
-        protected = set(names) & SYSTEM_NAMESPACES
-        if protected:
-            raise ValueError(
-                "System namespaces cannot be included in source catalogue."
-            )
-
         return self
 
 
@@ -775,16 +769,9 @@ class SourceInventoryReport(Model):
             namespace = resource.get("namespace")
             name = resource.get("name")
 
-            if namespace in SYSTEM_NAMESPACES:
-                raise ValueError(
-                    "System namespaces cannot be assessed."
-                )
-
+            # Read-only discovery may include platform namespaces. Migration
+            # scope selection retains its separate protected-namespace checks.
             if kind == "Namespace":
-                if name in SYSTEM_NAMESPACES:
-                    raise ValueError(
-                        "System namespaces cannot be assessed."
-                    )
                 if not isinstance(name, str) or not name:
                     raise ValueError(
                         "Namespace inventory requires a name."

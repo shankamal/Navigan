@@ -19,6 +19,10 @@ const api = vi.hoisted(() => ({
   refresh: vi.fn(),
   canEdit: true,
 }));
+const inventoryApi = vi.hoisted(() => ({ sourceInventory: vi.fn() }));
+vi.mock("@/modules/migration-management/service", () => ({
+  migrations: inventoryApi,
+}));
 vi.mock("@/modules/migration-management/deployment-evidence-service", () => ({
   deploymentDiscovery: api,
 }));
@@ -416,4 +420,94 @@ it("filters Git workload mapping and registry evidence by the same namespace", a
   fireEvent.change(filter, { target: { value: "platform" } });
   expect(screen.getByText("Registry not configured")).toBeVisible();
   expect(screen.getByText(/Image availability is unknown/)).toBeVisible();
+});
+
+it("shows all discovered workloads by default with evidence completeness and read-only snapshots", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    coverage: {
+      status: "WITH_GAPS",
+      namespaceCount: 2,
+      workloadCount: 2,
+      repositoryMappedCount: 0,
+      registryVerifiedWorkloadCount: 1,
+      runtimeObservedCount: 2,
+      inventorySnapshotCount: 2,
+      limitations: ["Deployment package review required"],
+    },
+    workloads: [
+      {
+        ...row,
+        candidates: [],
+        mappingStatus: "UNRESOLVED",
+        clusterSnapshot: {
+          resource: { kind: "Deployment", name: "api" },
+          deployable: false,
+          inventoryDigest: digest,
+          observedAt: "2026-10-19T10:00:00Z",
+        },
+      },
+      { ...row, workload: { ...workload, namespace: "other", name: "worker" } },
+    ],
+  });
+  open();
+  expect(
+    await screen.findByText("Deployment evidence: review required"),
+  ).toBeVisible();
+  expect(screen.getByText("api")).toBeVisible();
+  expect(screen.getByText("worker")).toBeVisible();
+  expect(
+    screen.getByRole("combobox", { name: "Evidence namespace" }),
+  ).toHaveValue("");
+  fireEvent.click(screen.getByText("Review captured cluster inventory"));
+  expect(screen.getByText(/This is not a deployable manifest/)).toBeVisible();
+  expect(screen.getByText(/"kind": "Deployment"/)).toBeVisible();
+});
+
+it("continues pending registry checks within an explicit analysis action", async () => {
+  api.analyze
+    .mockResolvedValueOnce({
+      ...report,
+      images: [{ image: "customer/api:1.2", status: "PENDING" }],
+    })
+    .mockResolvedValue(report);
+  open();
+  const button = await screen.findByRole("button", {
+    name: "Analyze deployment sources",
+  });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  await waitFor(() => expect(api.analyze).toHaveBeenCalledTimes(2));
+  expect(api.analyze).toHaveBeenNthCalledWith(1, "MIG-db", 5);
+  expect(api.analyze).toHaveBeenNthCalledWith(2, "MIG-db", 5, true);
+});
+
+it("loads a digest-matching snapshot on demand and refuses stale inventory", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    workloads: [
+      {
+        ...row,
+        clusterSnapshot: {
+          inventoryDigest: digest,
+          observedAt: "2026-10-19T10:00:00Z",
+          resourceIdentity: workload,
+          deployable: false,
+        },
+      },
+    ],
+  });
+  inventoryApi.sourceInventory.mockResolvedValue({
+    inventory: { inventoryDigest: "different", resources: [] },
+  });
+  open();
+  const summary = await screen.findByText("Review captured cluster inventory");
+  expect(inventoryApi.sourceInventory).not.toHaveBeenCalled();
+  fireEvent.click(summary);
+  await waitFor(() =>
+    expect(inventoryApi.sourceInventory).toHaveBeenCalledWith("MIG-db"),
+  );
+  expect(
+    await screen.findByText(/Inventory changed. Refresh the discovery view/),
+  ).toBeVisible();
 });

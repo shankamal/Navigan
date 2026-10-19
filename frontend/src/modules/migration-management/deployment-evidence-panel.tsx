@@ -11,6 +11,7 @@ import {
   type DeploymentSourcesConfiguration,
 } from "./deployment-evidence-service";
 import { scopeKey } from "./source-migration-scope";
+import { migrations } from "./service";
 import type { Migration } from "./model";
 import styles from "./deployment-evidence-panel.module.css";
 
@@ -42,6 +43,9 @@ export function DeploymentEvidencePanel({
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState("workloads");
   const [evidenceNamespace, setEvidenceNamespace] = useState("");
+  const [snapshots, setSnapshots] = useState<
+    Record<string, { resource?: Record<string, unknown>; error?: string }>
+  >({});
   const [choices, setChoices] = useState<Record<string, number>>({});
   const query = useQuery({
     queryKey: ["deployment-evidence", migration.migrationId, inventoryDigest],
@@ -81,6 +85,48 @@ export function DeploymentEvidencePanel({
           ),
         )
       : (evidence?.images ?? []);
+  async function loadSnapshot(w: (typeof workloads)[number]) {
+    if (!w.clusterSnapshot || w.clusterSnapshot.resource) return;
+    const key = scopeKey(w.workload);
+    try {
+      const result = await cache.fetchQuery({
+        queryKey: [
+          "source-inventory-evidence",
+          migration.migrationId,
+          w.clusterSnapshot.inventoryDigest,
+        ],
+        queryFn: () => migrations.sourceInventory(migration.migrationId),
+        staleTime: Infinity,
+      });
+      if (
+        !result.inventory ||
+        result.inventory.inventoryDigest !== w.clusterSnapshot.inventoryDigest
+      )
+        throw new Error(
+          "Inventory changed. Refresh the discovery view before reviewing this snapshot.",
+        );
+      const resource = result.inventory.resources.find(
+        (item) =>
+          typeof item.name === "string" &&
+          scopeKey({ ...item, name: item.name }) === key,
+      );
+      if (!resource)
+        throw new Error(
+          "This workload was not found in the matching inventory snapshot.",
+        );
+      setSnapshots((old) => ({ ...old, [key]: { resource } }));
+    } catch (failure) {
+      setSnapshots((old) => ({
+        ...old,
+        [key]: {
+          error:
+            failure instanceof Error
+              ? failure.message
+              : "Unable to load captured inventory.",
+        },
+      }));
+    }
+  }
   const needsRuntime = workloads.some((w) =>
     ["NOT_COLLECTED", "UNAVAILABLE"].includes(w.runtimeStatus),
   );
@@ -140,17 +186,40 @@ export function DeploymentEvidencePanel({
           queryKey: ["deployment-evidence", migration.migrationId],
         });
       } else if (action === "analyze") {
-        const result = await deploymentDiscovery.analyze(
-          migration.migrationId,
-          migration.version,
-        );
+        const hasPending = (value: typeof evidence) =>
+          Boolean(
+            value?.images.some((item) => item.status === "PENDING") ||
+            value?.repositories.some((item) => item.status === "PENDING"),
+          );
+        let result = hasPending(evidence)
+          ? await deploymentDiscovery.analyze(
+              migration.migrationId,
+              migration.version,
+              true,
+            )
+          : await deploymentDiscovery.analyze(
+              migration.migrationId,
+              migration.version,
+            );
+        for (let batch = 1; batch < 4 && hasPending(result); batch++) {
+          setNotice(
+            `Continuing evidence analysis, batch ${batch + 1}. Completed checks are retained.`,
+          );
+          result = await deploymentDiscovery.analyze(
+            migration.migrationId,
+            migration.version,
+            true,
+          );
+        }
         cache.setQueryData(
           ["deployment-evidence", migration.migrationId, inventoryDigest],
           result,
         );
         await settings.refetch();
         setNotice(
-          "Analysis finished. Review candidate sources, running versions and evidence gaps.",
+          result.coverage?.status === "WITH_GAPS"
+            ? "Analysis finished with evidence gaps. Review coverage and the Evidence gaps tab; assessment completion does not mean every deployment detail is verified."
+            : "Analysis finished. Review candidate sources, running versions and evidence gaps.",
         );
       } else {
         await deploymentDiscovery.refresh(
@@ -437,6 +506,29 @@ export function DeploymentEvidencePanel({
       )}
       {evidence && (
         <>
+          {evidence.coverage && (
+            <div className={styles.note} role="status">
+              <strong>
+                Deployment evidence:{" "}
+                {evidence.coverage.status === "WITH_GAPS"
+                  ? "review required"
+                  : "collected"}
+              </strong>
+              <p>
+                {evidence.coverage.namespaceCount} discovered namespaces ·{" "}
+                {evidence.coverage.workloadCount} workloads ·{" "}
+                {evidence.coverage.repositoryMappedCount} with Git candidates ·{" "}
+                {evidence.coverage.registryVerifiedWorkloadCount} with all image
+                registries verified · {evidence.coverage.runtimeObservedCount}{" "}
+                with runtime observations.
+              </p>
+              <p>
+                Analysis covers all discovered namespaces by default. Namespace
+                filters only change this view. Discovery completion is separate
+                from deployment evidence completeness.
+              </p>
+            </div>
+          )}
           {!selectedKeys &&
             workloads.some(
               (w) =>
@@ -558,12 +650,54 @@ export function DeploymentEvidencePanel({
                       </td>
                       <td>
                         {w.artifactFormat === "Unresolved"
-                          ? "Artifact type not detected"
+                          ? w.clusterSnapshot
+                            ? "Cluster inventory available; original artifact unmapped"
+                            : "Artifact type not detected"
                           : w.artifactFormat}{" "}
                         ·{" "}
                         {w.deliveryTool === "Unresolved"
                           ? "Delivery tool not detected"
                           : w.deliveryTool}
+                        {w.clusterSnapshot && (
+                          <details
+                            onToggle={(event) => {
+                              if (event.currentTarget.open)
+                                void loadSnapshot(w);
+                            }}
+                          >
+                            <summary>Review captured cluster inventory</summary>
+                            <p>
+                              Read-only sanitized evidence from{" "}
+                              {w.clusterSnapshot.observedAt ||
+                                "the saved discovery"}
+                              . This is not a deployable manifest; deployment
+                              commands and secret/configuration values are not
+                              captured.
+                            </p>
+                            <code>
+                              Inventory digest:{" "}
+                              {w.clusterSnapshot.inventoryDigest ||
+                                "Unavailable"}
+                            </code>
+                            <pre className={styles.snapshot}>
+                              {snapshots[scopeKey(w.workload)]?.error ||
+                                JSON.stringify(
+                                  w.clusterSnapshot.resource ??
+                                    snapshots[scopeKey(w.workload)]?.resource,
+                                  null,
+                                  2,
+                                ) ||
+                                "Loading captured inventory…"}
+                            </pre>
+                          </details>
+                        )}
+                        {w.deliveryEvidenceBasis === "FIELD_MANAGER" && (
+                          <small>
+                            Field manager indicates who changed fields; it does
+                            not prove the complete deployment pipeline or Git
+                            revision.
+                          </small>
+                        )}
                         {w.helmChart && <small>Chart: {w.helmChart}</small>}
                         {w.helmRelease && (
                           <small>Release: {w.helmRelease}</small>
@@ -701,6 +835,27 @@ export function DeploymentEvidencePanel({
           )}
           {!selectedKeys && tab === "sources" && (
             <div className={styles.cards}>
+              <article>
+                <h3>Cluster evidence for every discovered workload</h3>
+                <p>
+                  Original Git artifacts and captured cluster inventory are
+                  separate sources. Workloads without matching Git artifacts
+                  still have sanitized cluster evidence for review.
+                </p>
+                {workloads.map((w) => (
+                  <p key={scopeKey(w.workload)}>
+                    {w.workload.namespace} / {w.workload.kind} /{" "}
+                    {w.workload.name} ·{" "}
+                    {w.candidates.length
+                      ? "Git candidate available"
+                      : "Original repository mapping needed"}{" "}
+                    ·{" "}
+                    {w.clusterSnapshot
+                      ? "Sanitized inventory available"
+                      : "Refresh discovery for cluster inventory"}
+                  </p>
+                ))}
+              </article>
               {!evidence.repositories.length && (
                 <p>
                   Connect a repository and analyze deployment sources to inspect
@@ -822,6 +977,16 @@ export function DeploymentEvidencePanel({
           )}
           {!selectedKeys && tab === "gaps" && (
             <div className={styles.cards}>
+              {evidence.coverage?.limitations.map((gap) => (
+                <p key={gap}>{gap}</p>
+              ))}
+              {evidence.repositories.flatMap((repo) =>
+                repo.gaps.map((gap) => (
+                  <p key={`${repo.repository}/${gap}`}>
+                    {repo.repository}: {gap}
+                  </p>
+                )),
+              )}
               {workloads.map((w) => (
                 <article
                   key={`${w.workload.namespace}/${w.workload.kind}/${w.workload.name}`}

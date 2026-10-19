@@ -162,17 +162,13 @@ def test_rejects_sensitive_nested_keys():
         SourceInventoryReport.model_validate(payload)
 
 
-def test_rejects_system_namespace_inventory():
+def test_allows_sanitized_read_only_system_namespace_inventory():
+    from migration_connector.inventory import finalize_inventory
     payload = copy.deepcopy(source_inventory())
-    resource_by_kind(payload, "Namespace")["name"] = (
-        "kube-system"
-    )
-
-    with pytest.raises(
-        ValidationError,
-        match="System namespaces cannot be assessed",
-    ):
-        SourceInventoryReport.model_validate(payload)
+    resource_by_kind(payload, "Namespace")["name"] = "kube-system"
+    payload.update(finalize_inventory(payload["resources"]))
+    report = SourceInventoryReport.model_validate(payload)
+    assert any(item.get("name") == "kube-system" for item in report.resources)
 
 
 def test_migration_schema_has_immutable_source_inventory_table():

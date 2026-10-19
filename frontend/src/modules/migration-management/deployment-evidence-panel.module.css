@@ -299,3 +299,15 @@
     padding: 12px;
   }
 }
+
+.snapshot {
+  max-height: 320px;
+  max-width: 520px;
+  overflow: auto;
+  padding: 12px;
+  background: #f5f7f5;
+  border: 1px solid #dce3dd;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

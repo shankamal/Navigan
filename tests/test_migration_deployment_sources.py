@@ -431,3 +431,86 @@ def test_namespace_omitted_manifests_remain_candidates_not_verified(manifest_nam
     else:
         assert row["mappingStatus"] == "UNRESOLVED"
         assert not row["candidates"]
+
+
+def test_field_manager_evidence_is_allowlisted_and_does_not_export_managed_fields():
+    raw = deployment()
+    raw["metadata"]["managedFields"] = [{"manager": "kubectl-client-side-apply", "fieldsV1": {"secret": "do-not-export"}}, {"manager": "private-manager-do-not-export"}]
+    item = sanitize_resource(raw)
+    item["deploymentMetadata"]["labels"] = {}
+    item["deploymentMetadata"]["annotations"] = {}
+    assert item["deploymentMetadata"]["fieldManagers"] == ["kubectl-client-side-apply"]
+    assert "do-not-export" not in json.dumps(item)
+    report = build_report({"migration_id": "MIG-db"}, {"inventoryDigest": "a" * 64, "resources": [item]}, {"source_cluster_id": "SRC-db"})
+    row = report["workloads"][0]
+    assert row["deliveryEvidenceBasis"] == "FIELD_MANAGER"
+    assert row["deliveryTool"] == "kubectl (field-manager evidence)"
+    assert row["clusterSnapshot"]["deployable"] is False
+    assert row["clusterSnapshot"]["resourceIdentity"]["kind"] == "Deployment"
+    assert report["coverage"]["workloadCount"] == 1
+    assert report["coverage"]["status"] == "WITH_GAPS"
+
+
+@pytest.mark.parametrize("kind", ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"])
+def test_every_supported_workload_receives_snapshot_and_actionable_gaps(kind):
+    item = sanitize_resource(deployment())
+    item["kind"] = kind
+    item["runtimeEvidence"] = {"status": "OBSERVED", "containers": [{"name": "api", "containerType": "APPLICATION", "podName": "api-pod", "image": "example/api:v2", "imageID": None, "ready": True}]}
+    report = build_report({"migration_id": "MIG-db"}, {"resources": [item]}, {"source_cluster_id": "SRC-db"})
+    row = report["workloads"][0]
+    assert row["clusterSnapshot"]["resourceIdentity"]["kind"] == kind
+    assert row["evidenceStatus"] == "REVIEW_REQUIRED"
+    assert any("Running image digest was not reported" in gap for gap in row["gaps"])
+    assert any("Registry verification is incomplete" in gap for gap in row["gaps"])
+    assert row["registryVerified"] is False
+
+
+def test_unconfigured_public_registries_are_checked_anonymously_but_private_ecr_requires_role(monkeypatch):
+    import navigan.modules.migration_management.source_authentication as auth
+    service, repo, _, _ = service_context(monkeypatch)
+    item = sanitize_resource(deployment())
+    item["pod"]["containers"] = [{"name": "api", "image": "quay.io/customer/api:v1"}, {"name": "private", "image": "123456789012.dkr.ecr.ap-south-1.amazonaws.com/app:v1"}]
+    item["pod"]["initContainers"] = []
+    repo.get_source_inventory.return_value = {"inventory": {"resources": [item]}}
+    calls = []
+    def public_read(host, credential, path, repository):
+        calls.append((host, credential, path, repository))
+        return {"_registryDigest": DIGEST}
+    monkeypatch.setattr(auth, "registry_read", public_read)
+    service.analyze_deployment_sources("MIG-db", {"version": 5})
+    assert len(calls) == 1
+    assert calls[0][0] == "quay.io" and calls[0][1] == {"mode": "PUBLIC"}
+    analysis = repo.save_deployment_configuration.call_args.args[2]
+    assert {item["status"] for item in analysis["images"]} == {"AVAILABLE", "NOT_CONNECTED"}
+
+
+def test_untrusted_field_managers_are_rejected_by_inventory_validation():
+    item = sanitize_resource(deployment())
+    item["deploymentMetadata"]["fieldManagers"] = ["unapproved-manager"]
+    value = finalize_inventory([item])
+    with pytest.raises(ValidationError, match="field manager"):
+        SourceInventoryReport.model_validate({**value, "migrationVersion": 5, "observedAt": "2026-10-19T10:00:00Z", "sourceKubernetesVersion": "v1.37.1"})
+
+
+def test_continuation_reuses_completed_checks_only_for_matching_inventory_and_auth(monkeypatch):
+    import navigan.modules.migration_management.source_authentication as auth
+    service, repo, _, source = service_context(monkeypatch)
+    item = sanitize_resource(deployment())
+    item["pod"]["containers"] = [{"name": "a", "image": "quay.io/shop/a:1"}, {"name": "b", "image": "quay.io/shop/b:1"}]
+    item["pod"]["initContainers"] = []
+    repo.get_source_inventory.return_value = {"inventory": {"inventoryDigest": "a" * 64, "resources": [item]}}
+    calls = []
+    monkeypatch.setattr(auth, "registry_read", lambda host, credential, path, repository: calls.append(path) or {"_registryDigest": DIGEST})
+    def save(current, key, value, correlation):
+        current["delivery_configuration"][key] = value
+    repo.save_deployment_configuration.side_effect = save
+    service.analyze_deployment_sources("MIG-db", {"version": 5})
+    assert len(calls) == 2
+    source["delivery_configuration"]["deploymentAnalysis"]["images"][1]["status"] = "PENDING"
+    calls.clear()
+    service.analyze_deployment_sources("MIG-db", {"version": 5, "continueAnalysis": True})
+    assert len(calls) == 1 and "/shop/b/" in calls[0]
+    source["delivery_configuration"]["deploymentAuthentication"] = {"github:shop/app": {"secretVersion": "rotated"}}
+    calls.clear()
+    service.analyze_deployment_sources("MIG-db", {"version": 5, "continueAnalysis": True})
+    assert len(calls) == 2  # Rotating access invalidates continuation state.

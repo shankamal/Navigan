@@ -364,6 +364,8 @@ def selected_namespaces(assignment, request):
         and item["metadata"].get("name")
     }
 
+    if assignment.get("discoveryMode") == "ALL_NAMESPACES":
+        return sorted(available)
     selected = available - excluded
     if requested:
         missing = requested - available
@@ -456,7 +458,7 @@ def collect_inventory(assignment, request=kubernetes_request):
     for namespace in namespaces:
         collect_runtime(urllib.parse.quote(namespace, safe=""), request, sanitized)
 
-    if scope.get("includeClusterScopedResources") is True:
+    if scope.get("includeClusterScopedResources") is True or assignment.get("discoveryMode") == "ALL_NAMESPACES":
         for path in CLUSTER_RESOURCE_PATHS:
             api_version, kind = RESOURCE_TYPE_BY_PATH[path]
             for raw in resource_items(request(path)):

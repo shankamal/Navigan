@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import re
 import secrets
 import uuid
@@ -344,6 +345,7 @@ def source_assignment(db, connector, now, correlation):
         "source": current["source_configuration"],
         "target": current["target_configuration"],
         "scope": current["migration_scope"],
+        "discoveryMode": "ALL_NAMESPACES",
         "status": current["status"],
     }
 
@@ -444,6 +446,7 @@ def assignment(db, connector, now, correlation):
         "source": current["source_configuration"],
         "target": current["target_configuration"],
         "scope": current["migration_scope"],
+        "discoveryMode": "ALL_NAMESPACES" if os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") == "true" else "SCOPED",
         "status": current["status"],
     }
 

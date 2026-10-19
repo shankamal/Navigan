@@ -21,9 +21,16 @@ ANNOTATIONS = {
 }
 
 
+FIELD_MANAGERS = {
+    "kubectl", "kubectl-client-side-apply", "kubectl-create", "kubectl-set", "kubectl-patch", "kubectl-rollout",
+    "helm", "argocd-controller", "argocd-application-controller",
+    "helm-controller", "kustomize-controller", "tigera-operator",
+}
+
 def deployment_metadata(resource):
     metadata = mapping(resource.get("metadata"))
     return {
+        "fieldManagers": sorted({item.get("manager") for item in sequence(metadata.get("managedFields")) if isinstance(item, dict) and item.get("manager") in FIELD_MANAGERS}),
         "labels": {
             k: limited_text(v, 253)
             for k, v in mapping(metadata.get("labels")).items()

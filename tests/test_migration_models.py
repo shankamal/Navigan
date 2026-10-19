@@ -303,12 +303,11 @@ def test_accepts_sanitized_source_catalogue():
     assert report.namespaces[0].resourceCounts["Deployment"] == 3
 
 
-def test_rejects_system_namespace_in_source_catalogue():
+def test_allows_read_only_system_namespace_discovery_in_source_catalogue():
     payload = source_catalogue_payload()
     payload["namespaces"][0]["name"] = "kube-system"
 
-    with pytest.raises(ValidationError, match="System namespaces"):
-        SourceCatalogueReport.model_validate(payload)
+    assert SourceCatalogueReport.model_validate(payload).namespaces[0].name == "kube-system"
 
 
 def test_rejects_sensitive_source_catalogue():

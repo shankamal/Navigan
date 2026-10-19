@@ -346,7 +346,7 @@ export function SourceDiscoveryScreen({
         <div>
           <small>DISCOVERY ACCESS</small>
           <strong>Read-only connector</strong>
-          <span>Application inventory · system namespaces excluded</span>
+          <span>All namespaces · supported resources · read-only</span>
         </div>
       </section>
       {(sourceQuery.isError ||

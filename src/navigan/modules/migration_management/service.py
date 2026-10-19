@@ -145,7 +145,16 @@ class Service:
         repositories = []
         from .source_authentication import repository_token, read_credential, registry_read, ecr_client
         authentication = (source.get("delivery_configuration") or {}).get("deploymentAuthentication", {})
+        import hashlib, json
+        context_digest = hashlib.sha256(json.dumps({"inventory": inventory.get("inventoryDigest"), "images": [c.get("image") for r in inventory["resources"] for c in (r.get("pod") or {}).get("containers", [])], "configuration": config_digest(configuration), "authentication": authentication}, sort_keys=True, default=str).encode()).hexdigest()
+        previous = (source.get("delivery_configuration") or {}).get("deploymentAnalysis", {})
+        if not body.get("continueAnalysis") or previous.get("contextDigest") != context_digest:
+            previous = {}
         for entry in configuration["repositories"]:
+            completed = next((value for value in previous.get("repositories", []) if value.get("repository") == entry["repository"] and value.get("status") != "PENDING"), None)
+            if completed:
+                repositories.append(completed)
+                continue
             if time.monotonic() >= deadline:
                 repositories.append({"repository": entry["repository"], "status": "PENDING", "artifacts": [], "gaps": ["Analysis time budget reached. Narrow the repository directory and retry."]})
                 continue
@@ -162,8 +171,12 @@ class Service:
         registry_clients = {}
         registry_credentials = {}
         for image in images:
+            completed = next((value for value in previous.get("images", []) if value.get("image") == image and value.get("status") != "PENDING"), None)
+            if completed:
+                checks.append(completed)
+                continue
             if time.monotonic() >= deadline:
-                checks.append({"image": image, "status": "PENDING", "reason": "Analysis time budget reached. Retry registry analysis after narrowing repository scope."})
+                checks.append({"image": image, "status": "PENDING", "reason": "Analysis time budget reached. Continue evidence analysis to process remaining images."})
                 continue
             try:
                 from .deployment_sources import image_parts
@@ -171,7 +184,16 @@ class Service:
                 key = "registry:" + parts["registry"]
                 auth = authentication.get(key, {})
                 if ".dkr.ecr." in parts["registry"] and auth.get("mode") not in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
-                    raise ValueError("Configure a customer IAM role for this registry before analysis.")
+                    checks.append({"image": image, "status": "NOT_CONNECTED", "reason": "Configure customer IAM role access for this private ECR registry."})
+                    continue
+                if parts["registry"] not in configuration["registries"]:
+                    # Public registry metadata can be inspected without inventing
+                    # credentials. registry_read enforces TLS, public-IP pinning,
+                    # bounded reads and restricted bearer challenges.
+                    ref = parts["digest"] or parts["tag"]
+                    payload = registry_read(parts["registry"], {"mode": "PUBLIC"}, "/v2/" + parts["repository"] + "/manifests/" + ref, parts["repository"])
+                    checks.append({"image": image, "status": "AVAILABLE", "registryDigest": payload.get("_registryDigest"), "architectures": sorted({m.get("platform", {}).get("architecture") for m in payload.get("manifests", []) if m.get("platform", {}).get("architecture")}), "reason": "Anonymous read-only registry manifest access succeeded."})
+                    continue
                 if parts["registry"] in configuration["registries"] and auth.get("mode") in {"TOKEN", "BEARER", "PUBLIC"}:
                     if key not in registry_credentials:
                         registry_credentials[key] = {"mode": auth["mode"], **read_credential(source, key, auth)}
@@ -184,8 +206,8 @@ class Service:
                         registry_clients[key] = ecr_client(parts["registry"], auth)
                     checks.append(check_image(image, None, configuration["registries"], aws_client=registry_clients.get(key)))
             except Exception:
-                checks.append({"image": image, "status": "UNAVAILABLE", "reason": "Image metadata could not be read. Check registry access, image existence and configured adapter."})
-        analysis = {"configurationDigest": config_digest(configuration), "repositories": repositories, "images": checks,
+                checks.append({"image": image, "status": "UNAVAILABLE", "reason": "Image metadata could not be read. Anonymous access may require authentication, or the registry/image may be unavailable. Configure registry access and review the image reference."})
+        analysis = {"configurationDigest": config_digest(configuration), "contextDigest": context_digest, "repositories": repositories, "images": checks,
                     "analyzedAt": datetime.now(timezone.utc).isoformat()}
         self.repo.save_deployment_configuration(source, "deploymentAnalysis", analysis, self.correlation)
         return self.deployment_evidence(identifier)

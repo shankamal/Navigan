@@ -54,6 +54,23 @@ export interface DeploymentWorkloadEvidence {
   applicationVersion: string | null;
   artifactFormat: string;
   deliveryTool: string;
+  deliveryEvidenceBasis?: string;
+  evidenceStatus?: string;
+  registryVerified?: boolean;
+  clusterSnapshot?: {
+    format: string;
+    status: string;
+    inventoryDigest: string | null;
+    observedAt: string | null;
+    resource?: Record<string, unknown>;
+    resourceIdentity?: {
+      apiVersion: string;
+      kind: string;
+      namespace: string | null;
+      name: string;
+    };
+    deployable: false;
+  };
   helmChart: string | null;
   helmRelease: string | null;
   mappingStatus: string;
@@ -80,6 +97,17 @@ export interface DeploymentWorkloadEvidence {
   gaps: string[];
 }
 export interface DeploymentEvidence {
+  coverage?: {
+    status: string;
+    workloadCount: number;
+    namespaceCount: number;
+    repositoryMappedCount: number;
+    runtimeObservedCount: number;
+    registryVerifiedWorkloadCount: number;
+    inventorySnapshotCount: number;
+    scope: string;
+    limitations: string[];
+  };
   migrationId: string;
   sourceClusterId: string;
   inventoryDigest: string | null;
@@ -151,11 +179,15 @@ export const deploymentDiscovery = {
   ): Promise<DeploymentEvidence> =>
     (await apiClient.get(`/migrations/${id}/deployment-evidence`, { signal }))
       .data,
-  analyze: async (id: string, version: number): Promise<DeploymentEvidence> =>
+  analyze: async (
+    id: string,
+    version: number,
+    continueAnalysis = false,
+  ): Promise<DeploymentEvidence> =>
     (
       await apiClient.post(
         `/migrations/${id}/deployment-evidence`,
-        { version },
+        { version, ...(continueAnalysis ? { continueAnalysis: true } : {}) },
         headers(version),
       )
     ).data,

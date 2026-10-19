@@ -487,3 +487,12 @@ def test_live_collection_resolves_service_selectors_without_exporting_labels():
     assert {"kind": "Service", "name": "retailflow-service"} in workload["dependencyReferences"]
     assert {"kind": "Service", "name": "empty-selector"} not in workload["dependencyReferences"]
     assert "sensitive-label-value" not in json.dumps(result)
+
+
+def test_all_namespace_discovery_ignores_later_migration_selection():
+    task = assignment()
+    task["discoveryMode"] = "ALL_NAMESPACES"
+    request = lambda path: {"items": [{"metadata": {"name": name}} for name in ("retailflow", "kube-system", "another-app")]}
+    assert agent.selected_namespaces(task, request) == ["another-app", "kube-system", "retailflow"]
+    task["discoveryMode"] = "SCOPED"
+    assert agent.selected_namespaces(task, request) == ["retailflow"]

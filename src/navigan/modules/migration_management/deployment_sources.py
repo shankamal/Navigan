@@ -12,6 +12,12 @@ import urllib.request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 WORKLOADS = {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
+FIELD_MANAGERS = {
+    "kubectl", "kubectl-client-side-apply", "kubectl-create", "kubectl-set", "kubectl-patch", "kubectl-rollout",
+    "helm", "argocd-controller", "argocd-application-controller",
+    "helm-controller", "kustomize-controller", "tigera-operator",
+}
+
 SAFE_LABELS = {
     "app.kubernetes.io/name",
     "app.kubernetes.io/instance",
@@ -107,11 +113,12 @@ class SaveDeploymentSources(StrictModel):
 class AnalyzeDeploymentSources(StrictModel):
     version: int = Field(gt=0)
     refreshCluster: bool = False
+    continueAnalysis: bool = False
 
 
 def validate_deployment_inventory(resource):
     metadata = resource.get("deploymentMetadata", {})
-    if not isinstance(metadata, dict) or set(metadata) - {"labels", "annotations"}:
+    if not isinstance(metadata, dict) or set(metadata) - {"labels", "annotations", "fieldManagers"}:
         raise ValueError("Invalid deployment metadata.")
     for field, allowlist in (("labels", SAFE_LABELS), ("annotations", SAFE_ANNOTATIONS)):
         entries = metadata.get(field, {})
@@ -121,6 +128,9 @@ def validate_deployment_inventory(resource):
             or any(not isinstance(v, str) or len(v) > 500 for v in entries.values())
         ):
             raise ValueError("Deployment metadata must use the approved allowlist.")
+    managers = metadata.get("fieldManagers", [])
+    if not isinstance(managers, list) or len(managers) > len(FIELD_MANAGERS) or any(not isinstance(value, str) or value not in FIELD_MANAGERS for value in managers) or len(set(managers)) != len(managers):
+        raise ValueError("Invalid field manager evidence.")
     runtime = resource.get("runtimeEvidence")
     if runtime is None:
         return
@@ -468,6 +478,12 @@ def build_report(migration, inventory, source):
             if any("toolkit.fluxcd.io" in k for k in labels)
             else manager or "Unresolved"
         )
+        delivery_basis = "CLUSTER_METADATA" if delivery != "Unresolved" else "NOT_OBSERVED"
+        if delivery == "Unresolved" and metadata.get("fieldManagers"):
+            hints = metadata["fieldManagers"]
+            tools = sorted({"kubectl" if value.startswith("kubectl") else "Argo CD" if value.startswith("argocd") else "Flux" if value in {"helm-controller", "kustomize-controller"} else "Helm" if value == "helm" else value for value in hints})
+            delivery = ", ".join(tools) + " (field-manager evidence)"
+            delivery_basis = "FIELD_MANAGER"
         runtime = resource.get("runtimeEvidence") or {"status": "NOT_COLLECTED", "containers": []}
         containers = []
         for field, container_type in (("containers", "APPLICATION"), ("initContainers", "INIT")):
@@ -553,12 +569,32 @@ def build_report(migration, inventory, source):
             )
         if any(c["multipleRunningVersions"] for c in containers):
             gaps.append("Multiple running image identities observed; review rollout state.")
+        missing_digests = [c["name"] for c in containers if c["runningPodCount"] > 0 and not c["observedDigests"]]
+        if missing_digests:
+            gaps.append("Running image digest was not reported for: " + ", ".join(str(name) for name in missing_digests) + ". Refresh runtime evidence and inspect container status if this persists.")
+        unverified_images = sorted({c["configuredImage"] for c in containers if (c["registryEvidence"] or {}).get("status") != "AVAILABLE"})
+        if unverified_images:
+            gaps.append("Registry verification is incomplete for one or more referenced images. Review the Container registry tab and configure private access where needed.")
+        if delivery_basis == "NOT_OBSERVED":
+            gaps.append("Original delivery tool is not recorded in the collected cluster metadata. Connect deployment repositories or pipelines; do not infer a tool from a running Pod.")
+        gaps.append("Cluster inventory is sanitized and is not a complete deployable manifest. Secret/configuration values and deployment commands are not exported; a reviewed deployment package is still required.")
         rows.append(
             {
                 "workload": {k: resource.get(k) for k in ("apiVersion", "kind", "namespace", "name")},
                 "applicationVersion": labels.get("app.kubernetes.io/version"),
                 "artifactFormat": "Helm" if chart or release else "Kubernetes manifests (candidate)" if any(a.get("format") == "MANIFESTS" for a in candidates) else "Unresolved",
                 "deliveryTool": delivery,
+                "deliveryEvidenceBasis": delivery_basis,
+                "clusterSnapshot": {
+                    "format": "SANITIZED_CLUSTER_INVENTORY",
+                    "status": "REVIEW_REQUIRED",
+                    "inventoryDigest": (inventory or {}).get("inventoryDigest"),
+                    "observedAt": (inventory or {}).get("observedAt"),
+                    "resourceIdentity": {key: resource.get(key) for key in ("apiVersion", "kind", "namespace", "name")},
+                    "deployable": False,
+                },
+                "evidenceStatus": "REVIEW_REQUIRED",
+                "registryVerified": not unverified_images and bool(containers),
                 "helmChart": chart,
                 "helmRelease": release,
                 "mappingStatus": "CONFIRMED" if confirmed else "CANDIDATE" if candidates else "UNRESOLVED",
@@ -570,6 +606,17 @@ def build_report(migration, inventory, source):
             }
         )
     return {
+        "coverage": {
+            "status": "WITH_GAPS" if any(row["gaps"] for row in rows) or not inventory else "COLLECTED",
+            "workloadCount": len(rows),
+            "namespaceCount": len({r.get("namespace") or r.get("name") for r in (inventory or {}).get("resources", []) if r.get("kind") == "Namespace" or r.get("namespace")}),
+            "repositoryMappedCount": sum(bool(row["candidates"]) for row in rows),
+            "runtimeObservedCount": sum(row["runtimeStatus"] == "OBSERVED" for row in rows),
+            "registryVerifiedWorkloadCount": sum(row["registryVerified"] for row in rows),
+            "inventorySnapshotCount": len(rows),
+            "scope": "All discovered namespaces; filters only change presentation.",
+            "limitations": ["Only supported resource kinds are collected. Missing APIs, permissions, credentials and scan limits must remain evidence gaps.", "Sanitized inventory snapshots are review evidence, not deployable artifacts or proof of the original delivery tool."],
+        },
         "migrationId": migration["migration_id"],
         "sourceClusterId": source["source_cluster_id"],
         "inventoryDigest": (inventory or {}).get("inventoryDigest"),
