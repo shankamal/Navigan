@@ -60,7 +60,7 @@ def main():
     backup.chmod(0o700)
     staged = []
     for logical in ["MigrationFunction", "MigrationConnectorFunction"]:
-        name = aws(
+        function_name = aws(
             "cloudformation",
             "describe-stack-resource",
             "--stack-name",
@@ -68,7 +68,7 @@ def main():
             "--logical-resource-id",
             logical,
         )["StackResourceDetail"]["PhysicalResourceId"]
-        deployed = aws("lambda", "get-function", "--function-name", name)
+        deployed = aws("lambda", "get-function", "--function-name", function_name)
         config = deployed["Configuration"]
         if (
             config.get("PackageType", "Zip") != "Zip"
@@ -135,11 +135,13 @@ def main():
                 if entry.filename.endswith(".pyc") and "/migration_management/" in entry.filename:
                     continue
                 new.writestr(entry, replacements.get(entry.filename, old.read(entry.filename)))
-            for name in set(replacements) - set(old.namelist()):
-                new.writestr(name, replacements[name])
+            for package_path in set(replacements) - set(old.namelist()):
+                new.writestr(package_path, replacements[package_path])
         if artifact.stat().st_size > 50 * 1024 * 1024:
             raise SystemExit("Package exceeds direct Lambda upload limit.")
-        staged.append((logical, name, config, artifact))
+        if config["FunctionName"] != function_name:
+            raise SystemExit("Deployed Lambda identity does not match the stack resource.")
+        staged.append((logical, function_name, config, artifact))
     print(f"Prepared two DEV migration packages. Backup: {backup}")
     if not args.apply:
         print(
