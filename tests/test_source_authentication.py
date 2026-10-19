@@ -188,17 +188,17 @@ def test_repository_verifies_revision_and_directory_and_reuses_token(source, sto
     assert changed["github:customer/repo"]["status"] == "NOT_VERIFIED"
 
 
-def test_wrong_account_ecr_and_unconfigured_secret_rejected(source, store):
+def test_registry_account_is_independent_but_unconfigured_secret_is_rejected(source, store):
     config = {"repositories": [], "registries": ["111111111111.dkr.ecr.ap-south-1.amazonaws.com"]}
-    with pytest.raises(ApiError):
-        auth.configure(
-            source,
-            config,
-            [{"key": "registry:" + config["registries"][0], "mode": "AWS_IAM"}],
-            {},
-            False,
-            lambda _: None,
-        )
+    states = auth.configure(
+        source,
+        config,
+        [{"key": "registry:" + config["registries"][0], "mode": "AWS_IAM"}],
+        {},
+        False,
+        lambda _: None,
+    )
+    assert states["registry:" + config["registries"][0]]["accountId"] == "111111111111"
     with pytest.raises(ApiError):
         auth.configure(
             source,
@@ -286,3 +286,111 @@ def test_discovery_and_refresh_are_gated_in_backend(monkeypatch, source):
         service.analyze_deployment_sources("MIG-db", {"version": 1, "refreshCluster": True})
     assert error.value.code == "SOURCE_CONNECTIONS_REQUIRED"
     repo.save.assert_not_called()
+
+
+def test_customer_ecr_role_is_bound_to_registry_not_cluster_account(source):
+    host = "111111111111.dkr.ecr.us-west-2.amazonaws.com"
+    config = {"repositories": [], "registries": [host]}
+    key = "registry:" + host
+    change = {
+        "key": key,
+        "mode": "AWS_ROLE",
+        "roleArn": "arn:aws:iam::111111111111:role/navigan-source-discovery/RegistryReadOnly",
+    }
+    first = auth.configure(source, config, [change], {}, False, lambda _: None)
+    entry = first[key]
+    assert entry["accountId"] == "111111111111"
+    assert entry["region"] == "us-west-2"
+    assert entry["externalId"].startswith("navigan-")
+    second = auth.configure(source, config, [change], first, False, lambda _: None)
+    assert second[key]["externalId"] == entry["externalId"]
+    other = auth.configure(
+        {**source, "customer_id": "CUS-other"}, config, [change], {}, False, lambda _: None
+    )
+    assert other[key]["externalId"] != entry["externalId"]
+    for role in [
+        "arn:aws:iam::905418045935:role/navigan-source-discovery/Role",
+        "arn:aws:iam::111111111111:role/Admin",
+    ]:
+        with pytest.raises(ApiError):
+            auth.configure(source, config, [{**change, "roleArn": role}], {}, False, lambda _: None)
+
+
+def test_ecr_role_uses_temporary_session_and_tests_external_id():
+    from unittest.mock import MagicMock
+    from botocore.exceptions import ClientError
+
+    aws = MagicMock()
+    sts = MagicMock()
+    ecr = MagicMock()
+    aws.client.side_effect = lambda kind, **kw: sts if kind == "sts" else ecr
+
+    def assume(**kwargs):
+        if kwargs.get("ExternalId") != "navigan-bound-id":
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "AssumeRole")
+        return {
+            "Credentials": {
+                "AccessKeyId": "temporary-key",
+                "SecretAccessKey": "temporary-secret",
+                "SessionToken": "temporary-session",
+            }
+        }
+
+    sts.assume_role.side_effect = assume
+    entry = {
+        "mode": "AWS_ROLE",
+        "roleArn": "arn:aws:iam::111111111111:role/navigan-source-discovery/ReadOnly",
+        "externalId": "navigan-bound-id",
+    }
+    assert (
+        auth.ecr_client(
+            "111111111111.dkr.ecr.eu-west-1.amazonaws.com", entry, verify_trust=True, boto3_module=aws
+        )
+        is ecr
+    )
+    calls = sts.assume_role.call_args_list
+    assert len(calls) == 3
+    assert "ExternalId" not in calls[0].kwargs
+    assert calls[1].kwargs["ExternalId"] != "navigan-bound-id"
+    assert calls[2].kwargs["ExternalId"] == "navigan-bound-id"
+    policy = json.loads(calls[2].kwargs["Policy"])
+    assert policy["Statement"][1]["Resource"] == "arn:aws:ecr:eu-west-1:111111111111:repository/*"
+    assert policy["Statement"][1]["Action"] == ["ecr:DescribeImages"]
+    assert calls[2].kwargs["DurationSeconds"] == 900
+    assert aws.client.call_args.kwargs["aws_session_token"] == "temporary-session"
+    assert "temporary" not in json.dumps(entry)
+
+
+def test_role_without_external_id_enforcement_is_rejected():
+    from unittest.mock import MagicMock
+
+    aws = MagicMock()
+    entry = {
+        "mode": "AWS_ROLE",
+        "roleArn": "arn:aws:iam::111111111111:role/navigan-source-discovery/ReadOnly",
+        "externalId": "navigan-bound-id",
+    }
+    with pytest.raises(ValueError, match="trust must require"):
+        auth.ecr_client(
+            "111111111111.dkr.ecr.eu-west-1.amazonaws.com", entry, verify_trust=True, boto3_module=aws
+        )
+    assert aws.client.call_count == 1  # STS only; an over-permissive role never becomes an ECR client
+    with pytest.raises(ValueError, match="Verify role trust"):
+        auth.ecr_client("111111111111.dkr.ecr.eu-west-1.amazonaws.com", entry, boto3_module=aws)
+
+
+def test_cloud_registry_token_is_independent_of_source_account(source, store, monkeypatch):
+    seen = []
+    monkeypatch.setattr(auth, "registry_read", lambda host, credential, **kw: seen.append((host, credential)))
+    host = "customer.azurecr.io"
+    config = {"repositories": [], "registries": [host]}
+    states = auth.configure(
+        source,
+        config,
+        [{"key": "registry:" + host, "mode": "TOKEN", "username": "robot", "token": "read-token"}],
+        {},
+        True,
+        lambda _: None,
+    )
+    assert states["registry:" + host]["status"] == "CONNECTED"
+    assert seen[0][0] == host and seen[0][1]["token"] == "read-token"

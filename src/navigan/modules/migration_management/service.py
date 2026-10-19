@@ -67,6 +67,7 @@ class Service:
         return {"sourceClusterId": identifier, "version": source["version"], "configuration": configuration,
                 "authentication": {k: {f: v for f, v in entry.items() if f != "secretVersion"} for k, entry in authentication.items()}, "readyForDiscovery": ready(configuration, authentication),
                 "githubOrganizations": self.repo.deployment_connections(source["customer_id"]),
+                "registryPrincipalArn": os.environ.get("SOURCE_REGISTRY_PRINCIPAL_ARN", ""),
                 "registryAdapters": ["AWS_ECR", "REGISTRY_V2"]}
 
     def save_deployment_sources(self, identifier, body):
@@ -142,7 +143,7 @@ class Service:
         configuration = (source.get("delivery_configuration") or {}).get("deploymentDiscovery") or {"repositories": [], "registries": []}
         deadline = time.monotonic() + 18
         repositories = []
-        from .source_authentication import repository_token, read_credential, registry_read
+        from .source_authentication import repository_token, read_credential, registry_read, ecr_client
         authentication = (source.get("delivery_configuration") or {}).get("deploymentAuthentication", {})
         for entry in configuration["repositories"]:
             if time.monotonic() >= deadline:
@@ -158,6 +159,8 @@ class Service:
         images = sorted({c["image"] for r in inventory["resources"] if r.get("kind") in WORKLOADS
                          for field in ("containers", "initContainers") for c in (r.get("pod") or {}).get(field, []) if c.get("image")})
         checks = []
+        registry_clients = {}
+        registry_credentials = {}
         for image in images:
             if time.monotonic() >= deadline:
                 checks.append({"image": image, "status": "PENDING", "reason": "Analysis time budget reached. Retry registry analysis after narrowing repository scope."})
@@ -167,13 +170,17 @@ class Service:
                 parts = image_parts(image)
                 key = "registry:" + parts["registry"]
                 auth = authentication.get(key, {})
-                if parts["registry"] in configuration["registries"] and auth.get("mode") in {"TOKEN", "BEARER", "PUBLIC"} and ".dkr.ecr." not in parts["registry"]:
-                    credential = {"mode": auth["mode"], **read_credential(source, key, auth)}
+                if parts["registry"] in configuration["registries"] and auth.get("mode") in {"TOKEN", "BEARER", "PUBLIC"}:
+                    if key not in registry_credentials:
+                        registry_credentials[key] = {"mode": auth["mode"], **read_credential(source, key, auth)}
+                    credential = registry_credentials[key]
                     ref = parts["digest"] or parts["tag"]
                     payload = registry_read(parts["registry"], credential, "/v2/" + parts["repository"] + "/manifests/" + ref, parts["repository"])
                     checks.append({"image": image, "status": "AVAILABLE", "registryDigest": payload.get("_registryDigest"), "architectures": sorted({m.get("platform", {}).get("architecture") for m in payload.get("manifests", []) if m.get("platform", {}).get("architecture")}), "reason": "Read-only registry manifest access succeeded."})
                 else:
-                    checks.append(check_image(image, (source.get("delivery_configuration") or {}).get("accountId"), configuration["registries"]))
+                    if auth.get("mode") == "AWS_ROLE" and key not in registry_clients:
+                        registry_clients[key] = ecr_client(parts["registry"], auth)
+                    checks.append(check_image(image, None, configuration["registries"], aws_client=registry_clients.get(key)))
             except Exception:
                 checks.append({"image": image, "status": "UNAVAILABLE", "reason": "Image metadata could not be read. Check registry access, image existence and configured adapter."})
         analysis = {"configurationDigest": config_digest(configuration), "repositories": repositories, "images": checks,

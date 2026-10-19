@@ -178,3 +178,80 @@ it("normalizes GitHub URLs and clears credentials after failure", async () => {
   );
   expect(screen.queryByDisplayValue("temporary")).toBeNull();
 });
+
+it("lets a separate registry account use a customer role and displays generated trust setup", async () => {
+  const host = "111111111111.dkr.ecr.us-west-2.amazonaws.com";
+  const roleArn =
+    "arn:aws:iam::111111111111:role/navigan-source-discovery/ReadOnly";
+  api.settings.mockResolvedValue({
+    ...settings,
+    configuration: { repositories: [], registries: [host] },
+  });
+  api.saveSettings.mockResolvedValue({
+    ...settings,
+    configuration: { repositories: [], registries: [host] },
+    readyForDiscovery: false,
+    registryPrincipalArn: "arn:aws:iam::905418045935:role/NaviganBackend",
+    authentication: {
+      ["registry:" + host]: {
+        mode: "AWS_ROLE",
+        roleArn,
+        externalId: "navigan-generated-id",
+        status: "NOT_VERIFIED",
+      },
+    },
+  });
+  open();
+  fireEvent.change(
+    await screen.findByLabelText("Authentication for registry:" + host),
+    { target: { value: "AWS_ROLE" } },
+  );
+  fireEvent.change(screen.getByLabelText("Registry read-only role ARN *"), {
+    target: { value: roleArn },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save connections" }));
+  await waitFor(() =>
+    expect(api.saveSettings).toHaveBeenCalledWith(
+      "SRC-db",
+      2,
+      expect.objectContaining({ registries: [host] }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "registry:" + host,
+          mode: "AWS_ROLE",
+          roleArn,
+        }),
+      ]),
+      false,
+    ),
+  );
+  expect(
+    await screen.findByLabelText("Navigan-generated External ID"),
+  ).toHaveValue("navigan-generated-id");
+  fireEvent.click(screen.getByText("Customer role trust and permissions"));
+  expect(
+    (screen.getByLabelText("Trust policy") as HTMLTextAreaElement).value,
+  ).toContain("navigan-generated-id");
+  expect(
+    (
+      screen.getByLabelText(
+        "Read-only ECR permission policy",
+      ) as HTMLTextAreaElement
+    ).value,
+  ).toContain("arn:aws:ecr:us-west-2:111111111111:repository/*");
+});
+
+it("recognizes a non-AWS registry without offering an ECR role", async () => {
+  api.settings.mockResolvedValue({
+    ...settings,
+    configuration: { repositories: [], registries: ["customer.azurecr.io"] },
+  });
+  open();
+  expect(await screen.findByText("Azure Container Registry")).toBeVisible();
+  expect(
+    screen.queryByRole("option", { name: /Customer IAM role/ }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("option", { name: "Registry username and access token" }),
+  ).toBeVisible();
+});

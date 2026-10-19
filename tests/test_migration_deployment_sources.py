@@ -226,10 +226,8 @@ def test_registry_is_explicitly_connected_and_account_bound():
     img = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/shop/api:2.0"
     host = img.split("/")[0]
     assert check_image(img, "123456789012", [], boto3_module=aws)["status"] == "NOT_CONNECTED"
-    assert check_image(img, "999999999999", [host], boto3_module=aws)["status"] == "ACCOUNT_MISMATCH"
-    aws.client.assert_not_called()
     aws.client.return_value.describe_images.return_value = {"imageDetails": [{"imageDigest": DIGEST}]}
-    result = check_image(img, "123456789012", [host], boto3_module=aws)
+    result = check_image(img, "999999999999", [host], boto3_module=aws)
     assert result["registryDigest"] == DIGEST
     aws.client.return_value.describe_images.assert_called_once_with(
         registryId="123456789012", repositoryName="shop/api", imageIds=[{"imageTag": "2.0"}]

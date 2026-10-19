@@ -52,6 +52,8 @@ Resources:
             Ref: MigrationConnectorImageRepository
           MIGRATION_CONNECTOR_IMAGE_DIGEST:
             Ref: MigrationConnectorImageDigest
+          SOURCE_REGISTRY_PRINCIPAL_ARN:
+            Fn::GetAtt: [MigrationFunctionRole, Arn]
           SOURCE_CONNECTOR_DELIVERY_ROLE_ARN:
             Ref: SourceConnectorDeliveryRoleArn
       Policies:
@@ -78,6 +80,9 @@ Resources:
             - Effect: Allow
               Action: sts:AssumeRole
               Resource: {Ref: SourceConnectorDeliveryRoleArn}
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Resource: arn:aws:iam::*:role/navigan-source-discovery/*
 
   MigrationConnectorFunction:
     Type: AWS::Serverless::Function

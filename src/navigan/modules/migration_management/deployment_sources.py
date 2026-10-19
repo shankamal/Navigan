@@ -67,7 +67,8 @@ class DeploymentMapping(StrictModel):
 
 class SourceCredential(StrictModel):
     key: str = Field(min_length=1, max_length=270)
-    mode: str = Field(pattern=r"^(PUBLIC|APP|AWS_IAM|TOKEN|BEARER)$")
+    mode: str = Field(pattern=r"^(PUBLIC|APP|AWS_IAM|AWS_ROLE|TOKEN|BEARER)$")
+    roleArn: str = Field(default="", max_length=2048, pattern=r"^[A-Za-z0-9+=,.@_:/-]*$")
     username: str = Field(default="", max_length=200, pattern=r"^[^\r\n:]*$")
     token: str = Field(default="", max_length=10000, repr=False, pattern=r"^[!-~]*$")
 
@@ -364,7 +365,7 @@ def image_parts(image):
     return {"registry": host, "repository": repository, "tag": tag, "digest": digest or None}
 
 
-def check_image(image, source_account, allowed_hosts, *, boto3_module=None, fetch=get_json):
+def check_image(image, source_account, allowed_hosts, *, boto3_module=None, fetch=get_json, aws_client=None):
     parts = image_parts(image)
     result = {"image": image, **parts, "status": "NOT_CONNECTED", "registryDigest": None, "architectures": []}
     if parts["registry"] not in allowed_hosts:
@@ -372,22 +373,16 @@ def check_image(image, source_account, allowed_hosts, *, boto3_module=None, fetc
         return result
     ecr = re.fullmatch(r"([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com", parts["registry"])
     if ecr:
-        if ecr[1] != source_account:
-            return {
-                **result,
-                "status": "ACCOUNT_MISMATCH",
-                "reason": "Registry must belong to the registered source AWS account.",
-            }
         if boto3_module is None:
             import boto3 as boto3_module
         image_id = {"imageDigest": parts["digest"]} if parts["digest"] else {"imageTag": parts["tag"]}
-        details = boto3_module.client(
+        details = (aws_client or boto3_module.client(
             "ecr",
             region_name=ecr[2],
             config=__import__("botocore.config", fromlist=["Config"]).Config(
                 connect_timeout=2, read_timeout=3, retries={"max_attempts": 0}
             ),
-        ).describe_images(registryId=ecr[1], repositoryName=parts["repository"], imageIds=[image_id])[
+        )).describe_images(registryId=ecr[1], repositoryName=parts["repository"], imageIds=[image_id])[
             "imageDetails"
         ]
         if details:

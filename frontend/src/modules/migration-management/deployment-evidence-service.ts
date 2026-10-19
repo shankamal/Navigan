@@ -27,9 +27,14 @@ export interface DeploymentSourceSettings {
       secretConfigured?: boolean;
       verifiedAt?: string;
       message?: string;
+      roleArn?: string;
+      externalId?: string;
+      accountId?: string;
+      region?: string;
     }
   >;
   readyForDiscovery?: boolean;
+  registryPrincipalArn?: string;
 }
 export interface RegistryImageEvidence {
   image: string;
@@ -121,6 +126,7 @@ export const deploymentDiscovery = {
       mode: string;
       username?: string;
       token?: string;
+      roleArn?: string;
     }[] = [],
     verify = false,
   ): Promise<DeploymentSourceSettings> =>

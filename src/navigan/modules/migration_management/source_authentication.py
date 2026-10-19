@@ -101,23 +101,85 @@ def request(url, authorization=None, accept=None):
         conn.close()
 
 
-def registry_read(host, credential, path="/v2/", repository=None, aws=False):
+def ecr_identity(host):
+    match = re.fullmatch(r"([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com", host)
+    if not match:
+        raise ValueError("Use a supported AWS ECR private registry hostname.")
+    return match[1], match[2]
+
+
+def ecr_session_policy(account, region):
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {"Effect": "Allow", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"},
+            {
+                "Effect": "Allow",
+                "Action": ["ecr:DescribeImages"],
+                "Resource": f"arn:aws:ecr:{region}:{account}:repository/*",
+            },
+        ],
+    }
+
+
+def ecr_client(host, entry, *, verify_trust=False, boto3_module=None):
+    if boto3_module is None:
+        import boto3 as boto3_module
+    from botocore.config import Config
+
+    account, region = ecr_identity(host)
+    options = {
+        "region_name": region,
+        "config": Config(connect_timeout=2, read_timeout=2, retries={"max_attempts": 0}),
+    }
+    if entry.get("mode") != "AWS_ROLE":
+        return boto3_module.client("ecr", **options)
+    role = entry.get("roleArn", "")
+    if not re.fullmatch(
+        r"arn:aws:iam::" + account + r":role/navigan-source-discovery/[A-Za-z0-9+=,.@_-]+", role
+    ) or not entry.get("externalId"):
+        raise ValueError("Use a registry-account role under the navigan-source-discovery/ IAM path.")
+    sts = boto3_module.client("sts", **options)
+    request = {
+        "RoleArn": role,
+        "RoleSessionName": "NaviganRegistryDiscovery",
+        "DurationSeconds": 900,
+        "Policy": json.dumps(ecr_session_policy(account, region)),
+    }
+    if verify_trust:
+        # Reject trusts that ignore the customer-bound External ID. No credentials from negative tests are used.
+        for bad_id in (None, "navigan-invalid-" + str(uuid4())):
+            try:
+                sts.assume_role(**request, **({"ExternalId": bad_id} if bad_id else {}))
+            except Exception as error:
+                if getattr(error, "response", {}).get("Error", {}).get("Code") not in {
+                    "AccessDenied",
+                    "AccessDeniedException",
+                }:
+                    raise
+            else:
+                raise ValueError("Role trust must require the exact Navigan-generated External ID.")
+    elif not entry.get("trustValidated") or entry.get("status") != "CONNECTED":
+        raise ValueError("Verify role trust before image analysis.")
+    credentials = sts.assume_role(**request, ExternalId=entry["externalId"])["Credentials"]
+    return boto3_module.client(
+        "ecr",
+        **options,
+        aws_access_key_id=credentials["AccessKeyId"],
+        aws_secret_access_key=credentials["SecretAccessKey"],
+        aws_session_token=credentials["SessionToken"],
+    )
+
+
+def registry_read(host, credential, path="/v2/", repository=None, aws=False, aws_client=None):
     endpoint = "registry-1.docker.io" if host == "docker.io" else host
     mode = credential.get("mode", "PUBLIC")
     auth = None
     if aws:
-        import boto3
-
-        match = re.fullmatch(r"([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com", host)
-        if not match:
-            raise ValueError("Invalid ECR registry.")
-        from botocore.config import Config
-
-        data = boto3.client(
-            "ecr",
-            region_name=match[2],
-            config=Config(connect_timeout=2, read_timeout=3, retries={"max_attempts": 0}),
-        ).get_authorization_token(registryIds=[match[1]])["authorizationData"][0]
+        account, _ = ecr_identity(host)
+        data = (aws_client or ecr_client(host, credential)).get_authorization_token(registryIds=[account])[
+            "authorizationData"
+        ][0]
         auth = "Basic " + data["authorizationToken"]
     elif mode == "TOKEN":
         auth = (
@@ -207,7 +269,7 @@ def configure(source, configuration, credentials, previous, verify, app_token):
         mode = change["mode"]
         github = key.startswith("github:")
         if (github and mode not in {"PUBLIC", "APP", "TOKEN"}) or (
-            not github and mode not in {"PUBLIC", "AWS_IAM", "TOKEN", "BEARER"}
+            not github and mode not in {"PUBLIC", "AWS_IAM", "AWS_ROLE", "TOKEN", "BEARER"}
         ):
             raise ApiError(
                 400, "INVALID_AUTHENTICATION", "Choose an authentication method supported by this connection."
@@ -240,16 +302,33 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                 "status": "NOT_VERIFIED",
             }
         else:
-            if mode == "AWS_IAM":
+            role_data = {}
+            if mode in {"AWS_IAM", "AWS_ROLE"}:
                 host = key.removeprefix("registry:")
-                match = re.fullmatch(r"([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com", host)
-                if not match or match[1] != (source.get("delivery_configuration") or {}).get("accountId"):
+                try:
+                    account, region = ecr_identity(host)
+                except ValueError:
                     raise ApiError(
                         400,
-                        "REGISTRY_ACCOUNT_MISMATCH",
-                        "Use an ECR registry in the registered source AWS account.",
+                        "INVALID_ECR_HOST",
+                        "Use an AWS ECR private registry hostname for IAM authentication.",
+                    ) from None
+                role_data.update(accountId=account, region=region)
+                if mode == "AWS_ROLE":
+                    role = change.get("roleArn") or old.get("roleArn", "")
+                    if not re.fullmatch(
+                        r"arn:aws:iam::" + account + r":role/navigan-source-discovery/[A-Za-z0-9+=,.@_-]+",
+                        role,
+                    ):
+                        raise ApiError(
+                            400,
+                            "INVALID_REGISTRY_ROLE",
+                            "Enter a role ARN in the registry account under the navigan-source-discovery/ IAM path.",
+                        )
+                    role_data.update(
+                        roleArn=role, externalId=old.get("externalId") or "navigan-" + str(uuid4())
                     )
-            result[key] = {"mode": mode, "secretConfigured": False, "status": "NOT_VERIFIED"}
+            result[key] = {"mode": mode, "secretConfigured": False, "status": "NOT_VERIFIED", **role_data}
     # Revision/directory changes invalidate repository verification, even if credentials are unchanged.
     before = (source.get("delivery_configuration") or {}).get("deploymentDiscovery", {})
     for entry in configuration["repositories"]:
@@ -285,7 +364,11 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                 else:
                     host = key[9:]
                     credential = {"mode": entry["mode"], **read_credential(source, key, entry)}
-                    registry_read(host, credential, aws=entry["mode"] == "AWS_IAM")
+                    aws_mode = entry["mode"] in {"AWS_IAM", "AWS_ROLE"}
+                    aws_client = ecr_client(host, entry, verify_trust=True) if aws_mode else None
+                    registry_read(host, credential, aws=aws_mode, aws_client=aws_client)
+                    if entry["mode"] == "AWS_ROLE":
+                        entry["trustValidated"] = True
                     message = (
                         "Registry API access verified. Each referenced image is checked during discovery."
                     )

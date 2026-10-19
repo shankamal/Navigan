@@ -23,6 +23,7 @@ type Credential = {
   mode: string;
   username?: string;
   token?: string;
+  roleArn?: string;
 };
 const normalizeRepo = (value: string) =>
   value
@@ -58,6 +59,7 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
       [key]: {
         ...(old[key] ?? {
           key,
+          roleArn: settings.data?.authentication?.[key]?.roleArn,
           mode:
             settings.data?.authentication?.[key]?.mode ??
             (key.startsWith("github:")
@@ -74,12 +76,37 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
     const saved = settings.data?.authentication?.[key];
     const value = credentials[key] ?? {
       key,
+      roleArn: saved?.roleArn,
       mode:
         saved?.mode ??
         (github ? "PUBLIC" : key.includes(".dkr.ecr.") ? "AWS_IAM" : "PUBLIC"),
     };
+    const host = key.slice(9);
+    const ecr = /^([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com$/.exec(
+      host,
+    );
+    const provider = ecr
+      ? "AWS ECR"
+      : host.endsWith(".azurecr.io")
+        ? "Azure Container Registry"
+        : host.endsWith(".pkg.dev") ||
+            host.endsWith(".gcr.io") ||
+            host === "gcr.io"
+          ? "Google container registry"
+          : host === "ghcr.io"
+            ? "GitHub Container Registry"
+            : host === "docker.io"
+              ? "Docker Hub"
+              : "OCI / Docker Registry V2";
     return (
       <>
+        {!github && (
+          <small>
+            <strong>{provider}</strong>
+            {ecr && ` · Registry account ${ecr[1]} · Region ${ecr[2]}`} ·
+            Independent of the source and target cluster accounts.
+          </small>
+        )}
         <label>
           Authentication *{" "}
           <select
@@ -93,9 +120,14 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             <option value="PUBLIC">Public / anonymous</option>
             {github ? (
               <option value="APP">Existing customer GitHub App</option>
-            ) : (
-              <option value="AWS_IAM">AWS ECR · Navigan IAM role</option>
-            )}
+            ) : ecr ? (
+              <>
+                <option value="AWS_IAM">AWS ECR · Navigan IAM role</option>
+                <option value="AWS_ROLE">
+                  AWS ECR · Customer IAM role (any account)
+                </option>
+              </>
+            ) : null}
             <option value="TOKEN">
               {github
                 ? "Fine-grained GitHub token"
@@ -104,6 +136,118 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
             {!github && <option value="BEARER">Registry bearer token</option>}
           </select>
         </label>
+        {!github && value.mode === "AWS_ROLE" && (
+          <>
+            <label>
+              Registry read-only role ARN *
+              <input
+                required
+                value={value.roleArn ?? ""}
+                placeholder={`arn:aws:iam::${ecr?.[1] ?? "123456789012"}:role/navigan-source-discovery/RegistryReadOnly`}
+                title="A role in the registry account, using IAM path /navigan-source-discovery/. Navigan never uses the source cluster role for this connection."
+                onChange={(e) => change(key, { roleArn: e.target.value })}
+              />
+            </label>
+            <small>
+              Save connections first to generate your External ID. Ask the
+              registry account administrator to create the role with the trust
+              and read-only permissions below, then select Save and verify
+              access. Role setup can be tested in this DEV account too.
+            </small>
+            {saved?.externalId ? (
+              <>
+                <label>
+                  Navigan-generated External ID
+                  <input
+                    readOnly
+                    value={saved.externalId}
+                    title="Add this exact value to the registry role trust policy. It is generated and bound to this customer/source registry connection."
+                  />
+                </label>
+                {settings.data?.registryPrincipalArn ? (
+                  <details>
+                    <summary>Customer role trust and permissions</summary>
+                    <p>
+                      Create the role with IAM path{" "}
+                      <code>/navigan-source-discovery/</code>.
+                    </p>
+                    <label>
+                      Trust policy
+                      <textarea
+                        readOnly
+                        rows={12}
+                        value={JSON.stringify(
+                          {
+                            Version: "2012-10-17",
+                            Statement: [
+                              {
+                                Effect: "Allow",
+                                Principal: {
+                                  AWS: settings.data.registryPrincipalArn,
+                                },
+                                Action: "sts:AssumeRole",
+                                Condition: {
+                                  StringEquals: {
+                                    "sts:ExternalId": saved.externalId,
+                                  },
+                                },
+                              },
+                            ],
+                          },
+                          null,
+                          2,
+                        )}
+                      />
+                    </label>
+                    <label>
+                      Read-only ECR permission policy
+                      <textarea
+                        readOnly
+                        rows={12}
+                        value={JSON.stringify(
+                          {
+                            Version: "2012-10-17",
+                            Statement: [
+                              {
+                                Effect: "Allow",
+                                Action: ["ecr:GetAuthorizationToken"],
+                                Resource: "*",
+                              },
+                              {
+                                Effect: "Allow",
+                                Action: ["ecr:DescribeImages"],
+                                Resource: `arn:aws:ecr:${ecr?.[2]}:${ecr?.[1]}:repository/*`,
+                              },
+                            ],
+                          },
+                          null,
+                          2,
+                        )}
+                      />
+                    </label>
+                  </details>
+                ) : (
+                  <p>
+                    Deploy the latest DEV backend to display Navigan’s trusted
+                    IAM principal.
+                  </p>
+                )}
+              </>
+            ) : (
+              <small>
+                External ID will appear after you save this role connection.
+              </small>
+            )}
+          </>
+        )}
+        {!github && !ecr && (
+          <small>
+            Use public access, a registry username with a read-only token, or a
+            pre-issued bearer token supported by your provider. Cloud federation
+            is not configured by this form. Separate token-service hosts require
+            a pre-issued bearer token.
+          </small>
+        )}
         {!github && value.mode === "TOKEN" && (
           <label>
             Registry username *{" "}
@@ -190,7 +334,7 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
       ...cleaned.repositories.map((r) => "github:" + r.repository),
       ...cleaned.registries.map((h) => "registry:" + h),
     ];
-    const changes = keys.flatMap((key) => {
+    const changes: Credential[] = keys.flatMap((key) => {
       // Normalize entered GitHub URLs before matching their write-only credential fields.
       const entered = Object.values(credentials).find(
         (c) =>
@@ -205,6 +349,20 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
         ];
       return [];
     });
+    if (
+      changes.some(
+        (c) =>
+          c.mode === "AWS_ROLE" &&
+          !/^arn:aws:iam::[0-9]{12}:role\/navigan-source-discovery\/[A-Za-z0-9+=,.@_-]+$/.test(
+            c.roleArn ?? "",
+          ),
+      )
+    ) {
+      setError(
+        "Enter the registry role ARN under the navigan-source-discovery/ IAM path, then save to generate an External ID.",
+      );
+      return;
+    }
     if (
       changes.some(
         (c) =>
@@ -407,7 +565,7 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
                     required
                     value={host}
                     placeholder="905418045935.dkr.ecr.ap-south-1.amazonaws.com"
-                    title="Use a hostname without https:// or an image path. ECR IAM access currently supports the registered source AWS account."
+                    title="Use a hostname without https:// or an image path. Use the customer IAM role option for a separately authorized AWS account."
                     onChange={(e) =>
                       setDraft({
                         ...configuration,
