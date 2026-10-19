@@ -592,6 +592,77 @@ class Service:
         result["enrollmentToken"] = token
         return result
 
+    def source_installation_check(self, source):
+        result = {
+            "canRestore": False,
+            "code": "UNAVAILABLE",
+            "message": "Recovery is unavailable.",
+            "conflicts": [],
+        }
+        try:
+            self.access.require("migration.edit")
+            self.access.require_customer(source["customer_id"], source["created_by"])
+        except ApiError:
+            return {**result, "code": "FORBIDDEN", "message": "Recovery requires edit access to this customer."}
+        if source["status"] == "REVOKED":
+            return {**result, "code": "REVOKED", "message": "This registration has been revoked."}
+        config = source.get("delivery_configuration") or {}
+        if (
+            source.get("delivery_method") != "AWS_SSM"
+            or source.get("location_type") != "CLOUD"
+            or source.get("cloud_provider") != "AWS"
+            or not all(config.get(key) for key in ("accountId", "region", "managedInstanceId"))
+        ):
+            return {
+                **result,
+                "code": "DELIVERY_UNAVAILABLE",
+                "message": "Automatic recovery requires the saved AWS Systems Manager host configuration.",
+            }
+        seen = source.get("connector_last_seen_at")
+        if isinstance(seen, str):
+            try:
+                seen = datetime.fromisoformat(seen.replace("Z", "+00:00"))
+            except ValueError:
+                seen = None
+        if seen and -30 <= (datetime.now(timezone.utc) - seen).total_seconds() < 120:
+            return {
+                **result,
+                "code": "ALREADY_CONNECTED",
+                "message": "This registration already has a recent connector heartbeat.",
+            }
+        conflicts = self.repo.source_installation_conflicts(source)
+        visible = []
+        for other in conflicts:
+            try:
+                self.access.require_customer(other["customer_id"], other["created_by"])
+            except ApiError:
+                return {
+                    **result,
+                    "code": "OTHER_CUSTOMER_ACCESS_REQUIRED",
+                    "message": "Another customer registration uses this installation. A platform administrator with access to both customers must resolve the association.",
+                }
+            if other.get("installation_in_progress"):
+                return {
+                    **result,
+                    "code": "INSTALLATION_IN_PROGRESS",
+                    "message": "Another installation was started on this host within the last ten minutes. Wait for it to finish before recovery.",
+                }
+            if other["has_active_assignment"]:
+                return {
+                    **result,
+                    "code": "INSTALLATION_IN_USE",
+                    "message": "Another assessment is using this installation. Recovery is blocked to avoid interrupting it.",
+                }
+            visible.append(
+                {"sourceClusterId": other["source_cluster_id"], "customerName": other["customer_name"]}
+            )
+        return {
+            "canRestore": True,
+            "code": "RESTORE_AVAILABLE",
+            "conflicts": visible,
+            "message": "Restore this customer's existing registration on its saved source host. Other registrations on the same installation will stop receiving heartbeats.",
+        }
+
     def install_source_connector(self, identifier, body, installer):
         self.access.require("migration.edit")
         source_cluster = self.repo.get_source_cluster(
@@ -615,6 +686,27 @@ class Service:
                 "A revoked source cluster cannot be installed.",
             )
 
+        if source_cluster.get("delivery_method") == "AWS_SSM":
+            self.repo.lock_source_installation(source_cluster)
+            if not body.get("recoveryMigrationId") and self.repo.source_installation_conflicts(source_cluster):
+                raise ApiError(
+                    409,
+                    "SOURCE_INSTALLATION_ALREADY_REGISTERED",
+                    "This source host already has another active registration, installation or assessment. Reuse the authorised connection or restore the existing assessment connection.",
+                )
+
+        if body.get("recoveryMigrationId"):
+            migration = self.repo.get(body["recoveryMigrationId"], lock=True)
+            self.access.require_customer(migration["customer_id"], migration["created_by"])
+            if (migration["customer_id"] != source_cluster["customer_id"]
+                    or migration["source_configuration"].get("sourceClusterId") != identifier):
+                raise ApiError(409, "SOURCE_RECOVERY_CONTEXT_CHANGED", "The assessment source association changed. Reload before recovery.")
+            if migration["status"] not in {"SOURCE_ENROLLMENT_PENDING", "DISCOVERY_PENDING"}:
+                raise ApiError(409, "SOURCE_RECOVERY_NOT_PENDING", "This assessment is not waiting for a source connector.")
+            check = self.source_installation_check(source_cluster)
+            if not check["canRestore"]:
+                raise ApiError(409, check["code"], check["message"])
+
         token = secrets.token_urlsafe(32)
         enrollment = self.repo.create_source_enrollment(
             source_cluster,
@@ -630,6 +722,7 @@ class Service:
             {
                 "commandId": installation["commandId"],
                 "managedInstanceId": installation["managedInstanceId"],
+                **({"recoveryMigrationId": body["recoveryMigrationId"]} if body.get("recoveryMigrationId") else {}),
             },
         )
         return {

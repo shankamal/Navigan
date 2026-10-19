@@ -408,8 +408,10 @@ export const migrations = {
 const sourceClustersBase = "/source-clusters";
 
 export const sourceClusters = {
-  get: async (sourceClusterId: string) =>
-    parseResponse(sourceClusterSchema, (await apiClient.get(`${sourceClustersBase}/${sourceClusterId}`)).data),
+  get: async (sourceClusterId: string, installationCheck = false) =>
+    parseResponse(sourceClusterSchema, (await apiClient.get(`${sourceClustersBase}/${sourceClusterId}`, {
+      params: installationCheck ? {installationCheck: "true"} : undefined,
+    })).data),
   list: async (customerId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceClusterListSchema,
@@ -466,7 +468,7 @@ export const sourceClusters = {
       ).data,
     ),
 
-  install: async (sourceClusterId: string, version: number) =>
+  install: async (sourceClusterId: string, version: number, recoveryMigrationId?: string) =>
     parseResponse(
       sourceInstallationSchema,
       (
@@ -475,12 +477,15 @@ export const sourceClusters = {
           {
             version,
             reason: "Install read-only source assessment connector",
+            ...(recoveryMigrationId ? {recoveryMigrationId} : {}),
           },
           {
             headers: writeHeaders({
               // Reusing this key on remount/retry returns the original SSM
               // command instead of launching another installation.
-              key: `source-connector-install:${sourceClusterId}:v${version}`,
+              key: recoveryMigrationId
+                ? `source-connector-recover:${sourceClusterId}:v${version}:${recoveryMigrationId}`
+                : `source-connector-install:${sourceClusterId}:v${version}`,
               version,
             }),
           },

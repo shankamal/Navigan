@@ -325,7 +325,10 @@ def execute(event, principal, correlation):
             elif route == "source_cluster_get":
                 from .repository import serialize
 
-                value = serialize(repo.get_source_cluster(identifier))
+                source = repo.get_source_cluster(identifier)
+                value = serialize(source)
+                if (event.get("queryStringParameters") or {}).get("installationCheck") == "true":
+                    value["installationCheck"] = Service(repo, access, correlation).source_installation_check(source)
             elif route == "list":
                 value = repo.list(query_of(event))
             elif route == "source_catalogue":
@@ -500,3 +503,4 @@ def lambda_handler(event, context):
             internal.payload(correlation),
             correlation,
         )
+

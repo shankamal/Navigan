@@ -183,6 +183,7 @@ class CreateSourceEnrollment(Model):
 class InstallSourceConnector(Model):
     version: int = Field(gt=0)
     reason: str = Field(min_length=3, max_length=2000)
+    recoveryMigrationId: str | None = Field(default=None, pattern=r"^MIG-[a-f0-9]{32}$")
 
 
 class EnrollSourceConnector(Model):

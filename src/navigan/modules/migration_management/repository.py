@@ -92,6 +92,59 @@ class Repository:
         ).fetchall()
         return {"items": [serialize(row) for row in rows]}
 
+    def source_installation_conflicts(self, source):
+        # Physical installation identity, never a display-name match. This is an
+        # internal conflict check; Service redacts rows outside actor access.
+        config = source.get("delivery_configuration") or {}
+        return self.db.execute(
+            "SELECT s.source_cluster_id,s.customer_id,s.created_by,c.name AS customer_name,"
+            "EXISTS(SELECT 1 FROM migration_management.migrations m "
+            "WHERE m.source_configuration->>'sourceClusterId'=s.source_cluster_id "
+            "AND (m.status IN ('SOURCE_ENROLLMENT_PENDING','INVENTORY_DISCOVERING',"
+            "'DISCOVERY_PENDING','DISCOVERING','ASSESSING') OR "
+            "(m.status='DRAFT' AND COALESCE(m.source_configuration->>'discoveryMode','')<>'MANUAL'))) "
+            "AS has_active_assignment, "
+            "EXISTS(SELECT 1 FROM migration_management.source_cluster_audit_log a "
+            "WHERE a.source_cluster_id=s.source_cluster_id "
+            "AND a.action='SOURCE_CONNECTOR_INSTALLATION_STARTED' "
+            "AND a.occurred_at>now()-interval '10 minutes') AS installation_in_progress "
+            "FROM migration_management.source_clusters s "
+            "JOIN customer_management.customers c USING(customer_id) "
+            "WHERE s.source_cluster_id<>%s AND s.status<>'REVOKED' "
+            "AND s.delivery_method='AWS_SSM' "
+            "AND s.delivery_configuration->>'accountId'=%s "
+            "AND s.delivery_configuration->>'region'=%s "
+            "AND s.delivery_configuration->>'managedInstanceId'=%s "
+            "AND COALESCE(s.delivery_configuration->>'kubeconfigPath','/etc/kubernetes/admin.conf')=%s "
+            "AND (EXISTS(SELECT 1 FROM migration_management.source_cluster_connectors sc "
+            "WHERE sc.source_cluster_id=s.source_cluster_id AND sc.status='ACTIVE' "
+            "AND sc.expires_at>now() AND sc.last_seen_at>now()-interval '2 minutes') "
+            "OR EXISTS(SELECT 1 FROM migration_management.source_cluster_audit_log a "
+            "WHERE a.source_cluster_id=s.source_cluster_id "
+            "AND a.action='SOURCE_CONNECTOR_INSTALLATION_STARTED' "
+            "AND a.occurred_at>now()-interval '10 minutes') "
+            "OR EXISTS(SELECT 1 FROM migration_management.migrations m "
+            "WHERE m.source_configuration->>'sourceClusterId'=s.source_cluster_id "
+            "AND (m.status IN ('SOURCE_ENROLLMENT_PENDING','INVENTORY_DISCOVERING',"
+            "'DISCOVERY_PENDING','DISCOVERING','ASSESSING') OR "
+            "(m.status='DRAFT' AND COALESCE(m.source_configuration->>'discoveryMode','')<>'MANUAL'))))",
+            [
+                source["source_cluster_id"],
+                config.get("accountId"),
+                config.get("region"),
+                config.get("managedInstanceId"),
+                config.get("kubeconfigPath") or "/etc/kubernetes/admin.conf",
+            ],
+        ).fetchall()
+
+    def lock_source_installation(self, source):
+        config = source.get("delivery_configuration") or {}
+        identity = json_text(
+            [config.get(key) for key in ("accountId", "region", "managedInstanceId")]
+            + [config.get("kubeconfigPath") or "/etc/kubernetes/admin.conf"]
+        )
+        self.db.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", [identity])
+
     def create_source_cluster(self, row, correlation):
         created = self.db.execute(
             "INSERT INTO migration_management.source_clusters("

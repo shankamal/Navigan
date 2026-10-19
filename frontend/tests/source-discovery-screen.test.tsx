@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   customer: vi.fn(),
   discover: vi.fn(),
   assess: vi.fn(),
+  install: vi.fn(),
 }));
 vi.mock("@/modules/customer-management/services/customers", () => ({
   customersService: { detail: api.customer },
@@ -25,7 +26,7 @@ vi.mock("@/modules/migration-management/service", () => ({
     discover: api.discover,
     assess: api.assess,
   },
-  sourceClusters: { get: api.source },
+  sourceClusters: { get: api.source, install: api.install },
 }));
 const migration = {
   migrationId: "MIG-demo",
@@ -88,7 +89,11 @@ beforeEach(() => {
   api.customer.mockResolvedValue({ name: "DB Schenker" });
   api.source.mockResolvedValue({
     name: "Authorised source",
+    sourceClusterId: "SRC-db",
     customerId: "CUS-db",
+    version: 2,
+    status: "CONNECTED",
+    connectorLastSeenAt: new Date().toISOString(),
     distribution: "kubeadm",
     region: "ap-south-1",
   });
@@ -186,4 +191,85 @@ it("keeps completed source evidence accessible after planning-only version updat
       inventory as never,
     ),
   ).toBe(true);
+});
+
+it("offers guarded recovery for a stale registered connector instead of claiming discovery progress", async () => {
+  api.get.mockResolvedValue({
+    ...migration,
+    status: "DISCOVERY_PENDING",
+    version: 5,
+  });
+  api.inventory.mockResolvedValue({ inventory: null });
+  api.assessment.mockResolvedValue({ assessment: null });
+  api.source.mockResolvedValue({
+    sourceClusterId: "SRC-db",
+    customerId: "CUS-db",
+    name: "Authorised source",
+    version: 2,
+    status: "CONNECTED",
+    connectorLastSeenAt: "2026-01-01T00:00:00Z",
+    installationCheck: {
+      canRestore: true,
+      code: "RESTORE_AVAILABLE",
+      message: "Restore this existing registration",
+      conflicts: [
+        { sourceClusterId: "SRC-other", customerName: "Demo customer" },
+      ],
+    },
+  });
+  api.install.mockResolvedValue({ commandId: "ssm-command-1" });
+  open();
+  const button = await screen.findByRole("button", {
+    name: "Restore source connection",
+  });
+  expect(
+    screen.getByRole("heading", { name: "Waiting for source connector" }),
+  ).toBeVisible();
+  expect(screen.getByText(/Demo customer \(SRC-other\)/)).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Open Migration Workspace" }),
+  ).toBeDisabled();
+  expect(api.install).not.toHaveBeenCalled();
+  fireEvent.click(button);
+  await waitFor(() =>
+    expect(api.install).toHaveBeenCalledWith("SRC-db", 2, "MIG-demo"),
+  );
+  expect(
+    await screen.findByRole("button", { name: "Restoring connection…" }),
+  ).toBeDisabled();
+  expect(api.assess).not.toHaveBeenCalled();
+  expect(api.discover).not.toHaveBeenCalled();
+});
+
+it("keeps recovery unavailable when backend reports another active assessment", async () => {
+  api.get.mockResolvedValue({ ...migration, status: "DISCOVERY_PENDING" });
+  api.source.mockResolvedValue({
+    sourceClusterId: "SRC-db",
+    customerId: "CUS-db",
+    name: "Authorised source",
+    version: 2,
+    status: "CONNECTED",
+    connectorLastSeenAt: "2026-01-01T00:00:00Z",
+    installationCheck: {
+      canRestore: false,
+      code: "INSTALLATION_IN_USE",
+      message: "Another assessment is using this installation.",
+      conflicts: [],
+    },
+  });
+  open();
+  await screen.findByText("Another assessment is using this installation.");
+  expect(
+    screen.queryByRole("button", { name: "Restore source connection" }),
+  ).not.toBeInTheDocument();
+  expect(api.install).not.toHaveBeenCalled();
+});
+
+it("refreshes connector diagnostics together with migration status", async () => {
+  open();
+  const button = await screen.findByRole("button", { name: "Refresh status" });
+  await waitFor(() => expect(button).toBeEnabled());
+  api.source.mockClear();
+  fireEvent.click(button);
+  await waitFor(() => expect(api.source).toHaveBeenCalledWith("SRC-db", true));
 });

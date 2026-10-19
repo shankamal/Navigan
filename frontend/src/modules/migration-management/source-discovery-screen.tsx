@@ -78,6 +78,8 @@ export function SourceDiscoveryScreen({
   const query = useSourceDiscoverySnapshot(migrationId, !timedOut);
   const cache = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [repairUntil, setRepairUntil] = useState(0);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [namespace, setNamespace] = useState("");
@@ -96,10 +98,53 @@ export function SourceDiscoveryScreen({
   });
   const sourceQuery = useQuery({
     queryKey: ["discovery-source", sourceId],
-    queryFn: () => sourceClusters.get(sourceId),
+    queryFn: () => sourceClusters.get(sourceId, true),
     enabled: Boolean(sourceId),
     retry: false,
+    refetchInterval:
+      repairUntil ||
+      (!timedOut && sourceDiscoveryRunning(migration?.status ?? ""))
+        ? 5000
+        : false,
+    refetchOnWindowFocus: false,
   });
+  const seen = sourceQuery.data?.connectorLastSeenAt;
+  const heartbeatAge =
+    Date.now() - Date.parse(typeof seen === "string" ? seen : "");
+  const sourceFresh =
+    sourceQuery.data?.status === "CONNECTED" &&
+    heartbeatAge >= -30000 &&
+    heartbeatAge < 120000;
+  const waitingForConnector = Boolean(
+    sourceQuery.data &&
+    !sourceFresh &&
+    ["SOURCE_ENROLLMENT_PENDING", "DISCOVERY_PENDING"].includes(
+      migration?.status ?? "",
+    ),
+  );
+  const recovering = Boolean(repairUntil);
+  const installationCheck = sourceQuery.data?.installationCheck;
+  useEffect(() => {
+    if (!repairUntil) return;
+    if (sourceFresh) {
+      setRepairUntil(0);
+      setRecoveryMessage(
+        "Source connection restored. The connector can now claim the pending discovery assignment.",
+      );
+      void query.refetch();
+      return;
+    }
+    const timer = setTimeout(
+      () => {
+        setRepairUntil(0);
+        setRecoveryMessage(
+          "Recovery was requested but no recent heartbeat arrived within two minutes. Refresh status to check again; another installation has not been started.",
+        );
+      },
+      Math.max(0, repairUntil - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [repairUntil, sourceFresh, query.refetch]);
   const running = sourceDiscoveryRunning(migration?.status ?? "");
   useEffect(() => {
     if (!running) {
@@ -108,7 +153,7 @@ export function SourceDiscoveryScreen({
     }
     const timer = setTimeout(() => setTimedOut(true), 120000);
     return () => clearTimeout(timer);
-  }, [running]);
+  }, [running, repairUntil]);
   const ready = Boolean(
     migration &&
     sourceWorkspaceReady(migration, assessment ?? null, inventory ?? null),
@@ -134,6 +179,58 @@ export function SourceDiscoveryScreen({
   const canStart =
     migration?.status === "DRAFT" || migration?.status === "REJECTED";
   const canAssess = migration?.status === "INVENTORY_READY";
+
+  async function restoreConnection() {
+    if (!migration || busy || recovering || !installationCheck?.canRestore)
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const current = await migrations.get(migrationId);
+      if (
+        current.customerId !== migration.customerId ||
+        current.sourceConfiguration.sourceClusterId !== sourceId
+      )
+        throw new Error(
+          "The assessment association changed. Refresh before restoring its connection.",
+        );
+      const latest = await sourceClusters.get(sourceId, true);
+      if (
+        latest.customerId !== current.customerId ||
+        !latest.installationCheck?.canRestore
+      )
+        throw new Error(
+          latest.installationCheck?.message ??
+            "Recovery checks did not pass. Deploy the latest DEV backend and refresh status.",
+        );
+      const installation = await sourceClusters.install(
+        sourceId,
+        latest.version,
+        migrationId,
+      );
+      setRecoveryMessage(
+        `Restoring the existing source registration through AWS Systems Manager. Command: ${installation.commandId}. Waiting for a recent heartbeat…`,
+      );
+      setTimedOut(false);
+      setRepairUntil(Date.now() + 120000);
+      await sourceQuery.refetch();
+    } catch (failure) {
+      setError(
+        failure instanceof Error && !("status" in failure)
+          ? failure.message
+          : normalizeApiError(failure).message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function refreshStatus() {
+    await Promise.all([
+      query.refetch(),
+      sourceId ? sourceQuery.refetch() : Promise.resolve(),
+    ]);
+  }
 
   async function run() {
     if (!migration || busy || !sourceOwned) return;
@@ -169,11 +266,15 @@ export function SourceDiscoveryScreen({
     );
   const phase = ready
     ? "Source assessment complete"
-    : migration.status === "INVENTORY_READY"
-      ? "Namespace catalogue ready"
-      : running
-        ? "Source discovery in progress"
-        : "Ready to discover your source";
+    : recovering
+      ? "Restoring source connection"
+      : waitingForConnector
+        ? "Waiting for source connector"
+        : migration.status === "INVENTORY_READY"
+          ? "Namespace catalogue ready"
+          : running
+            ? "Source discovery in progress"
+            : "Ready to discover your source";
 
   return (
     <div className={shared.screen}>
@@ -195,7 +296,13 @@ export function SourceDiscoveryScreen({
       >
         {steps.map((step, index) => (
           <li key={step} aria-current={index === 1 ? "step" : undefined}>
-            <span>{index === 0 ? <CheckCircle2 size={16} /> : index + 1}</span>
+            <span>
+              {index === 0 && (sourceFresh || ready) ? (
+                <CheckCircle2 size={16} />
+              ) : (
+                index + 1
+              )}
+            </span>
             {step}
           </li>
         ))}
@@ -251,7 +358,7 @@ export function SourceDiscoveryScreen({
         aria-label="Discovery progress"
       >
         <div className={styles.phase}>
-          {running ? (
+          {recovering || (running && !waitingForConnector) ? (
             <LoaderCircle className={shared.spinner} size={24} />
           ) : ready ? (
             <CheckCircle2 size={24} />
@@ -261,13 +368,17 @@ export function SourceDiscoveryScreen({
           <div>
             <h2>{phase}</h2>
             <p>
-              {running
-                ? "Collecting source evidence. This panel stays visible while status updates in the background."
-                : ready
-                  ? "Inventory and findings are saved. Choose migration scope in the workspace next."
-                  : canAssess
-                    ? "The connector has discovered the namespace catalogue. Run the source assessment to collect detailed resource evidence."
-                    : "Discover namespaces first, then assess application workloads and their associated resources."}
+              {recovering
+                ? "Restoring this customer's existing registration. Discovery will resume when its connector reports a heartbeat."
+                : waitingForConnector
+                  ? "The connector for this assessment's source registration has no recent heartbeat. Inventory collection is waiting; it is not making progress."
+                  : running
+                    ? "Collecting source evidence. This panel stays visible while status updates in the background."
+                    : ready
+                      ? "Inventory and findings are saved. Choose migration scope in the workspace next."
+                      : canAssess
+                        ? "The connector has discovered the namespace catalogue. Run the source assessment to collect detailed resource evidence."
+                        : "Discover namespaces first, then assess application workloads and their associated resources."}
             </p>
           </div>
         </div>
@@ -275,7 +386,13 @@ export function SourceDiscoveryScreen({
           {(canStart || canAssess) && (
             <button
               className={shared.primary}
-              disabled={busy || !sourceOwned || query.isError}
+              disabled={
+                busy ||
+                recovering ||
+                !sourceOwned ||
+                query.isError ||
+                !sourceFresh
+              }
               onClick={run}
             >
               {busy
@@ -285,13 +402,58 @@ export function SourceDiscoveryScreen({
                   : "Discover source inventory"}
             </button>
           )}
+          {waitingForConnector && installationCheck?.canRestore && (
+            <button
+              className={shared.primary}
+              disabled={busy || recovering || !sourceOwned}
+              onClick={restoreConnection}
+            >
+              {recovering
+                ? "Restoring connection…"
+                : busy
+                  ? "Checking recovery…"
+                  : "Restore source connection"}
+            </button>
+          )}
           <button
-            disabled={busy || query.isFetching}
-            onClick={() => query.refetch()}
+            disabled={busy || query.isFetching || sourceQuery.isFetching}
+            onClick={refreshStatus}
           >
             Refresh status
           </button>
         </div>
+        {waitingForConnector && (
+          <div className={styles.caution} role="status">
+            <strong>Source registration: {sourceId}</strong>
+            <p>
+              Last heartbeat: {typeof seen === "string" ? seen : "Not reported"}
+              .
+            </p>
+            <p>
+              {installationCheck?.message ??
+                "Recovery diagnostics are unavailable. Deploy the latest DEV backend and refresh status."}
+            </p>
+            {Boolean(installationCheck?.conflicts.length) && (
+              <p>
+                Other live registrations on this host:{" "}
+                {installationCheck!.conflicts
+                  .map(
+                    (item) => `${item.customerName} (${item.sourceClusterId})`,
+                  )
+                  .join(", ")}
+                . Restoring replaces the connector credentials on this
+                installation; those registrations will stop receiving
+                heartbeats.
+              </p>
+            )}
+            <p>
+              The existing registration is reused. No customer ownership,
+              assessment scope, target environment or application workload is
+              changed.
+            </p>
+          </div>
+        )}
+        {recoveryMessage && <p role="status">{recoveryMessage}</p>}
         <ol className={styles.phases}>
           {[
             "Namespace catalogue",
@@ -316,7 +478,7 @@ export function SourceDiscoveryScreen({
             </li>
           ))}
         </ol>
-        {timedOut && (
+        {timedOut && !waitingForConnector && !recovering && (
           <p role="status" className={styles.caution}>
             Discovery is taking longer than expected. Check the source connector
             and API access; use Refresh status to check progress. No completed

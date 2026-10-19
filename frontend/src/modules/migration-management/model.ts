@@ -165,6 +165,16 @@ export const discoveryConnectorSchema = z
 
 export const sourceClusterSchema = z
   .object({
+    installationCheck: z
+      .object({
+        canRestore: z.boolean(),
+        code: z.string(),
+        message: z.string(),
+        conflicts: z.array(
+          z.object({ sourceClusterId: z.string(), customerName: z.string() }),
+        ),
+      })
+      .optional(),
     sourceClusterId: z.string().regex(/^SRC-[a-f0-9]{32}$/),
     customerId: z.string(),
     customerName: z.string().optional(),
