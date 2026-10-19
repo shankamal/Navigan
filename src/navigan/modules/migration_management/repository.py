@@ -432,7 +432,7 @@ class Repository:
             ),
         }
 
-    def require_planning_configuration(self, identifier, assessment_version, current):
+    def require_planning_configuration(self, identifier, assessment_version, current, source_only=False):
         snapshot = self.db.execute(
             "SELECT snapshot FROM migration_management.migration_versions "
             "WHERE migration_id=%s AND version=%s",
@@ -440,7 +440,7 @@ class Repository:
         ).fetchone()
         if not snapshot or any(
             snapshot["snapshot"].get(camel(column)) != current[column]
-            for column in ("source_configuration", "target_configuration", "migration_scope")
+            for column in (("source_configuration", "migration_scope") if source_only else ("source_configuration", "target_configuration", "migration_scope"))
         ):
             raise ApiError(
                 409,

@@ -20,6 +20,7 @@ import {
   sourceDiscoveryRunning,
   sourceWorkspaceReady,
 } from "./source-discovery-state";
+import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
 import styles from "./source-discovery-screen.module.css";
 
@@ -30,14 +31,7 @@ const workloadKinds = new Set([
   "Job",
   "CronJob",
 ]);
-const steps = [
-  "Source connection",
-  "Discovery & assessment",
-  "Migration scope",
-  "Target & compatibility",
-  "Review & approval",
-  "Execute",
-];
+
 
 export function useSourceDiscoverySnapshot(
   migrationId: string,
@@ -291,23 +285,7 @@ export function SourceDiscoveryScreen({
           <ArrowLeft size={15} /> Back to assessments
         </Link>
       </header>
-      <ol
-        className={`${shared.journey} ${styles.journey}`}
-        aria-label="Migration workflow"
-      >
-        {steps.map((step, index) => (
-          <li key={step} aria-current={index === 1 ? "step" : undefined}>
-            <span>
-              {index === 0 && (sourceFresh || ready) ? (
-                <CheckCircle2 size={16} />
-              ) : (
-                index + 1
-              )}
-            </span>
-            {step}
-          </li>
-        ))}
-      </ol>
+      <MigrationWorkflow active={2} completed={sourceFresh || ready ? [1] : []} />
       <section
         className={`${shared.panel} ${styles.context}`}
         aria-label="Migration context"

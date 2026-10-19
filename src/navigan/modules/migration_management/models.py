@@ -412,7 +412,17 @@ class MigrationStorageMapping(Model):
     status: Literal["PROPOSED", "REVIEWED"] = "PROPOSED"
 
 
+class MigrationDeploymentSource(Model):
+    workload: PlannedResource
+    method: Literal["UNKNOWN", "HELM", "MANIFESTS", "SCRIPT", "REPOSITORY", "OTHER"] = "UNKNOWN"
+    bundleName: str = Field(default="", max_length=200)
+    reference: str = Field(default="", max_length=1000)
+    releaseName: str = Field(default="", max_length=100)
+
+
 class MigrationPlanningDraft(Model):
+    workflow: Literal["SOURCE_FIRST"] | None = None
+    deploymentSources: list[MigrationDeploymentSource] = Field(default_factory=list, max_length=2000)
     schemaVersion: Literal[1] = 1
     mode: Literal["SELECTED_WORKLOADS", "FULL_CLUSTER"]
     assessmentVersion: int = Field(gt=0)
@@ -433,6 +443,12 @@ class MigrationPlanningDraft(Model):
         storage_keys = [(m.namespace, m.sourceClaim) for m in self.storageMappings]
         if len(keys) != len(set(keys)) or len(findings) != len(set(findings)) or len(storage_keys) != len(set(storage_keys)):
             raise ValueError("Resource and finding entries must be unique.")
+        if self.workflow == "SOURCE_FIRST" and self.mode != "SELECTED_WORKLOADS":
+            raise ValueError("Source-first planning selects application workloads, not a full cluster.")
+        selected_workloads = {(r.apiVersion, r.kind, r.namespace, r.name) for r in self.resources if not r.dependency and r.kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod", "DeploymentConfig"}}
+        source_keys = [(s.workload.apiVersion, s.workload.kind, s.workload.namespace, s.workload.name) for s in self.deploymentSources]
+        if len(source_keys) != len(set(source_keys)) or not set(source_keys).issubset(selected_workloads):
+            raise ValueError("Deployment sources must refer to unique selected workloads.")
         return self
 
 

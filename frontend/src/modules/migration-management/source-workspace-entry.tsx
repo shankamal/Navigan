@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MigrationPlanningWorkspace } from "./planning-workspace";
+import { SourceMigrationWorkspace } from "./source-migration-workspace";
 import { useSourceDiscoverySnapshot } from "./source-discovery-screen";
 import { sourceWorkspaceReady } from "./source-discovery-state";
 
@@ -26,5 +26,11 @@ export function SourceWorkspaceEntry({ migrationId }: { migrationId: string }) {
         </Link>
       </section>
     );
-  return <MigrationPlanningWorkspace migrationId={migrationId} />;
+  return (
+    <SourceMigrationWorkspace
+      migration={data.migration}
+      assessment={data.assessment!}
+      inventory={data.inventory!}
+    />
+  );
 }

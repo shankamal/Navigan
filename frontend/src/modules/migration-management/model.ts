@@ -385,7 +385,16 @@ export interface MigrationStorageMapping {
   targetAccessMode: string;
   status: "PROPOSED" | "REVIEWED";
 }
+export interface MigrationDeploymentSource {
+  workload: Pick<PlannedResource, "apiVersion" | "kind" | "namespace" | "name">;
+  method: "UNKNOWN" | "HELM" | "MANIFESTS" | "SCRIPT" | "REPOSITORY" | "OTHER";
+  bundleName: string;
+  reference: string;
+  releaseName: string;
+}
 export interface MigrationPlanningDraft {
+  workflow?: "SOURCE_FIRST";
+  deploymentSources?: MigrationDeploymentSource[];
   schemaVersion: 1;
   mode: "SELECTED_WORKLOADS" | "FULL_CLUSTER";
   assessmentVersion: number;

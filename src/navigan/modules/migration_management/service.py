@@ -284,7 +284,18 @@ class Service:
         )
         if not target_matches:
             target = None
+        draft = migration.get("planning_draft") or {}
         findings = assessment.get("findings") or []
+        if draft.get("workflow") == "SOURCE_FIRST":
+            if draft.get("inventoryDigest") != assessment.get("inventoryDigest") or draft.get("assessmentVersion") != assessment.get("assessmentVersion"):
+                raise ApiError(409, "PLANNING_EVIDENCE_CHANGED", "Save the current source scope before comparing a target.")
+            selected_findings = {(r.get("kind"), r.get("namespace"), r.get("name")) for r in draft.get("resources", []) if r.get("treatment") != "RETIRE"}
+            # Old assessments can contain findings against a previously chosen
+            # target. Destination checks now come from fresh target evidence.
+            findings = [f for f in findings if isinstance(f, dict)
+                        and not str(f.get("code", "")).startswith("TARGET_")
+                        and (not f.get("resourceName") or
+                             (f.get("resourceKind"), f.get("namespace"), f.get("resourceName")) in selected_findings)]
         blocked = any(
             finding.get("severity") == "BLOCKER"
             or finding.get("disposition") == "BLOCKER"
@@ -333,7 +344,7 @@ class Service:
         selected = {
             (r.get("apiVersion"), r.get("kind"), r.get("namespace"), r.get("name"))
             for r in (draft.get("resources") or [])
-            if isinstance(r, dict) and r.get("treatment") == "MIGRATE"
+            if isinstance(r, dict) and (r.get("treatment") == "MIGRATE" or (draft.get("workflow") == "SOURCE_FIRST" and r.get("treatment") != "RETIRE"))
         }
         observations = []
         nodes = snapshot.get("nodeCapacity") or []
@@ -749,6 +760,10 @@ class Service:
         if "planningDraft" in body:
             return self.save_planning_draft(identifier, current, body)
 
+        if (os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") == "true"
+                and "target" in body and current["status"] in {"ASSESSMENT_READY", "REJECTED"}):
+            return self.select_planning_target(identifier, current, body)
+
         source = body.get("source")
         recovering_source_registration = (
             current["status"] == "SOURCE_ENROLLMENT_PENDING"
@@ -826,6 +841,39 @@ class Service:
         )
         return serialize(row)
 
+    def select_planning_target(self, identifier, current, body):
+        if set(body) - {"version", "target", "changeReason"}:
+            raise ApiError(400, "TARGET_SELECTION_ONLY", "Save target selection separately from source scope.")
+        draft = current.get("planning_draft") or {}
+        if draft.get("workflow") != "SOURCE_FIRST" or not any(
+            r.get("kind") in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod", "DeploymentConfig"}
+            and not r.get("dependency") and r.get("treatment") != "RETIRE" for r in draft.get("resources", [])
+        ):
+            raise ApiError(409, "SOURCE_SCOPE_REQUIRED", "Save selected application workloads before choosing a target.")
+        assessment = self.repo.get_assessment(identifier).get("assessment")
+        if not assessment or draft.get("inventoryDigest") != assessment.get("inventoryDigest") or draft.get("assessmentVersion") != assessment.get("assessmentVersion"):
+            raise ApiError(409, "PLANNING_EVIDENCE_CHANGED", "Refresh the source assessment and save its scope again.")
+        self.repo.require_planning_configuration(identifier, assessment["migrationVersion"], current, source_only=True)
+        from navigan.modules.cluster_management.repository import Repository as ClusterRepository
+        target = body["target"]
+        registered = ClusterRepository(self.repo.db, self.principal).get(target.get("clusterId") or "")
+        self.access.require_customer(registered["customer_id"], registered["created_by"])
+        if (target.get("targetType") != "EXISTING_CLUSTER" or registered["customer_id"] != current["customer_id"]
+                or registered["cluster_name"] != target.get("clusterName") or registered["platform"] != target["platform"]
+                or registered["environment_id"] != target["environmentId"]
+                or registered["environment_approved_version"] != target["environmentApprovedVersion"]
+                or registered["status"] != "ACTIVE"
+                or (registered.get("workflow") or {}).get("ownershipStatus") == "ARCHIVED"):
+            raise ApiError(409, "TARGET_IDENTITY_MISMATCH", "Choose an active Navigan-managed cluster in this customer's approved environment.")
+        row = copy.deepcopy(current)
+        row["target_configuration"] = target
+        row["target_platform"] = target["platform"]
+        row["version"] += 1
+        row["updated_by"] = self.principal.user_id
+        row["change_reason"] = body["changeReason"]
+        self.repo.save(row, current, "MIGRATION_TARGET_SELECTED", self.correlation)
+        return serialize(row)
+
     def save_planning_draft(self, identifier, current, body):
         if set(body) - {"version", "planningDraft", "changeReason"}:
             raise ApiError(
@@ -863,7 +911,12 @@ class Service:
         available = {
             (r["apiVersion"], r["kind"], r.get("namespace"), r.get("name")) for r in inventory["resources"]
         }
-        self.repo.require_planning_configuration(identifier, assessment["migrationVersion"], current)
+        if draft.get("workflow") == "SOURCE_FIRST":
+            if os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") != "true":
+                raise ApiError(400, "SOURCE_FIRST_DISABLED", "The source-first workflow is not enabled on this instance.")
+            self.repo.require_planning_configuration(identifier, assessment["migrationVersion"], current, source_only=True)
+        else:
+            self.repo.require_planning_configuration(identifier, assessment["migrationVersion"], current)
         for resource in draft["resources"]:
             key = (resource["apiVersion"], resource["kind"], resource.get("namespace"), resource["name"])
             if key not in available:
