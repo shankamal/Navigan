@@ -908,7 +908,11 @@ class Service:
                 "Reload the latest migration request.",
             )
 
-        if current["status"] not in allowed:
+        delete_assessment = body.get("deleteAssessment", False)
+        if delete_assessment and action != "cancel":
+            raise ApiError(400, "INVALID_DELETE_ACTION", "Use the assessment cancellation endpoint to delete an assessment.")
+
+        if not delete_assessment and current["status"] not in allowed:
             raise ApiError(
                 409,
                 "INVALID_MIGRATION_TRANSITION",
@@ -960,7 +964,7 @@ class Service:
         self.repo.save(
             row,
             current,
-            "MIGRATION_" + action.upper(),
+            "MIGRATION_DELETED" if delete_assessment else "MIGRATION_" + action.upper(),
             self.correlation,
         )
 

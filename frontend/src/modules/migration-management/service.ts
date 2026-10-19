@@ -387,13 +387,14 @@ export const migrations = {
     action: "submit" | "review" | "approve" | "reject" | "cancel",
     version: number,
     reason: string,
+    deleteAssessment = false,
   ) =>
     parseResponse(
       migrationSchema,
       (
         await apiClient.post(
           `${base}/${migrationId}/${action}`,
-          { version, reason },
+          { version, reason, ...(deleteAssessment ? { deleteAssessment: true } : {}) },
           {
             headers: writeHeaders({
               key: crypto.randomUUID(),

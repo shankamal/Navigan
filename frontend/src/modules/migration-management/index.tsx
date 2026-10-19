@@ -19,6 +19,7 @@ import {
   Search,
   Users,
   XCircle,
+  Trash2,
 } from "lucide-react";
 
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -26,9 +27,10 @@ import {
   hasPermission,
   isMigrationPreviewEnabled,
 } from "@/shared/auth/permissions";
+import { normalizeApiError } from "@/shared/api/client";
 import { PageHeading } from "@/shared/components/ui";
 import { AssessmentWizard } from "./assessment-wizard";
-import { useCancelMigration, useMigrations } from "./hooks";
+import { useCancelMigration, useDeleteMigrationAssessment, useMigrations } from "./hooks";
 import styles from "./migration-management.module.css";
 import { PlatformIcon } from "./platform-icon";
 
@@ -116,6 +118,7 @@ export function MigrationManagementPage() {
   const canEdit =
     hasPermission(identity, "migration.edit") || isMigrationPreviewEnabled();
   const cancelMigration = useCancelMigration();
+  const deleteAssessment = useDeleteMigrationAssessment();
   const sourcePlatforms = [
     ...new Set(migrationItems.map((item) => item.sourcePlatform)),
   ];
@@ -202,6 +205,10 @@ export function MigrationManagementPage() {
         }
       />
 
+      {deleteAssessment.isError && (
+        <p role="alert">Unable to delete assessment: {normalizeApiError(deleteAssessment.error).message}</p>
+      )}
+      {deleteAssessment.isSuccess && <p role="status">Assessment deleted. Audit history and source connectors were retained.</p>}
       <section
         className={styles.portfolioMetrics}
         aria-label="Migration portfolio metrics"
@@ -524,6 +531,20 @@ export function MigrationManagementPage() {
                               <Copy size={15} />
                               Copy migration ID
                             </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className={styles.cancelAction}
+                                disabled={deleteAssessment.isPending || cancelMigration.isPending}
+                                onClick={() => {
+                                  if (window.confirm(`Delete assessment "${migration.name}" for ${migration.customerName}? It will be removed from the assessment list. Audit history and source connectors will be retained.`)) {
+                                    deleteAssessment.mutate({ migrationId: migration.migrationId, version: migration.version });
+                                  }
+                                }}
+                              >
+                                <Trash2 size={15} /> Delete assessment
+                              </button>
+                            )}
                             {canEdit &&
                               [
                                 "DRAFT",
@@ -536,7 +557,7 @@ export function MigrationManagementPage() {
                                 <button
                                   type="button"
                                   className={styles.cancelAction}
-                                  disabled={cancelMigration.isPending}
+                                  disabled={cancelMigration.isPending || deleteAssessment.isPending}
                                   onClick={() => {
                                     if (
                                       window.confirm(

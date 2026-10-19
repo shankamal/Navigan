@@ -23,6 +23,12 @@ def json_text(value):
     return json.dumps(value, default=str, separators=(",", ":"))
 
 
+NOT_DELETED = (
+    "NOT EXISTS(SELECT 1 FROM migration_management.migration_audit_log deleted "
+    "WHERE deleted.migration_id=m.migration_id AND deleted.action='MIGRATION_DELETED')"
+)
+
+
 class Repository:
     def __init__(self, db, principal):
         self.db = db
@@ -272,7 +278,7 @@ class Repository:
             ],
         )
 
-    def get(self, identifier, lock=False):
+    def get(self, identifier, lock=False, include_deleted=False):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(
             "SELECT m.*,c.name AS customer_name "
@@ -280,6 +286,7 @@ class Repository:
             "JOIN customer_management.customers c USING(customer_id) "
             "WHERE m.migration_id=%s AND "
             + scope
+            + ("" if include_deleted else " AND " + NOT_DELETED)
             + (" FOR UPDATE OF m" if lock else ""),
             [identifier, *params],
         ).fetchone()
@@ -443,7 +450,7 @@ class Repository:
 
     def list(self, query):
         scope, params = scope_clause(self.principal)
-        conditions = [scope]
+        conditions = [scope, NOT_DELETED]
 
         for key, column in {
             "status": "m.status",

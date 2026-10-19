@@ -40,6 +40,15 @@ export const useCancelMigration = () => {
   });
 };
 
+export const useDeleteMigrationAssessment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ migrationId, version }: { migrationId: string; version: number }) =>
+      migrations.action(migrationId, "cancel", version, "Delete migration assessment", true),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["migrations"] }),
+  });
+};
+
 export const useMigration = (migrationId: string) =>
   useQuery({
     queryKey: ["migrations", migrationId],
@@ -80,3 +89,4 @@ export const useMigrationAssessment = (migrationId: string, enabled: boolean) =>
         ? 5_000
         : false,
   });
+

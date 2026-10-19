@@ -19,6 +19,7 @@ from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 
 from .models import (
+    CancelMigration,
     CreateMigration,
     CreateSourceCluster,
     CreateSourceEnrollment,
@@ -277,6 +278,8 @@ def execute(event, principal, correlation):
             model = CreateSourceEnrollment
         elif route == "source_cluster_install":
             model = InstallSourceConnector
+        elif action == "cancel":
+            model = CancelMigration
         elif action in {"discover", "assess"}:
             model = DiscoveryAction
         elif route in {"target_assessment_run", "artifact_upload_intent"}:
@@ -365,6 +368,10 @@ def execute(event, principal, correlation):
             if replay_identifier:
                 if replay_identifier.startswith("SRC-"):
                     repo.get_source_cluster(replay_identifier)
+                elif route == "action" and action == "cancel" and body.get("deleteAssessment"):
+                    access.require("migration.edit")
+                    deleted = repo.get(replay_identifier, include_deleted=True)
+                    access.require_customer(deleted["customer_id"], deleted["created_by"])
                 else:
                     repo.get(replay_identifier)
             result = response(

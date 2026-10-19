@@ -453,6 +453,10 @@ class MigrationAction(Model):
     comments: str | None = Field(default=None, max_length=4000)
 
 
+class CancelMigration(MigrationAction):
+    deleteAssessment: bool = Field(default=False, strict=True)
+
+
 class DiscoveryAction(MigrationAction):
     connectorToken: str | None = Field(
         default=None,
