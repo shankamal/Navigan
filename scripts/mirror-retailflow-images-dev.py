@@ -210,15 +210,14 @@ def mirror(aws, images, *, docker=run):
         print("Copying " + identity["source"], flush=True)
         pinned = platform_reference(docker, identity["source"])
         print("  Pinned linux/amd64 source: " + pinned, flush=True)
-        # Pull the child digest directly. --platform on a multi-platform tag can
-        # leave broken platform metadata in the containerd image store.
-        docker(["docker", "pull", pinned])
-        inspected = json.loads(
-            docker(["docker", "image", "inspect", "--format", "{{json .}}", pinned])
-        )
-        if inspected.get("Architecture") != "amd64" or inspected.get("Os") != "linux":
-            raise ValueError("Pulled image platform does not match the source lab.")
-        tag = snapshot_tag(identity["sourceTag"], inspected["Id"])
+        # Inspect registry config directly; never touch Docker's local content store.
+        inspected = json.loads(docker([
+            "docker", "buildx", "imagetools", "inspect", "--format", "{{json .Image}}", pinned,
+        ]))
+        if inspected.get("architecture") != "amd64" or inspected.get("os") != "linux":
+            raise ValueError("Registry image platform does not match the source lab.")
+        source_digest = pinned.rsplit("@", 1)[1]
+        tag = snapshot_tag(identity["sourceTag"], source_digest)
         repository = ensure_repository(aws, identity["repository"])
         expected_uri = REGISTRY + "/" + identity["repository"]
         if repository["repositoryUri"] != expected_uri:
@@ -238,10 +237,12 @@ def mirror(aws, images, *, docker=run):
                 raise
             existing = []
         if not existing:
-            # Tag the pinned manifest reference, not an index or config ID.
-            # Docker IDs have different meanings across image-store backends.
-            docker(["docker", "tag", pinned, target])
-            docker(["docker", "push", target])
+            # Buildx copies registry content without loading it into the daemon.
+            # Preserve the selected single-platform manifest and its digest.
+            docker([
+                "docker", "buildx", "imagetools", "create", "--prefer-index=false",
+                "--tag", target, pinned,
+            ])
             existing = aws(
                 "ecr",
                 "describe-images",
@@ -253,6 +254,8 @@ def mirror(aws, images, *, docker=run):
         if not existing:
             raise ValueError("ECR did not confirm the pushed image.")
         digest = existing[0]["imageDigest"]
+        if digest != source_digest:
+            raise ValueError("ECR digest does not match the pinned source manifest; mapping was not recorded.")
         mappings.append(
             {
                 "source": identity["source"],
@@ -306,9 +309,8 @@ def main():
             "Review complete. Add --apply to mirror the linux/amd64 images. Source Kubernetes workloads are not changed."
         )
         return
-    docker_os = json.loads(run(["docker", "version", "--format", "{{json .Server.Os}}"]))
-    if docker_os != "linux":
-        raise SystemExit("A running Linux Docker daemon is required.")
+    run(["docker", "buildx", "version"])
+    print("Using registry-to-registry copy; Docker's local image store is not used.")
     mappings = mirror(aws, images)
     report = Path(args.report).resolve()
     report.write_text(

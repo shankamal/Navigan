@@ -4,7 +4,7 @@ The current Navigan lab reference manifests use public Python, Nginx, PostgreSQL
 
 ## Copy the actual source references
 
-From the existing WSL DEV checkout with AWS CLI, the navigan AWS profile and a running Linux Docker daemon:
+From the existing WSL DEV checkout with AWS CLI, the navigan AWS profile and Docker CLI and Buildx:
 
 ```bash
 cd /mnt/b/Langchain_Ai/Navigan-migration-test
@@ -26,7 +26,7 @@ Repositories retain the original registry and repository hierarchy, for example:
 905418045935.dkr.ecr.ap-south-1.amazonaws.com/retailflow/docker.io/library/postgres
 ```
 
-The copied tags include the upstream tag, amd64 and a suffix from the inspected local image identity. New repositories use immutable tags and scan-on-push. The copier tags the inspected image ID, pushes and confirms ECR metadata. Existing repositories are retained; unrelated AWS/Kubernetes resources are not modified. Existing tags are not overwritten. Images already referencing this registry are left in place.
+The copied tags include the upstream tag, amd64 and a suffix from the selected source manifest digest. New repositories use immutable tags and scan-on-push. Buildx copies the pinned manifest and layers between registries, and the script verifies that ECR reports the exact selected source digest. Existing repositories are retained; unrelated AWS/Kubernetes resources are not modified. Existing tags are not overwritten. Images already referencing this registry are left in place.
 
 The local `retailflow-ecr-images.json` report contains source references, resolved upstream references, ECR references and ECR digest references. Upstream tags are resolved at copy time; they are not proof of the exact bytes previously running in source Pods. A single-platform mirror can have a different digest from the upstream multi-architecture index.
 
@@ -71,4 +71,4 @@ After successful checks, use Navigan's Refresh cluster evidence action and confi
 
 ### Docker platform metadata handling
 
-The mirror script resolves the source's linux/amd64 child manifest with Docker Buildx before pulling. It pulls, inspects and tags that same immutable digest reference, verifying the local architecture before pushing. It does not compare multi-platform index IDs with platform-specific image/config IDs. This requires Docker Buildx, does not prune the local image store or change Docker settings, and does not modify live source workloads. ECR availability is still checked before recording the mapping. Other push errors remain failures.
+The mirror script uses Docker Buildx registry operations only. It resolves the source's linux/amd64 child manifest, reads the pinned image config to verify its platform, then uses `imagetools create --prefer-index=false` to copy the single-platform image into ECR. It does not pull, inspect, tag or push through the local Docker daemon, avoiding its missing-content/platform metadata failures. ECR must report the exact source manifest digest before the mapping is recorded. Existing matching immutable tags are reused; mismatches and copy failures stop the script. This does not prune images, change Docker settings or modify live source workloads.
