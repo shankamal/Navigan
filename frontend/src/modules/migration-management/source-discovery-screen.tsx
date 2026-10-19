@@ -80,6 +80,7 @@ export function SourceDiscoveryScreen({
   const [filter, setFilter] = useState("");
   const [namespace, setNamespace] = useState("");
   const [resourcePage, setResourcePage] = useState(0);
+  const [findingGroup, setFindingGroup] = useState("application");
   const resourceInventoryRef = useRef<HTMLElement>(null);
   const migration = query.data?.migration;
   const catalogue = query.data?.catalogue;
@@ -164,6 +165,23 @@ export function SourceDiscoveryScreen({
   const findings =
     assessment?.findings.filter((item) => !item.code.startsWith("TARGET_")) ??
     [];
+  const platformNamespaces = new Set([
+    "kube-system",
+    "kube-public",
+    "kube-node-lease",
+    "calico-system",
+    "tigera-operator",
+    "ingress-nginx",
+    "headlamp",
+    "navigan-migration",
+  ]);
+  const isPlatform = (item: (typeof findings)[number]) =>
+    Boolean(item.namespace && platformNamespaces.has(item.namespace));
+  const visibleFindings = findings.filter(
+    (item) =>
+      findingGroup === "all" ||
+      (findingGroup === "platform" ? isPlatform(item) : !isPlatform(item)),
+  );
   const resources = inventory?.resources ?? [];
   const kinds = resources.reduce<Record<string, number>>((counts, item) => {
     counts[item.kind] = (counts[item.kind] ?? 0) + 1;
@@ -246,6 +264,8 @@ export function SourceDiscoveryScreen({
       const current = await migrations.get(migrationId);
       if (current.status === "INVENTORY_READY")
         await migrations.assess(migrationId, current.version);
+      else if (current.status === "ASSESSMENT_READY")
+        await deploymentDiscovery.refresh(migrationId, current.version);
       else if (["DRAFT", "REJECTED"].includes(current.status))
         await migrations.discover(migrationId, current.version);
       else
@@ -346,7 +366,11 @@ export function SourceDiscoveryScreen({
         </p>
       )}
       {sourceOwned && (
-        <SourceConnectionsPanel key={sourceId} sourceId={sourceId} />
+        <SourceConnectionsPanel
+          key={sourceId}
+          sourceId={sourceId}
+          assessmentComplete={ready}
+        />
       )}
       <section
         className={`${shared.panel} ${styles.run}`}
@@ -385,7 +409,9 @@ export function SourceDiscoveryScreen({
             </p>
           )}
         <div className={styles.runActions}>
-          {(canStart || canAssess) && (
+          {(canStart ||
+            canAssess ||
+            (ready && migration.status === "ASSESSMENT_READY")) && (
             <button
               className={shared.primary}
               disabled={
@@ -402,7 +428,9 @@ export function SourceDiscoveryScreen({
                 ? "Starting…"
                 : canAssess
                   ? "Run source assessment"
-                  : "Discover source inventory"}
+                  : ready
+                    ? "Run discovery again"
+                    : "Discover source inventory"}
             </button>
           )}
           {waitingForConnector && installationCheck?.canRestore && (
@@ -751,6 +779,32 @@ export function SourceDiscoveryScreen({
             {ready ? "Assessment complete" : "Awaiting assessment"}
           </span>
         </div>
+        {assessment && (
+          <div className={styles.findingControls}>
+            <label>
+              Findings view
+              <select
+                aria-label="Findings view"
+                value={findingGroup}
+                onChange={(event) => setFindingGroup(event.target.value)}
+              >
+                <option value="application">
+                  Application and shared dependencies (
+                  {findings.filter((item) => !isPlatform(item)).length})
+                </option>
+                <option value="platform">
+                  Platform namespaces ({findings.filter(isPlatform).length})
+                </option>
+                <option value="all">All findings ({findings.length})</option>
+              </select>
+            </label>
+            <p>
+              Grouped by known platform namespaces. All findings remain
+              available; confirm application dependencies when selecting
+              migration scope.
+            </p>
+          </div>
+        )}
         {!assessment ? (
           <p className={shared.empty}>No assessment has completed yet.</p>
         ) : !findings.length ? (
@@ -759,7 +813,8 @@ export function SourceDiscoveryScreen({
           </p>
         ) : (
           <div className={styles.findings}>
-            {findings.map((item, index) => (
+            {!visibleFindings.length && <p>No findings in this view.</p>}
+            {visibleFindings.map((item, index) => (
               <article key={`${item.code}/${index}`}>
                 <span className={styles.severity}>{item.severity}</span>
                 <div>

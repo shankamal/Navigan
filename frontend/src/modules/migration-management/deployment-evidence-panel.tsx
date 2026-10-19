@@ -647,7 +647,20 @@ export function DeploymentEvidencePanel({
                   </p>
                   {r.artifacts.map((a, i) => (
                     <p key={`${a.filePath}/${i}`}>
-                      <strong>{a.format}</strong> · {a.filePath}
+                      <strong>
+                        {a.format === "GITHUB_ACTIONS"
+                          ? "GitHub Actions workflow"
+                          : a.format}
+                      </strong>{" "}
+                      · {a.filePath}
+                      {a.resource && (
+                        <small>
+                          {a.resource.kind} ·{" "}
+                          {a.resource.namespace ||
+                            "Namespace unspecified / cluster scoped"}{" "}
+                          · {a.resource.name}
+                        </small>
+                      )}
                       {a.format === "SCRIPT" && (
                         <small>
                           Static references:{" "}
@@ -679,12 +692,14 @@ export function DeploymentEvidencePanel({
             <div className={styles.scroll}>
               <p>
                 Referenced images only. Availability does not verify target pull
-                access.
+                access. Connecting a registry does not change source workload
+                images. Images from Docker Hub remain Docker Hub references
+                until the source workload configuration is updated.
               </p>
               <table>
                 <thead>
                   <tr>
-                    <th>Image</th>
+                    <th>Image / referenced by</th>
                     <th>Registry evidence</th>
                     <th>Digest / architectures</th>
                   </tr>
@@ -694,6 +709,18 @@ export function DeploymentEvidencePanel({
                     <tr key={i.image}>
                       <td>
                         <code>{i.image}</code>
+                        {workloads
+                          .filter((w) =>
+                            w.containers.some(
+                              (c) => c.configuredImage === i.image,
+                            ),
+                          )
+                          .map((w) => (
+                            <small key={scopeKey(w.workload)}>
+                              {w.workload.namespace} · {w.workload.kind} /{" "}
+                              {w.workload.name}
+                            </small>
+                          ))}
                       </td>
                       <td>
                         {i.status}

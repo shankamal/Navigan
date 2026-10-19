@@ -95,6 +95,12 @@ export interface DeploymentEvidence {
     artifacts: {
       filePath: string;
       format: string;
+      resource?: {
+        apiVersion: string;
+        kind: string;
+        namespace?: string | null;
+        name: string;
+      };
       usesHelm?: boolean;
       usesKubectl?: boolean;
       referencedPaths?: string[];

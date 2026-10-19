@@ -290,8 +290,21 @@ def analyze_repository(source, token=None, *, fetch=get_json, deadline=None):
                 }
             )
             continue
+        if path.startswith(".github/workflows/"):
+            # GitHub expressions (${{ ... }}) are not Helm templates.
+            artifacts.append({**common, "format": "GITHUB_ACTIONS"})
+            continue
         if "{{" in content or "{%" in content:
-            artifacts.append({**common, "format": "HELM_TEMPLATE", "requiresRendering": True})
+            chart_template = "/templates/" in "/" + path and any(
+                candidate["path"].endswith("/Chart.yaml")
+                and path.startswith(candidate["path"].rsplit("/", 1)[0] + "/templates/")
+                for candidate in tree.get("tree", [])
+            )
+            artifacts.append({
+                **common,
+                "format": "HELM_TEMPLATE" if chart_template else "TEMPLATE",
+                "requiresRendering": True,
+            })
             continue
         # Reject aliases/tags before parsing to avoid expansion and custom constructors.
         try:

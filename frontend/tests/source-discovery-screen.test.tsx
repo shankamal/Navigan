@@ -100,6 +100,14 @@ function open() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(deploymentDiscovery.settings).mockResolvedValue({
+    version: 2,
+    sourceClusterId: "SRC-db",
+    readyForDiscovery: true,
+    configuration: { repositories: [], registries: [] },
+    githubOrganizations: [],
+    registryAdapters: [],
+  });
   api.get.mockResolvedValue(migration);
   api.catalogue.mockResolvedValue({
     catalogue: {
@@ -379,4 +387,49 @@ it("requires connection setup before discovery and renders it before progress", 
     screen.getByRole("button", { name: "Discover source inventory" }),
   ).toBeDisabled();
   expect(api.discover).not.toHaveBeenCalled();
+});
+
+it("offers a fresh discovery run for a completed assessment using the current version", async () => {
+  const refresh = vi.fn().mockResolvedValue({});
+  Object.assign(deploymentDiscovery, { refresh });
+  open();
+  const button = await screen.findByRole("button", {
+    name: "Run discovery again",
+  });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  await waitFor(() => expect(refresh).toHaveBeenCalledWith("MIG-demo", 6));
+  expect(api.discover).not.toHaveBeenCalled();
+});
+
+it("keeps platform findings available separately from application findings", async () => {
+  api.assessment.mockResolvedValue({
+    assessment: {
+      ...assessment,
+      findings: [
+        {
+          code: "APP",
+          message: "Application concern",
+          namespace: "retailflow",
+          severity: "WARNING",
+          category: "WORKLOAD",
+        },
+        {
+          code: "PLATFORM",
+          message: "Platform concern",
+          namespace: "calico-system",
+          severity: "WARNING",
+          category: "WORKLOAD",
+        },
+      ],
+    },
+  });
+  open();
+  expect(await screen.findByText("Application concern")).toBeVisible();
+  expect(screen.queryByText("Platform concern")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole("combobox", { name: "Findings view" }), {
+    target: { value: "platform" },
+  });
+  expect(screen.getByText("Platform concern")).toBeVisible();
+  expect(screen.queryByText("Application concern")).not.toBeInTheDocument();
 });

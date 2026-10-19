@@ -206,3 +206,28 @@ def test_source_only_assessment_defers_target_checks_but_retains_source_findings
     assert report['inventorySummary']['target']['status'] == 'NOT_ASSESSED'
     assert not any(item['code'].startswith('TARGET_') for item in report['findings'])
     assert report['findings']  # Source concerns still require review.
+
+
+def test_source_findings_do_not_prescribe_provider_or_target_runbooks():
+    resources = [
+        deployment(serviceAccountName="app", volumes=[{"type": "hostPath"}, {"type": "nfs"}], containers=[{"name": "api", "image": "example/api:v1", "security": {"privileged": True}}]),
+        {"apiVersion": "v1", "kind": "Service", "name": "lb", "type": "LoadBalancer"},
+        {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "name": "web"},
+        {"apiVersion": "v1", "kind": "PersistentVolumeClaim", "name": "data", "requestedStorage": "1Gi"},
+    ]
+    source = assess(inventory(resources), {}, {}, source_only=True)
+    import json
+    text = json.dumps(source["findings"])
+    assert not any(provider in text for provider in ("EKS", "AWS", "EBS", "EFS", "IRSA"))
+    assert all("targetTreatment" not in f and "resolutionSteps" not in f for f in source["findings"])
+    target = assess(inventory(resources), TARGET_READY, TARGET)
+    assert any("EKS" in f.get("remediation", "") for f in target["findings"])
+
+
+def test_saved_source_findings_are_normalized_without_mutating_original():
+    from navigan.modules.migration_management.assessment_engine import source_findings
+    original = {"code": "SERVICE_ACCOUNT_MAPPING_REQUIRED", "message": "Old message", "remediation": "Use EKS", "targetTreatment": "AWS"}
+    result = source_findings([original])
+    assert result[0]["remediation"] == "Document its Kubernetes permissions and any cloud identity dependencies."
+    assert "targetTreatment" not in result[0]
+    assert original["remediation"] == "Use EKS"

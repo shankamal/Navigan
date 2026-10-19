@@ -269,3 +269,62 @@ it("only permits intended authenticated proxy methods", () => {
     isAllowedRoute("DELETE", ["source-clusters", source, "deployment-sources"]),
   ).toBe(false);
 });
+
+it("distinguishes resources in a multi-document manifest and labels workflows", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    repositories: [
+      {
+        repository: "customer/payments",
+        status: "ANALYZED",
+        commit: "b".repeat(40),
+        gaps: [],
+        artifacts: [
+          {
+            filePath: "api.yaml",
+            format: "MANIFESTS",
+            resource: {
+              kind: "Deployment",
+              name: "api",
+              namespace: "payments",
+            },
+          },
+          {
+            filePath: "api.yaml",
+            format: "MANIFESTS",
+            resource: {
+              kind: "Service",
+              name: "api-service",
+              namespace: "payments",
+            },
+          },
+          { filePath: ".github/workflows/build.yml", format: "GITHUB_ACTIONS" },
+        ],
+      },
+    ],
+  });
+  open();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Deployment structure" }),
+  );
+  expect(screen.getByText("Deployment · payments · api")).toBeVisible();
+  expect(screen.getByText("Service · payments · api-service")).toBeVisible();
+  expect(screen.getByText("GitHub Actions workflow")).toBeVisible();
+});
+
+it("shows which workload references each registry image", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    images: [{ image: "customer/api:1.2", status: "NOT_CONNECTED" }],
+  });
+  open();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Container registry" }),
+  );
+  expect(screen.getByText("payments · Deployment / api")).toBeVisible();
+  expect(
+    screen.getByText(
+      /Connecting a registry does not change source workload images/,
+    ),
+  ).toBeVisible();
+});

@@ -5,6 +5,7 @@ import uuid
 
 from navigan.modules.customer_management.repository import scope_clause
 from navigan.shared.errors import ApiError
+from .assessment_engine import source_findings
 
 
 def camel(key):
@@ -446,15 +447,14 @@ class Repository:
             [identifier],
         ).fetchone()
 
+        report = serialize(assessment) if assessment else None
+        if report and (report.get("inventorySummary") or {}).get("assessmentMode") == "SOURCE_ONLY":
+            report["findings"] = source_findings(report["findings"])
         return {
             "migrationId": identifier,
             "version": migration["version"],
             "status": migration["status"],
-            "assessment": (
-                serialize(assessment)
-                if assessment
-                else None
-            ),
+            "assessment": report,
         }
 
     def require_planning_configuration(self, identifier, assessment_version, current, source_only=False):

@@ -116,3 +116,12 @@ python3 scripts/deploy-source-connection-screen-dev.py --profile navigan --apply
 ```
 
 The flag is repeatable and preserves previously authorized ARNs. It configures an exact-resource STS permission and `SOURCE_REGISTRY_ALLOWED_ROLE_ARNS` (a server-controlled JSON list). A browser cannot add to this list. Configuring a connection does not modify the IAM role or its trust policy; an unauthorized ARN produces ROLE_AUTHORIZATION_REQUIRED rather than using fallback platform credentials. Registry-account binding, correct/absent/incorrect External ID checks, and the read-only session policy are enforced for both role methods. Names/paths of existing roles are retained.
+
+### Discovery output corrections (19 October 2026)
+
+- GitHub Actions workflow expressions are classified as workflows, not Helm templates. Helm template classification requires a matching chart directory in the repository tree; other templated YAML remains unresolved template evidence.
+- Deployment structure identifies each manifest resource by kind, namespace and name. Multiple objects in one YAML file remain separate artifacts.
+- Registry rows show referencing workload identities. Registry verification does not rewrite live source images or prove that Retailflow uses ECR. Source image updates remain an explicit source-cluster operation.
+- Findings default to application and shared dependencies, with separate platform-namespace and all-findings views. Namespace grouping is a UI heuristic, not exclusion or proof of ownership.
+- Source-only assessments describe dependencies without AWS/EKS storage, networking or identity prescriptions. Existing saved SOURCE_ONLY reports receive the same presentation normalization on read; stored evidence and target compatibility reports are unchanged.
+- Completed assessments expose **Run discovery again** beside **Refresh status**. It submits the existing refresh endpoint with a freshly read migration version; it requires a connected customer-owned source and verified connections. Repository/registry analysis remains an explicit **Analyze deployment sources** action.

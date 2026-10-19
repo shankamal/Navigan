@@ -300,3 +300,30 @@
   outline: 2px solid #315f24;
   outline-offset: 3px;
 }
+
+.findingControls {
+  margin: 16px 0;
+}
+.findingControls label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.findingControls select {
+  max-width: 100%;
+  min-height: 40px;
+  border: 1px solid #bdcbd3;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  padding: 8px 12px;
+  font: inherit;
+}
+.findingControls p {
+  color: #63717f;
+  font-size: 12px;
+  line-height: 1.6;
+}

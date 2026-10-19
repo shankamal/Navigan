@@ -861,6 +861,42 @@ def score(dispositions, target_blockers, target_warnings):
     return result
 
 
+# Source discovery records dependencies; provider-specific treatments belong to
+# the later target compatibility assessment. Also applies to saved source reports.
+SOURCE_FINDING_TEXT = {
+    "UNSUPPORTED_KUBERNETES_API": ("Resource uses a deprecated Kubernetes API.", "Record the API version and review supported replacements before migration."),
+    "UNSUPPORTED_NODE_ARCHITECTURE": ("Source node architecture needs compatibility review.", "Record source and image architectures; validate them after selecting a target."),
+    "SERVICE_ACCOUNT_MAPPING_REQUIRED": ("Workload uses a named Kubernetes service account.", "Document its Kubernetes permissions and any cloud identity dependencies."),
+    "HOST_PATH_STORAGE_REDESIGN": ("Workload depends on node-local hostPath storage.", "Identify persistent data, capacity, access modes and node dependencies before choosing a storage mapping."),
+    "NFS_TARGET_VALIDATION_REQUIRED": ("Workload depends on an NFS volume.", "Document the export, network access, permissions, capacity and data migration requirements."),
+    "MUTABLE_IMAGE_REFERENCE": ("Container image is not pinned to an immutable digest.", "Resolve and record the source image digest and running container identity; review image provenance."),
+    "PRIVILEGED_WORKLOAD_REVIEW": ("Workload requests privileged execution or privilege escalation.", "Document why elevated privileges are required and review the source security context."),
+    "EXTERNAL_CONFIGURATION_REQUIRED": ("Environment variables reference Secrets or ConfigMaps.", "Identify the required configuration and secret references without exporting secret values."),
+    "SCHEDULING_CONSTRAINT_REVIEW": ("Workload has scheduling constraints.", "Document selectors, affinity, tolerations, topology spread, priority and runtime class dependencies."),
+    "LOAD_BALANCER_TRANSLATION": ("Service depends on a LoadBalancer implementation.", "Document source controller annotations, addresses, ports and traffic requirements."),
+    "INGRESS_TRANSLATION": ("Ingress depends on a source ingress controller.", "Document ingress class, routes, certificates and controller-specific annotations."),
+    "PERSISTENT_STORAGE_MAPPING": ("PersistentVolumeClaim has storage and data dependencies.", "Document storage class, capacity, access modes and data protection requirements."),
+    "STORAGE_CLASS_TRANSLATION": ("StorageClass depends on a storage provisioner.", "Document the provisioner, parameters and dependent claims."),
+    "CUSTOM_RESOURCE_OPERATOR_REQUIRED": ("Custom resources depend on their owning controller or operator.", "Identify the operator, custom resource versions and application dependencies."),
+    "RBAC_TARGET_MAPPING_REQUIRED": ("Resource defines Kubernetes access permissions.", "Document subjects, roles and bindings; review least-privilege access requirements."),
+    "ADMISSION_WEBHOOK_REVIEW_REQUIRED": ("Admission webhook depends on an owning controller.", "Document controller ownership, certificates, rules, availability and failure policy."),
+}
+
+
+def source_findings(findings):
+    result = []
+    for original in findings:
+        if original["code"].startswith("TARGET_"):
+            continue
+        item = {k: v for k, v in original.items() if k not in {
+            "targetTreatment", "resolutionSteps", "validationSteps", "automationLevel",
+        }}
+        if text := SOURCE_FINDING_TEXT.get(item["code"]):
+            item["message"], item["remediation"] = text
+        result.append(item)
+    return result
+
+
 def assess(source_inventory, target_runtime, target_configuration, *, source_only=False):
     resources = source_inventory["resources"]
     findings = []
@@ -882,6 +918,7 @@ def assess(source_inventory, target_runtime, target_configuration, *, source_onl
     node_count = metrics.get("nodeCount")
     ready_nodes = metrics.get("readyNodeCount")
     if source_only:
+        findings = source_findings(findings)
         target_status = "NOT_ASSESSED"
     else:
         if target_status in {"NOT_REPORTED", "STALE"}:

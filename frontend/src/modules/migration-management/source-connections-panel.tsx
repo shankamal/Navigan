@@ -41,7 +41,13 @@ const normalizeRepo = (value: string) =>
     .replace(/\/$/, "")
     .replace(/\.git$/, "");
 
-export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
+export function SourceConnectionsPanel({
+  sourceId,
+  assessmentComplete = false,
+}: {
+  sourceId: string;
+  assessmentComplete?: boolean;
+}) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
   const cache = useQueryClient();
@@ -520,7 +526,9 @@ export function SourceConnectionsPanel({ sourceId }: { sourceId: string }) {
       setNotice(
         verify
           ? result.readyForDiscovery
-            ? "Source connections are ready. You can start discovery below."
+            ? assessmentComplete
+              ? "Source connections verified. Use Run discovery again for fresh cluster evidence, or Analyze deployment sources below for repository and registry analysis."
+              : "Source connections are ready. You can start discovery below."
             : "Settings saved. Review the connection status and correct any access failures."
           : "Settings saved securely. Verify access before starting discovery.",
       );

@@ -384,3 +384,25 @@ def test_confirmations_must_reference_inspected_artifacts(monkeypatch):
 )
 def test_api_routes(method, path, expected):
     assert route_of(method, "/api/v1/" + path)[0] == expected
+
+
+def test_github_expressions_are_workflows_not_helm_templates():
+    files = {
+        ".github/workflows/images.yml": "name: Build\nrun: echo ${{ github.sha }}\n",
+        "deploy/plain.yaml": "name: {{ custom.variable }}\n",
+        "charts/shop/Chart.yaml": "apiVersion: v2\nname: shop\nversion: 1\n",
+        "charts/shop/templates/api.yaml": "name: {{ .Values.name }}\n",
+    }
+
+    def fetch(url, token=None):
+        if "/commits/" in url:
+            return {"sha": COMMIT}
+        if "/trees/" in url:
+            return {"tree": [{"type": "blob", "path": path, "sha": str(i)} for i, path in enumerate(files)]}
+        return {"content": base64.b64encode(list(files.values())[int(url.rsplit('/', 1)[-1])].encode()).decode()}
+
+    report = analyze_repository({"repository": "org/shop", "revision": "main"}, fetch=fetch)
+    formats = {a["filePath"]: a["format"] for a in report["artifacts"]}
+    assert formats[".github/workflows/images.yml"] == "GITHUB_ACTIONS"
+    assert formats["deploy/plain.yaml"] == "TEMPLATE"
+    assert formats["charts/shop/templates/api.yaml"] == "HELM_TEMPLATE"
