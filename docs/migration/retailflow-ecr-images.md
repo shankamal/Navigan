@@ -45,3 +45,26 @@ Navigan discovers multiple workload/container images automatically; there is no 
 The current GitHub repository field expects owner/repository, for example arajendr/RetailFlow. It reuses a customer-bound GitHub App installation with a single-repository contents:read token. A connection for navigan-org1 does not grant access to a private repository owned by arajendr. The current cluster GitHub authorization flow provisions organization system repositories and requires write privileges; it must not be presented as a read-only source-repository onboarding flow. A separate source GitHub connect/installation binding flow remains required for a private personal-account application repository.
 
 Validation is local fixture-based. Actual ECR image uploads, source registry access and source live inventory require the user's WSL/AWS environment.
+
+## Switch the existing source cluster after copying
+
+Once step 1 has produced retailflow-ecr-images.json, run from that same checkout:
+
+```bash
+git pull --ff-only origin new_migration_approach_18oct26
+python3 scripts/use-retailflow-ecr-source-dev.py --profile navigan --apply
+```
+
+The mapping is read locally; no manual copy/paste or interactive SSM session is required. Use --report /path/to/retailflow-ecr-images.json when running from a different directory. Without --apply, only preflight/read operations run.
+
+The source-only switch verifies every mapped ECR image, resolves the instance-profile role from the approved EC2 control plane, checks that the remote host actually uses that role/account, and validates the Retailflow source controllers and amd64/Ready nodes. All required current container/init-container image references must map to copied images before changes start. Paused, OnDelete, partitioned controllers and standalone Pods require a reviewed rollout plan rather than forced recreation.
+
+The script adds a separate IAM inline policy to the source host role: GetAuthorizationToken plus pull access only to the ECR repositories in the mapping. The source lab's control plane and workers share this role in Terraform. A namespace-scoped image-pull Secret is created and explicitly referenced by the changed workload Pod templates; other existing pull-secret references are preserved by Kubernetes strategic merge. A root-owned systemd service/timer on the existing control plane refreshes the ECR credential every six hours and after boot. Credentials travel through stdin/API request bodies, never command-line arguments or reports. No additional connector, external static AWS key or customer-wide push privilege is installed.
+
+An ECR-backed diagnostic Job verifies registry pull and baseline API/frontend readiness before updating controllers. StatefulSets are updated sequentially, followed by DaemonSets, Deployments and future CronJob templates; rollouts and application readiness are checked again afterward. Source Pods restart, including PostgreSQL and Redis, so this operation does not promise uninterrupted service. PVCs and application Secret/ConfigMap contents are not changed. Existing Jobs and their Pods are retained as historical/in-flight executions and are never replayed automatically.
+
+Original controller templates are backed up under /opt/navigan/retailflow-ecr/backup-* with private filesystem permissions. Failed patches, rollouts or final health checks trigger a template rollback; concurrent template edits block automatic overwrite and require backup review. The failure message distinguishes restored templates from rollback failures. Credential-refresh infrastructure and read-only IAM policy remain installed when an application switch rolls back.
+
+The source host stores reusable image patches in /opt/navigan/retailflow-ecr/source-image-patches.json, and the local checkout gets retailflow-source-ecr-result.json. These are live-controller updates and exported patches; no inaccessible application Git repository is silently edited. Integrate the generated image and imagePullSecrets patches into the actual deployment repository before subsequently reapplying original manifests, to prevent reverting source image references.
+
+After successful checks, use Navigan's Refresh cluster evidence action and configure its source registry host as 905418045935.dkr.ecr.ap-south-1.amazonaws.com. Newly rolled application Pods should report ECR references. Retained old Jobs may still show historical Docker Hub references until their normal cleanup. The target environment is not accessed.
