@@ -51,6 +51,20 @@ export interface DeploymentWorkloadEvidence {
     namespace: string | null;
     name: string;
   };
+  dependencies?: {
+    kind: string;
+    name: string;
+    namespace: string | null;
+    status: string;
+    reason: string;
+    sourceCandidates: {
+      repository?: string;
+      commit?: string;
+      filePath?: string;
+      format?: string;
+    }[];
+  }[];
+  helmEvidence?: { status: string; reason: string } | null;
   applicationVersion: string | null;
   artifactFormat: string;
   deliveryTool: string;
@@ -122,6 +136,8 @@ export interface RecoveryJob {
   platform?: string;
 }
 export interface DeploymentEvidence {
+  namespaces?: { name: string; workloadCount: number }[];
+  analysisCurrent?: boolean;
   recoveries?: RecoveryJob[];
   recoveryStorageConfigured?: boolean;
   coverage?: {

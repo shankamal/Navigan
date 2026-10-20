@@ -669,3 +669,43 @@
 .findingIssue[open] > summary > svg {
   transform: rotate(90deg);
 }
+
+/* One completion message; assessment issues live with the selected workload. */
+.runComplete {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 13px 18px !important;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.runComplete .phase {
+  align-items: center;
+}
+.runComplete .phase > svg {
+  width: 25px;
+  height: 25px;
+}
+.runComplete .phase h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.runComplete .phase p {
+  max-width: none;
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+@media (max-width: 700px) {
+  .runComplete {
+    grid-template-columns: 1fr;
+  }
+}
+
+.discoveryScreen[class] > .runComplete {
+  padding: 7px 0 !important;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  margin-bottom: 4px;
+}
+.discoveryScreen[class] > .runComplete .phase p {
+  display: none;
+}

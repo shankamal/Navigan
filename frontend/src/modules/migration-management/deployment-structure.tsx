@@ -31,6 +31,7 @@ import styles from "./deployment-evidence-panel.module.css";
 import view from "./deployment-structure.module.css";
 
 type Workload = DeploymentWorkloadEvidence;
+import type { Assessment } from "./model";
 function imageLabel(reference: string) {
   const [name, digest] = reference.split("@");
   const shortName = name.split("/").slice(-2).join("/");
@@ -92,8 +93,12 @@ function registryLabel(image: string) {
 export function ContainerImages({
   workload,
   onResolve,
+  onConnect,
+  recoveries = [],
 }: {
   workload: Workload;
+  recoveries?: RecoveryJob[];
+  onConnect?: () => void;
   onResolve?: (c: Workload["containers"][number]) => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -151,6 +156,15 @@ export function ContainerImages({
               const key = `${c.containerType}/${c.name}`;
               const open = expanded === key;
               const status = sourceStatus(c.registryEvidence?.status);
+              const recovered =
+                recoveries
+                  .filter(
+                    (job) =>
+                      job.kind === "IMAGE" &&
+                      scopeKey(job.workload) === scopeKey(workload.workload) &&
+                      job.containerName === c.name,
+                  )
+                  .at(-1)?.status === "RECOVERED";
               const isInit = c.containerType.toUpperCase() === "INIT";
               const label = imageLabel(c.configuredImage);
               const [imageName, declaredDigest] = label.split("@");
@@ -229,16 +243,36 @@ export function ContainerImages({
                       <small className={view.registryCaption}>
                         {registryLabel(c.configuredImage)}
                       </small>
+                      {recovered && (
+                        <small className={view.good}>
+                          Cached copy recovered
+                        </small>
+                      )}
                     </td>
                     <td>
                       {onResolve &&
-                      c.registryEvidence?.status !== "AVAILABLE" ? (
+                      (c.registryEvidence?.status !== "AVAILABLE" ||
+                        recovered) ? (
                         <button
                           className={view.resolveButton}
-                          aria-label={`Resolve image ${c.name}`}
-                          onClick={() => onResolve(c)}
+                          aria-label={`${recovered ? "View recovered image" : ["NOT_CONNECTED", "ACCESS_REQUIRED"].includes(c.registryEvidence?.status ?? "") && onConnect ? "Review registry access for" : "Resolve image"} ${c.name}`}
+                          onClick={() =>
+                            !recovered &&
+                            ["NOT_CONNECTED", "ACCESS_REQUIRED"].includes(
+                              c.registryEvidence?.status ?? "",
+                            ) &&
+                            onConnect
+                              ? onConnect()
+                              : onResolve(c)
+                          }
                         >
-                          Resolve
+                          {recovered
+                            ? "View copy"
+                            : ["NOT_CONNECTED", "ACCESS_REQUIRED"].includes(
+                                  c.registryEvidence?.status ?? "",
+                                ) && onConnect
+                              ? "Connect"
+                              : "Resolve"}
                         </button>
                       ) : (
                         <span className={view.muted}>—</span>
@@ -321,18 +355,27 @@ export function DeploymentStructure({
   workloads,
   onInspect,
   onResolve,
+  namespaces: knownNamespaces = [],
+  recoveries = [],
+  findings = [],
+  onConnect,
 }: {
   workloads: Workload[];
+  namespaces?: string[];
+  recoveries?: RecoveryJob[];
+  findings?: Assessment["findings"];
+  onConnect?: () => void;
   onInspect: (w: Workload) => void;
   onResolve: (w: Workload, c?: Workload["containers"][number]) => void;
 }) {
   const [selected, setSelected] = useState("");
   const active =
-    workloads.find((w) => scopeKey(w.workload) === selected) ??
-    workloads.find((w) => w.candidates.length) ??
-    workloads[0];
+    workloads.find((w) => scopeKey(w.workload) === selected) ?? workloads[0];
   const namespaces = [
-    ...new Set(workloads.map((w) => w.workload.namespace || "Cluster-scoped")),
+    ...new Set([
+      ...knownNamespaces,
+      ...workloads.map((w) => w.workload.namespace || "Cluster-scoped"),
+    ]),
   ].sort();
   const candidates =
     active?.candidates.filter(
@@ -344,6 +387,22 @@ export function DeploymentStructure({
             other.filePath === c.filePath,
         ) === i,
     ) || [];
+  const linkedFindings = active
+    ? findings.filter(
+        (f) =>
+          f.namespace === active.workload.namespace &&
+          ((f.resourceKind === active.workload.kind &&
+            f.resourceName === active.workload.name) ||
+            active.dependencies?.some(
+              (d) => d.kind === f.resourceKind && d.name === f.resourceName,
+            )),
+      )
+    : [];
+  const groupedFindings = linkedFindings.filter(
+    (f, i, all) =>
+      all.findIndex((v) => v.code === f.code && v.severity === f.severity) ===
+      i,
+  );
   return (
     <div className={view.layout}>
       <aside
@@ -371,8 +430,17 @@ export function DeploymentStructure({
                 }
               </small>
             </summary>
+            {!workloads.some((w) => w.workload.namespace === ns) && (
+              <p className={view.emptyNamespace}>
+                No workload controllers captured.
+              </p>
+            )}
             {workloads
-              .filter((w) => (w.workload.namespace || "Cluster-scoped") === ns)
+              .filter(
+                (w) =>
+                  (w.workload.namespace || "Cluster-scoped") === ns &&
+                  w.workload.kind !== "Job",
+              )
               .map((w) => (
                 <button
                   key={scopeKey(w.workload)}
@@ -386,29 +454,104 @@ export function DeploymentStructure({
                   </span>
                 </button>
               ))}
+            {workloads.some(
+              (w) => w.workload.namespace === ns && w.workload.kind === "Job",
+            ) && (
+              <details
+                className={view.jobGroup}
+                open={
+                  active?.workload.namespace === ns &&
+                  active?.workload.kind === "Job"
+                }
+              >
+                <summary>
+                  Job executions{" "}
+                  <small>
+                    {
+                      workloads.filter(
+                        (w) =>
+                          w.workload.namespace === ns &&
+                          w.workload.kind === "Job",
+                      ).length
+                    }
+                  </small>
+                </summary>
+                {workloads
+                  .filter(
+                    (w) =>
+                      (w.workload.namespace || "Cluster-scoped") === ns &&
+                      w.workload.kind === "Job",
+                  )
+                  .map((w) => (
+                    <button
+                      key={scopeKey(w.workload)}
+                      aria-pressed={w === active}
+                      onClick={() => setSelected(scopeKey(w.workload))}
+                    >
+                      <Box size={18} />
+                      <span>
+                        {w.workload.name}
+                        <small>{w.workload.kind}</small>
+                      </span>
+                    </button>
+                  ))}
+              </details>
+            )}
           </details>
         ))}
       </aside>
       {!active ? (
-        <p className={view.empty}>No workloads match these filters.</p>
+        <p className={view.empty}>
+          No workloads match these filters. Empty namespaces remain listed;
+          check Source diagnostics for collection limits.
+        </p>
       ) : (
         <article className={view.card}>
           <header className={view.workloadTitle}>
             <Box size={29} />
             <div>
-              <h3>How {active.workload.name} is defined</h3>
+              <h3>{active.workload.name}</h3>
               <p>
                 {active.workload.kind} ·{" "}
                 {active.workload.namespace || "Cluster-scoped"}
+                <span className={view.runtimeSummary}>
+                  {active.runtimeStatus === "NO_RUNNING_EVIDENCE"
+                    ? "No active Pod"
+                    : active.runtimeStatus === "OBSERVED"
+                      ? "Runtime observed"
+                      : "Runtime evidence incomplete"}
+                </span>
               </p>
             </div>
             <button
               className={view.inspectLink}
+              aria-label={`Inspect ${active.workload.name} in ${active.workload.namespace || "cluster"}`}
               onClick={() => onInspect(active)}
             >
-              Inspect evidence <ChevronRight size={14} />
+              Review details <ChevronRight size={14} />
             </button>
           </header>
+          <div className={view.sectionTitle}>
+            <FileCode2 size={20} />
+            <div>
+              <h3>Deployment definition</h3>
+              <p>Files or Helm release associated with this workload.</p>
+            </div>
+          </div>
+          {active.helmRelease && (
+            <div className={view.helmRelease}>
+              <span>
+                <strong>Helm release: {active.helmRelease}</strong>
+                <small>
+                  {active.helmChart || "Chart version not reported"} · Original
+                  package not checked
+                </small>
+              </span>
+              <button onClick={() => onResolve(active)}>
+                Resolve Helm artifact
+              </button>
+            </div>
+          )}
           <section
             className={view.sourceStrip}
             aria-label="Source repository candidate"
@@ -472,16 +615,151 @@ export function DeploymentStructure({
               </small>
             )}
           </section>
+          {(!candidates.length || active.mappingStatus !== "CONFIRMED") && (
+            <div className={view.mappingAction}>
+              <button onClick={() => onInspect(active)}>
+                {candidates.length
+                  ? "Review source mapping"
+                  : "Resolve deployment source"}
+              </button>
+              <small>
+                {candidates.length
+                  ? "Review the candidate and confirm ownership."
+                  : "Map an authorized repository or review captured configuration. Original files are not reconstructed automatically."}
+              </small>
+            </div>
+          )}
           <ContainerImages
             key={scopeKey(active.workload)}
             workload={active}
             onResolve={(c) => onResolve(active, c)}
+            onConnect={onConnect}
+            recoveries={recoveries.filter(
+              (job) => scopeKey(job.workload) === scopeKey(active.workload),
+            )}
           />
+          <section className={view.related} aria-label="Workload dependencies">
+            <details>
+              <summary>
+                Dependencies{" "}
+                <span>{active.dependencies?.length ?? "Not reported"}</span>
+              </summary>
+              <p>
+                Referenced resources in this namespace. Values and Secret
+                contents remain private.
+              </p>
+              {active.dependencies?.length ? (
+                <div className={view.dependencyList}>
+                  {active.dependencies.map((d) => (
+                    <div key={`${d.kind}/${d.name}`}>
+                      <strong>
+                        {d.name}
+                        <small>{d.kind}</small>
+                      </strong>
+                      <span
+                        className={
+                          d.status === "CAPTURED" ? view.good : view.review
+                        }
+                      >
+                        {d.status === "CAPTURED" ? "Captured" : "Not observed"}
+                      </span>
+                      <span>
+                        {d.sourceCandidates.length
+                          ? "Candidate: " +
+                            d.sourceCandidates.map((c) => c.filePath).join(", ")
+                          : "Repository file not mapped"}
+                        <small>{d.reason}</small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>
+                  {active.dependencies
+                    ? "No dependency references were reported. This does not prove the application has no external dependencies."
+                    : "Dependency evidence requires the latest backend analysis."}
+                </p>
+              )}
+            </details>
+          </section>
+          <section
+            className={view.related}
+            aria-label="Workload assessment findings"
+          >
+            <details
+              open={groupedFindings.some((f) => f.severity === "BLOCKER")}
+            >
+              <summary>
+                Assessment findings{" "}
+                <span>{groupedFindings.length} issue groups</span>
+              </summary>
+              {!groupedFindings.length && (
+                <p>
+                  No resource-specific findings are linked to this workload in
+                  the supplied assessment. Review cluster-wide findings
+                  separately.
+                </p>
+              )}
+              {groupedFindings.map((f) => (
+                <div className={view.finding} key={`${f.code}/${f.severity}`}>
+                  <strong
+                    className={
+                      f.severity === "BLOCKER" ? view.missing : view.review
+                    }
+                  >
+                    {f.severity
+                      .toLowerCase()
+                      .replace(/^./, (c) => c.toUpperCase())}{" "}
+                    · {f.code}
+                  </strong>
+                  <p>{f.message}</p>
+                  {linkedFindings.filter(
+                    (item) =>
+                      item.code === f.code && item.severity === f.severity,
+                  ).length > 1 && (
+                    <details>
+                      <summary>More observations in this issue group</summary>
+                      {linkedFindings
+                        .filter(
+                          (item) =>
+                            item.code === f.code &&
+                            item.severity === f.severity,
+                        )
+                        .slice(1)
+                        .map((item, index) => (
+                          <p key={index}>
+                            {item.resourceKind}/{item.resourceName}:{" "}
+                            {item.message}
+                            {item.remediation && (
+                              <small>{item.remediation}</small>
+                            )}
+                          </p>
+                        ))}
+                    </details>
+                  )}
+                  {f.remediation && <small>{f.remediation}</small>}
+                </div>
+              ))}
+            </details>
+          </section>
+          <section
+            className={view.related}
+            aria-label="Workload evidence notes"
+          >
+            <details>
+              <summary>
+                Evidence needing review <span>{active.gaps.length}</span>
+              </summary>
+              {active.gaps.map((g) => (
+                <p key={g}>{g}</p>
+              ))}
+            </details>
+          </section>
           <section className={view.deploymentFacts}>
             <div className={view.sectionTitle}>
               <FileCode2 size={21} />
               <div>
-                <h3>Deployment evidence</h3>
+                <h3>Deployment context</h3>
                 <p>Additional context from the collected source evidence.</p>
               </div>
             </div>
@@ -512,19 +790,6 @@ export function DeploymentStructure({
                 </dd>
               </div>
             </dl>
-            {active.helmRelease && (
-              <div className={view.helmRelease}>
-                <span>
-                  <strong>Helm release: {active.helmRelease}</strong>
-                  <small>
-                    {active.helmChart || "Original chart package not verified"}
-                  </small>
-                </span>
-                <button onClick={() => onResolve(active)}>
-                  Resolve Helm release artifact
-                </button>
-              </div>
-            )}
           </section>
         </article>
       )}

@@ -1418,3 +1418,97 @@
     top: 0;
   }
 }
+
+.explorerHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin: 18px 0 10px;
+}
+.explorerHeading h2 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.explorerHeading p {
+  font-size: 12px;
+  color: #65758a;
+  margin: 0;
+}
+.workbench > .evidenceActions {
+  order: -1;
+  margin: 0 0 8px;
+}
+.workbench .actions {
+  justify-content: flex-end;
+}
+.workbench > .toolbar {
+  margin: 4px 0;
+}
+@media (max-width: 700px) {
+  .explorerHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.explorerActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workbench .explorerHeading {
+  margin: 12px 0;
+}
+.workbench .explorerHeading > div:first-child {
+  min-width: 200px;
+}
+.workbench .explorerHeading p {
+  max-width: 270px;
+}
+.explorerActions .actions {
+  gap: 8px;
+}
+@media (max-width: 1100px) {
+  .explorerHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .explorerActions {
+    justify-content: flex-start;
+  }
+}
+
+.registryDiagnostic {
+  border: 1px solid #dfe6ed;
+  margin: 10px 0;
+  padding: 0;
+}
+.registryDiagnostic summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  padding: 12px;
+  font-size: 12px;
+}
+.registryDiagnostic summary strong {
+  overflow-wrap: anywhere;
+}
+.registryDiagnostic summary span {
+  flex-shrink: 0;
+  font-size: 11px;
+  text-transform: capitalize;
+  color: #64778c;
+}
+.registryDiagnostic > code,
+.registryDiagnostic > p,
+.registryDiagnostic > small {
+  display: block;
+  margin: 8px 12px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

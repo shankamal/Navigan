@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { EvidenceDrawer } from "./evidence-drawer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -50,12 +50,14 @@ export function SourceConnectionsPanel({
   sourceId,
   assessmentComplete = false,
   compact = false,
+  openRequest = 0,
   connectorConnected = false,
   connectorName,
 }: {
   sourceId: string;
   assessmentComplete?: boolean;
   compact?: boolean;
+  openRequest?: number;
   connectorConnected?: boolean;
   connectorName?: string;
 }) {
@@ -75,6 +77,9 @@ export function SourceConnectionsPanel({
     {},
   );
   const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (openRequest) setExpanded(true);
+  }, [openRequest]);
   const [connectionTab, setConnectionTab] = useState("overview");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");

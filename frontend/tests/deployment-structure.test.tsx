@@ -157,3 +157,114 @@ it("opens recovery for the exact container selected in the image table", () => {
   fireEvent.click(screen.getByRole("button", { name: "Resolve image main" }));
   expect(resolve).toHaveBeenCalledWith(workload, workload.containers[0]);
 });
+
+it("shows only the selected workload's dependencies and linked assessment findings", () => {
+  render(
+    <DeploymentStructure
+      workloads={[
+        {
+          ...workload,
+          dependencies: [
+            {
+              kind: "Service",
+              name: "api-service",
+              namespace: "shop",
+              status: "CAPTURED",
+              reason: "Captured reference",
+              sourceCandidates: [{ filePath: "service.yaml" }],
+            },
+          ],
+        },
+      ]}
+      onInspect={vi.fn()}
+      onResolve={vi.fn()}
+      findings={[
+        {
+          code: "MATCH",
+          severity: "WARNING",
+          category: "NETWORK",
+          disposition: "MANUAL_CHANGE",
+          namespace: "shop",
+          resourceKind: "Service",
+          resourceName: "api-service",
+          message: "Review source service",
+        },
+        {
+          code: "OTHER",
+          severity: "WARNING",
+          category: "NETWORK",
+          disposition: "MANUAL_CHANGE",
+          namespace: "elsewhere",
+          resourceKind: "Service",
+          resourceName: "api-service",
+          message: "Other namespace issue",
+        },
+      ]}
+    />,
+  );
+  fireEvent.click(screen.getByText("Dependencies", { selector: "summary" }));
+  expect(screen.getByText("api-service")).toBeVisible();
+  fireEvent.click(
+    screen.getByText("Assessment findings", { selector: "summary" }),
+  );
+  expect(screen.getByText("Review source service")).toBeVisible();
+  expect(screen.queryByText("Other namespace issue")).not.toBeInTheDocument();
+});
+
+it("routes registry access gaps to connection setup instead of cache recovery", () => {
+  const connect = vi.fn(),
+    resolve = vi.fn();
+  render(
+    <DeploymentStructure
+      workloads={[
+        {
+          ...workload,
+          containers: [
+            {
+              ...workload.containers[0],
+              registryEvidence: {
+                image: "private/app:v1",
+                status: "ACCESS_REQUIRED",
+              },
+            },
+          ],
+        },
+      ]}
+      onInspect={vi.fn()}
+      onResolve={resolve}
+      onConnect={connect}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Review registry access for main" }),
+  );
+  expect(connect).toHaveBeenCalledTimes(1);
+  expect(resolve).not.toHaveBeenCalled();
+});
+
+it("shows a recovered copy without rewriting the original registry availability", () => {
+  const resolve = vi.fn();
+  render(
+    <DeploymentStructure
+      workloads={[workload]}
+      onInspect={vi.fn()}
+      onResolve={resolve}
+      recoveries={[
+        {
+          jobId: "REC-image",
+          kind: "IMAGE",
+          workload: workload.workload,
+          containerName: "main",
+          status: "RECOVERED",
+          message: "Validated cached archive",
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText("Not found")).toBeVisible();
+  expect(screen.getByText("Cached copy recovered")).toBeVisible();
+  fireEvent.click(
+    screen.getByRole("button", { name: "View recovered image main" }),
+  );
+  expect(resolve).toHaveBeenCalledWith(workload, workload.containers[0]);
+});

@@ -262,6 +262,7 @@ def test_candidate_is_not_verified_and_legacy_metadata_remains_unresolved():
             "deploymentDiscovery": config,
             "deploymentAnalysis": {
                 "configurationDigest": config_digest(config),
+                "inventoryDigest": "a" * 64,
                 "repositories": [{"artifacts": [artifact]}],
             },
         },
@@ -514,3 +515,39 @@ def test_continuation_reuses_completed_checks_only_for_matching_inventory_and_au
     calls.clear()
     service.analyze_deployment_sources("MIG-db", {"version": 5, "continueAnalysis": True})
     assert len(calls) == 2  # Rotating access invalidates continuation state.
+
+
+def test_explorer_keeps_empty_namespaces_and_scopes_dependency_evidence():
+    config = {"repositories": [], "registries": []}
+    artifact = {"repository": "customer/shop", "filePath": "service.yaml", "commit": COMMIT,
+                "format": "MANIFESTS", "resource": {"apiVersion": "v1", "kind": "Service", "namespace": "shop", "name": "api"}}
+    resources = [
+        {"apiVersion": "v1", "kind": "Namespace", "name": "empty"},
+        {"apiVersion": "apps/v1", "kind": "Deployment", "namespace": "shop", "name": "api",
+         "dependencyReferences": [{"kind": "Service", "name": "api"}, {"kind": "Secret", "name": "database"}]},
+        {"apiVersion": "v1", "kind": "Service", "namespace": "shop", "name": "api"},
+        {"apiVersion": "v1", "kind": "Secret", "namespace": "another-customer", "name": "database"},
+    ]
+    source = {"source_cluster_id": "SRC-db", "delivery_configuration": {"deploymentDiscovery": config,
+              "deploymentAnalysis": {"configurationDigest": config_digest(config), "repositories": [{"artifacts": [artifact]}]}}}
+    report = build_report({"migration_id": "MIG-db"}, {"resources": resources}, source)
+    assert {n["name"]: n["workloadCount"] for n in report["namespaces"]} == {"empty": 0, "shop": 1}
+    service, secret = report["workloads"][0]["dependencies"]
+    assert service["status"] == "CAPTURED"
+    assert service["sourceCandidates"][0]["filePath"] == "service.yaml"
+    assert secret["status"] == "NOT_OBSERVED"
+    assert secret["sourceCandidates"] == []
+    assert "access" in secret["reason"]
+
+
+def test_explorer_does_not_reuse_analysis_from_a_different_inventory():
+    config = {"repositories": [], "registries": []}
+    source = {"source_cluster_id": "SRC-db", "delivery_configuration": {"deploymentDiscovery": config,
+              "deploymentAnalysis": {"configurationDigest": config_digest(config), "inventoryDigest": "old",
+                  "analyzedAt": "2026-10-20T07:00:00Z", "repositories": [{"artifacts": [{"filePath": "old.yaml"}]}],
+                  "images": [{"image": "old:v1", "status": "AVAILABLE"}]}}}
+    report = build_report({"migration_id": "MIG-db"}, {"inventoryDigest": "new", "resources": []}, source)
+    assert report["analysisCurrent"] is False
+    assert report["configurationCurrent"] is True
+    assert report["repositories"] == []
+    assert report["images"] == []

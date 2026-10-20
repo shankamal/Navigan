@@ -466,18 +466,49 @@ def check_image(image, source_account, allowed_hosts, *, boto3_module=None, fetc
     }
 
 
+def dependency_evidence(resource, resource_index, artifact_index):
+    """Present collected references without treating absence as proof of deletion."""
+    namespace = resource.get("namespace")
+    result = []
+    for ref in resource.get("dependencyReferences", []):
+        kind, name = ref.get("kind"), ref.get("name")
+        if not kind or not name:
+            continue
+        target = resource_index.get((namespace, kind, name))
+        candidates = []
+        if target:
+            for artifact in artifact_index.get((target.get("apiVersion"), kind, name), []):
+                identity = artifact.get("resource") or {}
+                if identity.get("namespace") in {None, namespace}:
+                    candidates.append({**{k: artifact.get(k) for k in ("repository", "commit", "filePath", "format")},
+                                       "match": "RESOURCE_IDENTITY" if identity.get("namespace") == namespace else "NAMESPACE_UNSPECIFIED"})
+        result.append({"kind": kind, "name": name, "namespace": namespace,
+                       "status": "CAPTURED" if target else "NOT_OBSERVED",
+                       "sourceCandidates": candidates,
+                       "reason": "Reference and object were captured; configuration values are not included." if target else "Referenced object was not observed in this inventory. Check collection coverage and access before treating it as missing."})
+    return result
+
+
 def build_report(migration, inventory, source):
     configuration = (source.get("delivery_configuration") or {}).get("deploymentDiscovery") or {
         "repositories": [],
         "registries": [],
     }
     analysis = (source.get("delivery_configuration") or {}).get("deploymentAnalysis") or {}
-    current = analysis.get("configurationDigest") == config_digest(configuration)
+    configuration_current = analysis.get("configurationDigest") == config_digest(configuration)
+    inventory_current = not (inventory or {}).get("inventoryDigest") or analysis.get("inventoryDigest") == inventory.get("inventoryDigest")
+    current = configuration_current and inventory_current
     repos = analysis.get("repositories", []) if current else []
     registry = analysis.get("images", []) if current else []
     artifacts = [a for repo in repos for a in repo.get("artifacts", [])]
+    resources = (inventory or {}).get("resources", [])
+    resource_index = {(r.get("namespace"), r.get("kind"), r.get("name")): r for r in resources}
+    artifact_index = {}
+    for artifact in artifacts:
+        identity = artifact.get("resource") or {}
+        artifact_index.setdefault((identity.get("apiVersion"), identity.get("kind"), identity.get("name")), []).append(artifact)
     rows = []
-    for resource in (inventory or {}).get("resources", []):
+    for resource in resources:
         if resource.get("kind") not in WORKLOADS:
             continue
         metadata = resource.get("deploymentMetadata") or {}
@@ -588,13 +619,15 @@ def build_report(migration, inventory, source):
             gaps.append("Running image digest was not reported for: " + ", ".join(str(name) for name in missing_digests) + ". Refresh runtime evidence and inspect container status if this persists.")
         unverified_images = sorted({c["configuredImage"] for c in containers if (c["registryEvidence"] or {}).get("status") != "AVAILABLE"})
         if unverified_images:
-            gaps.append("Registry verification is incomplete for one or more referenced images. Review the Container registry tab and configure private access where needed.")
+            gaps.append("Registry verification is incomplete for one or more referenced images. Review this workload’s container images and configure private access where needed.")
         if delivery_basis == "NOT_OBSERVED":
             gaps.append("Original delivery tool is not recorded in the collected cluster metadata. Connect deployment repositories or pipelines; do not infer a tool from a running Pod.")
         gaps.append("Cluster inventory is sanitized and is not a complete deployable manifest. Secret/configuration values and deployment commands are not exported; a reviewed deployment package is still required.")
         rows.append(
             {
                 "workload": {k: resource.get(k) for k in ("apiVersion", "kind", "namespace", "name")},
+                "dependencies": dependency_evidence(resource, resource_index, artifact_index),
+                "helmEvidence": {"status": "NOT_CHECKED", "reason": "Helm release metadata is recorded separately from original chart package availability."} if chart or release else None,
                 "applicationVersion": labels.get("app.kubernetes.io/version"),
                 "artifactFormat": "Helm" if chart or release else "Kubernetes manifests (candidate)" if any(a.get("format") == "MANIFESTS" for a in candidates) else "Unresolved",
                 "deliveryTool": delivery,
@@ -620,6 +653,8 @@ def build_report(migration, inventory, source):
             }
         )
     return {
+        "namespaces": [{"name": name, "workloadCount": sum(row["workload"].get("namespace") == name for row in rows)} for name in sorted({r.get("name") for r in (inventory or {}).get("resources", []) if r.get("kind") == "Namespace" and r.get("name")} | {row["workload"]["namespace"] for row in rows if row["workload"].get("namespace")})],
+        "analysisCurrent": bool(current and analysis.get("analyzedAt") and not any(item.get("status") == "PENDING" for item in repos + registry)),
         "coverage": {
             "status": "WITH_GAPS" if any(row["gaps"] for row in rows) or not inventory else "COLLECTED",
             "workloadCount": len(rows),
@@ -637,7 +672,7 @@ def build_report(migration, inventory, source):
         "observedAt": (inventory or {}).get("observedAt"),
         "analyzedAt": analysis.get("analyzedAt") if current else None,
         "configuration": configuration,
-        "configurationCurrent": current,
+        "configurationCurrent": configuration_current,
         "repositories": repos,
         "images": registry,
         "workloads": rows,

@@ -122,9 +122,7 @@ beforeEach(() => {
 });
 it("shows discovered evidence without running analysis or asking for a deployment method", async () => {
   open();
-  expect(
-    await screen.findByText("Candidate · needs confirmation"),
-  ).toBeVisible();
+  expect(await screen.findByText("GitHub candidate")).toBeVisible();
   expect(screen.queryByLabelText(/deployment method/i)).not.toBeInTheDocument();
   expect(api.analyze).not.toHaveBeenCalled();
   expect(api.saveSettings).not.toHaveBeenCalled();
@@ -132,7 +130,9 @@ it("shows discovered evidence without running analysis or asking for a deploymen
   fireEvent.click(
     screen.getByRole("button", { name: "Inspect api in payments" }),
   );
-  fireEvent.click(screen.getByText("api-container"));
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByText("api-container"),
+  );
   expect(screen.getByText("Running digest not reported")).toBeVisible();
 });
 it("saves source connections once with version protection and required-field validation", async () => {
@@ -218,9 +218,10 @@ it("scope summary includes only selected workload identities and links to discov
 });
 it("marks explicit user confirmation without claiming a verified deployed commit", async () => {
   open();
-  const button = await screen.findByRole("button", {
-    name: "Confirm unique source mappings",
-  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Inspect api in payments" }),
+  );
+  const button = screen.getByRole("button", { name: "Confirm source" });
   await waitFor(() => expect(button).toBeEnabled());
   fireEvent.click(button);
   await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
@@ -238,14 +239,17 @@ it("marks explicit user confirmation without claiming a verified deployed commit
 it("viewer cannot mutate connections, analysis, refresh or confirmation", async () => {
   api.canEdit = false;
   open();
-  await screen.findByText("Candidate · needs confirmation");
+  await screen.findByText("GitHub candidate");
   for (const name of [
     "Manage deployment sources",
     "Analyze deployment sources",
     "Refresh cluster evidence",
-    "Confirm unique source mappings",
   ])
     expect(screen.getByRole("button", { name })).toBeDisabled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  );
+  expect(screen.getByRole("button", { name: "Confirm source" })).toBeDisabled();
 });
 it("a stale inventory response does not present mappings as current", async () => {
   api.evidence.mockResolvedValue({
@@ -312,7 +316,7 @@ it("distinguishes resources in a multi-document manifest and labels workflows", 
   });
   open();
   fireEvent.click(
-    await screen.findByRole("button", { name: "Deployment structure" }),
+    await screen.findByRole("button", { name: "Source diagnostics" }),
   );
   fireEvent.click(screen.getByText("Repository artifact index"));
   fireEvent.click(screen.getByText("api.yaml", { selector: "summary" }));
@@ -331,7 +335,10 @@ it("shows which workload references each registry image", async () => {
   });
   open();
   fireEvent.click(
-    await screen.findByRole("button", { name: "Container registry" }),
+    await screen.findByRole("button", { name: "Source diagnostics" }),
+  );
+  fireEvent.click(
+    screen.getByLabelText("Inspect registry image customer/api:1.2"),
   );
   expect(screen.getByText("payments · Deployment / api")).toBeVisible();
   expect(
@@ -393,7 +400,9 @@ it("separates missing repository mapping from runtime evidence", async () => {
     ],
   });
   open();
-  expect(await screen.findByText("Repository not mapped")).toBeVisible();
+  expect(
+    await screen.findByText("No original repository mapping."),
+  ).toBeVisible();
   expect(screen.getByText("No active Pod")).toBeVisible();
   fireEvent.click(
     screen.getByRole("button", { name: "Inspect api in payments" }),
@@ -427,13 +436,27 @@ it("filters Git workload mapping and registry evidence by the same namespace", a
     name: "Evidence namespace",
   });
   fireEvent.change(filter, { target: { value: "payments" } });
-  expect(screen.getByText("api")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: /^api\s*Deployment$/ }),
+  ).toBeVisible();
   expect(screen.queryByText("operator")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Container registry" }));
-  expect(screen.getByText("customer/api:1.2")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Source diagnostics" }));
+  fireEvent.click(
+    screen.getByLabelText("Inspect registry image customer/api:1.2"),
+  );
+  expect(
+    within(screen.getByRole("dialog")).getByText("customer/api:1.2"),
+  ).toBeVisible();
   expect(screen.queryByText("quay.io/operator:v1")).not.toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Close workload evidence" }),
+  );
   fireEvent.change(filter, { target: { value: "platform" } });
+  fireEvent.click(screen.getByRole("button", { name: "Source diagnostics" }));
   expect(screen.getByText("Registry not configured")).toBeVisible();
+  fireEvent.click(
+    screen.getByLabelText("Inspect registry image quay.io/operator:v1"),
+  );
   expect(screen.getByText(/Image availability is unknown/)).toBeVisible();
 });
 
@@ -466,9 +489,13 @@ it("shows all discovered workloads by default with evidence completeness and rea
     ],
   });
   open();
-  expect(await screen.findByText("Evidence review required")).toBeVisible();
-  expect(screen.getByText("api")).toBeVisible();
-  expect(screen.getByText("worker")).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Source workload explorer" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: /^api\s*Deployment$/ }),
+  ).toBeVisible();
+  expect(screen.getByText("worker")).toBeInTheDocument();
   expect(
     screen.getByRole("combobox", { name: "Evidence namespace" }),
   ).toHaveValue("");
@@ -557,7 +584,7 @@ it("searches names and images without changing migration scope or running analys
     name: "Search workloads",
   });
   fireEvent.change(search, { target: { value: "missing" } });
-  expect(screen.getByText("No workloads match these filters.")).toBeVisible();
+  expect(screen.getByText(/No workloads match these filters/)).toBeVisible();
   fireEvent.change(search, { target: { value: "customer/api:1.2" } });
   expect(
     screen.getByRole("button", { name: "Inspect api in payments" }),
@@ -588,4 +615,41 @@ it("does not repeat namespace confirmation instructions after a mapping is confi
     screen.queryByRole("button", { name: "Confirm source" }),
   ).not.toBeInTheDocument();
   expect(screen.getByText("Deployed Git revision not verified.")).toBeVisible();
+});
+
+it("keeps empty discovered namespaces selectable and moves raw evidence behind diagnostics", async () => {
+  api.evidence.mockResolvedValue({
+    ...report,
+    namespaces: [
+      { name: "empty", workloadCount: 0 },
+      { name: "payments", workloadCount: 1 },
+    ],
+  });
+  open();
+  const filter = await screen.findByRole("combobox", {
+    name: "Evidence namespace",
+  });
+  expect(
+    screen.queryByRole("button", { name: "Container registry" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Repository artifact index"),
+  ).not.toBeInTheDocument();
+  fireEvent.change(filter, { target: { value: "empty" } });
+  expect(screen.getByText(/No workloads match these filters/)).toBeVisible();
+  expect(api.refresh).not.toHaveBeenCalled();
+});
+
+it("analyzes a fresh inventory once after collection when source connections are ready", async () => {
+  api.settings.mockResolvedValue({ ...settings, readyForDiscovery: true });
+  api.evidence.mockResolvedValue({ ...report, analysisCurrent: false });
+  api.analyze.mockResolvedValue({
+    ...report,
+    analysisCurrent: true,
+    analyzedAt: "2026-10-20T07:00:00Z",
+  });
+  open({ hideConnections: true });
+  await waitFor(() => expect(api.analyze).toHaveBeenCalledTimes(1));
+  expect(api.analyze).toHaveBeenCalledWith("MIG-db", 5);
+  expect(api.refresh).not.toHaveBeenCalled();
 });

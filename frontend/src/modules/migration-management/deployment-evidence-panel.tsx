@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   GitBranch,
@@ -32,7 +32,7 @@ import {
 } from "./deployment-evidence-service";
 import { scopeKey } from "./source-migration-scope";
 import { migrations } from "./service";
-import type { Migration } from "./model";
+import type { Migration, Assessment } from "./model";
 import styles from "./deployment-evidence-panel.module.css";
 
 export function DeploymentEvidencePanel({
@@ -42,6 +42,8 @@ export function DeploymentEvidencePanel({
   onRefresh,
   hideConnections = false,
   footerAction,
+  findings = [],
+  onManageConnections,
 }: {
   migration: Migration;
   selectedKeys?: Set<string>;
@@ -49,6 +51,8 @@ export function DeploymentEvidencePanel({
   onRefresh?: () => void;
   hideConnections?: boolean;
   footerAction?: ReactNode;
+  findings?: Assessment["findings"];
+  onManageConnections?: () => void;
 }) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
@@ -65,7 +69,8 @@ export function DeploymentEvidencePanel({
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [inspectedKey, setInspectedKey] = useState<string | null>(null);
-  const [tab, setTab] = useState("workloads");
+  const [diagnostics, setDiagnostics] = useState(false);
+  const analyzedInventory = useRef("");
   const [resolution, setResolution] = useState<{
     workload: import("./deployment-evidence-service").DeploymentWorkloadEvidence;
     container?: import("./deployment-evidence-service").DeploymentWorkloadEvidence["containers"][number];
@@ -109,11 +114,12 @@ export function DeploymentEvidencePanel({
         : !evidenceNamespace || r.workload.namespace === evidenceNamespace),
   );
   const evidenceNamespaces = [
-    ...new Set(
-      allWorkloads
+    ...new Set([
+      ...(evidence?.namespaces ?? []).map((n) => n.name),
+      ...allWorkloads
         .map((r) => r.workload.namespace)
         .filter((value): value is string => Boolean(value)),
-    ),
+    ]),
   ].sort();
   const images =
     (evidenceNamespace || search) && !selectedKeys
@@ -257,7 +263,7 @@ export function DeploymentEvidencePanel({
         await settings.refetch();
         setNotice(
           result.coverage?.status === "WITH_GAPS"
-            ? "Analysis finished with evidence gaps. Review coverage and the Evidence gaps tab; assessment completion does not mean every deployment detail is verified."
+            ? "Source analysis updated. Select a workload to review its deployment files, images and items needing attention."
             : "Analysis finished. Review candidate sources, running versions and evidence gaps.",
         );
       } else {
@@ -279,6 +285,37 @@ export function DeploymentEvidencePanel({
       setBusy("");
     }
   }
+  useEffect(() => {
+    if (
+      !hideConnections ||
+      selectedKeys ||
+      !canEdit ||
+      busy ||
+      migration.status !== "ASSESSMENT_READY" ||
+      !matching ||
+      !evidence?.inventoryDigest ||
+      !settings.data?.readyForDiscovery ||
+      settings.data.configuration.inventoryOnly
+    )
+      return;
+    const stale = evidence.analysisCurrent === false || !evidence.analyzedAt;
+    const key = `${migration.migrationId}/${evidence.inventoryDigest}`;
+    if (!stale || analyzedInventory.current === key) return;
+    analyzedInventory.current = key;
+    void perform("analyze");
+  }, [
+    hideConnections,
+    selectedKeys,
+    canEdit,
+    busy,
+    migration.status,
+    migration.migrationId,
+    matching,
+    evidence?.inventoryDigest,
+    evidence?.analyzedAt,
+    evidence?.analysisCurrent,
+    settings.data?.readyForDiscovery,
+  ]);
   async function confirmMappings(rows: typeof workloads) {
     if (!settings.data || !evidence || busy) return;
     setBusy("confirm");
@@ -315,85 +352,88 @@ export function DeploymentEvidencePanel({
       setBusy("");
     }
   }
+  const actionBar = (
+    <div className={hideConnections ? styles.evidenceActions : styles.heading}>
+      {!hideConnections && (
+        <div>
+          <h2>
+            <GitBranch size={20} />
+            {selectedKeys
+              ? "4. Deployment sources and versions"
+              : "Deployment sources and versions"}
+          </h2>
+          <p>
+            {selectedKeys
+              ? "Detected evidence for selected workloads. Resolve missing sources in discovery."
+              : "Discover how applications are deployed and which container versions are running."}
+          </p>
+        </div>
+      )}
+      {!selectedKeys && (
+        <div className={styles.actions}>
+          {!hideConnections && (
+            <button
+              disabled={!canEdit || !!busy || !settings.data || editing}
+              title="Register repositories and registries once for this customer’s source cluster."
+              onClick={() => {
+                setDraft(structuredClone(settings.data!.configuration));
+                setRegistryText(
+                  settings.data!.configuration.registries.join("\n"),
+                );
+                setEditing(true);
+                setError("");
+              }}
+            >
+              Manage deployment sources
+            </button>
+          )}
+          {!hideConnections &&
+            !needsRuntime &&
+            migration.status === "ASSESSMENT_READY" && (
+              <button
+                disabled={
+                  !canEdit ||
+                  !!busy ||
+                  editing ||
+                  (hideConnections && !settings.data?.readyForDiscovery)
+                }
+                onClick={() => void perform("refresh")}
+              >
+                Refresh cluster evidence
+              </button>
+            )}
+          <button
+            className={hideConnections ? undefined : styles.primary}
+            disabled={
+              !canEdit ||
+              !!busy ||
+              editing ||
+              !evidence?.inventoryDigest ||
+              !matching
+            }
+            onClick={() => void perform("analyze")}
+            title="Read configured repositories and referenced images. Scripts are never executed."
+          >
+            {busy === "analyze" && (
+              <LoaderCircle size={15} className={styles.spin} />
+            )}
+            {busy === "analyze"
+              ? "Analyzing sources…"
+              : evidence?.analyzedAt
+                ? "Recheck sources"
+                : "Analyze deployment sources"}
+          </button>
+          {footerAction}
+        </div>
+      )}
+    </div>
+  );
   return (
     <section
       className={`${styles.panel} ${hideConnections ? styles.workbench : ""}`}
       aria-label="Deployment sources and versions"
     >
-      <div
-        className={hideConnections ? styles.evidenceActions : styles.heading}
-      >
-        {!hideConnections && (
-          <div>
-            <h2>
-              <GitBranch size={20} />
-              {selectedKeys
-                ? "4. Deployment sources and versions"
-                : "Deployment sources and versions"}
-            </h2>
-            <p>
-              {selectedKeys
-                ? "Detected evidence for selected workloads. Resolve missing sources in discovery."
-                : "Discover how applications are deployed and which container versions are running."}
-            </p>
-          </div>
-        )}
-        {!selectedKeys && (
-          <div className={styles.actions}>
-            {!hideConnections && (
-              <button
-                disabled={!canEdit || !!busy || !settings.data || editing}
-                title="Register repositories and registries once for this customer’s source cluster."
-                onClick={() => {
-                  setDraft(structuredClone(settings.data!.configuration));
-                  setRegistryText(
-                    settings.data!.configuration.registries.join("\n"),
-                  );
-                  setEditing(true);
-                  setError("");
-                }}
-              >
-                Manage deployment sources
-              </button>
-            )}
-            {!hideConnections &&
-              !needsRuntime &&
-              migration.status === "ASSESSMENT_READY" && (
-                <button
-                  disabled={
-                    !canEdit ||
-                    !!busy ||
-                    editing ||
-                    (hideConnections && !settings.data?.readyForDiscovery)
-                  }
-                  onClick={() => void perform("refresh")}
-                >
-                  Refresh cluster evidence
-                </button>
-              )}
-            <button
-              className={hideConnections ? undefined : styles.primary}
-              disabled={
-                !canEdit ||
-                !!busy ||
-                editing ||
-                !evidence?.inventoryDigest ||
-                !matching
-              }
-              onClick={() => void perform("analyze")}
-              title="Read configured repositories and referenced images. Scripts are never executed."
-            >
-              {busy === "analyze" && (
-                <LoaderCircle size={15} className={styles.spin} />
-              )}
-              {busy === "analyze"
-                ? "Analyzing sources…"
-                : "Analyze deployment sources"}
-            </button>
-            {footerAction}
-          </div>
-        )}
-      </div>
+      {!hideConnections && actionBar}
       {query.isPending && <p role="status">Loading deployment evidence…</p>}
       {query.isError && (
         <p role="alert">
@@ -552,60 +592,22 @@ export function DeploymentEvidencePanel({
       )}
       {evidence && (
         <>
-          {evidence.coverage && (
-            <p className={styles.coverageLine}>
-              {evidence.coverage.namespaceCount} namespaces ·{" "}
-              {evidence.coverage.workloadCount} workloads ·{" "}
-              {evidence.coverage.registryVerifiedWorkloadCount} with image
-              registries verified · {evidence.coverage.repositoryMappedCount}{" "}
-              with Git candidates{" "}
-              <span title="Discovery completion does not mean every deployment detail is verified.">
-                Evidence review required
-              </span>
-            </p>
-          )}
-          {!selectedKeys &&
-            (!hideConnections || tab === "sources") &&
-            workloads.some(
-              (w) =>
-                w.candidates.length === 1 &&
-                w.candidates[0].match !== "NAMESPACE_UNSPECIFIED" &&
-                w.mappingStatus !== "CONFIRMED",
-            ) && (
-              <button
-                disabled={!canEdit || !!busy || editing || !settings.data}
-                onClick={() =>
-                  void confirmMappings(
-                    workloads.filter(
-                      (w) =>
-                        w.candidates.length === 1 &&
-                        w.candidates[0].match !== "NAMESPACE_UNSPECIFIED" &&
-                        w.mappingStatus !== "CONFIRMED",
-                    ),
-                  )
-                }
-                title="Record your confirmation for unique candidate mappings. This does not independently prove which Git commit was deployed."
-              >
-                Confirm unique source mappings
-              </button>
-            )}
           {!selectedKeys && (
-            <nav className={styles.tabs} aria-label="Deployment evidence views">
-              {[
-                ["workloads", "Workloads & versions"],
-                ["sources", "Deployment structure"],
-                ["images", "Container registry"],
-                ["gaps", "Evidence gaps"],
-              ].map(([v, label]) => (
-                <button
-                  key={v}
-                  aria-pressed={tab === v}
-                  onClick={() => setTab(v)}
-                >
-                  {label}
+            <div className={styles.explorerHeading}>
+              <div>
+                <h2>Source workload explorer</h2>
+                <p>
+                  Select a namespace and workload to review its deployment
+                  evidence.
+                </p>
+              </div>
+              <div className={styles.explorerActions}>
+                {hideConnections && actionBar}
+                <button onClick={() => setDiagnostics(true)}>
+                  Source diagnostics
                 </button>
-              ))}
-            </nav>
+              </div>
+            </div>
           )}
           {!selectedKeys && (
             <div className={styles.toolbar}>
@@ -637,7 +639,7 @@ export function DeploymentEvidencePanel({
               </span>
             </div>
           )}
-          {(selectedKeys || tab === "workloads") && (
+          {selectedKeys && (
             <div className={styles.scroll}>
               <table>
                 <thead>
@@ -1085,9 +1087,17 @@ export function DeploymentEvidencePanel({
                 </EvidenceDrawer>
               );
             })()}
-          {!selectedKeys && tab === "sources" && (
+          {!selectedKeys && (
             <DeploymentStructure
               workloads={workloads}
+              namespaces={evidenceNamespaces.filter(
+                (n) => !evidenceNamespace || n === evidenceNamespace,
+              )}
+              findings={findings}
+              recoveries={(evidence.recoveries ?? []).filter(
+                (job) => job.inventoryDigest === evidence.inventoryDigest,
+              )}
+              onConnect={onManageConnections}
               onInspect={(w) => setInspectedKey(scopeKey(w.workload))}
               onResolve={(workload, container) =>
                 setResolution({ workload, container })
@@ -1108,147 +1118,138 @@ export function DeploymentEvidencePanel({
               onClose={() => setResolution(null)}
             />
           )}
-          {!selectedKeys && tab === "sources" && (
-            <details className={styles.artifactIndex}>
-              <summary>Repository artifact index</summary>
-              <p>
-                All inspected files. A script or workflow’s presence does not
-                prove it deployed a workload.
-              </p>
-              {evidence.repositories.map((repo) => (
-                <section key={repo.repository}>
-                  <h3>{repo.repository}</h3>
-                  <small>
-                    {repo.status} · inspected commit{" "}
-                    {repo.commit?.slice(0, 12) || "Unavailable"}
-                  </small>
-                  {[...new Set(repo.artifacts.map((a) => a.filePath))].map(
-                    (path) => (
-                      <details key={path}>
-                        <summary>{path}</summary>
-                        {repo.artifacts
-                          .filter((a) => a.filePath === path)
-                          .map((a, i) => (
-                            <p key={i}>
-                              {a.format === "GITHUB_ACTIONS"
-                                ? "GitHub Actions workflow"
-                                : a.format}
-                              {a.resource && (
-                                <small>
-                                  {a.resource.kind} ·{" "}
-                                  {a.resource.namespace ||
-                                    "Namespace not specified in manifest"}{" "}
-                                  · {a.resource.name}
-                                </small>
-                              )}
-                              {a.format === "SCRIPT" && (
-                                <small>
-                                  Script found — never executed during analysis.{" "}
-                                  {a.usesHelm ? "References Helm. " : ""}
-                                  {a.usesKubectl ? "References kubectl. " : ""}
-                                  {a.dynamicReferences
-                                    ? "Dynamic references need review."
-                                    : ""}
-                                </small>
-                              )}
-                            </p>
-                          ))}
-                      </details>
-                    ),
-                  )}
-                  {repo.gaps.map((g) => (
-                    <p key={g}>{g}</p>
-                  ))}
-                </section>
-              ))}
-            </details>
-          )}
-          {!selectedKeys && tab === "images" && (
-            <div className={styles.scroll}>
-              <p>
-                Referenced images only. Availability does not verify target pull
-                access. Connecting a registry does not change source workload
-                images. Images from Docker Hub remain Docker Hub references
-                until the source workload configuration is updated.
-              </p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Image / referenced by</th>
-                    <th>Registry evidence</th>
-                    <th>Digest / architectures</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {images.map((i) => (
-                    <tr key={i.image}>
-                      <td>
-                        <code>{i.image}</code>
-                        {workloads
-                          .filter((w) =>
-                            w.containers.some(
-                              (c) => c.configuredImage === i.image,
-                            ),
-                          )
-                          .map((w) => (
-                            <small key={scopeKey(w.workload)}>
-                              {w.workload.namespace} · {w.workload.kind} /{" "}
-                              {w.workload.name}
-                            </small>
-                          ))}
-                      </td>
-                      <td>
-                        {i.status === "NOT_CONNECTED"
-                          ? "Registry not configured"
-                          : i.status}
-                        <small>
-                          {i.status === "NOT_CONNECTED"
-                            ? "This image's registry has not been connected for inspection. Image availability is unknown."
-                            : i.reason}
-                        </small>
-                      </td>
-                      <td>
-                        <code>{i.registryDigest || "Digest not reported"}</code>
-                        {i.architectures?.join(", ") ||
-                          "Architecture not verified"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!evidence.images.length && (
+          {diagnostics && !selectedKeys && (
+            <EvidenceDrawer
+              title="Source diagnostics"
+              subtitle="Collection coverage, repository index and registry checks"
+              onClose={() => setDiagnostics(false)}
+            >
+              <section className={styles.drawerSection}>
+                <h3>Collection coverage</h3>
                 <p>
-                  Configure registry hosts and analyze deployment sources to
-                  inspect images.
+                  {evidence.coverage?.scope ||
+                    "All discovered namespaces. Filters change this view only."}
                 </p>
-              )}
-            </div>
-          )}
-          {!selectedKeys && tab === "gaps" && (
-            <div className={styles.cards}>
-              {evidence.coverage?.limitations.map((gap) => (
-                <p key={gap}>{gap}</p>
-              ))}
-              {evidence.repositories.flatMap((repo) =>
-                repo.gaps.map((gap) => (
-                  <p key={`${repo.repository}/${gap}`}>
-                    {repo.repository}: {gap}
-                  </p>
-                )),
-              )}
-              {workloads.map((w) => (
-                <article
-                  key={`${w.workload.namespace}/${w.workload.kind}/${w.workload.name}`}
-                >
-                  <strong>
-                    {w.workload.namespace}/{w.workload.name}
-                  </strong>
-                  {w.gaps.map((g) => (
-                    <p key={g}>{g}</p>
-                  ))}
-                </article>
-              ))}
-            </div>
+                {evidence.coverage?.limitations.map((gap) => (
+                  <p key={gap}>{gap}</p>
+                ))}
+                <p>
+                  Cluster observed: {evidence.observedAt || "Not reported"} ·
+                  Sources analyzed: {evidence.analyzedAt || "Not analyzed"}
+                </p>
+              </section>
+              <details className={styles.artifactIndex}>
+                <summary>Repository artifact index</summary>
+                <p>
+                  All inspected files. A script or workflow’s presence does not
+                  prove it deployed a workload.
+                </p>
+                {evidence.repositories.map((repo) => (
+                  <section key={repo.repository}>
+                    <h3>{repo.repository}</h3>
+                    <small>
+                      {repo.status} · inspected commit{" "}
+                      {repo.commit?.slice(0, 12) || "Unavailable"}
+                    </small>
+                    {[...new Set(repo.artifacts.map((a) => a.filePath))].map(
+                      (path) => (
+                        <details key={path}>
+                          <summary>{path}</summary>
+                          {repo.artifacts
+                            .filter((a) => a.filePath === path)
+                            .map((a, i) => (
+                              <p key={i}>
+                                {a.format === "GITHUB_ACTIONS"
+                                  ? "GitHub Actions workflow"
+                                  : a.format}
+                                {a.resource && (
+                                  <small>
+                                    {a.resource.kind} ·{" "}
+                                    {a.resource.namespace ||
+                                      "Namespace not specified in manifest"}{" "}
+                                    · {a.resource.name}
+                                  </small>
+                                )}
+                                {a.format === "SCRIPT" && (
+                                  <small>
+                                    Script found — never executed during
+                                    analysis.{" "}
+                                    {a.usesHelm ? "References Helm. " : ""}
+                                    {a.usesKubectl
+                                      ? "References kubectl. "
+                                      : ""}
+                                    {a.dynamicReferences
+                                      ? "Dynamic references need review."
+                                      : ""}
+                                  </small>
+                                )}
+                              </p>
+                            ))}
+                        </details>
+                      ),
+                    )}
+                    {repo.gaps.map((g) => (
+                      <p key={g}>{g}</p>
+                    ))}
+                  </section>
+                ))}
+              </details>
+              <section className={styles.drawerSection}>
+                <h3>Registry checks</h3>
+                <p>
+                  Referenced images only. Connecting a registry does not change
+                  source workload images. Availability does not verify target
+                  pull access.
+                </p>
+                {images.map((image) => (
+                  <details
+                    className={styles.registryDiagnostic}
+                    key={image.image}
+                  >
+                    <summary
+                      aria-label={`Inspect registry image ${image.image}`}
+                    >
+                      <strong>
+                        {image.image
+                          .split("/")
+                          .at(-1)
+                          ?.replace(/(@sha256:[a-f0-9]{12})[a-f0-9]+/i, "$1…")}
+                      </strong>
+                      <span>
+                        {image.status === "NOT_CONNECTED"
+                          ? "Registry not configured"
+                          : image.status.toLowerCase().replaceAll("_", " ")}
+                      </span>
+                    </summary>
+                    <code>{image.image}</code>
+                    <p>
+                      {image.status === "NOT_CONNECTED"
+                        ? "This image's registry has not been connected for inspection. Image availability is unknown."
+                        : image.reason}
+                    </p>
+                    {workloads
+                      .filter((w) =>
+                        w.containers.some(
+                          (c) => c.configuredImage === image.image,
+                        ),
+                      )
+                      .map((w) => (
+                        <small key={scopeKey(w.workload)}>
+                          {w.workload.namespace} · {w.workload.kind} /{" "}
+                          {w.workload.name}
+                        </small>
+                      ))}
+                    <small>Registry digest</small>
+                    <code>{image.registryDigest || "Not reported"}</code>
+                    <small>
+                      {image.architectures?.join(", ") ||
+                        "Architecture not verified"}
+                    </small>
+                  </details>
+                ))}
+                {!images.length && <p>No image checks match this view.</p>}
+              </section>
+            </EvidenceDrawer>
           )}
           {needsRuntime && !selectedKeys && (
             <div className={styles.note}>
@@ -1286,12 +1287,9 @@ export function DeploymentEvidencePanel({
             </Link>
           ) : (
             <p className={styles.caption}>
-              <Info size={15} /> Select a workload to inspect repository, image
-              and runtime evidence. Cluster observed:{" "}
+              <Info size={15} /> Last source observation:{" "}
               {evidence.observedAt || "Not reported"} · Sources analyzed:{" "}
-              {evidence.analyzedAt || "Not analyzed"}. Repository matches do not
-              verify the deployed Git revision. Selected artifact extraction
-              follows scope selection.
+              {evidence.analyzedAt || "Not analyzed"}.
             </p>
           )}
         </>

@@ -77,6 +77,7 @@ export function SourceDiscoveryScreen({
   const query = useSourceDiscoverySnapshot(migrationId, !timedOut);
   const cache = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [manageRequest, setManageRequest] = useState(0);
   const [repairUntil, setRepairUntil] = useState(0);
   const [recoveryMessage, setRecoveryMessage] = useState("");
   const [error, setError] = useState("");
@@ -304,7 +305,7 @@ export function SourceDiscoveryScreen({
           }
           onClick={run}
         >
-          {busy ? "Starting…" : "Run discovery again"}
+          {busy ? "Starting…" : "Refresh discovery"}
         </button>
       )}
       {ready && !query.isError ? (
@@ -389,6 +390,7 @@ export function SourceDiscoveryScreen({
           sourceId={sourceId}
           assessmentComplete={ready}
           compact
+          openRequest={manageRequest}
           connectorConnected={sourceFresh}
           connectorName={sourceQuery.data?.name}
         />
@@ -415,7 +417,7 @@ export function SourceDiscoveryScreen({
                   : running
                     ? "Collecting source evidence. This panel stays visible while status updates in the background."
                     : ready
-                      ? "Inventory and findings are saved. Choose migration scope in the workspace next."
+                      ? "Select a workload below to review its source files, images and findings."
                       : canAssess
                         ? "The connector has discovered the namespace catalogue. Run the source assessment to collect detailed resource evidence."
                         : "Discover namespaces first, then assess application workloads and their associated resources."}
@@ -429,31 +431,6 @@ export function SourceDiscoveryScreen({
               inventory-only choice, before starting discovery.
             </p>
           )}
-        {ready && (
-          <div className={styles.reviewSummary}>
-            <AlertTriangle size={22} />
-            <div>
-              <strong>Deployment evidence needs review</strong>
-              <p>
-                Review repository mapping, image versions and runtime evidence
-                below.
-              </p>
-              <button
-                onClick={() => {
-                  const details = document.getElementById(
-                    "assessment-findings-details",
-                  ) as HTMLDetailsElement | null;
-                  if (details) {
-                    details.open = true;
-                    details.scrollIntoView({ block: "start" });
-                  }
-                }}
-              >
-                View assessment findings <ArrowRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
         <div className={ready ? styles.completedActions : styles.runActions}>
           {(canStart || canAssess) && (
             <button
@@ -473,7 +450,7 @@ export function SourceDiscoveryScreen({
                 : canAssess
                   ? "Run source assessment"
                   : ready
-                    ? "Run discovery again"
+                    ? "Refresh discovery"
                     : "Discover source inventory"}
             </button>
           )}
@@ -579,6 +556,8 @@ export function SourceDiscoveryScreen({
         <div id="deployment-evidence">
           <DeploymentEvidencePanel
             hideConnections
+            findings={assessment?.findings ?? []}
+            onManageConnections={() => setManageRequest((n) => n + 1)}
             footerAction={workspaceControls}
             migration={migration}
             inventoryDigest={inventory?.inventoryDigest}

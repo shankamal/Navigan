@@ -220,7 +220,7 @@ class Service:
                 missing = upstream == 404 or aws_code in {"ImageNotFoundException", "RepositoryNotFoundException"}
                 denied = upstream in {401, 403} or aws_code in {"AccessDeniedException", "UnrecognizedClientException", "ExpiredTokenException"}
                 checks.append({"image": image, "status": "NOT_FOUND" if missing else "ACCESS_REQUIRED" if denied else "UNAVAILABLE", "reason": "The referenced artifact was not found at the queried registry endpoint. This does not establish deletion or cache recoverability." if missing else "Registry authentication or authorization failed; artifact existence is unverified." if denied else "Image metadata could not be read. Check network access, authentication and the image reference; unavailability does not prove deletion."})
-        analysis = {"configurationDigest": config_digest(configuration), "contextDigest": context_digest, "repositories": repositories, "images": checks,
+        analysis = {"inventoryDigest": inventory.get("inventoryDigest"), "configurationDigest": config_digest(configuration), "contextDigest": context_digest, "repositories": repositories, "images": checks,
                     "analyzedAt": datetime.now(timezone.utc).isoformat()}
         self.repo.save_deployment_configuration(source, "deploymentAnalysis", analysis, self.correlation)
         return self.deployment_evidence(identifier)

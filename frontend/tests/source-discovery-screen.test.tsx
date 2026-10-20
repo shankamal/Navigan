@@ -397,7 +397,7 @@ it("offers a fresh discovery run for a completed assessment using the current ve
   Object.assign(deploymentDiscovery, { refresh });
   open();
   const button = await screen.findByRole("button", {
-    name: "Run discovery again",
+    name: "Refresh discovery",
   });
   await waitFor(() => expect(button).toBeEnabled());
   fireEvent.click(button);
