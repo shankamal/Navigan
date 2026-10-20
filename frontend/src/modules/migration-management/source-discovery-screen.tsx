@@ -322,254 +322,8 @@ export function SourceDiscoveryScreen({
       )}
     </div>
   );
-  return (
-    <div className={`${shared.screen} ${styles.discoveryScreen}`}>
-      <header className={shared.heading}>
-        <div className={shared.titleGroup}>
-          <Network size={25} />
-          <div>
-            <h1>Source discovery &amp; assessment</h1>
-          </div>
-        </div>
-        <Link className={shared.back} href="/migrations">
-          <ArrowLeft size={15} /> Back to assessments
-        </Link>
-      </header>
-      <section className={styles.context} aria-label="Migration context">
-        <div>
-          <FileText size={18} aria-hidden="true" />
-          <div>
-            <small>Assessment</small>
-            <strong>{migration.name}</strong>
-          </div>
-        </div>
-        <div>
-          <Building2 size={18} aria-hidden="true" />
-          <div>
-            <small>Customer</small>
-            <strong>{customerQuery.data?.name ?? migration.customerId}</strong>
-          </div>
-        </div>
-        <div>
-          <Network size={18} aria-hidden="true" />
-          <div>
-            <small>Source cluster</small>
-            <strong>
-              {(sourceQuery.data?.name ?? sourceId) || "No source selected"}
-            </strong>
-            <span>
-              {sourceQuery.data?.distribution ?? "Distribution not reported"} ·{" "}
-              {sourceQuery.data?.region ?? "Location not reported"}
-            </span>
-          </div>
-        </div>
-      </section>
-      <MigrationWorkflow
-        active={2}
-        completed={sourceFresh || ready ? [1] : []}
-      />
-      {(sourceQuery.isError ||
-        customerQuery.isError ||
-        (sourceQuery.data && !sourceOwned)) && (
-        <p role="alert" className={shared.error}>
-          Unable to confirm the customer and source registration. Discovery is
-          unavailable until ownership can be verified.{" "}
-          <button
-            onClick={() => {
-              void sourceQuery.refetch();
-              void customerQuery.refetch();
-            }}
-          >
-            Retry context
-          </button>
-        </p>
-      )}
-      {sourceOwned && (
-        <SourceConnectionsPanel
-          key={sourceId}
-          sourceId={sourceId}
-          assessmentComplete={ready}
-          compact
-          openRequest={manageRequest}
-          connectorConnected={sourceFresh}
-          connectorName={sourceQuery.data?.name}
-        />
-      )}
-      <section
-        className={`${shared.panel} ${styles.run} ${ready ? styles.runComplete : ""}`}
-        aria-label="Discovery progress"
-      >
-        <div className={styles.phase}>
-          {recovering || (running && !waitingForConnector) ? (
-            <LoaderCircle className={shared.spinner} size={24} />
-          ) : ready ? (
-            <CheckCircle2 size={24} />
-          ) : (
-            <Search size={24} />
-          )}
-          <div>
-            <h2>{phase}</h2>
-            <p>
-              {recovering
-                ? "Restoring this customer's existing registration. Discovery will resume when its connector reports a heartbeat."
-                : waitingForConnector
-                  ? "The connector for this assessment's source registration has no recent heartbeat. Inventory collection is waiting; it is not making progress."
-                  : running
-                    ? "Collecting source evidence. This panel stays visible while status updates in the background."
-                    : ready
-                      ? "Select a workload below to review its source files, images and findings."
-                      : canAssess
-                        ? "The connector has discovered the namespace catalogue. Run the source assessment to collect detailed resource evidence."
-                        : "Discover namespaces first, then assess application workloads and their associated resources."}
-            </p>
-          </div>
-        </div>
-        {(canStart || canAssess) &&
-          !connectionSettings.data?.readyForDiscovery && (
-            <p role="status">
-              Complete Source connections above and verify access, or save the
-              inventory-only choice, before starting discovery.
-            </p>
-          )}
-        <div className={ready ? styles.completedActions : styles.runActions}>
-          {(canStart || canAssess) && (
-            <button
-              className={shared.primary}
-              disabled={
-                busy ||
-                recovering ||
-                !sourceOwned ||
-                query.isError ||
-                !sourceFresh ||
-                !connectionSettings.data?.readyForDiscovery
-              }
-              onClick={run}
-            >
-              {busy
-                ? "Starting…"
-                : canAssess
-                  ? "Run source assessment"
-                  : ready
-                    ? "Refresh discovery"
-                    : "Discover source inventory"}
-            </button>
-          )}
-          {waitingForConnector && installationCheck?.canRestore && (
-            <button
-              className={shared.primary}
-              disabled={busy || recovering || !sourceOwned}
-              onClick={restoreConnection}
-            >
-              {recovering
-                ? "Restoring connection…"
-                : busy
-                  ? "Checking recovery…"
-                  : "Restore source connection"}
-            </button>
-          )}
-          {(query.isError || sourceQuery.isError || timedOut) && (
-            <button
-              disabled={busy}
-              aria-busy={query.isFetching || sourceQuery.isFetching}
-              onClick={refreshStatus}
-            >
-              Retry status check
-            </button>
-          )}
-        </div>
-        {waitingForConnector && (
-          <div className={styles.caution} role="status">
-            <strong>Source registration: {sourceId}</strong>
-            <p>
-              Last heartbeat: {typeof seen === "string" ? seen : "Not reported"}
-              .
-            </p>
-            <p>
-              {installationCheck?.message ??
-                "Recovery diagnostics are unavailable. Deploy the latest DEV backend and refresh status."}
-            </p>
-            {Boolean(installationCheck?.conflicts.length) && (
-              <p>
-                Other live registrations on this host:{" "}
-                {installationCheck!.conflicts
-                  .map(
-                    (item) => `${item.customerName} (${item.sourceClusterId})`,
-                  )
-                  .join(", ")}
-                . Restoring replaces the connector credentials on this
-                installation; those registrations will stop receiving
-                heartbeats.
-              </p>
-            )}
-            <p>
-              The existing registration is reused. No customer ownership,
-              assessment scope, target environment or application workload is
-              changed.
-            </p>
-          </div>
-        )}
-        {recoveryMessage && <p role="status">{recoveryMessage}</p>}
-        {!ready && (
-          <ol className={styles.phases}>
-            {[
-              "Namespace catalogue",
-              "Detailed source inventory",
-              "Source assessment",
-            ].map((label, index) => (
-              <li key={label}>
-                <CheckCircle2
-                  size={16}
-                  className={
-                    (index === 0 ? catalogue : index === 1 ? inventory : ready)
-                      ? shared.complete
-                      : styles.pending
-                  }
-                />
-                {label}
-                <span>
-                  {(index === 0 ? catalogue : index === 1 ? inventory : ready)
-                    ? "Complete"
-                    : "Pending"}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-        {timedOut && !waitingForConnector && !recovering && (
-          <p role="status" className={styles.caution}>
-            Discovery is taking longer than expected. Check the source connector
-            and API access; use Retry status check to check progress. No
-            completed assessment has been inferred.
-          </p>
-        )}
-        {query.isError && (
-          <p role="alert" className={shared.error}>
-            Status refresh failed. Displaying the last received evidence.
-            Refresh successfully before opening the workspace.
-          </p>
-        )}
-        {error && (
-          <p role="alert" className={shared.error}>
-            {error}
-          </p>
-        )}
-      </section>
-      {sourceOwned && (
-        <div id="deployment-evidence">
-          <DeploymentEvidencePanel
-            hideConnections
-            findings={assessment?.findings ?? []}
-            onManageConnections={() => setManageRequest((n) => n + 1)}
-            footerAction={workspaceControls}
-            migration={migration}
-            inventoryDigest={inventory?.inventoryDigest}
-            onRefresh={() => {
-              setTimedOut(false);
-              void query.refetch();
-            }}
-          />
-        </div>
-      )}
+  const discoveryDiagnostics = (
+    <>
       <details
         className={styles.secondaryDetails}
         id="source-inventory-details"
@@ -997,6 +751,257 @@ export function SourceDiscoveryScreen({
           )}
         </section>
       </details>
+    </>
+  );
+  return (
+    <div className={`${shared.screen} ${styles.discoveryScreen}`}>
+      <header className={shared.heading}>
+        <div className={shared.titleGroup}>
+          <Network size={25} />
+          <div>
+            <h1>Source discovery &amp; assessment</h1>
+          </div>
+        </div>
+        <Link className={shared.back} href="/migrations">
+          <ArrowLeft size={15} /> Back to assessments
+        </Link>
+      </header>
+      <section className={styles.context} aria-label="Migration context">
+        <div>
+          <FileText size={18} aria-hidden="true" />
+          <div>
+            <small>Assessment</small>
+            <strong>{migration.name}</strong>
+          </div>
+        </div>
+        <div>
+          <Building2 size={18} aria-hidden="true" />
+          <div>
+            <small>Customer</small>
+            <strong>{customerQuery.data?.name ?? migration.customerId}</strong>
+          </div>
+        </div>
+        <div>
+          <Network size={18} aria-hidden="true" />
+          <div>
+            <small>Source cluster</small>
+            <strong>
+              {(sourceQuery.data?.name ?? sourceId) || "No source selected"}
+            </strong>
+            <span>
+              {sourceQuery.data?.distribution ?? "Distribution not reported"} ·{" "}
+              {sourceQuery.data?.region ?? "Location not reported"}
+            </span>
+          </div>
+        </div>
+      </section>
+      <MigrationWorkflow
+        active={2}
+        completed={sourceFresh || ready ? [1] : []}
+      />
+      {(sourceQuery.isError ||
+        customerQuery.isError ||
+        (sourceQuery.data && !sourceOwned)) && (
+        <p role="alert" className={shared.error}>
+          Unable to confirm the customer and source registration. Discovery is
+          unavailable until ownership can be verified.{" "}
+          <button
+            onClick={() => {
+              void sourceQuery.refetch();
+              void customerQuery.refetch();
+            }}
+          >
+            Retry context
+          </button>
+        </p>
+      )}
+      {sourceOwned && (
+        <SourceConnectionsPanel
+          key={sourceId}
+          sourceId={sourceId}
+          assessmentComplete={ready}
+          compact
+          openRequest={manageRequest}
+          connectorConnected={sourceFresh}
+          connectorName={sourceQuery.data?.name}
+        />
+      )}
+      <section
+        className={`${shared.panel} ${styles.run} ${ready ? styles.runComplete : ""}`}
+        aria-label="Discovery progress"
+      >
+        <div className={styles.phase}>
+          {recovering || (running && !waitingForConnector) ? (
+            <LoaderCircle className={shared.spinner} size={24} />
+          ) : ready ? (
+            <CheckCircle2 size={24} />
+          ) : (
+            <Search size={24} />
+          )}
+          <div>
+            <h2>{phase}</h2>
+            <p>
+              {recovering
+                ? "Restoring this customer's existing registration. Discovery will resume when its connector reports a heartbeat."
+                : waitingForConnector
+                  ? "The connector for this assessment's source registration has no recent heartbeat. Inventory collection is waiting; it is not making progress."
+                  : running
+                    ? "Collecting source evidence. This panel stays visible while status updates in the background."
+                    : ready
+                      ? "Select a workload below to review its source files, images and findings."
+                      : canAssess
+                        ? "The connector has discovered the namespace catalogue. Run the source assessment to collect detailed resource evidence."
+                        : "Discover namespaces first, then assess application workloads and their associated resources."}
+            </p>
+          </div>
+        </div>
+        {(canStart || canAssess) &&
+          !connectionSettings.data?.readyForDiscovery && (
+            <p role="status">
+              Complete Source connections above and verify access, or save the
+              inventory-only choice, before starting discovery.
+            </p>
+          )}
+        <div className={ready ? styles.completedActions : styles.runActions}>
+          {(canStart || canAssess) && (
+            <button
+              className={shared.primary}
+              disabled={
+                busy ||
+                recovering ||
+                !sourceOwned ||
+                query.isError ||
+                !sourceFresh ||
+                !connectionSettings.data?.readyForDiscovery
+              }
+              onClick={run}
+            >
+              {busy
+                ? "Starting…"
+                : canAssess
+                  ? "Run source assessment"
+                  : ready
+                    ? "Refresh discovery"
+                    : "Discover source inventory"}
+            </button>
+          )}
+          {waitingForConnector && installationCheck?.canRestore && (
+            <button
+              className={shared.primary}
+              disabled={busy || recovering || !sourceOwned}
+              onClick={restoreConnection}
+            >
+              {recovering
+                ? "Restoring connection…"
+                : busy
+                  ? "Checking recovery…"
+                  : "Restore source connection"}
+            </button>
+          )}
+          {(query.isError || sourceQuery.isError || timedOut) && (
+            <button
+              disabled={busy}
+              aria-busy={query.isFetching || sourceQuery.isFetching}
+              onClick={refreshStatus}
+            >
+              Retry status check
+            </button>
+          )}
+        </div>
+        {waitingForConnector && (
+          <div className={styles.caution} role="status">
+            <strong>Source registration: {sourceId}</strong>
+            <p>
+              Last heartbeat: {typeof seen === "string" ? seen : "Not reported"}
+              .
+            </p>
+            <p>
+              {installationCheck?.message ??
+                "Recovery diagnostics are unavailable. Deploy the latest DEV backend and refresh status."}
+            </p>
+            {Boolean(installationCheck?.conflicts.length) && (
+              <p>
+                Other live registrations on this host:{" "}
+                {installationCheck!.conflicts
+                  .map(
+                    (item) => `${item.customerName} (${item.sourceClusterId})`,
+                  )
+                  .join(", ")}
+                . Restoring replaces the connector credentials on this
+                installation; those registrations will stop receiving
+                heartbeats.
+              </p>
+            )}
+            <p>
+              The existing registration is reused. No customer ownership,
+              assessment scope, target environment or application workload is
+              changed.
+            </p>
+          </div>
+        )}
+        {recoveryMessage && <p role="status">{recoveryMessage}</p>}
+        {!ready && (
+          <ol className={styles.phases}>
+            {[
+              "Namespace catalogue",
+              "Detailed source inventory",
+              "Source assessment",
+            ].map((label, index) => (
+              <li key={label}>
+                <CheckCircle2
+                  size={16}
+                  className={
+                    (index === 0 ? catalogue : index === 1 ? inventory : ready)
+                      ? shared.complete
+                      : styles.pending
+                  }
+                />
+                {label}
+                <span>
+                  {(index === 0 ? catalogue : index === 1 ? inventory : ready)
+                    ? "Complete"
+                    : "Pending"}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+        {timedOut && !waitingForConnector && !recovering && (
+          <p role="status" className={styles.caution}>
+            Discovery is taking longer than expected. Check the source connector
+            and API access; use Retry status check to check progress. No
+            completed assessment has been inferred.
+          </p>
+        )}
+        {query.isError && (
+          <p role="alert" className={shared.error}>
+            Status refresh failed. Displaying the last received evidence.
+            Refresh successfully before opening the workspace.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className={shared.error}>
+            {error}
+          </p>
+        )}
+      </section>
+      {sourceOwned && (
+        <div id="deployment-evidence">
+          <DeploymentEvidencePanel
+            hideConnections
+            diagnosticsContent={discoveryDiagnostics}
+            findings={assessment?.findings ?? []}
+            onManageConnections={() => setManageRequest((n) => n + 1)}
+            footerAction={workspaceControls}
+            migration={migration}
+            inventoryDigest={inventory?.inventoryDigest}
+            onRefresh={() => {
+              setTimedOut(false);
+              void query.refetch();
+            }}
+          />
+        </div>
+      )}
       {!sourceOwned && (
         <footer className={`${shared.panel} ${styles.footer}`}>
           <p>Confirm the source connection to continue.</p>

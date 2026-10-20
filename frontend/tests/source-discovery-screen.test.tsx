@@ -98,6 +98,12 @@ function open() {
     </QueryClientProvider>,
   );
 }
+async function openDiagnostics() {
+  fireEvent.click(await screen.findByLabelText("More options"));
+  fireEvent.click(screen.getByRole("button", { name: "Source diagnostics" }));
+  await screen.findByRole("dialog");
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(deploymentDiscovery.settings).mockResolvedValue({
@@ -137,6 +143,7 @@ it("enables workspace only for completed matching evidence and shows source fact
   });
   expect(link).toHaveAttribute("href", "/migrations/MIG-demo/plan");
   expect(await screen.findByText("DB Schenker")).toBeVisible();
+  await openDiagnostics();
   fireEvent.click(screen.getByText("Namespace & resource inventory"));
   expect(screen.getByText("api")).toBeVisible();
   expect(screen.queryByText(/compatibility score/i)).not.toBeInTheDocument();
@@ -347,6 +354,7 @@ it("brings the selected namespace resources into view and moves keyboard focus",
       },
     });
     open();
+    await openDiagnostics();
     await screen.findByText("Namespace & resource inventory");
     fireEvent.click(screen.getByText("Namespace & resource inventory"));
     fireEvent.click(
@@ -433,6 +441,7 @@ it("keeps platform findings available separately from application findings", asy
     },
   });
   open();
+  await openDiagnostics();
   await screen.findByText("Application concern", { selector: "strong" });
   fireEvent.click(
     screen.getByText("Source assessment findings", { selector: "summary" }),
@@ -492,6 +501,7 @@ it("groups repeated observations and retains every resource-specific recommendat
     },
   });
   open();
+  await openDiagnostics();
   await screen.findByText("Review reader access", { selector: "strong" });
   fireEvent.click(
     screen.getByText("Source assessment findings", { selector: "summary" }),

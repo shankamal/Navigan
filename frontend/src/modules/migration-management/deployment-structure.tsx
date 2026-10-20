@@ -748,7 +748,7 @@ export function DeploymentStructure({
           >
             <details>
               <summary>
-                Evidence needing review <span>{active.gaps.length}</span>
+                Items needing attention <span>{active.gaps.length}</span>
               </summary>
               {active.gaps.map((g) => (
                 <p key={g}>{g}</p>

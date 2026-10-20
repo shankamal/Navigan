@@ -44,6 +44,7 @@ export function DeploymentEvidencePanel({
   footerAction,
   findings = [],
   onManageConnections,
+  diagnosticsContent,
 }: {
   migration: Migration;
   selectedKeys?: Set<string>;
@@ -53,6 +54,7 @@ export function DeploymentEvidencePanel({
   footerAction?: ReactNode;
   findings?: Assessment["findings"];
   onManageConnections?: () => void;
+  diagnosticsContent?: ReactNode;
 }) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
@@ -121,6 +123,34 @@ export function DeploymentEvidencePanel({
         .filter((value): value is string => Boolean(value)),
     ]),
   ].sort();
+  const repositoryMatched = allWorkloads.filter(
+    (w) => w.candidates.length > 0,
+  ).length;
+  const imagesVerified = allWorkloads.filter(
+    (w) =>
+      w.containers.length > 0 &&
+      w.containers.every((c) => c.registryEvidence?.status === "AVAILABLE"),
+  ).length;
+  const needsAttention = allWorkloads.filter(
+    (w) =>
+      !w.candidates.length ||
+      w.gaps.length > 0 ||
+      !w.containers.length ||
+      w.containers.some((c) => c.registryEvidence?.status !== "AVAILABLE"),
+  ).length;
+  const formatObserved = (value: string | null) => {
+    if (!value) return "Not reported";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "Not reported"
+      : new Intl.DateTimeFormat(undefined, {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZoneName: "short",
+        }).format(date);
+  };
   const images =
     (evidenceNamespace || search) && !selectedKeys
       ? (evidence?.images ?? []).filter((image) =>
@@ -639,6 +669,68 @@ export function DeploymentEvidencePanel({
               </div>
             </div>
           )}
+          {!selectedKeys && matching && (
+            <section
+              className={styles.discoverySummary}
+              aria-label="Discovery evidence summary"
+            >
+              <div className={styles.summaryMetrics}>
+                <div>
+                  <Database size={19} aria-hidden="true" />
+                  <strong>{evidenceNamespaces.length}</strong>
+                  <span>Namespaces discovered</span>
+                </div>
+                <div>
+                  <Box size={19} aria-hidden="true" />
+                  <strong>{allWorkloads.length}</strong>
+                  <span>Workloads discovered</span>
+                </div>
+                <div title="Workloads with at least one matching repository definition. This does not verify the deployed Git revision.">
+                  <GitBranch size={19} aria-hidden="true" />
+                  <strong>{repositoryMatched}</strong>
+                  <span>Repository matched</span>
+                </div>
+                <div title="Workloads with missing mappings, unverified images or reported evidence gaps. This is not a migration blocker count.">
+                  <AlertTriangle size={19} aria-hidden="true" />
+                  <strong>{needsAttention}</strong>
+                  <span>Need evidence review</span>
+                </div>
+              </div>
+              <div className={styles.evidenceBars}>
+                {[
+                  {
+                    label: "Repository definitions matched",
+                    count: repositoryMatched,
+                    icon: <GitBranch size={15} />,
+                  },
+                  {
+                    label: "All container images available",
+                    count: imagesVerified,
+                    icon: <Box size={15} />,
+                  },
+                ].map((item) => (
+                  <div key={item.label} className={styles.evidenceBar}>
+                    <span>
+                      {item.icon}
+                      {item.label}
+                      <strong>
+                        {item.count} / {allWorkloads.length}
+                      </strong>
+                    </span>
+                    <progress
+                      aria-label={item.label}
+                      value={item.count}
+                      max={Math.max(1, allWorkloads.length)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p>
+                All discovered workloads · Repository matches identify candidate
+                definitions; they do not verify the deployed Git revision.
+              </p>
+            </section>
+          )}
           {!selectedKeys && (
             <div className={styles.toolbar}>
               <select
@@ -1154,6 +1246,7 @@ export function DeploymentEvidencePanel({
               subtitle="Collection coverage, repository index and registry checks"
               onClose={() => setDiagnostics(false)}
             >
+              {diagnosticsContent}
               <section className={styles.drawerSection}>
                 <h3>Collection coverage</h3>
                 <p>
@@ -1317,9 +1410,14 @@ export function DeploymentEvidencePanel({
             </Link>
           ) : (
             <p className={styles.caption}>
-              <Info size={15} /> Last source observation:{" "}
-              {evidence.observedAt || "Not reported"} · Sources analyzed:{" "}
-              {evidence.analyzedAt || "Not analyzed"}.
+              <Clock3 size={15} aria-hidden="true" />
+              <span title={evidence.observedAt || undefined}>
+                Last discovered: {formatObserved(evidence.observedAt)}
+              </span>
+              <span title={evidence.analyzedAt || undefined}>
+                {" "}
+                · Sources checked: {formatObserved(evidence.analyzedAt)}
+              </span>
             </p>
           )}
         </>

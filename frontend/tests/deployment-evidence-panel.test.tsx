@@ -94,6 +94,13 @@ const settings = {
   githubOrganizations: ["customer"],
   registryAdapters: ["AWS_ECR", "PUBLIC_DOCKER_HUB"],
 };
+it("keeps repository matches separate from image availability in the summary", async () => {
+  open();
+  const summary = await screen.findByRole("region", { name: "Discovery evidence summary" });
+  expect(within(summary).getByRole("progressbar", { name: "Repository definitions matched" })).toHaveAttribute("value", "1");
+  expect(within(summary).getByRole("progressbar", { name: "All container images available" })).toHaveAttribute("value", "0");
+  expect(within(summary).getByText(/do not verify the deployed Git revision/)).toBeVisible();
+});
 function open(
   props: Partial<React.ComponentProps<typeof DeploymentEvidencePanel>> = {},
 ) {
