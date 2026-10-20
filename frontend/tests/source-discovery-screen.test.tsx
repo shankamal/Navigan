@@ -428,15 +428,78 @@ it("keeps platform findings available separately from application findings", asy
     },
   });
   open();
-  await screen.findByText("Application concern");
+  await screen.findByText("Application concern", { selector: "strong" });
   fireEvent.click(
     screen.getByText("Source assessment findings", { selector: "summary" }),
   );
-  expect(screen.getByText("Application concern")).toBeVisible();
-  expect(screen.queryByText("Platform concern")).not.toBeInTheDocument();
+  expect(
+    screen.getByText("Application concern", { selector: "strong" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Platform concern", { selector: "strong" }),
+  ).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Findings view" })).toHaveValue(
+    "all",
+  );
+  fireEvent.change(screen.getByRole("combobox", { name: "Findings view" }), {
+    target: { value: "application" },
+  });
+  expect(
+    screen.queryByText("Platform concern", { selector: "strong" }),
+  ).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole("combobox", { name: "Findings view" }), {
     target: { value: "platform" },
   });
-  expect(screen.getByText("Platform concern")).toBeVisible();
-  expect(screen.queryByText("Application concern")).not.toBeInTheDocument();
+  expect(
+    screen.getByText("Platform concern", { selector: "strong" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByText("Application concern", { selector: "strong" }),
+  ).not.toBeInTheDocument();
+});
+
+it("groups repeated observations and retains every resource-specific recommendation", async () => {
+  api.assessment.mockResolvedValue({
+    assessment: {
+      ...assessment,
+      findings: [
+        {
+          code: "ACCESS_REVIEW",
+          severity: "WARNING",
+          category: "IDENTITY",
+          namespace: "orders",
+          resourceKind: "Role",
+          resourceName: "reader",
+          message: "Review reader access",
+          remediation: "Check reader subjects",
+        },
+        {
+          code: "ACCESS_REVIEW",
+          severity: "WARNING",
+          category: "IDENTITY",
+          namespace: "orders",
+          resourceKind: "Role",
+          resourceName: "writer",
+          message: "Review writer access",
+          remediation: "Check writer subjects",
+        },
+      ],
+    },
+  });
+  open();
+  await screen.findByText("Review reader access", { selector: "strong" });
+  fireEvent.click(
+    screen.getByText("Source assessment findings", { selector: "summary" }),
+  );
+  expect(screen.getByRole("combobox", { name: "Findings view" })).toHaveValue(
+    "all",
+  );
+  expect(screen.getByText(/2 observations in this view/)).toBeVisible();
+  expect(screen.getByText(/2 resource references/)).toBeVisible();
+  fireEvent.click(
+    screen.getByText("Review reader access", { selector: "strong" }),
+  );
+  expect(screen.getByText("Check reader subjects")).toBeVisible();
+  expect(screen.getByText("Check writer subjects")).toBeVisible();
+  expect(api.assess).not.toHaveBeenCalled();
 });

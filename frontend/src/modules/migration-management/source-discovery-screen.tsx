@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Building2,
   FileText,
+  ChevronRight,
 } from "lucide-react";
 import { customersService } from "@/modules/customer-management/services/customers";
 import { normalizeApiError } from "@/shared/api/client";
@@ -30,13 +31,12 @@ import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
 import styles from "./source-discovery-screen.module.css";
 
-const workloadKinds = new Set([
-  "Deployment",
-  "StatefulSet",
-  "DaemonSet",
-  "Job",
-  "CronJob",
-]);
+import {
+  workloadKinds,
+  inventorySummary,
+  discoveryScope,
+  groupSourceFindings,
+} from "./source-discovery-summary";
 
 export function useSourceDiscoverySnapshot(
   migrationId: string,
@@ -83,7 +83,7 @@ export function SourceDiscoveryScreen({
   const [filter, setFilter] = useState("");
   const [namespace, setNamespace] = useState("");
   const [resourcePage, setResourcePage] = useState(0);
-  const [findingGroup, setFindingGroup] = useState("application");
+  const [findingGroup, setFindingGroup] = useState("all");
   const resourceInventoryRef = useRef<HTMLElement>(null);
   const migration = query.data?.migration;
   const catalogue = query.data?.catalogue;
@@ -168,28 +168,14 @@ export function SourceDiscoveryScreen({
   const findings =
     assessment?.findings.filter((item) => !item.code.startsWith("TARGET_")) ??
     [];
-  const platformNamespaces = new Set([
-    "kube-system",
-    "kube-public",
-    "kube-node-lease",
-    "calico-system",
-    "tigera-operator",
-    "ingress-nginx",
-    "headlamp",
-    "navigan-migration",
-  ]);
-  const isPlatform = (item: (typeof findings)[number]) =>
-    Boolean(item.namespace && platformNamespaces.has(item.namespace));
   const visibleFindings = findings.filter(
     (item) =>
-      findingGroup === "all" ||
-      (findingGroup === "platform" ? isPlatform(item) : !isPlatform(item)),
+      findingGroup === "all" || discoveryScope(item.namespace) === findingGroup,
   );
+  const groupedFindings = groupSourceFindings(visibleFindings);
+  const allFindingGroups = groupSourceFindings(findings);
   const resources = inventory?.resources ?? [];
-  const kinds = resources.reduce<Record<string, number>>((counts, item) => {
-    counts[item.kind] = (counts[item.kind] ?? 0) + 1;
-    return counts;
-  }, {});
+  const summary = inventorySummary(resources);
   const namespaces = catalogue?.namespaces ?? [];
   const matchedNamespaces = namespaces.filter((item) =>
     item.name.toLowerCase().includes(filter.toLowerCase()),
@@ -617,29 +603,80 @@ export function SourceDiscoveryScreen({
         </summary>
         <div className={styles.metrics}>
           {[
-            ["Namespaces", catalogue ? namespaces.length : null],
             [
-              "Application workloads",
-              inventory
-                ? Object.entries(kinds)
-                    .filter(([kind]) => workloadKinds.has(kind))
-                    .reduce((sum, [, count]) => sum + count, 0)
-                : null,
+              "Namespaces",
+              catalogue ? namespaces.length : null,
+              "Discovered namespace records",
             ],
-            ["Resources assessed", inventory?.resourceCount ?? null],
-            ["Source findings", assessment ? findings.length : null],
-          ].map(([label, count]) => (
+            [
+              "Workload controllers",
+              inventory ? summary.controllers + summary.batch : null,
+              `${summary.controllers} Deployment / StatefulSet / DaemonSet · ${summary.batch} Job / CronJob`,
+            ],
+            [
+              "Resources collected",
+              inventory?.resourceCount ?? null,
+              "All supported objects, including dependencies and cluster-scoped resources",
+            ],
+            [
+              "Finding observations",
+              assessment ? findings.length : null,
+              `${allFindingGroups.length} issue group${allFindingGroups.length === 1 ? "" : "s"} · one resource can have several observations`,
+            ],
+          ].map(([label, count, description]) => (
             <div className={shared.panel} key={String(label)}>
               <span>{label}</span>
               <strong>{count ?? "—"}</strong>
               <small>
-                {count === null
-                  ? "Awaiting discovery"
-                  : "Reported source evidence"}
+                {count === null ? "Awaiting discovery" : description}
               </small>
             </div>
           ))}
         </div>
+        {inventory && (
+          <details className={styles.countBreakdown}>
+            <summary>How these totals are calculated</summary>
+            <p>
+              These are inventory object counts, not distinct applications. Jobs
+              and CronJobs are counted separately; a CronJob can create multiple
+              Jobs. All discovered evidence remains available.
+            </p>
+            <p>
+              Workload namespace hints: {summary.workloads.application}{" "}
+              application/shared · {summary.workloads.platform} known platform ·{" "}
+              {summary.workloads.cluster} without namespace. Namespace names are
+              hints, not confirmed application ownership or migration
+              eligibility.
+            </p>
+            {(summary.repeatedIdentities > 0 ||
+              inventory.resourceCount !== resources.length) && (
+              <p role="status" className={styles.caution}>
+                Inventory consistency review: {inventory.resourceCount} reported
+                resources, {resources.length} collected records,{" "}
+                {summary.repeatedIdentities} repeated resource identities. Raw
+                counts are preserved for investigation.
+              </p>
+            )}
+            <div className={styles.tableScroll}>
+              <table aria-label="Collected resources by kind">
+                <thead>
+                  <tr>
+                    <th>Resource kind</th>
+                    <th>Collected records</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.kinds.map(([kind, count]) => (
+                    <tr key={kind}>
+                      <td>{kind}</td>
+                      <td>{count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
         <div className={styles.columns}>
           <section className={shared.panel} aria-labelledby="source-namespaces">
             <div className={styles.sectionHeading}>
@@ -850,7 +887,9 @@ export function SourceDiscoveryScreen({
         <summary>
           Source assessment findings{" "}
           <span>
-            {assessment ? `${findings.length} findings` : "Awaiting assessment"}
+            {assessment
+              ? `${allFindingGroups.length} issue group${allFindingGroups.length === 1 ? "" : "s"} · ${findings.length} observation${findings.length === 1 ? "" : "s"}`
+              : "Awaiting assessment"}
           </span>
         </summary>
         <section className={shared.panel} aria-labelledby="source-findings">
@@ -877,18 +916,41 @@ export function SourceDiscoveryScreen({
                 >
                   <option value="application">
                     Application and shared dependencies (
-                    {findings.filter((item) => !isPlatform(item)).length})
+                    {
+                      findings.filter(
+                        (item) =>
+                          discoveryScope(item.namespace) === "application",
+                      ).length
+                    }{" "}
+                    observations)
                   </option>
                   <option value="platform">
-                    Platform namespaces ({findings.filter(isPlatform).length})
+                    Known platform namespaces (
+                    {
+                      findings.filter(
+                        (item) => discoveryScope(item.namespace) === "platform",
+                      ).length
+                    }{" "}
+                    observations)
                   </option>
-                  <option value="all">All findings ({findings.length})</option>
+                  <option value="cluster">
+                    Cluster-scoped / no namespace (
+                    {
+                      findings.filter(
+                        (item) => discoveryScope(item.namespace) === "cluster",
+                      ).length
+                    }{" "}
+                    observations)
+                  </option>
+                  <option value="all">
+                    All findings ({findings.length} observations)
+                  </option>
                 </select>
               </label>
               <p>
-                Grouped by known platform namespaces. All findings remain
-                available; confirm application dependencies when selecting
-                migration scope.
+                All findings are shown by default. Namespace classification is a
+                viewing hint; cluster-scoped resources are listed separately.
+                Confirm ownership and dependencies during scope selection.
               </p>
             </div>
           )}
@@ -901,20 +963,54 @@ export function SourceDiscoveryScreen({
           ) : (
             <div className={styles.findings}>
               {!visibleFindings.length && <p>No findings in this view.</p>}
-              {visibleFindings.map((item, index) => (
-                <article key={`${item.code}/${index}`}>
-                  <span className={styles.severity}>{item.severity}</span>
-                  <div>
-                    <strong>{item.message}</strong>
-                    <p>
-                      {item.namespace ?? "Source cluster"}
-                      {item.resourceName
-                        ? ` · ${item.resourceName}`
-                        : ""} · {item.category}
-                    </p>
-                    {item.remediation && <p>{item.remediation}</p>}
-                  </div>
-                </article>
+              <p className={styles.findingSummary}>
+                {groupedFindings.length} issue group
+                {groupedFindings.length === 1 ? "" : "s"} ·{" "}
+                {visibleFindings.length} observation
+                {visibleFindings.length === 1 ? "" : "s"} in this view.
+                Observations are review checks, not a count of failures. Expand
+                a group for every original message and recommendation.
+              </p>
+              {groupedFindings.map((group) => (
+                <details key={group.key} className={styles.findingIssue}>
+                  <summary>
+                    <span className={styles.severity}>{group.severity}</span>
+                    <span>
+                      <strong>{group.observations[0].message}</strong>
+                      <small>
+                        {group.code} · {group.category}
+                      </small>
+                    </span>
+                    <span className={styles.issueCounts}>
+                      {group.observations.length} observation
+                      {group.observations.length === 1 ? "" : "s"}
+                      <br />
+                      {group.resources.size} resource reference
+                      {group.resources.size === 1 ? "" : "s"}
+                      {group.unlinked > 0
+                        ? ` · ${group.unlinked} without a resource name`
+                        : ""}
+                    </span>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </summary>
+                  {group.observations.map((item, index) => (
+                    <article key={index}>
+                      <div>
+                        <strong>
+                          {item.resourceName
+                            ? `${item.resourceKind ? item.resourceKind + " / " : ""}${item.resourceName}`
+                            : "Resource not specified"}
+                        </strong>
+                        <p>
+                          {item.namespace ??
+                            "Cluster-scoped / no namespace reported"}
+                        </p>
+                        <p>{item.message}</p>
+                        {item.remediation && <p>{item.remediation}</p>}
+                      </div>
+                    </article>
+                  ))}
+                </details>
               ))}
             </div>
           )}

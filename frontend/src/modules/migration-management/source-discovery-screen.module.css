@@ -606,3 +606,66 @@
   color: white;
   border-color: #2f6b2d;
 }
+.countBreakdown {
+  margin: 0 16px 18px;
+  padding: 14px 18px;
+  border: 1px solid #dfe5ea;
+  border-radius: 3px;
+}
+.countBreakdown > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.countBreakdown p,
+.findingSummary {
+  font-size: 12px;
+  color: #63717f;
+  line-height: 1.6;
+}
+.findingIssue {
+  border-top: 1px solid #dfe5ea;
+}
+.findingIssue > summary {
+  display: flex;
+  align-items: start;
+  gap: 14px;
+  cursor: pointer;
+  padding: 16px 0;
+}
+.findingIssue > summary > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.findingIssue small {
+  display: block;
+  margin-top: 5px;
+  color: #63717f;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.issueCounts {
+  text-align: right;
+  color: #63717f;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.findingIssue article {
+  padding-left: 16px;
+  margin-left: 16px;
+}
+@media (max-width: 700px) {
+  .findingIssue > summary {
+    flex-wrap: wrap;
+  }
+  .issueCounts {
+    text-align: left;
+    width: 100%;
+  }
+}
+.findingIssue > summary > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.findingIssue[open] > summary > svg {
+  transform: rotate(90deg);
+}
