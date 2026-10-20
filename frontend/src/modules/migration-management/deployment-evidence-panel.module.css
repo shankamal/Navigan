@@ -1383,3 +1383,38 @@
     grid-template-columns: 1fr;
   }
 }
+.recoveryWindow {
+  width: min(410px, 95vw);
+  top: var(--workspace-topbar-height, 56px);
+}
+.recoveryWindow .drawerHeader {
+  padding: 21px 20px;
+  gap: 0;
+  align-items: flex-start;
+}
+.recoveryWindow .drawerHeader > svg {
+  display: none;
+}
+.recoveryWindow .drawerHeader h2 {
+  font-size: 18px;
+}
+.recoveryWindow .drawerHeader p {
+  font-size: 11px;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.recoveryWindow .drawerBody {
+  padding: 20px;
+}
+.recoveryWindow .drawerFooter {
+  padding: 16px 20px;
+}
+.recoveryWindow .drawerFooter button {
+  display: flex;
+}
+@media (max-width: 600px) {
+  .recoveryWindow {
+    width: 100vw;
+    top: 0;
+  }
+}

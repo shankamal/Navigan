@@ -14,14 +14,16 @@ export function EvidenceDrawer({
   variant = "evidence",
   closeLabel = "Close workload evidence",
   wide = false,
+  footer,
 }: {
   title: string;
   subtitle: string;
   onClose: () => void;
   children: ReactNode;
-  variant?: "evidence" | "connections";
+  variant?: "evidence" | "connections" | "recovery";
   closeLabel?: string;
   wide?: boolean;
+  footer?: ReactNode;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -92,7 +94,7 @@ export function EvidenceDrawer({
       />
       <div
         ref={dialog}
-        className={`${styles.drawer} ${variant === "connections" ? `${styles.connectionWindow} ${wide ? styles.connectionWindowWide : ""}` : ""}`}
+        className={`${styles.drawer} ${variant === "recovery" ? styles.recoveryWindow : ""} ${variant === "connections" ? `${styles.connectionWindow} ${wide ? styles.connectionWindowWide : ""}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="workload-evidence-title"
@@ -111,9 +113,11 @@ export function EvidenceDrawer({
         </header>
         <div className={styles.drawerBody}>{children}</div>
         <footer className={styles.drawerFooter}>
-          <button onClick={onClose}>
-            {variant === "connections" ? "Done" : "Close"}
-          </button>
+          {footer ?? (
+            <button onClick={onClose}>
+              {variant === "connections" ? "Done" : "Close"}
+            </button>
+          )}
         </footer>
       </div>
     </div>,

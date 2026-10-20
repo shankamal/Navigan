@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   Box,
   GitBranch,
@@ -11,6 +11,11 @@ import {
   ChevronRight,
   Download,
   LoaderCircle,
+  CheckCircle2,
+  CircleMinus,
+  Info,
+  Server,
+  Search,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -23,6 +28,7 @@ import { normalizeApiError } from "@/shared/api/client";
 import { scopeKey } from "./source-migration-scope";
 import { EvidenceDrawer } from "./evidence-drawer";
 import styles from "./deployment-evidence-panel.module.css";
+import view from "./deployment-structure.module.css";
 
 type Workload = DeploymentWorkloadEvidence;
 function imageLabel(reference: string) {
@@ -60,6 +66,29 @@ function CopyValue({ value }: { value: string }) {
     </>
   );
 }
+function sourceStatus(status?: string) {
+  if (status === "AVAILABLE")
+    return { label: "Available", tone: view.good, Icon: CheckCircle2 };
+  if (status === "NOT_FOUND")
+    return { label: "Not found", tone: view.missing, Icon: AlertTriangle };
+  if (status === "ACCESS_REQUIRED")
+    return { label: "Access required", tone: view.review, Icon: AlertTriangle };
+  if (status === "NOT_CONNECTED")
+    return { label: "Not connected", tone: view.muted, Icon: CircleMinus };
+  return {
+    label: status ? status.toLowerCase().replaceAll("_", " ") : "Not checked",
+    tone: view.muted,
+    Icon: CircleMinus,
+  };
+}
+function registryLabel(image: string) {
+  const host = image.split("/")[0];
+  return host.includes(".dkr.ecr.")
+    ? "Source ECR"
+    : host.includes(".") || (host.includes(":") && image.includes("/"))
+      ? host
+      : "Docker Hub";
+}
 export function ContainerImages({
   workload,
   onResolve,
@@ -67,105 +96,225 @@ export function ContainerImages({
   workload: Workload;
   onResolve?: (c: Workload["containers"][number]) => void;
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   return (
-    <div className={styles.imageEvidence}>
-      <h4>
-        Container images <span>({workload.containers.length})</span>
-      </h4>
-      <p>
-        Declared references and observed Pod digests are separate evidence.
-        Expand for full values.
-      </p>
-      {!workload.containers.length && (
-        <p>No container image evidence was collected.</p>
-      )}
-      {workload.containers.map((c) => (
-        <details
-          key={`${c.containerType}/${c.name}`}
-          className={styles.containerImage}
-        >
-          <summary>
-            <Box size={17} />
-            <span>
-              <strong>{c.name}</strong>
-              <small>
-                {c.containerType === "INIT" || c.containerType === "init"
-                  ? "Init container"
-                  : "Container"}
-              </small>
-            </span>
-            <span className={styles.imageReference} title={c.configuredImage}>
-              {imageLabel(c.configuredImage)}
-            </span>
-            <span>
-              <small>Runtime digest</small>
-              {c.observedDigests.length
-                ? `${c.observedDigests.length} observed`
-                : "Not reported"}
-            </span>
-            <span>
-              <small>Source registry</small>
-              {c.registryEvidence?.status?.toLowerCase().replaceAll("_", " ") ||
-                "Not checked"}
-            </span>
-            <ChevronRight size={16} />
-          </summary>
-          <dl className={styles.imageFacts}>
-            <div>
-              <dt>Declared image reference</dt>
-              <dd>
-                <code>{c.configuredImage}</code>
-                <CopyValue value={c.configuredImage} />
-              </dd>
-            </div>
-            <div>
-              <dt>Declared digest</dt>
-              <dd>
-                <code>
-                  {c.configuredImage.includes("@")
-                    ? c.configuredImage.split("@")[1]
-                    : "Tag reference — digest not declared"}
-                </code>
-              </dd>
-            </div>
-            <div>
-              <dt>Observed runtime digests</dt>
-              <dd>
-                {c.observedDigests.length
-                  ? c.observedDigests.map((d) => (
-                      <p key={d}>
-                        <code>{d}</code>
-                        <CopyValue value={d} />
-                      </p>
-                    ))
-                  : "Not reported by the collected runtime evidence"}
-              </dd>
-            </div>
-            <div>
-              <dt>Registry result</dt>
-              <dd>
-                {c.registryEvidence?.reason ||
-                  (c.registryEvidence
-                    ? `Registry metadata status: ${c.registryEvidence.status.toLowerCase().replaceAll("_", " ")}. This does not verify target pull access.`
-                    : "Registry metadata has not been checked.")}
-              </dd>
-            </div>
-          </dl>
+    <section className={view.images} aria-label="Workload container images">
+      <div className={view.sectionTitle}>
+        <Database size={22} />
+        <div>
+          <h3>
+            Container images <span>({workload.containers.length})</span>
+          </h3>
           <p>
-            {c.runningPodCount} observed Pods ·{" "}
-            {c.multipleRunningVersions
-              ? "Multiple runtime versions — choose the digest to recover."
-              : "Image availability does not verify runtime health or target pull access."}
+            Declared images, observed runtime digests and source availability.
           </p>
-          {onResolve && (
-            <button onClick={() => onResolve(c)}>
-              <Database size={14} />
-              Resolve image artifact
-            </button>
-          )}
-        </details>
-      ))}
-    </div>
+        </div>
+      </div>
+      <div className={view.tableViewport}>
+        <table className={view.imageTable}>
+          <colgroup>
+            <col style={{ width: "23%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "21%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "12%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Container</th>
+              <th>
+                Image{" "}
+                <Info
+                  size={12}
+                  aria-label="Declared in the workload configuration"
+                />
+              </th>
+              <th>
+                Runtime evidence{" "}
+                <Info
+                  size={12}
+                  aria-label="Digests reported by observed Pods"
+                />
+              </th>
+              <th>
+                Source availability{" "}
+                <Info
+                  size={12}
+                  aria-label="Registry metadata only; target pull access is not verified"
+                />
+              </th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {workload.containers.map((c, index) => {
+              const key = `${c.containerType}/${c.name}`;
+              const open = expanded === key;
+              const status = sourceStatus(c.registryEvidence?.status);
+              const isInit = c.containerType.toUpperCase() === "INIT";
+              const label = imageLabel(c.configuredImage);
+              const [imageName, declaredDigest] = label.split("@");
+              return (
+                <Fragment key={key}>
+                  <tr
+                    className={
+                      c.registryEvidence?.status === "NOT_FOUND"
+                        ? view.missingRow
+                        : undefined
+                    }
+                  >
+                    <td>
+                      <button
+                        className={view.containerToggle}
+                        aria-expanded={open}
+                        aria-controls={`image-details-${index}`}
+                        onClick={() => setExpanded(open ? null : key)}
+                      >
+                        <Box size={19} />
+                        <span>
+                          <strong>{c.name}</strong>
+                          <small
+                            className={
+                              isInit ? view.initType : view.containerType
+                            }
+                          >
+                            {isInit ? "Init" : "Container"}
+                          </small>
+                        </span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </td>
+                    <td>
+                      <div className={view.imageCell}>
+                        <span>
+                          <strong title={c.configuredImage}>{imageName}</strong>
+                          {declaredDigest && <code>@{declaredDigest}</code>}
+                          <small title={c.configuredImage.split("/")[0]}>
+                            {registryLabel(c.configuredImage)}
+                          </small>
+                        </span>
+                        <CopyValue value={c.configuredImage} />
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        className={`${view.status} ${c.observedDigests.length ? view.good : view.muted}`}
+                      >
+                        {c.observedDigests.length ? (
+                          <CheckCircle2 size={16} />
+                        ) : (
+                          <CircleMinus size={16} />
+                        )}{" "}
+                        {c.observedDigests.length
+                          ? "Digest observed"
+                          : "Not reported"}
+                      </span>
+                      {c.observedDigests.length > 0 && (
+                        <small
+                          className={view.runtimeDigest}
+                          title={c.observedDigests.join(", ")}
+                        >
+                          {c.observedDigests[0].slice(0, 19)}…{" "}
+                          {c.observedDigests.length > 1
+                            ? `+${c.observedDigests.length - 1} more`
+                            : ""}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`${view.status} ${status.tone}`}>
+                        <status.Icon size={16} />
+                        {status.label}
+                      </span>
+                      <small className={view.registryCaption}>
+                        {registryLabel(c.configuredImage)}
+                      </small>
+                    </td>
+                    <td>
+                      {onResolve &&
+                      c.registryEvidence?.status !== "AVAILABLE" ? (
+                        <button
+                          className={view.resolveButton}
+                          aria-label={`Resolve image ${c.name}`}
+                          onClick={() => onResolve(c)}
+                        >
+                          Resolve
+                        </button>
+                      ) : (
+                        <span className={view.muted}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr className={view.expandedRow}>
+                      <td colSpan={5}>
+                        <div
+                          id={`image-details-${index}`}
+                          className={view.imageDetails}
+                        >
+                          <dl>
+                            <div>
+                              <dt>Declared image reference</dt>
+                              <dd>
+                                <code>{c.configuredImage}</code>
+                                <CopyValue value={c.configuredImage} />
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Declared digest</dt>
+                              <dd>
+                                <code>
+                                  {c.configuredImage.split("@")[1] ||
+                                    "Tag reference — digest not declared"}
+                                </code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Observed runtime digests</dt>
+                              <dd>
+                                {c.observedDigests.length
+                                  ? c.observedDigests.map((d) => (
+                                      <p key={d}>
+                                        <code>{d}</code>
+                                        <CopyValue value={d} />
+                                      </p>
+                                    ))
+                                  : "Not reported by the collected runtime evidence"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Registry result</dt>
+                              <dd>
+                                {c.registryEvidence?.reason ||
+                                  `${status.label}. Registry availability and runtime evidence are checked independently.`}
+                              </dd>
+                            </div>
+                          </dl>
+                          <p>
+                            {c.runningPodCount} observed Pods ·{" "}
+                            {c.multipleRunningVersions
+                              ? "Multiple runtime versions — select an exact digest for recovery."
+                              : "Availability does not verify target pull access."}
+                          </p>
+                          {onResolve && (
+                            <button onClick={() => onResolve(c)}>
+                              Check recovery options
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {!workload.containers.length && (
+        <p className={view.empty}>No container image evidence was collected.</p>
+      )}
+    </section>
   );
 }
 export function DeploymentStructure({
@@ -175,24 +324,38 @@ export function DeploymentStructure({
 }: {
   workloads: Workload[];
   onInspect: (w: Workload) => void;
-  onResolve: (w: Workload, container?: Workload["containers"][number]) => void;
+  onResolve: (w: Workload, c?: Workload["containers"][number]) => void;
 }) {
   const [selected, setSelected] = useState("");
   const active =
     workloads.find((w) => scopeKey(w.workload) === selected) ??
-    workloads.find((w) => w.candidates.length > 0) ??
+    workloads.find((w) => w.candidates.length) ??
     workloads[0];
   const namespaces = [
     ...new Set(workloads.map((w) => w.workload.namespace || "Cluster-scoped")),
   ].sort();
+  const candidates =
+    active?.candidates.filter(
+      (c, i, all) =>
+        all.findIndex(
+          (other) =>
+            other.repository === c.repository &&
+            other.commit === c.commit &&
+            other.filePath === c.filePath,
+        ) === i,
+    ) || [];
   return (
-    <div className={styles.structureLayout}>
+    <div className={view.layout}>
       <aside
-        className={styles.workloadNavigator}
+        className={view.navigator}
         aria-label="Deployment structure workloads"
       >
-        <h3>Namespaces & workloads</h3>
-        <small>{workloads.length} matching workload controllers</small>
+        <header>
+          <h3>Namespaces & workloads</h3>
+          <small>
+            {namespaces.length} namespaces · {workloads.length} workloads
+          </small>
+        </header>
         {namespaces.map((ns) => (
           <details
             key={ns}
@@ -216,7 +379,7 @@ export function DeploymentStructure({
                   aria-pressed={w === active}
                   onClick={() => setSelected(scopeKey(w.workload))}
                 >
-                  <Box size={17} />
+                  <Box size={18} />
                   <span>
                     {w.workload.name}
                     <small>{w.workload.kind}</small>
@@ -227,11 +390,11 @@ export function DeploymentStructure({
         ))}
       </aside>
       {!active ? (
-        <p>No workloads match these filters.</p>
+        <p className={view.empty}>No workloads match these filters.</p>
       ) : (
-        <article className={styles.structureStory}>
-          <header>
-            <Box size={25} />
+        <article className={view.card}>
+          <header className={view.workloadTitle}>
+            <Box size={29} />
             <div>
               <h3>How {active.workload.name} is defined</h3>
               <p>
@@ -239,122 +402,130 @@ export function DeploymentStructure({
                 {active.workload.namespace || "Cluster-scoped"}
               </p>
             </div>
+            <button
+              className={view.inspectLink}
+              onClick={() => onInspect(active)}
+            >
+              Inspect evidence <ChevronRight size={14} />
+            </button>
           </header>
-          <section>
-            <h4>
-              <Database size={18} />
-              Observed workload
-            </h4>
-            <dl className={styles.evidenceFacts}>
+          <section
+            className={view.sourceStrip}
+            aria-label="Source repository candidate"
+          >
+            {candidates.length ? (
+              candidates.map((c) => (
+                <div
+                  key={`${c.repository}/${c.filePath}/${c.commit}`}
+                  className={view.candidateStrip}
+                >
+                  <GitBranch size={23} />
+                  <div>
+                    <small>
+                      {active.mappingStatus === "CONFIRMED"
+                        ? "User-confirmed candidate"
+                        : "GitHub candidate"}
+                    </small>
+                    <strong title={c.repository}>{c.repository}</strong>
+                  </div>
+                  <div className={view.filePath}>
+                    <small>File path</small>
+                    <strong title={c.filePath}>{c.filePath}</strong>
+                    <CopyValue value={`${c.repository}/${c.filePath}`} />
+                  </div>
+                  <div>
+                    <small>Type</small>
+                    <strong>
+                      {active.artifactFormat === "Unresolved"
+                        ? "Not detected"
+                        : active.artifactFormat.replace(" (candidate)", "")}
+                    </strong>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className={view.unmapped}>
+                <FileCode2 size={22} />
+                <div>
+                  <strong>No original repository mapping.</strong>
+                  <p>
+                    {active.clusterSnapshot
+                      ? "Captured cluster evidence is available for review."
+                      : "Connect a repository or refresh source evidence."}
+                  </p>
+                </div>
+              </div>
+            )}
+            {candidates.length > 0 && (
+              <div className={view.provenance}>
+                <AlertTriangle size={14} />
+                <span>Deployed Git revision unverified</span>
+                <small>
+                  Inspected commit {candidates[0].commit.slice(0, 12)}
+                </small>
+              </div>
+            )}
+            {candidates.some((c) => c.match === "NAMESPACE_UNSPECIFIED") && (
+              <small className={view.namespaceNote}>
+                Namespace not specified in the candidate file. Runtime namespace
+                shown above.
+              </small>
+            )}
+          </section>
+          <ContainerImages
+            key={scopeKey(active.workload)}
+            workload={active}
+            onResolve={(c) => onResolve(active, c)}
+          />
+          <section className={view.deploymentFacts}>
+            <div className={view.sectionTitle}>
+              <FileCode2 size={21} />
+              <div>
+                <h3>Deployment evidence</h3>
+                <p>Additional context from the collected source evidence.</p>
+              </div>
+            </div>
+            <dl>
+              <div>
+                <dt>Original delivery tool</dt>
+                <dd>
+                  <Box size={17} />
+                  {active.deliveryTool === "Unresolved"
+                    ? "Not detected"
+                    : active.deliveryTool}
+                </dd>
+              </div>
               <div>
                 <dt>Cluster snapshot</dt>
                 <dd>
+                  <Database size={17} />
                   {active.clusterSnapshot
                     ? "Captured inventory available"
                     : "Not collected"}
                 </dd>
               </div>
               <div>
-                <dt>Runtime evidence</dt>
-                <dd>{active.runtimeStatus.replaceAll("_", " ")}</dd>
-              </div>
-              <div>
-                <dt>Reported application version</dt>
-                <dd>{active.applicationVersion || "Not reported"}</dd>
-              </div>
-            </dl>
-          </section>
-          <section>
-            <ContainerImages
-              workload={active}
-              onResolve={(c) => onResolve(active, c)}
-            />
-          </section>
-          <section>
-            <h4>
-              <GitBranch size={18} />
-              Deployment source
-            </h4>
-            <p className={styles.provenanceNote}>
-              <AlertTriangle size={15} />
-              Deployed Git revision unverified
-            </p>
-            {active.candidates.length ? (
-              active.candidates.map((c) => (
-                <div
-                  className={styles.sourceCandidate}
-                  key={`${c.repository}/${c.filePath}/${c.commit}`}
-                >
-                  <small>
-                    {c.match === "USER_CONFIRMED"
-                      ? "User-confirmed candidate"
-                      : "Repository candidate"}
-                  </small>
-                  <strong>
-                    <FileCode2 size={16} />
-                    {c.filePath}
-                  </strong>
-                  <p>
-                    {c.repository} · inspected commit{" "}
-                    <code title={c.commit}>{c.commit.slice(0, 12)}</code>
-                  </p>
-                  {c.match === "NAMESPACE_UNSPECIFIED" && (
-                    <small>
-                      Namespace not specified in file. Runtime namespace is
-                      shown above.
-                    </small>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p>
-                No original repository mapping.{" "}
-                {active.clusterSnapshot
-                  ? "A sanitized cluster snapshot is available for review."
-                  : "Connect a repository or refresh source evidence."}
-              </p>
-            )}
-            <dl className={styles.evidenceFacts}>
-              <div>
-                <dt>Artifact type</dt>
+                <dt>Application version</dt>
                 <dd>
-                  {active.artifactFormat === "Unresolved"
-                    ? "Not detected"
-                    : active.artifactFormat}
+                  <Info size={17} />
+                  {active.applicationVersion || "Not reported"}
                 </dd>
               </div>
-              <div>
-                <dt>Delivery tool</dt>
-                <dd>
-                  {active.deliveryTool === "Unresolved"
-                    ? "Not detected"
-                    : active.deliveryTool}
-                </dd>
-              </div>
-              {active.helmRelease && (
-                <div>
-                  <dt>Helm release</dt>
-                  <dd>
-                    {active.helmRelease} ·{" "}
-                    {active.helmChart || "Chart version not reported"}
-                  </dd>
-                </div>
-              )}
             </dl>
             {active.helmRelease && (
-              <button onClick={() => onResolve(active)}>
-                Resolve Helm release artifact
-              </button>
+              <div className={view.helmRelease}>
+                <span>
+                  <strong>Helm release: {active.helmRelease}</strong>
+                  <small>
+                    {active.helmChart || "Original chart package not verified"}
+                  </small>
+                </span>
+                <button onClick={() => onResolve(active)}>
+                  Resolve Helm release artifact
+                </button>
+              </div>
             )}
           </section>
-          <footer>
-            <button
-              className={styles.primary}
-              onClick={() => onInspect(active)}
-            >
-              Inspect evidence
-            </button>
-          </footer>
         </article>
       )}
     </div>
@@ -454,127 +625,231 @@ export function ArtifactResolution({
     // Each response schedules the next bounded status check; failed checks require an explicit retry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job, error]);
+  const availability = sourceStatus(container?.registryEvidence?.status);
+  const recoverable =
+    canEdit &&
+    !busy &&
+    job?.status !== "RECOVERING" &&
+    (!container || Boolean(digest));
+  const startButton = (
+    <button
+      className={view.recoverPrimary}
+      disabled={!recoverable}
+      onClick={() => void request("START")}
+    >
+      {busy ? (
+        <LoaderCircle size={17} className={styles.spin} />
+      ) : (
+        <Search size={17} />
+      )}
+      Check cache and recover
+    </button>
+  );
   return (
     <EvidenceDrawer
-      title="Resolve source artifact"
-      subtitle={`${workload.workload.namespace} / ${workload.workload.name}${container ? " / " + container.name : " / Helm release"}`}
+      title={
+        container
+          ? container.registryEvidence?.status === "NOT_FOUND"
+            ? "Resolve missing image"
+            : "Resolve image artifact"
+          : "Resolve Helm release"
+      }
+      subtitle={`${workload.workload.kind} · ${workload.workload.name} · ${workload.workload.namespace || "Cluster-scoped"}`}
       onClose={onClose}
       closeLabel="Close artifact recovery"
-    >
-      <section className={styles.drawerSection}>
-        <h3>Source availability</h3>
-        <p>
-          {container
-            ? container.registryEvidence?.reason ||
-              `Registry metadata result: ${container.registryEvidence?.status || "Not checked"}. This does not establish cache recoverability.`
-            : "A detected Helm release does not establish whether the original chart package remains available."}
-        </p>
-        <p>
-          Authentication errors and unreachable sources do not prove deletion.
-          Check source access first.
-        </p>
-      </section>
-      <section className={styles.drawerSection}>
-        <h3>Recover retained artifacts</h3>
-        <p>
-          {container
-            ? "Checks the configured source SSM host’s local containerd cache only. Exports an OCI archive only if the selected digest and every required blob validate. Other nodes need separately approved access."
-            : "Checks retained deployed Helm release Secrets on the configured SSM host. Recovers release data for review; original chart archives, signatures and dependency completeness remain unverified."}
-        </p>
-        {container && (
-          <label>
-            Image digest *
-            <select
-              aria-label="Recovery image digest"
-              value={digest}
-              onChange={(e) => setDigest(e.target.value)}
+      variant="recovery"
+      footer={
+        <div className={view.recoveryFooter}>
+          {!job || job.status === "CUSTOMER_INPUT_REQUIRED" ? (
+            startButton
+          ) : job.status === "RECOVERING" ? (
+            <button
+              className={view.recoverPrimary}
+              disabled={busy}
+              onClick={() => void request("POLL")}
             >
-              <option value="">Choose observed or declared digest</option>
-              {digests.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {container && !digests.length && (
-          <p role="status">
-            No recoverable digest identity was collected. Refresh runtime
-            evidence or supply the original image artifact.
-          </p>
-        )}
-        <p>
-          Recovery uses the approved SSM delivery role. Artifacts are stored
-          privately for this customer and assessment. Source workloads and
-          target registries are not changed. Helm bundles can contain sensitive
-          configuration.
-        </p>
-        <button
-          className={styles.primary}
-          disabled={
-            !canEdit ||
-            busy ||
-            job?.status === "RECOVERING" ||
-            Boolean(container && !digest)
-          }
-          onClick={() => void request("START")}
-        >
-          {busy && <LoaderCircle size={14} className={styles.spin} />}Check
-          cache and recover
-        </button>
-      </section>
-      {job && (
-        <section className={styles.drawerSection} aria-live="polite">
-          <h3>{job.status.replaceAll("_", " ")}</h3>
-          <p>{job.message}</p>
-          {job.sha256 && (
-            <p>
-              Archive checksum: <code>{job.sha256}</code>
-            </p>
-          )}
-          {job.platform && <p>Recovered platform: {job.platform}</p>}
-          {job.sizeBytes && (
-            <p>
-              {(job.sizeBytes / 1024 ** 2).toFixed(1)} MiB · Original source
-              availability unchanged
-            </p>
-          )}
-          {job.status === "RECOVERING" && (
-            <button disabled={busy} onClick={() => void request("POLL")}>
+              <LoaderCircle size={16} className={styles.spin} />
               Refresh recovery status
             </button>
-          )}
-          {["RECOVERED", "PARTIAL_RECOVERY"].includes(job.status) && (
+          ) : job.status === "RECOVERED" ||
+            job.status === "PARTIAL_RECOVERY" ? (
             <button
+              className={view.recoverPrimary}
               disabled={busy || !canEdit}
               onClick={() => void request("DOWNLOAD")}
             >
-              <Download size={15} />
+              <Download size={17} />
               Download recovered artifact
             </button>
+          ) : (
+            startButton
           )}
+          <button className={view.recoverClose} onClick={onClose}>
+            Close
+          </button>
+        </div>
+      }
+    >
+      <div className={view.recoveryBody}>
+        <div className={view.recoveryIdentity}>
+          <Box size={25} />
+          <div>
+            <strong>
+              {container?.name ||
+                workload.helmRelease ||
+                workload.workload.name}
+            </strong>
+            <span>
+              {container?.containerType === "INIT"
+                ? "Init container"
+                : container
+                  ? "Container image"
+                  : "Helm release data"}
+            </span>
+          </div>
+        </div>
+        <div
+          className={`${view.recoveryAvailability} ${container?.registryEvidence?.status === "NOT_FOUND" ? view.missingAvailability : ""}`}
+        >
+          <availability.Icon size={18} />
+          <div>
+            <strong>
+              {container
+                ? availability.label === "Not found"
+                  ? "Missing at source registry"
+                  : availability.label
+                : "Original chart package unverified"}
+            </strong>
+            <small>
+              {job
+                ? job.status.toLowerCase().replaceAll("_", " ")
+                : "Recovery not checked"}
+            </small>
+          </div>
+        </div>
+        {container && (
+          <section>
+            <h3>Declared image</h3>
+            <div className={view.recoveryImage}>
+              <strong>
+                {imageLabel(container.configuredImage).split("@")[0]}
+              </strong>
+              <code>
+                {container.configuredImage.includes("@")
+                  ? "@" +
+                    container.configuredImage.split("@")[1].slice(0, 23) +
+                    "…"
+                  : "Tag reference"}
+              </code>
+              <CopyValue value={container.configuredImage} />
+            </div>
+          </section>
+        )}
+        {container && (
+          <section>
+            <label className={view.digestLabel}>
+              Recovery digest *{" "}
+              <Info
+                size={13}
+                aria-label="Select an observed or declared digest; current registry tags are not used as deployed identity."
+              />
+              <select
+                aria-label="Recovery image digest"
+                value={digest}
+                onChange={(e) => setDigest(e.target.value)}
+              >
+                <option value="">Choose observed or declared digest</option>
+                {digests.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!digests.length && (
+              <p role="status">
+                No recoverable digest identity was collected. Refresh runtime
+                evidence or supply the original image artifact.
+              </p>
+            )}
+          </section>
+        )}
+        <section>
+          <h3>Recovery method</h3>
+          <p className={view.method}>
+            <Server size={19} />
+            <span>
+              Configured SSM host
+              <small>
+                {container
+                  ? "containerd cache · selected platform"
+                  : "Retained deployed Helm release"}
+              </small>
+            </span>
+          </p>
+          <div className={view.recoveryInfo}>
+            <Info size={17} />
+            <p>
+              {container
+                ? "Checks the exact image digest and required content. A cached copy is not guaranteed."
+                : "Recovers retained release data, not a verified original chart package. Values and manifests may contain sensitive configuration."}
+            </p>
+          </div>
         </section>
-      )}
-      {matchingJobs.length > 1 && (
-        <details className={styles.drawerSection}>
-          <summary>Previous recovery attempts ({matchingJobs.length})</summary>
-          {matchingJobs.map((item) => (
-            <button
-              key={item.jobId}
-              disabled={busy}
-              onClick={() => setJob(item)}
-            >
-              {item.jobId.slice(-8)} · {item.status.replaceAll("_", " ")}
-            </button>
-          ))}
+        {job && (
+          <section className={view.recoveryResult} aria-live="polite">
+            <h3>{job.status.replaceAll("_", " ")}</h3>
+            <p>{job.message}</p>
+            {job.sha256 && (
+              <small>
+                Archive checksum <code>{job.sha256}</code>
+              </small>
+            )}
+            {job.platform && <small>Platform: {job.platform}</small>}
+            {job.sizeBytes ? (
+              <small>
+                {(job.sizeBytes / 1024 ** 2).toFixed(1)} MiB · Original source
+                availability unchanged
+              </small>
+            ) : null}
+          </section>
+        )}
+        <details className={view.recoveryNotes}>
+          <summary>Access, scope & original source</summary>
+          <p>
+            {container?.registryEvidence?.reason ||
+              "Authentication errors and unreachable sources do not prove deletion."}
+          </p>
+          <p>
+            {container
+              ? "Only the configured host is checked. Other nodes and runtimes need separately approved access."
+              : "Original chart archive, signatures and dependency completeness remain unverified."}{" "}
+            Artifacts are stored privately for this customer and assessment.
+            Source workloads and target registries are not changed.
+          </p>
         </details>
-      )}
-      {error && (
-        <p role="alert" className={styles.error}>
-          {error}
-        </p>
-      )}
+        {matchingJobs.length > 1 && (
+          <details className={view.recoveryNotes}>
+            <summary>
+              Previous recovery attempts ({matchingJobs.length})
+            </summary>
+            {matchingJobs.map((item) => (
+              <button
+                key={item.jobId}
+                disabled={busy}
+                onClick={() => setJob(item)}
+              >
+                {item.jobId.slice(-8)} · {item.status.replaceAll("_", " ")}
+              </button>
+            ))}
+          </details>
+        )}
+        {error && (
+          <p role="alert" className={styles.error}>
+            {error}
+          </p>
+        )}
+      </div>
     </EvidenceDrawer>
   );
 }

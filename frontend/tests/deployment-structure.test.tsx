@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, it, expect } from "vitest";
 import {
@@ -74,12 +68,10 @@ it("shows init images and separates declared from missing runtime digest", () =>
     />,
   );
   expect(screen.getByText("setup")).toBeVisible();
-  expect(screen.getByText("Init container")).toBeVisible();
+  expect(screen.getByText("Init")).toBeVisible();
   fireEvent.click(screen.getByText("main"));
   expect(
-    within(screen.getByText("main").closest("details")!).getByText(
-      "Not reported by the collected runtime evidence",
-    ),
+    screen.getByText("Not reported by the collected runtime evidence"),
   ).toBeVisible();
   expect(screen.getByText(/No original repository mapping/)).toBeVisible();
   expect(screen.getByText(digest)).toBeVisible();
@@ -151,4 +143,17 @@ it("requires digest identity and edit permission", () => {
     screen.getByRole("button", { name: "Check cache and recover" }),
   ).toBeDisabled();
   expect(screen.getByText(/No recoverable digest identity/)).toBeVisible();
+});
+
+it("opens recovery for the exact container selected in the image table", () => {
+  const resolve = vi.fn();
+  render(
+    <DeploymentStructure
+      workloads={[workload]}
+      onInspect={vi.fn()}
+      onResolve={resolve}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Resolve image main" }));
+  expect(resolve).toHaveBeenCalledWith(workload, workload.containers[0]);
 });
