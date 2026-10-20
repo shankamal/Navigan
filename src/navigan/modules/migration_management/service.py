@@ -112,9 +112,18 @@ class Service:
         from .deployment_sources import build_report
         migration, source = self.deployment_context(identifier)
         inventory = self.repo.get_source_inventory(identifier).get("inventory")
-        return build_report(migration, inventory, source)
+        report = build_report(migration, inventory, source)
+        from .artifact_recovery import public_job
+        report["recoveries"] = [public_job(job) for job in (source.get("delivery_configuration") or {}).get("artifactRecovery", {}).get(identifier, [])]
+        report["recoveryStorageConfigured"] = bool(os.environ.get("MIGRATION_RECOVERY_BUCKET"))
+        return report
 
     def analyze_deployment_sources(self, identifier, body):
+        if body.get("recovery"):
+            if body.get("refreshCluster") or body.get("continueAnalysis"):
+                raise ApiError(400, "RECOVERY_ACTION_CONFLICT", "Run recovery separately from discovery or analysis.")
+            from .artifact_recovery import recover
+            return recover(self, identifier, body)
         import time
         from .deployment_sources import analyze_repository, check_image, config_digest, WORKLOADS
         self.access.require("migration.edit")
@@ -205,8 +214,12 @@ class Service:
                     if auth.get("mode") in {"AWS_ROLE", "AWS_EXISTING_ROLE"} and key not in registry_clients:
                         registry_clients[key] = ecr_client(parts["registry"], auth)
                     checks.append(check_image(image, None, configuration["registries"], aws_client=registry_clients.get(key)))
-            except Exception:
-                checks.append({"image": image, "status": "UNAVAILABLE", "reason": "Image metadata could not be read. Anonymous access may require authentication, or the registry/image may be unavailable. Configure registry access and review the image reference."})
+            except Exception as error:
+                upstream = getattr(error, "registry_status", getattr(error, "code", None))
+                aws_code = getattr(error, "response", {}).get("Error", {}).get("Code")
+                missing = upstream == 404 or aws_code in {"ImageNotFoundException", "RepositoryNotFoundException"}
+                denied = upstream in {401, 403} or aws_code in {"AccessDeniedException", "UnrecognizedClientException", "ExpiredTokenException"}
+                checks.append({"image": image, "status": "NOT_FOUND" if missing else "ACCESS_REQUIRED" if denied else "UNAVAILABLE", "reason": "The referenced artifact was not found at the queried registry endpoint. This does not establish deletion or cache recoverability." if missing else "Registry authentication or authorization failed; artifact existence is unverified." if denied else "Image metadata could not be read. Check network access, authentication and the image reference; unavailability does not prove deletion."})
         analysis = {"configurationDigest": config_digest(configuration), "contextDigest": context_digest, "repositories": repositories, "images": checks,
                     "analyzedAt": datetime.now(timezone.utc).isoformat()}
         self.repo.save_deployment_configuration(source, "deploymentAnalysis", analysis, self.correlation)

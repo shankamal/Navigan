@@ -110,10 +110,24 @@ class SaveDeploymentSources(StrictModel):
     verify: bool = False
 
 
+class ArtifactRecoveryRequest(StrictModel):
+    operation: str = Field(pattern=r"^(START|POLL|DOWNLOAD)$")
+    jobId: str | None = Field(default=None, pattern=r"^REC-[a-f0-9]{32}$")
+    artifactKind: str = Field(default="IMAGE", pattern=r"^(IMAGE|HELM_RELEASE)$")
+    apiVersion: str | None = Field(default=None, max_length=100)
+    kind: str | None = Field(default=None, pattern=r"^(Deployment|StatefulSet|DaemonSet|Job|CronJob)$")
+    namespace: str | None = Field(default=None, max_length=63)
+    name: str | None = Field(default=None, max_length=253)
+    containerName: str | None = Field(default=None, max_length=253)
+    containerType: str | None = Field(default=None, max_length=40)
+    digest: str | None = Field(default=None, pattern=r"^sha256:[a-f0-9]{64}$")
+
+
 class AnalyzeDeploymentSources(StrictModel):
     version: int = Field(gt=0)
     refreshCluster: bool = False
     continueAnalysis: bool = False
+    recovery: ArtifactRecoveryRequest | None = None
 
 
 def validate_deployment_inventory(resource):

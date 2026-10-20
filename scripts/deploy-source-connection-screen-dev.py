@@ -23,6 +23,8 @@ FILES = [
     "deployment_sources.py",
     "source_authentication.py",
     "source_connector_installation.py",
+    "artifact_recovery.py",
+    "recovery_worker.py",
 ]
 
 
@@ -30,6 +32,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--enable-artifact-recovery", action="store_true", help="Deploy isolated private recovery storage and bind it to MigrationFunction; does not change source node access.")
+    parser.add_argument("--recovery-artifact-bucket", help="Existing private recovery bucket from recovery-storage.yaml; adds no source node permissions.")
     parser.add_argument("--registry-role-arn", action="append", default=[], help="Authorize an exact existing registry role ARN outside the standard IAM path; repeat for multiple roles.")
     parser.add_argument(
         "--upgrade-source-connector",
@@ -160,7 +164,7 @@ def main():
             zipfile.ZipFile(io.BytesIO(original)) as old,
             zipfile.ZipFile(artifact, "w", zipfile.ZIP_DEFLATED) as new,
         ):
-            missing = {prefix + name for name in FILES if name not in {"deployment_sources.py", "source_authentication.py"}} - set(
+            missing = {prefix + name for name in FILES if name not in {"deployment_sources.py", "source_authentication.py", "artifact_recovery.py", "recovery_worker.py"}} - set(
                 old.namelist()
             )
             if missing:
@@ -213,6 +217,21 @@ def main():
     current = aws("lambda", "get-function-configuration", "--function-name", name)
     variables = dict(current.get("Environment", {}).get("Variables", {}))
     variables["MIGRATION_SOURCE_FIRST_ENABLED"] = "true"
+    if args.enable_artifact_recovery:
+        recovery_stack = STACK + "-source-recovery"
+        role_name = current["Role"].rsplit("/", 1)[-1]
+        subprocess.check_call(["aws", "--profile", args.profile, "--region", "ap-south-1", "cloudformation", "deploy", "--stack-name", recovery_stack, "--template-file", str(ROOT / "infrastructure/modules/migration-management/recovery-storage.yaml"), "--parameter-overrides", "MigrationFunctionRoleName=" + role_name, "--capabilities", "CAPABILITY_NAMED_IAM", "--no-fail-on-empty-changeset"])
+        outputs = aws("cloudformation", "describe-stacks", "--stack-name", recovery_stack)["Stacks"][0]["Outputs"]
+        args.recovery_artifact_bucket = next(item["OutputValue"] for item in outputs if item["OutputKey"] == "RecoveryBucketName")
+    if args.recovery_artifact_bucket:
+        import re
+        if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", args.recovery_artifact_bucket):
+            raise SystemExit("Use a valid private recovery bucket name.")
+        aws("s3api", "head-bucket", "--bucket", args.recovery_artifact_bucket, "--expected-bucket-owner", ACCOUNT)
+        public = aws("s3api", "get-public-access-block", "--bucket", args.recovery_artifact_bucket)["PublicAccessBlockConfiguration"]
+        if not all(public.get(k) for k in ("BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets")):
+            raise SystemExit("Recovery bucket must block all public access.")
+        variables["MIGRATION_RECOVERY_BUCKET"] = args.recovery_artifact_bucket
     env = backup / "migration-environment.json"
     env.write_text(json.dumps({"Variables": variables}))
     aws(

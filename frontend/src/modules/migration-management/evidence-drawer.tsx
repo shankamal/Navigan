@@ -11,11 +11,17 @@ export function EvidenceDrawer({
   subtitle,
   onClose,
   children,
+  variant = "evidence",
+  closeLabel = "Close workload evidence",
+  wide = false,
 }: {
   title: string;
   subtitle: string;
   onClose: () => void;
   children: ReactNode;
+  variant?: "evidence" | "connections";
+  closeLabel?: string;
+  wide?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -86,7 +92,7 @@ export function EvidenceDrawer({
       />
       <div
         ref={dialog}
-        className={styles.drawer}
+        className={`${styles.drawer} ${variant === "connections" ? `${styles.connectionWindow} ${wide ? styles.connectionWindowWide : ""}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="workload-evidence-title"
@@ -99,13 +105,15 @@ export function EvidenceDrawer({
             <h2 id="workload-evidence-title">{title}</h2>
             <p id="workload-evidence-subtitle">{subtitle}</p>
           </div>
-          <button onClick={onClose} aria-label="Close workload evidence">
+          <button onClick={onClose} aria-label={closeLabel}>
             <X size={21} />
           </button>
         </header>
         <div className={styles.drawerBody}>{children}</div>
         <footer className={styles.drawerFooter}>
-          <button onClick={onClose}>Close</button>
+          <button onClick={onClose}>
+            {variant === "connections" ? "Done" : "Close"}
+          </button>
         </footer>
       </div>
     </div>,

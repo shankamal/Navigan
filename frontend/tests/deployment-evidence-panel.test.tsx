@@ -314,6 +314,11 @@ it("distinguishes resources in a multi-document manifest and labels workflows", 
   fireEvent.click(
     await screen.findByRole("button", { name: "Deployment structure" }),
   );
+  fireEvent.click(screen.getByText("Repository artifact index"));
+  fireEvent.click(screen.getByText("api.yaml", { selector: "summary" }));
+  fireEvent.click(
+    screen.getByText(".github/workflows/build.yml", { selector: "summary" }),
+  );
   expect(screen.getByText("Deployment · payments · api")).toBeVisible();
   expect(screen.getByText("Service · payments · api-service")).toBeVisible();
   expect(screen.getByText("GitHub Actions workflow")).toBeVisible();

@@ -18,6 +18,10 @@ import {
   AlertTriangle,
   ExternalLink,
 } from "lucide-react";
+import {
+  DeploymentStructure,
+  ArtifactResolution,
+} from "./deployment-structure";
 import { EvidenceDrawer } from "./evidence-drawer";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
@@ -62,6 +66,10 @@ export function DeploymentEvidencePanel({
   const [search, setSearch] = useState("");
   const [inspectedKey, setInspectedKey] = useState<string | null>(null);
   const [tab, setTab] = useState("workloads");
+  const [resolution, setResolution] = useState<{
+    workload: import("./deployment-evidence-service").DeploymentWorkloadEvidence;
+    container?: import("./deployment-evidence-service").DeploymentWorkloadEvidence["containers"][number];
+  } | null>(null);
   const [evidenceNamespace, setEvidenceNamespace] = useState("");
   const [snapshots, setSnapshots] = useState<
     Record<string, { resource?: Record<string, unknown>; error?: string }>
@@ -1078,89 +1086,82 @@ export function DeploymentEvidencePanel({
               );
             })()}
           {!selectedKeys && tab === "sources" && (
-            <div className={styles.cards}>
-              <article>
-                <h3>Cluster evidence for every discovered workload</h3>
-                <p>
-                  Filters apply to workload evidence below. Connected repository
-                  artifacts remain visible across namespaces.
-                </p>
-                <p>
-                  Original Git artifacts and captured cluster inventory are
-                  separate sources. Workloads without matching Git artifacts
-                  still have sanitized cluster evidence for review.
-                </p>
-                {workloads.map((w) => (
-                  <p key={scopeKey(w.workload)}>
-                    {w.workload.namespace} / {w.workload.kind} /{" "}
-                    {w.workload.name} ·{" "}
-                    {w.candidates.length
-                      ? "Git candidate available"
-                      : "Original repository mapping needed"}{" "}
-                    ·{" "}
-                    {w.clusterSnapshot
-                      ? "Sanitized inventory available"
-                      : "Refresh discovery for cluster inventory"}
-                  </p>
-                ))}
-              </article>
-              {!evidence.repositories.length && (
-                <p>
-                  Connect a repository and analyze deployment sources to inspect
-                  charts, manifests and scripts.
-                </p>
-              )}
-              {evidence.repositories.map((r) => (
-                <article key={r.repository}>
-                  <h3>{r.repository}</h3>
-                  <span>{r.status}</span>
-                  {r.commit && <code>Inspected commit: {r.commit}</code>}
-                  <p>
-                    {r.artifacts.length} deployment artifacts found. Shared
-                    chart and script relationships require review.
-                  </p>
-                  {r.artifacts.map((a, i) => (
-                    <p key={`${a.filePath}/${i}`}>
-                      <strong>
-                        {a.format === "GITHUB_ACTIONS"
-                          ? "GitHub Actions workflow"
-                          : a.format}
-                      </strong>{" "}
-                      · {a.filePath}
-                      {a.resource && (
-                        <small>
-                          {a.resource.kind} ·{" "}
-                          {a.resource.namespace ||
-                            "Namespace not specified in manifest"}{" "}
-                          · {a.resource.name}
-                        </small>
-                      )}
-                      {a.format === "SCRIPT" && (
-                        <small>
-                          Static references:{" "}
-                          {[a.usesHelm && "Helm", a.usesKubectl && "kubectl"]
-                            .filter(Boolean)
-                            .join(", ") || "No recognized command"}
-                        </small>
-                      )}
-                      {Boolean(a.referencedPaths?.length) && (
-                        <small>
-                          Referenced paths: {a.referencedPaths!.join(", ")}
-                        </small>
-                      )}
-                      {a.dynamicReferences && (
-                        <small>
-                          Variable-based script paths require review.
-                        </small>
-                      )}
-                    </p>
-                  ))}
-                  {r.gaps.map((g) => (
+            <DeploymentStructure
+              workloads={workloads}
+              onInspect={(w) => setInspectedKey(scopeKey(w.workload))}
+              onResolve={(workload, container) =>
+                setResolution({ workload, container })
+              }
+            />
+          )}
+          {resolution && (
+            <ArtifactResolution
+              migrationId={migration.migrationId}
+              version={migration.version}
+              inventoryDigest={
+                inventoryDigest || evidence.inventoryDigest || undefined
+              }
+              workload={resolution.workload}
+              container={resolution.container}
+              jobs={evidence.recoveries || []}
+              canEdit={canEdit}
+              onClose={() => setResolution(null)}
+            />
+          )}
+          {!selectedKeys && tab === "sources" && (
+            <details className={styles.artifactIndex}>
+              <summary>Repository artifact index</summary>
+              <p>
+                All inspected files. A script or workflow’s presence does not
+                prove it deployed a workload.
+              </p>
+              {evidence.repositories.map((repo) => (
+                <section key={repo.repository}>
+                  <h3>{repo.repository}</h3>
+                  <small>
+                    {repo.status} · inspected commit{" "}
+                    {repo.commit?.slice(0, 12) || "Unavailable"}
+                  </small>
+                  {[...new Set(repo.artifacts.map((a) => a.filePath))].map(
+                    (path) => (
+                      <details key={path}>
+                        <summary>{path}</summary>
+                        {repo.artifacts
+                          .filter((a) => a.filePath === path)
+                          .map((a, i) => (
+                            <p key={i}>
+                              {a.format === "GITHUB_ACTIONS"
+                                ? "GitHub Actions workflow"
+                                : a.format}
+                              {a.resource && (
+                                <small>
+                                  {a.resource.kind} ·{" "}
+                                  {a.resource.namespace ||
+                                    "Namespace not specified in manifest"}{" "}
+                                  · {a.resource.name}
+                                </small>
+                              )}
+                              {a.format === "SCRIPT" && (
+                                <small>
+                                  Script found — never executed during analysis.{" "}
+                                  {a.usesHelm ? "References Helm. " : ""}
+                                  {a.usesKubectl ? "References kubectl. " : ""}
+                                  {a.dynamicReferences
+                                    ? "Dynamic references need review."
+                                    : ""}
+                                </small>
+                              )}
+                            </p>
+                          ))}
+                      </details>
+                    ),
+                  )}
+                  {repo.gaps.map((g) => (
                     <p key={g}>{g}</p>
                   ))}
-                </article>
+                </section>
               ))}
-            </div>
+            </details>
           )}
           {!selectedKeys && tab === "images" && (
             <div className={styles.scroll}>

@@ -261,7 +261,9 @@ def registry_read(host, credential, path="/v2/", repository=None, aws=False, aws
             raise ValueError("Registry authentication did not issue an access token.")
         status, headers, raw = request("https://" + endpoint + path, "Bearer " + token, accept)
     if status != 200:
-        raise ValueError("Registry access failed.")
+        error = ValueError("Registry access failed.")
+        error.registry_status = status
+        raise error
     result = json.loads(raw or b"{}")
     if headers.get("docker-content-digest"):
         result["_registryDigest"] = headers["docker-content-digest"]

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { EvidenceDrawer } from "./evidence-drawer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   GitBranch,
@@ -74,6 +75,7 @@ export function SourceConnectionsPanel({
     {},
   );
   const [expanded, setExpanded] = useState(false);
+  const [connectionTab, setConnectionTab] = useState("overview");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -555,8 +557,7 @@ export function SourceConnectionsPanel({
       setBusy("");
     }
   }
-  const showConfiguration =
-    !compact || expanded || dirty || !settings.data?.readyForDiscovery;
+  const showConfiguration = !compact || expanded;
   const auth = settings.data?.authentication ?? {};
   const repositories = configuration?.repositories ?? [];
   const registries = configuration?.registries ?? [];
@@ -643,7 +644,7 @@ export function SourceConnectionsPanel({
             aria-expanded={showConfiguration}
             aria-controls="source-connection-configuration"
             onClick={() => setExpanded((v) => !v)}
-            disabled={dirty || !settings.data?.readyForDiscovery}
+            disabled={Boolean(busy) || !settings.data}
           >
             <Settings2 size={15} />
             {expanded ? "Hide connections" : "Manage connections"}
@@ -651,289 +652,419 @@ export function SourceConnectionsPanel({
         </div>
       )}
       {showConfiguration && (
-        <div id="source-connection-configuration">
-          <div className={styles.heading}>
-            <div>
-              <h2>
-                <ShieldCheck size={20} /> Source connections
-              </h2>
-              <p>
-                Connect application repositories and container registries before
-                discovery and assessment.
-              </p>
+        <ConnectionSurface
+          wide={connectionTab !== "overview"}
+          modal={compact && expanded}
+          onClose={() => {
+            if (busy || dirty) {
+              setError(
+                "Save or discard your changes before closing connections.",
+              );
+              return;
+            }
+            setExpanded(false);
+          }}
+        >
+          {compact && expanded && (
+            <>
+              <nav className={styles.tabs} aria-label="Connection sections">
+                {[
+                  ["overview", "Overview"],
+                  ["repository", "Repository"],
+                  ["registries", "Registries"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    aria-pressed={connectionTab === key}
+                    onClick={() => setConnectionTab(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              {connectionTab === "overview" && (
+                <div className={styles.connectionOverview}>
+                  {[
+                    [
+                      "Source cluster",
+                      connectorName || "Registered source",
+                      connectorConnected ? "Connected" : "Check status",
+                      "cluster",
+                    ],
+                    [
+                      "GitHub",
+                      repositories.map((r) => r.repository).join(", ") ||
+                        "Not configured",
+                      githubVerified ? "Verified" : "Review access",
+                      "repository",
+                    ],
+                    [
+                      "Container registries",
+                      registries.join(", ") || "Not configured",
+                      registriesVerified ? "Verified" : "Review access",
+                      "registries",
+                    ],
+                  ].map(([name, value, status, section]) => (
+                    <div key={name}>
+                      <strong>
+                        {name === "GitHub" ? (
+                          <GitBranch size={21} />
+                        ) : name === "Source cluster" ? (
+                          <Server size={21} />
+                        ) : (
+                          <Database size={21} />
+                        )}{" "}
+                        {name}
+                      </strong>
+                      <span>{value}</span>
+                      <small>{status} · Read-only access</small>
+                      {section !== "cluster" ? (
+                        <button onClick={() => setConnectionTab(section)}>
+                          Manage{" "}
+                          {name === "GitHub" ? "repository" : "registries"}
+                        </button>
+                      ) : (
+                        <small>
+                          Cluster registration is managed in Source connection.
+                        </small>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          <div hidden={compact && expanded && connectionTab === "overview"}>
+            <div className={styles.heading}>
+              <div>
+                <h2>
+                  <ShieldCheck size={20} /> Source connections
+                </h2>
+                <p>
+                  Connect application repositories and container registries
+                  before discovery and assessment.
+                </p>
+              </div>
+              <strong>
+                {dirty
+                  ? "Unsaved changes"
+                  : settings.data?.readyForDiscovery
+                    ? configuration?.inventoryOnly
+                      ? "Inventory only"
+                      : "Ready for discovery"
+                    : "Setup required"}
+              </strong>
             </div>
-            <strong>
-              {dirty
-                ? "Unsaved changes"
-                : settings.data?.readyForDiscovery
-                  ? configuration?.inventoryOnly
-                    ? "Inventory only"
-                    : "Ready for discovery"
-                  : "Setup required"}
-            </strong>
-          </div>
-          {settings.isPending && (
-            <p role="status">Loading source connection settings…</p>
-          )}
-          {settings.isError && (
-            <p role="alert">
-              Could not load source connections.{" "}
-              {normalizeApiError(settings.error).message}
-              <button onClick={() => void settings.refetch()}>
-                Retry source settings
-              </button>
-            </p>
-          )}
-          {!canEdit && (
-            <p role="status">
-              Your role can view connections. The migration.edit permission is
-              required to change them.
-            </p>
-          )}
-          {configuration && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save(true);
-              }}
-            >
-              <fieldset
-                className={styles.connectionFields}
-                disabled={!canEdit || !!busy}
+            {settings.isPending && (
+              <p role="status">Loading source connection settings…</p>
+            )}
+            {settings.isError && (
+              <p role="alert">
+                Could not load source connections.{" "}
+                {normalizeApiError(settings.error).message}
+                <button onClick={() => void settings.refetch()}>
+                  Retry source settings
+                </button>
+              </p>
+            )}
+            {!canEdit && (
+              <p role="status">
+                Your role can view connections. The migration.edit permission is
+                required to change them.
+              </p>
+            )}
+            {configuration && (
+              <form
+                noValidate
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void save(true);
+                }}
               >
-                <h3>
-                  <GitBranch size={16} /> Application source repositories
-                </h3>
-                <small>
-                  GitHub.com repositories are supported. Existing customer App
-                  connections:{" "}
-                  {settings.data?.githubOrganizations.join(", ") || "none"}.
-                  Connections are reused by assessments using this customer’s
-                  registered source cluster.
-                </small>
-                {configuration.repositories.map((r, i) => (
-                  <div className={styles.connectionCard} key={i}>
-                    <div className={styles.connectionGrid}>
-                      {(
-                        [
-                          [
-                            "repository",
-                            "Repository URL or owner/repository *",
-                            "https://github.com/arajendr/RetailFlow",
+                <fieldset
+                  className={styles.connectionFields}
+                  disabled={!canEdit || !!busy}
+                >
+                  <div
+                    hidden={
+                      compact && expanded && connectionTab !== "repository"
+                    }
+                  >
+                    <h3>
+                      <GitBranch size={16} /> Application source repositories
+                    </h3>
+                    <small>
+                      GitHub.com repositories are supported. Existing customer
+                      App connections:{" "}
+                      {settings.data?.githubOrganizations.join(", ") || "none"}.
+                      Connections are reused by assessments using this
+                      customer’s registered source cluster.
+                    </small>
+                    {configuration.repositories.map((r, i) => (
+                      <div className={styles.connectionCard} key={i}>
+                        <div className={styles.connectionGrid}>
+                          {(
+                            [
+                              [
+                                "repository",
+                                "Repository URL or owner/repository *",
+                                "https://github.com/arajendr/RetailFlow",
+                              ],
+                              ["revision", "Branch, tag or commit *", "main"],
+                              [
+                                "directory",
+                                "Deployment directory",
+                                "deploy/production",
+                              ],
+                            ] as const
+                          ).map(([field, label, placeholder]) => (
+                            <label key={field}>
+                              {label}
+                              <input
+                                value={r[field]}
+                                placeholder={placeholder}
+                                required={field !== "directory"}
+                                title={
+                                  field === "directory"
+                                    ? "Optional relative path containing Helm, Kustomize, manifests or deployment scripts."
+                                    : "The repository and revision Navigan will inspect with read-only requests."
+                                }
+                                onChange={(e) =>
+                                  setDraft({
+                                    ...configuration,
+                                    repositories:
+                                      configuration.repositories.map(
+                                        (item, j) =>
+                                          j === i
+                                            ? {
+                                                ...item,
+                                                [field]: e.target.value,
+                                              }
+                                            : item,
+                                      ),
+                                  })
+                                }
+                              />
+                            </label>
+                          ))}
+                        </div>
+                        {authFields("github:" + r.repository, true)}
+                        <button
+                          type="button"
+                          aria-label={`Remove repository ${i + 1}`}
+                          onClick={() => {
+                            setDraft({
+                              ...configuration,
+                              repositories: configuration.repositories.filter(
+                                (_, j) => i !== j,
+                              ),
+                            });
+                            setCredentials({});
+                          }}
+                        >
+                          <Trash2 size={14} /> Remove repository
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={configuration.repositories.length >= 3}
+                      onClick={() =>
+                        setDraft({
+                          ...configuration,
+                          repositories: [
+                            ...configuration.repositories,
+                            { repository: "", revision: "main", directory: "" },
                           ],
-                          ["revision", "Branch, tag or commit *", "main"],
-                          [
-                            "directory",
-                            "Deployment directory",
-                            "deploy/production",
-                          ],
-                        ] as const
-                      ).map(([field, label, placeholder]) => (
-                        <label key={field}>
-                          {label}
+                        })
+                      }
+                    >
+                      <Plus size={14} /> Add repository
+                    </button>
+                  </div>
+                  <div
+                    hidden={
+                      compact && expanded && connectionTab !== "registries"
+                    }
+                  >
+                    <h3>Container registries</h3>
+                    <small>
+                      Add a registry once. Navigan discovers all referenced
+                      workload and init-container images automatically.
+                      Verification checks registry API access; image-specific
+                      access is checked during analysis. Private network
+                      endpoints require connector-based access, which is not
+                      available here yet.
+                    </small>
+                    {configuration.registries.map((host, i) => (
+                      <div className={styles.connectionCard} key={i}>
+                        {providerField("registry:" + host)}
+                        <label>
+                          Registry hostname *
                           <input
-                            value={r[field]}
-                            placeholder={placeholder}
-                            required={field !== "directory"}
-                            title={
-                              field === "directory"
-                                ? "Optional relative path containing Helm, Kustomize, manifests or deployment scripts."
-                                : "The repository and revision Navigan will inspect with read-only requests."
-                            }
-                            onChange={(e) =>
+                            required
+                            value={host}
+                            placeholder={registryPlaceholder(
+                              (
+                                credentials["registry:" + host] ??
+                                defaults("registry:" + host)
+                              ).provider ?? "OTHER",
+                            )}
+                            maxLength={253}
+                            title="Use a hostname without https:// or an image path. Use the customer IAM role option for a separately authorized AWS account."
+                            onChange={(e) => {
+                              const nextHost = e.target.value;
                               setDraft({
                                 ...configuration,
-                                repositories: configuration.repositories.map(
-                                  (item, j) =>
-                                    j === i
-                                      ? { ...item, [field]: e.target.value }
-                                      : item,
+                                registries: configuration.registries.map(
+                                  (h, j) => (j === i ? nextHost : h),
                                 ),
-                              })
-                            }
+                              });
+                              setCredentials((old) => {
+                                const previousKey = "registry:" + host;
+                                const nextKey = "registry:" + nextHost;
+                                const detected = detectRegistryProvider(
+                                  nextHost.trim().toLowerCase(),
+                                );
+                                const provider =
+                                  detected !== "OTHER"
+                                    ? detected
+                                    : (old[previousKey]?.provider ?? "OTHER");
+                                const next = { ...old };
+                                delete next[previousKey];
+                                next[nextKey] = {
+                                  key: nextKey,
+                                  provider,
+                                  mode: registryMethods(provider)[0][0],
+                                  roleArn: registryRoleArn(nextHost),
+                                  username:
+                                    provider === "GOOGLE_AR"
+                                      ? "oauth2accesstoken"
+                                      : "",
+                                  token: "",
+                                };
+                                return next;
+                              });
+                            }}
                           />
                         </label>
-                      ))}
-                    </div>
-                    {authFields("github:" + r.repository, true)}
+                        {authFields("registry:" + host, false)}
+                        <button
+                          type="button"
+                          aria-label={`Remove registry ${i + 1}`}
+                          onClick={() => {
+                            setDraft({
+                              ...configuration,
+                              registries: configuration.registries.filter(
+                                (_, j) => j !== i,
+                              ),
+                            });
+                            setCredentials({});
+                          }}
+                        >
+                          <Trash2 size={14} /> Remove registry
+                        </button>
+                      </div>
+                    ))}
                     <button
                       type="button"
-                      aria-label={`Remove repository ${i + 1}`}
-                      onClick={() => {
+                      disabled={configuration.registries.length >= 10}
+                      onClick={() =>
                         setDraft({
                           ...configuration,
-                          repositories: configuration.repositories.filter(
-                            (_, j) => i !== j,
-                          ),
-                        });
-                        setCredentials({});
-                      }}
+                          registries: [...configuration.registries, ""],
+                        })
+                      }
                     >
-                      <Trash2 size={14} /> Remove repository
+                      <Plus size={14} /> Add registry
                     </button>
                   </div>
-                ))}
-                <button
-                  type="button"
-                  disabled={configuration.repositories.length >= 3}
-                  onClick={() =>
-                    setDraft({
-                      ...configuration,
-                      repositories: [
-                        ...configuration.repositories,
-                        { repository: "", revision: "main", directory: "" },
-                      ],
-                    })
-                  }
-                >
-                  <Plus size={14} /> Add repository
-                </button>
-                <h3>Container registries</h3>
-                <small>
-                  Add a registry once. Navigan discovers all referenced workload
-                  and init-container images automatically. Verification checks
-                  registry API access; image-specific access is checked during
-                  analysis. Private network endpoints require connector-based
-                  access, which is not available here yet.
-                </small>
-                {configuration.registries.map((host, i) => (
-                  <div className={styles.connectionCard} key={i}>
-                    {providerField("registry:" + host)}
-                    <label>
-                      Registry hostname *
-                      <input
-                        required
-                        value={host}
-                        placeholder={registryPlaceholder(
-                          (
-                            credentials["registry:" + host] ??
-                            defaults("registry:" + host)
-                          ).provider ?? "OTHER",
-                        )}
-                        maxLength={253}
-                        title="Use a hostname without https:// or an image path. Use the customer IAM role option for a separately authorized AWS account."
-                        onChange={(e) => {
-                          const nextHost = e.target.value;
-                          setDraft({
-                            ...configuration,
-                            registries: configuration.registries.map((h, j) =>
-                              j === i ? nextHost : h,
-                            ),
-                          });
-                          setCredentials((old) => {
-                            const previousKey = "registry:" + host;
-                            const nextKey = "registry:" + nextHost;
-                            const detected = detectRegistryProvider(
-                              nextHost.trim().toLowerCase(),
-                            );
-                            const provider =
-                              detected !== "OTHER"
-                                ? detected
-                                : (old[previousKey]?.provider ?? "OTHER");
-                            const next = { ...old };
-                            delete next[previousKey];
-                            next[nextKey] = {
-                              key: nextKey,
-                              provider,
-                              mode: registryMethods(provider)[0][0],
-                              roleArn: registryRoleArn(nextHost),
-                              username:
-                                provider === "GOOGLE_AR"
-                                  ? "oauth2accesstoken"
-                                  : "",
-                              token: "",
-                            };
-                            return next;
-                          });
+                  <label className={styles.inventoryChoice}>
+                    <input
+                      type="checkbox"
+                      checked={configuration.inventoryOnly ?? false}
+                      onChange={(e) =>
+                        setDraft({
+                          ...configuration,
+                          inventoryOnly: e.target.checked,
+                        })
+                      }
+                    />{" "}
+                    Continue with inventory-only discovery. Repository and
+                    registry analysis may be incomplete.
+                  </label>
+                  <small>
+                    Tokens are encrypted in AWS Secrets Manager. Existing tokens
+                    are never displayed. Navigan uses read-only API operations;
+                    choose tokens with only read permissions.
+                  </small>
+                  <div className={styles.actions}>
+                    <button type="button" onClick={() => void save(false)}>
+                      Save connections
+                    </button>
+                    <button className={styles.primary} type="submit">
+                      {busy && (
+                        <LoaderCircle size={14} className={styles.spin} />
+                      )}{" "}
+                      {busy === "verify"
+                        ? "Verifying access…"
+                        : "Save and verify access"}
+                    </button>
+                    {dirty && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraft(null);
+                          setCredentials({});
                         }}
-                      />
-                    </label>
-                    {authFields("registry:" + host, false)}
-                    <button
-                      type="button"
-                      aria-label={`Remove registry ${i + 1}`}
-                      onClick={() => {
-                        setDraft({
-                          ...configuration,
-                          registries: configuration.registries.filter(
-                            (_, j) => j !== i,
-                          ),
-                        });
-                        setCredentials({});
-                      }}
-                    >
-                      <Trash2 size={14} /> Remove registry
-                    </button>
+                      >
+                        Discard changes
+                      </button>
+                    )}
                   </div>
-                ))}
-                <button
-                  type="button"
-                  disabled={configuration.registries.length >= 10}
-                  onClick={() =>
-                    setDraft({
-                      ...configuration,
-                      registries: [...configuration.registries, ""],
-                    })
-                  }
-                >
-                  <Plus size={14} /> Add registry
-                </button>
-                <label className={styles.inventoryChoice}>
-                  <input
-                    type="checkbox"
-                    checked={configuration.inventoryOnly ?? false}
-                    onChange={(e) =>
-                      setDraft({
-                        ...configuration,
-                        inventoryOnly: e.target.checked,
-                      })
-                    }
-                  />{" "}
-                  Continue with inventory-only discovery. Repository and
-                  registry analysis may be incomplete.
-                </label>
-                <small>
-                  Tokens are encrypted in AWS Secrets Manager. Existing tokens
-                  are never displayed. Navigan uses read-only API operations;
-                  choose tokens with only read permissions.
-                </small>
-                <div className={styles.actions}>
-                  <button type="button" onClick={() => void save(false)}>
-                    Save connections
-                  </button>
-                  <button className={styles.primary} type="submit">
-                    {busy && <LoaderCircle size={14} className={styles.spin} />}{" "}
-                    {busy === "verify"
-                      ? "Verifying access…"
-                      : "Save and verify access"}
-                  </button>
-                  {dirty && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDraft(null);
-                        setCredentials({});
-                      }}
-                    >
-                      Discard changes
-                    </button>
-                  )}
-                </div>
-              </fieldset>
-            </form>
-          )}
-          {error && (
-            <p role="alert" className={styles.error}>
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p role="status" className={styles.note}>
-              {notice}
-            </p>
-          )}
-        </div>
+                </fieldset>
+              </form>
+            )}
+            {error && (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            )}
+            {notice && (
+              <p role="status" className={styles.note}>
+                {notice}
+              </p>
+            )}
+          </div>
+        </ConnectionSurface>
       )}
     </section>
+  );
+}
+
+function ConnectionSurface({
+  modal,
+  wide,
+  onClose,
+  children,
+}: {
+  modal: boolean;
+  wide: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return modal ? (
+    <EvidenceDrawer
+      title="Source connections"
+      subtitle="Manage read-only repository and registry access"
+      variant="connections"
+      wide={wide}
+      closeLabel="Close source connections"
+      onClose={onClose}
+    >
+      <div id="source-connection-configuration">{children}</div>
+    </EvidenceDrawer>
+  ) : (
+    <div id="source-connection-configuration">{children}</div>
   );
 }

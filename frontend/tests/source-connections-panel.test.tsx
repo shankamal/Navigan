@@ -452,6 +452,8 @@ it("summarizes verified connections and opens configuration only on request", as
     screen.queryByLabelText("Authentication for github:customer/app"),
   ).not.toBeInTheDocument();
   fireEvent.click(manage);
+  expect(screen.getByRole("dialog")).toHaveTextContent("Source connections");
+  fireEvent.click(screen.getByRole("button", { name: /^Repository$/ }));
   expect(
     screen.getByLabelText("Authentication for github:customer/app"),
   ).toBeVisible();

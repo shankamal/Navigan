@@ -96,7 +96,34 @@ export interface DeploymentWorkloadEvidence {
   }[];
   gaps: string[];
 }
+export interface RecoveryRequest {
+  operation: "START" | "POLL" | "DOWNLOAD";
+  jobId?: string;
+  artifactKind?: "IMAGE" | "HELM_RELEASE";
+  apiVersion?: string;
+  kind?: string;
+  namespace?: string | null;
+  name?: string;
+  containerName?: string;
+  containerType?: string;
+  digest?: string;
+}
+export interface RecoveryJob {
+  jobId: string;
+  kind: "IMAGE" | "HELM_RELEASE";
+  workload: DeploymentWorkloadEvidence["workload"];
+  containerName?: string;
+  inventoryDigest?: string;
+  status: string;
+  message: string;
+  digest?: string;
+  sha256?: string;
+  sizeBytes?: number;
+  platform?: string;
+}
 export interface DeploymentEvidence {
+  recoveries?: RecoveryJob[];
+  recoveryStorageConfigured?: boolean;
   coverage?: {
     status: string;
     workloadCount: number;
@@ -143,6 +170,18 @@ const headers = (version: number) => ({
   headers: writeHeaders({ key: crypto.randomUUID(), version }),
 });
 export const deploymentDiscovery = {
+  recover: async (
+    id: string,
+    version: number,
+    recovery: RecoveryRequest,
+  ): Promise<{ job: RecoveryJob; downloadUrl?: string }> =>
+    (
+      await apiClient.post(
+        `/migrations/${id}/deployment-evidence`,
+        { version, recovery },
+        headers(version),
+      )
+    ).data,
   settings: async (
     id: string,
     signal?: AbortSignal,
