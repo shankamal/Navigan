@@ -352,6 +352,23 @@ export function DeploymentEvidencePanel({
       setBusy("");
     }
   }
+  const sourceAnalysisAction = (
+    <button
+      className={hideConnections ? undefined : styles.primary}
+      disabled={
+        !canEdit || !!busy || editing || !evidence?.inventoryDigest || !matching
+      }
+      onClick={() => void perform("analyze")}
+      title="Read configured repositories and referenced images. Scripts are never executed."
+    >
+      {busy === "analyze" && <LoaderCircle size={15} className={styles.spin} />}
+      {busy === "analyze"
+        ? "Analyzing sources…"
+        : evidence?.analyzedAt
+          ? "Recheck sources"
+          : "Analyze deployment sources"}
+    </button>
+  );
   const actionBar = (
     <div className={hideConnections ? styles.evidenceActions : styles.heading}>
       {!hideConnections && (
@@ -402,28 +419,39 @@ export function DeploymentEvidencePanel({
                 Refresh cluster evidence
               </button>
             )}
-          <button
-            className={hideConnections ? undefined : styles.primary}
-            disabled={
-              !canEdit ||
-              !!busy ||
-              editing ||
-              !evidence?.inventoryDigest ||
-              !matching
-            }
-            onClick={() => void perform("analyze")}
-            title="Read configured repositories and referenced images. Scripts are never executed."
-          >
-            {busy === "analyze" && (
-              <LoaderCircle size={15} className={styles.spin} />
-            )}
-            {busy === "analyze"
-              ? "Analyzing sources…"
-              : evidence?.analyzedAt
-                ? "Recheck sources"
-                : "Analyze deployment sources"}
-          </button>
+          {!hideConnections && sourceAnalysisAction}
           {footerAction}
+          {hideConnections && (
+            <details
+              className={styles.moreOptions}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector("summary")?.focus();
+                }
+              }}
+            >
+              <summary aria-label="More options">⋮</summary>
+              <div
+                className={styles.moreOptionsPanel}
+                onClick={(event) => {
+                  if (
+                    (event.target as HTMLElement).closest(
+                      "button:not(:disabled)",
+                    )
+                  ) {
+                    const details = event.currentTarget.closest("details");
+                    if (details) details.open = false;
+                  }
+                }}
+              >
+                {sourceAnalysisAction}
+                <button onClick={() => setDiagnostics(true)}>
+                  Source diagnostics
+                </button>
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>
@@ -603,9 +631,11 @@ export function DeploymentEvidencePanel({
               </div>
               <div className={styles.explorerActions}>
                 {hideConnections && actionBar}
-                <button onClick={() => setDiagnostics(true)}>
-                  Source diagnostics
-                </button>
+                {!hideConnections && (
+                  <button onClick={() => setDiagnostics(true)}>
+                    Source diagnostics
+                  </button>
+                )}
               </div>
             </div>
           )}

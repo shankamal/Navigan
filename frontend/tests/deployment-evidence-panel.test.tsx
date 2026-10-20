@@ -653,3 +653,16 @@ it("analyzes a fresh inventory once after collection when source connections are
   expect(api.analyze).toHaveBeenCalledWith("MIG-db", 5);
   expect(api.refresh).not.toHaveBeenCalled();
 });
+
+
+it("puts source analysis and diagnostics in the discovery more-options disclosure", async () => {
+  open({ hideConnections: true });
+  const summary = await screen.findByLabelText("More options");
+  const menu = summary.closest("details")!;
+  expect(menu.open).toBe(false);
+  fireEvent.click(summary);
+  expect(menu.open).toBe(true);
+  fireEvent.click(within(menu).getByRole("button", { name: "Source diagnostics" }));
+  expect(menu.open).toBe(false);
+  expect(await screen.findByRole("dialog")).toBeVisible();
+});

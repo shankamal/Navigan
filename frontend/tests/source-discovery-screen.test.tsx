@@ -133,7 +133,7 @@ beforeEach(() => {
 it("enables workspace only for completed matching evidence and shows source facts without a target score", async () => {
   open();
   const link = await screen.findByRole("link", {
-    name: "Open Migration Workspace",
+    name: "Continue to migration scope",
   });
   expect(link).toHaveAttribute("href", "/migrations/MIG-demo/plan");
   expect(await screen.findByText("DB Schenker")).toBeVisible();
@@ -149,10 +149,10 @@ it("keeps workspace disabled for an incomplete or stale assessment", async () =>
   });
   open();
   expect(
-    await screen.findByRole("button", { name: "Open Migration Workspace" }),
+    await screen.findByRole("button", { name: "Continue to migration scope" }),
   ).toBeDisabled();
   expect(
-    screen.queryByRole("link", { name: "Open Migration Workspace" }),
+    screen.queryByRole("link", { name: "Continue to migration scope" }),
   ).not.toBeInTheDocument();
 });
 it("starts discovery only on explicit action using a current version", async () => {
@@ -260,7 +260,7 @@ it("offers guarded recovery for a stale registered connector instead of claiming
   ).toBeVisible();
   expect(screen.getByText(/Demo customer \(SRC-other\)/)).toBeVisible();
   expect(
-    screen.getByRole("button", { name: "Open Migration Workspace" }),
+    screen.getByRole("button", { name: "Continue to migration scope" }),
   ).toBeDisabled();
   expect(api.install).not.toHaveBeenCalled();
   fireEvent.click(button);
@@ -299,21 +299,26 @@ it("keeps recovery unavailable when backend reports another active assessment", 
 });
 
 it("refreshes connector diagnostics together with migration status", async () => {
+  api.source.mockRejectedValue(new Error("Status unavailable"));
   open();
-  const button = await screen.findByRole("button", { name: "Refresh status" });
+  const button = await screen.findByRole("button", {
+    name: "Retry status check",
+  });
   await waitFor(() => expect(button).toBeEnabled());
   api.source.mockClear();
   fireEvent.click(button);
   await waitFor(() => expect(api.source).toHaveBeenCalledWith("SRC-db", true));
 });
 
-it("keeps manual refresh available while connector status is being fetched", async () => {
-  api.source.mockImplementation(() => new Promise(() => {}));
+it("hides routine status refresh when polling has not failed", async () => {
   open();
-  const button = await screen.findByRole("button", { name: "Refresh status" });
-  await waitFor(() => expect(api.source).toHaveBeenCalled());
-  expect(button).toBeEnabled();
-  expect(button).toHaveAttribute("aria-busy", "true");
+  await screen.findByRole("link", { name: "Continue to migration scope" });
+  expect(
+    screen.queryByRole("button", { name: "Retry status check" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Refresh status" }),
+  ).not.toBeInTheDocument();
 });
 
 it("brings the selected namespace resources into view and moves keyboard focus", async () => {

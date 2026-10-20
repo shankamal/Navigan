@@ -146,7 +146,7 @@ export function SourceDiscoveryScreen({
       () => {
         setRepairUntil(0);
         setRecoveryMessage(
-          "Recovery was requested but no recent heartbeat arrived within two minutes. Refresh status to check again; another installation has not been started.",
+          "Recovery was requested but no recent heartbeat arrived within two minutes. Retry status check to check again; another installation has not been started.",
         );
       },
       Math.max(0, repairUntil - Date.now()),
@@ -310,14 +310,14 @@ export function SourceDiscoveryScreen({
       )}
       {ready && !query.isError ? (
         <Link className={shared.back} href={`/migrations/${migrationId}/plan`}>
-          Open Migration Workspace <ArrowRight size={16} />
+          Continue to migration scope <ArrowRight size={16} />
         </Link>
       ) : (
         <button
           disabled
           title="Requires completed discovery, matching inventory and assessment evidence, and a successful status refresh."
         >
-          Open Migration Workspace <ArrowRight size={16} />
+          Continue to migration scope <ArrowRight size={16} />
         </button>
       )}
     </div>
@@ -467,13 +467,15 @@ export function SourceDiscoveryScreen({
                   : "Restore source connection"}
             </button>
           )}
-          <button
-            disabled={busy}
-            aria-busy={query.isFetching || sourceQuery.isFetching}
-            onClick={refreshStatus}
-          >
-            Refresh status
-          </button>
+          {(query.isError || sourceQuery.isError || timedOut) && (
+            <button
+              disabled={busy}
+              aria-busy={query.isFetching || sourceQuery.isFetching}
+              onClick={refreshStatus}
+            >
+              Retry status check
+            </button>
+          )}
         </div>
         {waitingForConnector && (
           <div className={styles.caution} role="status">
@@ -536,8 +538,8 @@ export function SourceDiscoveryScreen({
         {timedOut && !waitingForConnector && !recovering && (
           <p role="status" className={styles.caution}>
             Discovery is taking longer than expected. Check the source connector
-            and API access; use Refresh status to check progress. No completed
-            assessment has been inferred.
+            and API access; use Retry status check to check progress. No
+            completed assessment has been inferred.
           </p>
         )}
         {query.isError && (
@@ -1002,7 +1004,7 @@ export function SourceDiscoveryScreen({
             disabled
             title="Requires verified source ownership and completed matching inventory and assessment evidence."
           >
-            Open Migration Workspace <ArrowRight size={16} />
+            Continue to migration scope <ArrowRight size={16} />
           </button>
         </footer>
       )}
