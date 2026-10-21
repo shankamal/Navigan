@@ -731,7 +731,9 @@ export function DeploymentEvidencePanel({
                 <strong>
                   {needsAttention > 0
                     ? `${needsAttention} workload${needsAttention === 1 ? "" : "s"} need evidence review`
-                    : allWorkloads.length === 0 ? "Awaiting workload evidence" : "No reported evidence gaps"}
+                    : allWorkloads.length === 0
+                      ? "Awaiting workload evidence"
+                      : "No reported evidence gaps"}
                 </strong>
                 <span>
                   Repository matches are candidates; they do not verify the
@@ -1012,17 +1014,21 @@ export function DeploymentEvidencePanel({
                     <h3>Delivery evidence</h3>
                     <p>
                       {w.deliveryTool === "Unresolved"
-                        ? "Delivery tool not detected"
-                        : w.deliveryTool}
-                      {w.deliveryEvidenceBasis === "FIELD_MANAGER" &&
-                      !w.deliveryTool.includes("field-manager")
-                        ? " (field-manager evidence)"
-                        : ""}
+                        ? "Update tool not detected"
+                        : w.deliveryTool.toLowerCase().includes("kubectl")
+                          ? "Updated using kubectl"
+                          : w.deliveryTool.replace(
+                              /\s*\(field-manager evidence\)/i,
+                              "",
+                            )}
                     </p>
-                    {w.deliveryEvidenceBasis === "FIELD_MANAGER" && (
-                      <small title="Field manager indicates who changed fields; it does not prove the complete deployment pipeline or Git revision.">
-                        Detected via Kubernetes field-manager metadata.{" "}
-                        <Info size={13} />
+                    {(w.deliveryEvidenceBasis === "FIELD_MANAGER" ||
+                      w.deliveryTool.toLowerCase().includes("kubectl")) && (
+                      <small>
+                        kubectl is the command-line tool for managing
+                        Kubernetes. The cluster records which tool updated this
+                        resource; this does not confirm the original Git file or
+                        deployment pipeline.
                       </small>
                     )}
                   </section>

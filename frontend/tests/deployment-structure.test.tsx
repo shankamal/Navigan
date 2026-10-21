@@ -202,10 +202,10 @@ it("shows only the selected workload's dependencies and linked assessment findin
       ]}
     />,
   );
-  fireEvent.click(screen.getByText("Dependencies", { selector: "summary" }));
+  fireEvent.click(screen.getByText("Connected resources", { selector: "summary" }));
   expect(screen.getByText("api-service")).toBeVisible();
   fireEvent.click(
-    screen.getByText("Assessment findings", { selector: "summary" }),
+    screen.getByText("Checks & actions", { selector: "summary" }),
   );
   expect(screen.getByText("Review source service")).toBeVisible();
   expect(screen.queryByText("Other namespace issue")).not.toBeInTheDocument();

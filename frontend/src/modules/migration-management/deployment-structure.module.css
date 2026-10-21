@@ -68,11 +68,11 @@
   margin: 3px 0 0;
 }
 .navigator details > button[aria-pressed="true"] {
-  background: #edf5e7;
+  background: #f5f7fa;
   border-left-color: #86bc25;
 }
 .navigator details > button:hover {
-  background: #f4f7f1;
+  background: #f5f7fa;
 }
 .card {
   min-width: 0;
@@ -810,3 +810,7 @@
   border-left: 1px solid #dfe6ed;
   padding-left: 10px;
 }
+
+.layout { align-items: start; margin-bottom: 0; }
+.card { align-self: start; }
+.deploymentFacts { padding-bottom: 10px; }

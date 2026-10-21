@@ -403,6 +403,13 @@ export function DeploymentStructure({
       all.findIndex((v) => v.code === f.code && v.severity === f.severity) ===
       i,
   );
+  const additionalGaps = [...new Set(active?.gaps ?? [])].filter(
+    (gap) =>
+      !linkedFindings.some(
+        (finding) =>
+          finding.message.trim().toLowerCase() === gap.trim().toLowerCase(),
+      ),
+  );
   return (
     <div className={view.layout}>
       <aside
@@ -638,15 +645,15 @@ export function DeploymentStructure({
               (job) => scopeKey(job.workload) === scopeKey(active.workload),
             )}
           />
-          <section className={view.related} aria-label="Workload dependencies">
+          <section className={view.related} aria-label="Connected resources">
             <details>
               <summary>
-                Dependencies{" "}
+                Connected resources{" "}
                 <span>{active.dependencies?.length ?? "Not reported"}</span>
               </summary>
               <p>
-                Referenced resources in this namespace. Values and Secret
-                contents remain private.
+                Resources this workload uses for networking, configuration,
+                storage or access. Secret contents are not displayed.
               </p>
               {active.dependencies?.length ? (
                 <div className={view.dependencyList}>
@@ -654,14 +661,30 @@ export function DeploymentStructure({
                     <div key={`${d.kind}/${d.name}`}>
                       <strong>
                         {d.name}
-                        <small>{d.kind}</small>
+                        <small>
+                          {["Service", "Ingress", "NetworkPolicy"].includes(
+                            d.kind,
+                          )
+                            ? "Networking"
+                            : [
+                                  "PersistentVolumeClaim",
+                                  "PersistentVolume",
+                                ].includes(d.kind)
+                              ? "Storage"
+                              : ["Secret", "ConfigMap"].includes(d.kind)
+                                ? "Configuration"
+                                : "Access / other"}{" "}
+                          · {d.kind}
+                        </small>
                       </strong>
                       <span
                         className={
                           d.status === "CAPTURED" ? view.good : view.review
                         }
                       >
-                        {d.status === "CAPTURED" ? "Captured" : "Not observed"}
+                        {d.status === "CAPTURED"
+                          ? "Found in discovery"
+                          : "Not found in discovery"}
                       </span>
                       <span>
                         {d.sourceCandidates.length
@@ -682,18 +705,23 @@ export function DeploymentStructure({
               )}
             </details>
           </section>
-          <section
-            className={view.related}
-            aria-label="Workload assessment findings"
-          >
+          <section className={view.related} aria-label="Checks and actions">
             <details
               open={groupedFindings.some((f) => f.severity === "BLOCKER")}
             >
               <summary>
-                Assessment findings{" "}
-                <span>{groupedFindings.length} issue groups</span>
+                Checks &amp; actions{" "}
+                <span>
+                  {groupedFindings.length + additionalGaps.length} checks to
+                  review
+                </span>
               </summary>
-              {!groupedFindings.length && (
+              <p>
+                Review the checks below to understand what needs attention.
+                Image recovery and connection actions are beside each container
+                above.
+              </p>
+              {!groupedFindings.length && !additionalGaps.length && (
                 <p>
                   No resource-specific findings are linked to this workload in
                   the supplied assessment. Review cluster-wide findings
@@ -707,10 +735,11 @@ export function DeploymentStructure({
                       f.severity === "BLOCKER" ? view.missing : view.review
                     }
                   >
-                    {f.severity
-                      .toLowerCase()
-                      .replace(/^./, (c) => c.toUpperCase())}{" "}
-                    · {f.code}
+                    {f.severity === "BLOCKER"
+                      ? "Action required · Blocker"
+                      : f.severity === "WARNING"
+                        ? "Review needed"
+                        : "Information"}
                   </strong>
                   <p>{f.message}</p>
                   {linkedFindings.filter(
@@ -737,21 +766,23 @@ export function DeploymentStructure({
                         ))}
                     </details>
                   )}
-                  {f.remediation && <small>{f.remediation}</small>}
+                  {f.remediation && <small>Next step: {f.remediation}</small>}
+                  <details>
+                    <summary>Technical details</summary>
+                    <p>
+                      Check: {f.code} · Severity: {f.severity}
+                    </p>
+                  </details>
                 </div>
               ))}
-            </details>
-          </section>
-          <section
-            className={view.related}
-            aria-label="Workload evidence notes"
-          >
-            <details>
-              <summary>
-                Items needing attention <span>{active.gaps.length}</span>
-              </summary>
-              {active.gaps.map((g) => (
-                <p key={g}>{g}</p>
+              {additionalGaps.map((gap) => (
+                <div className={view.finding} key={gap}>
+                  <strong className={view.review}>Review needed</strong>
+                  <p>{gap}</p>
+                  <button type="button" onClick={() => onInspect(active)}>
+                    Review evidence
+                  </button>
+                </div>
               ))}
             </details>
           </section>
@@ -765,12 +796,17 @@ export function DeploymentStructure({
             </div>
             <dl>
               <div>
-                <dt>Original delivery tool</dt>
+                <dt>How this resource was updated</dt>
                 <dd>
                   <Box size={17} />
                   {active.deliveryTool === "Unresolved"
                     ? "Not detected"
-                    : active.deliveryTool}
+                    : active.deliveryTool.toLowerCase().includes("kubectl")
+                      ? "Updated using kubectl"
+                      : active.deliveryTool.replace(
+                          /\s*\(field-manager evidence\)/i,
+                          "",
+                        )}
                 </dd>
               </div>
               <div>
@@ -790,6 +826,14 @@ export function DeploymentStructure({
                 </dd>
               </div>
             </dl>
+            {(active.deliveryTool.toLowerCase().includes("kubectl") ||
+              active.deliveryEvidenceBasis === "FIELD_MANAGER") && (
+              <p className={view.namespaceNote}>
+                kubectl is the command-line tool for managing Kubernetes. The
+                cluster records which tool updated this resource; this does not
+                confirm the original Git file or deployment pipeline.
+              </p>
+            )}
           </section>
         </article>
       )}

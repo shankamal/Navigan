@@ -747,3 +747,6 @@
 .discoveryScreen[class] > .runComplete .phase p {
   display: none;
 }
+
+/* Keep the discovery page content-sized, without trailing panel space. */
+.discoveryScreen[class] { padding-bottom: 0; }
