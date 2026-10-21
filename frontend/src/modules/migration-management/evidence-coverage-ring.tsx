@@ -47,8 +47,8 @@ export function EvidenceCoverageRing({
     <span
       style={{
         display: "grid",
-        width: 88,
-        height: 88,
+        width: 64,
+        height: 64,
         flexShrink: 0,
         placeItems: "center",
       }}
@@ -68,9 +68,9 @@ export function EvidenceCoverageRing({
         aria-hidden="true"
         width={88}
         height={88}
-        style={{ width: 88, height: 88, gridArea: "1 / 1" }}
+        style={{ width: 64, height: 64, gridArea: "1 / 1" }}
       />
-      <strong aria-hidden="true" style={{ gridArea: "1 / 1", fontSize: 18 }}>
+      <strong aria-hidden="true" style={{ gridArea: "1 / 1", fontSize: 15 }}>
         {percentage === null ? "—" : `${percentage}%`}
       </strong>
     </span>

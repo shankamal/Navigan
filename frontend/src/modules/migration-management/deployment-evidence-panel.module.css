@@ -488,8 +488,8 @@
   margin-top: 3px;
 }
 .compactConnections {
-  padding: 16px 18px;
-  margin: 16px 0;
+  padding: 10px 14px;
+  margin: 8px 0;
 }
 .connectionStrip {
   display: flex;
@@ -1460,18 +1460,18 @@
   gap: 8px;
 }
 .workbench .explorerHeading {
-  margin: 12px 0;
+  margin: 6px 0;
 }
 .workbench .explorerHeading > div:first-child {
   min-width: 200px;
 }
 .workbench .explorerHeading p {
-  max-width: 270px;
+  max-width: 420px;
 }
 .explorerActions .actions {
   gap: 8px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .explorerHeading {
     align-items: flex-start;
     flex-direction: column;
@@ -1553,28 +1553,28 @@
 }
 
 .discoverySummary {
-  margin: 0 0 20px;
+  margin: 0 0 10px;
   border: 1px solid #dce5df;
   border-radius: 8px;
   background: #fff;
-  padding: 18px 22px;
+  padding: 10px 16px;
 }
 .scorecardTitle {
-  margin: 0 0 18px;
-  font-size: 16px;
+  margin: 0 0 10px;
+  font-size: 14px;
   font-weight: 650;
   color: #172333;
 }
 .scorecards {
   display: grid;
   grid-template-columns: 0.85fr 0.85fr 1.15fr 1.15fr;
-  margin: 0 0 20px;
+  margin: 0 0 10px;
 }
 .scorecards > div {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 0 24px;
+  gap: 12px;
+  padding: 0 16px;
   border-right: 1px solid #e1e7ec;
   min-width: 0;
 }
@@ -1586,6 +1586,8 @@
   padding-right: 0;
 }
 .scorecards > div > svg {
+  width: 30px;
+  height: 30px;
   color: #32672c;
   flex-shrink: 0;
   stroke-width: 1.6;
@@ -1593,11 +1595,11 @@
 .scorecards > div > div {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
 }
 .scorecards strong {
-  font-size: 28px;
+  font-size: 22px;
   color: #172333;
   line-height: 1.15;
 }
@@ -1614,10 +1616,10 @@
 .scorecardNote {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   background: #fff8e9;
   border-radius: 5px;
-  padding: 11px 14px;
+  padding: 7px 10px;
   font-size: 12px;
   color: #975800;
 }
@@ -1632,10 +1634,10 @@
   border-left: 1px solid #e5dfd2;
   padding-left: 18px;
 }
-@media (max-width: 1200px) {
+@media (max-width: 1000px) {
   .scorecards {
     grid-template-columns: 1fr 1fr;
-    gap: 24px 0;
+    gap: 14px 0;
   }
   .scorecards > div:nth-child(2) {
     border-right: 0;

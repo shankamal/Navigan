@@ -527,6 +527,7 @@
   display: flex;
   flex-direction: column;
 }
+.discoveryScreen[class] > header { margin-bottom: 10px; }
 .discoveryScreen[class] > ol button {
   border: 0;
   background: transparent;
@@ -558,11 +559,11 @@
   margin: 0 0 8px;
 }
 .discoveryScreen[class] > #source-connections {
-  margin: 8px 0 16px;
+  margin: 4px 0 8px;
 }
 .discoveryScreen[class] > .runComplete {
-  padding: 16px 18px !important;
-  margin-bottom: 18px;
+  padding: 8px 0 !important;
+  margin-bottom: 6px;
 }
 .runComplete .phase p {
   margin: 4px 0 0;
@@ -578,8 +579,8 @@
   margin: 0;
 }
 .discoveryScreen[class] .runComplete .phase > svg {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 .discoveryScreen[class] > footer {
   padding: 8px 0 !important;
@@ -594,15 +595,15 @@
   display: grid;
   grid-template-columns: 1.15fr 0.85fr 1.25fr;
   gap: 0;
-  padding: 18px 24px;
+  padding: 10px 16px;
   border: 1px solid #d8e1e9;
   border-radius: 5px;
   background: #f8fafc;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 .context > div {
-  padding: 0 28px;
-  gap: 14px;
+  padding: 0 18px;
+  gap: 10px;
 }
 .context > div:first-child {
   padding-left: 0;
@@ -611,13 +612,13 @@
   padding-right: 0;
 }
 .context > div > svg {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
 }
 .context strong {
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.4;
 }
 @media (max-width: 800px) {
   .discoveryScreen[class] > .context {
