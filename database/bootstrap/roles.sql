@@ -90,3 +90,7 @@ GRANT INSERT,UPDATE ON access_management.users,access_management.roles,
 GRANT INSERT,UPDATE ON access_management.kubernetes_access_assignments TO navigan_api;
 GRANT INSERT,SELECT ON access_management.access_audit_log TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA access_management TO navigan_api;
+
+-- Migration artifact workspace foundation (migration 027).
+GRANT SELECT,INSERT ON migration_management.artifact_workspaces,
+  migration_management.workspace_artifacts TO navigan_api;

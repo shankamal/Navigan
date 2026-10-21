@@ -24,6 +24,7 @@ FILES = [
     "source_authentication.py",
     "source_connector_installation.py",
     "artifact_recovery.py",
+    "artifact_workspace.py",
     "recovery_worker.py",
 ]
 
@@ -32,6 +33,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--enable-artifact-workspace", action="store_true", help="Deploy private KMS workspace storage. Apply database migration 027 before using workspace APIs.")
     parser.add_argument("--enable-artifact-recovery", action="store_true", help="Deploy isolated private recovery storage and bind it to MigrationFunction; does not change source node access.")
     parser.add_argument("--recovery-artifact-bucket", help="Existing private recovery bucket from recovery-storage.yaml; adds no source node permissions.")
     parser.add_argument("--registry-role-arn", action="append", default=[], help="Authorize an exact existing registry role ARN outside the standard IAM path; repeat for multiple roles.")
@@ -46,6 +48,8 @@ def main():
         help="Resume routes, permissions, environment and optional connector upgrade after both Lambda code uploads succeeded.",
     )
     args = parser.parse_args()
+    if args.finish_deployment and args.enable_artifact_workspace:
+        parser.error("Workspace provisioning requires a full deployment; omit --finish-deployment.")
     for role in args.registry_role_arn:
         import re
         if not re.fullmatch(r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_-]+(?:/[A-Za-z0-9+=,.@_-]+)*", role):
@@ -217,6 +221,12 @@ def main():
     current = aws("lambda", "get-function-configuration", "--function-name", name)
     variables = dict(current.get("Environment", {}).get("Variables", {}))
     variables["MIGRATION_SOURCE_FIRST_ENABLED"] = "true"
+    if args.enable_artifact_workspace:
+        workspace_stack = STACK + "-artifact-workspace"
+        role_name = current["Role"].rsplit("/", 1)[-1]
+        subprocess.check_call(["aws", "--profile", args.profile, "--region", "ap-south-1", "cloudformation", "deploy", "--stack-name", workspace_stack, "--template-file", str(ROOT / "infrastructure/modules/migration-management/workspace-storage.yaml"), "--parameter-overrides", "MigrationFunctionRoleName=" + role_name, "--capabilities", "CAPABILITY_NAMED_IAM", "--no-fail-on-empty-changeset"])
+        outputs = {item["OutputKey"]: item["OutputValue"] for item in aws("cloudformation", "describe-stacks", "--stack-name", workspace_stack)["Stacks"][0]["Outputs"]}
+        variables.update(MIGRATION_WORKSPACE_BUCKET=outputs["WorkspaceBucketName"], MIGRATION_WORKSPACE_KMS_KEY=outputs["WorkspaceKmsKeyArn"], MIGRATION_WORKSPACE_BUCKET_OWNER=outputs["WorkspaceBucketOwner"])
     if args.enable_artifact_recovery:
         recovery_stack = STACK + "-source-recovery"
         role_name = current["Role"].rsplit("/", 1)[-1]
@@ -278,7 +288,7 @@ def finish_deployment(aws, stack, child, function_name, backup, args):
             ]
         )
     print(
-        "DEV migration deployment discovery enabled. Four JWT routes and scoped read permissions configured; database schema unchanged."
+        "DEV migration deployment discovery enabled. JWT discovery and workspace routes configured. Workspace APIs require database migration 027."
     )
 
 
@@ -309,6 +319,9 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
         "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
         "GET /api/v1/migrations/{migrationId}/deployment-evidence",
         "POST /api/v1/migrations/{migrationId}/deployment-evidence",
+        "GET /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
     ]:
         present = next((r for r in routes if r["RouteKey"] == route), None)
         desired = {

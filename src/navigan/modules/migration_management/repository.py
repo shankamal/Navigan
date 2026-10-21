@@ -35,6 +35,33 @@ class Repository:
         self.db = db
         self.principal = principal
 
+    def create_artifact_workspace(self, manifest, bucket, key, version, sha):
+        self.db.execute(
+            "INSERT INTO migration_management.artifact_workspaces "
+            "(workspace_id,migration_id,customer_id,inventory_digest,inventory_version,source_cluster_id,"
+            "migration_version,status,namespaces,manifest,bucket_name,manifest_key,manifest_version,manifest_sha256,created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s,%s,%s)",
+            [manifest["workspaceId"], manifest["migrationId"], manifest["customerId"], manifest["inventoryDigest"],
+             manifest["inventoryVersion"], manifest["sourceClusterId"], manifest["migrationVersion"], manifest["status"],
+             json_text(manifest["namespaces"]), json_text(manifest), bucket, key, version, sha, self.principal.user_id],
+        )
+        for artifact in manifest["artifacts"]:
+            self.db.execute(
+                "INSERT INTO migration_management.workspace_artifacts "
+                "(workspace_id,artifact_id,kind,status,provenance,workload_links) VALUES (%s,%s,%s,%s,%s::jsonb,%s::jsonb)",
+                [manifest["workspaceId"], artifact["artifactId"], artifact["kind"], artifact["status"],
+                 json_text(artifact["source"]), json_text(artifact["workloads"])],
+            )
+
+    def list_artifact_workspaces(self, identifier, customer_id, workspace_id=None):
+        self.get(identifier)
+        return self.db.execute(
+            "SELECT workspace_id,manifest,status,inventory_digest,source_cluster_id FROM migration_management.artifact_workspaces "
+            "WHERE migration_id=%s AND customer_id=%s" + (" AND workspace_id=%s" if workspace_id else "") +
+            " ORDER BY created_at DESC LIMIT 50",
+            [identifier, customer_id] + ([workspace_id] if workspace_id else []),
+        ).fetchall()
+
     def require_customer_visible(self, customer_id):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(

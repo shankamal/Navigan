@@ -22,6 +22,7 @@ import {
   DeploymentStructure,
   ArtifactResolution,
 } from "./deployment-structure";
+import { ArtifactWorkspacePanel } from "./artifact-workspace-panel";
 import { EvidenceDrawer } from "./evidence-drawer";
 import { EvidenceCoverageRing } from "./evidence-coverage-ring";
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -1225,21 +1226,31 @@ export function DeploymentEvidencePanel({
               );
             })()}
           {!selectedKeys && (
-            <DeploymentStructure
-              workloads={workloads}
-              namespaces={evidenceNamespaces.filter(
-                (n) => !evidenceNamespace || n === evidenceNamespace,
-              )}
-              findings={findings}
-              recoveries={(evidence.recoveries ?? []).filter(
-                (job) => job.inventoryDigest === evidence.inventoryDigest,
-              )}
-              onConnect={onManageConnections}
-              onInspect={(w) => setInspectedKey(scopeKey(w.workload))}
-              onResolve={(workload, container) =>
-                setResolution({ workload, container })
-              }
-            />
+            <>
+              <ArtifactWorkspacePanel
+                key={`${migration.migrationId}/${inventoryDigest ?? ""}`}
+                migrationId={migration.migrationId}
+                version={migration.version}
+                inventoryDigest={inventoryDigest}
+                namespaces={evidenceNamespaces}
+                canEdit={canEdit}
+              />
+              <DeploymentStructure
+                workloads={workloads}
+                namespaces={evidenceNamespaces.filter(
+                  (n) => !evidenceNamespace || n === evidenceNamespace,
+                )}
+                findings={findings}
+                recoveries={(evidence.recoveries ?? []).filter(
+                  (job) => job.inventoryDigest === evidence.inventoryDigest,
+                )}
+                onConnect={onManageConnections}
+                onInspect={(w) => setInspectedKey(scopeKey(w.workload))}
+                onResolve={(workload, container) =>
+                  setResolution({ workload, container })
+                }
+              />
+            </>
           )}
           {resolution && (
             <ArtifactResolution

@@ -1,0 +1,148 @@
+"use client";
+import { useState } from "react";
+import { Database } from "lucide-react";
+import {
+  apiClient,
+  normalizeApiError,
+  writeHeaders,
+} from "@/shared/api/client";
+import styles from "./artifact-workspace-panel.module.css";
+type Workspace = {
+  workspaceId: string;
+  namespaces: string[];
+  stale: boolean;
+  artifacts: { artifactId: string; kind: string; status: string }[];
+};
+export function ArtifactWorkspacePanel({
+  migrationId,
+  version,
+  inventoryDigest,
+  namespaces,
+  canEdit,
+}: {
+  migrationId: string;
+  version: number;
+  inventoryDigest?: string;
+  namespaces: string[];
+  canEdit: boolean;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  async function run(create: boolean) {
+    setBusy(true);
+    setError("");
+    try {
+      if (create) {
+        const { data } = await apiClient.post(
+          `/migrations/${migrationId}/artifact-workspaces`,
+          {
+            version,
+            inventoryDigest,
+            namespaces: selected.filter((ns) => namespaces.includes(ns)),
+          },
+          { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+        );
+        setWorkspaces((items) => [data, ...items]);
+      } else {
+        const { data } = await apiClient.get(
+          `/migrations/${migrationId}/artifact-workspaces`,
+        );
+        setWorkspaces(data.workspaces);
+      }
+      setLoaded(true);
+    } catch (e) {
+      setError(normalizeApiError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <details className={styles.panel}>
+      <summary>
+        <Database size={16} /> Artifact workspace{" "}
+        <span>Private S3 storage</span>
+      </summary>
+      <div className={styles.content}>
+        <p>
+          Create a workspace index for selected namespaces. The index records
+          which deployment definitions and images are needed. It does not copy
+          artifacts or make them migration-ready.
+        </p>
+        <fieldset disabled={busy || !canEdit}>
+          <legend>Namespaces to include</legend>
+          <div className={styles.namespaces}>
+            {namespaces.map((ns) => (
+              <label key={ns}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(ns)}
+                  onChange={(e) =>
+                    setSelected((items) =>
+                      e.target.checked
+                        ? [...items, ns]
+                        : items.filter((item) => item !== ns),
+                    )
+                  }
+                />
+                {ns}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            disabled={
+              busy ||
+              !canEdit ||
+              !inventoryDigest ||
+              !selected.some((ns) => namespaces.includes(ns))
+            }
+            onClick={() => run(true)}
+          >
+            Create workspace index
+          </button>
+          <button type="button" disabled={busy} onClick={() => run(false)}>
+            {loaded ? "Refresh workspaces" : "Load workspaces"}
+          </button>
+          {busy && <span role="status">Saving or loading workspace…</span>}
+        </div>
+        {!inventoryDigest && (
+          <p>Complete source discovery before creating a workspace.</p>
+        )}
+        {error && <p role="alert">{error}</p>}
+        {loaded && !workspaces.length && (
+          <p>No artifact workspaces have been created.</p>
+        )}
+        {workspaces.map((w) => (
+          <div className={styles.workspace} key={w.workspaceId}>
+            <strong>{w.namespaces.join(", ")}</strong>
+            <span>
+              {w.stale
+                ? "Older inventory snapshot · Create a new workspace"
+                : "Workspace index created"}
+            </span>
+            <small>
+              {w.artifacts.length} planned artifacts · Files and images not
+              collected
+            </small>
+            <details>
+              <summary>Planned artifacts</summary>
+              <ul>
+                {w.artifacts.map((a) => (
+                  <li key={a.artifactId}>
+                    {a.kind.toLowerCase().replaceAll("_", " ")} —{" "}
+                    {a.status.toLowerCase().replaceAll("_", " ")}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}

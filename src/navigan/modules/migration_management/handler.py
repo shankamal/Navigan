@@ -30,6 +30,7 @@ from .models import (
     UpdateMigration,
 )
 from .deployment_sources import SaveDeploymentSources, AnalyzeDeploymentSources
+from .artifact_workspace import CreateArtifactWorkspace
 from .repository import Repository
 from .service import Service, TRANSITIONS
 from .source_connector_installation import SourceConnectorInstaller
@@ -169,6 +170,12 @@ def route_of(method, path):
     if not re.fullmatch(r"MIG-[a-f0-9]{32}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
 
+    if len(parts) == 2 and parts[1] == "artifact-workspaces" and method in {"GET", "POST"}:
+        return ("artifact_workspace_list" if method == "GET" else "artifact_workspace_create"), identifier, None
+    if (len(parts) == 3 and parts[1] == "artifact-workspaces" and method == "GET"
+            and re.fullmatch(r"AWS-[a-f0-9]{32}", parts[2])):
+        return "artifact_workspace_get", identifier, parts[2]
+
     if len(parts) == 1 and method == "GET":
         return "get", identifier, None
     if len(parts) == 2 and parts[1] == "deployment-evidence" and method in {"GET", "POST"}:
@@ -230,6 +237,7 @@ def execute(event, principal, correlation):
         "source_cluster_install",
         "target_assessment_run",
         "artifact_upload_intent",
+        "artifact_workspace_create",
         "deployment_sources_save",
         "deployment_evidence_run",
     }
@@ -273,7 +281,9 @@ def execute(event, principal, correlation):
                     "Use an integer version.",
                 ) from None
 
-        if route == "deployment_sources_save":
+        if route == "artifact_workspace_create":
+            model = CreateArtifactWorkspace
+        elif route == "deployment_sources_save":
             model = SaveDeploymentSources
         elif route == "deployment_evidence_run":
             model = AnalyzeDeploymentSources
@@ -347,6 +357,9 @@ def execute(event, principal, correlation):
                 value = repo.list(query_of(event))
             elif route == "deployment_sources_get":
                 value = Service(repo, access, correlation).deployment_source_configuration(identifier)
+            elif route in {"artifact_workspace_list", "artifact_workspace_get"}:
+                from .artifact_workspace import read
+                value = read(Service(repo, access, correlation), identifier, action)
             elif route == "deployment_evidence_get":
                 value = Service(repo, access, correlation).deployment_evidence(identifier)
             elif route == "source_catalogue":
@@ -376,6 +389,10 @@ def execute(event, principal, correlation):
             else None
         )
         if replay:
+            if route == "artifact_workspace_create":
+                access.require("migration.edit")
+                replay_migration = repo.get(identifier)
+                access.require_customer(replay_migration["customer_id"], replay_migration["created_by"])
             replay_identifier = (
                 replay["body"].get("migrationId")
                 or replay["body"].get("sourceClusterId")
@@ -399,7 +416,11 @@ def execute(event, principal, correlation):
 
         service = Service(repo, access, correlation)
 
-        if route == "deployment_sources_save":
+        if route == "artifact_workspace_create":
+            from .artifact_workspace import create
+            value = create(service, identifier, body)
+            status = 201
+        elif route == "deployment_sources_save":
             value = service.save_deployment_sources(identifier, body)
             status = 200
         elif route == "deployment_evidence_run":

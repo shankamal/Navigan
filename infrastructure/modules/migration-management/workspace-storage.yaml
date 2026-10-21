@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private versioned migration artifact workspace with KMS encryption
+Parameters:
+  MigrationFunctionRoleName:
+    Type: String
+    AllowedPattern: '[A-Za-z0-9+=,.@_-]+'
+Resources:
+  WorkspaceKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'}
+            Action: kms:*
+            Resource: '*'
+  WorkspaceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, IgnorePublicAcls: true, BlockPublicPolicy: true, RestrictPublicBuckets: true}
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt WorkspaceKey.Arn
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload: {DaysAfterInitiation: 1}
+  WorkspaceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WorkspaceBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt WorkspaceBucket.Arn, !Sub '${WorkspaceBucket.Arn}/*']
+            Condition: {Bool: {aws:SecureTransport: false}}
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub '${WorkspaceBucket.Arn}/*'
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: aws:kms
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub '${WorkspaceBucket.Arn}/*'
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt WorkspaceKey.Arn
+  WorkspaceStoragePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: NaviganMigrationArtifactWorkspace
+      Roles: [!Ref MigrationFunctionRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub '${WorkspaceBucket.Arn}/customers/*/migrations/*/workspaces/*'
+          - Effect: Allow
+            Action: [kms:GenerateDataKey, kms:Decrypt]
+            Resource: !GetAtt WorkspaceKey.Arn
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub 's3.${AWS::Region}.${AWS::URLSuffix}'
+Outputs:
+  WorkspaceBucketName: {Value: !Ref WorkspaceBucket}
+  WorkspaceKmsKeyArn: {Value: !GetAtt WorkspaceKey.Arn}
+  WorkspaceBucketOwner: {Value: !Ref 'AWS::AccountId'}

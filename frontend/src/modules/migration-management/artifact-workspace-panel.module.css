@@ -1,0 +1,14 @@
+.panel { margin: 8px 0; border: 1px solid #dce3eb; background: #fff; color: #24344a; }
+.panel > summary { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.panel > summary > span { margin-left: auto; font-size: 11px; font-weight: 400; color: #63717f; }
+.content { padding: 0 14px 12px; font-size: 12px; }
+.content p { line-height: 1.5; }
+.content fieldset { border: 1px solid #dce3eb; padding: 10px; }
+.namespaces, .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.namespaces label, .actions span { display: flex; align-items: center; gap: 6px; }
+.namespaces input { width: 16px; height: 16px; margin: 0; }
+.actions { margin: 10px 0; }
+.actions button { padding: 7px 10px; border: 1px solid #bbc7d3; background: #fff; color: #24344a; cursor: pointer; }
+.actions button:disabled { opacity: .5; cursor: not-allowed; }
+.workspace { display: grid; gap: 5px; padding: 10px 0; border-top: 1px solid #dce3eb; }
+.workspace small { color: #63717f; }
