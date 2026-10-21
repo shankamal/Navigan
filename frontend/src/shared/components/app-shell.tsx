@@ -3,6 +3,10 @@ import "./workspace-navigation.css";
 import "./workspace-backdrop.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import {
+  WorkspacePageProvider,
+  useWorkspacePage,
+} from "./workspace-page-context";
 import { usePathname } from "next/navigation";
 import {
   ArrowRightLeft,
@@ -245,6 +249,14 @@ function AccountMenu() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <WorkspacePageProvider>
+      <AppShellContent>{children}</AppShellContent>
+    </WorkspacePageProvider>
+  );
+}
+function AppShellContent({ children }: { children: ReactNode }) {
+  const { label: pageLabel } = useWorkspacePage();
   const pathname = usePathname();
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
@@ -423,6 +435,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               {current?.label ?? "Access"}
             </Link>
+            {pathname.endsWith("/plan") && pageLabel && (
+              <>
+                <ChevronRight size={14} />
+                <span aria-current="page">{pageLabel}</span>
+              </>
+            )}
             {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
               <>
                 <ChevronRight size={14} />

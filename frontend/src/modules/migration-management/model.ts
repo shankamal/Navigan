@@ -216,6 +216,7 @@ export const migrationSchema = z
     sourceConfiguration: z.record(z.string(), z.unknown()),
     targetConfiguration: z.record(z.string(), z.unknown()),
     migrationScope: z.record(z.string(), z.unknown()),
+    planningDraft: z.record(z.string(), z.unknown()).optional(),
     discoveryConnector: discoveryConnectorSchema.optional(),
     assessmentConnector: discoveryConnectorSchema.optional(),
   })
@@ -318,6 +319,7 @@ export interface UpdateSourceClusterDeliveryInput {
 
 export interface UpdateMigrationInput {
   version: number;
+  planningDraft?: MigrationPlanningDraft;
   source?: {
     platform: "SELF_MANAGED_KUBERNETES";
     sourceClusterId?: string;
@@ -340,4 +342,34 @@ export interface UpdateMigrationInput {
     includePersistentData: false;
   };
   changeReason: string;
+}
+
+export interface PlannedResource {
+  apiVersion: string;
+  kind: string;
+  namespace: string | null;
+  name: string;
+  treatment: "MIGRATE" | "RECREATE" | "REPLACE" | "RETIRE" | "REVIEW";
+  dependency: boolean;
+}
+
+export interface RemediationDraft {
+  findingIndex: number;
+  treatment: "RECONFIGURE" | "RECREATE" | "REPLACE" | "RETIRE" | "REVIEW";
+  owner: string;
+  targetMapping: string;
+  evidenceReference: string;
+  status: "PLANNED" | "IN_PROGRESS" | "EVIDENCE_ATTACHED";
+}
+
+export interface MigrationPlanningDraft {
+  schemaVersion: 1;
+  mode: "SELECTED_WORKLOADS" | "FULL_CLUSTER";
+  assessmentVersion: number;
+  inventoryDigest: string;
+  resources: PlannedResource[];
+  remediations: RemediationDraft[];
+  dataStrategy:
+    "UNDECIDED" | "BACKUP_RESTORE" | "REPLICATION" | "NO_PERSISTENT_DATA";
+  notes: string;
 }

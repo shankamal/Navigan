@@ -238,6 +238,9 @@ class Service:
                 "Reload the latest migration request.",
             )
 
+        if "planningDraft" in body:
+            return self.save_planning_draft(identifier, current, body)
+
         source = body.get("source")
         recovering_source_registration = (
             current["status"] == "SOURCE_ENROLLMENT_PENDING"
@@ -313,6 +316,58 @@ class Service:
             "MIGRATION_UPDATED",
             self.correlation,
         )
+        return serialize(row)
+
+    def save_planning_draft(self, identifier, current, body):
+        if set(body) - {"version", "planningDraft", "changeReason"}:
+            raise ApiError(
+                400, "PLANNING_UPDATE_ONLY", "Save planning separately from assessment configuration."
+            )
+        if current["status"] not in {"ASSESSMENT_READY", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"}:
+            raise ApiError(409, "ASSESSMENT_REQUIRED", "Complete assessment before planning migration.")
+        assessment = self.repo.get_assessment(identifier)["assessment"]
+        inventory = self.repo.get_source_inventory(identifier)["inventory"]
+        draft = body["planningDraft"]
+        if (
+            not assessment
+            or not inventory
+            or (
+                draft["assessmentVersion"] != assessment["assessmentVersion"]
+                or draft["inventoryDigest"] != assessment["inventoryDigest"]
+                or draft["inventoryDigest"] != inventory["inventoryDigest"]
+            )
+        ):
+            raise ApiError(
+                409,
+                "PLANNING_EVIDENCE_CHANGED",
+                "Reload the latest assessment and inventory before planning.",
+            )
+        available = {
+            (r["apiVersion"], r["kind"], r.get("namespace"), r.get("name")) for r in inventory["resources"]
+        }
+        self.repo.require_planning_configuration(identifier, assessment["migrationVersion"], current)
+        for resource in draft["resources"]:
+            key = (resource["apiVersion"], resource["kind"], resource.get("namespace"), resource["name"])
+            if key not in available:
+                raise ApiError(
+                    400, "RESOURCE_OUTSIDE_INVENTORY", "Select resources from the assessed source inventory."
+                )
+            if resource["kind"] == "Node" and resource["treatment"] == "MIGRATE":
+                raise ApiError(
+                    400,
+                    "SOURCE_NODE_NOT_PORTABLE",
+                    "Source nodes must be recreated or retired, not migrated to EKS.",
+                )
+        for item in draft["remediations"]:
+            if item["findingIndex"] >= len(assessment["findings"]):
+                raise ApiError(400, "FINDING_NOT_FOUND", "Select a finding from this assessment.")
+        row = copy.deepcopy(current)
+        row["planning_draft"] = draft
+        row["version"] += 1
+        row["updated_by"] = self.principal.user_id
+        row["change_reason"] = body["changeReason"]
+        # Planning is not assessment approval, verification, or execution authority.
+        self.repo.save(row, current, "MIGRATION_PLANNING_UPDATED", self.correlation)
         return serialize(row)
 
     def change(self, identifier, action, body):
