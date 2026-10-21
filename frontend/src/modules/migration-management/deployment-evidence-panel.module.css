@@ -1556,8 +1556,110 @@
   margin: 0 0 20px;
   border: 1px solid #dce5df;
   border-radius: 8px;
-  background: linear-gradient(110deg, #f5faf3, #fff 65%);
+  background: #fff;
   padding: 18px 22px;
+}
+.scorecardTitle {
+  margin: 0 0 18px;
+  font-size: 16px;
+  font-weight: 650;
+  color: #172333;
+}
+.scorecards {
+  display: grid;
+  grid-template-columns: 0.85fr 0.85fr 1.15fr 1.15fr;
+  margin: 0 0 20px;
+}
+.scorecards > div {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px;
+  border-right: 1px solid #e1e7ec;
+  min-width: 0;
+}
+.scorecards > div:first-child {
+  padding-left: 8px;
+}
+.scorecards > div:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+.scorecards > div > svg {
+  color: #32672c;
+  flex-shrink: 0;
+  stroke-width: 1.6;
+}
+.scorecards > div > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.scorecards strong {
+  font-size: 28px;
+  color: #172333;
+  line-height: 1.15;
+}
+.scorecards b {
+  font-size: 14px;
+  color: #26364b;
+  font-weight: 600;
+}
+.scorecards > div > div > span {
+  font-size: 12px;
+  color: #627389;
+  line-height: 1.4;
+}
+.scorecardNote {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff8e9;
+  border-radius: 5px;
+  padding: 11px 14px;
+  font-size: 12px;
+  color: #975800;
+}
+.scorecardNote > svg {
+  flex-shrink: 0;
+}
+.scorecardNote > strong {
+  font-weight: 600;
+}
+.scorecardNote > span {
+  color: #627389;
+  border-left: 1px solid #e5dfd2;
+  padding-left: 18px;
+}
+@media (max-width: 1200px) {
+  .scorecards {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px 0;
+  }
+  .scorecards > div:nth-child(2) {
+    border-right: 0;
+  }
+  .scorecards > div:nth-child(3) {
+    padding-left: 8px;
+  }
+}
+@media (max-width: 600px) {
+  .scorecards {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .scorecards > div {
+    padding: 0 8px;
+    border-right: 0;
+  }
+  .scorecardNote {
+    flex-wrap: wrap;
+  }
+  .scorecardNote > span {
+    border: 0;
+    padding: 0;
+  }
 }
 .summaryMetrics {
   display: grid;

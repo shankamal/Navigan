@@ -23,6 +23,7 @@ import {
   ArtifactResolution,
 } from "./deployment-structure";
 import { EvidenceDrawer } from "./evidence-drawer";
+import { EvidenceCoverageRing } from "./evidence-coverage-ring";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
 import { normalizeApiError } from "@/shared/api/client";
@@ -674,61 +675,69 @@ export function DeploymentEvidencePanel({
               className={styles.discoverySummary}
               aria-label="Discovery evidence summary"
             >
-              <div className={styles.summaryMetrics}>
+              <h3 className={styles.scorecardTitle}>Evidence scorecards</h3>
+              <div className={styles.scorecards}>
                 <div>
-                  <Database size={19} aria-hidden="true" />
-                  <strong>{evidenceNamespaces.length}</strong>
-                  <span>Namespaces discovered</span>
+                  <Database size={42} aria-hidden="true" />
+                  <div>
+                    <strong>{evidenceNamespaces.length}</strong>
+                    <b>Namespaces</b>
+                    <span>Namespaces discovered</span>
+                  </div>
                 </div>
                 <div>
-                  <Box size={19} aria-hidden="true" />
-                  <strong>{allWorkloads.length}</strong>
-                  <span>Workloads discovered</span>
+                  <Box size={42} aria-hidden="true" />
+                  <div>
+                    <strong>{allWorkloads.length}</strong>
+                    <b>Workloads</b>
+                    <span>Workloads discovered</span>
+                  </div>
                 </div>
                 <div title="Workloads with at least one matching repository definition. This does not verify the deployed Git revision.">
-                  <GitBranch size={19} aria-hidden="true" />
-                  <strong>{repositoryMatched}</strong>
-                  <span>Repository matched</span>
-                </div>
-                <div title="Workloads with missing mappings, unverified images or reported evidence gaps. This is not a migration blocker count.">
-                  <AlertTriangle size={19} aria-hidden="true" />
-                  <strong>{needsAttention}</strong>
-                  <span>Need evidence review</span>
-                </div>
-              </div>
-              <div className={styles.evidenceBars}>
-                {[
-                  {
-                    label: "Repository definitions matched",
-                    count: repositoryMatched,
-                    icon: <GitBranch size={15} />,
-                  },
-                  {
-                    label: "All container images available",
-                    count: imagesVerified,
-                    icon: <Box size={15} />,
-                  },
-                ].map((item) => (
-                  <div key={item.label} className={styles.evidenceBar}>
-                    <span>
-                      {item.icon}
-                      {item.label}
-                      <strong>
-                        {item.count} / {allWorkloads.length}
-                      </strong>
-                    </span>
-                    <progress
-                      aria-label={item.label}
-                      value={item.count}
-                      max={Math.max(1, allWorkloads.length)}
-                    />
+                  <EvidenceCoverageRing
+                    value={repositoryMatched}
+                    total={allWorkloads.length}
+                    label="Repository definitions matched"
+                  />
+                  <div>
+                    <strong>
+                      {repositoryMatched} / {allWorkloads.length}
+                    </strong>
+                    <b>Repository matched</b>
+                    <span>Repository definitions matched</span>
                   </div>
-                ))}
+                </div>
+                <div title="Workloads for which every application and init container image is available in its source registry.">
+                  <EvidenceCoverageRing
+                    value={imagesVerified}
+                    total={allWorkloads.length}
+                    label="All container images available"
+                  />
+                  <div>
+                    <strong>
+                      {imagesVerified} / {allWorkloads.length}
+                    </strong>
+                    <b>Images available</b>
+                    <span>All container images available</span>
+                  </div>
+                </div>
               </div>
-              <p>
-                All discovered workloads · Repository matches identify candidate
-                definitions; they do not verify the deployed Git revision.
-              </p>
+              <div className={styles.scorecardNote}>
+                {needsAttention > 0 ? (
+                  <AlertTriangle size={17} aria-hidden="true" />
+                ) : (
+                  <Info size={17} aria-hidden="true" />
+                )}
+                <strong>
+                  {needsAttention > 0
+                    ? `${needsAttention} workload${needsAttention === 1 ? "" : "s"} need evidence review`
+                    : allWorkloads.length === 0 ? "Awaiting workload evidence" : "No reported evidence gaps"}
+                </strong>
+                <span>
+                  Repository matches are candidates; they do not verify the
+                  deployed Git revision.
+                </span>
+              </div>
             </section>
           )}
           {!selectedKeys && (

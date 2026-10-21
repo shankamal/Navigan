@@ -585,12 +585,49 @@
   padding: 8px 0 !important;
 }
 .context small {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  position: static;
+  font-size: 12px;
+  font-weight: 600;
+  color: #536579;
+}
+.discoveryScreen[class] > .context {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr 1.25fr;
+  gap: 0;
+  padding: 18px 24px;
+  border: 1px solid #d8e1e9;
+  border-radius: 5px;
+  background: #f8fafc;
+  margin-bottom: 16px;
+}
+.context > div {
+  padding: 0 28px;
+  gap: 14px;
+}
+.context > div:first-child {
+  padding-left: 0;
+}
+.context > div:last-child {
+  padding-right: 0;
+}
+.context > div > svg {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.context strong {
+  font-size: 15px;
+  line-height: 1.5;
+}
+@media (max-width: 800px) {
+  .discoveryScreen[class] > .context {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .context > div {
+    border-right: 0;
+    padding: 0;
+  }
 }
 .discoveryScreen[class] > ol button {
   padding: 4px 0;
