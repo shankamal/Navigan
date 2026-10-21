@@ -25,6 +25,9 @@ FILES = [
     "source_connector_installation.py",
     "artifact_recovery.py",
     "artifact_workspace.py",
+    "workspace_collection.py",
+    "repository_collector.py",
+    "workspace_worker.py",
     "recovery_worker.py",
 ]
 
@@ -288,7 +291,7 @@ def finish_deployment(aws, stack, child, function_name, backup, args):
             ]
         )
     print(
-        "DEV migration deployment discovery enabled. JWT discovery and workspace routes configured. Workspace APIs require database migration 027."
+        "DEV migration deployment discovery enabled. JWT discovery and workspace routes configured. Workspace APIs require database migrations 027 and 028."
     )
 
 
@@ -322,6 +325,7 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
         "GET /api/v1/migrations/{migrationId}/artifact-workspaces",
         "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
         "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
     ]:
         present = next((r for r in routes if r["RouteKey"] == route), None)
         desired = {

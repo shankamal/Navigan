@@ -94,3 +94,8 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA access_management TO navigan_api;
 -- Migration artifact workspace foundation (migration 027).
 GRANT SELECT,INSERT ON migration_management.artifact_workspaces,
   migration_management.workspace_artifacts TO navigan_api;
+
+-- Phase 2 collection API and worker. Runtime login is inherited from the API function.
+GRANT SELECT,INSERT,UPDATE ON migration_management.workspace_collection_jobs TO navigan_api;
+GRANT UPDATE ON migration_management.artifact_workspaces,
+ migration_management.workspace_artifacts TO navigan_api;

@@ -146,7 +146,16 @@ def read(service,identifier,workspace_id=None):
     rows = service.repo.list_artifact_workspaces(identifier,migration['customer_id'],workspace_id)
     if workspace_id and not rows:
         raise ApiError(404,'WORKSPACE_NOT_FOUND','Workspace was not found within this migration.')
-    results = [{**r['manifest'],'status':r['status'], 'collectedArtifactCount':0,
-                'stale':r['inventory_digest'] != inventory.get('inventoryDigest') or r['source_cluster_id'] != source['source_cluster_id']}
-               for r in rows]
+    results = []
+    for row in rows:
+        records, jobs = service.repo.workspace_collection_state(row['workspace_id'])
+        by_id = {a['artifact_id']:a for a in records}
+        artifacts = [{**a, 'status':by_id.get(a['artifactId'],{}).get('status',a['status']),
+                      'validation':by_id.get(a['artifactId'],{}).get('validation',{})}
+                     for a in row['manifest']['artifacts']]
+        results.append({**row['manifest'], 'status':row['status'], 'artifacts':artifacts,
+                        'collectedArtifactCount':sum(a['status']=='COLLECTED' for a in artifacts),
+                        'jobs':[{'jobId':j['job_id'],'artifactId':j['artifact_id'],'status':j['status'],
+                                 'attempts':j['attempts'],'errorCode':j['error_code']} for j in jobs],
+                        'stale':row['inventory_digest'] != inventory.get('inventoryDigest') or row['source_cluster_id'] != source['source_cluster_id']})
     return results[0] if workspace_id else {'migrationId':identifier,'workspaces':results}

@@ -14,7 +14,7 @@ def row(**values): return dict(workload=RESOURCE,candidates=[],containers=[],**v
 def service():
  m=dict(migration_id=MID,customer_id='CUS-one',version=2,created_by='owner',source_configuration={'sourceClusterId':'SRC-one'})
  s=dict(source_cluster_id='SRC-one',customer_id='CUS-one',delivery_configuration={})
- repo=Mock();repo.get.return_value=m
+ repo=Mock();repo.get.return_value=m;repo.workspace_collection_state.return_value=([],[])
  repo.get_source_inventory.return_value={'inventory':dict(inventoryDigest='current',inventoryVersion=3,resources=[RESOURCE])}
  return SimpleNamespace(repo=repo,access=Mock(),deployment_context=Mock(return_value=(m,s)))
 class S3:
@@ -79,5 +79,5 @@ def test_cross_migration_lookup():
  assert error.value.status==404
  api.repo.list_artifact_workspaces.assert_called_with(MID,'CUS-one',WID)
 def test_stale_workspace():
- api=service();api.repo.list_artifact_workspaces.return_value=[dict(manifest={},status='PLANNED',inventory_digest='old',source_cluster_id='SRC-one')]
+ api=service();api.repo.list_artifact_workspaces.return_value=[dict(workspace_id=WID,manifest={'artifacts':[]},status='PLANNED',inventory_digest='old',source_cluster_id='SRC-one')]
  assert w.read(api,MID,WID)['stale'] is True

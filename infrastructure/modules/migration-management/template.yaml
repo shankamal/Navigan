@@ -3,6 +3,9 @@ Transform: AWS::Serverless-2016-10-31
 Description: Navigan assessment-only Migration Management API
 
 Parameters:
+  EnableWorkspaceCollector: {Type: String, Default: 'false', AllowedValues: ['true','false']}
+  WorkspaceGithubAppId: {Type: String, Default: ''}
+  WorkspaceGithubKeySecretArn: {Type: String, Default: ''}
   WorkspaceBucketName: {Type: String, Default: ''}
   WorkspaceKmsKeyArn: {Type: String, Default: ''}
   WorkspaceBucketOwner: {Type: String, Default: ''}
@@ -40,7 +43,44 @@ Globals:
         DB_CA_BUNDLE: /opt/certs/global-bundle.pem
         DB_SECRET_ARN: {Ref: ApiDatabaseSecretArn}
 
+Conditions:
+  WorkspaceCollectorEnabled: !Equals [!Ref EnableWorkspaceCollector, 'true']
+  WorkspaceAppKeyConfigured: !And [!Equals [!Ref EnableWorkspaceCollector, 'true'], !Not [!Equals [!Ref WorkspaceGithubKeySecretArn, '']]]
 Resources:
+  WorkspaceAppKeyReadPolicy:
+    Type: AWS::IAM::Policy
+    Condition: WorkspaceAppKeyConfigured
+    Properties:
+      PolicyName: NaviganWorkspaceGithubKeyRead
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref WorkspaceGithubKeySecretArn
+  WorkspaceCollectorFunction:
+    Type: AWS::Serverless::Function
+    Condition: WorkspaceCollectorEnabled
+    Properties:
+      Handler: navigan.modules.migration_management.workspace_worker.lambda_handler
+      Role: !GetAtt MigrationFunctionRole.Arn
+      Timeout: 240
+      MemorySize: 512
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          MIGRATION_WORKSPACE_BUCKET: !Ref WorkspaceBucketName
+          MIGRATION_WORKSPACE_KMS_KEY: !Ref WorkspaceKmsKeyArn
+          MIGRATION_WORKSPACE_BUCKET_OWNER: !Ref WorkspaceBucketOwner
+          GITHUB_APP_ID: !Ref WorkspaceGithubAppId
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref WorkspaceGithubKeySecretArn
+      Events:
+        QueuePoll:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Enabled: true
   MigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -204,6 +244,17 @@ Resources:
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  StartWorkspaceCollectionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   MigrationConnectorIntegration:

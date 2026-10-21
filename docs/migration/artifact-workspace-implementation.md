@@ -78,3 +78,60 @@ and cluster-scoped prerequisite handling belong in the collection phase.
 Next implementation task: durable collection job state machine and dispatch/outbox,
 then immutable repository collection. Persist intent before dispatch, use leases,
 idempotent retries and versioned output verification. Image bytes must bypass API Gateway.
+
+
+## Phase 2 checkpoint — repository collection
+
+Implemented a transactional PostgreSQL job queue, bounded immutable GitHub file
+bundles, and a scheduled worker. POST collection-jobs enqueues only repository
+definitions. Existing successful artifacts are not downloaded again. Explicit retry
+requeues failed jobs. Crashed jobs can be reclaimed after five minutes, up to three
+attempts; an expired worker cannot publish results. No credentials or upstream error
+bodies enter public job records. Current source association, snapshot, customer and
+repository authorization configuration are checked before downloading and before
+publishing a result.
+
+Repository files are fetched at a 40-character commit SHA, and every Git blob is
+hash/size verified. HELM/KUSTOMIZE candidates collect bounded local sibling content.
+Symlinks/submodules, truncated trees, missing files and size/time limits fail with
+explicit codes. Maximum: 50 files, 1 MB each, 5 MB total, 120-second fetch budget.
+File contents are stored as base64 in a private JSON bundle, not exposed by the list
+API. The bundle's S3 version and checksum are verified before marking COLLECTED.
+It is not a rendered or deployment-ready package: external chart dependencies,
+Kustomize remote bases, deploy-time values and dependency completeness need review.
+Image and live-resource recovery adapters remain pending integration.
+
+The initial S3 workspace-manifest.json is immutable planning evidence. PostgreSQL
+tracks current artifact/job state. A versioned final workspace export is still needed
+when all collection adapters are complete. S3 objects orphaned by lost leases/DB
+failures remain subject to the planned reconciler.
+
+### Deploy this increment
+
+Apply database migration 028 after 027 and the new table grants in roles.sql before
+updating the API. The DEV API script includes the worker modules and collection route,
+but DOES NOT provision its scheduled Lambda.
+
+Provision WorkspaceCollectorFunction from the migration-management SAM template with
+EnableWorkspaceCollector=true and the existing WorkspaceBucketName, WorkspaceKmsKeyArn,
+and WorkspaceBucketOwner. It polls one job per minute, has a 240-second timeout and
+reuses the migration runtime role/DB identity. Source credential access is inherited
+from that role. Parent stack parameters must pass these values through when deploying
+a nested stack. Supply WorkspaceGithubAppId and WorkspaceGithubKeySecretArn for GitHub
+App authentication; the optional key policy grants read access to that exact secret.
+Its encryption key must also be decryptable by the runtime. Token/public connections
+use the existing source authentication configuration. Ensure VPC egress to GitHub,
+S3, Secrets Manager and KMS. Enable the worker only after SQL/grants/storage are ready.
+
+For a controlled DEV smoke test with the same secured DB/AWS environment, run:
+`PYTHONPATH=src python -m navigan.modules.migration_management.workspace_worker`.
+It claims at most one queued repository job, prints only a sanitized outcome and exits.
+Do not run with production credentials to test a DEV workspace.
+
+In the UI: load workspaces, click Collect / retry repository files, then Refresh
+workspaces to inspect progress. No browser transfer is used. Refresh is manual in
+this increment. Verify that a candidate stays unconfirmed, an image remains pending,
+and the workspace stays PARTIAL after successful repository collection.
+
+Next: image archive collection and complete dependency resolution; recovery linkage
+and authorized artifact downloads. Keep this as the primary implementation goal.

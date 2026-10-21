@@ -11,6 +11,14 @@ type Workspace = {
   workspaceId: string;
   namespaces: string[];
   stale: boolean;
+  status?: string;
+  collectedArtifactCount?: number;
+  jobs?: {
+    jobId: string;
+    status: string;
+    attempts: number;
+    errorCode?: string;
+  }[];
   artifacts: { artifactId: string; kind: string; status: string }[];
 };
 export function ArtifactWorkspacePanel({
@@ -59,6 +67,24 @@ export function ArtifactWorkspacePanel({
       setBusy(false);
     }
   }
+  async function collect(workspaceId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await apiClient.post(
+        `/migrations/${migrationId}/artifact-workspaces/${workspaceId}/collection-jobs`,
+        { version },
+        { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+      );
+      setWorkspaces((items) =>
+        items.map((item) => (item.workspaceId === workspaceId ? data : item)),
+      );
+    } catch (e) {
+      setError(normalizeApiError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <details className={styles.panel}>
       <summary>
@@ -68,8 +94,9 @@ export function ArtifactWorkspacePanel({
       <div className={styles.content}>
         <p>
           Create a workspace index for selected namespaces. The index records
-          which deployment definitions and images are needed. It does not copy
-          artifacts or make them migration-ready.
+          which deployment definitions and images are needed. Then collect
+          repository files. Images and missing definitions require separate
+          collection or recovery.
         </p>
         <fieldset disabled={busy || !canEdit}>
           <legend>Namespaces to include</legend>
@@ -123,14 +150,43 @@ export function ArtifactWorkspacePanel({
             <span>
               {w.stale
                 ? "Older inventory snapshot · Create a new workspace"
-                : "Workspace index created"}
+                : w.status === "COLLECTING"
+                  ? "Repository collection queued or running"
+                  : "Workspace index created"}
             </span>
             <small>
-              {w.artifacts.length} planned artifacts · Files and images not
-              collected
+              {w.collectedArtifactCount ?? 0} / {w.artifacts.length} artifacts
+              collected · Target readiness not verified
             </small>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  !canEdit ||
+                  w.stale ||
+                  w.status === "COLLECTING" ||
+                  !w.artifacts.some(
+                    (a) =>
+                      a.kind === "REPOSITORY_DEFINITION" &&
+                      a.status !== "COLLECTED",
+                  )
+                }
+                onClick={() => collect(w.workspaceId)}
+              >
+                Collect / retry repository files
+              </button>
+            </div>
+            {(w.jobs ?? []).map((job) => (
+              <small key={job.jobId}>
+                {job.status.toLowerCase()} · Attempt {job.attempts}
+                {job.errorCode
+                  ? ` · ${job.errorCode.toLowerCase().replaceAll("_", " ")}`
+                  : ""}
+              </small>
+            ))}
             <details>
-              <summary>Planned artifacts</summary>
+              <summary>Artifact status</summary>
               <ul>
                 {w.artifacts.map((a) => (
                   <li key={a.artifactId}>

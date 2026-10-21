@@ -62,6 +62,11 @@ class Repository:
             [identifier, customer_id] + ([workspace_id] if workspace_id else []),
         ).fetchall()
 
+    def workspace_collection_state(self, workspace_id):
+        artifacts = self.db.execute("SELECT artifact_id,status,validation FROM migration_management.workspace_artifacts WHERE workspace_id=%s", [workspace_id]).fetchall()
+        jobs = self.db.execute("SELECT job_id,artifact_id,status,attempts,error_code,updated_at FROM migration_management.workspace_collection_jobs WHERE workspace_id=%s ORDER BY created_at", [workspace_id]).fetchall()
+        return artifacts, jobs
+
     def require_customer_visible(self, customer_id):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(

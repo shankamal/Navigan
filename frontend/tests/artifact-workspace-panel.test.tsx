@@ -48,9 +48,9 @@ it("creates only selected snapshot scope", async () => {
       expect.anything(),
     ),
   );
-  expect(await screen.findByText(/0 planned artifacts/)).toHaveTextContent(
-    "Files and images not collected",
-  );
+  expect(
+    await screen.findByText(/0 \/ 0 artifacts collected/),
+  ).toHaveTextContent("Target readiness not verified");
 });
 it("reports failure without success", async () => {
   api.post.mockRejectedValue(new Error());
@@ -72,4 +72,24 @@ it("prevents viewer creation", () => {
   expect(
     screen.getByRole("button", { name: "Create workspace index" }),
   ).toBeDisabled();
+});
+
+it("queues repository collection for the selected workspace", async () => {
+  const workspace = {workspaceId:"AWS-one",namespaces:["shop"],stale:false,status:"PLANNED",artifacts:[{artifactId:"a",kind:"REPOSITORY_DEFINITION",status:"PENDING_COLLECTION"}]};
+  api.get.mockResolvedValue({data:{workspaces:[workspace]}});
+  api.post.mockResolvedValue({data:{...workspace,status:"COLLECTING",jobs:[{jobId:"j",status:"QUEUED",attempts:0}]}});
+  render(<ArtifactWorkspacePanel {...props}/>);
+  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByRole("button",{name:"Load workspaces"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Collect / retry repository files"}));
+  await waitFor(()=>expect(api.post).toHaveBeenCalledWith('/migrations/MIG-one/artifact-workspaces/AWS-one/collection-jobs',{version:2},expect.anything()));
+  expect(await screen.findByText("Repository collection queued or running")).toBeInTheDocument();
+});
+
+it("disables collection for an old snapshot", async () => {
+ api.get.mockResolvedValue({data:{workspaces:[{workspaceId:"AWS-one",namespaces:["shop"],stale:true,artifacts:[{artifactId:"a",kind:"REPOSITORY_DEFINITION",status:"PENDING_COLLECTION"}]}]}});
+ render(<ArtifactWorkspacePanel {...props}/>);
+ fireEvent.click(screen.getByText("Artifact workspace"));
+ fireEvent.click(screen.getByRole("button",{name:"Load workspaces"}));
+ expect(await screen.findByRole("button",{name:"Collect / retry repository files"})).toBeDisabled();
 });
