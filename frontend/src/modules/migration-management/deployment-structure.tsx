@@ -29,6 +29,7 @@ import { scopeKey } from "./source-migration-scope";
 import { EvidenceDrawer } from "./evidence-drawer";
 import styles from "./deployment-evidence-panel.module.css";
 import view from "./deployment-structure.module.css";
+import journey from "./discovery-journey.module.css";
 
 type Workload = DeploymentWorkloadEvidence;
 import type { Assessment } from "./model";
@@ -95,15 +96,20 @@ export function ContainerImages({
   onResolve,
   onConnect,
   recoveries = [],
+  compact = false,
 }: {
   workload: Workload;
+  compact?: boolean;
   recoveries?: RecoveryJob[];
   onConnect?: () => void;
   onResolve?: (c: Workload["containers"][number]) => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   return (
-    <section className={view.images} aria-label="Workload container images">
+    <section
+      className={`${view.images} ${compact ? journey.compactImages : ""}`}
+      aria-label="Workload container images"
+    >
       <div className={view.sectionTitle}>
         <Database size={22} />
         <div>
@@ -358,9 +364,13 @@ export function DeploymentStructure({
   namespaces: knownNamespaces = [],
   recoveries = [],
   findings = [],
+  guided = false,
+  onDetailChange,
   onConnect,
 }: {
   workloads: Workload[];
+  guided?: boolean;
+  onDetailChange?: (open: boolean) => void;
   namespaces?: string[];
   recoveries?: RecoveryJob[];
   findings?: Assessment["findings"];
@@ -372,6 +382,9 @@ export function DeploymentStructure({
   const [showDetails, setShowDetails] = useState(false);
   const checksRef = useRef<HTMLDetailsElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    onDetailChange?.(showDetails);
+  }, [showDetails, onDetailChange]);
   const navigatorRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (
@@ -379,9 +392,13 @@ export function DeploymentStructure({
       backRef.current &&
       getComputedStyle(backRef.current).display !== "none"
     ) {
-      backRef.current.focus();
+      backRef.current.focus({ preventScroll: true });
+      if (guided)
+        backRef.current
+          .closest("[data-source-discovery]")
+          ?.scrollIntoView?.({ block: "start" });
     }
-  }, [showDetails, selected]);
+  }, [showDetails, selected, guided]);
   const active =
     workloads.find((w) => scopeKey(w.workload) === selected) ?? workloads[0];
   const namespaces = [
@@ -424,7 +441,10 @@ export function DeploymentStructure({
       ),
   );
   return (
-    <div className={view.layout} data-detail={showDetails}>
+    <div
+      className={`${view.layout} ${guided ? journey.workloadLayout : ""}`}
+      data-detail={showDetails}
+    >
       <aside
         ref={navigatorRef}
         className={view.navigator}
@@ -575,7 +595,9 @@ export function DeploymentStructure({
               Review details <ChevronRight size={14} />
             </button>
           </header>
-          <div className={view.reviewSummary}>
+          <div
+            className={`${view.reviewSummary} ${guided ? journey.workloadChecks : ""}`}
+          >
             <span>
               <strong>{groupedFindings.length + additionalGaps.length}</strong>{" "}
               checks to review
@@ -593,113 +615,120 @@ export function DeploymentStructure({
               View checks & actions
             </button>
           </div>
-          <div className={view.sectionTitle}>
-            <FileCode2 size={20} />
+          <div className={guided ? journey.workloadColumns : undefined}>
             <div>
-              <h3>Deployment definition</h3>
-              <p>Files or Helm release associated with this workload.</p>
-            </div>
-          </div>
-          {active.helmRelease && (
-            <div className={view.helmRelease}>
-              <span>
-                <strong>Helm release: {active.helmRelease}</strong>
-                <small>
-                  {active.helmChart || "Chart version not reported"} · Original
-                  package not checked
-                </small>
-              </span>
-              <button onClick={() => onResolve(active)}>
-                Resolve Helm artifact
-              </button>
-            </div>
-          )}
-          <section
-            className={view.sourceStrip}
-            aria-label="Source repository candidate"
-          >
-            {candidates.length ? (
-              candidates.map((c) => (
-                <div
-                  key={`${c.repository}/${c.filePath}/${c.commit}`}
-                  className={view.candidateStrip}
-                >
-                  <GitBranch size={23} />
-                  <div>
-                    <small>
-                      {active.mappingStatus === "CONFIRMED"
-                        ? "User-confirmed candidate"
-                        : "GitHub candidate"}
-                    </small>
-                    <strong title={c.repository}>{c.repository}</strong>
-                  </div>
-                  <div className={view.filePath}>
-                    <small>File path</small>
-                    <strong title={c.filePath}>{c.filePath}</strong>
-                    <CopyValue value={`${c.repository}/${c.filePath}`} />
-                  </div>
-                  <div>
-                    <small>Type</small>
-                    <strong>
-                      {active.artifactFormat === "Unresolved"
-                        ? "Not detected"
-                        : active.artifactFormat.replace(" (candidate)", "")}
-                    </strong>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className={view.unmapped}>
-                <FileCode2 size={22} />
+              <div className={view.sectionTitle}>
+                <FileCode2 size={20} />
                 <div>
-                  <strong>No original repository mapping.</strong>
-                  <p>
-                    {active.clusterSnapshot
-                      ? "Captured cluster evidence is available for review."
-                      : "Connect a repository or refresh source evidence."}
-                  </p>
+                  <h3>Deployment definition</h3>
+                  <p>Files or Helm release associated with this workload.</p>
                 </div>
               </div>
-            )}
-            {candidates.length > 0 && (
-              <div className={view.provenance}>
-                <AlertTriangle size={14} />
-                <span>Deployed Git revision unverified</span>
-                <small>
-                  Inspected commit {candidates[0].commit.slice(0, 12)}
-                </small>
-              </div>
-            )}
-            {candidates.some((c) => c.match === "NAMESPACE_UNSPECIFIED") && (
-              <small className={view.namespaceNote}>
-                Namespace not specified in the candidate file. Runtime namespace
-                shown above.
-              </small>
-            )}
-          </section>
-          {(!candidates.length || active.mappingStatus !== "CONFIRMED") && (
-            <div className={view.mappingAction}>
-              <button onClick={() => onInspect(active)}>
-                {candidates.length
-                  ? "Review source mapping"
-                  : "Resolve deployment source"}
-              </button>
-              <small>
-                {candidates.length
-                  ? "Review the candidate and confirm ownership."
-                  : "Map an authorized repository or review captured configuration. Original files are not reconstructed automatically."}
-              </small>
+              {active.helmRelease && (
+                <div className={view.helmRelease}>
+                  <span>
+                    <strong>Helm release: {active.helmRelease}</strong>
+                    <small>
+                      {active.helmChart || "Chart version not reported"} ·
+                      Original package not checked
+                    </small>
+                  </span>
+                  <button onClick={() => onResolve(active)}>
+                    Resolve Helm artifact
+                  </button>
+                </div>
+              )}
+              <section
+                className={view.sourceStrip}
+                aria-label="Source repository candidate"
+              >
+                {candidates.length ? (
+                  candidates.map((c) => (
+                    <div
+                      key={`${c.repository}/${c.filePath}/${c.commit}`}
+                      className={view.candidateStrip}
+                    >
+                      <GitBranch size={23} />
+                      <div>
+                        <small>
+                          {active.mappingStatus === "CONFIRMED"
+                            ? "User-confirmed candidate"
+                            : "GitHub candidate"}
+                        </small>
+                        <strong title={c.repository}>{c.repository}</strong>
+                      </div>
+                      <div className={view.filePath}>
+                        <small>File path</small>
+                        <strong title={c.filePath}>{c.filePath}</strong>
+                        <CopyValue value={`${c.repository}/${c.filePath}`} />
+                      </div>
+                      <div>
+                        <small>Type</small>
+                        <strong>
+                          {active.artifactFormat === "Unresolved"
+                            ? "Not detected"
+                            : active.artifactFormat.replace(" (candidate)", "")}
+                        </strong>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={view.unmapped}>
+                    <FileCode2 size={22} />
+                    <div>
+                      <strong>No original repository mapping.</strong>
+                      <p>
+                        {active.clusterSnapshot
+                          ? "Captured cluster evidence is available for review."
+                          : "Connect a repository or refresh source evidence."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {candidates.length > 0 && (
+                  <div className={view.provenance}>
+                    <AlertTriangle size={14} />
+                    <span>Deployed Git revision unverified</span>
+                    <small>
+                      Inspected commit {candidates[0].commit.slice(0, 12)}
+                    </small>
+                  </div>
+                )}
+                {candidates.some(
+                  (c) => c.match === "NAMESPACE_UNSPECIFIED",
+                ) && (
+                  <small className={view.namespaceNote}>
+                    Namespace not specified in the candidate file. Runtime
+                    namespace shown above.
+                  </small>
+                )}
+              </section>
+              {(!candidates.length || active.mappingStatus !== "CONFIRMED") && (
+                <div className={view.mappingAction}>
+                  <button onClick={() => onInspect(active)}>
+                    {candidates.length
+                      ? "Review source mapping"
+                      : "Resolve deployment source"}
+                  </button>
+                  <small>
+                    {candidates.length
+                      ? "Review the candidate and confirm ownership."
+                      : "Map an authorized repository or review captured configuration. Original files are not reconstructed automatically."}
+                  </small>
+                </div>
+              )}
             </div>
-          )}
-          <ContainerImages
-            key={scopeKey(active.workload)}
-            workload={active}
-            onResolve={(c) => onResolve(active, c)}
-            onConnect={onConnect}
-            recoveries={recoveries.filter(
-              (job) => scopeKey(job.workload) === scopeKey(active.workload),
-            )}
-          />
+            <ContainerImages
+              compact={guided}
+              key={scopeKey(active.workload)}
+              workload={active}
+              onResolve={(c) => onResolve(active, c)}
+              onConnect={onConnect}
+              recoveries={recoveries.filter(
+                (job) => scopeKey(job.workload) === scopeKey(active.workload),
+              )}
+            />
+          </div>
           <section className={view.related} aria-label="Connected resources">
             <details>
               <summary>
@@ -842,7 +871,8 @@ export function DeploymentStructure({
               ))}
             </details>
           </section>
-          <section className={view.deploymentFacts}>
+          <details className={view.deploymentFacts} open={!guided || undefined}>
+            <summary>Deployment context & technical evidence</summary>
             <div className={view.sectionTitle}>
               <FileCode2 size={21} />
               <div>
@@ -890,7 +920,7 @@ export function DeploymentStructure({
                 confirm the original Git file or deployment pipeline.
               </p>
             )}
-          </section>
+          </details>
         </article>
       )}
     </div>

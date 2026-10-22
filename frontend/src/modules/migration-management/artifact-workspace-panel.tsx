@@ -7,6 +7,7 @@ import {
   writeHeaders,
 } from "@/shared/api/client";
 import styles from "./artifact-workspace-panel.module.css";
+import journey from "./discovery-journey.module.css";
 type Recovery = { jobId: string; status: string; message?: string };
 type WorkspaceExport = {
   exportId: string;
@@ -62,6 +63,7 @@ export function ArtifactWorkspacePanel({
   canEdit,
   guided = false,
   active = false,
+  onReviewAccess,
 }: {
   migrationId: string;
   version: number;
@@ -70,6 +72,7 @@ export function ArtifactWorkspacePanel({
   canEdit: boolean;
   guided?: boolean;
   active?: boolean;
+  onReviewAccess?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [exports, setExports] = useState<
@@ -91,6 +94,9 @@ export function ArtifactWorkspacePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [showCompleted, setShowCompleted] = useState<Record<string, boolean>>(
+    {},
+  );
   const [recoveryFeedback, setRecoveryFeedback] = useState<{
     workspaceId: string;
     artifactId: string;
@@ -371,7 +377,7 @@ export function ArtifactWorkspacePanel({
   );
   return (
     <details
-      className={`${styles.panel} ${guided ? styles.guided : ""}`}
+      className={`${styles.panel} ${guided ? `${styles.guided} ${journey.collection}` : ""}`}
       open={guided || undefined}
     >
       <summary>
@@ -388,7 +394,7 @@ export function ArtifactWorkspacePanel({
         <ChevronDown className={styles.chevron} size={18} aria-hidden="true" />
       </summary>
       <div className={styles.content}>
-        {guided && (
+        {guided && !workspaces.length && (
           <ol
             className={styles.collectionSteps}
             aria-label="Artifact preparation sequence"
@@ -412,7 +418,11 @@ export function ArtifactWorkspacePanel({
           </ol>
         )}
         <NamespaceChooser
-          className={guided ? styles.namespaceChooser : undefined}
+          className={
+            guided
+              ? `${styles.namespaceChooser} ${journey.workspaceChooser}`
+              : undefined
+          }
           {...(guided ? { open: !workspaces.length || undefined } : {})}
         >
           {guided && (
@@ -511,7 +521,9 @@ export function ArtifactWorkspacePanel({
             </p>
           )}
         </NamespaceChooser>
-        <div className={styles.savedHeading}>
+        <div
+          className={`${styles.savedHeading} ${guided ? journey.collectionHeading : ""}`}
+        >
           <h3>Saved workspaces</h3>
           <button type="button" disabled={busy} onClick={() => run(false)}>
             {loaded ? "Refresh workspaces" : "Load workspaces"}
@@ -538,8 +550,16 @@ export function ArtifactWorkspacePanel({
           ).length;
           const required = w.artifacts.length - historical;
           const attention = required - saved - available;
+          const pendingJobs = (w.jobs ?? []).some((job) =>
+            ["QUEUED", "RUNNING"].includes(job.status),
+          );
+          const exportReady =
+            required > 0 && saved === required && !pendingJobs && !w.stale;
           return (
-            <div className={styles.workspace} key={w.workspaceId}>
+            <div
+              className={`${styles.workspace} ${guided ? journey.collectionWorkspace : ""}`}
+              key={w.workspaceId}
+            >
               <div className={styles.workspaceHeading}>
                 <strong>{w.namespaces.join(", ")}</strong>
                 <span className={styles.badge}>
@@ -559,6 +579,49 @@ export function ArtifactWorkspacePanel({
                               : "Workspace index created"}
                 </span>
               </div>
+              {guided && (
+                <>
+                  <ol
+                    className={journey.collectionPipeline}
+                    aria-label="Workspace preparation progress"
+                  >
+                    <li data-state="done">
+                      1. Workspace<small>Index created</small>
+                    </li>
+                    <li
+                      data-state={
+                        pendingJobs || available > 0
+                          ? "active"
+                          : saved > 0 && saved === required
+                            ? "done"
+                            : "pending"
+                      }
+                    >
+                      2. Collect
+                      <small>
+                        {pendingJobs ? "Jobs in progress" : `${saved} saved`}
+                      </small>
+                    </li>
+                    <li data-state={attention > 0 ? "attention" : "pending"}>
+                      3. Resolve<small>{attention} need attention</small>
+                    </li>
+                    <li data-state={exportReady ? "active" : "pending"}>
+                      4. Export
+                      <small>{exportReady ? "Available" : "Not ready"}</small>
+                    </li>
+                  </ol>
+                  <div className={journey.collectionProgress}>
+                    <span>
+                      {saved} of {required} required artifacts saved
+                    </span>
+                    <progress
+                      value={saved}
+                      max={Math.max(required, 1)}
+                      aria-label={`Collection progress for ${w.namespaces.join(", ")}`}
+                    />
+                  </div>
+                </>
+              )}
               <div
                 className={styles.metrics}
                 aria-label="Artifact collection progress"
@@ -626,7 +689,9 @@ export function ArtifactWorkspacePanel({
                   Collect / retry available images
                 </button>
               </div>
-              <div className={styles.exportResult}>
+              <div
+                className={`${styles.exportResult} ${guided ? journey.collectionExport : ""}`}
+              >
                 <button
                   type="button"
                   disabled={
@@ -722,8 +787,43 @@ export function ArtifactWorkspacePanel({
                     : ""}
                 </small>
               ))}
-              <details>
-                <summary>View required files, images &amp; status</summary>
+              <details
+                open={guided || undefined}
+                className={guided ? journey.artifactList : undefined}
+              >
+                <summary>
+                  {guided
+                    ? "Required files & images"
+                    : "View required files, images & status"}
+                </summary>
+                {guided && (
+                  <div className={journey.artifactFilters}>
+                    <button
+                      type="button"
+                      aria-pressed={!showCompleted[w.workspaceId]}
+                      onClick={() =>
+                        setShowCompleted((v) => ({
+                          ...v,
+                          [w.workspaceId]: false,
+                        }))
+                      }
+                    >
+                      Remaining ({required - saved})
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={Boolean(showCompleted[w.workspaceId])}
+                      onClick={() =>
+                        setShowCompleted((v) => ({
+                          ...v,
+                          [w.workspaceId]: true,
+                        }))
+                      }
+                    >
+                      Saved / excluded ({saved + historical})
+                    </button>
+                  </div>
+                )}
                 <div className={styles.tableScroll}>
                   <table className={styles.artifactTable}>
                     <thead>
@@ -734,227 +834,264 @@ export function ArtifactWorkspacePanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {w.artifacts.map((a) => (
-                        <tr key={a.artifactId}>
-                          <td>
-                            {a.source?.reference ||
-                              a.source?.filePath ||
-                              (a.source?.resource
-                                ? `${a.source.resource.namespace} / ${a.source.resource.kind} / ${a.source.resource.name}`
-                                : "") ||
-                              (a.source?.release
-                                ? `${a.source.namespace} / ${a.source.release}`
-                                : "") ||
-                              artifactKind(a.kind)}
-                          </td>
-                          <td>{artifactKind(a.kind)}</td>
-                          <td>
-                            {artifactStatus(a.status)}
-                            {a.validation?.reviewRequired &&
-                              a.status === "COLLECTED" && (
+                      {w.artifacts
+                        .filter(
+                          (a) =>
+                            !guided ||
+                            (showCompleted[w.workspaceId]
+                              ? ["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                                  a.status,
+                                )
+                              : !["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                                  a.status,
+                                )),
+                        )
+                        .map((a) => (
+                          <tr key={a.artifactId}>
+                            <td>
+                              {a.source?.reference ||
+                                a.source?.filePath ||
+                                (a.source?.resource
+                                  ? `${a.source.resource.namespace} / ${a.source.resource.kind} / ${a.source.resource.name}`
+                                  : "") ||
+                                (a.source?.release
+                                  ? `${a.source.namespace} / ${a.source.release}`
+                                  : "") ||
+                                artifactKind(a.kind)}
+                            </td>
+                            <td>{artifactKind(a.kind)}</td>
+                            <td>
+                              {artifactStatus(a.status)}
+                              {a.validation?.reviewRequired &&
+                                a.status === "COLLECTED" && (
+                                  <small>
+                                    {" "}
+                                    · Recovered copy: review configuration and
+                                    dependencies before deployment.
+                                  </small>
+                                )}
+                              {a.validation?.recovery?.message &&
+                                a.status !== "COLLECTED" && (
+                                  <small>
+                                    {" "}
+                                    · {a.validation.recovery.message}
+                                  </small>
+                                )}
+                              {["LIVE_DEFINITION", "HELM_RELEASE"].includes(
+                                a.kind,
+                              ) &&
+                                !["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                                  a.status,
+                                ) && (
+                                  <button
+                                    type="button"
+                                    disabled={busy || !canEdit || w.stale}
+                                    onClick={() =>
+                                      recover(
+                                        w.workspaceId,
+                                        a.artifactId,
+                                        a.validation?.recovery,
+                                      )
+                                    }
+                                  >
+                                    {busy &&
+                                    recoveryFeedback?.workspaceId ===
+                                      w.workspaceId &&
+                                    recoveryFeedback.artifactId === a.artifactId
+                                      ? "Contacting recovery service…"
+                                      : a.validation?.recovery?.status ===
+                                          "RECOVERING"
+                                        ? "Check recovery progress"
+                                        : a.kind === "LIVE_DEFINITION"
+                                          ? "Export live definition"
+                                          : "Recover Helm release"}
+                                  </button>
+                                )}
+                              {a.kind === "IMAGE" &&
+                                a.status === "ACCESS_REQUIRED" &&
+                                onReviewAccess && (
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={onReviewAccess}
+                                  >
+                                    Review registry access
+                                  </button>
+                                )}
+                              {a.validation?.historicalReview && (
                                 <small>
                                   {" "}
-                                  · Recovered copy: review configuration and
-                                  dependencies before deployment.
+                                  · Reviewed parent:{" "}
+                                  {
+                                    a.validation.historicalReview.parent
+                                      .namespace
+                                  }{" "}
+                                  / {a.validation.historicalReview.parent.name}.
+                                  Former ownership is operator-confirmed; target
+                                  readiness is not verified.
                                 </small>
                               )}
-                            {a.validation?.recovery?.message &&
-                              a.status !== "COLLECTED" && (
-                                <small>
-                                  {" "}
-                                  · {a.validation.recovery.message}
-                                </small>
-                              )}
-                            {["LIVE_DEFINITION", "HELM_RELEASE"].includes(
-                              a.kind,
-                            ) &&
-                              !["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
-                                a.status,
-                              ) && (
-                                <button
-                                  type="button"
-                                  disabled={busy || !canEdit || w.stale}
-                                  onClick={() =>
-                                    recover(
-                                      w.workspaceId,
-                                      a.artifactId,
-                                      a.validation?.recovery,
-                                    )
-                                  }
-                                >
-                                  {busy &&
-                                  recoveryFeedback?.workspaceId ===
-                                    w.workspaceId &&
-                                  recoveryFeedback.artifactId === a.artifactId
-                                    ? "Contacting recovery service…"
-                                    : a.validation?.recovery?.status ===
-                                        "RECOVERING"
-                                      ? "Check recovery progress"
-                                      : a.kind === "LIVE_DEFINITION"
-                                        ? "Export live definition"
-                                        : "Recover Helm release"}
-                                </button>
-                              )}
-                            {a.validation?.historicalReview && (
-                              <small>
-                                {" "}
-                                · Reviewed parent:{" "}
-                                {
-                                  a.validation.historicalReview.parent.namespace
-                                }{" "}
-                                / {a.validation.historicalReview.parent.name}.
-                                Former ownership is operator-confirmed; target
-                                readiness is not verified.
-                              </small>
-                            )}
-                            {a.kind === "LIVE_DEFINITION" &&
-                              a.source?.resource?.kind === "Job" &&
-                              a.status === "RECOVERY_REQUIRED" &&
-                              a.validation?.recovery?.status ===
-                                "CUSTOMER_INPUT_REQUIRED" && (
-                                <details>
-                                  <summary>Review deleted Job run</summary>
-                                  <p>
-                                    Use this after checking that the Job was
-                                    deleted and identifying its parent CronJob.
-                                    Your review excludes this historical run
-                                    from replay and keeps the failed-export
-                                    evidence.
-                                  </p>
-                                  <label>
-                                    Saved parent CronJob
-                                    <select
-                                      disabled={busy || !canEdit || w.stale}
-                                      value={
-                                        historicalReviews[
-                                          `${w.workspaceId}/${a.artifactId}`
-                                        ]?.parent ?? ""
-                                      }
-                                      onChange={(event) =>
-                                        setHistoricalReviews((items) => ({
-                                          ...items,
-                                          [`${w.workspaceId}/${a.artifactId}`]:
-                                            {
-                                              parent: event.target.value,
-                                              confirmed: false,
-                                            },
-                                        }))
-                                      }
-                                    >
-                                      <option value="">
-                                        Select the saved CronJob definition
-                                      </option>
-                                      {w.artifacts
-                                        .filter(
-                                          (candidate) =>
-                                            [
-                                              "REPOSITORY_DEFINITION",
-                                              "LIVE_DEFINITION",
-                                            ].includes(candidate.kind) &&
-                                            candidate.status === "COLLECTED",
-                                        )
-                                        .flatMap((candidate) =>
-                                          (candidate.workloads ?? [])
-                                            .filter(
-                                              (link) =>
-                                                link.kind === "CronJob" &&
-                                                link.namespace ===
-                                                  a.source?.resource?.namespace,
-                                            )
-                                            .map((link) => (
-                                              <option
-                                                key={`${candidate.artifactId}/${link.name}`}
-                                                value={JSON.stringify({
-                                                  artifactId:
-                                                    candidate.artifactId,
-                                                  name: link.name,
-                                                })}
-                                              >
-                                                {link.name} ·{" "}
-                                                {candidate.source?.filePath ??
-                                                  "Live definition"}
-                                              </option>
-                                            )),
-                                        )}
-                                    </select>
-                                  </label>
-                                  <label>
-                                    <input
-                                      type="checkbox"
+                              {a.kind === "LIVE_DEFINITION" &&
+                                a.source?.resource?.kind === "Job" &&
+                                a.status === "RECOVERY_REQUIRED" &&
+                                a.validation?.recovery?.status ===
+                                  "CUSTOMER_INPUT_REQUIRED" && (
+                                  <details>
+                                    <summary>Review deleted Job run</summary>
+                                    <p>
+                                      Use this after checking that the Job was
+                                      deleted and identifying its parent
+                                      CronJob. Your review excludes this
+                                      historical run from replay and keeps the
+                                      failed-export evidence.
+                                    </p>
+                                    <label>
+                                      Saved parent CronJob
+                                      <select
+                                        disabled={busy || !canEdit || w.stale}
+                                        value={
+                                          historicalReviews[
+                                            `${w.workspaceId}/${a.artifactId}`
+                                          ]?.parent ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          setHistoricalReviews((items) => ({
+                                            ...items,
+                                            [`${w.workspaceId}/${a.artifactId}`]:
+                                              {
+                                                parent: event.target.value,
+                                                confirmed: false,
+                                              },
+                                          }))
+                                        }
+                                      >
+                                        <option value="">
+                                          Select the saved CronJob definition
+                                        </option>
+                                        {w.artifacts
+                                          .filter(
+                                            (candidate) =>
+                                              [
+                                                "REPOSITORY_DEFINITION",
+                                                "LIVE_DEFINITION",
+                                              ].includes(candidate.kind) &&
+                                              candidate.status === "COLLECTED",
+                                          )
+                                          .flatMap((candidate) =>
+                                            (candidate.workloads ?? [])
+                                              .filter(
+                                                (link) =>
+                                                  link.kind === "CronJob" &&
+                                                  link.namespace ===
+                                                    a.source?.resource
+                                                      ?.namespace,
+                                              )
+                                              .map((link) => (
+                                                <option
+                                                  key={`${candidate.artifactId}/${link.name}`}
+                                                  value={JSON.stringify({
+                                                    artifactId:
+                                                      candidate.artifactId,
+                                                    name: link.name,
+                                                  })}
+                                                >
+                                                  {link.name} ·{" "}
+                                                  {candidate.source?.filePath ??
+                                                    "Live definition"}
+                                                </option>
+                                              )),
+                                          )}
+                                      </select>
+                                    </label>
+                                    <label>
+                                      <input
+                                        type="checkbox"
+                                        disabled={
+                                          busy ||
+                                          !canEdit ||
+                                          w.stale ||
+                                          !historicalReviews[
+                                            `${w.workspaceId}/${a.artifactId}`
+                                          ]?.parent
+                                        }
+                                        checked={
+                                          historicalReviews[
+                                            `${w.workspaceId}/${a.artifactId}`
+                                          ]?.confirmed ?? false
+                                        }
+                                        onChange={(event) =>
+                                          setHistoricalReviews((items) => ({
+                                            ...items,
+                                            [`${w.workspaceId}/${a.artifactId}`]:
+                                              {
+                                                ...items[
+                                                  `${w.workspaceId}/${a.artifactId}`
+                                                ],
+                                                confirmed: event.target.checked,
+                                              },
+                                          }))
+                                        }
+                                      />
+                                      I checked that this is a deleted
+                                      historical run of the selected CronJob.
+                                    </label>
+                                    <button
+                                      type="button"
                                       disabled={
                                         busy ||
                                         !canEdit ||
                                         w.stale ||
                                         !historicalReviews[
                                           `${w.workspaceId}/${a.artifactId}`
-                                        ]?.parent
+                                        ]?.confirmed
                                       }
-                                      checked={
-                                        historicalReviews[
-                                          `${w.workspaceId}/${a.artifactId}`
-                                        ]?.confirmed ?? false
+                                      onClick={() =>
+                                        excludeHistoricalJob(
+                                          w.workspaceId,
+                                          a.artifactId,
+                                        )
                                       }
-                                      onChange={(event) =>
-                                        setHistoricalReviews((items) => ({
-                                          ...items,
-                                          [`${w.workspaceId}/${a.artifactId}`]:
-                                            {
-                                              ...items[
-                                                `${w.workspaceId}/${a.artifactId}`
-                                              ],
-                                              confirmed: event.target.checked,
-                                            },
-                                        }))
-                                      }
-                                    />
-                                    I checked that this is a deleted historical
-                                    run of the selected CronJob.
-                                  </label>
-                                  <button
-                                    type="button"
-                                    disabled={
-                                      busy ||
-                                      !canEdit ||
-                                      w.stale ||
-                                      !historicalReviews[
-                                        `${w.workspaceId}/${a.artifactId}`
-                                      ]?.confirmed
+                                    >
+                                      Record historical exclusion
+                                    </button>
+                                  </details>
+                                )}
+                              {recoveryFeedback?.workspaceId ===
+                                w.workspaceId &&
+                                recoveryFeedback.artifactId ===
+                                  a.artifactId && (
+                                  <p
+                                    role={
+                                      recoveryFeedback.failed
+                                        ? "alert"
+                                        : "status"
                                     }
-                                    onClick={() =>
-                                      excludeHistoricalJob(
-                                        w.workspaceId,
-                                        a.artifactId,
-                                      )
-                                    }
+                                    aria-live="polite"
                                   >
-                                    Record historical exclusion
-                                  </button>
-                                </details>
-                              )}
-                            {recoveryFeedback?.workspaceId === w.workspaceId &&
-                              recoveryFeedback.artifactId === a.artifactId && (
-                                <p
-                                  role={
-                                    recoveryFeedback.failed ? "alert" : "status"
-                                  }
-                                  aria-live="polite"
-                                >
-                                  {recoveryFeedback.message}
-                                </p>
-                              )}
-                            {a.validation?.platforms?.length ? (
-                              <small>
-                                {" "}
-                                · Available platforms:{" "}
-                                {a.validation.platforms.join(", ")} · Target
-                                compatibility not verified
-                              </small>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
+                                    {recoveryFeedback.message}
+                                  </p>
+                                )}
+                              {a.validation?.platforms?.length ? (
+                                <small>
+                                  {" "}
+                                  · Available platforms:{" "}
+                                  {a.validation.platforms.join(", ")} · Target
+                                  compatibility not verified
+                                </small>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
+                  {guided &&
+                    !showCompleted[w.workspaceId] &&
+                    required === saved && (
+                      <p className={styles.hint}>
+                        All required artifacts are saved. Review saved items
+                        before exporting.
+                      </p>
+                    )}
                 </div>
               </details>
             </div>

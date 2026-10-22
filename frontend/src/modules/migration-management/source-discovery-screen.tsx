@@ -30,6 +30,7 @@ import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
 import styles from "./source-discovery-screen.module.css";
+import journey from "./discovery-journey.module.css";
 
 import {
   workloadKinds,
@@ -754,18 +755,31 @@ export function SourceDiscoveryScreen({
     </>
   );
   return (
-    <div className={`${shared.screen} ${styles.discoveryScreen}`}>
+    <div
+      data-source-discovery
+      className={`${shared.screen} ${styles.discoveryScreen} ${journey.screen}`}
+    >
       <header className={shared.heading}>
         <div className={shared.titleGroup}>
           <Network size={25} />
           <div>
-            <h1>Source discovery &amp; assessment</h1>
+            <h1>Source &amp; Discover</h1>
+            {ready && sourceFresh && (
+              <span className={journey.complete}>Discovery complete</span>
+            )}
           </div>
         </div>
         <Link className={shared.back} href="/migrations">
           <ArrowLeft size={15} /> Back to assessments
         </Link>
       </header>
+      <div className={journey.workflow}>
+        {" "}
+        <MigrationWorkflow
+          active={2}
+          completed={sourceFresh || ready ? [1] : []}
+        />
+      </div>
       <section className={styles.context} aria-label="Migration context">
         <div>
           <FileText size={18} aria-hidden="true" />
@@ -795,10 +809,7 @@ export function SourceDiscoveryScreen({
           </div>
         </div>
       </section>
-      <MigrationWorkflow
-        active={2}
-        completed={sourceFresh || ready ? [1] : []}
-      />
+
       {(sourceQuery.isError ||
         customerQuery.isError ||
         (sourceQuery.data && !sourceOwned)) && (
@@ -816,19 +827,39 @@ export function SourceDiscoveryScreen({
         </p>
       )}
       {sourceOwned && (
-        <SourceConnectionsPanel
-          key={sourceId}
-          sourceId={sourceId}
-          assessmentComplete={ready}
-          compact
-          openRequest={manageRequest}
-          connectorConnected={sourceFresh}
-          connectorName={sourceQuery.data?.name}
-        />
+        <details
+          className={journey.connections}
+          open={!ready || manageRequest > 0 || !sourceFresh || undefined}
+        >
+          <summary>
+            Source connections{" "}
+            <span>
+              {sourceFresh ? "Connector connected" : "Check connector"} · Manage
+              repository and registry access
+            </span>
+          </summary>
+          <SourceConnectionsPanel
+            key={sourceId}
+            sourceId={sourceId}
+            assessmentComplete={ready}
+            compact
+            openRequest={manageRequest}
+            connectorConnected={sourceFresh}
+            connectorName={sourceQuery.data?.name}
+          />
+        </details>
       )}
       <section
         className={`${shared.panel} ${styles.run} ${ready ? styles.runComplete : ""}`}
         aria-label="Discovery progress"
+        hidden={
+          ready &&
+          sourceFresh &&
+          !query.isError &&
+          !error &&
+          !recoveryMessage &&
+          !recovering
+        }
       >
         <div className={styles.phase}>
           {recovering || (running && !waitingForConnector) ? (

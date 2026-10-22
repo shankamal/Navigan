@@ -22,6 +22,8 @@ import {
   DeploymentStructure,
   ArtifactResolution,
 } from "./deployment-structure";
+import { DiscoveryReview } from "./discovery-review";
+import journey from "./discovery-journey.module.css";
 import { ArtifactWorkspacePanel } from "./artifact-workspace-panel";
 import { EvidenceDrawer } from "./evidence-drawer";
 import { EvidenceCoverageRing } from "./evidence-coverage-ring";
@@ -76,6 +78,7 @@ export function DeploymentEvidencePanel({
     "overview",
   );
   const guided = hideConnections && !selectedKeys;
+  const [workloadDetail, setWorkloadDetail] = useState(false);
   const [inspectedKey, setInspectedKey] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState(false);
   const analyzedInventory = useRef("");
@@ -455,8 +458,9 @@ export function DeploymentEvidencePanel({
                 Refresh cluster evidence
               </button>
             )}
-          {!hideConnections && sourceAnalysisAction}
-          {footerAction}
+          {(!hideConnections || (guided && view === "overview")) &&
+            sourceAnalysisAction}
+          {!guided && footerAction}
           {hideConnections && (
             <details
               className={styles.moreOptions}
@@ -494,37 +498,28 @@ export function DeploymentEvidencePanel({
   );
   return (
     <section
-      className={`${styles.panel} ${hideConnections ? styles.workbench : ""}`}
+      className={`${styles.panel} ${hideConnections ? styles.workbench : ""} ${guided ? journey.workspace : ""}`}
       aria-label="Deployment sources and versions"
     >
       {guided && (
         <nav
-          className={styles.viewNavigation}
+          className={journey.localNavigation}
           aria-label="Source discovery views"
         >
           {(
             [
-              ["overview", "1", "Discovery overview", "Results & next actions"],
-              [
-                "explorer",
-                "2",
-                "Workload explorer",
-                "Definitions, images & checks",
-              ],
-              ["files", "3", "Files & images", "Collect, recover & export"],
+              ["overview", "Review discovery"],
+              ["explorer", "Inspect workloads"],
+              ["files", "Collect artifacts"],
             ] as const
-          ).map(([key, number, title, description]) => (
+          ).map(([key, title]) => (
             <button
               key={key}
               type="button"
               aria-pressed={view === key}
               onClick={() => setView(key)}
             >
-              <span className={styles.viewNumber}>{number}</span>
-              <span>
-                <strong>{title}</strong>
-                <small>{description}</small>
-              </span>
+              {title}
             </button>
           ))}
         </nav>
@@ -688,42 +683,56 @@ export function DeploymentEvidencePanel({
       )}
       {evidence && (
         <>
-          {!selectedKeys && (
-            <div className={styles.explorerHeading}>
-              <div>
-                <h2>
-                  {guided
-                    ? {
-                        overview: "Discovery overview",
-                        explorer: "Workload explorer",
-                        files: "Files & images",
-                      }[view]
-                    : "Source workload explorer"}
-                </h2>
-                <p>
-                  {guided
-                    ? {
-                        overview:
-                          "Review the discovered inventory and source evidence before choosing your next action.",
-                        explorer:
-                          "Inspect workloads here. These filters do not change migration scope.",
-                        files:
-                          "Save deployment files and container images to your private S3 workspace.",
-                      }[view]
-                    : "Select a namespace and workload to review its deployment evidence."}
-                </p>
+          {!selectedKeys &&
+            !(guided && view === "explorer" && workloadDetail) && (
+              <div className={styles.explorerHeading}>
+                <div>
+                  <h2>
+                    {guided
+                      ? {
+                          overview: "Discovery review",
+                          explorer: "Inspect workloads",
+                          files: "Collect artifacts",
+                        }[view]
+                      : "Source workload explorer"}
+                  </h2>
+                  <p>
+                    {guided
+                      ? {
+                          overview:
+                            "Review inventory, source definitions and image availability.",
+                          explorer:
+                            "Inspect workloads here. These filters do not change migration scope.",
+                          files:
+                            "Save deployment files and container images to your private S3 workspace.",
+                        }[view]
+                      : "Select a namespace and workload to review its deployment evidence."}
+                  </p>
+                </div>
+                <div className={styles.explorerActions}>
+                  {hideConnections && actionBar}
+                  {!hideConnections && (
+                    <button onClick={() => setDiagnostics(true)}>
+                      Source diagnostics
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className={styles.explorerActions}>
-                {hideConnections && actionBar}
-                {!hideConnections && (
-                  <button onClick={() => setDiagnostics(true)}>
-                    Source diagnostics
-                  </button>
-                )}
-              </div>
-            </div>
+            )}
+          {guided && matching && view === "overview" && (
+            <DiscoveryReview
+              evidence={evidence}
+              workloads={allWorkloads}
+              namespaces={evidenceNamespaces}
+              onAccess={() => onManageConnections?.()}
+              onWorkloads={(namespace) => {
+                setEvidenceNamespace(namespace ?? "");
+                setView("explorer");
+              }}
+              onCollect={() => setView("files")}
+            />
           )}
-          {!selectedKeys && matching && (!guided || view === "overview") && (
+          {!selectedKeys && matching && !guided && (
             <section
               className={styles.discoverySummary}
               aria-label="Discovery evidence summary"
@@ -813,76 +822,39 @@ export function DeploymentEvidencePanel({
                   deployed Git revision.
                 </span>
               </div>
-              {guided && (
-                <div
-                  className={styles.nextActions}
-                  aria-label="Discovery next actions"
-                >
-                  <div>
-                    <GitBranch size={20} />
-                    <h3>Check deployment sources</h3>
-                    <p>
-                      Read configured repositories and check referenced images.
-                      This does not collect files into S3.
-                    </p>
-                    {sourceAnalysisAction}
-                  </div>
-                  <div>
-                    <Box size={20} />
-                    <h3>Review workload evidence</h3>
-                    <p>
-                      {needsAttention} of {allWorkloads.length} workloads have
-                      reported gaps or unchecked evidence.
-                    </p>
-                    <button onClick={() => setView("explorer")}>
-                      Open workload explorer <ChevronRight size={14} />
-                    </button>
-                  </div>
-                  <div>
-                    <Database size={20} />
-                    <h3>Prepare files & images</h3>
-                    <p>
-                      Open a saved workspace or choose namespaces to collect.
-                      Target compatibility is checked later.
-                    </p>
-                    <button onClick={() => setView("files")}>
-                      Open files & images <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
-              )}
             </section>
           )}
-          {!selectedKeys && (!guided || view === "explorer") && (
-            <div className={styles.toolbar}>
-              <select
-                aria-label="Evidence namespace"
-                title="Filter this view only; migration scope is selected in the workspace."
-                value={evidenceNamespace}
-                onChange={(event) => setEvidenceNamespace(event.target.value)}
-              >
-                <option value="">All namespaces</option>
-                {evidenceNamespaces.map((namespace) => (
-                  <option key={namespace} value={namespace}>
-                    {namespace}
-                  </option>
-                ))}
-              </select>
-              <label className={styles.search}>
-                <Search size={16} />
-                <input
-                  type="search"
-                  aria-label="Search workloads"
-                  placeholder="Search workloads, namespace or image…"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </label>
-              <span>
-                {workloads.length} workload{workloads.length === 1 ? "" : "s"}
-              </span>
-            </div>
-          )}
+          {!selectedKeys &&
+            (!guided || (view === "explorer" && !workloadDetail)) && (
+              <div className={styles.toolbar}>
+                <select
+                  aria-label="Evidence namespace"
+                  title="Filter this view only; migration scope is selected in the workspace."
+                  value={evidenceNamespace}
+                  onChange={(event) => setEvidenceNamespace(event.target.value)}
+                >
+                  <option value="">All namespaces</option>
+                  {evidenceNamespaces.map((namespace) => (
+                    <option key={namespace} value={namespace}>
+                      {namespace}
+                    </option>
+                  ))}
+                </select>
+                <label className={styles.search}>
+                  <Search size={16} />
+                  <input
+                    type="search"
+                    aria-label="Search workloads"
+                    placeholder="Search workloads, namespace or image…"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </label>
+                <span>
+                  {workloads.length} workload{workloads.length === 1 ? "" : "s"}
+                </span>
+              </div>
+            )}
           {selectedKeys && (
             <div className={styles.scroll}>
               <table>
@@ -1339,11 +1311,12 @@ export function DeploymentEvidencePanel({
             <>
               <div
                 hidden={guided && view !== "files"}
-                className={styles.viewContent}
+                className={journey.viewContent}
               >
                 <ArtifactWorkspacePanel
                   guided={guided}
                   active={guided && view === "files"}
+                  onReviewAccess={onManageConnections}
                   key={`${migration.migrationId}/${inventoryDigest ?? ""}`}
                   migrationId={migration.migrationId}
                   version={migration.version}
@@ -1354,9 +1327,11 @@ export function DeploymentEvidencePanel({
               </div>
               <div
                 hidden={guided && view !== "explorer"}
-                className={styles.viewContent}
+                className={journey.viewContent}
               >
                 <DeploymentStructure
+                  guided={guided}
+                  onDetailChange={guided ? setWorkloadDetail : undefined}
                   workloads={workloads}
                   namespaces={evidenceNamespaces.filter(
                     (n) => !evidenceNamespace || n === evidenceNamespace,
@@ -1569,6 +1544,9 @@ export function DeploymentEvidencePanel({
             </p>
           )}
         </>
+      )}
+      {guided && (
+        <footer className={journey.pageActions}>{footerAction}</footer>
       )}
     </section>
   );

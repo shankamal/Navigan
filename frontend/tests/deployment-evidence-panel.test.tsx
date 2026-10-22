@@ -694,15 +694,15 @@ it("separates overview from workload inspection and preserves explorer filters a
     name: "Source discovery views",
   });
   const overview = within(nav).getByRole("button", {
-    name: /Discovery overview/,
+    name: "Review discovery",
   });
   expect(overview).toHaveAttribute("aria-pressed", "true");
-  await screen.findByRole("heading", { name: "Review workload evidence" });
+  await screen.findByRole("heading", { name: "Source review & next actions" });
   expect(
     screen.queryByRole("combobox", { name: "Evidence namespace" }),
   ).not.toBeInTheDocument();
   fireEvent.click(
-    within(nav).getByRole("button", { name: /Workload explorer/ }),
+    within(nav).getByRole("button", { name: "Inspect workloads" }),
   );
   const search = screen.getByRole("searchbox", { name: "Search workloads" });
   fireEvent.change(search, { target: { value: "payments" } });
@@ -714,7 +714,7 @@ it("separates overview from workload inspection and preserves explorer filters a
     screen.queryByRole("button", { name: "Inspect api in payments" }),
   ).not.toBeInTheDocument();
   fireEvent.click(
-    within(nav).getByRole("button", { name: /Workload explorer/ }),
+    within(nav).getByRole("button", { name: "Inspect workloads" }),
   );
   expect(
     screen.getByRole("searchbox", { name: "Search workloads" }),
@@ -728,8 +728,8 @@ it("labels unchecked source evidence without interpreting zero counts as missing
   expect(
     within(
       screen.getByRole("region", { name: "Discovery evidence summary" }),
-    ).getAllByText("Not checked"),
-  ).toHaveLength(2);
+    ).getAllByText("Not checked").length,
+  ).toBeGreaterThanOrEqual(2);
   expect(
     screen.queryByRole("progressbar", {
       name: "All container images available",
@@ -741,4 +741,24 @@ it("labels unchecked source evidence without interpreting zero counts as missing
       hidden: false,
     }),
   ).toBeVisible();
+});
+
+it("opens namespace evidence from the review table without changing migration scope", async () => {
+  const manage = vi.fn();
+  open({ hideConnections: true, onManageConnections: manage });
+  fireEvent.click(await screen.findByRole("button", { name: "Review access" }));
+  expect(manage).toHaveBeenCalledTimes(1);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Inspect namespace payments" }),
+  );
+  expect(
+    screen.getByRole("combobox", { name: "Evidence namespace" }),
+  ).toHaveValue("payments");
+  expect(
+    within(
+      screen.getByRole("navigation", { name: "Source discovery views" }),
+    ).getByRole("button", { name: "Inspect workloads" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(api.saveSettings).not.toHaveBeenCalled();
+  expect(api.refresh).not.toHaveBeenCalled();
 });

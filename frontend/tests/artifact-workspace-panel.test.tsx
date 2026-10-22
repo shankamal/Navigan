@@ -754,3 +754,71 @@ it("provides a retry after saved-workspace loading fails without creating anythi
   await screen.findByText(/No saved workspaces yet/);
   expect(api.post).not.toHaveBeenCalled();
 });
+
+it("separates remaining artifacts from saved copies without changing collection state", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-filter",
+          namespaces: ["shop"],
+          stale: false,
+          status: "PARTIAL",
+          artifacts: [
+            {
+              artifactId: "saved",
+              kind: "REPOSITORY_DEFINITION",
+              status: "COLLECTED",
+              source: { filePath: "deploy/saved.yaml" },
+            },
+            {
+              artifactId: "pending",
+              kind: "IMAGE",
+              status: "PENDING_COLLECTION",
+              source: { reference: "example.com/shop/api:1" },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(<ArtifactWorkspacePanel {...props} guided active />);
+  await screen.findByRole("button", { name: "Remaining (1)" });
+  expect(screen.getByText("example.com/shop/api:1")).toBeVisible();
+  expect(screen.queryByText("deploy/saved.yaml")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Saved / excluded (1)" }));
+  expect(screen.getByText("deploy/saved.yaml")).toBeVisible();
+  expect(screen.queryByText("example.com/shop/api:1")).not.toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+it("opens registry access review without changing the artifact or starting collection", async () => {
+  const review = vi.fn();
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-access",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            {
+              artifactId: "image",
+              kind: "IMAGE",
+              status: "ACCESS_REQUIRED",
+              source: { reference: "example.com/shop:1" },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel {...props} guided active onReviewAccess={review} />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Review registry access" }),
+  );
+  expect(review).toHaveBeenCalledTimes(1);
+  expect(api.post).not.toHaveBeenCalled();
+});
