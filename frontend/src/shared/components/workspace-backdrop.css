@@ -1,7 +1,7 @@
 /* Shared workspace canvas; white panels retain their existing contrast. */
 /* Higher specificity keeps module styles from changing the shared header. */
 .app-shell[class] > header.topbar {
-  background-color: #1e252f;
+  background-color: var(--navigan-graphite-raised, #252e39);
   background-image: url("/graphics/header-cloud-network.svg");
   background-position: right center;
   background-size: 55% 100%;
@@ -71,8 +71,8 @@
   }
 }
 .app-shell[class] .shell-body > .content-column {
-  background-color: #f3f5f8;
-  background-image: linear-gradient(180deg, #e9eef4 0, #f3f5f8 340px);
+  background-color: #f5f7fa;
+  background-image: linear-gradient(180deg, #f0f3f7 0, #f5f7fa 340px);
   background-repeat: no-repeat;
 }
 .app-shell[class] main#main-content {
@@ -293,10 +293,10 @@
   background: #f1f5f9;
   border-color: #94a3b8;
 }
-/* Slate sidebar paired with the midnight-grey title bar. */
+/* Shared graphite navigation, consistent across every module. */
 .app-shell[class] .sidebar {
-  background: #293647;
-  border-color: #3b4a5e;
+  background: var(--navigan-graphite, #1c222b);
+  border-color: #343f4c;
   color: #cbd5e1;
 }
 .app-shell[class] .sidebar .nav-item,
@@ -305,17 +305,17 @@
 }
 .app-shell[class] .sidebar .nav-item svg,
 .app-shell[class] .sidebar .nav-subitem svg {
-  color: #a9b8ca;
+  color: #acbbc9;
 }
 .app-shell[class] .sidebar .nav-section {
-  color: #c0ccdb;
+  color: #a7b3bf;
 }
 .app-shell[class] .sidebar .nav-item.selected,
 .app-shell[class] .sidebar .nav-subitem.selected {
-  background: #1e252f;
+  background: var(--navigan-graphite-raised, #252e39);
   color: #fff;
   border-color: transparent;
-  box-shadow: inset 3px 0 #aebed0;
+  box-shadow: inset 3px 0 var(--navigan-brand, #86bc25);
   font-weight: 600;
 }
 .app-shell[class] .sidebar .nav-item.selected svg,
@@ -324,7 +324,7 @@
 }
 .app-shell[class] .sidebar .nav-item:hover:not(.selected),
 .app-shell[class] .sidebar .nav-subitem:hover:not(.selected) {
-  background: #35465b;
+  background: var(--navigan-graphite-hover, #303b49);
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .nav-item:focus-visible,
@@ -335,8 +335,8 @@
   border-color: #475569;
 }
 .app-shell[class] .sidebar .workspace-card {
-  background: #263140;
-  border-color: #3b495d;
+  background: var(--navigan-graphite-raised, #252e39);
+  border-color: #404a57;
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .workspace-card strong {
@@ -346,16 +346,16 @@
   color: #b3c0d0;
 }
 .app-shell[class] .sidebar .workspace-symbol {
-  background: #3b495d;
+  background: #404a57;
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .sidebar-collapse {
-  background: #263140;
+  background: var(--navigan-graphite-raised, #252e39);
   color: #cbd5e1;
-  border-color: #3b495d;
+  border-color: #404a57;
 }
 .app-shell[class] .sidebar .nav-submenu {
-  border-color: #3b495d;
+  border-color: #404a57;
 }
 
 /* Portal identity and sticky navigation branding. */
@@ -382,7 +382,7 @@
   gap: 12px;
   min-height: 60px;
   margin-bottom: 10px;
-  background: #293647;
+  background: var(--navigan-graphite, #1c222b);
   border-bottom: 1px solid #475569;
 }
 .app-shell[class] .sidebar-brand {
