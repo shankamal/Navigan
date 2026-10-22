@@ -8,6 +8,12 @@ import {
 } from "@/shared/api/client";
 import styles from "./artifact-workspace-panel.module.css";
 type Recovery = { jobId: string; status: string; message?: string };
+type Workload = {
+  apiVersion?: string;
+  kind: string;
+  namespace: string;
+  name: string;
+};
 type Workspace = {
   workspaceId: string;
   namespaces: string[];
@@ -24,6 +30,7 @@ type Workspace = {
     artifactId: string;
     kind: string;
     status: string;
+    workloads?: Workload[];
     source?: {
       reference?: string;
       filePath?: string;
@@ -35,6 +42,7 @@ type Workspace = {
       platforms?: string[];
       reviewRequired?: boolean;
       recovery?: Recovery;
+      historicalReview?: { parent: Workload; reviewedAt: string };
     };
   }[];
 };
@@ -52,11 +60,21 @@ export function ArtifactWorkspacePanel({
   canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [historicalReviews, setHistoricalReviews] = useState<
+    Record<string, { parent: string; confirmed: boolean }>
+  >({});
   const [selected, setSelected] = useState<string[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [recoveryFeedback, setRecoveryFeedback] = useState<{
+    workspaceId: string;
+    artifactId: string;
+    pending: boolean;
+    failed: boolean;
+    message: string;
+  } | null>(null);
   async function run(create: boolean) {
     setBusy(true);
     setError("");
@@ -113,26 +131,147 @@ export function ArtifactWorkspacePanel({
   ) {
     setBusy(true);
     setError("");
+    const checking = job?.status === "RECOVERING";
+    const identity = { workspaceId, artifactId };
+    setRecoveryFeedback({
+      ...identity,
+      pending: true,
+      failed: false,
+      message: checking
+        ? "Checking recovery progress…"
+        : "Starting source recovery…",
+    });
+    let accepted = false;
     try {
-      await apiClient.post(
+      const response = await apiClient.post<{ job: Recovery }>(
         `/migrations/${migrationId}/deployment-evidence`,
         {
           version,
           recovery: {
-            operation: job?.status === "RECOVERING" ? "POLL" : "START",
+            operation: checking ? "POLL" : "START",
             workspaceId,
             artifactId,
-            ...(job?.status === "RECOVERING" ? { jobId: job.jobId } : {}),
+            ...(checking ? { jobId: job.jobId } : {}),
           },
         },
         { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
       );
+      const recovery = response.data.job;
+      accepted = true;
+      const collected = ["RECOVERED", "PARTIAL_RECOVERY"].includes(
+        recovery.status,
+      );
+      // Keep the accepted job handle even if the subsequent refresh fails.
+      setWorkspaces((items) =>
+        items.map((item) =>
+          item.workspaceId !== workspaceId
+            ? item
+            : {
+                ...item,
+                artifacts: item.artifacts.map((artifact) =>
+                  artifact.artifactId !== artifactId
+                    ? artifact
+                    : {
+                        ...artifact,
+                        status: collected
+                          ? "COLLECTED"
+                          : recovery.status === "RECOVERING"
+                            ? "RECOVERING"
+                            : "RECOVERY_REQUIRED",
+                        validation: {
+                          ...artifact.validation,
+                          recovery,
+                          ...(collected ? { reviewRequired: true } : {}),
+                        },
+                      },
+                ),
+              },
+        ),
+      );
+      setRecoveryFeedback({
+        ...identity,
+        pending: false,
+        failed: recovery.status === "CUSTOMER_INPUT_REQUIRED",
+        message:
+          recovery.message ||
+          (collected
+            ? "Recovered copy saved to S3. Review before deployment."
+            : recovery.status === "RECOVERING"
+              ? "Recovery started. Use Check recovery progress to continue."
+              : "Recovery needs attention. Retry after checking source access."),
+      });
       const { data } = await apiClient.get(
         `/migrations/${migrationId}/artifact-workspaces`,
       );
       setWorkspaces(data.workspaces);
     } catch (e) {
-      setError(normalizeApiError(e).message);
+      const problem = normalizeApiError(e);
+      const detail = `${problem.message}${problem.code ? ` (${problem.code})` : ""}`;
+      setRecoveryFeedback({
+        ...identity,
+        pending: false,
+        failed: true,
+        message: accepted
+          ? `Recovery response received, but the workspace could not refresh. ${detail} Use Check recovery progress for a running job.`
+          : detail,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function excludeHistoricalJob(workspaceId: string, artifactId: string) {
+    const selectedReview = historicalReviews[`${workspaceId}/${artifactId}`];
+    if (!selectedReview?.confirmed || !selectedReview.parent) return;
+    const parent = JSON.parse(selectedReview.parent) as {
+      artifactId: string;
+      name: string;
+    };
+    setBusy(true);
+    setRecoveryFeedback({
+      workspaceId,
+      artifactId,
+      pending: true,
+      failed: false,
+      message: "Saving historical run review…",
+    });
+    try {
+      const { data } = await apiClient.post<{ workspace: Workspace }>(
+        `/migrations/${migrationId}/deployment-evidence`,
+        {
+          version,
+          recovery: {
+            operation: "EXCLUDE_HISTORICAL_JOB",
+            workspaceId,
+            artifactId,
+            parentArtifactId: parent.artifactId,
+            parentCronJobName: parent.name,
+            confirmHistoricalRun: true,
+          },
+        },
+        { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+      );
+      setWorkspaces((items) =>
+        items.map((item) =>
+          item.workspaceId === workspaceId ? data.workspace : item,
+        ),
+      );
+      setRecoveryFeedback({
+        workspaceId,
+        artifactId,
+        pending: false,
+        failed: false,
+        message:
+          "Historical exclusion recorded. The review receipt is saved to S3; this Job will not be replayed.",
+      });
+    } catch (e) {
+      const problem = normalizeApiError(e);
+      setRecoveryFeedback({
+        workspaceId,
+        artifactId,
+        pending: false,
+        failed: true,
+        message: `${problem.message}${problem.code ? ` (${problem.code})` : ""}`,
+      });
     } finally {
       setBusy(false);
     }
@@ -257,7 +396,11 @@ export function ArtifactWorkspacePanel({
           const available = w.artifacts.filter(
             (a) => a.status === "PENDING_COLLECTION",
           ).length;
-          const attention = w.artifacts.length - saved - available;
+          const historical = w.artifacts.filter(
+            (a) => a.status === "EXCLUDED_FROM_REPLAY",
+          ).length;
+          const required = w.artifacts.length - historical;
+          const attention = required - saved - available;
           return (
             <div className={styles.workspace} key={w.workspaceId}>
               <div className={styles.workspaceHeading}>
@@ -265,8 +408,8 @@ export function ArtifactWorkspacePanel({
                 <span className={styles.badge}>
                   {w.stale
                     ? "Older inventory snapshot · Create a new workspace"
-                    : saved > 0 && saved === w.artifacts.length
-                      ? "All artifacts saved · Review before deployment"
+                    : saved > 0 && saved === required
+                      ? "All required artifacts saved · Review before deployment"
                       : w.status === "COLLECTING"
                         ? "Artifact collection queued or running"
                         : w.status === "FAILED"
@@ -284,7 +427,7 @@ export function ArtifactWorkspacePanel({
                 aria-label="Artifact collection progress"
               >
                 <div>
-                  <strong>{w.artifacts.length}</strong>
+                  <strong>{required}</strong>
                   <span>Required artifacts</span>
                 </div>
                 <div>
@@ -301,9 +444,16 @@ export function ArtifactWorkspacePanel({
                 </div>
               </div>
               <small>
-                {saved} / {w.artifacts.length} artifacts collected · Target
-                readiness not verified
+                {saved} / {required} artifacts collected · Target readiness not
+                verified
               </small>
+              {historical > 0 && (
+                <p>
+                  {historical} historical Job run{historical === 1 ? "" : "s"}{" "}
+                  excluded from replay · {w.artifacts.length} artifacts
+                  originally listed. Review receipts are retained in S3.
+                </p>
+              )}
               <div className={styles.actions}>
                 <button
                   type="button"
@@ -392,7 +542,9 @@ export function ArtifactWorkspacePanel({
                             {["LIVE_DEFINITION", "HELM_RELEASE"].includes(
                               a.kind,
                             ) &&
-                              a.status !== "COLLECTED" && (
+                              !["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                                a.status,
+                              ) && (
                                 <button
                                   type="button"
                                   disabled={busy || !canEdit || w.stale}
@@ -404,13 +556,165 @@ export function ArtifactWorkspacePanel({
                                     )
                                   }
                                 >
-                                  {a.validation?.recovery?.status ===
-                                  "RECOVERING"
-                                    ? "Check recovery progress"
-                                    : a.kind === "LIVE_DEFINITION"
-                                      ? "Export live definition"
-                                      : "Recover Helm release"}
+                                  {busy &&
+                                  recoveryFeedback?.workspaceId ===
+                                    w.workspaceId &&
+                                  recoveryFeedback.artifactId === a.artifactId
+                                    ? "Contacting recovery service…"
+                                    : a.validation?.recovery?.status ===
+                                        "RECOVERING"
+                                      ? "Check recovery progress"
+                                      : a.kind === "LIVE_DEFINITION"
+                                        ? "Export live definition"
+                                        : "Recover Helm release"}
                                 </button>
+                              )}
+                            {a.validation?.historicalReview && (
+                              <small>
+                                {" "}
+                                · Reviewed parent:{" "}
+                                {
+                                  a.validation.historicalReview.parent.namespace
+                                }{" "}
+                                / {a.validation.historicalReview.parent.name}.
+                                Former ownership is operator-confirmed; target
+                                readiness is not verified.
+                              </small>
+                            )}
+                            {a.kind === "LIVE_DEFINITION" &&
+                              a.source?.resource?.kind === "Job" &&
+                              a.status === "RECOVERY_REQUIRED" &&
+                              a.validation?.recovery?.status ===
+                                "CUSTOMER_INPUT_REQUIRED" && (
+                                <details>
+                                  <summary>Review deleted Job run</summary>
+                                  <p>
+                                    Use this after checking that the Job was
+                                    deleted and identifying its parent CronJob.
+                                    Your review excludes this historical run
+                                    from replay and keeps the failed-export
+                                    evidence.
+                                  </p>
+                                  <label>
+                                    Saved parent CronJob
+                                    <select
+                                      disabled={busy || !canEdit || w.stale}
+                                      value={
+                                        historicalReviews[
+                                          `${w.workspaceId}/${a.artifactId}`
+                                        ]?.parent ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        setHistoricalReviews((items) => ({
+                                          ...items,
+                                          [`${w.workspaceId}/${a.artifactId}`]:
+                                            {
+                                              parent: event.target.value,
+                                              confirmed: false,
+                                            },
+                                        }))
+                                      }
+                                    >
+                                      <option value="">
+                                        Select the saved CronJob definition
+                                      </option>
+                                      {w.artifacts
+                                        .filter(
+                                          (candidate) =>
+                                            [
+                                              "REPOSITORY_DEFINITION",
+                                              "LIVE_DEFINITION",
+                                            ].includes(candidate.kind) &&
+                                            candidate.status === "COLLECTED",
+                                        )
+                                        .flatMap((candidate) =>
+                                          (candidate.workloads ?? [])
+                                            .filter(
+                                              (link) =>
+                                                link.kind === "CronJob" &&
+                                                link.namespace ===
+                                                  a.source?.resource?.namespace,
+                                            )
+                                            .map((link) => (
+                                              <option
+                                                key={`${candidate.artifactId}/${link.name}`}
+                                                value={JSON.stringify({
+                                                  artifactId:
+                                                    candidate.artifactId,
+                                                  name: link.name,
+                                                })}
+                                              >
+                                                {link.name} ·{" "}
+                                                {candidate.source?.filePath ??
+                                                  "Live definition"}
+                                              </option>
+                                            )),
+                                        )}
+                                    </select>
+                                  </label>
+                                  <label>
+                                    <input
+                                      type="checkbox"
+                                      disabled={
+                                        busy ||
+                                        !canEdit ||
+                                        w.stale ||
+                                        !historicalReviews[
+                                          `${w.workspaceId}/${a.artifactId}`
+                                        ]?.parent
+                                      }
+                                      checked={
+                                        historicalReviews[
+                                          `${w.workspaceId}/${a.artifactId}`
+                                        ]?.confirmed ?? false
+                                      }
+                                      onChange={(event) =>
+                                        setHistoricalReviews((items) => ({
+                                          ...items,
+                                          [`${w.workspaceId}/${a.artifactId}`]:
+                                            {
+                                              ...items[
+                                                `${w.workspaceId}/${a.artifactId}`
+                                              ],
+                                              confirmed: event.target.checked,
+                                            },
+                                        }))
+                                      }
+                                    />
+                                    I checked that this is a deleted historical
+                                    run of the selected CronJob.
+                                  </label>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      busy ||
+                                      !canEdit ||
+                                      w.stale ||
+                                      !historicalReviews[
+                                        `${w.workspaceId}/${a.artifactId}`
+                                      ]?.confirmed
+                                    }
+                                    onClick={() =>
+                                      excludeHistoricalJob(
+                                        w.workspaceId,
+                                        a.artifactId,
+                                      )
+                                    }
+                                  >
+                                    Record historical exclusion
+                                  </button>
+                                </details>
+                              )}
+                            {recoveryFeedback?.workspaceId === w.workspaceId &&
+                              recoveryFeedback.artifactId === a.artifactId && (
+                                <p
+                                  role={
+                                    recoveryFeedback.failed ? "alert" : "status"
+                                  }
+                                  aria-live="polite"
+                                >
+                                  {recoveryFeedback.message}
+                                </p>
                               )}
                             {a.validation?.platforms?.length ? (
                               <small>
@@ -465,6 +769,7 @@ function artifactStatus(status: string) {
         RECOVERY_REQUIRED: "Missing at source · Recovery required",
         RECOVERY_REVIEW_REQUIRED: "Recover retained Helm data",
         RECOVERING: "Recovery in progress",
+        EXCLUDED_FROM_REPLAY: "Historical run · Excluded from replay",
         ACCESS_REQUIRED: "Connect source or check permissions",
         DIGEST_REQUIRED: "Identify the running image version",
         CHECK_REQUIRED: "Check source availability",

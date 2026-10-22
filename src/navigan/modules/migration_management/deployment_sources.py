@@ -113,7 +113,10 @@ class SaveDeploymentSources(StrictModel):
 class ArtifactRecoveryRequest(StrictModel):
     workspaceId: str | None = Field(default=None, pattern=r"^AWS-[a-f0-9]{32}$")
     artifactId: str | None = Field(default=None, pattern=r"^ART-[a-f0-9]{64}$")
-    operation: str = Field(pattern=r"^(START|POLL|DOWNLOAD)$")
+    operation: str = Field(pattern=r"^(START|POLL|DOWNLOAD|EXCLUDE_HISTORICAL_JOB)$")
+    parentArtifactId: str | None = Field(default=None, pattern=r"^ART-[a-f0-9]{64}$")
+    parentCronJobName: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9.-]{0,251}$")
+    confirmHistoricalRun: bool = Field(default=False, strict=True)
     jobId: str | None = Field(default=None, pattern=r"^REC-[a-f0-9]{32}$")
     artifactKind: str = Field(default="IMAGE", pattern=r"^(IMAGE|HELM_RELEASE|LIVE_DEFINITION)$")
     apiVersion: str | None = Field(default=None, max_length=100)

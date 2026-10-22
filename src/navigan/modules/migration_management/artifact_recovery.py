@@ -149,6 +149,8 @@ def workspace_context(service, identifier, request):
     artifact = next((a for a in workspace["artifacts"] if a["artifactId"] == artifact_id), None)
     if not artifact or artifact["kind"] not in {"LIVE_DEFINITION", "HELM_RELEASE"}:
         raise ApiError(400, "RECOVERY_ARTIFACT_REQUIRED", "Choose a cluster definition or Helm release in this workspace.")
+    if artifact["status"] == "EXCLUDED_FROM_REPLAY":
+        raise ApiError(409, "HISTORICAL_REVIEW_EXISTS", "This Job run is excluded from replay by a recorded review.")
     if request["operation"] == "START" and artifact["status"] == "COLLECTED":
         raise ApiError(409, "ARTIFACT_ALREADY_COLLECTED", "This artifact is already saved to S3.")
     bucket, key, owner = storage_configuration()
@@ -176,6 +178,9 @@ def record_workspace_recovery(service, job):
 
 
 def recover(service, identifier, body, factory=None):
+    if body.get("recovery", {}).get("operation") == "EXCLUDE_HISTORICAL_JOB":
+        from .artifact_workspace import exclude_historical_job
+        return {"workspace": exclude_historical_job(service, identifier, body, client=factory("s3") if factory else None)}
     service.access.require("migration.edit")
     migration, source = service.deployment_context(identifier)
     service.access.require_customer(migration["customer_id"], migration["created_by"])

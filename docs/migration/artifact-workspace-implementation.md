@@ -350,3 +350,56 @@ Choose Recover Helm release on the Helm row and check progress similarly. Recove
 serialized per assessment. If all four succeed the count should become 16/16 saved;
 review of recovered content, final workspace export/dependencies and target validation
 are subsequent work. Keep the same workspace so the 12 successful artifacts are retained.
+
+## Reviewed historical Job exclusions
+
+Live source checks confirmed that retailflow-periodic-check-29874655 and
+retailflow-periodic-check-29874660 no longer exist. The CronJob
+retailflow-periodic-check exists on a five-minute schedule. The user confirmed
+COLLECTED workspace records for its kubernetes/base/operations.yaml candidate and
+pinned curl image. These observations do not independently prove the former owner
+of either deleted Job.
+
+The workspace now supports an explicit operator review using the existing POST
+/api/v1/migrations/{migrationId}/deployment-evidence route:
+
+```json
+{"version":2,"recovery":{"operation":"EXCLUDE_HISTORICAL_JOB","workspaceId":"AWS-<32 hex>","artifactId":"ART-<64 hex>","parentArtifactId":"ART-<64 hex>","parentCronJobName":"retailflow-periodic-check","confirmHistoricalRun":true}}
+```
+
+The operator must check source absence and the parent association before confirming.
+The API checks migration.edit/customer access, current version/source/inventory,
+failed LIVE_DEFINITION export for a Job, a COLLECTED CronJob definition linked to
+the same namespace in the same workspace, and all pinned images linked to that
+CronJob being COLLECTED with versioned storage records. Names are not used to infer
+ownership. A review explicitly labels source absence OPERATOR_CONFIRMED and former
+ownership OPERATOR_ASSERTED; targetReady stays false.
+
+Before changing state, the API writes and verifies a versioned, KMS-encrypted JSON
+review receipt under the existing workspace reviews/ prefix. It retains the previous
+failed-export validation and references the collected parent/image object versions.
+A failed receipt write leaves the Job unresolved. The reviewed artifact becomes
+EXCLUDED_FROM_REPLAY, not COLLECTED. Its storage fields identify the receipt rather
+than a recovered deployment definition. Recovery cannot overwrite this review, and
+repeating the same recorded decision does not create another receipt.
+
+Workspace GET retains all original artifact rows and adds requiredArtifactCount,
+excludedArtifactCount and unresolvedArtifactCount. The UI subtracts reviewed
+exclusions from required artifacts and shows them separately; collectedArtifactCount
+still counts only actual collected artifacts. If the other fourteen items are saved,
+the expected result is 14/14 required artifacts collected plus two reviewed historical
+runs excluded, rather than claiming sixteen recovered deployment artifacts.
+
+Deploy with the same migration-only DEV command above. No SQL migration, new route,
+worker image build or source workload change is needed. Pull the frontend changes and
+refresh its existing dev process. In the existing workspace, expand the failed Job row's
+Review deleted Job run, select retailflow-periodic-check / operations.yaml, confirm
+the source check, then Record historical exclusion. Repeat for the second deleted run.
+Progress and API failures now appear next to the selected row. This includes the
+previously prepared recovery-feedback fix, which retains an accepted job handle if a
+subsequent workspace refresh fails.
+
+Historical exclusions have automated coverage; live review receipt creation still
+requires DEV verification. Final workspace export, dependency completeness, content
+review and target validation remain subsequent steps. The initial planning manifest
+stays immutable; current artifact state and reviewed exclusions are read from PostgreSQL.

@@ -155,7 +155,82 @@ def read(service,identifier,workspace_id=None):
                      for a in row['manifest']['artifacts']]
         results.append({**row['manifest'], 'status':row['status'], 'artifacts':artifacts,
                         'collectedArtifactCount':sum(a['status']=='COLLECTED' for a in artifacts),
+                        'excludedArtifactCount':sum(a['status']=='EXCLUDED_FROM_REPLAY' for a in artifacts),
+                        'requiredArtifactCount':sum(a['status']!='EXCLUDED_FROM_REPLAY' for a in artifacts),
+                        'unresolvedArtifactCount':sum(a['status'] not in {'COLLECTED','EXCLUDED_FROM_REPLAY'} for a in artifacts),
                         'jobs':[{'jobId':j['job_id'],'artifactId':j['artifact_id'],'status':j['status'],
                                  'attempts':j['attempts'],'errorCode':j['error_code']} for j in jobs],
                         'stale':row['inventory_digest'] != inventory.get('inventoryDigest') or row['source_cluster_id'] != source['source_cluster_id']})
     return results[0] if workspace_id else {'migrationId':identifier,'workspaces':results}
+
+
+def exclude_historical_job(service, identifier, body, client=None):
+    """An explicit operator disposition, not proof of ownership or a recovered Job."""
+    service.access.require('migration.edit')
+    migration, source = service.deployment_context(identifier)
+    service.access.require_customer(migration['customer_id'], migration['created_by'])
+    migration = service.repo.get(identifier, lock=True)
+    if migration['version'] != body['version']:
+        raise ApiError(409, 'CONCURRENT_UPDATE', 'Reload before reviewing historical runs.')
+    request = body['recovery']
+    if request.get('confirmHistoricalRun') is not True:
+        raise ApiError(400, 'HISTORICAL_REVIEW_REQUIRED', 'Confirm the source Job was deleted and belongs to the selected CronJob.')
+    workspace_id, artifact_id = request.get('workspaceId'), request.get('artifactId')
+    if not workspace_id or not artifact_id or not request.get('parentArtifactId') or not request.get('parentCronJobName'):
+        raise ApiError(400, 'HISTORICAL_REVIEW_REQUIRED', 'Select the Job and a saved parent CronJob definition.')
+    workspace = read(service, identifier, workspace_id)
+    if workspace['stale']:
+        raise ApiError(409, 'STALE_WORKSPACE', 'Review a workspace from the current inventory.')
+    by_id = {a['artifactId']: a for a in workspace['artifacts']}
+    artifact, parent = by_id.get(artifact_id), by_id.get(request['parentArtifactId'])
+    resource = (artifact or {}).get('source', {}).get('resource', {})
+    if not artifact or artifact['kind'] != 'LIVE_DEFINITION' or resource.get('kind') != 'Job':
+        raise ApiError(400, 'HISTORICAL_JOB_REQUIRED', 'Only a Job run can receive this historical exclusion.')
+    if artifact['status'] == 'EXCLUDED_FROM_REPLAY':
+        review = artifact.get('validation', {}).get('historicalReview', {})
+        if review.get('parentDefinitionArtifactId') != request['parentArtifactId'] or review.get('parent', {}).get('name') != request['parentCronJobName']:
+            raise ApiError(409, 'HISTORICAL_REVIEW_EXISTS', 'This run already has a recorded historical review.')
+        return workspace
+    if artifact['status'] != 'RECOVERY_REQUIRED' or artifact.get('validation', {}).get('recovery', {}).get('status') != 'CUSTOMER_INPUT_REQUIRED':
+        raise ApiError(409, 'FAILED_JOB_EXPORT_REQUIRED', 'Review the failed source export before excluding a historical Job.')
+    parent_identity = dict(apiVersion='batch/v1', kind='CronJob', namespace=resource['namespace'], name=request['parentCronJobName'])
+    def linked(a):
+        return any(all(w.get(k) == v for k, v in parent_identity.items()) for w in a.get('workloads', []))
+    if not parent or parent['kind'] not in {'REPOSITORY_DEFINITION', 'LIVE_DEFINITION'} or parent['status'] != 'COLLECTED' or not linked(parent):
+        raise ApiError(409, 'SAVED_CRONJOB_REQUIRED', 'Select a collected CronJob definition in the same namespace and workspace.')
+    images = [a for a in workspace['artifacts'] if a['kind'] == 'IMAGE' and linked(a)]
+    if not images or any(a['status'] != 'COLLECTED' or not re.fullmatch(r'sha256:[a-f0-9]{64}', a.get('source', {}).get('digest') or '') for a in images):
+        raise ApiError(409, 'CRONJOB_IMAGES_REQUIRED', 'Collect all pinned images linked to this CronJob first.')
+    bucket, key_id, owner = storage_configuration()
+    rows = service.repo.list_artifact_workspaces(identifier, migration['customer_id'], workspace_id)
+    if not rows or rows[0]['bucket_name'] != bucket:
+        raise ApiError(409, 'WORKSPACE_STORAGE_CHANGED', 'Workspace storage configuration changed.')
+    required_ids = [parent['artifactId'], *[a['artifactId'] for a in images]]
+    records = service.repo.db.execute(
+        'SELECT artifact_id,object_key,object_version,sha256,size_bytes FROM migration_management.workspace_artifacts '
+        'WHERE workspace_id=%s AND artifact_id=ANY(%s)', [workspace_id, required_ids]).fetchall()
+    objects = {r['artifact_id']: r for r in records}
+    prefix = workspace_prefix(migration['customer_id'], identifier, workspace_id)
+    for required_id in required_ids:
+        obj = objects.get(required_id, {})
+        if (not obj.get('object_key', '').startswith(prefix) or not obj.get('object_version') or obj.get('object_version') == 'null'
+                or not re.fullmatch(r'[a-f0-9]{64}', obj.get('sha256') or '') or not (obj.get('size_bytes') or 0) > 0):
+            raise ApiError(409, 'PARENT_STORAGE_EVIDENCE_REQUIRED', 'The parent definition and images need verified collection records.')
+    review = dict(decisionId='DEC-' + uuid.uuid4().hex, parent=parent_identity,
+                  parentDefinitionArtifactId=parent['artifactId'], imageArtifactIds=[a['artifactId'] for a in images],
+                  reviewedBy=service.principal.user_id, reviewedAt=datetime.now(timezone.utc).isoformat(),
+                  sourceAbsence='OPERATOR_CONFIRMED', parentOwnership='OPERATOR_ASSERTED',
+                  replayRequired=False, targetReady=False,
+                  limitation='Operator-reviewed historical exclusion. The deleted Job was not recovered; former ownership was not independently verified.')
+    receipt = dict(schemaVersion=1, kind='HISTORICAL_JOB_REVIEW', workspaceId=workspace_id, migrationId=identifier,
+                   sourceClusterId=source['source_cluster_id'], inventoryDigest=workspace['inventoryDigest'],
+                   artifactId=artifact_id, resource=resource, review=review, collectedParentObjects=records,
+                   previousValidation=artifact.get('validation', {}))
+    key = prefix + 'reviews/' + review['decisionId'] + '.json'
+    version, sha = persist_manifest(client or s3_client(), bucket, key_id, owner, key, receipt)
+    validation = {**artifact.get('validation', {}), 'historicalReview': review, 'targetReady': False, 'reviewRequired': True}
+    service.repo.db.execute(
+        "UPDATE migration_management.workspace_artifacts SET status='EXCLUDED_FROM_REPLAY',validation=%s::jsonb,"
+        'object_key=%s,object_version=%s,sha256=%s,size_bytes=%s,updated_at=now() WHERE workspace_id=%s AND artifact_id=%s',
+        [canonical(validation).decode(), key, version, sha, len(canonical(receipt)), workspace_id, artifact_id])
+    return read(service, identifier, workspace_id)

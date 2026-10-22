@@ -354,3 +354,260 @@ it("shows saved recovered Helm data as requiring review", async () => {
     screen.queryByRole("button", { name: "Recover Helm release" }),
   ).not.toBeInTheDocument();
 });
+
+const recoveryWorkspace = () => ({
+  workspaceId: "AWS-one",
+  namespaces: ["shop"],
+  stale: false,
+  artifacts: [
+    {
+      artifactId: "live-one",
+      kind: "LIVE_DEFINITION",
+      status: "EXPORT_REQUIRED",
+      source: {
+        resource: { namespace: "shop", kind: "Deployment", name: "api" },
+      },
+    },
+  ],
+});
+async function openRecovery() {
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  fireEvent.click(
+    await screen.findByText("View required files, images & status"),
+  );
+  return screen.getByRole("button", { name: "Export live definition" });
+}
+
+it("shows a failed recovery request beside the clicked artifact", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [recoveryWorkspace()] } });
+  api.post.mockRejectedValue(new Error("denied"));
+  const button = await openRecovery();
+  const row = button.closest("tr")!;
+  fireEvent.click(button);
+  const alert = await screen.findByRole("alert");
+  expect(row).toContainElement(alert);
+  expect(alert).toHaveTextContent("Storage not configured");
+  expect(button).toBeEnabled();
+});
+
+it("shows starting progress immediately while recovery is being requested", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [recoveryWorkspace()] } });
+  let reject!: (error: Error) => void;
+  api.post.mockImplementation(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+  );
+  const button = await openRecovery();
+  const row = button.closest("tr")!;
+  fireEvent.click(button);
+  expect(row).toHaveTextContent("Starting source recovery…");
+  expect(button).toBeDisabled();
+  reject(new Error("denied"));
+  await screen.findByRole("alert");
+});
+
+it("retains the accepted recovery handle when workspace refresh fails", async () => {
+  api.get
+    .mockResolvedValueOnce({ data: { workspaces: [recoveryWorkspace()] } })
+    .mockRejectedValue(new Error("refresh failed"));
+  api.post.mockResolvedValue({
+    data: { job: { jobId: "REC-accepted", status: "RECOVERING" } },
+  });
+  fireEvent.click(await openRecovery());
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Recovery response received, but the workspace could not refresh",
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Check recovery progress" }),
+  );
+  await waitFor(() =>
+    expect(api.post).toHaveBeenLastCalledWith(
+      "/migrations/MIG-one/deployment-evidence",
+      {
+        version: 2,
+        recovery: {
+          operation: "POLL",
+          workspaceId: "AWS-one",
+          artifactId: "live-one",
+          jobId: "REC-accepted",
+        },
+      },
+      expect.anything(),
+    ),
+  );
+});
+
+function historicalWorkspace() {
+  const parent = {
+    apiVersion: "batch/v1",
+    kind: "CronJob",
+    namespace: "shop",
+    name: "check",
+  };
+  return {
+    workspaceId: "AWS-one",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [
+      {
+        artifactId: "job",
+        kind: "LIVE_DEFINITION",
+        status: "RECOVERY_REQUIRED",
+        source: {
+          resource: { namespace: "shop", kind: "Job", name: "check-123" },
+        },
+        validation: {
+          recovery: { jobId: "REC-failed", status: "CUSTOMER_INPUT_REQUIRED" },
+        },
+      },
+      {
+        artifactId: "definition",
+        kind: "REPOSITORY_DEFINITION",
+        status: "COLLECTED",
+        source: { filePath: "operations.yaml" },
+        workloads: [parent],
+      },
+      {
+        artifactId: "image",
+        kind: "IMAGE",
+        status: "COLLECTED",
+        workloads: [parent],
+      },
+    ],
+  };
+}
+async function openHistoricalReview() {
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  fireEvent.click(
+    await screen.findByText("View required files, images & status"),
+  );
+  fireEvent.click(screen.getByText("Review deleted Job run"));
+}
+
+it("requires a selected saved CronJob and confirmation before recording a historical exclusion", async () => {
+  const workspace = historicalWorkspace();
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  const completed = {
+    ...workspace,
+    artifacts: workspace.artifacts.map((a) =>
+      a.artifactId === "job"
+        ? {
+            ...a,
+            status: "EXCLUDED_FROM_REPLAY",
+            validation: {
+              ...a.validation,
+              historicalReview: {
+                parent: { kind: "CronJob", namespace: "shop", name: "check" },
+                reviewedAt: "2026-10-22",
+              },
+            },
+          }
+        : a,
+    ),
+  };
+  api.post.mockResolvedValue({ data: { workspace: completed } });
+  await openHistoricalReview();
+  const button = screen.getByRole("button", {
+    name: "Record historical exclusion",
+  });
+  expect(button).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Saved parent CronJob"), {
+    target: {
+      value: JSON.stringify({ artifactId: "definition", name: "check" }),
+    },
+  });
+  expect(button).toBeDisabled();
+  fireEvent.click(
+    screen.getByLabelText(
+      "I checked that this is a deleted historical run of the selected CronJob.",
+    ),
+  );
+  fireEvent.click(button);
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/deployment-evidence",
+      {
+        version: 2,
+        recovery: {
+          operation: "EXCLUDE_HISTORICAL_JOB",
+          workspaceId: "AWS-one",
+          artifactId: "job",
+          parentArtifactId: "definition",
+          parentCronJobName: "check",
+          confirmHistoricalRun: true,
+        },
+      },
+      expect.anything(),
+    ),
+  );
+  expect(
+    await screen.findByText(/2 \/ 2 artifacts collected/),
+  ).toHaveTextContent("Target readiness not verified");
+  expect(
+    screen.getByText("Historical run · Excluded from replay"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/1 historical Job run excluded from replay/),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Export live definition" }),
+  ).not.toBeInTheDocument();
+});
+
+it("keeps a historical Job unresolved if saving its review fails", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [historicalWorkspace()] } });
+  api.post.mockRejectedValue(new Error("receipt failed"));
+  await openHistoricalReview();
+  fireEvent.change(screen.getByLabelText("Saved parent CronJob"), {
+    target: {
+      value: JSON.stringify({ artifactId: "definition", name: "check" }),
+    },
+  });
+  fireEvent.click(
+    screen.getByLabelText(
+      "I checked that this is a deleted historical run of the selected CronJob.",
+    ),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Record historical exclusion" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Storage not configured",
+  );
+  expect(
+    screen.queryByText("Historical run · Excluded from replay"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Export live definition" }),
+  ).toBeEnabled();
+});
+
+it("clears historical confirmation when the parent selection changes", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [historicalWorkspace()] } });
+  await openHistoricalReview();
+  const select = screen.getByLabelText("Saved parent CronJob");
+  fireEvent.change(select, {
+    target: {
+      value: JSON.stringify({ artifactId: "definition", name: "check" }),
+    },
+  });
+  const confirm = screen.getByLabelText(
+    "I checked that this is a deleted historical run of the selected CronJob.",
+  );
+  fireEvent.click(confirm);
+  expect(
+    screen.getByRole("button", { name: "Record historical exclusion" }),
+  ).toBeEnabled();
+  fireEvent.change(select, { target: { value: "" } });
+  expect(confirm).not.toBeChecked();
+  expect(
+    screen.getByRole("button", { name: "Record historical exclusion" }),
+  ).toBeDisabled();
+  expect(api.post).not.toHaveBeenCalled();
+});
