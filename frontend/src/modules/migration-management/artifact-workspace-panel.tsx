@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Database } from "lucide-react";
+import { ChevronDown, Database, Search, ShieldCheck } from "lucide-react";
 import {
   apiClient,
   normalizeApiError,
@@ -40,6 +40,7 @@ export function ArtifactWorkspacePanel({
   namespaces: string[];
   canEdit: boolean;
 }) {
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [busy, setBusy] = useState(false);
@@ -94,24 +95,70 @@ export function ArtifactWorkspacePanel({
       setBusy(false);
     }
   }
+  const scope = selected.filter((ns) => namespaces.includes(ns));
+  const visibleNamespaces = namespaces.filter((ns) =>
+    ns.toLowerCase().includes(query.toLowerCase()),
+  );
   return (
     <details className={styles.panel}>
       <summary>
-        <Database size={16} /> Artifact workspace{" "}
-        <span>Private S3 storage</span>
+        <Database size={19} aria-hidden="true" />
+        <div className={styles.heading}>
+          <strong>Migration files &amp; images</strong>
+          <small>
+            Choose namespaces, collect artifacts, resolve missing items.
+          </small>
+        </div>
+        <span className={styles.storage}>
+          <ShieldCheck size={14} aria-hidden="true" /> Private S3 workspace
+        </span>
+        <ChevronDown className={styles.chevron} size={18} aria-hidden="true" />
       </summary>
       <div className={styles.content}>
-        <p>
-          Create a workspace index for selected namespaces. The index records
-          which deployment definitions and images are needed. Then collect
-          repository files and available images. Missing definitions and images
-          require recovery.
-        </p>
-        <fieldset disabled={busy || !canEdit}>
+        <div className={styles.intro}>
+          <div>
+            <strong>Choose what to migrate</strong>
+            <p>
+              Select namespaces to list their required deployment files and
+              container images.
+            </p>
+          </div>
+          <span className={styles.selectionCount} role="status">
+            {scope.length} of {namespaces.length} selected
+          </span>
+        </div>
+        <fieldset disabled={busy || !canEdit} className={styles.scope}>
           <legend>Namespaces to include</legend>
+          <div className={styles.scopeToolbar}>
+            <label className={styles.search}>
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Search namespaces"
+                placeholder="Find a namespace…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <button type="button" onClick={() => setSelected(namespaces)}>
+              Select all
+            </button>
+            <button
+              type="button"
+              disabled={!scope.length}
+              onClick={() => setSelected([])}
+            >
+              Clear selection
+            </button>
+          </div>
           <div className={styles.namespaces}>
-            {namespaces.map((ns) => (
-              <label key={ns}>
+            {visibleNamespaces.map((ns) => (
+              <label
+                key={ns}
+                className={
+                  selected.includes(ns) ? styles.selectedNamespace : undefined
+                }
+              >
                 <input
                   type="checkbox"
                   checked={selected.includes(ns)}
@@ -123,27 +170,33 @@ export function ArtifactWorkspacePanel({
                     )
                   }
                 />
-                {ns}
+                <span>{ns}</span>
               </label>
             ))}
           </div>
+          {!visibleNamespaces.length && (
+            <p className={styles.hint}>
+              {namespaces.length
+                ? "No namespaces match your search."
+                : "No namespaces discovered yet."}
+            </p>
+          )}
         </fieldset>
         <div className={styles.actions}>
           <button
+            className={styles.primary}
             type="button"
-            disabled={
-              busy ||
-              !canEdit ||
-              !inventoryDigest ||
-              !selected.some((ns) => namespaces.includes(ns))
-            }
+            disabled={busy || !canEdit || !inventoryDigest || !scope.length}
             onClick={() => run(true)}
           >
-            Create workspace index
+            Create workspace
           </button>
           <button type="button" disabled={busy} onClick={() => run(false)}>
             {loaded ? "Refresh workspaces" : "Load workspaces"}
           </button>
+          <span className={styles.hint}>
+            Creates an artifact list. Collection starts separately.
+          </span>
           {busy && <span role="status">Saving or loading workspace…</span>}
         </div>
         {!inventoryDigest && (
@@ -151,88 +204,178 @@ export function ArtifactWorkspacePanel({
         )}
         {error && <p role="alert">{error}</p>}
         {loaded && !workspaces.length && (
-          <p>No artifact workspaces have been created.</p>
+          <p className={styles.empty}>
+            No saved workspaces yet. Select namespaces above to create one.
+          </p>
         )}
-        {workspaces.map((w) => (
-          <div className={styles.workspace} key={w.workspaceId}>
-            <strong>{w.namespaces.join(", ")}</strong>
-            <span>
-              {w.stale
-                ? "Older inventory snapshot · Create a new workspace"
-                : w.status === "COLLECTING"
-                  ? "Artifact collection queued or running"
-                  : "Workspace index created"}
-            </span>
-            <small>
-              {w.collectedArtifactCount ?? 0} / {w.artifacts.length} artifacts
-              collected · Target readiness not verified
-            </small>
-            <div className={styles.actions}>
-              <button
-                type="button"
-                disabled={
-                  busy ||
-                  !canEdit ||
-                  w.stale ||
-                  w.status === "COLLECTING" ||
-                  !w.artifacts.some(
-                    (a) =>
-                      a.kind === "REPOSITORY_DEFINITION" &&
-                      a.status !== "COLLECTED",
-                  )
-                }
-                onClick={() => collect(w.workspaceId)}
+        {workspaces.map((w) => {
+          const saved = w.artifacts.filter(
+            (a) => a.status === "COLLECTED",
+          ).length;
+          const available = w.artifacts.filter(
+            (a) => a.status === "PENDING_COLLECTION",
+          ).length;
+          const attention = w.artifacts.length - saved - available;
+          return (
+            <div className={styles.workspace} key={w.workspaceId}>
+              <div className={styles.workspaceHeading}>
+                <strong>{w.namespaces.join(", ")}</strong>
+                <span className={styles.badge}>
+                  {w.stale
+                    ? "Older inventory snapshot · Create a new workspace"
+                    : w.status === "COLLECTING"
+                      ? "Artifact collection queued or running"
+                      : w.status === "FAILED"
+                        ? "Collection failed · Review details"
+                        : w.status === "PARTIAL"
+                          ? "Partially collected"
+                          : w.status === "COLLECTED" || w.status === "VALIDATED"
+                            ? "Collection complete"
+                            : "Workspace index created"}
+                </span>
+              </div>
+              <div
+                className={styles.metrics}
+                aria-label="Artifact collection progress"
               >
-                Collect / retry repository files
-              </button>
-              <button
-                type="button"
-                disabled={
-                  busy ||
-                  !canEdit ||
-                  w.stale ||
-                  !w.artifacts.some(
-                    (a) =>
-                      a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
-                  )
-                }
-                onClick={() => collect(w.workspaceId, "IMAGE")}
-              >
-                Collect / retry available images
-              </button>
-            </div>
-            {(w.jobs ?? []).map((job) => (
-              <small key={job.jobId}>
-                {job.status.toLowerCase()} · Attempt {job.attempts}
-                {job.errorCode
-                  ? ` · ${job.errorCode.toLowerCase().replaceAll("_", " ")}`
-                  : ""}
+                <div>
+                  <strong>{w.artifacts.length}</strong>
+                  <span>Required artifacts</span>
+                </div>
+                <div>
+                  <strong>{saved}</strong>
+                  <span>Saved to S3</span>
+                </div>
+                <div>
+                  <strong>{available}</strong>
+                  <span>Awaiting collection</span>
+                </div>
+                <div>
+                  <strong>{attention}</strong>
+                  <span>Needs attention</span>
+                </div>
+              </div>
+              <small>
+                {saved} / {w.artifacts.length} artifacts collected · Target
+                readiness not verified
               </small>
-            ))}
-            <details>
-              <summary>Artifact status</summary>
-              <ul>
-                {w.artifacts.map((a) => (
-                  <li key={a.artifactId}>
-                    {a.source?.reference ||
-                      a.source?.filePath ||
-                      a.kind.toLowerCase().replaceAll("_", " ")}{" "}
-                    — {a.status.toLowerCase().replaceAll("_", " ")}
-                    {a.validation?.platforms?.length ? (
-                      <small>
-                        {" "}
-                        · Available platforms:{" "}
-                        {a.validation.platforms.join(", ")} · Target
-                        compatibility not verified
-                      </small>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </div>
-        ))}
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !canEdit ||
+                    w.stale ||
+                    w.status === "COLLECTING" ||
+                    !w.artifacts.some(
+                      (a) =>
+                        a.kind === "REPOSITORY_DEFINITION" &&
+                        a.status !== "COLLECTED",
+                    )
+                  }
+                  onClick={() => collect(w.workspaceId)}
+                >
+                  Collect / retry repository files
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !canEdit ||
+                    w.stale ||
+                    !w.artifacts.some(
+                      (a) =>
+                        a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
+                    )
+                  }
+                  onClick={() => collect(w.workspaceId, "IMAGE")}
+                >
+                  Collect / retry available images
+                </button>
+              </div>
+              {(w.jobs ?? []).map((job) => (
+                <small key={job.jobId}>
+                  {job.status.toLowerCase()} · Attempt {job.attempts}
+                  {job.errorCode
+                    ? ` · ${job.errorCode.toLowerCase().replaceAll("_", " ")}`
+                    : ""}
+                </small>
+              ))}
+              <details>
+                <summary>View required files, images &amp; status</summary>
+                <div className={styles.tableScroll}>
+                  <table className={styles.artifactTable}>
+                    <thead>
+                      <tr>
+                        <th scope="col">Artifact</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Next step / status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {w.artifacts.map((a) => (
+                        <tr key={a.artifactId}>
+                          <td>
+                            {a.source?.reference ||
+                              a.source?.filePath ||
+                              artifactKind(a.kind)}
+                          </td>
+                          <td>{artifactKind(a.kind)}</td>
+                          <td>
+                            {artifactStatus(a.status)}
+                            {a.validation?.platforms?.length ? (
+                              <small>
+                                {" "}
+                                · Available platforms:{" "}
+                                {a.validation.platforms.join(", ")} · Target
+                                compatibility not verified
+                              </small>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
+          );
+        })}
+        <p className={styles.footer}>
+          Collection jobs run in the background and require a running collector.
+          Refresh workspaces to check progress. Missing items need recovery
+          before migration.
+        </p>
       </div>
     </details>
+  );
+}
+
+function artifactKind(kind: string) {
+  return (
+    (
+      {
+        IMAGE: "Container image",
+        REPOSITORY_DEFINITION: "Repository file",
+        LIVE_DEFINITION: "Cluster definition",
+        HELM_RELEASE: "Helm release",
+      } as Record<string, string>
+    )[kind] ?? kind.toLowerCase().replaceAll("_", " ")
+  );
+}
+function artifactStatus(status: string) {
+  return (
+    (
+      {
+        COLLECTED: "Saved to S3",
+        PENDING_COLLECTION: "Ready to collect",
+        EXPORT_REQUIRED: "Export definition from source cluster",
+        RECOVERY_REQUIRED: "Missing at source · Recovery required",
+        RECOVERY_REVIEW_REQUIRED: "Review recovered release",
+        ACCESS_REQUIRED: "Connect source or check permissions",
+        DIGEST_REQUIRED: "Identify the running image version",
+        CHECK_REQUIRED: "Check source availability",
+      } as Record<string, string>
+    )[status] ?? status.toLowerCase().replaceAll("_", " ")
   );
 }

@@ -20,7 +20,7 @@ it("requires scope and does not collect automatically", () => {
   expect(api.get).not.toHaveBeenCalled();
   expect(
     screen.getByRole("button", {
-      name: "Create workspace index",
+      name: "Create workspace",
       hidden: true,
     }),
   ).toBeDisabled();
@@ -36,11 +36,9 @@ it("creates only selected snapshot scope", async () => {
     },
   });
   render(<ArtifactWorkspacePanel {...props} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByLabelText("shop"));
-  fireEvent.click(
-    screen.getByRole("button", { name: "Create workspace index" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
   await waitFor(() =>
     expect(api.post).toHaveBeenCalledWith(
       "/migrations/MIG-one/artifact-workspaces",
@@ -55,11 +53,9 @@ it("creates only selected snapshot scope", async () => {
 it("reports failure without success", async () => {
   api.post.mockRejectedValue(new Error());
   render(<ArtifactWorkspacePanel {...props} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByLabelText("shop"));
-  fireEvent.click(
-    screen.getByRole("button", { name: "Create workspace index" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Storage not configured",
   );
@@ -67,10 +63,10 @@ it("reports failure without success", async () => {
 });
 it("prevents viewer creation", () => {
   render(<ArtifactWorkspacePanel {...props} canEdit={false} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   expect(screen.getByLabelText("shop")).toBeDisabled();
   expect(
-    screen.getByRole("button", { name: "Create workspace index" }),
+    screen.getByRole("button", { name: "Create workspace" }),
   ).toBeDisabled();
 });
 
@@ -97,7 +93,7 @@ it("queues repository collection for the selected workspace", async () => {
     },
   });
   render(<ArtifactWorkspacePanel {...props} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
   fireEvent.click(
     await screen.findByRole("button", {
@@ -136,7 +132,7 @@ it("disables collection for an old snapshot", async () => {
     },
   });
   render(<ArtifactWorkspacePanel {...props} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
   expect(
     await screen.findByRole("button", {
@@ -160,7 +156,7 @@ it("queues available images separately", async () => {
     data: { ...workspace, status: "COLLECTING", jobs: [] },
   });
   render(<ArtifactWorkspacePanel {...props} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
   fireEvent.click(
     await screen.findByRole("button", {
@@ -192,11 +188,69 @@ it("keeps missing images in recovery", async () => {
     },
   });
   render(<ArtifactWorkspacePanel {...props} />);
-  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
   expect(
     await screen.findByRole("button", {
       name: "Collect / retry available images",
     }),
   ).toBeDisabled();
+});
+
+it("preserves selections while searching and lets the user clear the full scope", () => {
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByLabelText("shop"));
+  fireEvent.change(
+    screen.getByRole("searchbox", { name: "Search namespaces" }),
+    { target: { value: "platform" } },
+  );
+  expect(screen.queryByLabelText("shop")).not.toBeInTheDocument();
+  expect(screen.getByText("1 of 2 selected")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  expect(screen.getByText("2 of 2 selected")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+  expect(
+    screen.getByRole("button", { name: "Create workspace" }),
+  ).toBeDisabled();
+});
+
+it("separates saved artifacts, pending collection, and recovery in its summary", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-one",
+          namespaces: ["shop"],
+          stale: false,
+          status: "PARTIAL",
+          artifacts: [
+            {
+              artifactId: "a",
+              kind: "REPOSITORY_DEFINITION",
+              status: "COLLECTED",
+            },
+            { artifactId: "b", kind: "IMAGE", status: "PENDING_COLLECTION" },
+            {
+              artifactId: "c",
+              kind: "LIVE_DEFINITION",
+              status: "EXPORT_REQUIRED",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  expect(await screen.findByText("Partially collected")).toBeInTheDocument();
+  const metrics = screen.getByLabelText("Artifact collection progress");
+  expect(metrics).toHaveTextContent(
+    "3Required artifacts1Saved to S31Awaiting collection1Needs attention",
+  );
+  fireEvent.click(screen.getByText("View required files, images & status"));
+  expect(
+    screen.getByText("Export definition from source cluster"),
+  ).toBeInTheDocument();
 });
