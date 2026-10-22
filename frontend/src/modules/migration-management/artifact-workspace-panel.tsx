@@ -7,6 +7,7 @@ import {
   writeHeaders,
 } from "@/shared/api/client";
 import styles from "./artifact-workspace-panel.module.css";
+type Recovery = { jobId: string; status: string; message?: string };
 type Workspace = {
   workspaceId: string;
   namespaces: string[];
@@ -23,8 +24,18 @@ type Workspace = {
     artifactId: string;
     kind: string;
     status: string;
-    source?: { reference?: string; filePath?: string };
-    validation?: { platforms?: string[] };
+    source?: {
+      reference?: string;
+      filePath?: string;
+      namespace?: string;
+      release?: string;
+      resource?: { namespace: string; kind: string; name: string };
+    };
+    validation?: {
+      platforms?: string[];
+      reviewRequired?: boolean;
+      recovery?: Recovery;
+    };
   }[];
 };
 export function ArtifactWorkspacePanel({
@@ -89,6 +100,37 @@ export function ArtifactWorkspacePanel({
       setWorkspaces((items) =>
         items.map((item) => (item.workspaceId === workspaceId ? data : item)),
       );
+    } catch (e) {
+      setError(normalizeApiError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function recover(
+    workspaceId: string,
+    artifactId: string,
+    job?: Recovery,
+  ) {
+    setBusy(true);
+    setError("");
+    try {
+      await apiClient.post(
+        `/migrations/${migrationId}/deployment-evidence`,
+        {
+          version,
+          recovery: {
+            operation: job?.status === "RECOVERING" ? "POLL" : "START",
+            workspaceId,
+            artifactId,
+            ...(job?.status === "RECOVERING" ? { jobId: job.jobId } : {}),
+          },
+        },
+        { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+      );
+      const { data } = await apiClient.get(
+        `/migrations/${migrationId}/artifact-workspaces`,
+      );
+      setWorkspaces(data.workspaces);
     } catch (e) {
       setError(normalizeApiError(e).message);
     } finally {
@@ -223,15 +265,18 @@ export function ArtifactWorkspacePanel({
                 <span className={styles.badge}>
                   {w.stale
                     ? "Older inventory snapshot · Create a new workspace"
-                    : w.status === "COLLECTING"
-                      ? "Artifact collection queued or running"
-                      : w.status === "FAILED"
-                        ? "Collection failed · Review details"
-                        : w.status === "PARTIAL"
-                          ? "Partially collected"
-                          : w.status === "COLLECTED" || w.status === "VALIDATED"
-                            ? "Collection complete"
-                            : "Workspace index created"}
+                    : saved > 0 && saved === w.artifacts.length
+                      ? "All artifacts saved · Review before deployment"
+                      : w.status === "COLLECTING"
+                        ? "Artifact collection queued or running"
+                        : w.status === "FAILED"
+                          ? "Collection failed · Review details"
+                          : w.status === "PARTIAL"
+                            ? "Partially collected"
+                            : w.status === "COLLECTED" ||
+                                w.status === "VALIDATED"
+                              ? "Collection complete"
+                              : "Workspace index created"}
                 </span>
               </div>
               <div
@@ -318,11 +363,55 @@ export function ArtifactWorkspacePanel({
                           <td>
                             {a.source?.reference ||
                               a.source?.filePath ||
+                              (a.source?.resource
+                                ? `${a.source.resource.namespace} / ${a.source.resource.kind} / ${a.source.resource.name}`
+                                : "") ||
+                              (a.source?.release
+                                ? `${a.source.namespace} / ${a.source.release}`
+                                : "") ||
                               artifactKind(a.kind)}
                           </td>
                           <td>{artifactKind(a.kind)}</td>
                           <td>
                             {artifactStatus(a.status)}
+                            {a.validation?.reviewRequired &&
+                              a.status === "COLLECTED" && (
+                                <small>
+                                  {" "}
+                                  · Recovered copy: review configuration and
+                                  dependencies before deployment.
+                                </small>
+                              )}
+                            {a.validation?.recovery?.message &&
+                              a.status !== "COLLECTED" && (
+                                <small>
+                                  {" "}
+                                  · {a.validation.recovery.message}
+                                </small>
+                              )}
+                            {["LIVE_DEFINITION", "HELM_RELEASE"].includes(
+                              a.kind,
+                            ) &&
+                              a.status !== "COLLECTED" && (
+                                <button
+                                  type="button"
+                                  disabled={busy || !canEdit || w.stale}
+                                  onClick={() =>
+                                    recover(
+                                      w.workspaceId,
+                                      a.artifactId,
+                                      a.validation?.recovery,
+                                    )
+                                  }
+                                >
+                                  {a.validation?.recovery?.status ===
+                                  "RECOVERING"
+                                    ? "Check recovery progress"
+                                    : a.kind === "LIVE_DEFINITION"
+                                      ? "Export live definition"
+                                      : "Recover Helm release"}
+                                </button>
+                              )}
                             {a.validation?.platforms?.length ? (
                               <small>
                                 {" "}
@@ -344,7 +433,10 @@ export function ArtifactWorkspacePanel({
         <p className={styles.footer}>
           Collection jobs run in the background and require a running collector.
           Refresh workspaces to check progress. Missing items need recovery
-          before migration.
+          before migration. Live definitions and retained Helm data use the
+          approved source SSM host. They may contain sensitive configuration and
+          require review. Use Check recovery progress until the file is saved to
+          S3.
         </p>
       </div>
     </details>
@@ -371,7 +463,8 @@ function artifactStatus(status: string) {
         PENDING_COLLECTION: "Ready to collect",
         EXPORT_REQUIRED: "Export definition from source cluster",
         RECOVERY_REQUIRED: "Missing at source · Recovery required",
-        RECOVERY_REVIEW_REQUIRED: "Review recovered release",
+        RECOVERY_REVIEW_REQUIRED: "Recover retained Helm data",
+        RECOVERING: "Recovery in progress",
         ACCESS_REQUIRED: "Connect source or check permissions",
         DIGEST_REQUIRED: "Identify the running image version",
         CHECK_REQUIRED: "Check source availability",

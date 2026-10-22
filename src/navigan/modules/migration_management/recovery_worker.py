@@ -187,9 +187,53 @@ def recover_helm(value, work):
     return path, {
         "status": "PARTIAL_RECOVERY",
         "format": "HELM_RELEASE_BUNDLE",
+        "namespace": namespace,
+        "release": release,
         "releaseRevision": data.get("version"),
         "message": "Retained Helm release data recovered. Original chart archive, signatures and dependency completeness are unverified. Contains sensitive configuration; review before use.",
     }
+
+
+def recover_definition(value, work):
+    resource = value["resource"]
+    kinds = {"Deployment": "deployments.apps", "StatefulSet": "statefulsets.apps",
+             "DaemonSet": "daemonsets.apps", "Job": "jobs.batch", "CronJob": "cronjobs.batch"}
+    kind, namespace, name = (resource[k] for k in ("kind", "namespace", "name"))
+    if (kind not in kinds or resource.get("apiVersion") != ("batch/v1" if kind in {"Job", "CronJob"} else "apps/v1")
+            or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", namespace)
+            or not re.fullmatch(r"[a-z0-9][a-z0-9.-]{0,252}", name)):
+        raise ValueError("INVALID_RESOURCE")
+    data = json.loads(run(["kubectl", "--kubeconfig", value["kubeconfigPath"], "-n", namespace,
+                           "get", kinds[kind], name, "-o", "json"]))
+    metadata = data.get("metadata", {})
+    if (data.get("apiVersion") != resource["apiVersion"] or data.get("kind") != kind
+            or metadata.get("namespace") != namespace or metadata.get("name") != name):
+        raise ValueError("RESOURCE_IDENTITY_MISMATCH")
+    if not isinstance(data.get("spec"), dict) or metadata.get("deletionTimestamp"):
+        raise ValueError("RESOURCE_UNAVAILABLE")
+    def clean_metadata(meta):
+        for key in ("uid", "resourceVersion", "generation", "creationTimestamp", "deletionTimestamp",
+                    "deletionGracePeriodSeconds", "managedFields", "ownerReferences", "finalizers", "selfLink"):
+            meta.pop(key, None)
+        annotations = meta.get("annotations", {})
+        annotations.pop("kubectl.kubernetes.io/last-applied-configuration", None)
+        if not annotations:
+            meta.pop("annotations", None)
+    clean_metadata(metadata)
+    template = data["spec"].get("jobTemplate", {}) if kind == "CronJob" else data
+    clean_metadata(template.get("metadata", {}))
+    clean_metadata(template.get("spec", {}).get("template", {}).get("metadata", {}))
+    data.pop("status", None)
+    path = work / "live-definition.json"
+    path.write_text(json.dumps(data, sort_keys=True))
+    os.chmod(path, 0o600)
+    return path, {"status": "PARTIAL_RECOVERY", "format": "KUBERNETES_JSON", "resource": resource,
+                  "message": "Live definition saved. Review configuration, credentials, dependencies and cluster-specific settings before deployment."}
+
+
+def artifact_filename(kind):
+    return {"IMAGE": "image.oci.tar", "HELM_RELEASE": "helm-release.json.gz",
+            "LIVE_DEFINITION": "live-definition.json"}[kind]
 
 
 def execute(value):
@@ -207,9 +251,10 @@ def execute(value):
     record_path = work / "export.json"
     if value.get("phase") == "UPLOAD":
         result = json.loads(record_path.read_text())
-        path = work / ("image.oci.tar" if value["kind"] == "IMAGE" else "helm-release.json.gz")
+        path = work / artifact_filename(value["kind"])
     else:
-        path, result = recover_image(value, work) if value["kind"] == "IMAGE" else recover_helm(value, work)
+        path, result = {"IMAGE": recover_image, "HELM_RELEASE": recover_helm,
+                        "LIVE_DEFINITION": recover_definition}[value["kind"]](value, work)
     size = path.stat().st_size
     if not 0 < size <= MAX_ARCHIVE:
         raise ValueError("ARCHIVE_LIMIT")
@@ -235,6 +280,7 @@ def execute(value):
                 "Content-Length": str(size),
                 "x-amz-checksum-sha256": checksum,
                 "x-amz-server-side-encryption": "AES256",
+                **value.get("storageHeaders", {}),
                 "Content-Type": "application/octet-stream",
             },
         )
@@ -259,7 +305,7 @@ if __name__ == "__main__":
             r"REC-[a-f0-9]{32}", value.get("jobId", "")
         ):
             work = Path("/var/lib/navigan/source-recovery") / value["jobId"]
-            for name in ("image.oci.tar", "helm-release.json.gz", "export.json"):
+            for name in ("image.oci.tar", "helm-release.json.gz", "live-definition.json", "export.json"):
                 try:
                     (work / name).unlink(missing_ok=True)
                 except OSError:
@@ -279,6 +325,8 @@ if __name__ == "__main__":
             "DIGEST_MISMATCH",
             "HELM_RELEASE_NOT_RETAINED",
             "RELEASE_LIMIT",
+            "RESOURCE_IDENTITY_MISMATCH",
+            "RESOURCE_UNAVAILABLE",
             "ARCHIVE_LIMIT",
         }
         reason = str(error) if str(error) in known else "RECOVERY_FAILED_CHECK_HOST_ACCESS_AND_RUNTIME"

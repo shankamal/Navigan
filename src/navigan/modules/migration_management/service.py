@@ -114,7 +114,7 @@ class Service:
         inventory = self.repo.get_source_inventory(identifier).get("inventory")
         report = build_report(migration, inventory, source)
         from .artifact_recovery import public_job
-        report["recoveries"] = [public_job(job) for job in (source.get("delivery_configuration") or {}).get("artifactRecovery", {}).get(identifier, [])]
+        report["recoveries"] = [public_job(job) for job in (source.get("delivery_configuration") or {}).get("artifactRecovery", {}).get(identifier, []) if not job.get("workspaceId")]
         report["recoveryStorageConfigured"] = bool(os.environ.get("MIGRATION_RECOVERY_BUCKET"))
         return report
 

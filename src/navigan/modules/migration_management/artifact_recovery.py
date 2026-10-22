@@ -18,7 +18,7 @@ from navigan.shared.errors import ApiError
 
 def public_job(job):
     return {
-        k: v for k, v in job.items() if k not in {"objectKey", "objectVersion", "commandId", "parameterName"}
+        k: v for k, v in job.items() if k not in {"objectKey", "objectVersion", "commandId", "parameterName", "expectedSha256", "expectedSizeBytes"}
     }
 
 
@@ -114,6 +114,15 @@ def validate_result(job, result):
         result.get("format") != "HELM_RELEASE_BUNDLE" or result.get("status") != "PARTIAL_RECOVERY"
     ):
         raise ValueError()
+    if job["kind"] == "HELM_RELEASE" and job.get("workspaceId") and (
+        result.get("namespace") != job["workload"]["namespace"] or result.get("release") != job.get("release")
+    ):
+        raise ValueError()
+    if job["kind"] == "LIVE_DEFINITION" and (
+        result.get("format") != "KUBERNETES_JSON" or result.get("status") != "PARTIAL_RECOVERY"
+        or result.get("resource") != job["workload"]
+    ):
+        raise ValueError()
     sha = result["sha256"]
     if (
         not re.fullmatch(r"[a-f0-9]{64}", sha)
@@ -122,6 +131,48 @@ def validate_result(job, result):
     ):
         raise ValueError()
     return sha
+
+
+def workspace_context(service, identifier, request):
+    """Resolve identities from the authorized snapshot, never client workload fields."""
+    from .artifact_workspace import read, storage_configuration
+    workspace_id, artifact_id = request.get("workspaceId"), request.get("artifactId")
+    if not workspace_id and not artifact_id:
+        if request.get("artifactKind") == "LIVE_DEFINITION":
+            raise ApiError(400, "WORKSPACE_REQUIRED", "Choose a live definition in a workspace.")
+        return None
+    if not workspace_id or not artifact_id:
+        raise ApiError(400, "WORKSPACE_ARTIFACT_REQUIRED", "Choose a workspace and its artifact.")
+    workspace = read(service, identifier, workspace_id)
+    if workspace["stale"]:
+        raise ApiError(409, "STALE_WORKSPACE", "Inventory changed. Create a workspace from current discovery.")
+    artifact = next((a for a in workspace["artifacts"] if a["artifactId"] == artifact_id), None)
+    if not artifact or artifact["kind"] not in {"LIVE_DEFINITION", "HELM_RELEASE"}:
+        raise ApiError(400, "RECOVERY_ARTIFACT_REQUIRED", "Choose a cluster definition or Helm release in this workspace.")
+    if request["operation"] == "START" and artifact["status"] == "COLLECTED":
+        raise ApiError(409, "ARTIFACT_ALREADY_COLLECTED", "This artifact is already saved to S3.")
+    bucket, key, owner = storage_configuration()
+    rows = service.repo.list_artifact_workspaces(identifier, workspace["customerId"], workspace_id)
+    if not rows or rows[0]["bucket_name"] != bucket:
+        raise ApiError(409, "WORKSPACE_STORAGE_CHANGED", "Workspace storage configuration changed.")
+    return workspace, artifact, bucket, key, owner
+
+
+def record_workspace_recovery(service, job):
+    if not job.get("workspaceId"):
+        return
+    from .artifact_workspace import canonical
+    recovered = job["status"] in {"RECOVERED", "PARTIAL_RECOVERY"}
+    validation = {"recovery": public_job(job), "targetReady": False, "reviewRequired": True,
+                  "originalSourceVerified": False}
+    service.repo.db.execute(
+        "UPDATE migration_management.workspace_artifacts SET status=%s,validation=%s::jsonb,"
+        "object_key=%s,object_version=%s,sha256=%s,size_bytes=%s,updated_at=now() "
+        "WHERE workspace_id=%s AND artifact_id=%s",
+        ["COLLECTED" if recovered else ("RECOVERING" if job["status"] == "RECOVERING" else "RECOVERY_REQUIRED"),
+         canonical(validation).decode(), job["objectKey"] if recovered else None,
+         job.get("objectVersion") if recovered else None, job.get("sha256") if recovered else None,
+         job.get("sizeBytes") if recovered else None, job["workspaceId"], job["artifactId"]])
 
 
 def recover(service, identifier, body, factory=None):
@@ -137,7 +188,18 @@ def recover(service, identifier, body, factory=None):
         raise ApiError(409, "SOURCE_INVENTORY_REQUIRED", "Complete source discovery first.")
     report = build_report(migration, inventory, source)
     request = body["recovery"]
-    bucket = os.environ.get("MIGRATION_RECOVERY_BUCKET", "")
+    binding = workspace_context(service, identifier, request)
+    if binding:
+        workspace, artifact, bucket, key_id, owner = binding
+        storage_options = {"ExpectedBucketOwner": owner}
+        encryption = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": key_id}
+        storage_headers = {"x-amz-server-side-encryption": "aws:kms",
+                           "x-amz-server-side-encryption-aws-kms-key-id": key_id,
+                           "x-amz-expected-bucket-owner": owner}
+    else:
+        bucket = os.environ.get("MIGRATION_RECOVERY_BUCKET", "")
+        storage_options, storage_headers = {}, {}
+        encryption = {"ServerSideEncryption": "AES256"}
     if not bucket:
         raise ApiError(
             503,
@@ -162,6 +224,9 @@ def recover(service, identifier, body, factory=None):
         job = next((j for j in current if j["jobId"] == request.get("jobId")), None)
         if not job:
             raise ApiError(404, "RECOVERY_NOT_FOUND", "Recovery was not found for this assessment.")
+        if (job.get("workspaceId") != request.get("workspaceId")
+                or job.get("artifactId") != request.get("artifactId")):
+            raise ApiError(404, "RECOVERY_NOT_FOUND", "Recovery was not found for this workspace artifact.")
         if job["inventoryDigest"] != inventory.get("inventoryDigest"):
             raise ApiError(
                 409,
@@ -174,10 +239,12 @@ def recover(service, identifier, body, factory=None):
             s3 = factory("s3")
             version = {"VersionId": job["objectVersion"]} if job.get("objectVersion") else {}
             try:
-                head = s3.head_object(Bucket=bucket, Key=job["objectKey"], ChecksumMode="ENABLED", **version)
+                head = s3.head_object(Bucket=bucket, Key=job["objectKey"], ChecksumMode="ENABLED", **storage_options, **version)
                 if (
                     head.get("ChecksumSHA256") != base64.b64encode(bytes.fromhex(job["sha256"])).decode()
                     or head["ContentLength"] != job["sizeBytes"]
+                    or head.get("ServerSideEncryption") != encryption["ServerSideEncryption"]
+                    or (binding and (not job.get("objectVersion") or head.get("SSEKMSKeyId") != key_id))
                 ):
                     raise ValueError()
             except Exception:
@@ -193,7 +260,7 @@ def recover(service, identifier, body, factory=None):
                     "Key": job["objectKey"],
                     **version,
                     "ResponseContentDisposition": 'attachment; filename="'
-                    + ("image.oci.tar" if job["kind"] == "IMAGE" else "helm-release.json.gz")
+                    + ({"IMAGE": "image.oci.tar", "HELM_RELEASE": "helm-release.json.gz", "LIVE_DEFINITION": "live-definition.json"}[job["kind"]])
                     + '"',
                 },
                 ExpiresIn=300,
@@ -224,7 +291,8 @@ def recover(service, identifier, body, factory=None):
                                 "Bucket": bucket,
                                 "Key": job["objectKey"],
                                 "ContentType": "application/octet-stream",
-                                "ServerSideEncryption": "AES256",
+                                **encryption,
+                                **storage_options,
                                 "ChecksumSHA256": checksum,
                             },
                             ExpiresIn=1800,
@@ -239,9 +307,12 @@ def recover(service, identifier, body, factory=None):
                                 "sha256": sha,
                                 "sizeBytes": exported["sizeBytes"],
                                 "uploadUrl": url,
+                                "storageHeaders": storage_headers,
                             },
                         )
                         job.update(
+                            expectedSha256=sha,
+                            expectedSizeBytes=exported["sizeBytes"],
                             phase="UPLOAD",
                             commandId=command_id,
                             parameterName=parameter,
@@ -252,13 +323,17 @@ def recover(service, identifier, body, factory=None):
                         and job.get("phase") == "UPLOAD"
                     ):
                         sha = validate_result(job, result)
+                        if (job.get("expectedSha256") and (sha != job["expectedSha256"]
+                                or result["sizeBytes"] != job["expectedSizeBytes"])):
+                            raise ValueError()
                         head = factory("s3").head_object(
-                            Bucket=bucket, Key=job["objectKey"], ChecksumMode="ENABLED"
+                            Bucket=bucket, Key=job["objectKey"], ChecksumMode="ENABLED", **storage_options
                         )
                         if (
                             head.get("ChecksumSHA256") != base64.b64encode(bytes.fromhex(sha)).decode()
                             or head["ContentLength"] != result["sizeBytes"]
-                            or head.get("ServerSideEncryption") != "AES256"
+                            or head.get("ServerSideEncryption") != encryption["ServerSideEncryption"]
+                            or (binding and (not head.get("VersionId") or head.get("VersionId") == "null" or head.get("SSEKMSKeyId") != key_id))
                         ):
                             raise ValueError()
                         job.update(
@@ -277,13 +352,15 @@ def recover(service, identifier, body, factory=None):
                                 if key in result
                             }
                         )
+                        if binding:
+                            job["message"] = "Recovered copy saved to the encrypted workspace. Review sensitive configuration, dependencies and target settings before deployment."
                         if head.get("VersionId"):
                             job["objectVersion"] = head["VersionId"]
                         job["completedAt"] = datetime.now(timezone.utc).isoformat()
                     else:
                         job.update(
                             status="CUSTOMER_INPUT_REQUIRED",
-                            message=result.get("message", "Recovery source unavailable."),
+                            message="Source export unavailable. Check host access and retained resource data." if binding else result.get("message", "Recovery source unavailable."),
                         )
                 except Exception:
                     job.update(
@@ -301,6 +378,9 @@ def recover(service, identifier, body, factory=None):
                 except Exception:
                     pass
     else:
+        if binding:
+            identity = artifact["source"].get("resource") or artifact["workloads"][0]
+            request = {**request, **identity, "artifactKind": artifact["kind"]}
         workload = next(
             (
                 w
@@ -341,6 +421,8 @@ def recover(service, identifier, body, factory=None):
                     "Select a declared or observed SHA-256 digest. Refresh runtime evidence when only an image tag is known.",
                 )
             payload["digest"] = digest
+        elif kind == "LIVE_DEFINITION":
+            payload["resource"] = workload["workload"]
         else:
             if not workload.get("helmRelease"):
                 raise ApiError(
@@ -349,12 +431,14 @@ def recover(service, identifier, body, factory=None):
                     "No Helm release identity was detected. Supply the original chart or connect its repository.",
                 )
             payload["release"] = workload["helmRelease"]
+            if binding and payload["release"] != artifact["source"]["release"]:
+                raise ApiError(409, "RECOVERY_EVIDENCE_CHANGED", "The Helm release identity changed.")
         active = next((j for j in current if j["status"] == "RECOVERING"), None)
         if active:
             raise ApiError(
                 409,
                 "RECOVERY_IN_PROGRESS",
-                "Another recovery is running for this assessment. Open its workload’s Resolve panel to check progress.",
+                "Another recovery is running for this assessment. Use Check recovery progress in Migration files & images, or check its workload’s Resolve panel.",
             )
         if len(current) >= 20:
             raise ApiError(
@@ -366,6 +450,9 @@ def recover(service, identifier, body, factory=None):
         delivery = source["delivery_configuration"]
         job_id = "REC-" + uuid.uuid4().hex
         key = storage_key(migration, job_id)
+        if binding:
+            from .artifact_workspace import workspace_prefix
+            key = workspace_prefix(migration["customer_id"], identifier, workspace["workspaceId"]) + "definitions/recovered/" + job_id + "/artifact"
         payload.update(kubeconfigPath=delivery["kubeconfigPath"], jobId=job_id, phase="EXPORT")
         command_id, parameter = dispatch(ssm, source, payload)
         job = {
@@ -376,7 +463,7 @@ def recover(service, identifier, body, factory=None):
             "digest": payload.get("digest"),
             "inventoryDigest": inventory["inventoryDigest"],
             "status": "RECOVERING",
-            "message": "Checking retained content on the configured SSM host only. Other nodes are not checked. Original source availability remains unchanged.",
+            "message": "Reading the selected resource from the source cluster through the approved SSM host." if binding else "Checking retained content on the configured SSM host only. Other nodes are not checked. Original source availability remains unchanged.",
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "objectKey": key,
             "commandId": command_id,
@@ -384,7 +471,10 @@ def recover(service, identifier, body, factory=None):
             "parameterName": parameter,
             "managedInstanceId": delivery["managedInstanceId"],
         }
+        if binding:
+            job.update(workspaceId=workspace["workspaceId"], artifactId=artifact["artifactId"], release=payload.get("release"))
         current.append(job)
+    record_workspace_recovery(service, job)
     jobs[identifier] = current
     service.repo.save_deployment_configuration(source, "artifactRecovery", jobs, service.correlation)
     return {"job": public_job(job)}

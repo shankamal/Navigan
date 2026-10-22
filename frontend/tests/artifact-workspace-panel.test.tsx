@@ -254,3 +254,103 @@ it("separates saved artifacts, pending collection, and recovery in its summary",
     screen.getByText("Export definition from source cluster"),
   ).toBeInTheDocument();
 });
+
+it("exports a selected live definition and checks its progress in the same workspace", async () => {
+  const artifact = {
+    artifactId: "live-one",
+    kind: "LIVE_DEFINITION",
+    status: "EXPORT_REQUIRED",
+    source: {
+      resource: { namespace: "shop", kind: "Deployment", name: "api" },
+    },
+    validation: {} as { recovery?: { jobId: string; status: string } },
+  };
+  const workspace = {
+    workspaceId: "AWS-one",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [artifact],
+  };
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  api.post.mockImplementation(async () => {
+    artifact.status = "RECOVERING";
+    artifact.validation.recovery = { jobId: "REC-one", status: "RECOVERING" };
+    return { data: { job: artifact.validation.recovery } };
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  fireEvent.click(
+    await screen.findByText("View required files, images & status"),
+  );
+  expect(screen.getByText("shop / Deployment / api")).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Export live definition" }),
+  );
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/deployment-evidence",
+      {
+        version: 2,
+        recovery: {
+          operation: "START",
+          workspaceId: "AWS-one",
+          artifactId: "live-one",
+        },
+      },
+      expect.anything(),
+    ),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Check recovery progress" }),
+  );
+  await waitFor(() =>
+    expect(api.post).toHaveBeenLastCalledWith(
+      "/migrations/MIG-one/deployment-evidence",
+      {
+        version: 2,
+        recovery: {
+          operation: "POLL",
+          workspaceId: "AWS-one",
+          artifactId: "live-one",
+          jobId: "REC-one",
+        },
+      },
+      expect.anything(),
+    ),
+  );
+});
+
+it("shows saved recovered Helm data as requiring review", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-one",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            {
+              artifactId: "helm",
+              kind: "HELM_RELEASE",
+              status: "COLLECTED",
+              source: { namespace: "shop", release: "app" },
+              validation: { reviewRequired: true },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  fireEvent.click(
+    await screen.findByText("View required files, images & status"),
+  );
+  expect(screen.getByText("shop / app")).toBeInTheDocument();
+  expect(screen.getByText(/Recovered copy: review/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Recover Helm release" }),
+  ).not.toBeInTheDocument();
+});

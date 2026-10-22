@@ -396,7 +396,7 @@ def execute(event, principal, correlation):
             else None
         )
         if replay:
-            if route in {"artifact_workspace_create", "workspace_collection_start"}:
+            if route in {"artifact_workspace_create", "workspace_collection_start", "deployment_evidence_run"}:
                 access.require("migration.edit")
                 replay_migration = repo.get(identifier)
                 access.require_customer(replay_migration["customer_id"], replay_migration["created_by"])

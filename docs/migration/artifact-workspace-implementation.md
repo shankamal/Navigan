@@ -9,7 +9,7 @@ Continue this work before unrelated UI redesigns or other features.
 | Workspace index, private storage, API and UI | Implemented | Not deployed/verified here |
 | Durable queue and repository collection | Implemented | Not deployed/verified here |
 | Digest-pinned available image collection | Implemented; see image checkpoint | Container build and real transfer not performed here |
-| Missing-artifact recovery integration | Next | Pending |
+| Live definition and Helm recovery into the existing workspace | Implemented | Awaiting DEV deployment and live source export |
 | Final export/download and complete dependencies | Pending | Pending |
 | Target registry publishing and target preflight | Pending | Pending |
 
@@ -291,3 +291,62 @@ final export/download and target readiness remain later milestones.
 Validation here uses mocked AWS/Docker rollout tests and the existing collector
 unit tests. No real AWS worker deployment, container build, registry transfer or
 source-role trust change was performed in the coding environment.
+
+
+## Workspace recovery — live definitions and retained Helm releases
+
+The user confirmed all 12 available-artifact collection jobs succeeded on 22 October
+2026. The selected workspace still requires three live definitions and one Helm
+release. The new recovery integration has local automated coverage; live recovery
+has not been verified from this coding environment.
+
+Recovery reuses POST /api/v1/migrations/{migrationId}/deployment-evidence with the
+existing authorization, version and idempotency headers. Example request:
+
+```json
+{"version":2,"recovery":{"operation":"START","workspaceId":"AWS-<32 lowercase hex>","artifactId":"ART-<64 lowercase hex>"}}
+```
+
+Use operation POLL with the same workspaceId, artifactId and the returned REC jobId.
+Polling advances EXPORT to signed UPLOAD, then verifies the stored object. GET of the
+workspace only reads state; it does not advance recovery. DOWNLOAD accepts the same
+binding after successful recovery and returns a five-minute URL for the pinned version.
+Workspace recovery state is returned in each artifact's validation.recovery. Legacy
+workload recovery lists exclude workspace jobs; their controls remain in the workspace.
+
+The server derives the resource identity from the authorized workspace artifact and
+rechecks current inventory and source association. Other workspace/artifact jobs cannot
+be polled or downloaded. Workspace jobs use existing workspace bucket/KMS configuration;
+MIGRATION_RECOVERY_BUCKET is only required for the separate legacy recovery path.
+
+The approved AWS_SSM host reads one Deployment, StatefulSet, DaemonSet, Job or CronJob,
+or retained Helm release data. Live exports remove runtime status, ownership and server
+metadata. They preserve deployment configuration privately, which may contain sensitive
+values. Resource/Helm identity is checked before upload. Bytes bypass API Gateway via a
+checksum-signed PUT into definitions/recovered/{REC-job}/artifact under the same workspace
+prefix. KMS key, expected bucket owner, size, SHA-256 and non-null S3 version are verified
+before COLLECTED. A recovered copy remains reviewRequired=true and targetReady=false;
+it does not establish original source provenance or complete deployment dependencies.
+
+Deploy on the existing DEV branch after pulling this change:
+
+```bash
+cd /mnt/b/Langchain_Ai/Navigan-migration-test
+git pull --ff-only origin new_migration_approach_18oct26
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp PIP_NO_CACHE_DIR=1 \
+  python3 scripts/deploy-source-connection-screen-dev.py --profile navigan --migration-only --apply
+```
+
+This packages the updated API and SSM worker while retaining existing environment
+configuration. No new bucket, SQL migration, API route or image-worker rebuild is needed.
+Existing source-role trust, managed host, kubeconfig access and private S3 network access
+are still prerequisites; this update does not grant additional source permissions.
+
+Refresh the locally running frontend (restart its existing dev process if necessary).
+Open Migration files & images, Load/Refresh workspaces, then View required files, images
+& status on the current workspace. For each of the three live rows choose Export live
+definition. Use Check recovery progress until Saved to S3, then start the next row.
+Choose Recover Helm release on the Helm row and check progress similarly. Recovery is
+serialized per assessment. If all four succeed the count should become 16/16 saved;
+review of recovered content, final workspace export/dependencies and target validation
+are subsequent work. Keep the same workspace so the 12 successful artifacts are retained.

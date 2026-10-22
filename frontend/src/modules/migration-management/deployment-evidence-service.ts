@@ -113,7 +113,9 @@ export interface DeploymentWorkloadEvidence {
 export interface RecoveryRequest {
   operation: "START" | "POLL" | "DOWNLOAD";
   jobId?: string;
-  artifactKind?: "IMAGE" | "HELM_RELEASE";
+  artifactKind?: "IMAGE" | "HELM_RELEASE" | "LIVE_DEFINITION";
+  workspaceId?: string;
+  artifactId?: string;
   apiVersion?: string;
   kind?: string;
   namespace?: string | null;
@@ -124,7 +126,7 @@ export interface RecoveryRequest {
 }
 export interface RecoveryJob {
   jobId: string;
-  kind: "IMAGE" | "HELM_RELEASE";
+  kind: "IMAGE" | "HELM_RELEASE" | "LIVE_DEFINITION";
   workload: DeploymentWorkloadEvidence["workload"];
   containerName?: string;
   inventoryDigest?: string;
