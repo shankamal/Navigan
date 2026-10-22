@@ -21,7 +21,7 @@
   margin: 0 0 8px;
 }
 .navigator header > small {
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   color: #78879a;
 }
 .navigator details {
@@ -38,7 +38,7 @@
 .navigator summary small {
   float: right;
   color: #8390a0;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   font-weight: 400;
 }
 .navigator details > button {
@@ -64,7 +64,7 @@
 .navigator details > button small {
   display: block;
   color: #708095;
-  font-size: 11px;
+  font-size:var(--navigan-font-control);
   margin: 3px 0 0;
 }
 .navigator details > button[aria-pressed="true"] {
@@ -106,7 +106,7 @@
   border: 0;
   padding: 5px;
   white-space: nowrap;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #4b687e;
   background: transparent;
 }
@@ -128,7 +128,7 @@
   min-width: 0;
 }
 .candidateStrip small {
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   color: #6d8098;
   display: block;
   margin: 0 0 6px;
@@ -160,18 +160,18 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
 }
 .provenance small {
   margin: 0 0 0 auto;
   color: #8b764e;
-  font-size: 10px;
+  font-size:var(--navigan-font-caption);
 }
 .namespaceNote {
   display: block;
   padding: 8px 14px;
   color: #738299;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
 }
 .unmapped {
   display: flex;
@@ -227,7 +227,7 @@
 .card .imageTable th {
   background: #f3f6f9;
   color: #3b526e;
-  font-size: 11px;
+  font-size:var(--navigan-font-label);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
@@ -284,7 +284,7 @@
   padding: 2px 9px;
   margin: 7px 0 0;
   border-radius: 12px;
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
   line-height: 1.6;
   color: #3e628c;
   background: #edf3fa;
@@ -320,7 +320,7 @@
   margin-top: 5px;
 }
 .card .imageCell small {
-  font-size: 10px;
+  font-size:var(--navigan-font-caption);
   margin: 4px 0 0;
   color: #788aa3;
 }
@@ -329,7 +329,7 @@
   align-items: center;
   gap: 6px;
   line-height: 1.5;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   text-transform: capitalize;
 }
 .status svg {
@@ -355,7 +355,7 @@
 .card .runtimeDigest,
 .card .registryCaption {
   margin: 6px 0 0 23px;
-  font-size: 10px;
+  font-size:var(--navigan-font-caption);
   color: #778ba3;
   overflow: hidden;
   white-space: nowrap;
@@ -369,7 +369,7 @@
   border-radius: 2px;
   background: #2f6b2d;
   color: #fff;
-  font-size: 11px;
+  font-size:var(--navigan-font-control);
   justify-content: center;
 }
 .card .missingRow {
@@ -397,7 +397,7 @@
 }
 .imageDetails dt {
   color: #5c7088;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   margin-bottom: 6px;
 }
 .imageDetails dd {
@@ -406,12 +406,12 @@
   overflow-wrap: anywhere;
 }
 .imageDetails code {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   white-space: normal;
   word-break: break-all;
 }
 .imageDetails p {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #60778d;
 }
 .deploymentFacts {
@@ -429,7 +429,7 @@
   min-width: 0;
 }
 .deploymentFacts dt {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #778ba3;
   margin-bottom: 10px;
 }
@@ -477,7 +477,7 @@
 .recoveryIdentity span {
   display: block;
   color: #7a8a9d;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   margin-top: 5px;
 }
 .recoveryAvailability {
@@ -500,7 +500,7 @@
   display: block;
   margin-top: 6px;
   color: #6c7c90;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
 }
 .recoveryBody section {
   padding: 21px 0;
@@ -522,7 +522,7 @@
   overflow-wrap: anywhere;
 }
 .recoveryImage code {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   display: block;
   color: #6b819d;
   margin-top: 5px;
@@ -542,7 +542,7 @@
   padding: 10px 8px;
   border: 1px solid #d8e1eb;
   background: white;
-  font-size: 11px;
+  font-size:var(--navigan-font-control);
   color: #475e79;
 }
 .method {
@@ -555,7 +555,7 @@
   display: block;
   margin-top: 5px;
   color: #738399;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
 }
 .recoveryInfo {
   background: #f0f5fb;
@@ -572,7 +572,7 @@
 }
 .recoveryInfo p {
   margin: 0;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   line-height: 1.65;
 }
 .recoveryResult p {
@@ -581,7 +581,7 @@
 }
 .recoveryResult small {
   display: block;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   overflow-wrap: anywhere;
   margin-top: 9px;
 }
@@ -592,10 +592,10 @@
 }
 .recoveryNotes summary {
   cursor: pointer;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
 }
 .recoveryNotes p {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   line-height: 1.65;
 }
 .recoveryFooter {
@@ -732,7 +732,7 @@
 .mappingAction small {
   flex: 1;
   min-width: 180px;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   color: #697b90;
 }
 .mappingAction button {
@@ -755,7 +755,7 @@
 .related summary > span {
   float: right;
   color: #6b7e95;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 400;
 }
 .related details > p {
@@ -774,7 +774,7 @@
   overflow-wrap: anywhere;
 }
 .dependencyList small {
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   font-weight: 400;
   color: #748498;
 }
@@ -806,7 +806,7 @@
   display: inline-block;
   margin-left: 10px;
   color: #63778b;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   border-left: 1px solid #dfe6ed;
   padding-left: 10px;
 }
@@ -814,3 +814,4 @@
 .layout { align-items: start; margin-bottom: 0; }
 .card { align-self: start; }
 .deploymentFacts { padding-bottom: 10px; }
+

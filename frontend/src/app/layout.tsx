@@ -5,6 +5,7 @@ import "@fontsource/geist-sans/600.css";
 import "@fontsource/geist-sans/700.css";
 import "./globals.css";
 import "./navigan-theme.css";
+import "./workspace-standards.css";
 import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: {
@@ -25,3 +26,4 @@ export default function RootLayout({
     </html>
   );
 }
+

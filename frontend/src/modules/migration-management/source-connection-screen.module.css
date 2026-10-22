@@ -52,7 +52,6 @@
   border-radius: 4px;
   text-decoration: none;
   color: #f7f9fb;
-  color: #304153;
   font-weight: 600;
   font-size: 12px;
   white-space: nowrap;
@@ -201,7 +200,7 @@
 }
 .screen small {
   font-family: inherit;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   color: #6b7b8e;
   font-weight: 400;
   line-height: 1.45;
@@ -242,7 +241,7 @@
   justify-content: center;
   text-align: center;
   cursor: pointer;
-  font-size: 11px;
+  font-size:var(--navigan-font-label);
   font-weight: 600;
   white-space: nowrap;
   min-height: 30px;
@@ -302,13 +301,13 @@
   display: inline-flex;
   gap: 5px;
   align-items: center;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 600;
   color: #326426;
   margin-left: 14px;
 }
 .reuseBanner p {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #66788b;
   margin: 4px 0 0;
 }
@@ -324,7 +323,7 @@
   padding: 6px;
 }
 .badge {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #2f6b2d;
   font-weight: 600;
 }
@@ -342,12 +341,12 @@
 }
 .advanced summary small {
   display: inline;
-  font-size: 11px;
+  font-size:var(--navigan-font-caption);
   margin-left: 4px;
 }
 .advanced summary > span {
   margin-left: 14px;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 400;
   color: #697a8d;
 }
@@ -356,7 +355,7 @@
 }
 .customerSearch {
   margin-top: 3px;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #62758c;
 }
 .customerSearch summary {
@@ -384,7 +383,7 @@
 }
 .verificationHeading .context {
   margin-left: auto;
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
   color: #708096;
   max-width: 42%;
   text-align: right;
@@ -429,13 +428,13 @@
 }
 .checks strong {
   display: block;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 600;
   color: #304153;
   white-space: nowrap;
 }
 .checks small {
-  font-size: 10px;
+  font-size:var(--navigan-font-caption);
   margin-top: 2px;
 }
 .complete {
@@ -513,7 +512,7 @@
 }
 .technical {
   margin-top: 10px;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #6c7b8c;
 }
 .technical summary {
@@ -533,7 +532,7 @@
   min-width: 0;
 }
 .facts dt {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   color: #6a7a8b;
 }
 .facts dd {
@@ -566,7 +565,7 @@
     margin-left: auto !important;
   }
   .segment label {
-    font-size: 10px;
+    font-size:var(--navigan-font-label);
   }
   .verificationBottom {
     flex-wrap: wrap;
@@ -616,7 +615,7 @@
     font-size: 12px;
   }
   .back {
-    font-size: 11px;
+    font-size:var(--navigan-font-body);
     padding: 7px;
   }
   .back svg {
@@ -627,7 +626,7 @@
     gap: 9px;
   }
   .journey li {
-    font-size: 11px;
+    font-size:var(--navigan-font-body);
   }
   .identityGrid,
   .grid,
@@ -643,7 +642,7 @@
   }
   .segment label {
     flex: 1;
-    font-size: 11px;
+    font-size:var(--navigan-font-label);
   }
   .reuseBanner {
     align-items: flex-start;
@@ -724,7 +723,7 @@
   background: #253343;
   color: white;
   border-radius: 4px;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   line-height: 1.6;
   font-weight: 400;
   box-shadow: 0 3px 12px #0002;
@@ -746,7 +745,7 @@
   right: 0;
   top: 0;
   margin: 0;
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
 }
 .customerSearch summary {
   list-style: none;
@@ -800,10 +799,10 @@
   .heading{min-height:54px;margin-bottom:8px;padding:9px 12px;gap:10px}
   .titleGroup>svg{width:20px;height:20px}
   .heading h1{font-size:18px}
-  .heading p{font-size:10.5px;line-height:1.3}
-  .back{padding:5px 8px;font-size:10px}
+  .heading p{font-size:var(--navigan-font-body);line-height:1.3}
+  .back{padding:5px 8px;font-size:var(--navigan-font-body)}
   .journey{gap:6px}
-  .journey li{min-height:34px;padding:6px 8px;font-size:10px}
+  .journey li{min-height:34px;padding:6px 8px;font-size:var(--navigan-font-body)}
   .panel{padding:9px 11px;border-radius:5px}
   .identityGrid,.grid,.facts{gap:8px 10px}
   .reuseBanner,.checks,.notice{padding:7px 9px}
@@ -814,10 +813,11 @@
 
 
 /* FINAL SOURCE CONNECTION TYPOGRAPHY */
-.screen{font-family:var(--navigan-font-family)!important;font-size:10.5px!important;line-height:1.35!important}
+.screen{font-family:var(--navigan-font-family)!important;font-size:var(--navigan-font-body)!important;line-height:1.35!important}
 .screen .heading h1{font-size:18px!important;line-height:1.2!important;font-weight:600!important}
 .screen :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
-.screen :is(h3,h4,legend){font-size:11.5px!important;line-height:1.25!important;font-weight:600!important}
-.screen :is(p,li,summary,label){font-size:10.5px!important;line-height:1.35!important}
-.screen small{font-size:9px!important;line-height:1.2!important}
-.screen :is(button,input,select,textarea){font-size:10px!important;line-height:1.25!important}
+.screen :is(h3,h4,legend){font-size:var(--navigan-font-subsection-title)!important;line-height:1.25!important;font-weight:600!important}
+.screen :is(p,li,summary,label){font-size:var(--navigan-font-label)!important;line-height:1.35!important}
+.screen small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
+.screen :is(button,input,select,textarea){font-size:var(--navigan-font-control)!important;line-height:1.25!important}
+

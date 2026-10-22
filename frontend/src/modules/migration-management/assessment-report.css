@@ -18,7 +18,7 @@
   display: block;
   margin-bottom: 8px;
   padding: 0;
-  font-size: 11px;
+  font-size:var(--navigan-font-label);
   color: #64748b;
   letter-spacing: 0.06em;
 }
@@ -53,7 +53,7 @@
 .migration-report-workspace .migration-report-tab-count {
   flex-shrink: 0;
   max-width: 92px;
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
   line-height: 1.3;
   white-space: normal;
   border-color: #e2e8f0;
@@ -287,7 +287,7 @@
   display: inline-flex;
   padding: 3px 8px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 600;
   line-height: 1.4;
 }
@@ -324,7 +324,7 @@
   background: #f8fafc;
 }
 .migration-report-workspace .migration-advanced-action strong {
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 600;
   color: #334155;
 }
@@ -498,7 +498,7 @@
 }
 .migration-report-workspace .migration-finding-action > span {
   color: #334155;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
   font-weight: 600;
 }
 .migration-report-workspace .migration-finding-action p,
@@ -528,28 +528,29 @@
 @container (max-width:1800px){
   .migration-report-workspace .migration-section-heading{gap:7px;padding:8px 10px}
   .migration-report-workspace .migration-section-heading h3{font-size:13px}
-  .migration-report-workspace .migration-section-heading p{font-size:10.5px;line-height:1.3}
+  .migration-report-workspace .migration-section-heading p{font-size:var(--navigan-font-body);line-height:1.3}
   .migration-report-workspace .migration-resource-list{gap:6px;padding:0 10px 9px}
-  .migration-report-workspace .migration-resource-list>div{gap:7px;padding:6px 8px;font-size:10.5px}
+  .migration-report-workspace .migration-resource-list>div{gap:7px;padding:6px 8px;font-size:var(--navigan-font-body)}
   .migration-report-workspace .migration-finding-groups{gap:7px;padding:0 10px 9px}
   .migration-report-workspace .migration-finding-group>summary{gap:7px;padding:7px 9px}
-  .migration-report-workspace .migration-finding-group>summary h4{font-size:11.5px}
-  .migration-report-workspace .migration-finding-group>summary p{font-size:10px;line-height:1.3}
+  .migration-report-workspace .migration-finding-group>summary h4{font-size:var(--navigan-font-subsection-title)}
+  .migration-report-workspace .migration-finding-group>summary p{font-size:var(--navigan-font-body);line-height:1.3}
   .migration-report-workspace .migration-finding{gap:8px;padding:8px 9px}
-  .migration-report-workspace .migration-finding h5{font-size:11.5px;line-height:1.35}
+  .migration-report-workspace .migration-finding h5{font-size:var(--navigan-font-subsection-title);line-height:1.35}
   .migration-report-workspace .migration-finding-description>div,
-  .migration-report-workspace .migration-finding-description>p{font-size:10px;line-height:1.35}
+  .migration-report-workspace .migration-finding-description>p{font-size:var(--navigan-font-body);line-height:1.35}
   .migration-report-workspace .migration-finding-action{padding:7px 8px}
   .migration-report-workspace .migration-finding-action p,
-  .migration-report-workspace .migration-resolution-guide li{font-size:10.5px;line-height:1.4}
+  .migration-report-workspace .migration-resolution-guide li{font-size:var(--navigan-font-body);line-height:1.4}
 }
 
 
 
 /* FINAL ASSESSMENT REPORT TYPOGRAPHY */
-.migration-report-workspace{font-family:var(--navigan-font-family)!important;font-size:10.5px!important;line-height:1.35!important}
+.migration-report-workspace{font-family:var(--navigan-font-family)!important;font-size:var(--navigan-font-body)!important;line-height:1.35!important}
 .migration-report-workspace :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
-.migration-report-workspace :is(h3,h4,h5,h6){font-size:11.5px!important;line-height:1.25!important;font-weight:600!important}
-.migration-report-workspace :is(p,li,summary,dt,dd){font-size:10.5px!important;line-height:1.35!important}
-.migration-report-workspace small{font-size:9px!important;line-height:1.2!important}
-.migration-report-workspace :is(button,input,select,textarea){font-size:10px!important;line-height:1.25!important}
+.migration-report-workspace :is(h3,h4,h5,h6){font-size:var(--navigan-font-subsection-title)!important;line-height:1.25!important;font-weight:600!important}
+.migration-report-workspace :is(p,li,summary,dt,dd){font-size:var(--navigan-font-body)!important;line-height:1.35!important}
+.migration-report-workspace small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
+.migration-report-workspace :is(button,input,select,textarea){font-size:var(--navigan-font-control)!important;line-height:1.25!important}
+

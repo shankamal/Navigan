@@ -299,7 +299,7 @@
   padding-top: 10px;
   margin-top: 10px;
   color: #64748b;
-  font-size: 11px;
+  font-size:var(--navigan-font-body);
 }
 .content [role="alert"] {
   color: #9f2424;
@@ -352,3 +352,4 @@
   color: #215a91;
   text-decoration: underline;
 }
+

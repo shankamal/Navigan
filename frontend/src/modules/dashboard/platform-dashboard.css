@@ -1255,7 +1255,7 @@
   line-height: 1.1;
 }
 .pd-kpi-ring .pd-donut-center span {
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
 }
 .pd-kpi-with-ring .pd-kpi-note {
   grid-column: 2;
@@ -1377,7 +1377,7 @@
     font-size: 12px;
   }
   .signed-in-user span {
-    font-size: 11px;
+    font-size:var(--navigan-font-body);
   }
   .pd-kpi {
     padding: 10px;
@@ -1870,7 +1870,7 @@
 }
 .command-dashboard .pd-date {
   color: #a8cf61;
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
   font-weight: 700;
   letter-spacing: .07em;
   text-transform: uppercase;
@@ -1933,7 +1933,7 @@
   .dashboard-shell .command-dashboard {
     max-width: none;
     gap: 8px;
-    font-size: 11.5px;
+    font-size:var(--navigan-font-body);
   }
 
   .dashboard-shell .command-dashboard .pd-heading {
@@ -1949,7 +1949,7 @@
   }
   .dashboard-shell .command-dashboard .pd-heading .muted {
     margin-top: 2px;
-    font-size: 10.5px;
+    font-size:var(--navigan-font-caption);
     line-height: 1.3;
   }
   .dashboard-shell .command-dashboard .pd-date {
@@ -1957,7 +1957,7 @@
     font-size: 8.5px;
   }
   .dashboard-shell .command-dashboard .pd-freshness {
-    font-size: 10px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-actions {
     gap: 6px;
@@ -1965,7 +1965,7 @@
   .dashboard-shell .command-dashboard .pd-actions .button {
     min-height: 30px;
     padding: 6px 10px;
-    font-size: 11px;
+    font-size:var(--navigan-font-control);
   }
 
   .dashboard-shell .command-dashboard .pd-overview-groups {
@@ -1989,7 +1989,7 @@
   }
   .dashboard-shell .command-dashboard .pd-overview-heading p {
     margin-top: 1px;
-    font-size: 10.5px;
+    font-size:var(--navigan-font-body);
     line-height: 1.2;
   }
   .dashboard-shell .command-dashboard .pd-overview-columns {
@@ -2000,7 +2000,7 @@
     padding: 0 5px;
   }
   .dashboard-shell .command-dashboard .pd-overview-label {
-    font-size: 10.5px;
+    font-size:var(--navigan-font-label);
     line-height: 1.2;
   }
   .dashboard-shell .command-dashboard .pd-overview-visual .pd-donut {
@@ -2056,7 +2056,7 @@
     height: 16px;
   }
   .dashboard-shell .command-dashboard .pd-card-link {
-    font-size: 10.5px;
+    font-size:var(--navigan-font-body);
   }
 
   .dashboard-shell .command-dashboard .pd-attention-workspace {
@@ -2069,11 +2069,11 @@
   }
   .dashboard-shell .command-dashboard .pd-pending-module h3 {
     margin-bottom: 4px;
-    font-size: 11.5px;
+    font-size:var(--navigan-font-subsection-title);
     line-height: 16px;
   }
   .dashboard-shell .command-dashboard .pd-pending-table {
-    font-size: 10.5px;
+    font-size:var(--navigan-font-table);
     line-height: 15px;
   }
   .dashboard-shell .command-dashboard .pd-pending-table th,
@@ -2081,11 +2081,11 @@
     padding: 3px 3px;
   }
   .dashboard-shell .command-dashboard .pd-pending-table thead th {
-    font-size: 9.5px;
+    font-size:var(--navigan-font-label);
   }
   .dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count {
     margin-bottom: 4px;
-    font-size: 10.5px;
+    font-size:var(--navigan-font-body);
     line-height: 15px;
   }
   .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row {
@@ -2103,17 +2103,17 @@
     height: 15px;
   }
   .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong {
-    font-size: 11px;
+    font-size:var(--navigan-font-body);
     line-height: 15px;
   }
   .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small {
-    font-size: 10px;
+    font-size:var(--navigan-font-caption);
     line-height: 14px;
   }
   .dashboard-shell .command-dashboard .pd-review-action {
     padding: 5px 8px;
     gap: 5px;
-    font-size: 10.5px;
+    font-size:var(--navigan-font-body);
     border-radius: 4px;
   }
 
@@ -2135,7 +2135,7 @@
   .dashboard-shell .command-dashboard .pd-provider-legend strong,
   .dashboard-shell .command-dashboard .pd-provider-legend > div > span:last-child,
   .dashboard-shell .command-dashboard .pd-provider {
-    font-size: 10px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-card-footer-link {
     margin: auto 10px 6px;
@@ -2159,14 +2159,14 @@
   }
   .dashboard-shell .command-dashboard .pd-posture-metrics span {
     gap: 5px;
-    font-size: 10px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-posture-metrics strong {
     font-size: 12px;
   }
   .dashboard-shell .command-dashboard .pd-posture-metrics small {
     padding-left: 12px;
-    font-size: 9.5px;
+    font-size:var(--navigan-font-caption);
   }
   .dashboard-shell .command-dashboard .pd-signal {
     margin: 0 9px 6px;
@@ -2180,7 +2180,7 @@
   }
   .dashboard-shell .command-dashboard .pd-provisioning-links {
     padding: 6px 10px 0;
-    font-size: 10px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-workflow-bar {
     height: 20px;
@@ -2188,33 +2188,33 @@
     border-radius: 4px;
   }
   .dashboard-shell .command-dashboard .pd-workflow-bar span {
-    font-size: 10px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-workflow-legend > div {
     padding: 2px 0;
   }
   .dashboard-shell .command-dashboard .pd-workflow-legend span,
   .dashboard-shell .command-dashboard .pd-workflow-legend small {
-    font-size: 9.5px;
+    font-size:var(--navigan-font-caption);
   }
 
   .dashboard-shell .command-dashboard .pd-activity-table {
-    font-size: 10.5px;
+    font-size:var(--navigan-font-table);
   }
   .dashboard-shell .command-dashboard .pd-activity-table th {
     padding: 5px 10px;
-    font-size: 9px;
+    font-size:var(--navigan-font-label);
   }
   .dashboard-shell .command-dashboard .pd-activity-table td {
     padding: 6px 10px;
-    font-size: 10.5px;
+    font-size:var(--navigan-font-table);
   }
   .dashboard-shell .command-dashboard .pd-status {
     padding: 2px 5px;
-    font-size: 9px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-row-action {
-    font-size: 10.5px;
+    font-size:var(--navigan-font-body);
   }
 
   .dashboard-shell .command-dashboard .pd-tool-strip {
@@ -2225,7 +2225,7 @@
   }
   .dashboard-shell .command-dashboard .pd-tool-strip strong,
   .dashboard-shell .command-dashboard .pd-tools > span {
-    font-size: 10px;
+    font-size:var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-tools {
     gap: 10px;
@@ -2248,28 +2248,28 @@
   .pd-workflow-legend,.pd-activity-table,.pd-resource,.pd-platform,.pd-row-action,
   .pd-preview-count,.pd-review-action
 ){font-family:var(--navigan-font-family)!important}
-.dashboard-shell .command-dashboard .pd-pending-table{font-size:10px!important;line-height:1.25!important}
-.dashboard-shell .command-dashboard .pd-pending-table thead th{font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.dashboard-shell .command-dashboard .pd-pending-table{font-size:var(--navigan-font-table)!important;line-height:1.25!important}
+.dashboard-shell .command-dashboard .pd-pending-table thead th{font-size:var(--navigan-font-label)!important;line-height:1.15!important;font-weight:700!important}
 .dashboard-shell .command-dashboard .pd-pending-table tbody th,
-.dashboard-shell .command-dashboard .pd-pending-table tbody td{font-size:10px!important;line-height:1.25!important}
-.dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count{font-size:9px!important;line-height:1.25!important}
-.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong{font-size:10.5px!important;line-height:1.2!important;font-weight:600!important}
-.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small{font-size:9px!important;line-height:1.2!important}
-.dashboard-shell .command-dashboard .pd-review-action{font-size:10px!important;line-height:1.2!important;font-weight:600!important}
+.dashboard-shell .command-dashboard .pd-pending-table tbody td{font-size:var(--navigan-font-label)!important;line-height:1.25!important}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count{font-size:var(--navigan-font-body)!important;line-height:1.25!important}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong{font-size:var(--navigan-font-body)!important;line-height:1.2!important;font-weight:600!important}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-review-action{font-size:var(--navigan-font-body)!important;line-height:1.2!important;font-weight:600!important}
 .dashboard-shell .command-dashboard .pd-provider-legend strong,
 .dashboard-shell .command-dashboard .pd-posture-metrics strong,
-.dashboard-shell .command-dashboard .pd-workflow-legend strong{font-size:10.5px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-workflow-legend strong{font-size:var(--navigan-font-body)!important;line-height:1.2!important}
 .dashboard-shell .command-dashboard .pd-provider,
 .dashboard-shell .command-dashboard .pd-provider-legend>div>span:last-child,
 .dashboard-shell .command-dashboard .pd-posture-metrics span,
 .dashboard-shell .command-dashboard .pd-posture-metrics small,
 .dashboard-shell .command-dashboard .pd-workflow-legend span,
-.dashboard-shell .command-dashboard .pd-workflow-legend small{font-size:9px!important;line-height:1.2!important}
-.dashboard-shell .command-dashboard .pd-activity-table th{font-size:9px!important;line-height:1.15!important}
-.dashboard-shell .command-dashboard .pd-activity-table td{font-size:10px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-workflow-legend small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-activity-table th{font-size:var(--navigan-font-label)!important;line-height:1.15!important}
+.dashboard-shell .command-dashboard .pd-activity-table td{font-size:var(--navigan-font-table)!important;line-height:1.2!important}
 .dashboard-shell .command-dashboard .pd-resource strong,
 .dashboard-shell .command-dashboard .pd-platform strong,
-.dashboard-shell .command-dashboard .pd-row-action{font-size:10.5px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-row-action{font-size:var(--navigan-font-body)!important;line-height:1.2!important}
 
 
 
@@ -2289,3 +2289,4 @@
   height:19px!important;
   max-width:24px!important;
 }
+

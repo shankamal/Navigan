@@ -22,17 +22,17 @@
   --navigan-radius: 10px;
 
   /* Unified product typography */
-  --navigan-font-family: var(--navigan-font-family);
+  --navigan-font-family: "Geist Sans", Arial, sans-serif;
   --navigan-font-page-title: 18px;
   --navigan-font-section-title: 13px;
-  --navigan-font-subsection-title: 11.5px;
-  --navigan-font-body: 10.5px;
-  --navigan-font-control: 10px;
-  --navigan-font-table: 10px;
-  --navigan-font-label: 9px;
-  --navigan-font-caption: 9px;
+  --navigan-font-subsection-title: 12px;
+  --navigan-font-body: 12px;
+  --navigan-font-control: 12px;
+  --navigan-font-table: 12px;
+  --navigan-font-label: 11px;
+  --navigan-font-caption: 10.5px;
   --navigan-font-metric: 18px;
-  --navigan-line-body: 1.35;
+  --navigan-line-body: 1.45;
   --navigan-line-tight: 1.25;
 
   /* Shared provider/platform logo sizing */
@@ -94,7 +94,7 @@ body {
 
 .app-shell[class] .sidebar .nav-section {
   color: #a7b3bf;
-  font-size: 10px;
+  font-size:var(--navigan-font-body);
   font-weight: 650;
   letter-spacing: 0.06em;
 }
@@ -453,7 +453,7 @@ body {
 .app-shell main#main-content .page-heading .eyebrow {
   margin: 0 0 3px 44px;
   color: #a8cf61;
-  font-size: 10px;
+  font-size:var(--navigan-font-caption);
   font-weight: 700;
   letter-spacing: .08em;
 }
@@ -511,7 +511,7 @@ body {
   background: #eef2f4;
   color: #44515e;
   border-bottom: 1px solid #d7e0e6;
-  font-size: 10.5px;
+  font-size:var(--navigan-font-label);
   font-weight: 700;
   letter-spacing: .035em;
   text-transform: uppercase;
@@ -599,3 +599,4 @@ body {
     flex: 1 1 auto;
   }
 }
+
