@@ -16,6 +16,17 @@ from pathlib import Path
 import boto3
 
 
+WORKSPACE_MIGRATIONS = (
+    "027_migration_artifact_workspaces.sql",
+    "028_workspace_collection_jobs.sql",
+)
+WORKSPACE_GRANTS = """
+GRANT SELECT, INSERT, UPDATE ON
+migration_management.artifact_workspaces,
+migration_management.workspace_artifacts,
+migration_management.workspace_collection_jobs TO navigan_api;
+"""
+
 DOLLAR_TAG = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
 
@@ -133,6 +144,18 @@ def split_postgresql_script(source: str) -> list[str]:
     return statements
 
 
+def workspace_statements(source: str) -> list[str]:
+    """Keep the Data API transaction in charge without changing file checksums."""
+    statements = split_postgresql_script(source)
+    if not statements or statements[0].upper() != "BEGIN" or statements[-1].upper() != "COMMIT":
+        raise ValueError("Workspace migration must have outer BEGIN/COMMIT wrappers")
+    statements = statements[1:-1]
+    if any(re.match(r"^(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION|END)\b", sql, re.I)
+           for sql in statements):
+        raise ValueError("Unexpected transaction control in workspace migration")
+    return statements
+
+
 def execute(client, args, transaction_id: str, sql: str, parameters=None):
     request = {
         "resourceArn": args.resource_arn,
@@ -160,12 +183,17 @@ def main() -> int:
     parser.add_argument("--database", required=True)
     parser.add_argument("--migrations-dir", default="database/migrations")
     parser.add_argument("--roles-file", default="database/bootstrap/roles.sql")
+    parser.add_argument("--workspace-only", action="store_true",
+                        help="Apply only workspace migrations and grants to navigan_dev")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--confirm-production-database",
         help="Required for non-Dev targets; value must exactly match --database",
     )
     args = parser.parse_args()
+
+    if args.workspace_only and args.database != "navigan_dev":
+        raise SystemExit("Safety stop: --workspace-only requires --database navigan_dev")
 
     if (
         not args.database.endswith("_dev")
@@ -179,19 +207,31 @@ def main() -> int:
     migrations_dir = Path(args.migrations_dir).resolve()
     roles_file = Path(args.roles_file).resolve()
     migration_files = sorted(migrations_dir.glob("*.sql"))
+    if args.workspace_only:
+        migration_files = [migrations_dir / name for name in WORKSPACE_MIGRATIONS]
+        missing = [str(path) for path in migration_files if not path.is_file()]
+        if missing:
+            raise SystemExit(f"Workspace migrations not found: {missing}")
     if not migration_files:
         raise SystemExit(f"No migrations found in {migrations_dir}")
-    if not roles_file.is_file():
+    if not args.workspace_only and not roles_file.is_file():
         raise SystemExit(f"Roles file not found: {roles_file}")
+
+    grants_source = (WORKSPACE_GRANTS if args.workspace_only
+                     else roles_file.read_text(encoding="utf-8"))
+    parse_migration = workspace_statements if args.workspace_only else split_postgresql_script
+    # Validate every selected file before opening a database transaction.
+    for path in migration_files:
+        parse_migration(path.read_text(encoding="utf-8"))
 
     if args.dry_run:
         for path in migration_files:
             content = path.read_text(encoding="utf-8")
             checksum = hashlib.sha256(content.encode()).hexdigest()
-            statements = split_postgresql_script(content)
+            statements = parse_migration(content)
             print(f"Validated {path.name}: {len(statements)} statements, sha256={checksum}")
-        role_statements = split_postgresql_script(roles_file.read_text(encoding="utf-8"))
-        print(f"Validated {roles_file.name}: {len(role_statements)} statements")
+        role_statements = split_postgresql_script(grants_source)
+        print(f"Validated runtime grants: {len(role_statements)} statements")
         print(f"Dry run complete for {args.database}; no AWS calls were made")
         return 0
 
@@ -242,7 +282,7 @@ def main() -> int:
                 print(f"Skipped {path.name} (already applied)")
                 continue
 
-            statements = split_postgresql_script(content)
+            statements = parse_migration(content)
             print(f"Applying {path.name} ({len(statements)} statements)")
             for number, statement in enumerate(statements, start=1):
                 try:
@@ -264,7 +304,7 @@ def main() -> int:
             )
             print(f"Applied {path.name}")
 
-        role_statements = split_postgresql_script(roles_file.read_text(encoding="utf-8"))
+        role_statements = split_postgresql_script(grants_source)
         print(f"Applying runtime grants ({len(role_statements)} statements)")
         for number, statement in enumerate(role_statements, start=1):
             try:
@@ -273,6 +313,14 @@ def main() -> int:
                 raise RuntimeError(
                     f"roles.sql statement {number}/{len(role_statements)} failed"
                 ) from error
+
+        if args.workspace_only:
+            for table in ("artifact_workspaces", "workspace_artifacts", "workspace_collection_jobs"):
+                result = execute(client, args, transaction_id,
+                                 "SELECT to_regclass(:table_name)::text",
+                                 [string_parameter("table_name", f"migration_management.{table}")])
+                if not result.get("records") or result["records"][0][0].get("isNull", False):
+                    raise RuntimeError(f"Workspace table missing after migrations: {table}")
 
         client.commit_transaction(
             resourceArn=args.resource_arn,
