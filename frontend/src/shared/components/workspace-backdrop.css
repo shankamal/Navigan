@@ -982,3 +982,117 @@
   line-height:1.05!important;
   font-weight:600!important;
 }
+
+
+/* FINAL SHARED PAGE HEADER CONTRACT */
+.app-shell[class] main#main-content .page-heading{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  column-gap:16px!important;
+  min-height:56px!important;
+  margin:0 0 8px!important;
+  padding:9px 12px!important;
+  border:1px solid #3a4552!important;
+  border-radius:6px!important;
+  background:linear-gradient(135deg,#202833 0%,#303b49 100%)!important;
+  color:#fff!important;
+}
+.app-shell[class] main#main-content .page-heading-copy{
+  display:grid!important;
+  grid-template-columns:32px minmax(0,1fr)!important;
+  grid-template-rows:auto auto!important;
+  column-gap:10px!important;
+  align-items:center!important;
+  min-width:0!important;
+}
+.app-shell[class] main#main-content .page-heading-symbol{
+  grid-column:1!important;
+  grid-row:1 / span 2!important;
+  width:32px!important;
+  height:32px!important;
+  margin:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #4b5865!important;
+  border-radius:6px!important;
+  background:#252e39!important;
+  color:#86bc25!important;
+}
+.app-shell[class] main#main-content .page-heading-symbol svg{
+  width:18px!important;
+  height:18px!important;
+  stroke-width:1.8!important;
+}
+.app-shell[class] main#main-content .page-heading h1{
+  grid-column:2!important;
+  grid-row:1!important;
+  display:block!important;
+  margin:0!important;
+  font-size:18px!important;
+  line-height:1.15!important;
+  font-weight:600!important;
+  color:#fff!important;
+}
+.app-shell[class] main#main-content .page-heading .muted{
+  grid-column:2!important;
+  grid-row:2!important;
+  margin:2px 0 0!important;
+  font-size:9.5px!important;
+  line-height:1.25!important;
+  color:#c8d1da!important;
+}
+.app-shell[class] main#main-content .page-heading .eyebrow{
+  display:none!important;
+}
+.app-shell[class] main#main-content .heading-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  flex-wrap:nowrap!important;
+  min-width:max-content!important;
+}
+.app-shell[class] main#main-content .heading-actions .button{
+  min-height:32px!important;
+  height:32px!important;
+  padding:6px 10px!important;
+  gap:6px!important;
+  border-radius:6px!important;
+  font-size:10px!important;
+  line-height:1!important;
+  font-weight:600!important;
+  white-space:nowrap!important;
+}
+.app-shell[class] main#main-content .heading-actions .button svg{
+  width:15px!important;
+  height:15px!important;
+  flex:0 0 auto!important;
+}
+.app-shell[class] main#main-content .heading-actions .button-secondary{
+  background:#2d3743!important;
+  border-color:#596672!important;
+  color:#fff!important;
+}
+.app-shell[class] main#main-content .heading-actions .button-primary{
+  background:#2f6b2d!important;
+  border-color:#2f6b2d!important;
+  color:#fff!important;
+}
+.app-shell[class] main#main-content .page-heading-meta{
+  font-size:9px!important;
+  line-height:1.2!important;
+  color:#c8d1da!important;
+  white-space:nowrap!important;
+}
+@container (max-width:1050px){
+  .app-shell[class] main#main-content .page-heading{
+    grid-template-columns:1fr!important;
+    row-gap:8px!important;
+  }
+  .app-shell[class] main#main-content .heading-actions{
+    justify-content:flex-start!important;
+    flex-wrap:wrap!important;
+    min-width:0!important;
+  }
+}
