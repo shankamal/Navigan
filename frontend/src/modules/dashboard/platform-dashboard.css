@@ -1894,3 +1894,34 @@
     padding: 13px 14px;
   }
 }
+
+
+/* FINAL GRAPHITE DASHBOARD OVERRIDES */
+.dashboard-shell .sidebar {
+  background: #1c222b !important;
+}
+.dashboard-shell .sidebar .nav-section {
+  color: #8f9dab;
+}
+.dashboard-shell .sidebar .nav-item {
+  color: #c8d1da;
+}
+.dashboard-shell .sidebar .nav-item.selected {
+  background: #2a3440 !important;
+  color: #fff;
+  box-shadow: inset 3px 0 #86bc25;
+}
+.dashboard-shell .sidebar .nav-item.selected svg {
+  color: #9fd055;
+}
+.command-dashboard .pd-heading {
+  border-radius: 6px;
+  background: linear-gradient(135deg,#202833,#303b49) !important;
+  border-color: #3a4552;
+  box-shadow: 0 2px 8px rgb(23 31 40 / 10%);
+}
+.command-dashboard .pd-overview-panel,
+.command-dashboard .pd-card {
+  border-radius: 6px;
+  border-color: #d8e0e6;
+}
