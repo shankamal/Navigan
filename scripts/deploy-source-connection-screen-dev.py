@@ -46,6 +46,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--migration-only", action="store_true", help="Package/update only MigrationFunction; leave the existing connector Lambda untouched.")
     parser.add_argument("--enable-artifact-workspace", action="store_true", help="Deploy private KMS workspace storage. Apply database migration 027 before using workspace APIs.")
     parser.add_argument("--enable-artifact-recovery", action="store_true", help="Deploy isolated private recovery storage and bind it to MigrationFunction; does not change source node access.")
     parser.add_argument("--recovery-artifact-bucket", help="Existing private recovery bucket from recovery-storage.yaml; adds no source node permissions.")
@@ -58,9 +59,11 @@ def main():
     parser.add_argument(
         "--finish-deployment",
         action="store_true",
-        help="Resume routes, permissions, environment and optional connector upgrade after both Lambda code uploads succeeded.",
+        help="Resume routes, permissions, environment and optional connector upgrade after the selected Lambda code uploads succeeded.",
     )
     args = parser.parse_args()
+    if (args.migration_only or args.enable_artifact_workspace) and args.upgrade_source_connector:
+        parser.error("Workspace/migration-only deployment cannot upgrade the source connector.")
     if args.finish_deployment and args.enable_artifact_workspace:
         parser.error("Workspace provisioning requires a full deployment; omit --finish-deployment.")
     for role in args.registry_role_arn:
@@ -114,7 +117,8 @@ def main():
         finish_deployment(aws, stack, child, function_name, backup, args)
         return
     staged = []
-    for logical in ["MigrationFunction", "MigrationConnectorFunction"]:
+    targets = ["MigrationFunction"] if args.migration_only or args.enable_artifact_workspace else ["MigrationFunction", "MigrationConnectorFunction"]
+    for logical in targets:
         function_name = aws(
             "cloudformation",
             "describe-stack-resource",
@@ -197,7 +201,7 @@ def main():
         if config["FunctionName"] != function_name:
             raise SystemExit("Deployed Lambda identity does not match the stack resource.")
         staged.append((logical, function_name, config, artifact))
-    print(f"Prepared two DEV migration packages. Backup: {backup}")
+    print(f"Prepared {len(staged)} DEV migration package(s). Backup: {backup}")
     if not args.apply:
         print(
             "Review complete. Use --apply to update only these Lambda functions and enable the DEV source-first flag."

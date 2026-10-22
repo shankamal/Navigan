@@ -83,8 +83,9 @@ def test_wrong_customer_registration_stops_before_any_kubernetes_write(monkeypat
 @pytest.mark.parametrize("existing_role", [None, "arn:aws:iam::111111111111:role/team/ExistingEcrRole"])
 @pytest.mark.parametrize("finish_only", [False, True])
 @pytest.mark.parametrize("routes_exist", [False, True])
+@pytest.mark.parametrize("migration_only", [False, True])
 def test_packaging_new_files_preserves_stack_lambda_names(
-    monkeypatch, tmp_path, finish_only, routes_exist, existing_role
+    monkeypatch, tmp_path, finish_only, routes_exist, existing_role, migration_only
 ):
     """New ZIP entries must never overwrite the AWS function identity."""
     import io
@@ -221,17 +222,18 @@ def test_packaging_new_files_preserves_stack_lambda_names(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["deploy-source-connection-screen-dev.py", "--apply", "--upgrade-source-connector"]
+        ["deploy-source-connection-screen-dev.py", "--apply"]
+        + (["--migration-only"] if migration_only else ["--upgrade-source-connector"])
         + (["--finish-deployment"] if finish_only else [])
         + (["--registry-role-arn", existing_role] if existing_role else []),
     )
     deploy.main()
     assert [name for name, _ in updates] == (
-        [] if finish_only else ["DEV-MigrationConnectorFunction", "DEV-MigrationFunction"]
+        [] if finish_only else ["DEV-MigrationFunction"] if migration_only else ["DEV-MigrationConnectorFunction", "DEV-MigrationFunction"]
     )
     assert sum(c[:2] == ["iam", "put-role-policy"] for c in calls) == 1
     assert sum(c[:2] == ["apigatewayv2", "create-route"] for c in calls) == (0 if routes_exist else len(routes))
-    assert calls[-1] == ["connector-upgrade"]
+    assert (["connector-upgrade"] in calls) is (not migration_only)
     assert (tmp_path / "deployment-discovery-environment.json").exists()
     for name, artifact in updates:
         with zipfile.ZipFile(artifact.removeprefix("fileb://")) as archive:
