@@ -879,3 +879,106 @@
   line-height:1.1!important;
   font-weight:600!important;
 }
+
+
+/* FINAL OPERATIONAL TYPOGRAPHY NORMALIZATION 2026 */
+/* This block is intentionally last and high-specificity. It neutralizes legacy
+   per-module font-size drift while preserving larger KPI/metric values. */
+.app-shell[class] main#main-content :is(p,li,dt,dd,summary){
+  font-size:var(--navigan-font-body)!important;
+  line-height:var(--navigan-line-body)!important;
+}
+.app-shell[class] main#main-content small{
+  font-size:var(--navigan-font-caption)!important;
+  line-height:1.25!important;
+  font-weight:400!important;
+}
+.app-shell[class] main#main-content :is(label,.field,.filter-field,.search-field){
+  font-size:var(--navigan-font-control)!important;
+  line-height:1.3!important;
+}
+.app-shell[class] main#main-content :is(input,select,textarea,button,.button){
+  font-size:var(--navigan-font-control)!important;
+  line-height:1.25!important;
+  font-weight:500!important;
+}
+.app-shell[class] main#main-content :is(h2){
+  font-size:var(--navigan-font-section-title)!important;
+  line-height:1.25!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content :is(h3,h4,h5,h6,legend){
+  font-size:var(--navigan-font-subsection-title)!important;
+  line-height:1.25!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content table{
+  font-size:var(--navigan-font-table)!important;
+  line-height:1.25!important;
+}
+.app-shell[class] main#main-content table thead th{
+  font-size:var(--navigan-font-label)!important;
+  line-height:1.2!important;
+  font-weight:700!important;
+}
+.app-shell[class] main#main-content table tbody td,
+.app-shell[class] main#main-content table tbody th{
+  font-size:var(--navigan-font-table)!important;
+  line-height:1.25!important;
+  font-weight:400!important;
+}
+.app-shell[class] main#main-content table tbody :is(strong,a){
+  font-size:10.5px!important;
+  line-height:1.25!important;
+}
+.app-shell[class] main#main-content table tbody small,
+.app-shell[class] main#main-content table tbody .metadata{
+  font-size:var(--navigan-font-caption)!important;
+  line-height:1.2!important;
+}
+.app-shell[class] main#main-content :is(
+  .metadata,[class*="metadata"],[class*="Metadata"],
+  [class*="caption"],[class*="Caption"],
+  [class*="detail"],[class*="Detail"],
+  [class*="note"],[class*="Note"],
+  [class*="helper"],[class*="Helper"]
+){
+  font-size:var(--navigan-font-caption)!important;
+  line-height:1.25!important;
+  font-weight:400!important;
+}
+.app-shell[class] main#main-content :is(
+  .status-badge,[class*="status-badge"],[class*="statusBadge"],[class*="StatusBadge"],
+  [class*="statusPill"],[class*="StatusPill"],[class*="chip"],[class*="Chip"]
+){
+  font-size:var(--navigan-font-label)!important;
+  line-height:1.15!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content :is(
+  [class*="row"] strong,[class*="Row"] strong,
+  [class*="cell"] strong,[class*="Cell"] strong,
+  [class*="item"] strong,[class*="Item"] strong
+){
+  font-size:10.5px!important;
+  line-height:1.25!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content :is(
+  [class*="row"] small,[class*="Row"] small,
+  [class*="cell"] small,[class*="Cell"] small,
+  [class*="item"] small,[class*="Item"] small
+){
+  font-size:var(--navigan-font-caption)!important;
+  line-height:1.2!important;
+}
+.app-shell[class] main#main-content :is(
+  .metric>strong,.pd-kpi strong,.cluster-directory-metric strong,
+  .customer-board-card>strong,.environment-board-card>strong,
+  [class*="metricValue"],[class*="MetricValue"],[class*="coverageValue"],
+  [class*="CoverageValue"],[class*="Stats"]>div>strong
+){
+  font-size:var(--navigan-font-metric)!important;
+  line-height:1.05!important;
+  font-weight:600!important;
+}
