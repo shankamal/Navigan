@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   Assessment,
@@ -289,7 +289,8 @@ describe("migration planning", () => {
     } as SourceInventory);
     selectAllAssessedNamespaces();
     openTechnicalInventory();
-    fireEvent.click(screen.getByRole("button",{name:"Include PVC"}));
+    const storage = screen.getByRole("region", { name: "Data and storage selection" });
+    fireEvent.click(within(storage).getByRole("button",{name:"Add to Draft"}));
     fireEvent.click(screen.getByRole("button",{name:/3\s*Remediation/}));
     fireEvent.click(screen.getByRole("button",{name:/Target mappings/}));
     expect(screen.getByLabelText("Target mapping workspace")).toBeVisible();
@@ -355,31 +356,18 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     expect(screen.queryByLabelText("Include Node cluster/source-node")).not.toBeInTheDocument();
   });
-  it("selects and clears only filtered resources", () => {
+  it("supports individual manual scope adjustments in the technical resource explorer", () => {
     open();
     openTechnicalResources();
-    fireEvent.change(screen.getByLabelText("Search selected resources"), {
-      target: { value: "postgres" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Select all filtered resources (manual override)" }),
-    );
-    expect(
-      screen.getByLabelText("Include StatefulSet retailflow/postgres"),
-    ).toBeChecked();
-    openTechnicalResources();
-    fireEvent.change(screen.getByLabelText("Search selected resources"), {
-      target: { value: "" },
-    });
-    expect(
-      screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
-    ).not.toBeChecked();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Clear filtered selection" }),
-    );
-    expect(
-      screen.getByLabelText("Include StatefulSet retailflow/postgres"),
-    ).not.toBeChecked();
+    const postgres = screen.getByLabelText("Include StatefulSet retailflow/postgres");
+    const api = screen.getByLabelText("Include Deployment retailflow/retailflow-api");
+    expect(postgres).not.toBeChecked();
+    expect(api).not.toBeChecked();
+    fireEvent.click(postgres);
+    expect(postgres).toBeChecked();
+    expect(api).not.toBeChecked();
+    fireEvent.click(postgres);
+    expect(postgres).not.toBeChecked();
     expect(screen.queryByRole("link", { name: "Assess" })).toBeNull();
   });
   it("navigates consistently between Source, Remediation, Migration Plan and Review", () => {
@@ -419,8 +407,9 @@ describe("migration planning", () => {
     } as SourceInventory);
     selectAllAssessedNamespaces();
     openTechnicalInventory();
-    fireEvent.click(screen.getByRole("button",{name:"Include PVC"}));
-    expect(screen.getByRole("region", { name: "Data and storage selection" })).toHaveTextContent("data-postgres-0");
+    const storage = screen.getByRole("region", { name: "Data and storage selection" });
+    fireEvent.click(within(storage).getByRole("button",{name:"Add to Draft"}));
+    expect(storage).toHaveTextContent("data-postgres-0");
     fireEvent.click(screen.getByText(/Advanced PVC target mappings/));
     expect(screen.getByLabelText("Storage class for data-postgres-0")).toHaveValue("gp3");
     expect(screen.getByLabelText("Target capacity for data-postgres-0")).toHaveValue("8Gi");
