@@ -7,13 +7,13 @@
   margin-bottom: 0;
 }
 .customer-workspace .button-primary {
-  background: #315a76;
-  border-color: #86bc25;
+  background: var(--navigan-action, #2f6b2d);
+  border-color: var(--navigan-action, #2f6b2d);
   color: #fff;
 }
 .customer-workspace .button-primary:hover:not(:disabled) {
-  background: #254b66;
-  border-color: #86bc25;
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .customer-metrics {
   display: grid;
