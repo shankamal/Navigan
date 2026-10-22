@@ -1,8 +1,8 @@
 .context {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 16px;
+  gap: 14px;
+  margin-bottom: 12px;
 }
 .context > div {
   display: flex;
@@ -24,7 +24,7 @@
   color: #697886;
 }
 .run {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .phase {
   display: flex;
@@ -49,7 +49,7 @@
 .runActions {
   display: flex;
   gap: 10px;
-  margin: 18px 0;
+  margin: 12px 0;
 }
 .runActions button,
 .footer button,
@@ -78,7 +78,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   list-style: none;
-  padding: 14px 0 0;
+  padding: 10px 0 0;
   margin: 0;
   border-top: 1px solid #e0e6ec;
 }
@@ -112,8 +112,8 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 .metrics > div {
   display: flex;
