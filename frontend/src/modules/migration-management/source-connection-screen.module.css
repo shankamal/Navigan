@@ -810,3 +810,14 @@
   .checks{gap:7px}
   .actions{gap:7px;padding-top:7px}
 }
+
+
+
+/* FINAL SOURCE CONNECTION TYPOGRAPHY */
+.screen{font-family:var(--navigan-font-family)!important;font-size:10.5px!important;line-height:1.35!important}
+.screen .heading h1{font-size:18px!important;line-height:1.2!important;font-weight:600!important}
+.screen :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
+.screen :is(h3,h4,legend){font-size:11.5px!important;line-height:1.25!important;font-weight:600!important}
+.screen :is(p,li,summary,label){font-size:10.5px!important;line-height:1.35!important}
+.screen small{font-size:9px!important;line-height:1.2!important}
+.screen :is(button,input,select,textarea){font-size:10px!important;line-height:1.25!important}
