@@ -20,6 +20,20 @@
   --navigan-action-hover: #255624;
   --navigan-focus: #6c9e32;
   --navigan-radius: 10px;
+
+  /* Unified product typography */
+  --navigan-font-family: var(--navigan-font-family);
+  --navigan-font-page-title: 18px;
+  --navigan-font-section-title: 13px;
+  --navigan-font-subsection-title: 12px;
+  --navigan-font-body: 11px;
+  --navigan-font-control: 10.5px;
+  --navigan-font-table: 10px;
+  --navigan-font-label: 9.5px;
+  --navigan-font-caption: 9px;
+  --navigan-font-metric: 18px;
+  --navigan-line-body: 1.4;
+  --navigan-line-tight: 1.25;
 }
 
 body {
@@ -27,8 +41,8 @@ body {
   background: var(--navigan-canvas);
   font-family: "Geist Sans", Arial, sans-serif;
   font-optical-sizing: auto;
-  font-size: 14px;
-  line-height: 1.48;
+  font-size: var(--navigan-font-body);
+  line-height: var(--navigan-line-body);
   -webkit-font-smoothing: antialiased;
 }
 
