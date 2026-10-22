@@ -110,6 +110,7 @@ def test_packaging_new_files_preserves_stack_lambda_names(
         "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
         "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
         "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports",
     ]
     protection = {
         "Target": "integrations/dev-integration",

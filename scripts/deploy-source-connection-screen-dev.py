@@ -25,6 +25,7 @@ FILES = [
     "source_connector_installation.py",
     "artifact_recovery.py",
     "artifact_workspace.py",
+    "workspace_export.py",
     "workspace_collection.py",
     "repository_collector.py",
     "workspace_worker.py",
@@ -37,7 +38,8 @@ FILES = [
 # These modules are introduced by additive DEV upgrades; older ZIPs legitimately lack them.
 ADDITIVE_FILES = {
     "deployment_sources.py", "source_authentication.py", "artifact_recovery.py", "recovery_worker.py",
-    "artifact_workspace.py", "workspace_collection.py", "repository_collector.py", "workspace_worker.py",
+    "artifact_workspace.py",
+    "workspace_export.py", "workspace_collection.py", "repository_collector.py", "workspace_worker.py",
     "image_collector.py", "image_worker.py",
 }
 
@@ -340,6 +342,7 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
         "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
         "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
         "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports",
     ]:
         present = next((r for r in routes if r["RouteKey"] == route), None)
         desired = {

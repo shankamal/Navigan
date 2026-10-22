@@ -611,3 +611,107 @@ it("clears historical confirmation when the parent selection changes", async () 
   ).toBeDisabled();
   expect(api.post).not.toHaveBeenCalled();
 });
+
+function readyExportWorkspace() {
+  return {
+    workspaceId: "AWS-one",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [
+      {
+        artifactId: "definition",
+        kind: "REPOSITORY_DEFINITION",
+        status: "COLLECTED",
+      },
+      { artifactId: "image", kind: "IMAGE", status: "COLLECTED" },
+      {
+        artifactId: "historical",
+        kind: "LIVE_DEFINITION",
+        status: "EXCLUDED_FROM_REPLAY",
+      },
+    ],
+  };
+}
+async function openExportWorkspace(canEdit = true) {
+  render(<ArtifactWorkspacePanel {...props} canEdit={canEdit} />);
+  fireEvent.click(screen.getByText("Migration files & images"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  return screen.findByRole("button", { name: "Create workspace export" });
+}
+const exportedManifest = {
+  exportId: "EXP-one",
+  downloadUrl: "https://private.example/export.json?versionId=one",
+  expiresInSeconds: 300,
+  collectedArtifactCount: 2,
+  excludedArtifactCount: 1,
+  storage: { versionId: "one", sha256: "a".repeat(64) },
+};
+
+it("creates and downloads a version-pinned export while retaining target review limits", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [readyExportWorkspace()] } });
+  api.post.mockResolvedValue({ data: exportedManifest });
+  fireEvent.click(await openExportWorkspace());
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/artifact-workspaces/AWS-one/exports",
+      { version: 2 },
+      expect.anything(),
+    ),
+  );
+  const download = await screen.findByRole("link", {
+    name: "Download export manifest",
+  });
+  expect(download).toHaveAttribute("href", exportedManifest.downloadUrl);
+  expect(screen.getByText(/Export saved to S3/)).toHaveTextContent(
+    "2 collected artifacts · 1 historical exclusions · Target readiness not verified",
+  );
+  expect(screen.getByText(/EXP-one · SHA-256:/)).toHaveTextContent(
+    "a".repeat(64),
+  );
+});
+
+it("does not offer a download when export verification fails", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [readyExportWorkspace()] } });
+  api.post.mockRejectedValue(new Error("object missing"));
+  fireEvent.click(await openExportWorkspace());
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Storage not configured",
+  );
+  expect(
+    screen.queryByRole("link", { name: "Download export manifest" }),
+  ).not.toBeInTheDocument();
+});
+
+it("prevents export while a required artifact remains unresolved", async () => {
+  const workspace = readyExportWorkspace();
+  workspace.artifacts[0].status = "PENDING_COLLECTION";
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  expect(await openExportWorkspace()).toBeDisabled();
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+it("prevents a viewer from creating an export", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [readyExportWorkspace()] } });
+  expect(await openExportWorkspace(false)).toBeDisabled();
+});
+
+it("explains expired download links without following them", async () => {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    api.get.mockResolvedValue({
+      data: { workspaces: [readyExportWorkspace()] },
+    });
+    api.post.mockResolvedValue({ data: exportedManifest });
+    fireEvent.click(await openExportWorkspace());
+    const download = await screen.findByRole("link", {
+      name: "Download export manifest",
+    });
+    clock.mockReturnValue(302000);
+    expect(fireEvent.click(download)).toBe(false);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The download link expired",
+    );
+  } finally {
+    clock.mockRestore();
+  }
+});

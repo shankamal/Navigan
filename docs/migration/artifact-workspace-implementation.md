@@ -403,3 +403,83 @@ Historical exclusions have automated coverage; live review receipt creation stil
 requires DEV verification. Final workspace export, dependency completeness, content
 review and target validation remain subsequent steps. The initial planning manifest
 stays immutable; current artifact state and reviewed exclusions are read from PostgreSQL.
+
+## Final workspace export
+
+The user verified the existing workspace shows fourteen required artifacts collected,
+two historical Job exclusions, and zero items awaiting collection or attention. The
+next increment adds a downloadable, immutable manifest of these collected objects
+and review receipts. UI/UX redesign is the next priority after live export verification.
+
+### API and storage
+
+POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports
+requires migration.edit, customer scope, Content-Type application/json, Idempotency-Key,
+If-Match and body {"version":3}. The version must match the current migration. The
+API checks the original workspace scope/current inventory, rejects unresolved artifacts
+or active collection jobs, and requires every original artifact record to be present.
+
+The export contains namespace/workload links, deployment-file provenance, image digests,
+content formats, the original planning index pointer, S3 bucket/key/version/size/SHA-256
+for each object, stored S3 checksum metadata, recovered-content review limits and historical
+exclusion evidence. Excluded Job objects point to review receipts and are explicitly
+replayRequired=false. Collected images remain OCI archives in S3. This JSON export is
+not a ZIP containing all files and image bytes, and it does not deploy or publish images.
+
+Before writing the export, the API checks pinned object versions, expected bucket owner,
+size, exact KMS key and S3 SHA-256 checksum metadata. A single-object SHA-256 must equal
+the recorded full-file hash. Multipart image SHA-256 is a COMPOSITE checksum and cannot
+be compared directly to the full-file hash. The manifest records both values and explicitly
+labels the full image hash VERIFIED_AT_COLLECTION; export does not re-download/re-hash
+large images. Image validation must already report complete, digest-verified OCI content.
+
+Historical review receipts are additionally fetched by exact version, bounded to 2 MiB,
+re-hashed, parsed and checked against the workspace, operator review, resource and collected
+parent/image object versions. A missing or changed receipt or parent binding blocks export.
+Raw repository files, Helm configuration, kubeconfigs, credentials, SSM command handles
+and signed URLs are not embedded in the manifest. Historical receipt references retain
+operator-asserted former ownership without upgrading it to independently verified evidence.
+
+Verification uses up to eight concurrent read-only S3 requests with an 18-second verification
+budget. This synchronous increment accepts 1–100 artifact records; larger exports require
+an asynchronous implementation. S3 client timeouts are bounded and SDK retries disabled.
+No manifest is published when verification fails. A successful export is written with a
+conditional PUT, SHA-256, KMS encryption and a verified non-null version under:
+
+customers/{customerId}/migrations/{migrationId}/workspaces/{workspaceId}/exports/EXP-{id}.json
+
+The original planning index and artifact records are not replaced. Each successful request
+creates a distinct immutable export, with createdBy/createdAt and source/inventory/migration
+identity. The response returns exportId, versioned storage metadata, counts, targetReady=false,
+dependencyCompleteness=NOT_VERIFIED, and a version-pinned downloadUrl valid for 300 seconds.
+The application does not yet list prior exports; retain the downloaded manifest or returned
+S3 key/version. Creating another export generates a fresh link and a new immutable manifest.
+The idempotency mechanism still protects retries of the same request. Old idempotent download
+responses may have expired links; use a new request key to generate a fresh export/link.
+
+### Deploy and verify in DEV
+
+The new module is included in additive Lambda ZIP packaging. The frontend proxy, JWT route
+in the module template and DEV route registration all allow the exact new POST path. Existing
+workspace S3/KMS permissions are sufficient; no new database migration, bucket, image-worker
+build or source-cluster permission change is required.
+
+```bash
+cd /mnt/b/Langchain_Ai/Navigan-migration-test
+git pull --ff-only origin new_migration_approach_18oct26
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp PIP_NO_CACHE_DIR=1 \
+  python3 scripts/deploy-source-connection-screen-dev.py --profile navigan --migration-only --apply
+```
+
+Refresh the locally running frontend. In the same workspace select Create workspace export,
+then Download export manifest. The button stays disabled for unresolved/active/stale workspaces
+and viewers. Progress, verification failures and expired-link guidance appear beside the button.
+Compare the downloaded JSON's SHA-256 with the displayed value (for example sha256sum EXP-*.json).
+Verify fourteen collected artifacts, two exclusions, the exact versioned pointers, original
+sixteen-item scope, and targetReady=false. Storage/head failure must offer no new download.
+The export has automated coverage; live S3 export/download verification is still required.
+
+Content review, full deployment dependency closure, target registry publishing, compatibility,
+persistent data migration and target execution remain separate work. The next UI/UX redesign
+must preserve these distinctions and API-driven flows, avoid pale green surfaces and remove
+unnecessary empty space.

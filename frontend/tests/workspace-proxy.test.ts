@@ -15,6 +15,7 @@ it.each([
   ["POST", base],
   ["GET", [...base, workspace]],
   ["POST", [...base, workspace, "collection-jobs"]],
+  ["POST", [...base, workspace, "exports"]],
 ])("permits the workspace endpoint %s %j", (method, path) => {
   expect(isAllowedRoute(method as string, path as string[])).toBe(true);
 });
@@ -24,6 +25,8 @@ it.each([
   ["DELETE", base],
   ["POST", [...base, workspace]],
   ["GET", [...base, workspace, "collection-jobs"]],
+  ["GET", [...base, workspace, "exports"]],
+  ["POST", [...base, workspace, "exports", "extra"]],
   ["POST", [...base, "AWS-invalid", "collection-jobs"]],
   ["GET", [...base, "../secrets"]],
   ["GET", [...base, workspace, "unknown"]],

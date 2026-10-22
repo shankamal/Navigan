@@ -332,3 +332,23 @@
     border-bottom: 1px solid #e2e8f0;
   }
 }
+
+.exportResult {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.exportResult p {
+  margin: 8px 0;
+}
+.exportResult small {
+  display: block;
+  margin-top: 8px;
+  color: #475569;
+}
+.exportResult a {
+  color: #215a91;
+  text-decoration: underline;
+}

@@ -32,6 +32,7 @@ from .models import (
 from .deployment_sources import SaveDeploymentSources, AnalyzeDeploymentSources
 from .workspace_collection import StartCollection
 from .artifact_workspace import CreateArtifactWorkspace
+from .workspace_export import CreateWorkspaceExport
 from .repository import Repository
 from .service import Service, TRANSITIONS
 from .source_connector_installation import SourceConnectorInstaller
@@ -171,6 +172,9 @@ def route_of(method, path):
     if not re.fullmatch(r"MIG-[a-f0-9]{32}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
 
+    if (len(parts) == 4 and parts[1] == "artifact-workspaces" and parts[3] == "exports" and method == "POST"
+            and re.fullmatch(r"AWS-[a-f0-9]{32}", parts[2])):
+        return "workspace_export_create", identifier, parts[2]
     if (len(parts) == 4 and parts[1] == "artifact-workspaces" and parts[3] == "collection-jobs" and method == "POST"
             and re.fullmatch(r"AWS-[a-f0-9]{32}", parts[2])):
         return "workspace_collection_start", identifier, parts[2]
@@ -243,6 +247,7 @@ def execute(event, principal, correlation):
         "artifact_upload_intent",
         "artifact_workspace_create",
         "workspace_collection_start",
+        "workspace_export_create",
         "deployment_sources_save",
         "deployment_evidence_run",
     }
@@ -286,7 +291,9 @@ def execute(event, principal, correlation):
                     "Use an integer version.",
                 ) from None
 
-        if route == "workspace_collection_start":
+        if route == "workspace_export_create":
+            model = CreateWorkspaceExport
+        elif route == "workspace_collection_start":
             model = StartCollection
         elif route == "artifact_workspace_create":
             model = CreateArtifactWorkspace
@@ -396,7 +403,7 @@ def execute(event, principal, correlation):
             else None
         )
         if replay:
-            if route in {"artifact_workspace_create", "workspace_collection_start", "deployment_evidence_run"}:
+            if route in {"artifact_workspace_create", "workspace_collection_start", "workspace_export_create", "deployment_evidence_run"}:
                 access.require("migration.edit")
                 replay_migration = repo.get(identifier)
                 access.require_customer(replay_migration["customer_id"], replay_migration["created_by"])
@@ -423,7 +430,11 @@ def execute(event, principal, correlation):
 
         service = Service(repo, access, correlation)
 
-        if route == "workspace_collection_start":
+        if route == "workspace_export_create":
+            from .workspace_export import create as create_export
+            value = create_export(service, identifier, action, body)
+            status = 201
+        elif route == "workspace_collection_start":
             from .workspace_collection import enqueue
             value = enqueue(service, identifier, action, body)
             status = 202

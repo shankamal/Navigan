@@ -8,6 +8,14 @@ import {
 } from "@/shared/api/client";
 import styles from "./artifact-workspace-panel.module.css";
 type Recovery = { jobId: string; status: string; message?: string };
+type WorkspaceExport = {
+  exportId: string;
+  downloadUrl: string;
+  expiresInSeconds: number;
+  collectedArtifactCount: number;
+  excludedArtifactCount: number;
+  storage: { versionId: string; sha256: string };
+};
 type Workload = {
   apiVersion?: string;
   kind: string;
@@ -60,6 +68,17 @@ export function ArtifactWorkspacePanel({
   canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [exports, setExports] = useState<
+    Record<
+      string,
+      {
+        pending: boolean;
+        error?: string;
+        result?: WorkspaceExport;
+        expiresAt?: number;
+      }
+    >
+  >({});
   const [historicalReviews, setHistoricalReviews] = useState<
     Record<string, { parent: string; confirmed: boolean }>
   >({});
@@ -276,6 +295,36 @@ export function ArtifactWorkspacePanel({
       setBusy(false);
     }
   }
+  async function createExport(workspaceId: string) {
+    setBusy(true);
+    setExports((items) => ({ ...items, [workspaceId]: { pending: true } }));
+    try {
+      const { data } = await apiClient.post<WorkspaceExport>(
+        `/migrations/${migrationId}/artifact-workspaces/${workspaceId}/exports`,
+        { version },
+        { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+      );
+      setExports((items) => ({
+        ...items,
+        [workspaceId]: {
+          pending: false,
+          result: data,
+          expiresAt: Date.now() + data.expiresInSeconds * 1000,
+        },
+      }));
+    } catch (e) {
+      const problem = normalizeApiError(e);
+      setExports((items) => ({
+        ...items,
+        [workspaceId]: {
+          pending: false,
+          error: `${problem.message}${problem.code ? ` (${problem.code})` : ""}`,
+        },
+      }));
+    } finally {
+      setBusy(false);
+    }
+  }
   const scope = selected.filter((ns) => namespaces.includes(ns));
   const visibleNamespaces = namespaces.filter((ns) =>
     ns.toLowerCase().includes(query.toLowerCase()),
@@ -487,6 +536,81 @@ export function ArtifactWorkspacePanel({
                 >
                   Collect / retry available images
                 </button>
+              </div>
+              <div className={styles.exportResult}>
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !canEdit ||
+                    w.stale ||
+                    attention > 0 ||
+                    available > 0 ||
+                    required < 1 ||
+                    (w.jobs ?? []).some((job) =>
+                      ["QUEUED", "RUNNING"].includes(job.status),
+                    )
+                  }
+                  onClick={() => createExport(w.workspaceId)}
+                >
+                  {exports[w.workspaceId]?.pending
+                    ? "Verifying files and creating export…"
+                    : "Create workspace export"}
+                </button>
+                <p>
+                  Creates a manifest linking exact S3 versions, checksums, image
+                  digests and historical review receipts. Content review and
+                  target validation follow.
+                </p>
+                {exports[w.workspaceId]?.pending && (
+                  <p role="status">
+                    Checking stored object versions and review receipts…
+                  </p>
+                )}
+                {exports[w.workspaceId]?.error && (
+                  <p role="alert">{exports[w.workspaceId].error}</p>
+                )}
+                {exports[w.workspaceId]?.result && (
+                  <div>
+                    <p role="status">
+                      Export saved to S3 ·{" "}
+                      {exports[w.workspaceId].result!.collectedArtifactCount}{" "}
+                      collected artifacts ·{" "}
+                      {exports[w.workspaceId].result!.excludedArtifactCount}{" "}
+                      historical exclusions · Target readiness not verified
+                    </p>
+                    <a
+                      href={exports[w.workspaceId].result!.downloadUrl}
+                      download
+                      rel="noopener noreferrer"
+                      onClick={(event) => {
+                        if (
+                          Date.now() >= (exports[w.workspaceId].expiresAt ?? 0)
+                        ) {
+                          event.preventDefault();
+                          setExports((items) => ({
+                            ...items,
+                            [w.workspaceId]: {
+                              ...items[w.workspaceId],
+                              error:
+                                "The download link expired. Create another export for a fresh link.",
+                            },
+                          }));
+                        }
+                      }}
+                    >
+                      Download export manifest
+                    </a>
+                    <small>
+                      {exports[w.workspaceId].result!.exportId} · SHA-256:{" "}
+                      {exports[w.workspaceId].result!.storage.sha256}
+                    </small>
+                    <small>
+                      Download link valid for five minutes. Files and images
+                      remain in private S3 storage.
+                    </small>
+                  </div>
+                )}
               </div>
               {(w.jobs ?? []).map((job) => (
                 <small key={job.jobId}>

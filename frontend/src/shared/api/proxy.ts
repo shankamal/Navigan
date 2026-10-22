@@ -97,7 +97,9 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       if (!/^AWS-[a-f0-9]{32}$/.test(path[3] ?? "")) return false;
       if (path.length === 4) return method === "GET";
       return (
-        path.length === 5 && path[4] === "collection-jobs" && method === "POST"
+        path.length === 5 &&
+        ["collection-jobs", "exports"].includes(path[4]) &&
+        method === "POST"
       );
     }
     if (path.length !== 3) return false;

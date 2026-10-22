@@ -312,6 +312,19 @@ Resources:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-connectors*
 
+  CreateWorkspaceExportRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationIntegration}
+
   MigrationConnectorAssignmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationConnectorInvokePermission
