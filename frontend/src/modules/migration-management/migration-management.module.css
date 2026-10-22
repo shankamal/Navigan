@@ -2671,3 +2671,19 @@
     font-size:10.5px!important
   }
 }
+
+
+
+/* FINAL MIGRATION TYPOGRAPHY CONTRACT */
+.migrationWorkspace{font-family:var(--navigan-font-family)!important;font-size:10.5px!important;line-height:1.35!important}
+.migrationWorkspace :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
+.migrationWorkspace :is(h3,h4,h5,h6){font-size:11.5px!important;line-height:1.25!important;font-weight:600!important}
+.migrationWorkspace :is(p,li,summary,dt,dd){font-size:10.5px!important;line-height:1.35!important}
+.migrationWorkspace small{font-size:9px!important;line-height:1.2!important}
+.migrationWorkspace :is(button,input,select,textarea,.button){font-size:10px!important;line-height:1.25!important}
+.migrationWorkspace table{font-size:10px!important;line-height:1.25!important}
+.migrationWorkspace table thead th{font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.migrationWorkspace table tbody td{font-size:10px!important;line-height:1.25!important}
+.migrationWorkspace table tbody :is(strong,a){font-size:10.5px!important;line-height:1.2!important}
+.migrationWorkspace :is(.metricLegend,.pathMetricLabel,.metricHint,.attentionStrip,.filters,.portfolioHeading p){font-size:9px!important;line-height:1.25!important}
+.migrationWorkspace :is(.coverageValue,.metricCard>strong){font-size:18px!important;line-height:1.05!important;font-weight:600!important}
