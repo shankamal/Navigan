@@ -1925,3 +1925,317 @@
   border-radius: 6px;
   border-color: #d8e0e6;
 }
+
+
+/* 15-INCH LAPTOP COMPACT DASHBOARD
+   Purposefully reduces vertical scrolling at 100% browser scaling. */
+@media (min-width: 1100px) and (max-height: 900px) {
+  .dashboard-shell .command-dashboard {
+    max-width: none;
+    gap: 8px;
+    font-size: 11.5px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-heading {
+    min-height: 58px;
+    margin: 0 0 1px;
+    padding: 9px 12px;
+    gap: 10px;
+    border-radius: 5px;
+  }
+  .dashboard-shell .command-dashboard .pd-heading h1 {
+    font-size: 19px;
+    line-height: 1.15;
+  }
+  .dashboard-shell .command-dashboard .pd-heading .muted {
+    margin-top: 2px;
+    font-size: 10.5px;
+    line-height: 1.3;
+  }
+  .dashboard-shell .command-dashboard .pd-date {
+    margin: 0 0 2px;
+    font-size: 8.5px;
+  }
+  .dashboard-shell .command-dashboard .pd-freshness {
+    font-size: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-actions {
+    gap: 6px;
+  }
+  .dashboard-shell .command-dashboard .pd-actions .button {
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-overview-groups {
+    gap: 8px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-panel {
+    padding: 9px 11px 10px;
+    border-radius: 5px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-heading {
+    gap: 7px;
+    margin-bottom: 7px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-heading > svg {
+    width: 21px;
+    height: 21px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-heading h2 {
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-heading p {
+    margin-top: 1px;
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-columns {
+    gap: 0;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-metric {
+    grid-template-rows: minmax(22px, auto) 52px 25px auto auto;
+    padding: 0 5px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-label {
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-visual .pd-donut {
+    width: 56px;
+    height: 56px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-visual .pd-donut-center strong {
+    font-size: 14px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-visual > svg {
+    width: 28px;
+    height: 28px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-value {
+    font-size: 19px;
+    line-height: 24px;
+  }
+  .dashboard-shell .command-dashboard .pd-overview-detail {
+    font-size: 9.75px;
+    line-height: 1.22;
+  }
+
+  .dashboard-shell .command-dashboard .pd-card,
+  .dashboard-shell .command-dashboard .pd-overview-panel,
+  .dashboard-shell .command-dashboard .pd-attention-workspace {
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgb(20 38 55 / 4%);
+  }
+  .dashboard-shell .command-dashboard .pd-card-heading {
+    min-height: 46px;
+    padding: 7px 11px;
+    gap: 9px;
+  }
+  .dashboard-shell .command-dashboard .pd-card-heading > div {
+    gap: 8px;
+  }
+  .dashboard-shell .command-dashboard .pd-card-heading h2 {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+  .dashboard-shell .command-dashboard .pd-card-heading p {
+    margin-top: 1px;
+    font-size: 10.25px;
+    line-height: 1.2;
+  }
+  .dashboard-shell .command-dashboard .pd-card-icon {
+    width: 25px;
+    height: 25px;
+    border-radius: 5px;
+  }
+  .dashboard-shell .command-dashboard .pd-card-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  .dashboard-shell .command-dashboard .pd-card-link {
+    font-size: 10.5px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-attention-workspace {
+    grid-template-columns: minmax(245px, .9fr) minmax(0, 2.1fr);
+    gap: 10px;
+    padding: 7px 11px 8px;
+  }
+  .dashboard-shell .command-dashboard .pd-pending-module {
+    padding-right: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-pending-module h3 {
+    margin-bottom: 4px;
+    font-size: 11.5px;
+    line-height: 16px;
+  }
+  .dashboard-shell .command-dashboard .pd-pending-table {
+    font-size: 10.5px;
+    line-height: 15px;
+  }
+  .dashboard-shell .command-dashboard .pd-pending-table th,
+  .dashboard-shell .command-dashboard .pd-pending-table td {
+    padding: 3px 3px;
+  }
+  .dashboard-shell .command-dashboard .pd-pending-table thead th {
+    font-size: 9.5px;
+  }
+  .dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count {
+    margin-bottom: 4px;
+    font-size: 10.5px;
+    line-height: 15px;
+  }
+  .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row {
+    min-height: 38px;
+    padding: 4px 0;
+    gap: 8px;
+  }
+  .dashboard-shell .command-dashboard .pd-attention-row-icon {
+    width: 25px;
+    height: 25px;
+    border-radius: 5px;
+  }
+  .dashboard-shell .command-dashboard .pd-attention-row-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+  .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong {
+    font-size: 11px;
+    line-height: 15px;
+  }
+  .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small {
+    font-size: 10px;
+    line-height: 14px;
+  }
+  .dashboard-shell .command-dashboard .pd-review-action {
+    padding: 5px 8px;
+    gap: 5px;
+    font-size: 10.5px;
+    border-radius: 4px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-primary-grid {
+    gap: 8px;
+  }
+  .dashboard-shell .command-dashboard .pd-primary-grid .pd-footprint {
+    padding: 7px 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-provider-legend > div {
+    min-height: 25px;
+    padding: 2px 1px;
+    gap: 6px;
+  }
+  .dashboard-shell .command-dashboard .pd-provider-mark {
+    width: 23px;
+    height: 19px;
+  }
+  .dashboard-shell .command-dashboard .pd-provider-legend strong,
+  .dashboard-shell .command-dashboard .pd-provider-legend > div > span:last-child,
+  .dashboard-shell .command-dashboard .pd-provider {
+    font-size: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-card-footer-link {
+    margin: auto 10px 6px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-primary-grid .pd-posture {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 8px;
+    padding: 7px 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-primary-grid .pd-gauge {
+    width: 76px;
+    height: 76px;
+  }
+  .dashboard-shell .command-dashboard .pd-primary-grid .pd-gauge strong {
+    font-size: 18px;
+  }
+  .dashboard-shell .command-dashboard .pd-posture-metrics > div {
+    gap: 1px 8px;
+    padding: 4px 1px;
+  }
+  .dashboard-shell .command-dashboard .pd-posture-metrics span {
+    gap: 5px;
+    font-size: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-posture-metrics strong {
+    font-size: 12px;
+  }
+  .dashboard-shell .command-dashboard .pd-posture-metrics small {
+    padding-left: 12px;
+    font-size: 9.5px;
+  }
+  .dashboard-shell .command-dashboard .pd-signal {
+    margin: 0 9px 6px;
+    padding: 5px 7px;
+    gap: 6px;
+    font-size: 9.75px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-primary-grid .pd-workflow {
+    padding: 7px 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-provisioning-links {
+    padding: 6px 10px 0;
+    font-size: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-workflow-bar {
+    height: 20px;
+    margin: 3px 0 5px;
+    border-radius: 4px;
+  }
+  .dashboard-shell .command-dashboard .pd-workflow-bar span {
+    font-size: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-workflow-legend > div {
+    padding: 2px 0;
+  }
+  .dashboard-shell .command-dashboard .pd-workflow-legend span,
+  .dashboard-shell .command-dashboard .pd-workflow-legend small {
+    font-size: 9.5px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-activity-table {
+    font-size: 10.5px;
+  }
+  .dashboard-shell .command-dashboard .pd-activity-table th {
+    padding: 5px 10px;
+    font-size: 9px;
+  }
+  .dashboard-shell .command-dashboard .pd-activity-table td {
+    padding: 6px 10px;
+    font-size: 10.5px;
+  }
+  .dashboard-shell .command-dashboard .pd-status {
+    padding: 2px 5px;
+    font-size: 9px;
+  }
+  .dashboard-shell .command-dashboard .pd-row-action {
+    font-size: 10.5px;
+  }
+
+  .dashboard-shell .command-dashboard .pd-tool-strip {
+    min-height: 38px;
+    padding: 5px 10px;
+    gap: 9px;
+    border-radius: 5px;
+  }
+  .dashboard-shell .command-dashboard .pd-tool-strip strong,
+  .dashboard-shell .command-dashboard .pd-tools > span {
+    font-size: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-tools {
+    gap: 10px;
+  }
+  .dashboard-shell .command-dashboard .pd-tools .pd-brand-logo {
+    width: 19px;
+    height: 19px;
+  }
+  .dashboard-shell .command-dashboard .pd-tool-strip > a {
+    width: 28px;
+    height: 28px;
+  }
+}
