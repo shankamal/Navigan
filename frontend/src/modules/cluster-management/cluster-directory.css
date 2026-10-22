@@ -397,3 +397,26 @@
     min-height: 104px;
   }
 }
+
+
+
+/* ADAPTIVE CLUSTER DIRECTORY DENSITY */
+@container (max-width:1800px){
+  .cluster-directory-page{gap:8px}
+  .cluster-directory-metrics{gap:8px}
+  .cluster-directory-metric{min-height:76px;padding:9px 10px;gap:7px}
+  .cluster-directory-metric strong{font-size:1.3rem}
+  .cluster-directory-metric small{font-size:9.5px}
+  .cluster-directory-panel .list-heading{min-height:46px;padding:8px 11px}
+  .cluster-directory-filterbar{gap:6px;padding:7px 10px}
+  .cluster-directory-primary-cell{min-width:175px;gap:7px}
+  .cluster-directory-cluster-icon{width:29px;height:29px;border-radius:5px}
+  .cluster-directory-primary-cell strong,.cluster-directory-related-cell strong,.cluster-platform-badge strong{font-size:10.5px}
+  .cluster-directory-primary-cell small,.cluster-directory-related-cell small,.cluster-platform-badge small,.cluster-directory-status-cell>small{font-size:9px}
+  .cluster-directory-related-cell{min-width:135px;gap:5px}
+  .cluster-platform-badge{min-width:105px;gap:6px}
+  .cluster-directory-status-cell{min-width:145px;gap:3px}
+  .cluster-directory-updated{min-width:95px;gap:4px;font-size:10px}
+  .cluster-directory-panel :is(th,td){padding:6px 9px}
+  .cluster-directory-panel .list-footer{padding:4px 10px}
+}
