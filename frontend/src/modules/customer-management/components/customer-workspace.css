@@ -854,3 +854,145 @@
 .customer-workspace .metadata{font-size:9px!important;line-height:1.2!important}
 .customer-workspace .customer-open-link{font-size:10px!important;line-height:1.2!important;font-weight:500!important}
 .customer-workspace .status-badge{font-size:9px!important;line-height:1.15!important;font-weight:600!important}
+
+
+/* CUSTOMER DIRECTORY = DASHBOARD TABLE STANDARD */
+/* Match Customer Management list density to Dashboard > Recent cluster activity. */
+.customer-workspace .customer-table{
+  font-family:var(--navigan-font-family)!important;
+  font-size:10px!important;
+  line-height:1.2!important;
+}
+.customer-workspace .customer-table thead th{
+  height:28px!important;
+  padding:5px 10px!important;
+  background:#e8edf1!important;
+  color:#414d59!important;
+  font-size:9px!important;
+  line-height:1.15!important;
+  font-weight:700!important;
+  letter-spacing:.025em!important;
+  text-transform:uppercase!important;
+}
+.customer-workspace .customer-table tbody tr{
+  height:40px!important;
+}
+.customer-workspace .customer-table tbody td{
+  height:40px!important;
+  padding:5px 10px!important;
+  vertical-align:middle!important;
+  font-size:10px!important;
+  line-height:1.2!important;
+}
+.customer-workspace .customer-cell{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  min-height:0!important;
+}
+.customer-workspace .customer-avatar{
+  width:26px!important;
+  height:26px!important;
+  flex:0 0 26px!important;
+  border-radius:5px!important;
+  font-size:9px!important;
+  line-height:1!important;
+  font-weight:600!important;
+}
+.customer-workspace .customer-name{
+  display:block!important;
+  margin:0!important;
+  color:#202833!important;
+  font-size:10.5px!important;
+  line-height:1.15!important;
+  font-weight:600!important;
+}
+.customer-workspace .customer-id,
+.customer-workspace .customer-table-id,
+.customer-workspace .metadata{
+  margin-top:1px!important;
+  font-size:9px!important;
+  line-height:1.15!important;
+  font-weight:400!important;
+  color:#6b7785!important;
+}
+.customer-workspace .provider-badge{
+  gap:4px!important;
+  padding:0!important;
+  font-size:10px!important;
+  line-height:1.15!important;
+}
+.customer-workspace .provider-logo{
+  padding:0!important;
+}
+.customer-workspace .provider-logo img{
+  width:22px!important;
+  height:20px!important;
+  object-fit:contain!important;
+}
+.customer-workspace .status-badge{
+  min-height:18px!important;
+  padding:2px 6px!important;
+  border-radius:4px!important;
+  font-size:9px!important;
+  line-height:1!important;
+  font-weight:600!important;
+}
+.customer-workspace .customer-open-link{
+  min-height:24px!important;
+  padding:3px 7px!important;
+  gap:4px!important;
+  border-radius:4px!important;
+  font-size:10px!important;
+  line-height:1.1!important;
+  font-weight:500!important;
+}
+.customer-workspace .customer-open-link svg{
+  width:12px!important;
+  height:12px!important;
+}
+.customer-workspace .customer-directory-toolbar{
+  gap:6px!important;
+  padding:7px 10px!important;
+}
+.customer-workspace .customer-directory-toolbar .filter-bar{
+  gap:6px!important;
+  padding:0!important;
+}
+.customer-workspace .customer-directory-toolbar :is(input,select){
+  min-height:30px!important;
+  padding:5px 8px!important;
+  font-size:10px!important;
+}
+.customer-workspace .customer-quick-filters{
+  gap:5px!important;
+  padding-top:5px!important;
+}
+.customer-workspace .customer-quick-filters button{
+  min-height:24px!important;
+  padding:3px 7px!important;
+  font-size:9px!important;
+}
+.customer-workspace .customer-view-toggle{
+  gap:5px!important;
+}
+.customer-workspace .customer-view-toggle button{
+  min-height:28px!important;
+  padding:4px 8px!important;
+  font-size:10px!important;
+}
+.customer-workspace .list-footer{
+  min-height:34px!important;
+  padding:5px 10px!important;
+  gap:8px!important;
+  font-size:9.5px!important;
+}
+.customer-workspace .customer-pagination{
+  gap:4px!important;
+}
+.customer-workspace .customer-pagination button,
+.customer-workspace .customer-pagination select{
+  min-height:26px!important;
+  padding:3px 6px!important;
+  font-size:9.5px!important;
+}
