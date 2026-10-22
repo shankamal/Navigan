@@ -451,8 +451,11 @@ describe("migration planning", () => {
     fireEvent.click(screen.getByRole("button", { name: /3\s*Remediation/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "An unexpected response was received. Please try again.",
+      "Save failed",
     );
+    fireEvent.click(screen.getByRole("button", { name: /1\s*Source/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Explore technical inventory" }));
+    fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     expect(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
     ).toBeChecked();
