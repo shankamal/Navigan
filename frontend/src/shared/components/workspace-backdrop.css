@@ -104,58 +104,91 @@
 .app-shell[class] main#main-content > .customer-workspace {
   background: transparent;
 }
-/* Shared quiet heading surfaces and controls, without changing their layout. */
+/* Navigan Neutral Graphite title system.
+   This intentionally replaces the old transparent-heading override. */
 .app-shell[class] main#main-content .page-heading,
-.app-shell[class] main#main-content .customer-page-header,
-.app-shell[class] main#main-content .environment-portfolio-heading,
 .app-shell[class] main#main-content .pd-heading {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 10px 2px 16px;
-  box-shadow: none;
-  min-height: 0;
-  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  gap: 18px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  min-height: 72px;
+  box-sizing: border-box;
+  border: 1px solid #3a4552;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #202833 0%, #303b49 100%) !important;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(23 31 40 / 10%);
   position: relative;
   top: auto;
   z-index: auto;
-  align-self: start;
 }
-.app-shell[class] main#main-content .customer-page-header .page-heading {
-  background: transparent;
-  border: 0;
+.app-shell[class] main#main-content .customer-page-header,
+.app-shell[class] main#main-content .environment-portfolio-heading {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  min-height: 72px;
+  box-sizing: border-box;
+  border: 1px solid #3a4552;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #202833 0%, #303b49 100%) !important;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(23 31 40 / 10%);
+}
+.app-shell[class] main#main-content .customer-page-header .page-heading,
+.app-shell[class] main#main-content .environment-portfolio-heading .page-heading {
+  margin: 0;
   padding: 0;
   min-height: 0;
-  position: static;
-  z-index: auto;
-}
-.app-shell[class]
-  main#main-content
-  .environment-portfolio-heading
-  .page-heading {
-  background: transparent;
   border: 0;
-  padding: 0;
-  min-height: 0;
-  position: static;
-  z-index: auto;
+  background: transparent !important;
+  box-shadow: none;
+}
+.app-shell[class] main#main-content :is(.page-heading,.pd-heading) h1,
+.app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) h1 {
+  color: #fff !important;
+  font-size: clamp(21px, 1.45vw, 24px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.app-shell[class] main#main-content :is(.page-heading,.pd-heading) .muted,
+.app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) .muted {
+  color: #c8d1da !important;
+}
+.app-shell[class] main#main-content :is(.page-heading,.pd-heading) .eyebrow,
+.app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) .eyebrow {
+  color: #a9d65e !important;
+}
+.app-shell[class] main#main-content :is(.page-heading,.pd-heading) .page-heading-symbol {
+  color: #86bc25 !important;
+}
+.app-shell[class] main#main-content :is(.page-heading,.pd-heading) .heading-actions :is(.button-secondary,.button-ghost),
+.app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) :is(.button-secondary,.button-ghost) {
+  background: #313c48;
+  border-color: #596672;
+  color: #fff;
 }
 @media (max-width: 767px), (max-height: 600px) {
   .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
   .app-shell[class] main#main-content .customer-page-header,
-  .app-shell[class] main#main-content .environment-portfolio-heading,
-  .app-shell[class] main#main-content .pd-heading {
+  .app-shell[class] main#main-content .environment-portfolio-heading {
     min-height: 0;
     position: static;
   }
 }
 @media print {
   .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
   .app-shell[class] main#main-content .customer-page-header,
-  .app-shell[class] main#main-content .environment-portfolio-heading,
-  .app-shell[class] main#main-content .pd-heading {
+  .app-shell[class] main#main-content .environment-portfolio-heading {
     position: static;
+    background: #fff !important;
+    color: #111 !important;
   }
 }
 .page-heading-copy {
@@ -462,5 +495,133 @@
 @media (max-width: 1000px), (forced-colors: active) {
   .app-shell[class] > header.topbar::after {
     display: none;
+  }
+}
+
+
+/* FINAL 2026 NEUTRAL GRAPHITE SHELL
+   Keep this last: globals contains historical visual experiments. */
+.app-shell[class] > header.topbar {
+  min-height: 60px;
+  padding: 9px 22px;
+  gap: 16px;
+  background-color: #1c222b !important;
+  border-bottom: 2px solid #4e652f;
+  box-shadow: 0 2px 10px rgb(14 20 27 / 22%);
+}
+.app-shell[class] > header.topbar::after {
+  opacity: .22;
+  filter: saturate(.55);
+}
+.app-shell[class] > header.topbar .platform-title {
+  color: #d9e0e6;
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell[class] .shell-body {
+  background: #eef1f4;
+}
+.app-shell[class] .sidebar {
+  width: 232px;
+  flex: 0 0 232px;
+  background: #1c222b !important;
+  border-right: 1px solid #343f4c;
+  box-shadow: 3px 0 12px rgb(23 31 40 / 10%);
+}
+.app-shell[class] .sidebar .sidebar-brand-panel {
+  min-height: 54px;
+  border-bottom-color: #394552;
+}
+.app-shell[class] .sidebar .clustered-nav-group {
+  gap: 2px;
+  margin: 0;
+  padding: 11px 10px 12px;
+  border-bottom: 1px solid #303a45;
+}
+.app-shell[class] .sidebar .nav-section {
+  padding: 0 8px 5px;
+  color: #8f9dab;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .085em;
+  text-transform: uppercase;
+}
+.app-shell[class] .sidebar .nav-item {
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 4px;
+  color: #c8d1da;
+  font-size: 12px;
+}
+.app-shell[class] .sidebar .nav-item svg {
+  width: 17px;
+  height: 17px;
+}
+.app-shell[class] .sidebar .nav-item.selected {
+  background: #2a3440 !important;
+  box-shadow: inset 3px 0 #86bc25;
+  color: #fff;
+}
+.app-shell[class] .sidebar .nav-item.selected svg {
+  color: #9fd055;
+}
+.app-shell[class] .sidebar .nav-item:hover:not(.selected) {
+  background: #252e39;
+}
+.app-shell[class] .shell-body > .content-column {
+  background: #eef1f4 !important;
+  background-image: linear-gradient(180deg,#e9edf1 0,#f4f6f8 240px) !important;
+}
+.app-shell[class] .content-column > .breadcrumb {
+  min-height: 38px;
+  padding-top: 10px;
+  padding-bottom: 7px;
+  color: #667481;
+  font-size: 11.5px;
+}
+.app-shell[class] .content-column main#main-content {
+  padding-top: 8px;
+  padding-bottom: 24px;
+}
+.app-shell[class] main#main-content :is(.panel,.pd-card,.pd-overview-panel,.customer-metrics,.environment-metrics,.cluster-directory-panel) {
+  border-color: #d8e0e6;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgb(23 31 40 / 4%);
+}
+.app-shell[class] main#main-content table thead th {
+  background: #e8edf1;
+  color: #414d59;
+  border-top: 1px solid #d8e0e6;
+  border-bottom: 1px solid #ccd6de;
+}
+.app-shell[class] main#main-content table tbody tr:nth-child(even) {
+  background: #fbfcfd;
+}
+.app-shell[class] main#main-content :is(.button-primary,button[class*="primary"]) {
+  background-color: #2f6b2d;
+  border-color: #2f6b2d;
+}
+.app-shell[class] main#main-content :is(.button-primary,button[class*="primary"]):hover:not(:disabled) {
+  background-color: #255624;
+  border-color: #255624;
+}
+.app-shell[class] .app-footer {
+  min-height: 40px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top-color: #dce3e8;
+  color: #77838d;
+  font-size: 10.5px;
+}
+@media (min-width: 901px) {
+  .app-shell[class].navigation-collapsed .sidebar {
+    width: 68px;
+    flex-basis: 68px;
+  }
+}
+@media (max-width: 900px) {
+  .app-shell[class] .sidebar.expanded {
+    background: #1c222b !important;
   }
 }
