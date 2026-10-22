@@ -420,3 +420,21 @@
   .cluster-directory-panel :is(th,td){padding:6px 9px}
   .cluster-directory-panel .list-footer{padding:4px 10px}
 }
+
+
+
+/* EXACT CLUSTER TYPOGRAPHY FIX */
+.cluster-directory-page .cluster-directory-table{font-size:10px!important;line-height:1.25!important}
+.cluster-directory-page .cluster-directory-table thead th{font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.cluster-directory-page .cluster-directory-table tbody td{font-size:10px!important;line-height:1.25!important}
+.cluster-directory-page .cluster-directory-primary-cell strong,
+.cluster-directory-page .cluster-directory-related-cell strong,
+.cluster-directory-page .cluster-platform-badge strong{font-size:10.5px!important;line-height:1.2!important;font-weight:600!important}
+.cluster-directory-page .cluster-directory-primary-cell small,
+.cluster-directory-page .cluster-directory-related-cell small,
+.cluster-directory-page .cluster-platform-badge small,
+.cluster-directory-page .cluster-directory-status-cell>small{font-size:9px!important;line-height:1.2!important}
+.cluster-directory-page .cluster-directory-updated{font-size:9.5px!important;line-height:1.2!important}
+.cluster-directory-page .status-badge{font-size:9px!important;line-height:1.15!important;font-weight:600!important}
+.cluster-directory-page .cluster-attention strong{font-size:10.5px!important;line-height:1.2!important;font-weight:600!important}
+.cluster-directory-page .cluster-attention small{font-size:9px!important;line-height:1.2!important}
