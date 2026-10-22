@@ -18,7 +18,7 @@
   color: #e2e8f0;
 }
 .app-shell[class] > header.topbar .corporate-wordmark {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--navigan-font-family);
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -1px;
