@@ -425,7 +425,8 @@ describe("migration planning", () => {
     expect(screen.getByRole("button", { name: "Workloads" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByLabelText("Include Deployment retailflow/retailflow-api"));
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
-    expect(screen.getByText("Dependency evidence")).toBeVisible();
+    const resourceReview = screen.getByRole("region", { name: "Resource Review and Migration Actions" });
+    expect(within(resourceReview).getByText("Dependency evidence")).toBeVisible();
     fireEvent.click(screen.getByText(/View source relationship evidence/));
     expect(screen.getByText(/No references in this snapshot/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Workloads" }));
@@ -435,7 +436,7 @@ describe("migration planning", () => {
     expect(storage).toBeVisible();
     expect(screen.getByLabelText("Data strategy")).toHaveValue("UNDECIDED");
     fireEvent.click(screen.getByRole("button", { name: "Dependencies" }));
-    expect(screen.getByText("Dependency evidence")).toBeVisible();
+    expect(within(resourceReview).getByText("Dependency evidence")).toBeVisible();
     expect(screen.getByText(/No additional referenced supporting resources require a scope decision/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Configuration" }));
     expect(screen.getByText(/Configuration resources are metadata-only inventory/i)).toBeVisible();
