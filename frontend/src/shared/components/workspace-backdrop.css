@@ -1004,16 +1004,27 @@
   grid-template-rows:auto auto!important;
   column-gap:10px!important;
   align-items:center!important;
+  position:static!important;
   min-width:0!important;
+  min-height:0!important;
+  max-width:none!important;
+  padding:0!important;
+  margin:0!important;
 }
 .app-shell[class] main#main-content .page-heading-symbol{
   grid-column:1!important;
   grid-row:1 / span 2!important;
+  position:static!important;
+  inset:auto!important;
+  left:auto!important;
+  top:auto!important;
   width:32px!important;
   height:32px!important;
   margin:0!important;
+  padding:0!important;
   display:grid!important;
   place-items:center!important;
+  align-self:center!important;
   border:1px solid #4b5865!important;
   border-radius:6px!important;
   background:#252e39!important;
