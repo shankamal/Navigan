@@ -491,7 +491,7 @@
 
 .pd-provider-aws svg text {
   fill: #202a33;
-  font-family: Arial, sans-serif;
+  font-family: var(--navigan-font-family);
   font-size: 12px;
   font-weight: 700;
 }
