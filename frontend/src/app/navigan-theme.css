@@ -25,14 +25,14 @@
   --navigan-font-family: var(--navigan-font-family);
   --navigan-font-page-title: 18px;
   --navigan-font-section-title: 13px;
-  --navigan-font-subsection-title: 12px;
-  --navigan-font-body: 11px;
-  --navigan-font-control: 10.5px;
+  --navigan-font-subsection-title: 11.5px;
+  --navigan-font-body: 10.5px;
+  --navigan-font-control: 10px;
   --navigan-font-table: 10px;
-  --navigan-font-label: 9.5px;
+  --navigan-font-label: 9px;
   --navigan-font-caption: 9px;
   --navigan-font-metric: 18px;
-  --navigan-line-body: 1.4;
+  --navigan-line-body: 1.35;
   --navigan-line-tight: 1.25;
 }
 
