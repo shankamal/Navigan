@@ -183,3 +183,59 @@ def test_saved_registry_token(monkeypatch):
     monkeypatch.setattr(worker,'read_credential',lambda *args:dict(username='reader',token='secret'))
     result=worker.registry_auth(dict(provenance={'reference':'ghcr.io/example/app','digest':'sha256:'+'a'*64},credential_entry={'mode':'TOKEN'}))
     assert base64.b64decode(result)==b'reader:secret'
+
+
+def attested_archive(tmp_path, *, change=None):
+    """BuildKit empty-config evidence alongside a runnable platform manifest."""
+    files = {}
+    def blob(value):
+        raw = json.dumps(value, separators=(',', ':')).encode()
+        digest = 'sha256:' + hashlib.sha256(raw).hexdigest()
+        files['blobs/sha256/' + digest.split(':')[1]] = raw
+        return dict(digest=digest, size=len(raw))
+    config = blob(dict(os='linux', architecture='amd64'))
+    layer = blob({'fixture': 'application layer'})
+    image = blob(dict(schemaVersion=2, config=config, layers=[layer]))
+    image['platform'] = dict(os='linux', architecture='amd64')
+    empty = {**blob({}), 'mediaType': 'application/vnd.oci.empty.v1+json', 'data': 'e30='}
+    evidence = {**blob({'_type': 'https://in-toto.io/Statement/v1'}), 'mediaType': 'application/vnd.in-toto+json'}
+    node = dict(schemaVersion=2, config=empty, layers=[evidence])
+    annotations = {'vnd.docker.reference.type': 'attestation-manifest', 'vnd.docker.reference.digest': image['digest']}
+    platform = dict(os='unknown', architecture='unknown')
+    if change == 'unmarked': annotations = {}
+    if change == 'wrong_target': annotations['vnd.docker.reference.digest'] = 'sha256:' + '0' * 64
+    if change == 'runnable_platform': platform = dict(os='linux', architecture='amd64')
+    if change == 'wrong_media': evidence['mediaType'] = 'application/vnd.oci.image.layer.v1.tar+gzip'
+    if change == 'nonempty_config': node['config'] = {**blob({'unexpected': True}), 'mediaType': empty['mediaType']}
+    if change == 'no_layers': node['layers'] = []
+    attestation = {**blob(node), 'platform': platform, 'annotations': annotations}
+    root = blob(dict(schemaVersion=2, manifests=[image, attestation]))
+    files['index.json'] = json.dumps(dict(schemaVersion=2, manifests=[root])).encode()
+    files['oci-layout'] = b'{"imageLayoutVersion":"1.0.0"}'
+    if change == 'missing_evidence': del files['blobs/sha256/' + evidence['digest'].split(':')[1]]
+    if change == 'corrupt_evidence': files['blobs/sha256/' + evidence['digest'].split(':')[1]] = b'corrupt'
+    if change == 'missing_config': del files['blobs/sha256/' + empty['digest'].split(':')[1]]
+    path = tmp_path / 'attested.tar'
+    with tarfile.open(path, 'w') as archive:
+        for name, raw in files.items():
+            member = tarfile.TarInfo(name); member.size = len(raw)
+            archive.addfile(member, io.BytesIO(raw))
+    return path, root['digest']
+
+
+def test_empty_buildkit_attestation_retained_without_becoming_a_target_platform(tmp_path):
+    path, digest = attested_archive(tmp_path)
+    result = validate_archive(path, digest)
+    assert result['platforms'] == ['linux/amd64']
+    assert result['manifestCount'] == 1
+    assert result['attestationCount'] == 1
+    assert result['attestationTrustStatus'] == 'NOT_VERIFIED'
+    assert result['targetReady'] is False
+
+
+@pytest.mark.parametrize('change', ['unmarked', 'wrong_target', 'runnable_platform', 'wrong_media',
+                                   'nonempty_config', 'no_layers', 'missing_evidence', 'corrupt_evidence', 'missing_config'])
+def test_attestation_support_does_not_accept_missing_corrupt_or_misidentified_evidence(tmp_path, change):
+    path, digest = attested_archive(tmp_path, change=change)
+    with pytest.raises(CollectionError):
+        validate_archive(path, digest)

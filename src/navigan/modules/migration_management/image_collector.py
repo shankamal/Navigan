@@ -108,7 +108,7 @@ def validate_archive(path, expected_digest, check=lambda: None):
         if json.loads(documents['oci-layout']).get('imageLayoutVersion') != '1.0.0': raise ValueError()
         index = json.loads(documents['index.json'])
         if index.get('schemaVersion') != 2: raise ValueError()
-        platforms = set(); visited = set(); manifests = 0
+        platforms = set(); visited = set(); manifests = 0; attestation_targets = []; image_manifests = set()
         def document(descriptor):
             digest = descriptor['digest']
             if not re.fullmatch(r'sha256:[a-f0-9]{64}', digest): raise ValueError()
@@ -128,22 +128,40 @@ def validate_archive(path, expected_digest, check=lambda: None):
                 for child in node['manifests']: walk(child, depth+1)
             else:
                 _, configkey = document(node['config']); config = json.loads(documents[configkey])
-                if not config.get('os') or not config.get('architecture'): raise ValueError()
                 platform = descriptor.get('platform', {})
+                annotations = descriptor.get('annotations') or {}
+                # BuildKit attestations are evidence, not runnable images. Their OCI
+                # empty config intentionally has no operating system/architecture.
+                if node['config'].get('mediaType') == 'application/vnd.oci.empty.v1+json':
+                    target = annotations.get('vnd.docker.reference.digest', '')
+                    if (config != {} or platform.get('os') != 'unknown' or platform.get('architecture') != 'unknown'
+                            or annotations.get('vnd.docker.reference.type') != 'attestation-manifest'
+                            or not re.fullmatch(r'sha256:[a-f0-9]{64}', target)
+                            or not node.get('layers')
+                            or any(layer.get('mediaType') != 'application/vnd.in-toto+json' for layer in node['layers'])):
+                        raise ValueError()
+                    for layer in node['layers']: document(layer)
+                    attestation_targets.append(target)
+                    return
+                if not config.get('os') or not config.get('architecture'): raise ValueError()
                 for field in ('os', 'architecture', 'variant'):
                     if platform.get(field) and config.get(field) and platform[field] != config[field]: raise ValueError()
                 variant = config.get('variant') or platform.get('variant')
                 if config['os'] != 'unknown' and config['architecture'] != 'unknown':
                     platforms.add(config['os']+'/'+config['architecture']+('/'+variant if variant else ''))
+                    image_manifests.add(digest)
                 for layer in node['layers']: document(layer)
                 manifests += 1
         if not index.get('manifests'): raise ValueError()
         for descriptor in index['manifests']: walk(descriptor)
-        if expected_digest not in visited or not manifests or not platforms: raise ValueError()
+        if (expected_digest not in visited or not manifests or not platforms
+                or any(target not in image_manifests for target in attestation_targets)):
+            raise ValueError()
     except (ValueError, KeyError, TypeError, UnicodeDecodeError, AttributeError):
         raise CollectionError('IMAGE_CONTENT_INCOMPLETE') from None
     return dict(format='OCI_ARCHIVE', digest=expected_digest, integrity='VERIFIED', content='COMPLETE',
-                platforms=sorted(platforms), manifestCount=manifests, targetPlatformStatus='NOT_VERIFIED', targetReady=False)
+                platforms=sorted(platforms), manifestCount=manifests, attestationCount=len(attestation_targets),
+                attestationTrustStatus='NOT_VERIFIED', targetPlatformStatus='NOT_VERIFIED', targetReady=False)
 
 
 def upload_archive(client, path, bucket, key_id, owner, key, check=lambda: None):
