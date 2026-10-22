@@ -1753,3 +1753,80 @@
 .guidedSourceUtility button:hover{text-decoration:underline;color:#3f7126}
 @media(max-width:1080px){.guidedSourceTopbar{align-items:flex-start}.guidedSourceCluster{min-width:180px}.guidedSourceReviewGrid{grid-template-columns:1fr}}
 @media(max-width:730px){.guidedSourceTopbar{flex-direction:column;gap:15px;padding:17px}.guidedSourceCluster{border-left:0;border-top:1px solid #e6e9ed;padding:12px 0 0;width:100%}.guidedSourceCard{padding:16px}.guidedSourceProgress{gap:5px}.guidedSourceProgress button{padding:9px 7px;gap:6px}.guidedSourceProgress button strong{font-size:10px}.guidedSourceProgress button span{width:22px;height:22px;font-size:9px}.guidedSourceCardHead,.guidedSourceBottom{align-items:flex-start;flex-direction:column}.guidedSourceBottom>button{width:100%}.guidedSourceCount{white-space:normal}.guidedSourceStats{grid-template-columns:repeat(2,minmax(0,1fr))}.guidedSourceNamespaceMeta{display:none}.guidedSourceListHeading{flex-wrap:wrap}.guidedSourceFilter{flex:1}.guidedSourceScopeRows>div{align-items:flex-start;flex-direction:column;gap:5px}.guidedSourceScopeRows>div>span:last-child{text-align:left}}
+
+
+/* VISIBLE NEUTRAL GRAPHITE MIGRATION WORKSPACE */
+.guidedSource {
+  overflow: hidden;
+  border: 1px solid #d4dde4;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(23 31 40 / 5%);
+}
+.guidedSourceTopbar {
+  margin: 0;
+  padding: 16px 18px;
+  border-bottom: 1px solid #3b4652;
+  background: linear-gradient(120deg,#252e39 0%,#343f4c 100%);
+  color: #fff;
+}
+.guidedSourceIdentity h2 {
+  color: #fff;
+  font-size: 18px;
+}
+.guidedSourceIdentity p,
+.guidedSourceCluster span,
+.guidedSourceCluster small {
+  color: #c8d1da;
+}
+.guidedSourceEyebrow {
+  color: #a9d65e;
+}
+.guidedSourceCluster {
+  border: 1px solid #4b5865;
+  border-radius: 5px;
+  background: #202833;
+}
+.guidedSourceProgress {
+  margin: 0;
+  padding: 0 18px;
+  background: #f3f5f7;
+  border-bottom: 1px solid #dbe2e7;
+}
+.guidedSourceProgress button {
+  min-height: 52px;
+}
+.guidedSourceProgress button[aria-current="step"] {
+  color: #255a26;
+  box-shadow: inset 0 -3px #86bc25;
+}
+.guidedSourceCard {
+  margin: 14px;
+  border-radius: 6px;
+  border-color: #d9e1e7;
+  background: #fff;
+}
+.guidedSourceStats > div {
+  border-radius: 5px;
+  background: #f4f6f8;
+  border-color: #dce3e8;
+}
+.guidedSourceUtility {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid #dde4e9;
+  background: #f6f8f9;
+}
+.sourceDashboard,
+.scopeResourceReview,
+.sourceDependencySummary {
+  border-radius: 6px;
+}
+.scopeViews button[aria-current="page"] {
+  color: #2b6328;
+  border-bottom-color: #86bc25;
+}
+.scopeViews button:focus-visible,
+.remediationFindingButton:focus-visible {
+  outline-color: #6c9e32;
+}
