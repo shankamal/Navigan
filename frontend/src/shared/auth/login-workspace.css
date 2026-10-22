@@ -1,18 +1,18 @@
 .login-public-shell {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
   color: #334155;
   min-height: 100dvh;
 }
 .login-public-shell > .topbar {
-  background: #fff;
+  background: var(--navigan-graphite, #1c222b);
   background-image: none;
   box-shadow: none;
-  border-bottom: 1px solid #dce3ec;
+  border-bottom: 1px solid #343f4c;
   padding: 0 36px;
   height: 68px;
 }
 .login-public-shell .brand {
-  color: #18242e;
+  color: #fff;
 }
 .login-public-shell .login-deloitte-logo {
   display: block;
@@ -31,12 +31,12 @@
   color: #86bc25;
 }
 .login-public-shell .platform-title {
-  color: #475569;
+  color: #d5dde5;
   font-size: 18px;
   font-weight: 600;
 }
 .login-public-shell .topbar-account {
-  color: #64748b;
+  color: #acbbc9;
   font-size: 12px;
 }
 .login-public-shell .public-main {
@@ -61,7 +61,7 @@
   margin: 0;
   min-height: calc(100dvh - 120px);
   align-items: stretch;
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
   color: #334155;
   font-family: inherit;
 }
@@ -73,7 +73,7 @@
   gap: 20px 0;
   padding: 64px 34px 30px;
   min-width: 0;
-  background: #fff;
+  background: linear-gradient(145deg, #f8fafb 0%, #eef2f4 100%);
 }
 .navigan-signin .login-product-brand {
   display: flex;
@@ -238,8 +238,8 @@
   align-items: center;
   min-width: 0;
   padding: 40px 30px;
-  background: #f3f5f9;
-  border-left: 1px solid #e7ecf2;
+  background: #e9edf1;
+  border-left: 1px solid #d8e0e6;
 }
 .navigan-signin .login-access-card {
   width: 100%;
@@ -249,7 +249,7 @@
   border: 1px solid #d1dbe8;
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 12px 30px rgb(30 41 59 / 5%);
+  box-shadow: 0 12px 30px rgb(30 41 59 / 7%);
 }
 .navigan-signin .login-form {
   gap: 14px;
@@ -293,9 +293,9 @@
 }
 .navigan-signin .login-fields input:focus,
 .navigan-signin .login-fields select:focus {
-  outline: 2px solid #64748b;
+  outline: 2px solid var(--navigan-focus, #6c9e32);
   outline-offset: 2px;
-  border-color: #64748b;
+  border-color: var(--navigan-focus, #6c9e32);
   box-shadow: none;
 }
 .navigan-signin .login-fields .button {
@@ -307,14 +307,14 @@
 }
 .navigan-signin .login-fields .button-primary {
   margin-top: 6px;
-  border-color: #a8d86e;
-  background: #a8d86e;
-  color: #17351d;
+  border-color: var(--navigan-action, #2f6b2d);
+  background: var(--navigan-action, #2f6b2d);
+  color: #fff;
   box-shadow: none;
 }
 .navigan-signin .login-fields .button-primary:hover {
-  border-color: #96c65c;
-  background: #96c65c;
+  border-color: var(--navigan-action-hover, #255624);
+  background: var(--navigan-action-hover, #255624);
 }
 .navigan-signin .login-fields .button-ghost {
   min-height: 32px;
