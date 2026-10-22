@@ -392,3 +392,188 @@ body {
     transition: none;
   }
 }
+
+
+/* Platform-wide enterprise composition. These rules deliberately sit last so
+   route-specific legacy styles cannot reintroduce inconsistent blue themes. */
+.app-shell main#main-content .page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid #3a4552;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--navigan-graphite-raised), var(--navigan-graphite-hover));
+  color: #fff;
+  box-shadow: none;
+}
+.app-shell main#main-content .page-heading-copy {
+  min-width: 0;
+}
+.app-shell main#main-content .page-heading .page-heading-symbol {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-right: 10px;
+  border: 1px solid #465361;
+  border-radius: 8px;
+  background: #202833;
+  color: var(--navigan-brand);
+  vertical-align: middle;
+}
+.app-shell main#main-content .page-heading .page-heading-symbol svg {
+  width: 18px;
+  height: 18px;
+}
+.app-shell main#main-content .page-heading .eyebrow {
+  margin: 0 0 3px 44px;
+  color: #a8cf61;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.app-shell main#main-content .page-heading h1 {
+  display: inline;
+  color: #fff;
+}
+.app-shell main#main-content .page-heading .muted {
+  margin: 4px 0 0 44px;
+  color: #c8d1da;
+}
+.app-shell main#main-content .page-heading .heading-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.app-shell main#main-content .page-heading .heading-actions :is(.button-secondary,.button-ghost) {
+  background: #2d3743;
+  border-color: #53606d;
+  color: #f7f9fb;
+}
+.app-shell main#main-content .page-heading .heading-actions :is(.button-secondary,.button-ghost):hover:not(:disabled) {
+  background: #394552;
+  border-color: #6a7784;
+  color: #fff;
+}
+
+/* Dense content rhythm: enough breathing room without wasting desktop space. */
+.app-shell main#main-content {
+  padding-top: 12px;
+}
+.app-shell main#main-content :is(.panel, .pd-card, .pd-overview-panel) {
+  margin-bottom: 12px;
+}
+.app-shell main#main-content :is(.panel, .pd-card, .pd-overview-panel, .customer-workspace, .environment-workspace, .cluster-ui) {
+  min-width: 0;
+}
+
+/* Tables share one neutral enterprise language. */
+.app-shell main#main-content .tableScroll,
+.app-shell main#main-content .table-scroll,
+.app-shell main#main-content [class*="tableScroll"],
+.app-shell main#main-content [class*="table-scroll"] {
+  border-radius: 8px;
+}
+.app-shell main#main-content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--navigan-text);
+  font-size: 12.5px;
+}
+.app-shell main#main-content thead th {
+  background: #eef2f4;
+  color: #44515e;
+  border-bottom: 1px solid #d7e0e6;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.app-shell main#main-content :is(th,td) {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.app-shell main#main-content tbody tr:hover {
+  background: #f8fafb;
+}
+.app-shell main#main-content tbody td {
+  border-bottom-color: #e7ecef;
+}
+
+/* Workflow, filters and active controls use green as state, not blue fills. */
+.app-shell main#main-content button[aria-current="step"],
+.app-shell main#main-content button[aria-current="page"],
+.app-shell main#main-content a[aria-current="page"] {
+  color: #234c25;
+  border-color: #a8ca8d;
+}
+.app-shell main#main-content button[aria-current="step"] {
+  box-shadow: inset 0 -2px var(--navigan-brand);
+}
+.app-shell main#main-content :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--navigan-action);
+}
+.app-shell main#main-content :is(.badge, [class*="badge"], [class*="statusPill"], [class*="status-pill"]) {
+  font-weight: 650;
+}
+
+/* Operational icons and chart accents remain colorful while surfaces stay neutral. */
+.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric) svg {
+  color: #477a38;
+}
+.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric):nth-child(4n + 2) svg {
+  color: #367d93;
+}
+.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric):nth-child(4n + 3) svg {
+  color: #7a62a8;
+}
+.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric):nth-child(4n + 4) svg {
+  color: #a86f27;
+}
+
+/* Consistent compact notices and empty/loading states. */
+.app-shell main#main-content :is(.notice, .loading-panel, .empty-state) {
+  border-radius: 8px;
+}
+.app-shell main#main-content .loading-panel {
+  color: var(--navigan-secondary-text);
+}
+.app-shell main#main-content .empty-state {
+  padding: 24px;
+}
+
+/* The migration family inherits the same canvas and action system. */
+.app-shell main#main-content :is(
+  [class*="migrationWorkspace"],
+  [class*="workspace"],
+  .migration-report-workspace,
+  .migration-report-route
+) {
+  color: var(--navigan-text);
+}
+.app-shell main#main-content :is(
+  [class*="migrationWorkspace"],
+  [class*="workspace"]
+) :is(button, a)[class*="primary"] {
+  box-shadow: none;
+}
+
+/* Mobile/tablet: title bands stack without hiding actions. */
+@media (max-width: 760px) {
+  .app-shell main#main-content .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 13px 14px;
+  }
+  .app-shell main#main-content .page-heading .heading-actions {
+    width: 100%;
+  }
+  .app-shell main#main-content .page-heading .heading-actions > * {
+    flex: 1 1 auto;
+  }
+}
