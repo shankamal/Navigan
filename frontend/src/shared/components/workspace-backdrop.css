@@ -798,3 +798,84 @@
 @container (max-width:1280px){
   .content-column main,.content-column .breadcrumb,.content-column .app-footer{padding-inline:12px}
 }
+
+
+/* UNIFIED TYPOGRAPHY CONTRACT 2026 */
+.app-shell[class],
+.app-shell[class] :is(button,input,select,textarea,table,th,td,label,a,p,span,small,strong,h1,h2,h3,h4,h5,h6,summary,legend,dt,dd){
+  font-family:var(--navigan-font-family)!important;
+}
+.app-shell[class] main#main-content{
+  font-size:var(--navigan-font-body)!important;
+  line-height:var(--navigan-line-body)!important;
+}
+.app-shell[class] main#main-content :is(p,li,dd,dt,span,label,summary){
+  line-height:var(--navigan-line-body);
+}
+.app-shell[class] main#main-content :is(.page-heading,.pd-heading) h1,
+.app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) h1{
+  font-size:var(--navigan-font-page-title)!important;
+  line-height:var(--navigan-line-tight)!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content :is(
+  .panel,.pd-card,.pd-overview-panel,.customer-workspace,.environment-workspace,.cluster-ui,
+  [class*="migrationWorkspace"],[class*="workspace"],.migration-report-workspace,.migration-report-route
+) :is(h2,h3){
+  font-size:var(--navigan-font-section-title)!important;
+  line-height:var(--navigan-line-tight)!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content :is(h4,h5,h6,legend){
+  font-size:var(--navigan-font-subsection-title)!important;
+  line-height:var(--navigan-line-tight)!important;
+  font-weight:600!important;
+}
+.app-shell[class] main#main-content :is(.muted,.metadata,.caption,[class*="caption"],[class*="helper"],[class*="description"]){
+  font-size:var(--navigan-font-caption)!important;
+  line-height:1.35!important;
+}
+.app-shell[class] main#main-content :is(.eyebrow,[class*="eyebrow"],[class*="Eyebrow"],.nav-section){
+  font-size:var(--navigan-font-label)!important;
+  line-height:1.2!important;
+  font-weight:700!important;
+}
+.app-shell[class] main#main-content :is(button,.button,input,select,textarea){
+  font-size:var(--navigan-font-control)!important;
+  line-height:1.25!important;
+}
+.app-shell[class] main#main-content table{
+  font-size:var(--navigan-font-table)!important;
+  line-height:1.3!important;
+}
+.app-shell[class] main#main-content table thead th{
+  font-size:var(--navigan-font-label)!important;
+  line-height:1.2!important;
+  font-weight:700!important;
+}
+.app-shell[class] main#main-content :is(.status-badge,[class*="badge"],[class*="Badge"],[class*="status"],[class*="Status"]){
+  font-size:var(--navigan-font-label)!important;
+  line-height:1.2!important;
+}
+.app-shell[class] .sidebar :is(.nav-item,.nav-subitem){
+  font-size:var(--navigan-font-body)!important;
+  line-height:1.3!important;
+}
+.app-shell[class] .sidebar .nav-section{
+  font-size:var(--navigan-font-label)!important;
+  line-height:1.2!important;
+}
+.app-shell[class] .breadcrumb,
+.app-shell[class] .breadcrumb a{
+  font-size:var(--navigan-font-control)!important;
+  line-height:1.25!important;
+}
+.app-shell[class] main#main-content :is(
+  .metric>strong,.pd-kpi strong,.cluster-directory-metric strong,
+  .customer-board-card strong,.environment-board-card strong,
+  [class*="metricValue"],[class*="MetricValue"],[class*="coverageValue"]
+){
+  font-size:var(--navigan-font-metric)!important;
+  line-height:1.1!important;
+  font-weight:600!important;
+}
