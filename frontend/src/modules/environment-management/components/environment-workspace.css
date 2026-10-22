@@ -1382,3 +1382,26 @@
   gap:4px!important;
   align-items:center!important;
 }
+
+
+
+/* SHARED PROVIDER LOGO STANDARD */
+.environment-list-workspace .customer-table .provider-logo img{
+  width:auto!important;
+  height:var(--navigan-provider-logo-compact-height)!important;
+  max-width:var(--navigan-provider-logo-compact-max-width)!important;
+  object-fit:contain!important;
+}
+.environment-workspace .environment-provider-row .provider-logo img{
+  width:auto!important;
+  height:var(--navigan-provider-logo-summary-height)!important;
+  max-width:var(--navigan-provider-logo-summary-max-width)!important;
+  object-fit:contain!important;
+}
+.environment-workspace .environment-provider-row{
+  grid-template-columns:32px 100px 24px minmax(55px,1fr)!important;
+}
+.environment-creation-layout .aws-discovery-panel>.environment-section-heading{
+  padding-left:48px!important;
+  background-size:var(--navigan-provider-logo-hero-max-width) var(--navigan-provider-logo-hero-height)!important;
+}
