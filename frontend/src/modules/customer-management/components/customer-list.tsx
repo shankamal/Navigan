@@ -442,7 +442,7 @@ export function CustomerListView() {
                               className="customer-avatar"
                               aria-hidden="true"
                             >
-                              {customer.name.substring(0, 2).toUpperCase()}
+                              <Building2 size={15} />
                             </span>
                             <div>
                               <Link
