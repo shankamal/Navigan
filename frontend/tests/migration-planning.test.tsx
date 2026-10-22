@@ -454,7 +454,7 @@ describe("migration planning", () => {
       "Save failed",
     );
     fireEvent.click(screen.getByRole("button", { name: /1\s*Source/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Explore technical inventory" }));
+    expect(screen.getByRole("button", { name: "Hide technical inventory" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /All resources.*Technical view/ }));
     expect(
       screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
