@@ -1846,3 +1846,51 @@
     transition: none;
   }
 }
+
+/* Neutral Graphite dashboard title band. */
+.command-dashboard .pd-heading {
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid #3a4552;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--navigan-graphite-raised, #252e39), var(--navigan-graphite-hover, #303b49));
+  color: #fff;
+}
+.command-dashboard .pd-heading h1 {
+  color: #fff;
+  font-size: clamp(21px, 1.5vw, 24px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.command-dashboard .pd-heading .muted {
+  color: #c8d1da;
+  font-size: 13px;
+}
+.command-dashboard .pd-date {
+  color: #a8cf61;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.command-dashboard .pd-heading .pd-freshness {
+  color: #d7dee6;
+}
+.command-dashboard .pd-heading .button-secondary {
+  background: #2d3743;
+  border-color: #53606d;
+  color: #f7f9fb;
+}
+.command-dashboard .pd-heading .button-secondary:hover:not(:disabled) {
+  background: #394552;
+  border-color: #6a7784;
+  color: #fff;
+}
+@container (max-width: 680px) {
+  .command-dashboard .pd-heading {
+    align-items: flex-start;
+    padding: 13px 14px;
+  }
+}
