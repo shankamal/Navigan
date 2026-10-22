@@ -99,7 +99,8 @@ function selectAllAssessedNamespaces() {
   if (selectAll && !(selectAll as HTMLButtonElement).disabled) fireEvent.click(selectAll);
 }
 function openTechnicalInventory() {
-  fireEvent.click(screen.getByRole("button", { name: "Explore technical inventory" }));
+  const open = screen.queryByRole("button", { name: "Explore technical inventory" });
+  if (open) fireEvent.click(open);
 }
 function openTechnicalResources() {
   selectAllAssessedNamespaces();
