@@ -84,6 +84,8 @@ Resources:
           StopTimeout: 120
           MountPoints: [{SourceVolume: scratch, ContainerPath: /tmp}]
           Environment:
+            # UID drops to 10001; libpq must not look for client certificates under /root.
+            - {Name: HOME, Value: /tmp}
             - {Name: DB_PROXY_HOST, Value: !Ref DatabaseProxyHost}
             - {Name: DB_NAME, Value: !Ref DatabaseName}
             - {Name: DB_SECRET_ARN, Value: !Ref DatabaseSecretArn}
