@@ -56,7 +56,7 @@ class Repository:
     def list_artifact_workspaces(self, identifier, customer_id, workspace_id=None):
         self.get(identifier)
         return self.db.execute(
-            "SELECT workspace_id,manifest,status,inventory_digest,source_cluster_id FROM migration_management.artifact_workspaces "
+            "SELECT workspace_id,manifest,status,inventory_digest,source_cluster_id,bucket_name FROM migration_management.artifact_workspaces "
             "WHERE migration_id=%s AND customer_id=%s" + (" AND workspace_id=%s" if workspace_id else "") +
             " ORDER BY created_at DESC LIMIT 50",
             [identifier, customer_id] + ([workspace_id] if workspace_id else []),
@@ -255,7 +255,7 @@ class Repository:
 
     def save_deployment_configuration(self, source, key, value, correlation):
         # Source-scoped JSON survives assessment creation, deletion and delivery changes.
-        if key not in {"deploymentDiscovery", "deploymentAnalysis", "deploymentAuthentication"}:
+        if key not in {"deploymentDiscovery", "deploymentAnalysis", "deploymentAuthentication", "artifactRecovery"}:
             raise ValueError("Invalid deployment configuration key.")
         row = self.db.execute(
             "UPDATE migration_management.source_clusters SET "

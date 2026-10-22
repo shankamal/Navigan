@@ -542,3 +542,38 @@ def test_workspace_worker_upload_sends_signed_kms_headers_and_removes_local_expo
     assert headers["x-amz-checksum-sha256"] == base64.b64encode(bytes.fromhex(result["sha256"])).decode()
     assert done["status"] == "PARTIAL_RECOVERY"
     assert not (tmp_path / "recovery" / value["jobId"]).exists()
+
+
+def test_workspace_recovery_uses_repository_projection_for_storage_binding(monkeypatch):
+    from navigan.modules.migration_management.repository import Repository
+    service, source, request, dispatch, _, s3, _ = workspace_setup(monkeypatch)
+    stored = service.repo.list_artifact_workspaces.return_value[0]
+    def execute(sql, params):
+        cursor = MagicMock()
+        if "FROM migration_management.artifact_workspaces" in sql:
+            fields = sql.split("SELECT ", 1)[1].split(" FROM", 1)[0].split(",")
+            cursor.fetchall.return_value = [{field: stored[field] for field in fields}]
+        return cursor
+    service.repo.db.execute.side_effect = execute
+    service.repo.list_artifact_workspaces = lambda *args: Repository.list_artifact_workspaces(service.repo, *args)
+    result = recover(service, "MIG-test", {"version": 2, "recovery": request}, factory=lambda _: s3)
+    assert result["job"]["status"] == "RECOVERING"
+    dispatch.assert_called_once()
+
+
+def test_repository_persists_source_recovery_jobs_with_version_guard():
+    from navigan.modules.migration_management.repository import Repository
+    repo = MagicMock()
+    repo.principal.user_id = "tester"
+    repo.db.execute.return_value.fetchone.return_value = {"version": 4}
+    source = {"source_cluster_id": "SRC-test", "version": 3}
+    jobs = {"MIG-test": [{"jobId": "REC-test", "status": "RECOVERING"}]}
+    result = Repository.save_deployment_configuration(repo, source, "artifactRecovery", jobs, "correlation-test")
+    assert result == {"version": 4}
+    sql, params = repo.db.execute.call_args.args
+    assert "WHERE source_cluster_id=%s AND version=%s" in sql
+    assert params[0] == ["artifactRecovery"] and json.loads(params[1]) == jobs
+    assert params[-2:] == ["SRC-test", 3]
+    repo.audit_source_cluster.assert_called_once()
+    with pytest.raises(ValueError, match="Invalid deployment configuration key"):
+        Repository.save_deployment_configuration(repo, source, "arbitraryConfiguration", jobs, "correlation-test")
