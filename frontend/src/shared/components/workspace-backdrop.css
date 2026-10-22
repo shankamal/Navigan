@@ -625,3 +625,141 @@
     background: #1c222b !important;
   }
 }
+
+
+/* LAPTOP DENSITY MODE 2026
+   Optimized for 14–15 inch laptops at browser zoom 100%.
+   Keeps readable type while reducing vertical waste substantially. */
+@media (min-width: 1100px) and (max-height: 900px) {
+  .app-shell[class] > header.topbar {
+    min-height: 54px;
+    padding: 7px 18px;
+    gap: 13px;
+  }
+  .app-shell[class] > header.topbar .corporate-wordmark {
+    font-size: 18px;
+    padding-right: 10px;
+  }
+  .app-shell[class] > header.topbar .platform-title {
+    font-size: 12px;
+  }
+  .app-shell[class] > header.topbar .signed-in-user strong {
+    font-size: 12px;
+  }
+  .app-shell[class] > header.topbar .signed-in-user span {
+    font-size: 10px;
+  }
+  .app-shell[class] > header.topbar .workspace-environment {
+    min-height: 26px;
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+  .app-shell[class] > header.topbar .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .app-shell[class] .sidebar {
+    width: 210px;
+    flex-basis: 210px;
+  }
+  .app-shell[class] .sidebar .sidebar-brand-panel {
+    min-height: 48px;
+    margin-bottom: 4px;
+  }
+  .app-shell[class] .sidebar .sidebar-brand-name {
+    font-size: 15px;
+  }
+  .app-shell[class] .sidebar .clustered-nav-group {
+    padding: 8px 8px 9px;
+  }
+  .app-shell[class] .sidebar .nav-section {
+    padding: 0 7px 4px;
+    font-size: 8.5px;
+  }
+  .app-shell[class] .sidebar .nav-item {
+    min-height: 31px;
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 9px;
+  }
+  .app-shell[class] .sidebar .nav-item svg {
+    width: 15px;
+    height: 15px;
+  }
+  .app-shell[class] .sidebar .workspace-card {
+    padding: 8px;
+    font-size: 10px;
+  }
+
+  .app-shell[class] .content-column > .breadcrumb {
+    min-height: 30px;
+    padding-top: 6px;
+    padding-bottom: 5px;
+    font-size: 10.5px;
+  }
+  .app-shell[class] .content-column main#main-content {
+    padding-top: 6px;
+    padding-bottom: 14px;
+  }
+
+  .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
+  .app-shell[class] main#main-content .customer-page-header,
+  .app-shell[class] main#main-content .environment-portfolio-heading {
+    min-height: 58px;
+    margin-bottom: 8px;
+    padding: 9px 12px;
+    gap: 12px;
+  }
+  .app-shell[class] main#main-content :is(.page-heading,.pd-heading) h1,
+  .app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) h1 {
+    font-size: 19px;
+    line-height: 1.2;
+  }
+  .app-shell[class] main#main-content :is(.page-heading,.pd-heading) .muted,
+  .app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) .muted {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .app-shell[class] main#main-content :is(.page-heading,.pd-heading) .eyebrow,
+  .app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) .eyebrow {
+    margin-bottom: 2px;
+    font-size: 9px;
+  }
+  .app-shell[class] main#main-content .page-heading .page-heading-symbol {
+    width: 28px;
+    height: 28px;
+    margin-right: 7px;
+  }
+  .app-shell[class] main#main-content .page-heading .page-heading-symbol svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .app-shell[class] main#main-content .button {
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: 11.5px;
+  }
+  .app-shell[class] main#main-content :is(input,select,textarea) {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .app-shell[class] main#main-content :is(th,td) {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .app-shell[class] main#main-content thead th {
+    font-size: 9.5px;
+  }
+
+  .app-shell[class] .app-footer {
+    min-height: 30px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 9.5px;
+  }
+}
