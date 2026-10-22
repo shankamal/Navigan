@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   PageHeading,
+  Button,
   Loading,
   ErrorNotice,
   EmptyState,
@@ -145,10 +146,9 @@ export function EnvironmentList({
     setFilters((f) => ({ ...f, page: 0, [key]: value || undefined }));
   return (
     <div className="environment-workspace environment-list-workspace">
-      <div className="environment-portfolio-heading">
-        <Layers3 size={32} aria-hidden="true" />
-        <PageHeading
-          title={
+      <PageHeading
+        icon={<Layers3 />}
+        title={
             mode === "reviews"
               ? "Environment Reviews"
               : "Environment Management"
@@ -159,29 +159,30 @@ export function EnvironmentList({
               : "Track reusable infrastructure profiles and create container environments across your clouds."
           }
           action={
-            mode === "directory" &&
-            hasPermission(identity, "environment.create") && (
-              <div className="environment-heading-actions">
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={refresh}
-                  aria-label="Refresh environment portfolio"
-                >
-                  <RefreshCw size={18} />
-                </button>
-                <Link
-                  className="button button-primary"
-                  href="/environments/new"
-                >
-                  <Plus size={18} />
-                  New Environment
-                </Link>
-              </div>
-            )
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={refresh}
+                disabled={query.isFetching || providerSummary.isFetching}
+                aria-label="Refresh environment portfolio"
+              >
+                <RefreshCw size={15} />
+                Refresh
+              </Button>
+              {mode === "directory" &&
+                hasPermission(identity, "environment.create") && (
+                  <Link
+                    className="button button-primary"
+                    href="/environments/new"
+                  >
+                    <Plus size={16} />
+                    New environment
+                  </Link>
+                )}
+            </>
           }
         />
-      </div>
       {mode === "directory" ? (
         <div className="environment-portfolio-overview">
           <section
