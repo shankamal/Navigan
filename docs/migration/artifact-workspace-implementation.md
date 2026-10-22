@@ -208,3 +208,86 @@ incomplete image before wider use. Repository mapping confidence must remain unc
 Next primary task: link cache/Helm/live-definition recovery to workspace artifacts,
 then authorized content downloads and final workspace export. Target publishing is
 still a later separate action.
+
+## Isolated DEV worker rollout
+
+The local frontend now forwards the four workspace endpoints through its allowlist.
+Database migrations 027/028 and workspace storage are separate prerequisites. The
+following script discovers the deployed DEV migration Lambda from the DEV stack;
+it refuses other accounts, branches, database names, missing storage settings and
+unstable runtime configurations. It does not update either existing Lambda or the
+source-cluster connector. Its default is read-only review.
+
+From repository root, using the same B: temporary directory as the API rollout:
+
+```bash
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+python3 scripts/deploy-workspace-workers-dev.py --profile navigan --repository
+
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+python3 scripts/deploy-workspace-workers-dev.py --profile navigan \
+  --repository --enable-schedule --apply
+```
+
+This deploys `navigan-ashok-dev-workspace-repositories`: a new Lambda, log group,
+EventBridge schedule and invocation permission. The deployed migration API ZIP is
+reused only after comparing its collector modules with the checkout. A versioned,
+KMS-encrypted ZIP is stored under `deployment-packages/repository-worker/` in the
+workspace bucket. This infrastructure ZIP is separate from customer artifacts.
+The worker inherits only required database/storage/GitHub settings, CA layers,
+subnets, security groups and the existing migration runtime role. It polls one
+repository job per invocation. Schedule enablement is explicit. Turning off the
+schedule uses the same repository apply command without `--enable-schedule`.
+
+In the existing UI workspace, click **Collect / retry repository files**, wait
+about a minute per pending definition, then **Refresh workspaces**. A successful
+job changes its artifact status to Saved to S3. Verify actual object version,
+checksum and validation metadata before treating it as collected. Missing live
+and Helm definitions stay unresolved. Failure details can be inspected with:
+
+```bash
+aws --profile navigan --region ap-south-1 logs tail \
+  /aws/lambda/navigan-ashok-dev-workspace-repositories --since 10m
+```
+
+Image staging requires a working local Docker engine, network access for the build
+and AWS permission to deploy the new isolated runtime. It does not reuse or modify
+the production frontend ECS cluster. The dedicated build context excludes frontend,
+git metadata, local environments, caches and unrelated files.
+
+```bash
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+python3 scripts/deploy-workspace-workers-dev.py --profile navigan --image --apply
+```
+
+This creates `navigan-ashok-dev-workspace-image-runtime` (a dedicated ECR repository,
+ECS cluster and image execution role), builds and pushes the collector, then stages
+`navigan-ashok-dev-workspace-images` with desired count zero. ECR login credentials
+are supplied through stdin and stored only in a temporary Docker configuration.
+The script prints the immutable WorkerImage and new WorkerTaskRoleArn. Before
+starting transfers, confirm private egress/DB access and that each saved source
+ECR role trusts this exact task role with the connection's External ID. Add exact
+pull roles with repeated `--registry-role-arn` flags; the existing API's explicit
+role allowlist is also copied. These flags authorize the worker to assume a role;
+they do not modify the source role's trust or read policies.
+
+Reuse the printed digest to activate one task without rebuilding. Replace the
+example values with the actual WorkerImage and approved pull-role ARN:
+
+```bash
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+python3 scripts/deploy-workspace-workers-dev.py --profile navigan --image \
+  --worker-image '<WorkerImage>' --registry-role-arn '<source-pull-role-arn>' \
+  --start-images --apply
+```
+
+Check ECS task stability/logs, then click **Collect / retry available images** in
+the existing workspace. Public registries need no assume-role flag. Saved ECR
+connections still require role trust and repository pull access. These are
+asynchronous API-triggered jobs; the scripts are platform installation operations,
+not steps a user runs for each migration. Source export, Helm recovery integration,
+final export/download and target readiness remain later milestones.
+
+Validation here uses mocked AWS/Docker rollout tests and the existing collector
+unit tests. No real AWS worker deployment, container build, registry transfer or
+source-role trust change was performed in the coding environment.

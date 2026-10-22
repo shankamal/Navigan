@@ -1,0 +1,11 @@
+# Only source and the worker entrypoint are required by this image.
+**
+!src/
+!src/**
+!workspace_image_worker/
+!workspace_image_worker/entrypoint.py
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/.venv/
+**/node_modules/
