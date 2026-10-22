@@ -12,3 +12,5 @@
 .actions button:disabled { opacity: .5; cursor: not-allowed; }
 .workspace { display: grid; gap: 5px; padding: 10px 0; border-top: 1px solid #dce3eb; }
 .workspace small { color: #63717f; }
+
+.workspace li { overflow-wrap: anywhere; margin: 4px 0; }

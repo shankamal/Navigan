@@ -19,7 +19,13 @@ type Workspace = {
     attempts: number;
     errorCode?: string;
   }[];
-  artifacts: { artifactId: string; kind: string; status: string }[];
+  artifacts: {
+    artifactId: string;
+    kind: string;
+    status: string;
+    source?: { reference?: string; filePath?: string };
+    validation?: { platforms?: string[] };
+  }[];
 };
 export function ArtifactWorkspacePanel({
   migrationId,
@@ -67,13 +73,16 @@ export function ArtifactWorkspacePanel({
       setBusy(false);
     }
   }
-  async function collect(workspaceId: string) {
+  async function collect(
+    workspaceId: string,
+    artifactKind = "REPOSITORY_DEFINITION",
+  ) {
     setBusy(true);
     setError("");
     try {
       const { data } = await apiClient.post(
         `/migrations/${migrationId}/artifact-workspaces/${workspaceId}/collection-jobs`,
-        { version },
+        { version, ...(artifactKind === "IMAGE" ? { artifactKind } : {}) },
         { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
       );
       setWorkspaces((items) =>
@@ -95,8 +104,8 @@ export function ArtifactWorkspacePanel({
         <p>
           Create a workspace index for selected namespaces. The index records
           which deployment definitions and images are needed. Then collect
-          repository files. Images and missing definitions require separate
-          collection or recovery.
+          repository files and available images. Missing definitions and images
+          require recovery.
         </p>
         <fieldset disabled={busy || !canEdit}>
           <legend>Namespaces to include</legend>
@@ -151,7 +160,7 @@ export function ArtifactWorkspacePanel({
               {w.stale
                 ? "Older inventory snapshot · Create a new workspace"
                 : w.status === "COLLECTING"
-                  ? "Repository collection queued or running"
+                  ? "Artifact collection queued or running"
                   : "Workspace index created"}
             </span>
             <small>
@@ -176,6 +185,21 @@ export function ArtifactWorkspacePanel({
               >
                 Collect / retry repository files
               </button>
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  !canEdit ||
+                  w.stale ||
+                  !w.artifacts.some(
+                    (a) =>
+                      a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
+                  )
+                }
+                onClick={() => collect(w.workspaceId, "IMAGE")}
+              >
+                Collect / retry available images
+              </button>
             </div>
             {(w.jobs ?? []).map((job) => (
               <small key={job.jobId}>
@@ -190,8 +214,18 @@ export function ArtifactWorkspacePanel({
               <ul>
                 {w.artifacts.map((a) => (
                   <li key={a.artifactId}>
-                    {a.kind.toLowerCase().replaceAll("_", " ")} —{" "}
-                    {a.status.toLowerCase().replaceAll("_", " ")}
+                    {a.source?.reference ||
+                      a.source?.filePath ||
+                      a.kind.toLowerCase().replaceAll("_", " ")}{" "}
+                    — {a.status.toLowerCase().replaceAll("_", " ")}
+                    {a.validation?.platforms?.length ? (
+                      <small>
+                        {" "}
+                        · Available platforms:{" "}
+                        {a.validation.platforms.join(", ")} · Target
+                        compatibility not verified
+                      </small>
+                    ) : null}
                   </li>
                 ))}
               </ul>

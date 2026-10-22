@@ -4,19 +4,19 @@ Continue this work before unrelated UI redesigns or other features.
 
 ## Checkpoint
 
-Phase 1 is implemented: private KMS/S3 template, snapshot-bound workspace indices,
-metadata tables, authorized create/read/list API, namespace selection UI and DEV packaging.
-It stores ONLY the index, not repository files or image archives. No AWS or database
-changes have been applied by the agent. Browser visual validation is pending.
+| Increment | Code status | Live status |
+|---|---|---|
+| Workspace index, private storage, API and UI | Implemented | Not deployed/verified here |
+| Durable queue and repository collection | Implemented | Not deployed/verified here |
+| Digest-pinned available image collection | Implemented; see image checkpoint | Container build and real transfer not performed here |
+| Missing-artifact recovery integration | Next | Pending |
+| Final export/download and complete dependencies | Pending | Pending |
+| Target registry publishing and target preflight | Pending | Pending |
 
-Remaining phases, in order:
-1. Durable collection jobs and leases, then immutable repository downloads including supporting files and Helm/Kustomize dependencies.
-2. Digest-addressed image archives with required platforms, multipart upload and content validation through a long-running worker.
-3. Integrate existing cache/Helm recovery; add live configuration exports and customer artifact upload where recovery is unavailable.
-4. Per-artifact progress, retry/resolve, authorized downloads and collected/validated states.
-5. Approved target registry publication and separately versioned target definitions/preflight.
-
-Do not mark collected artifacts validated until the respective integrity and content checks pass. Do not upgrade candidate repository matches on download. Persistent data migration and traffic switching remain separate workstreams.
+The initial index does not copy artifacts. Collection jobs perform repository and
+available-image transfers using their respective workers. No live AWS, registry or
+DB mutations were performed here. Collected is distinct from full migration validation.
+Persistent data migration and traffic switching remain separate workstreams.
 
 ## API
 
@@ -135,3 +135,76 @@ and the workspace stays PARTIAL after successful repository collection.
 
 Next: image archive collection and complete dependency resolution; recovery linkage
 and authorized artifact downloads. Keep this as the primary implementation goal.
+
+
+## Available-image collection checkpoint
+
+The collection-jobs POST now accepts artifactKind=IMAGE; its default remains
+REPOSITORY_DEFINITION. Only IMAGE artifacts in PENDING_COLLECTION are queued.
+Missing images, unresolved digests and access-required records remain unresolved.
+Both workers filter job claims by kind. The image worker renews a five-minute lease
+every 20 seconds; expired or lost leases cannot publish results. Source/customer,
+snapshot, registry configuration and credential metadata are rechecked before acceptance.
+
+The dedicated container runs skopeo copy --all --preserve-digests against an explicit
+digest with TLS verification. It never executes an image, switches a tag, publishes
+to a target registry or changes source permissions. Each archive blob is hashed; the
+reachable manifest/config/layer graph, descriptor sizes, source digest and available
+OS/architecture platforms are checked. A pinned index copies its descendants; a pinned
+platform manifest preserves that platform, not every platform of the original tag.
+Target compatibility and image signature/provenance trust remain separate checks.
+
+Images upload directly from worker disk to S3 in 16 MiB parts. Part SHA-256 values,
+the stored composite checksum, length, KMS encryption and object version are checked.
+A separate full-file SHA-256 is stored in artifact metadata. Incomplete failed uploads
+are aborted; bucket lifecycle is a fallback. Completed but unreferenced objects still
+need the planned reconciler. Current limits: 10 GiB archive, 30-minute transfer,
+bounded file count, metadata memory and descriptor nesting. Image transfer does not
+run inside the 240-second repository Lambda.
+
+Authentication supports public registries, saved username/token mode and approved
+AWS_ROLE/AWS_EXISTING_ROLE ECR connections. BEARER mode reports
+REGISTRY_AUTH_MODE_UNSUPPORTED; credentials are not placed in argv or logs. Copy uses
+a temporary 0600 auth file removed afterward. Generic IMAGE_PULL_FAILED must not be
+interpreted as deletion: recheck source access/evidence before cache recovery.
+
+### Build and deploy
+
+No additional migration beyond 027/028 is required. Deploy updated API AND repository
+worker code so claims separate artifact kinds. Apply the updated workspace storage
+policy for AbortMultipartUpload. The DEV API script packages these modules but does
+not provision the image worker service.
+
+From repository root:
+`docker build --platform linux/amd64 -f workspace_image_worker/Dockerfile -t <approved-repository>:<version> .`
+
+Build/push through the approved DEV pipeline, obtain the immutable digest, and provide
+it as WorkerImage to image-collector-service.yaml. Docker/skopeo were unavailable in
+the agent runtime, so building and a real transfer remain rollout gates. The build
+downloads the official RDS CA bundle for TLS verification.
+
+The Fargate template requires an existing ECS cluster, execution role (ECR pull/logs),
+private subnets/security groups, database proxy/secret settings, workspace bucket
+owner/KMS key, and optional exact ECR source-role ARNs separated by commas. It creates
+a separate task role/service. DesiredCount defaults to zero; configure and verify
+before setting it to one. Worker tasks use 30 GiB ephemeral storage and a read-only
+root filesystem. The entrypoint initializes the temporary mount then drops to UID/GID
+10001 before importing worker code. Allow DB connectivity from its security group
+and egress to source registry/blob endpoints, Secrets Manager, S3 and KMS. No public
+IP is assigned. The template uses Linux/x86_64; copied images can be other architectures.
+
+For cross-account ECR, the source role must explicitly trust WorkerTaskRoleArn using
+the saved External ID. Grant GetAuthorizationToken and the required repository reads:
+DescribeImages, BatchGetImage, GetDownloadUrlForLayer, BatchCheckLayerAvailability.
+The assumed pull session narrows repository actions to the requested repository.
+Existing metadata-only discovery sessions stay unchanged. The implementation does
+not modify source role trust or permissions.
+
+After deployment: load a current workspace, click Collect / retry available images,
+refresh job state and verify the versioned archive and reported actual platforms.
+Missing images must remain RECOVERY_REQUIRED. Test interrupted transfer/retry and an
+incomplete image before wider use. Repository mapping confidence must remain unchanged.
+
+Next primary task: link cache/Helm/live-definition recovery to workspace artifacts,
+then authorized content downloads and final workspace export. Target publishing is
+still a later separate action.

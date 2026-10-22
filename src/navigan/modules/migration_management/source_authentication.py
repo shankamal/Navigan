@@ -119,15 +119,17 @@ def ecr_identity(host):
     return match[1], match[2]
 
 
-def ecr_session_policy(account, region):
+def ecr_session_policy(account, region, pull_repository=None):
+    if pull_repository and not re.fullmatch(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*(?:/[a-z0-9]+(?:[._-]+[a-z0-9]+)*)*", pull_repository):
+        raise ValueError("Invalid ECR repository")
     return {
         "Version": "2012-10-17",
         "Statement": [
             {"Effect": "Allow", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"},
             {
                 "Effect": "Allow",
-                "Action": ["ecr:DescribeImages"],
-                "Resource": f"arn:aws:ecr:{region}:{account}:repository/*",
+                "Action": ["ecr:DescribeImages"] + (["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:BatchCheckLayerAvailability"] if pull_repository else []),
+                "Resource": f"arn:aws:ecr:{region}:{account}:repository/" + (pull_repository or "*"),
             },
         ],
     }
@@ -164,7 +166,7 @@ def validate_registry_role(host, role, mode):
         )
 
 
-def ecr_client(host, entry, *, verify_trust=False, boto3_module=None):
+def ecr_client(host, entry, *, verify_trust=False, boto3_module=None, pull_repository=None):
     if boto3_module is None:
         import boto3 as boto3_module
     from botocore.config import Config
@@ -189,7 +191,7 @@ def ecr_client(host, entry, *, verify_trust=False, boto3_module=None):
         "RoleArn": role,
         "RoleSessionName": "NaviganRegistryDiscovery",
         "DurationSeconds": 900,
-        "Policy": json.dumps(ecr_session_policy(account, region)),
+        "Policy": json.dumps(ecr_session_policy(account, region, pull_repository)),
     }
     if verify_trust:
         # Reject trusts that ignore the customer-bound External ID. No credentials from negative tests are used.

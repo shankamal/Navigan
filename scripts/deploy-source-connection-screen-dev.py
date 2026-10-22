@@ -28,6 +28,8 @@ FILES = [
     "workspace_collection.py",
     "repository_collector.py",
     "workspace_worker.py",
+    "image_collector.py",
+    "image_worker.py",
     "recovery_worker.py",
 ]
 

@@ -7,6 +7,7 @@ from navigan.shared.errors import ApiError
 
 class StartCollection(StrictModel):
     version: int = Field(gt=0)
+    artifactKind: str = Field(default="REPOSITORY_DEFINITION", pattern=r"^(REPOSITORY_DEFINITION|IMAGE)$")
 
 def enqueue(service, identifier, workspace_id, body):
     service.access.require('migration.edit')
@@ -19,7 +20,9 @@ def enqueue(service, identifier, workspace_id, body):
     if snapshot['stale']:
         raise ApiError(409,'STALE_WORKSPACE','Create a workspace from current discovery before collecting.')
     db = service.repo.db
-    artifacts = db.execute("SELECT artifact_id FROM migration_management.workspace_artifacts WHERE workspace_id=%s AND kind='REPOSITORY_DEFINITION' AND status <> 'COLLECTED'",[workspace_id]).fetchall()
+    kind=body.get('artifactKind','REPOSITORY_DEFINITION')
+    artifacts = db.execute("SELECT artifact_id FROM migration_management.workspace_artifacts WHERE workspace_id=%s AND kind=%s AND status <> 'COLLECTED' "
+                           "AND (kind <> 'IMAGE' OR status='PENDING_COLLECTION')",[workspace_id,kind]).fetchall()
     for artifact in artifacts:
         db.execute("INSERT INTO migration_management.workspace_collection_jobs (job_id,workspace_id,artifact_id,status,created_by) VALUES (%s,%s,%s,'QUEUED',%s) "
                    "ON CONFLICT(workspace_id,artifact_id) DO UPDATE SET status='QUEUED',attempts=0,error_code=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() "
@@ -30,18 +33,20 @@ def enqueue(service, identifier, workspace_id, body):
     return read(service, identifier, workspace_id)
 
 
-def claim(db):
+def claim(db, kind="REPOSITORY_DEFINITION"):
+    if kind not in {"REPOSITORY_DEFINITION", "IMAGE"}:
+        raise ValueError("Unsupported collection worker kind")
     # Exhausted leases are terminal, so crashed workers cannot leave eternal RUNNING jobs.
     exhausted = db.execute("UPDATE migration_management.workspace_collection_jobs SET status='FAILED',error_code='LEASE_EXHAUSTED',lease_token=NULL,lease_until=NULL,updated_at=now() "
                           "WHERE status='RUNNING' AND lease_until<now() AND attempts>=3 RETURNING workspace_id").fetchall()
     for row in exhausted:
         settle(db,row['workspace_id'])
     token = uuid.uuid4().hex
-    return db.execute("WITH candidate AS (SELECT job_id FROM migration_management.workspace_collection_jobs "
-                      "WHERE status='QUEUED' OR (status='RUNNING' AND lease_until<now() AND attempts<3) "
-                      "ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) "
+    return db.execute("WITH candidate AS (SELECT j.job_id FROM migration_management.workspace_collection_jobs j JOIN migration_management.workspace_artifacts a ON a.workspace_id=j.workspace_id AND a.artifact_id=j.artifact_id "
+                      "WHERE a.kind=%s AND (j.status='QUEUED' OR (j.status='RUNNING' AND j.lease_until<now() AND j.attempts<3)) "
+                      "ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1) "
                       "UPDATE migration_management.workspace_collection_jobs j SET status='RUNNING',attempts=attempts+1,lease_token=%s,"
-                      "lease_until=now()+interval '5 minutes',updated_at=now() FROM candidate c WHERE j.job_id=c.job_id RETURNING j.*",[token]).fetchone()
+                      "lease_until=now()+interval '5 minutes',updated_at=now() FROM candidate c WHERE j.job_id=c.job_id RETURNING j.*",[kind,token]).fetchone()
 
 
 def settle(db, workspace_id):
@@ -63,3 +68,9 @@ def finish(db, job, result=None, error=None):
                    [result['key'],result['version'],result['sha256'],result['size'],result['validation'],job['workspace_id'],job['artifact_id']])
     settle(db,job['workspace_id'])
     return True
+
+
+def renew(db, job):
+    return bool(db.execute("UPDATE migration_management.workspace_collection_jobs SET lease_until=now()+interval '5 minutes',updated_at=now() "
+                           "WHERE job_id=%s AND status='RUNNING' AND lease_token=%s AND lease_until>now() RETURNING job_id",
+                           [job['job_id'],job['lease_token']]).fetchone())

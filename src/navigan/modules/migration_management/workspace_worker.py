@@ -9,8 +9,8 @@ from .source_authentication import repository_token
 from .deployment_sources import repository_read_token
 
 
-def load_context(db, job):
-    row=db.execute("SELECT w.*,a.provenance,s.delivery_configuration,m.status AS migration_status,"
+def load_context(db, job, kind="REPOSITORY_DEFINITION"):
+    row=db.execute("SELECT w.*,a.provenance,a.kind AS artifact_kind,s.delivery_configuration,m.status AS migration_status,"
                    "m.source_configuration,(SELECT inventory_digest FROM migration_management.migration_source_inventories "
                    "WHERE migration_id=w.migration_id ORDER BY inventory_version DESC LIMIT 1) AS current_digest "
                    "FROM migration_management.artifact_workspaces w JOIN migration_management.workspace_artifacts a USING(workspace_id) "
@@ -19,9 +19,16 @@ def load_context(db, job):
                    "WHERE w.workspace_id=%s AND a.artifact_id=%s AND m.customer_id=w.customer_id AND NOT EXISTS "
                    "(SELECT 1 FROM migration_management.migration_audit_log l WHERE l.migration_id=w.migration_id AND l.action='MIGRATION_DELETED')",
                    [job['workspace_id'],job['artifact_id']]).fetchone()
-    if not row or row['migration_status']=='CANCELLED' or row['current_digest']!=row['inventory_digest'] or row['source_configuration'].get('sourceClusterId')!=row['source_cluster_id']:
+    if not row or row['artifact_kind']!=kind or row['migration_status']=='CANCELLED' or row['current_digest']!=row['inventory_digest'] or row['source_configuration'].get('sourceClusterId')!=row['source_cluster_id']:
         raise CollectionError('STALE_WORKSPACE')
     delivery=row.get('delivery_configuration') or {}
+    if kind=='IMAGE':
+        from .image_collector import source_reference
+        parts,_=source_reference(row['provenance'])
+        if parts['registry'] not in delivery.get('deploymentDiscovery',{}).get('registries',[]):
+            raise CollectionError('REGISTRY_ACCESS_CHANGED')
+        row['credential_entry']=delivery.get('deploymentAuthentication',{}).get('registry:'+parts['registry'],{})
+        return row
     repository=row['provenance']['repository']
     if repository not in [r['repository'] for r in delivery.get('deploymentDiscovery',{}).get('repositories',[])]:
         raise CollectionError('REPOSITORY_ACCESS_CHANGED')

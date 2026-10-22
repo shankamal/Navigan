@@ -65,7 +65,7 @@ def test_claim_reclaims_expired_lease_and_caps_crashes():
  db=Mock();db.execute.return_value.fetchall.return_value=[]
  claim(db)
  sql=' '.join(c.args[0] for c in db.execute.call_args_list)
- assert 'FOR UPDATE SKIP LOCKED' in sql and 'attempts<3' in sql and 'LEASE_EXHAUSTED' in sql
+ assert 'FOR UPDATE OF j SKIP LOCKED' in sql and 'attempts<3' in sql and 'LEASE_EXHAUSTED' in sql
 
 def test_lost_lease_cannot_publish_result():
  db=Mock();db.execute.return_value.fetchone.return_value=None

@@ -75,21 +75,128 @@ it("prevents viewer creation", () => {
 });
 
 it("queues repository collection for the selected workspace", async () => {
-  const workspace = {workspaceId:"AWS-one",namespaces:["shop"],stale:false,status:"PLANNED",artifacts:[{artifactId:"a",kind:"REPOSITORY_DEFINITION",status:"PENDING_COLLECTION"}]};
-  api.get.mockResolvedValue({data:{workspaces:[workspace]}});
-  api.post.mockResolvedValue({data:{...workspace,status:"COLLECTING",jobs:[{jobId:"j",status:"QUEUED",attempts:0}]}});
-  render(<ArtifactWorkspacePanel {...props}/>);
+  const workspace = {
+    workspaceId: "AWS-one",
+    namespaces: ["shop"],
+    stale: false,
+    status: "PLANNED",
+    artifacts: [
+      {
+        artifactId: "a",
+        kind: "REPOSITORY_DEFINITION",
+        status: "PENDING_COLLECTION",
+      },
+    ],
+  };
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  api.post.mockResolvedValue({
+    data: {
+      ...workspace,
+      status: "COLLECTING",
+      jobs: [{ jobId: "j", status: "QUEUED", attempts: 0 }],
+    },
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
   fireEvent.click(screen.getByText("Artifact workspace"));
-  fireEvent.click(screen.getByRole("button",{name:"Load workspaces"}));
-  fireEvent.click(await screen.findByRole("button",{name:"Collect / retry repository files"}));
-  await waitFor(()=>expect(api.post).toHaveBeenCalledWith('/migrations/MIG-one/artifact-workspaces/AWS-one/collection-jobs',{version:2},expect.anything()));
-  expect(await screen.findByText("Repository collection queued or running")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Collect / retry repository files",
+    }),
+  );
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/artifact-workspaces/AWS-one/collection-jobs",
+      { version: 2 },
+      expect.anything(),
+    ),
+  );
+  expect(
+    await screen.findByText("Artifact collection queued or running"),
+  ).toBeInTheDocument();
 });
 
 it("disables collection for an old snapshot", async () => {
- api.get.mockResolvedValue({data:{workspaces:[{workspaceId:"AWS-one",namespaces:["shop"],stale:true,artifacts:[{artifactId:"a",kind:"REPOSITORY_DEFINITION",status:"PENDING_COLLECTION"}]}]}});
- render(<ArtifactWorkspacePanel {...props}/>);
- fireEvent.click(screen.getByText("Artifact workspace"));
- fireEvent.click(screen.getByRole("button",{name:"Load workspaces"}));
- expect(await screen.findByRole("button",{name:"Collect / retry repository files"})).toBeDisabled();
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-one",
+          namespaces: ["shop"],
+          stale: true,
+          artifacts: [
+            {
+              artifactId: "a",
+              kind: "REPOSITORY_DEFINITION",
+              status: "PENDING_COLLECTION",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  expect(
+    await screen.findByRole("button", {
+      name: "Collect / retry repository files",
+    }),
+  ).toBeDisabled();
+});
+
+it("queues available images separately", async () => {
+  const workspace = {
+    workspaceId: "AWS-one",
+    namespaces: ["shop"],
+    stale: false,
+    status: "PLANNED",
+    artifacts: [
+      { artifactId: "image", kind: "IMAGE", status: "PENDING_COLLECTION" },
+    ],
+  };
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  api.post.mockResolvedValue({
+    data: { ...workspace, status: "COLLECTING", jobs: [] },
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Collect / retry available images",
+    }),
+  );
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/artifact-workspaces/AWS-one/collection-jobs",
+      { version: 2, artifactKind: "IMAGE" },
+      expect.anything(),
+    ),
+  );
+});
+
+it("keeps missing images in recovery", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-one",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            { artifactId: "image", kind: "IMAGE", status: "RECOVERY_REQUIRED" },
+          ],
+        },
+      ],
+    },
+  });
+  render(<ArtifactWorkspacePanel {...props} />);
+  fireEvent.click(screen.getByText("Artifact workspace"));
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  expect(
+    await screen.findByRole("button", {
+      name: "Collect / retry available images",
+    }),
+  ).toBeDisabled();
 });
