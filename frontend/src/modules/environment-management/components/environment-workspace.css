@@ -1362,3 +1362,23 @@
 .environment-list-workspace .customer-table .metadata{font-size:9px!important;line-height:1.2!important}
 .environment-list-workspace .environment-row-open{font-size:10px!important;line-height:1.2!important;font-weight:500!important}
 .environment-list-workspace .status-badge{font-size:9px!important;line-height:1.15!important;font-weight:600!important}
+
+
+/* ENVIRONMENT TABLE PROVIDER LOGO SCALE */
+.environment-list-workspace .customer-table .provider-badge.provider-logo img{
+  width:22px!important;
+  height:18px!important;
+  object-fit:contain!important;
+}
+.environment-list-workspace
+  .customer-table
+  .provider-badge.provider-logo
+  img[src*="amazonwebservices"]{
+  width:28px!important;
+  height:18px!important;
+  max-width:28px!important;
+}
+.environment-list-workspace .customer-table .provider-badges{
+  gap:4px!important;
+  align-items:center!important;
+}
