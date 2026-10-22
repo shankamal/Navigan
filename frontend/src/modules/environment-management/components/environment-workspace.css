@@ -1,10 +1,10 @@
 .app-shell:has(.environment-workspace),
 .app-shell:has(.environment-workspace) .shell-body,
 .app-shell:has(.environment-workspace) .content-column {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
 }
 .app-shell:has(.environment-workspace) .topbar {
-  background: #334155;
+  background-color: var(--navigan-graphite, #1c222b);
 }
 .environment-workspace {
   color: #172033;
@@ -18,7 +18,7 @@
   box-shadow: none;
 }
 .environment-workspace .page-heading h1 {
-  font-size: 26px;
+  font-size: clamp(21px, 1.5vw, 24px);
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -26,12 +26,13 @@
   font-size: 17px;
 }
 .environment-workspace .button-primary {
-  background: #315a76;
-  border-color: #86bc25;
+  background: var(--navigan-action, #2f6b2d);
+  border-color: var(--navigan-action, #2f6b2d);
   color: #fff;
 }
-.environment-workspace .button-primary:hover {
-  background: #254b66;
+.environment-workspace .button-primary:hover:not(:disabled) {
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .environment-workspace .metrics-grid {
   gap: 14px;
