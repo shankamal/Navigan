@@ -2239,3 +2239,34 @@
     height: 28px;
   }
 }
+
+
+
+/* EXACT DASHBOARD TYPOGRAPHY FIX */
+.dashboard-shell .command-dashboard :is(
+  .pd-pending-table,.pd-attention-row,.pd-provider-legend,.pd-posture-metrics,
+  .pd-workflow-legend,.pd-activity-table,.pd-resource,.pd-platform,.pd-row-action,
+  .pd-preview-count,.pd-review-action
+){font-family:var(--navigan-font-family)!important}
+.dashboard-shell .command-dashboard .pd-pending-table{font-size:10px!important;line-height:1.25!important}
+.dashboard-shell .command-dashboard .pd-pending-table thead th{font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.dashboard-shell .command-dashboard .pd-pending-table tbody th,
+.dashboard-shell .command-dashboard .pd-pending-table tbody td{font-size:10px!important;line-height:1.25!important}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count{font-size:9px!important;line-height:1.25!important}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong{font-size:10.5px!important;line-height:1.2!important;font-weight:600!important}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small{font-size:9px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-review-action{font-size:10px!important;line-height:1.2!important;font-weight:600!important}
+.dashboard-shell .command-dashboard .pd-provider-legend strong,
+.dashboard-shell .command-dashboard .pd-posture-metrics strong,
+.dashboard-shell .command-dashboard .pd-workflow-legend strong{font-size:10.5px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-provider,
+.dashboard-shell .command-dashboard .pd-provider-legend>div>span:last-child,
+.dashboard-shell .command-dashboard .pd-posture-metrics span,
+.dashboard-shell .command-dashboard .pd-posture-metrics small,
+.dashboard-shell .command-dashboard .pd-workflow-legend span,
+.dashboard-shell .command-dashboard .pd-workflow-legend small{font-size:9px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-activity-table th{font-size:9px!important;line-height:1.15!important}
+.dashboard-shell .command-dashboard .pd-activity-table td{font-size:10px!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-resource strong,
+.dashboard-shell .command-dashboard .pd-platform strong,
+.dashboard-shell .command-dashboard .pd-row-action{font-size:10.5px!important;line-height:1.2!important}
