@@ -2571,3 +2571,103 @@
   .reportPlanAction>a{padding:6px 9px}
   .assessmentHeadingActions{gap:6px}
 }
+
+
+/* DEFINITIVE COMPACT MIGRATION OVERVIEW */
+@media (min-width:900px){
+  .migrationWorkspace{gap:8px!important}
+  .migrationWorkspace .portfolioMetrics{
+    gap:8px!important;
+    margin-bottom:8px!important
+  }
+  .migrationWorkspace .metricCard{
+    min-height:0!important;
+    padding:10px 12px!important;
+    border-radius:5px!important
+  }
+  .migrationWorkspace .metricCard h2{
+    font-size:13px!important;
+    line-height:1.25!important
+  }
+  .migrationWorkspace .metricCard p{
+    margin:2px 0 7px!important;
+    font-size:10px!important;
+    line-height:1.3!important
+  }
+  .migrationWorkspace .stackedLifecycle{
+    height:16px!important;
+    border-radius:4px!important
+  }
+  .migrationWorkspace .stackedLifecycle>span{font-size:9px!important}
+  .migrationWorkspace .metricLegend{
+    gap:3px 8px!important;
+    margin-top:6px!important
+  }
+  .migrationWorkspace .metricLegend li{font-size:9.75px!important}
+  .migrationWorkspace .coverageValue{
+    margin:8px 0 6px!important;
+    font-size:18px!important;
+    line-height:1.2!important
+  }
+  .migrationWorkspace .coverageValue small{font-size:10px!important}
+  .migrationWorkspace .metricCard progress{height:7px!important}
+  .migrationWorkspace .metricHint{
+    margin-top:4px!important;
+    font-size:9.5px!important
+  }
+  .migrationWorkspace .pathMetrics{
+    gap:6px!important;
+    max-height:88px!important
+  }
+  .migrationWorkspace .pathMetricLabel{
+    gap:4px!important;
+    margin-bottom:2px!important;
+    font-size:9.75px!important
+  }
+  .migrationWorkspace .attentionStrip{
+    gap:5px 12px!important;
+    padding:7px 10px!important;
+    margin-bottom:8px!important;
+    font-size:10.5px!important
+  }
+  .migrationWorkspace .portfolioLayout{gap:8px!important}
+  .migrationWorkspace .portfolioHeading{
+    gap:8px!important;
+    padding:9px 12px!important
+  }
+  .migrationWorkspace .portfolioHeading h2{font-size:13px!important}
+  .migrationWorkspace .portfolioHeading p{
+    margin-top:2px!important;
+    font-size:10px!important;
+    line-height:1.25!important
+  }
+  .migrationWorkspace .filters{
+    gap:7px!important;
+    padding:0 12px 9px!important
+  }
+  .migrationWorkspace .filters label>span{
+    margin-bottom:3px!important;
+    font-size:9.5px!important
+  }
+  .migrationWorkspace .filters select,
+  .migrationWorkspace .search>div{
+    min-height:30px!important;
+    border-radius:5px!important
+  }
+  .migrationWorkspace .filters select,
+  .migrationWorkspace .search input{
+    font-size:10.5px!important
+  }
+  .migrationWorkspace .viewToggle button{
+    padding:5px 8px!important;
+    font-size:10px!important
+  }
+  .migrationWorkspace .portfolioTable th{
+    padding:6px 8px!important;
+    font-size:9px!important
+  }
+  .migrationWorkspace .portfolioTable td{
+    padding:6px 8px!important;
+    font-size:10.5px!important
+  }
+}
