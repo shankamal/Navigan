@@ -2270,3 +2270,22 @@
 .dashboard-shell .command-dashboard .pd-resource strong,
 .dashboard-shell .command-dashboard .pd-platform strong,
 .dashboard-shell .command-dashboard .pd-row-action{font-size:10.5px!important;line-height:1.2!important}
+
+
+
+/* SHARED PROVIDER LOGO STANDARD */
+.dashboard-shell .command-dashboard .pd-provider .pd-brand-logo{
+  width:auto!important;
+  height:var(--navigan-provider-logo-compact-height)!important;
+  max-width:var(--navigan-provider-logo-compact-max-width)!important;
+  object-fit:contain!important;
+}
+.dashboard-shell .command-dashboard .pd-provider-legend .pd-brand-logo{
+  height:var(--navigan-provider-logo-summary-height)!important;
+  max-width:var(--navigan-provider-logo-summary-max-width)!important;
+}
+.dashboard-shell .command-dashboard .pd-tools .pd-brand-logo{
+  width:auto!important;
+  height:19px!important;
+  max-width:24px!important;
+}
