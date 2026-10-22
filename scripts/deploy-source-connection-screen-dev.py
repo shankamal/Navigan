@@ -34,6 +34,14 @@ FILES = [
 ]
 
 
+# These modules are introduced by additive DEV upgrades; older ZIPs legitimately lack them.
+ADDITIVE_FILES = {
+    "deployment_sources.py", "source_authentication.py", "artifact_recovery.py", "recovery_worker.py",
+    "artifact_workspace.py", "workspace_collection.py", "repository_collector.py", "workspace_worker.py",
+    "image_collector.py", "image_worker.py",
+}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
@@ -173,7 +181,7 @@ def main():
             zipfile.ZipFile(io.BytesIO(original)) as old,
             zipfile.ZipFile(artifact, "w", zipfile.ZIP_DEFLATED) as new,
         ):
-            missing = {prefix + name for name in FILES if name not in {"deployment_sources.py", "source_authentication.py", "artifact_recovery.py", "recovery_worker.py"}} - set(
+            missing = {prefix + name for name in FILES if name not in ADDITIVE_FILES} - set(
                 old.namelist()
             )
             if missing:

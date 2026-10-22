@@ -96,7 +96,7 @@ def test_packaging_new_files_preserves_stack_lambda_names(
     original = io.BytesIO()
     with zipfile.ZipFile(original, "w") as archive:
         for file_name in deploy.FILES:
-            if file_name != "deployment_sources.py":
+            if file_name not in deploy.ADDITIVE_FILES:
                 archive.writestr(prefix + file_name, "# original deployed module\n")
     updates = []
     calls = []
@@ -105,6 +105,10 @@ def test_packaging_new_files_preserves_stack_lambda_names(
         "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
         "GET /api/v1/migrations/{migrationId}/deployment-evidence",
         "POST /api/v1/migrations/{migrationId}/deployment-evidence",
+        "GET /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
     ]
     protection = {
         "Target": "integrations/dev-integration",
@@ -226,12 +230,12 @@ def test_packaging_new_files_preserves_stack_lambda_names(
         [] if finish_only else ["DEV-MigrationConnectorFunction", "DEV-MigrationFunction"]
     )
     assert sum(c[:2] == ["iam", "put-role-policy"] for c in calls) == 1
-    assert sum(c[:2] == ["apigatewayv2", "create-route"] for c in calls) == (0 if routes_exist else 4)
+    assert sum(c[:2] == ["apigatewayv2", "create-route"] for c in calls) == (0 if routes_exist else len(routes))
     assert calls[-1] == ["connector-upgrade"]
     assert (tmp_path / "deployment-discovery-environment.json").exists()
     for name, artifact in updates:
         with zipfile.ZipFile(artifact.removeprefix("fileb://")) as archive:
-            assert prefix + "deployment_sources.py" in archive.namelist()
+            assert all(prefix + filename in archive.namelist() for filename in deploy.FILES)
             if name == "DEV-MigrationFunction":
                 assert "yaml/__init__.py" in archive.namelist()
                 assert "navigan/modules/cluster_management/github_app.py" in archive.namelist()
