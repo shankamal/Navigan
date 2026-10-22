@@ -310,7 +310,7 @@
   place-items: center;
   flex: none;
   color: #25303a;
-  font-family: Arial, sans-serif;
+  font-family: var(--navigan-font-family);
   font-size: 0.75rem;
   font-weight: 700;
 }
