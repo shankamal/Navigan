@@ -1,6 +1,6 @@
 .shell-body:has(.cluster-directory-page),
 .content-column:has(.cluster-directory-page) {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
 }
 
 .cluster-directory-page {
