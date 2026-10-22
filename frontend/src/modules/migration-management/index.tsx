@@ -16,6 +16,7 @@ import {
   Columns3,
   MoreVertical,
   Plus,
+  RefreshCw,
   Search,
   Users,
   XCircle,
@@ -28,7 +29,7 @@ import {
   isMigrationPreviewEnabled,
 } from "@/shared/auth/permissions";
 import { normalizeApiError } from "@/shared/api/client";
-import { PageHeading } from "@/shared/components/ui";
+import { Button, PageHeading } from "@/shared/components/ui";
 import { AssessmentWizard } from "./assessment-wizard";
 import { useCancelMigration, useDeleteMigrationAssessment, useMigrations } from "./hooks";
 import styles from "./migration-management.module.css";
@@ -189,19 +190,30 @@ export function MigrationManagementPage() {
   return (
     <div className={styles.migrationWorkspace}>
       <PageHeading
-        eyebrow="MIGRATION"
         title="Migration Overview"
         description={
           "Discover workloads, assess compatibility, and govern migration " +
           "approval across Kubernetes and cloud platforms."
         }
         action={
-          canCreate && (
-            <Link href="/migrations/new" className="button button-primary">
-              <Plus size={18} />
-              New migration assessment
-            </Link>
-          )
+          <>
+            <Button
+              variant="secondary"
+              type="button"
+              disabled={migrationsQuery.isFetching}
+              onClick={() => void migrationsQuery.refetch()}
+              aria-label="Refresh migration assessments"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </Button>
+            {canCreate && (
+              <Link href="/migrations/new" className="button button-primary">
+                <Plus size={16} />
+                New migration assessment
+              </Link>
+            )}
+          </>
         }
       />
 
