@@ -1075,3 +1075,18 @@
   width:14px!important;
   height:14px!important;
 }
+
+
+
+/* SHARED PROVIDER LOGO STANDARD */
+.customer-workspace .provider-logo img{
+  width:auto!important;
+  height:var(--navigan-provider-logo-compact-height)!important;
+  max-width:var(--navigan-provider-logo-compact-max-width)!important;
+  object-fit:contain!important;
+}
+.customer-workspace .customer-metrics .provider-logo img,
+.customer-workspace .customer-cloud-bars .provider-logo img{
+  height:var(--navigan-provider-logo-summary-height)!important;
+  max-width:var(--navigan-provider-logo-summary-max-width)!important;
+}
