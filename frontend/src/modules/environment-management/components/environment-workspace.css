@@ -1348,3 +1348,17 @@
   .environment-list-workspace .environment-filter-grid .field{font-size:10px!important}
   .environment-list-workspace .environment-filter-grid :is(input,select){min-height:30px!important;padding:5px 8px!important}
 }
+
+
+
+/* EXACT ENVIRONMENT TYPOGRAPHY FIX */
+.environment-list-workspace .environment-attention h2{font-size:13px!important;line-height:1.2!important}
+.environment-list-workspace .environment-attention button strong{font-size:10.5px!important;line-height:1.2!important;font-weight:600!important}
+.environment-list-workspace .environment-attention button small{font-size:9px!important;line-height:1.2!important}
+.environment-list-workspace .customer-table{font-size:10px!important;line-height:1.25!important}
+.environment-list-workspace .customer-table thead th{font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.environment-list-workspace .customer-table tbody td{font-size:10px!important;line-height:1.25!important}
+.environment-list-workspace .customer-table tbody td:first-child{font-size:10.5px!important;line-height:1.2!important;font-weight:600!important}
+.environment-list-workspace .customer-table .metadata{font-size:9px!important;line-height:1.2!important}
+.environment-list-workspace .environment-row-open{font-size:10px!important;line-height:1.2!important;font-weight:500!important}
+.environment-list-workspace .status-badge{font-size:9px!important;line-height:1.15!important;font-weight:600!important}
