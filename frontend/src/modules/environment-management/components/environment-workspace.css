@@ -1272,3 +1272,79 @@
   .environment-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
   .environment-portfolio-charts{grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* DEFINITIVE COMPACT ENVIRONMENT DIRECTORY */
+@media (min-width:900px){
+  .environment-list-workspace{gap:8px!important}
+  .environment-list-workspace .environment-portfolio-overview{gap:8px!important}
+  .environment-list-workspace .environment-portfolio-charts{
+    grid-template-columns:1.05fr 1.15fr .9fr!important;
+    gap:8px!important;
+    min-height:0!important;
+    padding:0!important
+  }
+  .environment-list-workspace .environment-portfolio-charts>div{
+    min-height:0!important;
+    padding:10px 12px!important;
+    border-radius:5px!important
+  }
+  .environment-list-workspace .environment-portfolio-charts h2{
+    margin:0 0 7px!important;
+    font-size:13px!important;
+    line-height:1.25!important
+  }
+  .environment-list-workspace .environment-chart-content{gap:8px!important}
+  .environment-list-workspace .environment-portfolio-lifecycle{
+    padding:0!important;
+    border:0!important
+  }
+  .environment-list-workspace .environment-portfolio-lifecycle .environment-ring{
+    width:82px!important;height:82px!important
+  }
+  .environment-list-workspace .environment-chart-legend{gap:4px!important}
+  .environment-list-workspace .environment-chart-legend li{
+    gap:6px!important;font-size:10.5px!important;line-height:1.25!important
+  }
+  .environment-list-workspace .environment-provider-row{
+    grid-template-columns:22px 72px 20px minmax(45px,1fr)!important;
+    gap:6px!important;
+    margin:7px 0!important;
+    font-size:10.5px!important
+  }
+  .environment-list-workspace .environment-provider-row meter{height:8px!important}
+  .environment-list-workspace .environment-coverage-value{
+    gap:5px!important;margin:10px 0 8px!important;font-size:10.5px!important
+  }
+  .environment-list-workspace .environment-coverage-value strong{
+    font-size:19px!important;line-height:1.15!important
+  }
+  .environment-list-workspace .environment-coverage-bar{height:8px!important}
+  .environment-list-workspace .environment-coverage-scale{
+    margin-top:4px!important;font-size:9.5px!important
+  }
+  .environment-list-workspace .environment-active-coverage p{
+    margin-top:8px!important;font-size:10.5px!important
+  }
+  .environment-list-workspace .environment-attention{
+    gap:0 10px!important;
+    padding:8px 12px!important;
+    border-radius:5px!important
+  }
+  .environment-list-workspace .environment-attention h2{
+    margin-bottom:5px!important;font-size:12.5px!important
+  }
+  .environment-list-workspace .environment-attention header a{font-size:10px!important}
+  .environment-list-workspace .environment-attention button{
+    gap:8px!important;padding:7px 0!important
+  }
+  .environment-list-workspace .environment-attention button strong{font-size:10.5px!important}
+  .environment-list-workspace .environment-attention button small{font-size:9.5px!important}
+  .environment-list-workspace .environment-list-filters{
+    gap:7px!important;padding:10px 12px!important
+  }
+  .environment-list-workspace .environment-section-heading{padding:0!important}
+  .environment-list-workspace .environment-filter-grid{gap:7px!important}
+  .environment-list-workspace .environment-filter-grid .field{font-size:10px!important}
+  .environment-list-workspace .environment-filter-grid :is(input,select){min-height:30px!important;padding:5px 8px!important}
+}
