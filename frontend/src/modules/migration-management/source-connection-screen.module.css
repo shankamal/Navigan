@@ -791,3 +791,22 @@
     animation: none;
   }
 }
+
+
+
+/* ADAPTIVE SOURCE CONNECTION DENSITY */
+@container (max-width:1800px){
+  .screen{gap:8px}
+  .heading{min-height:54px;margin-bottom:8px;padding:9px 12px;gap:10px}
+  .titleGroup>svg{width:20px;height:20px}
+  .heading h1{font-size:18px}
+  .heading p{font-size:10.5px;line-height:1.3}
+  .back{padding:5px 8px;font-size:10px}
+  .journey{gap:6px}
+  .journey li{min-height:34px;padding:6px 8px;font-size:10px}
+  .panel{padding:9px 11px;border-radius:5px}
+  .identityGrid,.grid,.facts{gap:8px 10px}
+  .reuseBanner,.checks,.notice{padding:7px 9px}
+  .checks{gap:7px}
+  .actions{gap:7px;padding-top:7px}
+}
