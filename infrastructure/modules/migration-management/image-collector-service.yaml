@@ -82,7 +82,11 @@ Resources:
           User: '0:0' # Entrypoint initializes /tmp, then drops to UID/GID 10001.
           ReadonlyRootFilesystem: true
           StopTimeout: 120
-          MountPoints: [{SourceVolume: scratch, ContainerPath: /tmp}]
+          # Skopeo's OCI archive transport also creates staging directories in /var/tmp.
+          # Both paths share the volume whose permissions the entrypoint initializes.
+          MountPoints:
+            - {SourceVolume: scratch, ContainerPath: /tmp}
+            - {SourceVolume: scratch, ContainerPath: /var/tmp}
           Environment:
             # UID drops to 10001; libpq must not look for client certificates under /root.
             - {Name: HOME, Value: /tmp}
