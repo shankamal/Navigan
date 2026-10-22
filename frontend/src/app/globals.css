@@ -52,7 +52,7 @@ button:disabled {
   opacity: 0.55;
 }
 :focus-visible {
-  outline: 3px solid #007cb0;
+  outline: 3px solid var(--navigan-focus, #6c9e32);
   outline-offset: 3px;
 }
 main:focus {
@@ -122,13 +122,13 @@ h3 {
   flex-shrink: 0;
 }
 .button-primary {
-  background: #315a76;
+  background: var(--navigan-action, #2f6b2d);
   color: #fff;
-  border-color: #86bc25;
+  border-color: var(--navigan-action, #2f6b2d);
 }
 .button-primary:hover:not(:disabled) {
-  background: #254b66;
-  border-color: #86bc25;
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .button-secondary {
   background: white;
@@ -166,14 +166,14 @@ h3 {
   z-index: 100;
   padding: 14px;
   background: white;
-  border: 2px solid #007cb0;
+  border: 2px solid var(--navigan-focus, #6c9e32);
 }
 .skip-link:focus {
   top: 8px;
 }
 .topbar {
   min-height: 72px;
-  background: #050706;
+  background: var(--navigan-graphite, #1c222b);
   color: white;
   display: flex;
   align-items: center;
@@ -640,7 +640,7 @@ main {
   color: #677568;
 }
 .search-field:focus-within {
-  outline: 2px solid #007cb0;
+  outline: 2px solid var(--navigan-focus, #6c9e32);
   outline-offset: 2px;
 }
 .search-field input {
@@ -1261,7 +1261,7 @@ td {
   height: 1px;
 }
 .provider-option:has(input:focus-visible) {
-  outline: 3px solid #007cb0;
+  outline: 3px solid var(--navigan-focus, #6c9e32);
   outline-offset: 2px;
 }
 .provider-option:has(input:disabled) {
