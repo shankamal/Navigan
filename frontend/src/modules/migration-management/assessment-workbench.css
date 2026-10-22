@@ -838,3 +838,12 @@
   .migration-workbench-governance{margin:0 10px 8px}
   .migration-workbench-governance-strip{gap:6px;padding:7px 9px}
 }
+
+
+/* FINAL ASSESSMENT WORKBENCH TYPOGRAPHY */
+.migration-report-workspace{font-family:var(--navigan-font-family)!important;font-size:10.5px!important;line-height:1.35!important}
+.migration-report-workspace :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
+.migration-report-workspace :is(h3,h4,h5,h6){font-size:11.5px!important;line-height:1.25!important;font-weight:600!important}
+.migration-report-workspace :is(p,li,summary,dt,dd){font-size:10.5px!important;line-height:1.35!important}
+.migration-report-workspace small{font-size:9px!important;line-height:1.2!important}
+.migration-report-workspace :is(button,input,select,textarea){font-size:10px!important;line-height:1.25!important}
