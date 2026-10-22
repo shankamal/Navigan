@@ -942,3 +942,27 @@
   }
 }
 
+
+
+
+/* ADAPTIVE CLUSTER WORKSPACE DENSITY */
+@container (max-width:1800px){
+  .cluster-ui{gap:8px;font-size:11.5px}
+  .cluster-board{gap:8px}
+  .cluster-board>*{min-height:66px;padding:9px 11px}
+  .cluster-portfolio,.cluster-setup-layout{gap:10px}
+  .cluster-setup-workspace .cluster-setup-sidebar{padding:10px}
+  .cluster-setup-workspace .cluster-creation-section,
+  .cluster-setup-workspace .cluster-blueprint-card,
+  .cluster-worker-capacity-view{padding:10px 11px;border-radius:5px}
+  .cluster-setup-workspace .cluster-creation-section>legend,.cluster-worker-capacity-view>span{font-size:12px}
+  .cluster-setup-workspace .cluster-creation-section>.muted{margin-bottom:8px;font-size:10.5px;line-height:1.3}
+  .cluster-setup-workspace .cluster-setup-grid{gap:9px 11px}
+  .cluster-worker-capacity-view{margin-top:8px}
+  .cluster-worker-capacity-view progress{height:7px;margin:7px 0}
+  .cluster-worker-capacity-view dt{font-size:9.5px}
+  .cluster-worker-capacity-view dd{margin-top:2px;font-size:12px}
+  .cluster-setup-workspace .cluster-setup-actions{gap:8px;padding-block:7px}
+  .cluster-setup-save-copy small{font-size:9.5px;line-height:1.3}
+  .cluster-setup-save-buttons{gap:7px}
+}
