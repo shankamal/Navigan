@@ -1032,3 +1032,23 @@
     gap:8px!important
   }
 }
+
+
+
+/* SHARED PROVIDER LOGO STANDARD */
+.cluster-ui .provider-logo img{
+  width:auto!important;
+  height:var(--navigan-provider-logo-compact-height)!important;
+  max-width:var(--navigan-provider-logo-compact-max-width)!important;
+  object-fit:contain!important;
+}
+.cluster-portfolio .provider-logo img,
+.cluster-cloud .provider-logo img{
+  height:var(--navigan-provider-logo-summary-height)!important;
+  max-width:var(--navigan-provider-logo-summary-max-width)!important;
+}
+.cluster-setup-workspace .cluster-setup-heading .provider-logo img{
+  width:auto!important;
+  height:var(--navigan-provider-logo-hero-height)!important;
+  max-width:var(--navigan-provider-logo-hero-max-width)!important;
+}
