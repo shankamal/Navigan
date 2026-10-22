@@ -92,6 +92,14 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^MIG-[a-f0-9]{32}$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path[2] === "artifact-workspaces") {
+      if (path.length === 3) return method === "GET" || method === "POST";
+      if (!/^AWS-[a-f0-9]{32}$/.test(path[3] ?? "")) return false;
+      if (path.length === 4) return method === "GET";
+      return (
+        path.length === 5 && path[4] === "collection-jobs" && method === "POST"
+      );
+    }
     if (path.length !== 3) return false;
 
     if (path[2] === "deployment-evidence")
