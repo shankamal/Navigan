@@ -2,10 +2,10 @@
 .app-shell:has(.cluster-ui) .shell-body,
 .app-shell:has(.cluster-ui) .content-column,
 .app-shell:has(.cluster-ui) #main-content {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
 }
 .app-shell:has(.cluster-ui) .topbar {
-  background: #334155;
+  background-color: var(--navigan-graphite, #1c222b);
 }
 .cluster-ui {
   color: #172033;
@@ -17,7 +17,7 @@
   margin-bottom: 0;
 }
 .cluster-ui .page-heading h1 {
-  font-size: 26px;
+  font-size: clamp(21px, 1.5vw, 24px);
   font-weight: 600;
   color: #1e293b;
   letter-spacing: -0.02em;
@@ -32,13 +32,13 @@
   font-size: 16px;
 }
 .cluster-ui .button-primary {
-  background: #315a76;
-  border-color: #86bc25;
+  background: var(--navigan-action, #2f6b2d);
+  border-color: var(--navigan-action, #2f6b2d);
   color: #fff;
 }
 .cluster-ui .button-primary:hover:not(:disabled) {
-  background: #254b66;
-  border-color: #86bc25;
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .cluster-ui :is(a, button, input, select, summary):focus-visible {
   outline: 2px solid #568c3e;
