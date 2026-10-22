@@ -514,3 +514,29 @@
   opacity: 1;
   cursor: default;
 }
+
+/* Graphite title treatment for legacy application migration workspace. */
+.pageHeading {
+  padding: 14px 16px;
+  border: 1px solid #3a4552;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--navigan-graphite-raised, #252e39), var(--navigan-graphite-hover, #303b49));
+  color: #fff;
+}
+.pageHeading h1,
+.pageHeading h2,
+.pageHeading strong {
+  color: #fff;
+}
+.pageHeading p {
+  color: #c8d1da;
+}
+.pageHeading .eyebrow {
+  color: #a8cf61;
+}
+.pageHeading :global(.button-secondary),
+.pageHeading a {
+  background: #2d3743;
+  border-color: #53606d;
+  color: #f7f9fb;
+}
