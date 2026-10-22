@@ -92,12 +92,9 @@ export function CustomerListView() {
     setFilters((old) => ({ ...old, ...values, page: 0 }));
   return (
     <div className="customer-workspace">
-      <div className="customer-page-header">
-        <span className="customer-heading-icon" aria-hidden="true">
-          <Building2 size={25} />
-        </span>
-        <PageHeading
-          title="Customer Management"
+      <PageHeading
+        icon={<Building2 />}
+        title="Customer Management"
           description="Manage onboarding, approvals, and cloud provider associations."
           action={
             <>
@@ -124,8 +121,7 @@ export function CustomerListView() {
               )}
             </>
           }
-        />
-      </div>
+      />
       <CustomerMetrics
         total={total.data}
         active={active.data}
