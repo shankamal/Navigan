@@ -34,6 +34,14 @@
   --navigan-font-metric: 18px;
   --navigan-line-body: 1.35;
   --navigan-line-tight: 1.25;
+
+  /* Shared provider/platform logo sizing */
+  --navigan-provider-logo-compact-height: 18px;
+  --navigan-provider-logo-compact-max-width: 28px;
+  --navigan-provider-logo-summary-height: 20px;
+  --navigan-provider-logo-summary-max-width: 32px;
+  --navigan-provider-logo-hero-height: 28px;
+  --navigan-provider-logo-hero-max-width: 42px;
 }
 
 body {
