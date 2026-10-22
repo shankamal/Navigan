@@ -1882,3 +1882,20 @@
   .remediationColumns>.detail{padding:10px}
   .footer{padding:7px 9px}
 }
+
+
+
+/* FINAL PLANNING TYPOGRAPHY CONTRACT */
+.workspace{font-family:var(--navigan-font-family)!important;font-size:10.5px!important;line-height:1.35!important}
+.workspace :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
+.workspace :is(h3,h4,h5,h6){font-size:11.5px!important;line-height:1.25!important;font-weight:600!important}
+.workspace :is(p,li,summary,dt,dd){font-size:10.5px!important;line-height:1.35!important}
+.workspace small{font-size:9px!important;line-height:1.2!important}
+.workspace :is(button,input,select,textarea){font-size:10px!important;line-height:1.25!important}
+.workspace table{font-size:10px!important;line-height:1.25!important}
+.workspace table thead th{font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.workspace table tbody td{font-size:10px!important;line-height:1.25!important}
+.workspace :is(.eyebrow,[class*="Eyebrow"],[class*="eyebrow"]){font-size:9px!important;line-height:1.15!important;font-weight:700!important}
+.workspace :is(.guidedSourceIdentity h2,.targetWorkspaceIntro h2){font-size:16px!important;line-height:1.2!important;font-weight:600!important}
+.workspace :is(.guidedSourceCardHead h3,.targetSectionTitle h3){font-size:12px!important;line-height:1.2!important;font-weight:600!important}
+.workspace :is(.guidedSourceStats strong,.targetVerdictNumbers strong,.targetFindingsStrip strong,.remediationKpis strong){font-size:18px!important;line-height:1.05!important;font-weight:600!important}
