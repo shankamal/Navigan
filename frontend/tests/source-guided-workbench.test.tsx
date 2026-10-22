@@ -7,7 +7,7 @@ import { ApiError } from "@/shared/api/client";
 
 const api = vi.hoisted(() => ({
   update: vi.fn(), sourceInventory: vi.fn(), assessment: vi.fn(),
-  targetAssessment: vi.fn(), targetCompatibility: vi.fn(), canEdit: true,
+  targetAssessment: vi.fn(), targetCompatibility: vi.fn(), analyzeTarget: vi.fn(), canEdit: true,
 }));
 vi.mock("@/shared/auth/auth-provider", () => ({ useAuth: () => ({identity: {}}) }));
 vi.mock("@/shared/auth/permissions", () => ({hasPermission: () => api.canEdit}));
@@ -40,11 +40,12 @@ function open(overrides: Partial<Migration> = {}) {
 describe("guided Source planning", () => {
   beforeEach(() => {
     api.canEdit = true;
-    for (const fn of [api.update,api.sourceInventory,api.assessment,api.targetAssessment,api.targetCompatibility]) fn.mockReset();
+    for (const fn of [api.update,api.sourceInventory,api.assessment,api.targetAssessment,api.targetCompatibility,api.analyzeTarget]) fn.mockReset();
     api.sourceInventory.mockResolvedValue({inventory});
     api.assessment.mockResolvedValue({assessment});
     api.targetAssessment.mockResolvedValue({assessment: null});
     api.targetCompatibility.mockResolvedValue({resourceEvaluations: []});
+    api.analyzeTarget.mockResolvedValue({assessment: null});
     api.update.mockImplementation(async (_id: string,input: {planningDraft: unknown}) => ({...migration,version: 8,planningDraft: input.planningDraft}));
   });
 
