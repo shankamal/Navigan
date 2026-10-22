@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Box,
   GitBranch,
@@ -369,6 +369,19 @@ export function DeploymentStructure({
   onResolve: (w: Workload, c?: Workload["containers"][number]) => void;
 }) {
   const [selected, setSelected] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
+  const checksRef = useRef<HTMLDetailsElement>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+  const navigatorRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (
+      showDetails &&
+      backRef.current &&
+      getComputedStyle(backRef.current).display !== "none"
+    ) {
+      backRef.current.focus();
+    }
+  }, [showDetails, selected]);
   const active =
     workloads.find((w) => scopeKey(w.workload) === selected) ?? workloads[0];
   const namespaces = [
@@ -411,8 +424,9 @@ export function DeploymentStructure({
       ),
   );
   return (
-    <div className={view.layout}>
+    <div className={view.layout} data-detail={showDetails}>
       <aside
+        ref={navigatorRef}
         className={view.navigator}
         aria-label="Deployment structure workloads"
       >
@@ -452,7 +466,10 @@ export function DeploymentStructure({
                 <button
                   key={scopeKey(w.workload)}
                   aria-pressed={w === active}
-                  onClick={() => setSelected(scopeKey(w.workload))}
+                  onClick={() => {
+                    setSelected(scopeKey(w.workload));
+                    setShowDetails(true);
+                  }}
                 >
                   <Box size={18} />
                   <span>
@@ -493,7 +510,10 @@ export function DeploymentStructure({
                     <button
                       key={scopeKey(w.workload)}
                       aria-pressed={w === active}
-                      onClick={() => setSelected(scopeKey(w.workload))}
+                      onClick={() => {
+                        setSelected(scopeKey(w.workload));
+                        setShowDetails(true);
+                      }}
                     >
                       <Box size={18} />
                       <span>
@@ -514,6 +534,23 @@ export function DeploymentStructure({
         </p>
       ) : (
         <article className={view.card}>
+          <button
+            ref={backRef}
+            className={view.backToList}
+            type="button"
+            onClick={() => {
+              setShowDetails(false);
+              requestAnimationFrame(() =>
+                navigatorRef.current
+                  ?.querySelector<HTMLButtonElement>(
+                    'button[aria-pressed="true"]',
+                  )
+                  ?.focus(),
+              );
+            }}
+          >
+            ← Back to namespaces & workloads
+          </button>
           <header className={view.workloadTitle}>
             <Box size={29} />
             <div>
@@ -538,6 +575,24 @@ export function DeploymentStructure({
               Review details <ChevronRight size={14} />
             </button>
           </header>
+          <div className={view.reviewSummary}>
+            <span>
+              <strong>{groupedFindings.length + additionalGaps.length}</strong>{" "}
+              checks to review
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (checksRef.current) {
+                  checksRef.current.open = true;
+                  checksRef.current.scrollIntoView({ block: "start" });
+                  checksRef.current.querySelector("summary")?.focus();
+                }
+              }}
+            >
+              View checks & actions
+            </button>
+          </div>
           <div className={view.sectionTitle}>
             <FileCode2 size={20} />
             <div>
@@ -707,6 +762,7 @@ export function DeploymentStructure({
           </section>
           <section className={view.related} aria-label="Checks and actions">
             <details
+              ref={checksRef}
               open={groupedFindings.some((f) => f.severity === "BLOCKER")}
             >
               <summary>

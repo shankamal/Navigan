@@ -715,3 +715,42 @@ it("explains expired download links without following them", async () => {
     clock.mockRestore();
   }
 });
+
+it("loads saved workspaces only when the guided view opens and never collects implicitly", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-existing",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [],
+        },
+      ],
+    },
+  });
+  const { rerender } = render(
+    <ArtifactWorkspacePanel {...props} guided active={false} />,
+  );
+  expect(api.get).not.toHaveBeenCalled();
+  rerender(<ArtifactWorkspacePanel {...props} guided active />);
+  await screen.findByText("Workspace index created");
+  expect(api.get).toHaveBeenCalledTimes(1);
+  expect(api.post).not.toHaveBeenCalled();
+  expect(screen.getByText("Create another workspace")).toBeVisible();
+  rerender(<ArtifactWorkspacePanel {...props} guided active={false} />);
+  rerender(<ArtifactWorkspacePanel {...props} guided active />);
+  expect(api.get).toHaveBeenCalledTimes(1);
+});
+
+it("provides a retry after saved-workspace loading fails without creating anything", async () => {
+  api.get.mockRejectedValueOnce(new Error("unavailable"));
+  render(<ArtifactWorkspacePanel {...props} guided active />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Storage not configured",
+  );
+  api.get.mockResolvedValueOnce({ data: { workspaces: [] } });
+  fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
+  await screen.findByText(/No saved workspaces yet/);
+  expect(api.post).not.toHaveBeenCalled();
+});

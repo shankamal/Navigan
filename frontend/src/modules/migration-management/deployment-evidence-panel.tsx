@@ -72,6 +72,10 @@ export function DeploymentEvidencePanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"overview" | "explorer" | "files">(
+    "overview",
+  );
+  const guided = hideConnections && !selectedKeys;
   const [inspectedKey, setInspectedKey] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState(false);
   const analyzedInventory = useRef("");
@@ -477,7 +481,7 @@ export function DeploymentEvidencePanel({
                   }
                 }}
               >
-                {sourceAnalysisAction}
+                {(!guided || view !== "overview") && sourceAnalysisAction}
                 <button onClick={() => setDiagnostics(true)}>
                   Source diagnostics
                 </button>
@@ -493,6 +497,38 @@ export function DeploymentEvidencePanel({
       className={`${styles.panel} ${hideConnections ? styles.workbench : ""}`}
       aria-label="Deployment sources and versions"
     >
+      {guided && (
+        <nav
+          className={styles.viewNavigation}
+          aria-label="Source discovery views"
+        >
+          {(
+            [
+              ["overview", "1", "Discovery overview", "Results & next actions"],
+              [
+                "explorer",
+                "2",
+                "Workload explorer",
+                "Definitions, images & checks",
+              ],
+              ["files", "3", "Files & images", "Collect, recover & export"],
+            ] as const
+          ).map(([key, number, title, description]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => setView(key)}
+            >
+              <span className={styles.viewNumber}>{number}</span>
+              <span>
+                <strong>{title}</strong>
+                <small>{description}</small>
+              </span>
+            </button>
+          ))}
+        </nav>
+      )}
       {!hideConnections && actionBar}
       {query.isPending && <p role="status">Loading deployment evidence…</p>}
       {query.isError && (
@@ -655,10 +691,26 @@ export function DeploymentEvidencePanel({
           {!selectedKeys && (
             <div className={styles.explorerHeading}>
               <div>
-                <h2>Source workload explorer</h2>
+                <h2>
+                  {guided
+                    ? {
+                        overview: "Discovery overview",
+                        explorer: "Workload explorer",
+                        files: "Files & images",
+                      }[view]
+                    : "Source workload explorer"}
+                </h2>
                 <p>
-                  Select a namespace and workload to review its deployment
-                  evidence.
+                  {guided
+                    ? {
+                        overview:
+                          "Review the discovered inventory and source evidence before choosing your next action.",
+                        explorer:
+                          "Inspect workloads here. These filters do not change migration scope.",
+                        files:
+                          "Save deployment files and container images to your private S3 workspace.",
+                      }[view]
+                    : "Select a namespace and workload to review its deployment evidence."}
                 </p>
               </div>
               <div className={styles.explorerActions}>
@@ -671,12 +723,24 @@ export function DeploymentEvidencePanel({
               </div>
             </div>
           )}
-          {!selectedKeys && matching && (
+          {!selectedKeys && matching && (!guided || view === "overview") && (
             <section
               className={styles.discoverySummary}
               aria-label="Discovery evidence summary"
             >
-              <h3 className={styles.scorecardTitle}>Evidence scorecards</h3>
+              <h3 className={styles.scorecardTitle}>
+                Discovered inventory & source evidence
+              </h3>
+              {guided &&
+                (!evidence.analyzedAt ||
+                  evidence.analysisCurrent === false) && (
+                  <p className={styles.analysisNotice} role="status">
+                    <Info size={16} aria-hidden="true" />
+                    {!evidence.analyzedAt
+                      ? "Deployment source checks have not completed. Zero matches do not mean files or images are missing."
+                      : "Source checks need refreshing for the current inventory. The counts below show the last reported result."}
+                  </p>
+                )}
               <div className={styles.scorecards}>
                 <div>
                   <Database size={42} aria-hidden="true" />
@@ -695,28 +759,36 @@ export function DeploymentEvidencePanel({
                   </div>
                 </div>
                 <div title="Workloads with at least one matching repository definition. This does not verify the deployed Git revision.">
-                  <EvidenceCoverageRing
-                    value={repositoryMatched}
-                    total={allWorkloads.length}
-                    label="Repository definitions matched"
-                  />
+                  {(!guided || evidence.analyzedAt) && (
+                    <EvidenceCoverageRing
+                      value={repositoryMatched}
+                      total={allWorkloads.length}
+                      label="Repository definitions matched"
+                    />
+                  )}
                   <div>
                     <strong>
-                      {repositoryMatched} / {allWorkloads.length}
+                      {guided && !evidence.analyzedAt
+                        ? "Not checked"
+                        : `${repositoryMatched} / ${allWorkloads.length}`}
                     </strong>
                     <b>Repository matched</b>
                     <span>Repository definitions matched</span>
                   </div>
                 </div>
                 <div title="Workloads for which every application and init container image is available in its source registry.">
-                  <EvidenceCoverageRing
-                    value={imagesVerified}
-                    total={allWorkloads.length}
-                    label="All container images available"
-                  />
+                  {(!guided || evidence.analyzedAt) && (
+                    <EvidenceCoverageRing
+                      value={imagesVerified}
+                      total={allWorkloads.length}
+                      label="All container images available"
+                    />
+                  )}
                   <div>
                     <strong>
-                      {imagesVerified} / {allWorkloads.length}
+                      {guided && !evidence.analyzedAt
+                        ? "Not checked"
+                        : `${imagesVerified} / ${allWorkloads.length}`}
                     </strong>
                     <b>Images available</b>
                     <span>All container images available</span>
@@ -741,9 +813,47 @@ export function DeploymentEvidencePanel({
                   deployed Git revision.
                 </span>
               </div>
+              {guided && (
+                <div
+                  className={styles.nextActions}
+                  aria-label="Discovery next actions"
+                >
+                  <div>
+                    <GitBranch size={20} />
+                    <h3>Check deployment sources</h3>
+                    <p>
+                      Read configured repositories and check referenced images.
+                      This does not collect files into S3.
+                    </p>
+                    {sourceAnalysisAction}
+                  </div>
+                  <div>
+                    <Box size={20} />
+                    <h3>Review workload evidence</h3>
+                    <p>
+                      {needsAttention} of {allWorkloads.length} workloads have
+                      reported gaps or unchecked evidence.
+                    </p>
+                    <button onClick={() => setView("explorer")}>
+                      Open workload explorer <ChevronRight size={14} />
+                    </button>
+                  </div>
+                  <div>
+                    <Database size={20} />
+                    <h3>Prepare files & images</h3>
+                    <p>
+                      Open a saved workspace or choose namespaces to collect.
+                      Target compatibility is checked later.
+                    </p>
+                    <button onClick={() => setView("files")}>
+                      Open files & images <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
-          {!selectedKeys && (
+          {!selectedKeys && (!guided || view === "explorer") && (
             <div className={styles.toolbar}>
               <select
                 aria-label="Evidence namespace"
@@ -1227,29 +1337,41 @@ export function DeploymentEvidencePanel({
             })()}
           {!selectedKeys && (
             <>
-              <ArtifactWorkspacePanel
-                key={`${migration.migrationId}/${inventoryDigest ?? ""}`}
-                migrationId={migration.migrationId}
-                version={migration.version}
-                inventoryDigest={inventoryDigest}
-                namespaces={evidenceNamespaces}
-                canEdit={canEdit}
-              />
-              <DeploymentStructure
-                workloads={workloads}
-                namespaces={evidenceNamespaces.filter(
-                  (n) => !evidenceNamespace || n === evidenceNamespace,
-                )}
-                findings={findings}
-                recoveries={(evidence.recoveries ?? []).filter(
-                  (job) => job.inventoryDigest === evidence.inventoryDigest,
-                )}
-                onConnect={onManageConnections}
-                onInspect={(w) => setInspectedKey(scopeKey(w.workload))}
-                onResolve={(workload, container) =>
-                  setResolution({ workload, container })
-                }
-              />
+              <div
+                hidden={guided && view !== "files"}
+                className={styles.viewContent}
+              >
+                <ArtifactWorkspacePanel
+                  guided={guided}
+                  active={guided && view === "files"}
+                  key={`${migration.migrationId}/${inventoryDigest ?? ""}`}
+                  migrationId={migration.migrationId}
+                  version={migration.version}
+                  inventoryDigest={inventoryDigest}
+                  namespaces={evidenceNamespaces}
+                  canEdit={canEdit}
+                />
+              </div>
+              <div
+                hidden={guided && view !== "explorer"}
+                className={styles.viewContent}
+              >
+                <DeploymentStructure
+                  workloads={workloads}
+                  namespaces={evidenceNamespaces.filter(
+                    (n) => !evidenceNamespace || n === evidenceNamespace,
+                  )}
+                  findings={findings}
+                  recoveries={(evidence.recoveries ?? []).filter(
+                    (job) => job.inventoryDigest === evidence.inventoryDigest,
+                  )}
+                  onConnect={onManageConnections}
+                  onInspect={(w) => setInspectedKey(scopeKey(w.workload))}
+                  onResolve={(workload, container) =>
+                    setResolution({ workload, container })
+                  }
+                />
+              </div>
             </>
           )}
           {resolution && (

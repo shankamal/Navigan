@@ -96,10 +96,22 @@ const settings = {
 };
 it("keeps repository matches separate from image availability in the summary", async () => {
   open();
-  const summary = await screen.findByRole("region", { name: "Discovery evidence summary" });
-  expect(within(summary).getByRole("progressbar", { name: "Repository definitions matched" })).toHaveAttribute("aria-valuenow", "1");
-  expect(within(summary).getByRole("progressbar", { name: "All container images available" })).toHaveAttribute("aria-valuenow", "0");
-  expect(within(summary).getByText(/do not verify the deployed Git revision/)).toBeVisible();
+  const summary = await screen.findByRole("region", {
+    name: "Discovery evidence summary",
+  });
+  expect(
+    within(summary).getByRole("progressbar", {
+      name: "Repository definitions matched",
+    }),
+  ).toHaveAttribute("aria-valuenow", "1");
+  expect(
+    within(summary).getByRole("progressbar", {
+      name: "All container images available",
+    }),
+  ).toHaveAttribute("aria-valuenow", "0");
+  expect(
+    within(summary).getByText(/do not verify the deployed Git revision/),
+  ).toBeVisible();
 });
 function open(
   props: Partial<React.ComponentProps<typeof DeploymentEvidencePanel>> = {},
@@ -195,8 +207,9 @@ it("explicit analysis persists no implicit refresh or workflow transition", asyn
   fireEvent.click(button);
   await waitFor(() => expect(api.analyze).toHaveBeenCalledWith("MIG-db", 5));
   expect(api.refresh).not.toHaveBeenCalled();
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "Analysis finished",
+  expect(await screen.findByText(/Analysis finished/)).toHaveAttribute(
+    "role",
+    "status",
   );
 });
 it("requests cluster evidence refresh using the migration version", async () => {
@@ -239,9 +252,9 @@ it("marks explicit user confirmation without claiming a verified deployed commit
     commit: "b".repeat(40),
     filePath: "charts/Chart.yaml",
   });
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "does not independently verify",
-  );
+  expect(
+    await screen.findByText(/does not independently verify/),
+  ).toHaveAttribute("role", "status");
 });
 it("viewer cannot mutate connections, analysis, refresh or confirmation", async () => {
   api.canEdit = false;
@@ -661,7 +674,6 @@ it("analyzes a fresh inventory once after collection when source connections are
   expect(api.refresh).not.toHaveBeenCalled();
 });
 
-
 it("puts source analysis and diagnostics in the discovery more-options disclosure", async () => {
   open({ hideConnections: true });
   const summary = await screen.findByLabelText("More options");
@@ -669,7 +681,64 @@ it("puts source analysis and diagnostics in the discovery more-options disclosur
   expect(menu.open).toBe(false);
   fireEvent.click(summary);
   expect(menu.open).toBe(true);
-  fireEvent.click(within(menu).getByRole("button", { name: "Source diagnostics" }));
+  fireEvent.click(
+    within(menu).getByRole("button", { name: "Source diagnostics" }),
+  );
   expect(menu.open).toBe(false);
   expect(await screen.findByRole("dialog")).toBeVisible();
+});
+
+it("separates overview from workload inspection and preserves explorer filters across navigation", async () => {
+  open({ hideConnections: true });
+  const nav = screen.getByRole("navigation", {
+    name: "Source discovery views",
+  });
+  const overview = within(nav).getByRole("button", {
+    name: /Discovery overview/,
+  });
+  expect(overview).toHaveAttribute("aria-pressed", "true");
+  await screen.findByRole("heading", { name: "Review workload evidence" });
+  expect(
+    screen.queryByRole("combobox", { name: "Evidence namespace" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(
+    within(nav).getByRole("button", { name: /Workload explorer/ }),
+  );
+  const search = screen.getByRole("searchbox", { name: "Search workloads" });
+  fireEvent.change(search, { target: { value: "payments" } });
+  expect(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  ).toBeVisible();
+  fireEvent.click(overview);
+  expect(
+    screen.queryByRole("button", { name: "Inspect api in payments" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(
+    within(nav).getByRole("button", { name: /Workload explorer/ }),
+  );
+  expect(
+    screen.getByRole("searchbox", { name: "Search workloads" }),
+  ).toHaveValue("payments");
+  expect(api.refresh).not.toHaveBeenCalled();
+});
+
+it("labels unchecked source evidence without interpreting zero counts as missing artifacts", async () => {
+  open({ hideConnections: true });
+  await screen.findByText(/Deployment source checks have not completed/);
+  expect(
+    within(
+      screen.getByRole("region", { name: "Discovery evidence summary" }),
+    ).getAllByText("Not checked"),
+  ).toHaveLength(2);
+  expect(
+    screen.queryByRole("progressbar", {
+      name: "All container images available",
+    }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", {
+      name: "Analyze deployment sources",
+      hidden: false,
+    }),
+  ).toBeVisible();
 });

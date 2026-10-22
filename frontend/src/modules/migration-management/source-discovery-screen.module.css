@@ -774,7 +774,7 @@
   .findingIssue>summary{padding:7px 9px}
   .footerActions{gap:6px}
 }
-@container (max-width:1100px){.context,.columns{grid-template-columns:minmax(0,1fr)}}
+@container (max-width:680px){.context,.columns{grid-template-columns:minmax(0,1fr)}}
 
 
 
@@ -789,3 +789,12 @@
 .discoveryScreen table thead th{font-size:var(--navigan-font-label)!important;line-height:1.15!important;font-weight:700!important}
 .discoveryScreen table tbody td{font-size:var(--navigan-font-table)!important;line-height:1.25!important}
 
+
+/* Discovery context is supporting information, not a separate hero. */
+.discoveryScreen[class] > .context { padding: 6px 10px !important; margin: 0; }
+.discoveryScreen[class] > .context > div { min-height: 36px; padding: 4px 8px; }
+.discoveryScreen[class] > .runComplete { margin: 0; padding: 4px 0 !important; }
+.discoveryScreen[class] > .context > div > div { gap:2px; }
+.discoveryScreen[class] > ol[aria-label="Migration workflow"] { margin:0 0 4px; }
+.discoveryScreen[class] > ol[aria-label="Migration workflow"] button { padding:5px 4px; }
+.discoveryScreen[class] > .runComplete .phase { min-height:0; padding:0 !important; }

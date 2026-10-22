@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Database, Search, ShieldCheck } from "lucide-react";
 import {
   apiClient,
@@ -60,12 +60,16 @@ export function ArtifactWorkspacePanel({
   inventoryDigest,
   namespaces,
   canEdit,
+  guided = false,
+  active = false,
 }: {
   migrationId: string;
   version: number;
   inventoryDigest?: string;
   namespaces: string[];
   canEdit: boolean;
+  guided?: boolean;
+  active?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [exports, setExports] = useState<
@@ -94,6 +98,37 @@ export function ArtifactWorkspacePanel({
     failed: boolean;
     message: string;
   } | null>(null);
+  const loadAttempt = useRef("");
+  useEffect(() => {
+    if (!active || loadAttempt.current === migrationId) return;
+    const controller = new AbortController();
+    setBusy(true);
+    apiClient
+      .get(`/migrations/${migrationId}/artifact-workspaces`, {
+        signal: controller.signal,
+      })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return;
+        loadAttempt.current = migrationId;
+        if (!Array.isArray(data.workspaces))
+          throw new Error(
+            "Workspace list could not be read. Refresh workspaces to retry.",
+          );
+        setWorkspaces(data.workspaces);
+        setLoaded(true);
+        setError("");
+      })
+      .catch((failure) => {
+        if (!controller.signal.aborted) {
+          loadAttempt.current = migrationId;
+          setError(normalizeApiError(failure).message);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
+    return () => controller.abort();
+  }, [active, migrationId]);
   async function run(create: boolean) {
     setBusy(true);
     setError("");
@@ -113,6 +148,10 @@ export function ArtifactWorkspacePanel({
         const { data } = await apiClient.get(
           `/migrations/${migrationId}/artifact-workspaces`,
         );
+        if (!Array.isArray(data.workspaces))
+          throw new Error(
+            "Workspace list could not be read. Refresh workspaces to retry.",
+          );
         setWorkspaces(data.workspaces);
       }
       setLoaded(true);
@@ -325,12 +364,16 @@ export function ArtifactWorkspacePanel({
       setBusy(false);
     }
   }
+  const NamespaceChooser = guided ? "details" : "div";
   const scope = selected.filter((ns) => namespaces.includes(ns));
   const visibleNamespaces = namespaces.filter((ns) =>
     ns.toLowerCase().includes(query.toLowerCase()),
   );
   return (
-    <details className={styles.panel}>
+    <details
+      className={`${styles.panel} ${guided ? styles.guided : ""}`}
+      open={guided || undefined}
+    >
       <summary>
         <Database size={19} aria-hidden="true" />
         <div className={styles.heading}>
@@ -345,89 +388,134 @@ export function ArtifactWorkspacePanel({
         <ChevronDown className={styles.chevron} size={18} aria-hidden="true" />
       </summary>
       <div className={styles.content}>
-        <div className={styles.intro}>
-          <div>
-            <strong>Choose what to migrate</strong>
-            <p>
-              Select namespaces to list their required deployment files and
-              container images.
-            </p>
+        {guided && (
+          <ol
+            className={styles.collectionSteps}
+            aria-label="Artifact preparation sequence"
+          >
+            <li>
+              <b>1. Choose namespaces</b>
+              <span>Collection scope only</span>
+            </li>
+            <li>
+              <b>2. Create workspace</b>
+              <span>Build the artifact index</span>
+            </li>
+            <li>
+              <b>3. Collect & resolve</b>
+              <span>Save files and images to S3</span>
+            </li>
+            <li>
+              <b>4. Review & export</b>
+              <span>Create the versioned manifest</span>
+            </li>
+          </ol>
+        )}
+        <NamespaceChooser
+          className={guided ? styles.namespaceChooser : undefined}
+          {...(guided ? { open: !workspaces.length || undefined } : {})}
+        >
+          {guided && (
+            <summary>
+              {workspaces.length
+                ? "Create another workspace"
+                : "Choose namespaces to collect"}
+            </summary>
+          )}
+          <div className={styles.intro}>
+            <div>
+              <strong>Namespaces to collect</strong>
+              <p>
+                Select namespaces to list their required deployment files and
+                container images. This does not select the migration execution
+                scope.
+              </p>
+            </div>
+            <span className={styles.selectionCount} role="status">
+              {scope.length} of {namespaces.length} selected
+            </span>
           </div>
-          <span className={styles.selectionCount} role="status">
-            {scope.length} of {namespaces.length} selected
-          </span>
-        </div>
-        <fieldset disabled={busy || !canEdit} className={styles.scope}>
-          <legend>Namespaces to include</legend>
-          <div className={styles.scopeToolbar}>
-            <label className={styles.search}>
-              <Search size={15} aria-hidden="true" />
-              <input
-                type="search"
-                aria-label="Search namespaces"
-                placeholder="Find a namespace…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <button type="button" onClick={() => setSelected(namespaces)}>
-              Select all
-            </button>
-            <button
-              type="button"
-              disabled={!scope.length}
-              onClick={() => setSelected([])}
-            >
-              Clear selection
-            </button>
-          </div>
-          <div className={styles.namespaces}>
-            {visibleNamespaces.map((ns) => (
-              <label
-                key={ns}
-                className={
-                  selected.includes(ns) ? styles.selectedNamespace : undefined
-                }
-              >
+          <fieldset disabled={busy || !canEdit} className={styles.scope}>
+            <legend>Namespaces to include</legend>
+            <div className={styles.scopeToolbar}>
+              <label className={styles.search}>
+                <Search size={15} aria-hidden="true" />
                 <input
-                  type="checkbox"
-                  checked={selected.includes(ns)}
-                  onChange={(e) =>
-                    setSelected((items) =>
-                      e.target.checked
-                        ? [...items, ns]
-                        : items.filter((item) => item !== ns),
-                    )
-                  }
+                  type="search"
+                  aria-label="Search namespaces"
+                  placeholder="Find a namespace…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                 />
-                <span>{ns}</span>
               </label>
-            ))}
+              <button type="button" onClick={() => setSelected(namespaces)}>
+                Select all
+              </button>
+              <button
+                type="button"
+                disabled={!scope.length}
+                onClick={() => setSelected([])}
+              >
+                Clear selection
+              </button>
+            </div>
+            <div className={styles.namespaces}>
+              {visibleNamespaces.map((ns) => (
+                <label
+                  key={ns}
+                  className={
+                    selected.includes(ns) ? styles.selectedNamespace : undefined
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(ns)}
+                    onChange={(e) =>
+                      setSelected((items) =>
+                        e.target.checked
+                          ? [...items, ns]
+                          : items.filter((item) => item !== ns),
+                      )
+                    }
+                  />
+                  <span>{ns}</span>
+                </label>
+              ))}
+            </div>
+            {!visibleNamespaces.length && (
+              <p className={styles.hint}>
+                {namespaces.length
+                  ? "No namespaces match your search."
+                  : "No namespaces discovered yet."}
+              </p>
+            )}
+          </fieldset>
+          <div className={styles.actions}>
+            <button
+              className={styles.primary}
+              type="button"
+              disabled={busy || !canEdit || !inventoryDigest || !scope.length}
+              onClick={() => run(true)}
+            >
+              Create workspace
+            </button>
+
+            <span className={styles.hint}>
+              Creates an artifact list. Collection starts separately.
+            </span>
+            {busy && <span role="status">Saving or loading workspace…</span>}
           </div>
-          {!visibleNamespaces.length && (
+          {guided && !scope.length && (
             <p className={styles.hint}>
-              {namespaces.length
-                ? "No namespaces match your search."
-                : "No namespaces discovered yet."}
+              Select at least one namespace to enable Create workspace.
             </p>
           )}
-        </fieldset>
-        <div className={styles.actions}>
-          <button
-            className={styles.primary}
-            type="button"
-            disabled={busy || !canEdit || !inventoryDigest || !scope.length}
-            onClick={() => run(true)}
-          >
-            Create workspace
-          </button>
+        </NamespaceChooser>
+        <div className={styles.savedHeading}>
+          <h3>Saved workspaces</h3>
           <button type="button" disabled={busy} onClick={() => run(false)}>
             {loaded ? "Refresh workspaces" : "Load workspaces"}
           </button>
-          <span className={styles.hint}>
-            Creates an artifact list. Collection starts separately.
-          </span>
-          {busy && <span role="status">Saving or loading workspace…</span>}
         </div>
         {!inventoryDigest && (
           <p>Complete source discovery before creating a workspace.</p>
@@ -503,6 +591,7 @@ export function ArtifactWorkspacePanel({
                   originally listed. Review receipts are retained in S3.
                 </p>
               )}
+              <h3 className={styles.stageHeading}>Collect files & images</h3>
               <div className={styles.actions}>
                 <button
                   type="button"
@@ -551,16 +640,29 @@ export function ArtifactWorkspacePanel({
                       ["QUEUED", "RUNNING"].includes(job.status),
                     )
                   }
+                  aria-describedby={`export-help-${w.workspaceId}`}
                   onClick={() => createExport(w.workspaceId)}
                 >
                   {exports[w.workspaceId]?.pending
                     ? "Verifying files and creating export…"
                     : "Create workspace export"}
                 </button>
-                <p>
-                  Creates a manifest linking exact S3 versions, checksums, image
-                  digests and historical review receipts. Content review and
-                  target validation follow.
+                <p id={`export-help-${w.workspaceId}`}>
+                  {w.stale
+                    ? "Create a workspace from the current inventory before exporting."
+                    : attention > 0
+                      ? `Resolve ${attention} artifact${attention === 1 ? "" : "s"} needing attention before exporting.`
+                      : available > 0
+                        ? `Collect ${available} remaining artifact${available === 1 ? "" : "s"} before exporting.`
+                        : required < 1
+                          ? "The workspace needs at least one required artifact to export."
+                          : (w.jobs ?? []).some((job) =>
+                                ["QUEUED", "RUNNING"].includes(job.status),
+                              )
+                            ? "Wait for the current collection jobs to finish before exporting."
+                            : !canEdit
+                              ? "Your role can review this workspace but cannot create an export."
+                              : "Create an export manifest referencing the exact files and images saved to S3. Target validation follows."}
                 </p>
                 {exports[w.workspaceId]?.pending && (
                   <p role="status">
@@ -858,14 +960,17 @@ export function ArtifactWorkspacePanel({
             </div>
           );
         })}
-        <p className={styles.footer}>
-          Collection jobs run in the background and require a running collector.
-          Refresh workspaces to check progress. Missing items need recovery
-          before migration. Live definitions and retained Helm data use the
-          approved source SSM host. They may contain sensitive configuration and
-          require review. Use Check recovery progress until the file is saved to
-          S3.
-        </p>
+        <details className={styles.collectionHelp}>
+          <summary>How collection and recovery work</summary>
+          <p className={styles.footer}>
+            Collection jobs run in the background and require a running
+            collector. Refresh workspaces to check progress. Missing items need
+            recovery before migration. Live definitions and retained Helm data
+            use the approved source SSM host. They may contain sensitive
+            configuration and require review. Use Check recovery progress until
+            the file is saved to S3.
+          </p>
+        </details>
       </div>
     </details>
   );

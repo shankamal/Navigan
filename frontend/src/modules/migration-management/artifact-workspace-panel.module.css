@@ -353,3 +353,25 @@
   text-decoration: underline;
 }
 
+
+/* Guided collection view. Namespace selection creates a collection index only. */
+.panel.guided { margin:0; font-size:var(--navigan-font-body); }
+.panel.guided > summary { display:none; }
+.panel.guided .content { padding:12px; border:0; }
+.collectionSteps { list-style:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:0; margin:0 0 16px; }
+.collectionSteps li { padding:9px 10px; background:#f2f4f6; border:1px solid #dce3e9; border-radius:3px; }
+.collectionSteps b,.collectionSteps span { display:block; }
+.collectionSteps span { color:#63717f; font-size:var(--navigan-font-caption); margin-top:4px; }
+.namespaceChooser { border:1px solid #dce3e9; padding:10px 12px; margin-bottom:12px; }
+.namespaceChooser > summary { cursor:pointer; color:#334155; font-weight:600; }
+.savedHeading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:12px 0; }
+.savedHeading h3,.stageHeading { margin:8px 0; font-size:var(--navigan-font-section-title); }
+.panel[class] .namespaces label { color:#34404d; }
+.panel[class] .scopeToolbar .search { flex-direction:row; height:34px; padding:5px 8px; margin:0; box-sizing:border-box; }
+.panel[class] .scopeToolbar .search input { min-height:0 !important; height:22px; }
+.panel[class] .scopeToolbar .search svg { flex-shrink:0; }
+@container (max-width:720px) { .collectionSteps { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:420px) { .intro,.savedHeading { flex-wrap:wrap; } }
+.collectionHelp { margin-top:12px; border-top:1px solid #e3e8ed; padding-top:10px; }
+.collectionHelp > summary { cursor:pointer; color:#536174; font-weight:600; }
+.panel[class] .namespaces label span { color:#34404d !important; }

@@ -815,3 +815,20 @@
 .card { align-self: start; }
 .deploymentFacts { padding-bottom: 10px; }
 
+
+/* Compact list/detail navigation with an explicit narrow-screen return path. */
+.card .backToList { display:none !important; }
+.reviewSummary { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; margin:0 0 12px; background:#f3f5f7; border:1px solid #e0e5ea; }
+.reviewSummary strong { font-size:var(--navigan-font-section-title); }
+.navigator header { padding:10px 12px; }
+.navigator summary { padding:9px 12px; }
+.navigator details > button { padding:8px 12px; }
+.finding { padding:10px 0; }
+@container (max-width:720px) {
+ .layout { grid-template-columns:minmax(0,1fr); }
+ .layout[data-detail="false"] > .card { display:none; }
+ .layout[data-detail="true"] > .navigator { display:none; }
+ .layout .card .backToList { display:inline-flex !important; margin-bottom:12px; }
+ .layout .navigator { max-height:none; overflow:visible; }
+ .reviewSummary { flex-wrap:wrap; }
+}
