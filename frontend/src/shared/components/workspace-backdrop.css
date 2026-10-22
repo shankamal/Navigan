@@ -763,3 +763,38 @@
     font-size: 9.5px;
   }
 }
+
+
+/* ADAPTIVE DESKTOP DENSITY 2026 */
+@media (min-width: 900px) {
+  .app-shell[class] > header.topbar{min-height:54px;padding-block:7px}
+  .app-shell[class] .sidebar{width:clamp(205px,13vw,226px);flex-basis:clamp(205px,13vw,226px)}
+  .app-shell[class] .sidebar .sidebar-brand-panel{min-height:48px}
+  .app-shell[class] .sidebar .clustered-nav-group{padding:8px 8px 9px}
+  .app-shell[class] .sidebar .nav-item{min-height:31px;padding:5px 8px;font-size:11px;gap:8px}
+  .app-shell[class] .sidebar .nav-item svg{width:15px;height:15px}
+  .app-shell[class] .content-column>.breadcrumb{min-height:30px;padding-top:6px;padding-bottom:5px;font-size:10.5px}
+  .app-shell[class] .content-column main#main-content{padding-top:6px;padding-bottom:14px}
+  .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
+  .app-shell[class] main#main-content .customer-page-header,
+  .app-shell[class] main#main-content .environment-portfolio-heading{
+    min-height:56px;margin-bottom:8px;padding:9px 12px;gap:12px}
+  .app-shell[class] main#main-content :is(.page-heading,.pd-heading) h1,
+  .app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) h1{
+    font-size:clamp(18px,1.25vw,21px)}
+  .app-shell[class] main#main-content :is(.page-heading,.pd-heading) .muted,
+  .app-shell[class] main#main-content :is(.customer-page-header,.environment-portfolio-heading) .muted{
+    margin-top:2px;font-size:10.5px;line-height:1.3}
+  .app-shell[class] main#main-content .button{min-height:30px;padding:6px 10px;font-size:11px}
+  .app-shell[class] main#main-content :is(input,select,textarea){font-size:11.5px}
+  .app-shell[class] main#main-content table{font-size:10.5px}
+  .app-shell[class] main#main-content :is(th,td){padding-top:6px;padding-bottom:6px}
+  .app-shell[class] main#main-content thead th{font-size:9px}
+}
+@container (max-width:1800px){
+  .content-column main,.content-column .breadcrumb,.content-column .app-footer{padding-inline:clamp(12px,1.6vw,26px)}
+}
+@container (max-width:1280px){
+  .content-column main,.content-column .breadcrumb,.content-column .app-footer{padding-inline:12px}
+}
