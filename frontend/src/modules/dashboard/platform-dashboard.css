@@ -1183,19 +1183,19 @@
 
 /* Compact Dev dashboard with approved slate/emerald palette. */
 .dashboard-shell .topbar {
-  background: #334155;
-  border-bottom-color: #475569;
+  background: var(--navigan-graphite, #1c222b);
+  border-bottom-color: #343f4c;
 }
 .dashboard-shell .button-primary,
 .dashboard-shell .pd-review-action {
-  background: #315a76;
-  border-color: #86bc25;
+  background: var(--navigan-action, #2f6b2d);
+  border-color: var(--navigan-action, #2f6b2d);
   color: #fff;
 }
 .dashboard-shell .button-primary:hover,
 .dashboard-shell .pd-attention-row:hover .pd-review-action {
-  background: #254b66;
-  border-color: #86bc25;
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .dashboard-shell .pd-review-action svg {
   color: currentColor;
