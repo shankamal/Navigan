@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
-import { ErrorNotice, Loading, formatDateTime } from "@/shared/components/ui";
+import { Button, ErrorNotice, Loading, PageHeading, formatDateTime } from "@/shared/components/ui";
 import {
   useCustomerCount,
   useCustomers,
@@ -128,24 +128,9 @@ function DonutChart({
 export function PlatformDashboard() {
   const queryClient = useQueryClient();
   const { identity } = useAuth();
-  const [currentDate, setCurrentDate] = useState("");
   const [refreshError, setRefreshError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
 
-  useEffect(() => {
-    const updateDate = () =>
-      setCurrentDate(
-        new Intl.DateTimeFormat("en-GB", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }).format(new Date()),
-      );
-    updateDate();
-    const interval = window.setInterval(updateDate, 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
   const totalCustomers = useCustomerCount();
   const activeCustomers = useCustomerCount("ACTIVE");
   const submittedCustomers = useCustomerCount("SUBMITTED");
@@ -404,50 +389,50 @@ export function PlatformDashboard() {
 
   return (
     <div className="platform-dashboard command-dashboard">
-      <section className="pd-heading">
-        <div>
-          <p className="pd-date">{currentDate}</p>
-          <h1>Platform command center</h1>
-          <p className="muted">
-            Live governance, provisioning, and lifecycle status across the
-            Navigan-managed Kubernetes estate.
-          </p>
-        </div>
-        <div className="pd-actions">
-          <span className="pd-freshness" role="status" aria-live="polite">
-            {refreshing
-              ? "Refreshing…"
-              : refreshError || hasPartialError
-                ? "Some data could not be refreshed"
-                : lastUpdated
-                  ? `Updated ${lastUpdated}`
-                  : "Loading data…"}
-          </span>
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={() => void refreshDashboard()}
-            disabled={refreshing}
-          >
-            <RefreshCw size={15} /> Refresh
-          </button>
-          {canCreateEnvironment && (
-            <Link className="button button-secondary" href="/environments/new">
-              <Plus size={17} /> New environment
-            </Link>
-          )}
-          {canCreateCluster && (
-            <Link className="button button-primary" href="/clusters/new">
-              <Plus size={17} /> New cluster request
-            </Link>
-          )}
-          {canReview && (
-            <Link className="button button-primary" href="/clusters/reviews">
-              Open review queue
-            </Link>
-          )}
-        </div>
-      </section>
+      <PageHeading
+        icon={<LayoutGrid />}
+        title="Platform command center"
+        description="Live governance, provisioning, and lifecycle status across the Navigan-managed Kubernetes estate."
+        action={
+          <>
+            <span className="page-heading-meta" role="status" aria-live="polite">
+              {refreshing
+                ? "Refreshing…"
+                : refreshError || hasPartialError
+                  ? "Some data unavailable"
+                  : lastUpdated
+                    ? `Updated ${lastUpdated}`
+                    : "Loading data…"}
+            </span>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => void refreshDashboard()}
+              disabled={refreshing}
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </Button>
+            {canCreateEnvironment && (
+              <Link className="button button-secondary" href="/environments/new">
+                <Plus size={16} />
+                New environment
+              </Link>
+            )}
+            {canCreateCluster && (
+              <Link className="button button-primary" href="/clusters/new">
+                <Plus size={16} />
+                New cluster request
+              </Link>
+            )}
+            {canReview && !canCreateCluster && (
+              <Link className="button button-primary" href="/clusters/reviews">
+                Open review queue
+              </Link>
+            )}
+          </>
+        }
+      />
 
       <section
         className="pd-overview-groups"
