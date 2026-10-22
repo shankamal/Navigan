@@ -2554,3 +2554,20 @@
   border-radius: 9px;
   box-shadow: none;
 }
+
+
+
+/* ADAPTIVE MIGRATION COMMON DENSITY */
+@container (max-width:1800px){
+  .migrationWorkspace{gap:8px;font-size:11.5px}
+  .migrationWorkspace :is(.portfolioPanel,.attentionPanel,.connectionCard){border-radius:5px}
+  .migrationWorkspace :is(.metricCard,.boardCard,.attentionCard,.optionCard,.checkCard){border-radius:5px}
+  .migrationWorkspace .portfolioTable :is(th,td){padding-block:6px;font-size:10.5px}
+  .migrationWorkspace .actions{gap:7px;padding-block:6px}
+  .reportDecisionBar{bottom:5px;gap:6px 9px;padding:6px 10px;border-radius:5px}
+  .reportPlanAction{gap:8px}
+  .reportPlanAction strong{font-size:11px}
+  .reportPlanAction span{font-size:9.5px}
+  .reportPlanAction>a{padding:6px 9px}
+  .assessmentHeadingActions{gap:6px}
+}
