@@ -49,6 +49,7 @@ export function DeploymentEvidencePanel({
   findings = [],
   onManageConnections,
   diagnosticsContent,
+  collapseWorkloads = false,
 }: {
   migration: Migration;
   selectedKeys?: Set<string>;
@@ -59,6 +60,7 @@ export function DeploymentEvidencePanel({
   findings?: Assessment["findings"];
   onManageConnections?: () => void;
   diagnosticsContent?: ReactNode;
+  collapseWorkloads?: boolean;
 }) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
@@ -102,7 +104,7 @@ export function DeploymentEvidencePanel({
   const settings = useQuery({
     queryKey: ["deployment-sources", sourceId],
     queryFn: ({ signal }) => deploymentDiscovery.settings(sourceId, signal),
-    enabled: Boolean(sourceId) && !selectedKeys,
+    enabled: Boolean(sourceId),
     retry: false,
   });
   const evidence = query.data;
@@ -415,16 +417,17 @@ export function DeploymentEvidencePanel({
           <h2>
             <GitBranch size={20} />
             {selectedKeys
-              ? "4. Deployment sources and versions"
+              ? "Deployment source evidence"
               : "Deployment sources and versions"}
           </h2>
           <p>
             {selectedKeys
-              ? "Detected evidence for selected workloads. Resolve missing sources in discovery."
+              ? "Evidence for your selected workloads. Collect or recover missing files and images in this migration scope."
               : "Discover how applications are deployed and which container versions are running."}
           </p>
         </div>
       )}
+      {selectedKeys && sourceAnalysisAction}
       {!selectedKeys && (
         <div className={styles.actions}>
           {!hideConnections && (
@@ -856,140 +859,147 @@ export function DeploymentEvidencePanel({
               </div>
             )}
           {selectedKeys && (
-            <div className={styles.scroll}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Workload</th>
-                    <th>Namespace</th>
-                    <th>Deployment evidence</th>
-                    <th>Registry</th>
-                    <th>Runtime</th>
-                    <th>
-                      <span className={styles.srOnly}>Inspect workload</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workloads.map((w) => {
-                    const Icon =
-                      w.workload.kind === "StatefulSet"
-                        ? Database
-                        : ["Job", "CronJob"].includes(w.workload.kind)
-                          ? Clock3
-                          : Box;
-                    const available =
-                      w.containers.length > 0 &&
-                      w.containers.every(
-                        (c) => c.registryEvidence?.status === "AVAILABLE",
-                      );
-                    const observed = w.runtimeStatus === "OBSERVED";
-                    return (
-                      <tr
-                        key={scopeKey(w.workload)}
-                        className={
-                          inspectedKey === scopeKey(w.workload)
-                            ? styles.selectedRow
-                            : undefined
-                        }
-                      >
-                        <td>
-                          <button
-                            className={styles.workloadButton}
-                            aria-haspopup="dialog"
-                            aria-label={`Inspect ${w.workload.name} in ${w.workload.namespace || "cluster"}`}
-                            onClick={() =>
-                              setInspectedKey(scopeKey(w.workload))
-                            }
-                          >
-                            <Icon size={21} />
+            <details open={!collapseWorkloads || undefined}>
+              <summary>
+                Inspect selected workload evidence ({workloads.length})
+              </summary>
+              <div className={styles.scroll}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Workload</th>
+                      <th>Namespace</th>
+                      <th>Deployment evidence</th>
+                      <th>Registry</th>
+                      <th>Runtime</th>
+                      <th>
+                        <span className={styles.srOnly}>Inspect workload</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workloads.map((w) => {
+                      const Icon =
+                        w.workload.kind === "StatefulSet"
+                          ? Database
+                          : ["Job", "CronJob"].includes(w.workload.kind)
+                            ? Clock3
+                            : Box;
+                      const available =
+                        w.containers.length > 0 &&
+                        w.containers.every(
+                          (c) => c.registryEvidence?.status === "AVAILABLE",
+                        );
+                      const observed = w.runtimeStatus === "OBSERVED";
+                      return (
+                        <tr
+                          key={scopeKey(w.workload)}
+                          className={
+                            inspectedKey === scopeKey(w.workload)
+                              ? styles.selectedRow
+                              : undefined
+                          }
+                        >
+                          <td>
+                            <button
+                              className={styles.workloadButton}
+                              aria-haspopup="dialog"
+                              aria-label={`Inspect ${w.workload.name} in ${w.workload.namespace || "cluster"}`}
+                              onClick={() =>
+                                setInspectedKey(scopeKey(w.workload))
+                              }
+                            >
+                              <Icon size={21} />
+                              <span>
+                                <strong>{w.workload.name}</strong>
+                                <small>{w.workload.kind}</small>
+                              </span>
+                            </button>
+                          </td>
+                          <td>{w.workload.namespace || "Cluster-scoped"}</td>
+                          <td>
                             <span>
-                              <strong>{w.workload.name}</strong>
-                              <small>{w.workload.kind}</small>
+                              {w.artifactFormat === "Unresolved"
+                                ? w.clusterSnapshot
+                                  ? "Cluster snapshot"
+                                  : "Not detected"
+                                : w.artifactFormat}
                             </span>
-                          </button>
-                        </td>
-                        <td>{w.workload.namespace || "Cluster-scoped"}</td>
-                        <td>
-                          <span>
-                            {w.artifactFormat === "Unresolved"
-                              ? w.clusterSnapshot
-                                ? "Cluster snapshot"
-                                : "Not detected"
-                              : w.artifactFormat}
-                          </span>
-                          <small>
-                            {w.mappingStatus === "CONFIRMED"
-                              ? "User-confirmed source"
-                              : w.candidates.length
-                                ? "Candidate · needs confirmation"
-                                : "Repository not mapped"}
-                          </small>
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              available ? styles.successText : styles.mutedText
-                            }
-                          >
-                            {available ? (
-                              <CheckCircle2 size={14} />
-                            ) : (
-                              <CircleMinus size={14} />
-                            )}{" "}
-                            {available ? "Available" : "Needs review"}
-                          </span>
-                          <small>
-                            {w.containers.length} container
-                            {w.containers.length === 1 ? "" : "s"}
-                          </small>
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              observed ? styles.successText : styles.mutedText
-                            }
-                          >
-                            {observed ? (
-                              <CheckCircle2 size={14} />
-                            ) : (
-                              <CircleMinus size={14} />
-                            )}{" "}
-                            {observed
-                              ? "Observed"
-                              : w.runtimeStatus === "NO_RUNNING_EVIDENCE"
-                                ? "No active Pod"
-                                : w.runtimeStatus
-                                    .toLowerCase()
-                                    .replaceAll("_", " ")}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className={styles.inspectButton}
-                            aria-label={`View evidence for ${w.workload.name} in ${w.workload.namespace || "cluster"}`}
-                            onClick={() =>
-                              setInspectedKey(scopeKey(w.workload))
-                            }
-                          >
-                            <ChevronRight size={17} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {!workloads.length && (
-                <p>
-                  {selectedKeys
-                    ? "Select workloads to review deployment evidence."
-                    : allWorkloads.length
-                      ? "No workloads match these filters."
-                      : "Complete source inventory discovery to see workload evidence."}
-                </p>
-              )}
-            </div>
+                            <small>
+                              {w.mappingStatus === "CONFIRMED"
+                                ? "User-confirmed source"
+                                : w.candidates.length
+                                  ? "Candidate · needs confirmation"
+                                  : "Repository not mapped"}
+                            </small>
+                          </td>
+                          <td>
+                            <span
+                              className={
+                                available
+                                  ? styles.successText
+                                  : styles.mutedText
+                              }
+                            >
+                              {available ? (
+                                <CheckCircle2 size={14} />
+                              ) : (
+                                <CircleMinus size={14} />
+                              )}{" "}
+                              {available ? "Available" : "Needs review"}
+                            </span>
+                            <small>
+                              {w.containers.length} container
+                              {w.containers.length === 1 ? "" : "s"}
+                            </small>
+                          </td>
+                          <td>
+                            <span
+                              className={
+                                observed ? styles.successText : styles.mutedText
+                              }
+                            >
+                              {observed ? (
+                                <CheckCircle2 size={14} />
+                              ) : (
+                                <CircleMinus size={14} />
+                              )}{" "}
+                              {observed
+                                ? "Observed"
+                                : w.runtimeStatus === "NO_RUNNING_EVIDENCE"
+                                  ? "No active Pod"
+                                  : w.runtimeStatus
+                                      .toLowerCase()
+                                      .replaceAll("_", " ")}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className={styles.inspectButton}
+                              aria-label={`View evidence for ${w.workload.name} in ${w.workload.namespace || "cluster"}`}
+                              onClick={() =>
+                                setInspectedKey(scopeKey(w.workload))
+                              }
+                            >
+                              <ChevronRight size={17} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {!workloads.length && (
+                  <p>
+                    {selectedKeys
+                      ? "Select workloads to review deployment evidence."
+                      : allWorkloads.length
+                        ? "No workloads match these filters."
+                        : "Complete source inventory discovery to see workload evidence."}
+                  </p>
+                )}
+              </div>
+            </details>
           )}
           {inspected &&
             (() => {
@@ -1225,8 +1235,7 @@ export function DeploymentEvidencePanel({
                     {w.candidates.length > 1 && (
                       <small>Multiple matching artifacts</small>
                     )}
-                    {!selectedKeys &&
-                      w.candidates.length > 0 &&
+                    {w.candidates.length > 0 &&
                       w.mappingStatus !== "CONFIRMED" && (
                         <div>
                           <select
@@ -1525,12 +1534,12 @@ export function DeploymentEvidencePanel({
             </div>
           )}
           {selectedKeys ? (
-            <Link
-              className={styles.link}
-              href={`/migrations/${migration.migrationId}/discovery#deployment-evidence`}
-            >
-              Review or resolve deployment sources in discovery
-            </Link>
+            <div className={styles.actions}>
+              <span className={styles.caption}>
+                Checks configured sources against discovered inventory; this
+                table shows your selected workloads.
+              </span>
+            </div>
           ) : (
             <p className={styles.caption}>
               <Clock3 size={15} aria-hidden="true" />

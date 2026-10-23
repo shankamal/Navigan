@@ -822,3 +822,107 @@ it("opens registry access review without changing the artifact or starting colle
   expect(review).toHaveBeenCalledTimes(1);
   expect(api.post).not.toHaveBeenCalled();
 });
+
+it("uses saved namespaces without a second picker and hides unrelated workspace scopes", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-other",
+          namespaces: ["platform"],
+          stale: false,
+          artifacts: [],
+        },
+        {
+          workspaceId: "AWS-scope",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [],
+        },
+      ],
+    },
+  });
+  api.post.mockResolvedValue({
+    data: {
+      workspaceId: "AWS-new",
+      namespaces: ["shop"],
+      stale: false,
+      artifacts: [],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      guided
+      active
+      fixedScope
+    />,
+  );
+  await screen.findByText("shop", { selector: "strong" });
+  expect(
+    screen.queryByText("platform", { selector: "strong" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getAllByRole("list", { name: "Workspace preparation progress" }),
+  ).toHaveLength(1);
+  expect(
+    screen.queryByRole("checkbox", { name: "shop" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/Collection includes artifacts across these namespaces/),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/artifact-workspaces",
+      { version: 2, inventoryDigest: "current", namespaces: ["shop"] },
+      expect.anything(),
+    ),
+  );
+});
+
+it("shows one current scope snapshot and allows explicit history review", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-old",
+          namespaces: ["shop"],
+          stale: true,
+          artifacts: [],
+        },
+        {
+          workspaceId: "AWS-current",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [],
+        },
+      ],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      guided
+      active
+      fixedScope
+    />,
+  );
+  const snapshots = await screen.findByRole("combobox", {
+    name: "Workspace snapshot",
+  });
+  expect(snapshots).toHaveValue("AWS-current");
+  expect(
+    screen.getAllByRole("list", { name: "Workspace preparation progress" }),
+  ).toHaveLength(1);
+  fireEvent.change(snapshots, { target: { value: "AWS-old" } });
+  expect(
+    screen.getByText("Older inventory snapshot · Create a new workspace"),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Create workspace export" }),
+  ).toBeDisabled();
+  expect(api.post).not.toHaveBeenCalled();
+});

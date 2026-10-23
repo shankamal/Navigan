@@ -221,7 +221,7 @@ it("requests cluster evidence refresh using the migration version", async () => 
   await waitFor(() => expect(api.refresh).toHaveBeenCalledWith("MIG-db", 5));
   await waitFor(() => expect(onRefresh).toHaveBeenCalled());
 });
-it("scope summary includes only selected workload identities and links to discovery", async () => {
+it("scope summary includes only selected workload identities and checks sources in place", async () => {
   api.evidence.mockResolvedValue({
     ...report,
     workloads: [row, { ...row, workload: { ...workload, name: "unselected" } }],
@@ -233,8 +233,13 @@ it("scope summary includes only selected workload identities and links to discov
     screen.queryByRole("button", { name: "Manage deployment sources" }),
   ).not.toBeInTheDocument();
   expect(
-    screen.getByRole("link", { name: /resolve deployment sources/ }),
-  ).toHaveAttribute("href", "/migrations/MIG-db/discovery#deployment-evidence");
+    screen.queryByRole("link", { name: /resolve deployment sources/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", {
+      name: /Recheck sources|Analyze deployment sources/,
+    }),
+  ).toBeVisible();
 });
 it("marks explicit user confirmation without claiming a verified deployed commit", async () => {
   open();
@@ -761,4 +766,36 @@ it("opens namespace evidence from the review table without changing migration sc
   ).toHaveAttribute("aria-pressed", "true");
   expect(api.saveSettings).not.toHaveBeenCalled();
   expect(api.refresh).not.toHaveBeenCalled();
+});
+
+it("allows candidate confirmation inside the selected scope without returning to discovery", async () => {
+  open({ selectedKeys: new Set([scopeKey(workload)]) });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Inspect api in payments" }),
+  );
+  const confirm = screen.getByRole("button", { name: "Confirm source" });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+});
+
+it("keeps source analysis visible when selected workload details are collapsed", async () => {
+  open({
+    selectedKeys: new Set([scopeKey(workload)]),
+    collapseWorkloads: true,
+  });
+  expect(
+    await screen.findByRole("button", {
+      name: /Recheck sources|Analyze deployment sources/,
+    }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Inspect api in payments" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(
+    await screen.findByText("Inspect selected workload evidence (1)"),
+  );
+  expect(
+    screen.getByRole("button", { name: "Inspect api in payments" }),
+  ).toBeVisible();
 });

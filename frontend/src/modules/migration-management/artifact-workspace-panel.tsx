@@ -64,6 +64,7 @@ export function ArtifactWorkspacePanel({
   guided = false,
   active = false,
   onReviewAccess,
+  fixedScope = false,
 }: {
   migrationId: string;
   version: number;
@@ -73,6 +74,7 @@ export function ArtifactWorkspacePanel({
   guided?: boolean;
   active?: boolean;
   onReviewAccess?: () => void;
+  fixedScope?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [exports, setExports] = useState<
@@ -91,6 +93,7 @@ export function ArtifactWorkspacePanel({
   >({});
   const [selected, setSelected] = useState<string[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -145,11 +148,14 @@ export function ArtifactWorkspacePanel({
           {
             version,
             inventoryDigest,
-            namespaces: selected.filter((ns) => namespaces.includes(ns)),
+            namespaces: fixedScope
+              ? namespaces
+              : selected.filter((ns) => namespaces.includes(ns)),
           },
           { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
         );
         setWorkspaces((items) => [data, ...items]);
+        if (fixedScope) setActiveWorkspaceId(data.workspaceId);
       } else {
         const { data } = await apiClient.get(
           `/migrations/${migrationId}/artifact-workspaces`,
@@ -371,7 +377,25 @@ export function ArtifactWorkspacePanel({
     }
   }
   const NamespaceChooser = guided ? "details" : "div";
-  const scope = selected.filter((ns) => namespaces.includes(ns));
+  const scope = fixedScope
+    ? namespaces
+    : selected.filter((ns) => namespaces.includes(ns));
+  const scopedWorkspaces = fixedScope
+    ? workspaces.filter(
+        (w) =>
+          w.namespaces.length === namespaces.length &&
+          w.namespaces.every((ns) => namespaces.includes(ns)),
+      )
+    : workspaces;
+  const activeWorkspace =
+    scopedWorkspaces.find((w) => w.workspaceId === activeWorkspaceId) ??
+    scopedWorkspaces.find((w) => !w.stale) ??
+    scopedWorkspaces[0];
+  const visibleWorkspaces = fixedScope
+    ? activeWorkspace
+      ? [activeWorkspace]
+      : []
+    : scopedWorkspaces;
   const visibleNamespaces = namespaces.filter((ns) =>
     ns.toLowerCase().includes(query.toLowerCase()),
   );
@@ -385,7 +409,9 @@ export function ArtifactWorkspacePanel({
         <div className={styles.heading}>
           <strong>Migration files &amp; images</strong>
           <small>
-            Choose namespaces, collect artifacts, resolve missing items.
+            {fixedScope
+              ? "Collect files and images for the saved namespace scope."
+              : "Choose namespaces, collect artifacts, resolve missing items."}
           </small>
         </div>
         <span className={styles.storage}>
@@ -394,7 +420,7 @@ export function ArtifactWorkspacePanel({
         <ChevronDown className={styles.chevron} size={18} aria-hidden="true" />
       </summary>
       <div className={styles.content}>
-        {guided && !workspaces.length && (
+        {guided && !fixedScope && !workspaces.length && (
           <ol
             className={styles.collectionSteps}
             aria-label="Artifact preparation sequence"
@@ -417,90 +443,125 @@ export function ArtifactWorkspacePanel({
             </li>
           </ol>
         )}
-        <NamespaceChooser
-          className={
-            guided
-              ? `${styles.namespaceChooser} ${journey.workspaceChooser}`
-              : undefined
-          }
-          {...(guided ? { open: !workspaces.length || undefined } : {})}
-        >
-          {guided && (
-            <summary>
-              {workspaces.length
-                ? "Create another workspace"
-                : "Choose namespaces to collect"}
-            </summary>
-          )}
-          <div className={styles.intro}>
-            <div>
-              <strong>Namespaces to collect</strong>
-              <p>
-                Select namespaces to list their required deployment files and
-                container images. This does not select the migration execution
-                scope.
-              </p>
+        {!fixedScope && (
+          <NamespaceChooser
+            className={
+              guided
+                ? `${styles.namespaceChooser} ${journey.workspaceChooser}`
+                : undefined
+            }
+            {...(guided ? { open: !workspaces.length || undefined } : {})}
+          >
+            {guided && (
+              <summary>
+                {workspaces.length
+                  ? "Create another workspace"
+                  : "Choose namespaces to collect"}
+              </summary>
+            )}
+            <div className={styles.intro}>
+              <div>
+                <strong>Namespaces to collect</strong>
+                <p>
+                  Select namespaces to list their required deployment files and
+                  container images. This does not select the migration execution
+                  scope.
+                </p>
+              </div>
+              <span className={styles.selectionCount} role="status">
+                {scope.length} of {namespaces.length} selected
+              </span>
             </div>
-            <span className={styles.selectionCount} role="status">
-              {scope.length} of {namespaces.length} selected
-            </span>
-          </div>
-          <fieldset disabled={busy || !canEdit} className={styles.scope}>
-            <legend>Namespaces to include</legend>
-            <div className={styles.scopeToolbar}>
-              <label className={styles.search}>
-                <Search size={15} aria-hidden="true" />
-                <input
-                  type="search"
-                  aria-label="Search namespaces"
-                  placeholder="Find a namespace…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-              <button type="button" onClick={() => setSelected(namespaces)}>
-                Select all
-              </button>
-              <button
-                type="button"
-                disabled={!scope.length}
-                onClick={() => setSelected([])}
-              >
-                Clear selection
-              </button>
-            </div>
-            <div className={styles.namespaces}>
-              {visibleNamespaces.map((ns) => (
-                <label
-                  key={ns}
-                  className={
-                    selected.includes(ns) ? styles.selectedNamespace : undefined
-                  }
-                >
+            <fieldset disabled={busy || !canEdit} className={styles.scope}>
+              <legend>Namespaces to include</legend>
+              <div className={styles.scopeToolbar}>
+                <label className={styles.search}>
+                  <Search size={15} aria-hidden="true" />
                   <input
-                    type="checkbox"
-                    checked={selected.includes(ns)}
-                    onChange={(e) =>
-                      setSelected((items) =>
-                        e.target.checked
-                          ? [...items, ns]
-                          : items.filter((item) => item !== ns),
-                      )
-                    }
+                    type="search"
+                    aria-label="Search namespaces"
+                    placeholder="Find a namespace…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
                   />
-                  <span>{ns}</span>
                 </label>
-              ))}
+                <button type="button" onClick={() => setSelected(namespaces)}>
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  disabled={!scope.length}
+                  onClick={() => setSelected([])}
+                >
+                  Clear selection
+                </button>
+              </div>
+              <div className={styles.namespaces}>
+                {visibleNamespaces.map((ns) => (
+                  <label
+                    key={ns}
+                    className={
+                      selected.includes(ns)
+                        ? styles.selectedNamespace
+                        : undefined
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(ns)}
+                      onChange={(e) =>
+                        setSelected((items) =>
+                          e.target.checked
+                            ? [...items, ns]
+                            : items.filter((item) => item !== ns),
+                        )
+                      }
+                    />
+                    <span>{ns}</span>
+                  </label>
+                ))}
+              </div>
+              {!visibleNamespaces.length && (
+                <p className={styles.hint}>
+                  {namespaces.length
+                    ? "No namespaces match your search."
+                    : "No namespaces discovered yet."}
+                </p>
+              )}
+            </fieldset>
+            <div className={styles.actions}>
+              <button
+                className={styles.primary}
+                type="button"
+                disabled={busy || !canEdit || !inventoryDigest || !scope.length}
+                onClick={() => run(true)}
+              >
+                Create workspace
+              </button>
+
+              <span className={styles.hint}>
+                Creates an artifact list. Collection starts separately.
+              </span>
+              {busy && <span role="status">Saving or loading workspace…</span>}
             </div>
-            {!visibleNamespaces.length && (
+            {guided && !scope.length && (
               <p className={styles.hint}>
-                {namespaces.length
-                  ? "No namespaces match your search."
-                  : "No namespaces discovered yet."}
+                Select at least one namespace to enable Create workspace.
               </p>
             )}
-          </fieldset>
+          </NamespaceChooser>
+        )}
+        {fixedScope && (
           <div className={styles.actions}>
+            <div>
+              <strong>
+                Saved namespaces: {namespaces.join(", ") || "None"}
+              </strong>
+              <p className={styles.hint}>
+                Collection includes artifacts across these namespaces. Migration
+                execution remains limited to your saved workloads.
+              </p>
+            </div>
             <button
               className={styles.primary}
               type="button"
@@ -509,18 +570,8 @@ export function ArtifactWorkspacePanel({
             >
               Create workspace
             </button>
-
-            <span className={styles.hint}>
-              Creates an artifact list. Collection starts separately.
-            </span>
-            {busy && <span role="status">Saving or loading workspace…</span>}
           </div>
-          {guided && !scope.length && (
-            <p className={styles.hint}>
-              Select at least one namespace to enable Create workspace.
-            </p>
-          )}
-        </NamespaceChooser>
+        )}
         <div
           className={`${styles.savedHeading} ${guided ? journey.collectionHeading : ""}`}
         >
@@ -529,16 +580,35 @@ export function ArtifactWorkspacePanel({
             {loaded ? "Refresh workspaces" : "Load workspaces"}
           </button>
         </div>
+        {fixedScope && scopedWorkspaces.length > 1 && (
+          <label className={styles.hint}>
+            Workspace snapshot{" "}
+            <select
+              aria-label="Workspace snapshot"
+              value={activeWorkspace?.workspaceId ?? ""}
+              onChange={(e) => setActiveWorkspaceId(e.target.value)}
+            >
+              {scopedWorkspaces.map((w) => (
+                <option key={w.workspaceId} value={w.workspaceId}>
+                  {w.workspaceId} ·{" "}
+                  {w.stale ? "Older inventory" : "Current inventory"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {!inventoryDigest && (
           <p>Complete source discovery before creating a workspace.</p>
         )}
         {error && <p role="alert">{error}</p>}
-        {loaded && !workspaces.length && (
+        {loaded && !visibleWorkspaces.length && (
           <p className={styles.empty}>
-            No saved workspaces yet. Select namespaces above to create one.
+            {fixedScope
+              ? "No workspace for this saved namespace scope. Create one to start collection."
+              : "No saved workspaces yet. Select namespaces above to create one."}
           </p>
         )}
-        {workspaces.map((w) => {
+        {visibleWorkspaces.map((w) => {
           const saved = w.artifacts.filter(
             (a) => a.status === "COLLECTED",
           ).length;

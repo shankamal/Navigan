@@ -1,94 +1,30 @@
-/* Approved Option 4: compact review journey, scoped to source discovery. */
+/* One shared heading and workflow row across discovery and migration scope. */
 .screen[class] {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr);
-  gap: 8px 16px !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px !important;
   align-items: start;
 }
-.screen[class] > header {
-  grid-column: 1;
-  grid-row: 1;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  min-height: 0 !important;
-}
-.screen[class] > header h1 {
-  color: #202c39 !important;
-  font-size: 20px !important;
-  line-height: 1.3 !important;
-}
-.screen[class] > header > div > svg {
-  display: none;
-}
-.screen[class] > header > a {
-  display: none;
-}
 .workflow {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: start;
-}
-.workflow ol {
-  margin: 0 !important;
-  gap: 4px !important;
-}
-.workflow ol li {
-  border: 0 !important;
-}
-.workflow ol button {
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
-  justify-content: start;
-  gap: 5px !important;
-  padding: 0 2px !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  background: transparent !important;
-  opacity: 1 !important;
-  font-size: 9px !important;
-  line-height: 1.2 !important;
-  text-align: center !important;
-  min-height: 0 !important;
-}
-.workflow ol button > span {
-  width: 23px !important;
-  height: 23px !important;
-  font-size: 10px !important;
+  min-width: 0;
 }
 .screen[class] > section[aria-label="Migration context"] {
-  grid-column: 1;
-  grid-row: 2;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 8px !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
+  gap: 8px 16px;
+  padding: 6px 0 !important;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .screen[class] > section[aria-label="Migration context"] > div {
   border: 0;
-  padding: 0 !important;
-  min-height: 0 !important;
-  display: inline-flex;
+  padding: 0;
+  min-height: 0;
 }
-.screen[class] > section[aria-label="Migration context"] > div + div {
-  border-left: 1px solid #d5dce2;
-  padding-left: 8px !important;
-}
-.screen[class] > section[aria-label="Migration context"] > div > svg {
+.screen[class] > section[aria-label="Migration context"] svg {
   display: none;
-}
-.screen[class] > section[aria-label="Migration context"] > div > div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px !important;
 }
 .screen[class] > section[aria-label="Migration context"] small {
   display: none;
@@ -99,20 +35,6 @@
 }
 .screen[class] > section[aria-label="Migration context"] span {
   font-size: 10px;
-}
-.screen[class] > :is(div[id], section[aria-label="Discovery progress"], p) {
-  grid-column: 1 / -1;
-}
-.screen[class] > section[aria-label="Discovery progress"] {
-  padding: 0 !important;
-  margin: 0 !important;
-}
-.screen[class] > section[aria-label="Discovery progress"] h2 {
-  font-size: 11px !important;
-}
-.screen[class] > section[aria-label="Discovery progress"] svg {
-  width: 16px;
-  height: 16px;
 }
 .connections {
   grid-column: 1 / -1;
@@ -280,10 +202,9 @@
 }
 .checklist > div {
   display: grid;
-  grid-template-columns: 24px minmax(130px, 1fr) minmax(135px, 1fr) minmax(
-      180px,
-      1.45fr
-    ) 135px;
+  grid-template-columns:
+    24px minmax(130px, 1fr) minmax(135px, 1fr) minmax(180px, 1.45fr)
+    135px;
   gap: 12px;
   align-items: center;
   padding: 10px 12px;

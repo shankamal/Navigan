@@ -99,9 +99,7 @@ function open() {
   );
 }
 async function openDiagnostics() {
-  fireEvent.click(await screen.findByLabelText("More options"));
-  fireEvent.click(screen.getByRole("button", { name: "Source diagnostics" }));
-  await screen.findByRole("dialog");
+  fireEvent.click(await screen.findByRole("button", { name: /^Inventory$/ }));
 }
 
 beforeEach(() => {
@@ -144,7 +142,7 @@ it("enables workspace only for completed matching evidence and shows source fact
   expect(link).toHaveAttribute("href", "/migrations/MIG-demo/plan");
   expect(await screen.findByText("DB Schenker")).toBeVisible();
   await openDiagnostics();
-  fireEvent.click(screen.getByText("Namespace & resource inventory"));
+  fireEvent.click(screen.getByRole("button", { name: "View resources" }));
   expect(screen.getByText("api")).toBeVisible();
   expect(screen.queryByText(/compatibility score/i)).not.toBeInTheDocument();
   expect(api.discover).not.toHaveBeenCalled();
@@ -355,8 +353,7 @@ it("brings the selected namespace resources into view and moves keyboard focus",
     });
     open();
     await openDiagnostics();
-    await screen.findByText("Namespace & resource inventory");
-    fireEvent.click(screen.getByText("Namespace & resource inventory"));
+    await screen.findByRole("heading", { name: "Discovered namespaces" });
     fireEvent.click(
       await screen.findByRole("button", { name: "View resources" }),
     );
@@ -443,9 +440,7 @@ it("keeps platform findings available separately from application findings", asy
   open();
   await openDiagnostics();
   await screen.findByText("Application concern", { selector: "strong" });
-  fireEvent.click(
-    screen.getByText("Source assessment findings", { selector: "summary" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: /^Assessment/ }));
   expect(
     screen.getByText("Application concern", { selector: "strong" }),
   ).toBeVisible();
@@ -503,9 +498,7 @@ it("groups repeated observations and retains every resource-specific recommendat
   open();
   await openDiagnostics();
   await screen.findByText("Review reader access", { selector: "strong" });
-  fireEvent.click(
-    screen.getByText("Source assessment findings", { selector: "summary" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: /^Assessment/ }));
   expect(screen.getByRole("combobox", { name: "Findings view" })).toHaveValue(
     "all",
   );
@@ -517,4 +510,27 @@ it("groups repeated observations and retains every resource-specific recommendat
   expect(screen.getByText("Check reader subjects")).toBeVisible();
   expect(screen.getByText("Check writer subjects")).toBeVisible();
   expect(api.assess).not.toHaveBeenCalled();
+});
+
+it("keeps discovery read-only for scope and artifact work, with a single access management entry", async () => {
+  open();
+  await screen.findByRole("link", { name: "Continue to migration scope" });
+  expect(deploymentDiscovery.evidence).not.toHaveBeenCalled();
+  expect(
+    screen.queryByText("Migration files & images"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", {
+      name: /Resolve Helm|Resolve deployment|Create workspace/,
+    }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(
+    screen.getByText("Source connections", { selector: "summary" }),
+  );
+  expect(
+    screen.getAllByRole("button", { name: "Manage connections" }),
+  ).toHaveLength(1);
+  expect(
+    screen.queryByRole("button", { name: "Review access" }),
+  ).not.toBeInTheDocument();
 });

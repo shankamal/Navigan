@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PageHeading } from "@/shared/components/ui";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,6 +32,8 @@ import {
   sourceClusters,
   type TargetCompatibilityResponse,
 } from "./service";
+import { ArtifactWorkspacePanel } from "./artifact-workspace-panel";
+import { SourceConnectionsPanel } from "./source-connections-panel";
 import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import {
@@ -41,6 +44,11 @@ import {
   selectedApplicationScope,
 } from "./source-migration-scope";
 import styles from "./source-migration-workspace.module.css";
+
+function statusLabel(value: string) {
+  const text = value.replaceAll("_", " ").toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export function SourceMigrationWorkspace({
   migration: initial,
@@ -60,6 +68,10 @@ export function SourceMigrationWorkspace({
       : undefined
   ) as MigrationPlanningDraft | undefined;
   const [step, setStep] = useState(3);
+  const [scopeView, setScopeView] = useState<"selection" | "artifacts">(
+    "selection",
+  );
+  const [manageRequest, setManageRequest] = useState(0);
   const [selected, setSelected] = useState(() =>
     restoredWorkloadKeys(inventory.resources, saved),
   );
@@ -283,22 +295,25 @@ export function SourceMigrationWorkspace({
   }
   return (
     <div className={styles.workspace}>
-      <header className={styles.pageHeading}>
-        <div>
-          <span className={styles.eyebrow}>APPLICATION WORKLOAD MIGRATION</span>
-          <h1>Migration workspace</h1>
-          <p>
-            Choose the applications to move, retain their dependencies, then
-            assess a Navigan-managed target.
-          </p>
-        </div>
-        <Link
-          href={`/migrations/${migration.migrationId}/discovery`}
-          className={styles.secondary}
-        >
-          <ArrowLeft size={16} /> Source assessment
-        </Link>
-      </header>
+      <PageHeading
+        title={
+          step === 3
+            ? "Migration scope"
+            : step === 4
+              ? "Target & compatibility"
+              : "Review migration"
+        }
+        description="Choose applications, prepare source artifacts, then assess the destination."
+        icon={<Boxes size={20} />}
+        action={
+          <Link
+            href={`/migrations/${migration.migrationId}/discovery`}
+            className="button button-secondary"
+          >
+            <ArrowLeft size={16} /> Source assessment
+          </Link>
+        }
+      />
       <MigrationWorkflow
         active={step}
         completed={[1, 2, ...(savedScope && !dirty ? [3] : [])]}
@@ -317,7 +332,6 @@ export function SourceMigrationWorkspace({
         <div>
           <small>ASSESSMENT</small>
           <strong>{migration.name}</strong>
-          <span>{migration.migrationId}</span>
         </div>
         <div>
           <small>CUSTOMER</small>
@@ -328,7 +342,6 @@ export function SourceMigrationWorkspace({
                 migration.customerId,
             )}
           </strong>
-          <span>{migration.customerId}</span>
         </div>
         <div>
           <small>SOURCE CLUSTER</small>
@@ -339,9 +352,6 @@ export function SourceMigrationWorkspace({
                   "Source cluster",
               )}
           </strong>
-          <span>
-            {String(migration.sourceConfiguration.sourceClusterId ?? "")}
-          </span>
           <span>
             {source.data?.distribution ?? "Kubernetes"} ·{" "}
             {inventory.sourceKubernetesVersion}
@@ -361,6 +371,14 @@ export function SourceMigrationWorkspace({
           {error}
         </p>
       )}
+      {source.isError && (
+        <p className={styles.error} role="alert">
+          Unable to load source cluster details.{" "}
+          <button onClick={() => void source.refetch()}>
+            Retry source details
+          </button>
+        </p>
+      )}
       {notice && (
         <p className={styles.notice} role="status">
           {notice}
@@ -373,226 +391,300 @@ export function SourceMigrationWorkspace({
       )}
       {step === 3 && (
         <>
-          <section className={styles.panel}>
-            <div className={styles.sectionHeading}>
-              <div>
-                <span className={styles.eyebrow}>STEP 3 · MIGRATION SCOPE</span>
-                <h2>Select application workloads</h2>
-                <p>
-                  Choose namespaces to browse, then select individual workloads.
-                  No application is selected automatically.
-                </p>
-              </div>
-              <span className={styles.badge}>Selected applications only</span>
-            </div>
-            <div className={styles.scopeGrid}>
-              <aside
-                className={styles.namespaces}
-                aria-label="Source namespaces"
-              >
-                <h3>1. Namespaces</h3>
-                <p>Browse applications by namespace.</p>
-                {namespaces.map((ns) => (
-                  <label key={ns}>
-                    <input
-                      type="checkbox"
-                      checked={browsingNamespaces.includes(ns)}
-                      disabled={busy || !canEdit}
-                      onChange={(e) => browseNamespace(ns, e.target.checked)}
-                    />
-                    <span>
-                      <strong>{ns}</strong>
-                      <small>
-                        {
-                          resources.filter(
-                            (r) =>
-                              r.namespace === ns &&
-                              applicationKinds.has(r.kind),
-                          ).length
-                        }{" "}
-                        workloads
-                      </small>
-                    </span>
-                  </label>
-                ))}
-              </aside>
-              <div className={styles.workloads}>
-                <div className={styles.sectionHeading}>
-                  <h3>2. Application workloads</h3>
-                  <label className={styles.search}>
-                    <Search size={16} />
-                    <input
-                      aria-label="Find workload"
-                      value={search}
-                      placeholder="Find a workload"
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </label>
-                </div>
-                {!browsingNamespaces.length ? (
-                  <div className={styles.empty}>
-                    <Boxes size={30} />
-                    <strong>Choose a namespace to see its applications</strong>
-                    <p>
-                      Selecting a namespace does not add its workloads to
-                      migration scope.
-                    </p>
-                  </div>
-                ) : (
-                  <div className={styles.tableScroll}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Select</th>
-                          <th>Workload</th>
-                          <th>Namespace</th>
-                          <th>Kind</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workloads.map((r) => (
-                          <tr key={scopeKey(r)}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                aria-label={`Migrate ${r.namespace}/${r.name}`}
-                                title="Include this application workload and its observed resource dependencies."
-                                checked={selected.has(scopeKey(r))}
-                                disabled={busy || !canEdit}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setSelected((current) => {
-                                    const next = new Set(current);
-                                    if (checked) next.add(scopeKey(r));
-                                    else next.delete(scopeKey(r));
-                                    return next;
-                                  });
-                                  markDirty();
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <strong>{r.name}</strong>
-                            </td>
-                            <td>{r.namespace}</td>
-                            <td>{r.kind}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {!workloads.length && (
-                      <p>No matching application workloads.</p>
-                    )}
-                  </div>
-                )}
-                <p className={styles.hint}>
-                  Application controllers are available in the current
-                  inventory. Standalone Pod selection requires Pod discovery
-                  evidence, which this connector has not collected.
-                </p>
-              </div>
-              <aside
-                className={styles.summary}
-                aria-label="Selected application scope"
-              >
-                <h3>Selected for migration</h3>
-                <strong className={styles.metric}>
-                  {scope.workloads.length}
-                </strong>
-                <span>application workloads</span>
-                <dl>
-                  <div>
-                    <dt>Namespaces</dt>
-                    <dd>{scope.namespaces.length}</dd>
-                  </div>
-                  <div>
-                    <dt>Associated resources</dt>
-                    <dd>{scope.dependencies.length}</dd>
-                  </div>
-                  <div>
-                    <dt>Persistent volume claims</dt>
-                    <dd>{pvcs.length}</dd>
-                  </div>
-                </dl>
-                {scope.workloads.map((r) => (
-                  <p key={scopeKey(r)}>
-                    <CheckCircle2 size={14} />
-                    <span>
-                      {r.name}
-                      <small>{r.namespace}</small>
-                    </span>
+          <nav className={styles.scopeTabs} aria-label="Migration scope views">
+            <button
+              aria-pressed={scopeView === "selection"}
+              onClick={() => setScopeView("selection")}
+            >
+              1. Choose scope
+            </button>
+            <button
+              aria-pressed={scopeView === "artifacts"}
+              onClick={() => setScopeView("artifacts")}
+            >
+              2. Files &amp; images
+            </button>
+          </nav>
+          <div hidden={scopeView !== "selection"}>
+            <section className={styles.panel}>
+              <div className={styles.sectionHeading}>
+                <div>
+                  <span className={styles.eyebrow}>
+                    STEP 3 · MIGRATION SCOPE
+                  </span>
+                  <h2>Select application workloads</h2>
+                  <p>
+                    Choose namespaces to browse, then select individual
+                    workloads. No application is selected automatically.
                   </p>
-                ))}
-              </aside>
-            </div>
-          </section>
-          <section className={styles.panel} aria-label="Observed dependencies">
-            <div className={styles.sectionHeading}>
-              <div>
-                <h2>
-                  <Network size={20} />
-                  3. Review associated resources
-                </h2>
-                <p>
-                  Included from observed workload references, ingress backends
-                  and StatefulSet claim ownership. Unrelated workloads are
-                  excluded.
-                </p>
+                </div>
+                <span className={styles.badge}>Selected applications only</span>
               </div>
-              <span className={styles.badge}>
-                {scope.dependencies.length} resources
-              </span>
-            </div>
-            <div className={styles.chips}>
-              {scope.dependencies.map((r) => (
-                <span key={scopeKey(r)}>
-                  <strong>{r.name}</strong>
-                  <small>
-                    {r.namespace ?? "Cluster"} · {r.kind}
-                  </small>
-                </span>
-              ))}
-            </div>
-            {scope.missing.length > 0 && (
-              <p role="status" className={styles.warning}>
-                Referenced resources missing from inventory:{" "}
-                {scope.missing.map((r) => `${r.kind}/${r.name}`).join(", ")}.
-                Review before migration approval.
-              </p>
-            )}
-            <p className={styles.hint}>
-              <Info size={15} />
-              Observed references are not proof of complete dependencies.
-              Network policies, operators, external services and
-              controller-specific relationships require review.
-            </p>
-            {pvcs.length > 0 && (
-              <label className={styles.field}>
-                Persistent data strategy
-                <select
-                  value={dataStrategy}
-                  disabled={busy || !canEdit}
-                  onChange={(e) => {
-                    setDataStrategy(e.target.value as typeof dataStrategy);
-                    markDirty();
-                  }}
+              <div className={styles.scopeGrid}>
+                <aside
+                  className={styles.namespaces}
+                  aria-label="Source namespaces"
                 >
-                  <option value="UNDECIDED">Choose during planning</option>
-                  <option value="BACKUP_RESTORE">Backup and restore</option>
-                  <option value="REPLICATION">Replication</option>
-                </select>
-                <small>
-                  PVC selection records storage requirements; it does not
-                  transfer persistent data.
-                </small>
-              </label>
-            )}
-          </section>
-          <DeploymentEvidencePanel
-            migration={migration}
-            selectedKeys={selected}
-            inventoryDigest={inventory.inventoryDigest}
-          />
+                  <h3>1. Namespaces</h3>
+                  <p>Browse applications by namespace.</p>
+                  {namespaces.map((ns) => (
+                    <label key={ns}>
+                      <input
+                        type="checkbox"
+                        checked={browsingNamespaces.includes(ns)}
+                        disabled={busy || !canEdit}
+                        onChange={(e) => browseNamespace(ns, e.target.checked)}
+                      />
+                      <span>
+                        <strong>{ns}</strong>
+                        <small>
+                          {
+                            resources.filter(
+                              (r) =>
+                                r.namespace === ns &&
+                                applicationKinds.has(r.kind),
+                            ).length
+                          }{" "}
+                          workloads
+                        </small>
+                      </span>
+                    </label>
+                  ))}
+                </aside>
+                <div className={styles.workloads}>
+                  <div className={styles.sectionHeading}>
+                    <h3>2. Application workloads</h3>
+                    <label className={styles.search}>
+                      <Search size={16} />
+                      <input
+                        aria-label="Find workload"
+                        value={search}
+                        placeholder="Find a workload"
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  {!browsingNamespaces.length ? (
+                    <div className={styles.empty}>
+                      <Boxes size={30} />
+                      <strong>
+                        Choose a namespace to see its applications
+                      </strong>
+                      <p>
+                        Selecting a namespace does not add its workloads to
+                        migration scope.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={styles.tableScroll}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Select</th>
+                            <th>Workload</th>
+                            <th>Namespace</th>
+                            <th>Kind</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {workloads.map((r) => (
+                            <tr key={scopeKey(r)}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Migrate ${r.namespace}/${r.name}`}
+                                  title="Include this application workload and its observed resource dependencies."
+                                  checked={selected.has(scopeKey(r))}
+                                  disabled={busy || !canEdit}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setSelected((current) => {
+                                      const next = new Set(current);
+                                      if (checked) next.add(scopeKey(r));
+                                      else next.delete(scopeKey(r));
+                                      return next;
+                                    });
+                                    markDirty();
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <strong>{r.name}</strong>
+                              </td>
+                              <td>{r.namespace}</td>
+                              <td>{r.kind}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {!workloads.length && (
+                        <p>No matching application workloads.</p>
+                      )}
+                    </div>
+                  )}
+                  <p className={styles.hint}>
+                    Application controllers are available in the current
+                    inventory. Standalone Pod selection requires Pod discovery
+                    evidence, which this connector has not collected.
+                  </p>
+                </div>
+                <aside
+                  className={styles.summary}
+                  aria-label="Selected application scope"
+                >
+                  <h3>Selected for migration</h3>
+                  <strong className={styles.metric}>
+                    {scope.workloads.length}
+                  </strong>
+                  <span>application workloads</span>
+                  <dl>
+                    <div>
+                      <dt>Namespaces</dt>
+                      <dd>{scope.namespaces.length}</dd>
+                    </div>
+                    <div>
+                      <dt>Associated resources</dt>
+                      <dd>{scope.dependencies.length}</dd>
+                    </div>
+                    <div>
+                      <dt>Persistent volume claims</dt>
+                      <dd>{pvcs.length}</dd>
+                    </div>
+                  </dl>
+                  {scope.workloads.map((r) => (
+                    <p key={scopeKey(r)}>
+                      <CheckCircle2 size={14} />
+                      <span>
+                        {r.name}
+                        <small>{r.namespace}</small>
+                      </span>
+                    </p>
+                  ))}
+                </aside>
+              </div>
+            </section>
+            <section
+              className={styles.panel}
+              aria-label="Observed dependencies"
+              hidden={!scope.workloads.length}
+            >
+              <div className={styles.sectionHeading}>
+                <div>
+                  <h2>
+                    <Network size={20} />
+                    3. Review associated resources
+                  </h2>
+                  <p>
+                    Included from observed workload references, ingress backends
+                    and StatefulSet claim ownership. Unrelated workloads are
+                    excluded.
+                  </p>
+                </div>
+                <span className={styles.badge}>
+                  {scope.dependencies.length} resources
+                </span>
+              </div>
+              <div className={styles.chips}>
+                {scope.dependencies.map((r) => (
+                  <span key={scopeKey(r)}>
+                    <strong>{r.name}</strong>
+                    <small>
+                      {r.namespace ?? "Cluster"} · {r.kind}
+                    </small>
+                  </span>
+                ))}
+              </div>
+              {scope.missing.length > 0 && (
+                <p role="status" className={styles.warning}>
+                  Referenced resources missing from inventory:{" "}
+                  {scope.missing.map((r) => `${r.kind}/${r.name}`).join(", ")}.
+                  Review before migration approval.
+                </p>
+              )}
+              <p className={styles.hint}>
+                <Info size={15} />
+                Observed references are not proof of complete dependencies.
+                Network policies, operators, external services and
+                controller-specific relationships require review.
+              </p>
+              {pvcs.length > 0 && (
+                <label className={styles.field}>
+                  Persistent data strategy
+                  <select
+                    value={dataStrategy}
+                    disabled={busy || !canEdit}
+                    onChange={(e) => {
+                      setDataStrategy(e.target.value as typeof dataStrategy);
+                      markDirty();
+                    }}
+                  >
+                    <option value="UNDECIDED">Choose during planning</option>
+                    <option value="BACKUP_RESTORE">Backup and restore</option>
+                    <option value="REPLICATION">Replication</option>
+                  </select>
+                  <small>
+                    PVC selection records storage requirements; it does not
+                    transfer persistent data.
+                  </small>
+                </label>
+              )}
+            </section>
+          </div>
+          {scopeView === "artifacts" &&
+            (!savedScope || dirty ? (
+              <section
+                className={styles.panel}
+                aria-label="Save scope before collection"
+              >
+                <h2>Save your scope before collecting artifacts</h2>
+                <p>
+                  Files and images use the namespaces from your saved workload
+                  selection. Save the current selection to continue.
+                </p>
+                <button
+                  className={styles.secondary}
+                  onClick={() => setScopeView("selection")}
+                >
+                  Back to scope selection
+                </button>
+              </section>
+            ) : (
+              <div className={styles.artifacts}>
+                <section
+                  className={styles.panel}
+                  aria-label="Artifact source access"
+                >
+                  <h2>Repository &amp; registry access</h2>
+                  <SourceConnectionsPanel
+                    sourceId={String(
+                      migration.sourceConfiguration.sourceClusterId ?? "",
+                    )}
+                    assessmentComplete
+                    showConnector={false}
+                    compact
+                    openRequest={manageRequest}
+                  />
+                </section>
+                <DeploymentEvidencePanel
+                  migration={migration}
+                  selectedKeys={selected}
+                  inventoryDigest={inventory.inventoryDigest}
+                  collapseWorkloads
+                />
+                <ArtifactWorkspacePanel
+                  key={`${inventory.inventoryDigest}/${scope.namespaces.slice().sort().join(",")}`}
+                  migrationId={migration.migrationId}
+                  version={migration.version}
+                  inventoryDigest={inventory.inventoryDigest}
+                  namespaces={scope.namespaces}
+                  canEdit={canEdit}
+                  guided
+                  active
+                  fixedScope
+                  onReviewAccess={() => setManageRequest((n) => n + 1)}
+                />
+              </div>
+            ))}
           <footer className={styles.actions}>
             <span>
               {scope.workloads.length} workloads selected ·{" "}
@@ -610,6 +702,7 @@ export function SourceMigrationWorkspace({
               <Save size={16} />
               Save scope draft
             </button>
+
             <button
               className={styles.primary}
               disabled={busy || !canEdit || !scope.workloads.length}
@@ -688,13 +781,22 @@ export function SourceMigrationWorkspace({
           >
             {busy ? "Assessing selected scope…" : "Assess target compatibility"}
           </button>
+          {storedCompatibility.isError && !compatibility && (
+            <p role="alert" className={styles.error}>
+              Unable to load saved target checks.{" "}
+              <button onClick={() => void storedCompatibility.refetch()}>
+                Retry target checks
+              </button>
+            </p>
+          )}
           {currentCompatibility && (
             <div
               className={styles.compatibility}
               aria-label="Selected scope compatibility"
             >
               <h3>
-                {currentCompatibility.decision.path} ·{" "}
+                {statusLabel(currentCompatibility.decision.path)}
+                {currentCompatibility.decision.reason ? " · " : ""}
                 {currentCompatibility.decision.reason}
               </h3>
               <p>
@@ -730,6 +832,14 @@ export function SourceMigrationWorkspace({
                         </td>
                       </tr>
                     ))}
+                    {!currentCompatibility.resourceEvaluations?.length && (
+                      <tr>
+                        <td colSpan={4}>
+                          No per-resource checks were returned. Review evidence
+                          coverage before approval.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -762,16 +872,15 @@ export function SourceMigrationWorkspace({
             </li>
             <li>
               Target compatibility:{" "}
-              {currentCompatibility?.decision.path ?? "not evaluated"}
+              {currentCompatibility
+                ? statusLabel(currentCompatibility.decision.path)
+                : "not evaluated"}
             </li>
             <li>
-              Deployment source identification: Deployment source evidence and
-              original artifact extraction require review.
+              Source files &amp; images: review the S3 collection and export in
+              Migration scope. An export does not verify target readiness.
             </li>
-            <li>
-              Selected artifact extraction and rendered package validation:
-              pending
-            </li>
+            <li>Rendered deployment package validation: pending</li>
             <li>Adapted deployment package and validation: pending</li>
             <li>
               Persistent data strategy:{" "}
@@ -784,6 +893,15 @@ export function SourceMigrationWorkspace({
             checks. These capabilities are not yet connected in this workflow.
           </p>
           <div className={styles.actions}>
+            <button
+              className={styles.secondary}
+              onClick={() => {
+                setScopeView("artifacts");
+                setStep(3);
+              }}
+            >
+              Review files &amp; images
+            </button>
             <button className={styles.secondary} onClick={() => setStep(4)}>
               Back to target & compatibility
             </button>

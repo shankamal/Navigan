@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { PageHeading } from "@/shared/components/ui";
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,7 +27,6 @@ import {
 } from "./source-discovery-state";
 import { SourceConnectionsPanel } from "./source-connections-panel";
 import { deploymentDiscovery } from "./deployment-evidence-service";
-import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
 import styles from "./source-discovery-screen.module.css";
@@ -78,15 +78,23 @@ export function SourceDiscoveryScreen({
   const query = useSourceDiscoverySnapshot(migrationId, !timedOut);
   const cache = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const [manageRequest, setManageRequest] = useState(0);
+  const [reviewView, setReviewView] = useState<"inventory" | "assessment">(
+    "inventory",
+  );
   const [repairUntil, setRepairUntil] = useState(0);
   const [recoveryMessage, setRecoveryMessage] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [namespace, setNamespace] = useState("");
   const [resourcePage, setResourcePage] = useState(0);
+  const [showResources, setShowResources] = useState(false);
   const [findingGroup, setFindingGroup] = useState("all");
   const resourceInventoryRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!showResources) return;
+    resourceInventoryRef.current?.focus({ preventScroll: true });
+    resourceInventoryRef.current?.scrollIntoView?.({ block: "start" });
+  }, [showResources, namespace]);
   const migration = query.data?.migration;
   const catalogue = query.data?.catalogue;
   const inventory = query.data?.inventory;
@@ -325,18 +333,11 @@ export function SourceDiscoveryScreen({
   );
   const discoveryDiagnostics = (
     <>
-      <details
-        className={styles.secondaryDetails}
+      <div
+        className={styles.inventoryReview}
         id="source-inventory-details"
+        hidden={reviewView !== "inventory"}
       >
-        <summary>
-          Namespace & resource inventory{" "}
-          <span>
-            {catalogue
-              ? `${namespaces.length} namespaces · ${inventory?.resourceCount ?? "—"} resources`
-              : "Awaiting discovery"}
-          </span>
-        </summary>
         <div className={styles.metrics}>
           {[
             [
@@ -469,12 +470,7 @@ export function SourceDiscoveryScreen({
                             onClick={() => {
                               setNamespace(item.name);
                               setResourcePage(0);
-                              resourceInventoryRef.current?.focus({
-                                preventScroll: true,
-                              });
-                              resourceInventoryRef.current?.scrollIntoView({
-                                block: "start",
-                              });
+                              setShowResources(true);
                             }}
                             aria-controls="application-resource-inventory"
                           >
@@ -521,15 +517,11 @@ export function SourceDiscoveryScreen({
               <ShieldCheck size={17} /> Sanitized inventory only. Secret values
               and kubeconfig contents are not displayed.
             </p>
-            <p className={styles.note}>
-              <Info size={17} /> Target compatibility, selective artifact
-              extraction and deployment adaptation are evaluated in later
-              workflow steps.
-            </p>
           </section>
         </div>
         <section
           id="application-resource-inventory"
+          hidden={!showResources}
           ref={resourceInventoryRef}
           tabIndex={-1}
           className={`${shared.panel} ${styles.resourceInventory}`}
@@ -538,6 +530,9 @@ export function SourceDiscoveryScreen({
           <div className={styles.sectionHeading}>
             <div>
               <h2 id="resource-evidence">Application resource inventory</h2>
+              <button type="button" onClick={() => setShowResources(false)}>
+                Close resource details
+              </button>
               <p aria-live="polite">
                 {namespace
                   ? `Showing resources in ${namespace}.`
@@ -615,10 +610,12 @@ export function SourceDiscoveryScreen({
             </div>
           )}
         </section>
-      </details>
+      </div>
       <details
         className={styles.secondaryDetails}
         id="assessment-findings-details"
+        open
+        hidden={reviewView !== "assessment"}
       >
         <summary>
           Source assessment findings{" "}
@@ -759,20 +756,20 @@ export function SourceDiscoveryScreen({
       data-source-discovery
       className={`${shared.screen} ${styles.discoveryScreen} ${journey.screen}`}
     >
-      <header className={shared.heading}>
-        <div className={shared.titleGroup}>
-          <Network size={25} />
-          <div>
-            <h1>Source &amp; Discover</h1>
-            {ready && sourceFresh && (
-              <span className={journey.complete}>Discovery complete</span>
-            )}
-          </div>
-        </div>
-        <Link className={shared.back} href="/migrations">
-          <ArrowLeft size={15} /> Back to assessments
-        </Link>
-      </header>
+      <PageHeading
+        title="Source & Discover"
+        description={
+          ready && sourceFresh
+            ? "Discovery complete. Review source inventory and assessment findings."
+            : "Discover the source cluster and assess its workloads before choosing migration scope."
+        }
+        icon={<Network size={20} />}
+        action={
+          <Link className="button button-secondary" href="/migrations">
+            <ArrowLeft size={15} /> Back to assessments
+          </Link>
+        }
+      />
       <div className={journey.workflow}>
         {" "}
         <MigrationWorkflow
@@ -829,7 +826,7 @@ export function SourceDiscoveryScreen({
       {sourceOwned && (
         <details
           className={journey.connections}
-          open={!ready || manageRequest > 0 || !sourceFresh || undefined}
+          open={!ready || !sourceFresh || undefined}
         >
           <summary>
             Source connections{" "}
@@ -843,7 +840,6 @@ export function SourceDiscoveryScreen({
             sourceId={sourceId}
             assessmentComplete={ready}
             compact
-            openRequest={manageRequest}
             connectorConnected={sourceFresh}
             connectorName={sourceQuery.data?.name}
           />
@@ -879,7 +875,7 @@ export function SourceDiscoveryScreen({
                   : running
                     ? "Collecting source evidence. This panel stays visible while status updates in the background."
                     : ready
-                      ? "Select a workload below to review its source files, images and findings."
+                      ? "Review the inventory and assessment below, then choose migration scope."
                       : canAssess
                         ? "The connector has discovered the namespace catalogue. Run the source assessment to collect detailed resource evidence."
                         : "Discover namespaces first, then assess application workloads and their associated resources."}
@@ -1017,21 +1013,42 @@ export function SourceDiscoveryScreen({
         )}
       </section>
       {sourceOwned && (
-        <div id="deployment-evidence">
-          <DeploymentEvidencePanel
-            hideConnections
-            diagnosticsContent={discoveryDiagnostics}
-            findings={assessment?.findings ?? []}
-            onManageConnections={() => setManageRequest((n) => n + 1)}
-            footerAction={workspaceControls}
-            migration={migration}
-            inventoryDigest={inventory?.inventoryDigest}
-            onRefresh={() => {
-              setTimedOut(false);
-              void query.refetch();
-            }}
-          />
-        </div>
+        <>
+          <section className={shared.panel} aria-label="Discovery results">
+            <div className={styles.reviewHeading}>
+              <div>
+                <h2>Discovery &amp; assessment</h2>
+                <p>
+                  Review what is running and the source findings. Choose what to
+                  migrate in the next step.
+                </p>
+              </div>
+              <nav
+                className={styles.reviewTabs}
+                aria-label="Discovery results views"
+              >
+                <button
+                  type="button"
+                  aria-pressed={reviewView === "inventory"}
+                  onClick={() => setReviewView("inventory")}
+                >
+                  Inventory
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={reviewView === "assessment"}
+                  onClick={() => setReviewView("assessment")}
+                >
+                  Assessment {assessment ? `(${findings.length})` : ""}
+                </button>
+              </nav>
+            </div>
+            {discoveryDiagnostics}
+          </section>
+          <footer className={`${shared.panel} ${styles.footer}`}>
+            {workspaceControls}
+          </footer>
+        </>
       )}
       {!sourceOwned && (
         <footer className={`${shared.panel} ${styles.footer}`}>

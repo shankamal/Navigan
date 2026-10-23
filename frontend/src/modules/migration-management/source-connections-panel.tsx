@@ -53,6 +53,7 @@ export function SourceConnectionsPanel({
   openRequest = 0,
   connectorConnected = false,
   connectorName,
+  showConnector = true,
 }: {
   sourceId: string;
   assessmentComplete?: boolean;
@@ -60,6 +61,7 @@ export function SourceConnectionsPanel({
   openRequest?: number;
   connectorConnected?: boolean;
   connectorName?: string;
+  showConnector?: boolean;
 }) {
   const { identity } = useAuth();
   const canEdit = hasPermission(identity, "migration.edit");
@@ -584,21 +586,23 @@ export function SourceConnectionsPanel({
     >
       {compact && (
         <div className={styles.connectionStrip}>
-          <div>
-            <Server size={22} />
-            <span>
-              <strong>Source connector</strong>
-              <small>{connectorName || "Registered source cluster"}</small>
-            </span>
-            <span
-              className={
-                connectorConnected ? styles.successText : styles.mutedText
-              }
-            >
-              {connectorConnected && <CheckCircle2 size={14} />}{" "}
-              {connectorConnected ? "Connected" : "Check status"}
-            </span>
-          </div>
+          {showConnector && (
+            <div>
+              <Server size={22} />
+              <span>
+                <strong>Source connector</strong>
+                <small>{connectorName || "Registered source cluster"}</small>
+              </span>
+              <span
+                className={
+                  connectorConnected ? styles.successText : styles.mutedText
+                }
+              >
+                {connectorConnected && <CheckCircle2 size={14} />}{" "}
+                {connectorConnected ? "Connected" : "Check status"}
+              </span>
+            </div>
+          )}
           <div>
             <GitBranch size={22} />
             <span>
@@ -709,32 +713,38 @@ export function SourceConnectionsPanel({
                       registriesVerified ? "Verified" : "Review access",
                       "registries",
                     ],
-                  ].map(([name, value, status, section]) => (
-                    <div key={name}>
-                      <strong>
-                        {name === "GitHub" ? (
-                          <GitBranch size={21} />
-                        ) : name === "Source cluster" ? (
-                          <Server size={21} />
+                  ]
+                    .filter(
+                      ([, , , section]) =>
+                        showConnector || section !== "cluster",
+                    )
+                    .map(([name, value, status, section]) => (
+                      <div key={name}>
+                        <strong>
+                          {name === "GitHub" ? (
+                            <GitBranch size={21} />
+                          ) : name === "Source cluster" ? (
+                            <Server size={21} />
+                          ) : (
+                            <Database size={21} />
+                          )}{" "}
+                          {name}
+                        </strong>
+                        <span>{value}</span>
+                        <small>{status} · Read-only access</small>
+                        {section !== "cluster" ? (
+                          <button onClick={() => setConnectionTab(section)}>
+                            Manage{" "}
+                            {name === "GitHub" ? "repository" : "registries"}
+                          </button>
                         ) : (
-                          <Database size={21} />
-                        )}{" "}
-                        {name}
-                      </strong>
-                      <span>{value}</span>
-                      <small>{status} · Read-only access</small>
-                      {section !== "cluster" ? (
-                        <button onClick={() => setConnectionTab(section)}>
-                          Manage{" "}
-                          {name === "GitHub" ? "repository" : "registries"}
-                        </button>
-                      ) : (
-                        <small>
-                          Cluster registration is managed in Source connection.
-                        </small>
-                      )}
-                    </div>
-                  ))}
+                          <small>
+                            Cluster registration is managed in Source
+                            connection.
+                          </small>
+                        )}
+                      </div>
+                    ))}
                 </div>
               )}
             </>

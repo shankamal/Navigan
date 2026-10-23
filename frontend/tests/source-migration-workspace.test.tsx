@@ -10,22 +10,18 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { SourceMigrationWorkspace } from "@/modules/migration-management/source-migration-workspace";
 vi.mock("@/modules/migration-management/deployment-evidence-service", () => ({
   deploymentDiscovery: {
-    evidence: vi
-      .fn()
-      .mockResolvedValue({
-        inventoryDigest: "a".repeat(64),
-        workloads: [],
-        repositories: [],
-        images: [],
-        limitations: [],
-      }),
-    settings: vi
-      .fn()
-      .mockResolvedValue({
-        version: 2,
-        configuration: { repositories: [], registries: [] },
-        githubOrganizations: [],
-      }),
+    evidence: vi.fn().mockResolvedValue({
+      inventoryDigest: "a".repeat(64),
+      workloads: [],
+      repositories: [],
+      images: [],
+      limitations: [],
+    }),
+    settings: vi.fn().mockResolvedValue({
+      version: 2,
+      configuration: { repositories: [], registries: [] },
+      githubOrganizations: [],
+    }),
   },
 }));
 const api = vi.hoisted(() => ({
@@ -164,10 +160,10 @@ it("saves only the selected workload, its dependencies without asking for deploy
     screen.queryByLabelText("Deployment method for payment-api"),
   ).not.toBeInTheDocument();
   expect(
-    await screen.findByRole("link", {
+    screen.queryByRole("link", {
       name: /resolve deployment sources in discovery/,
     }),
-  ).toBeVisible();
+  ).not.toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", { name: "Save & continue to target" }),
   );
@@ -266,7 +262,7 @@ it("checks only the saved scope against a customer target and keeps approval and
   fireEvent.click(
     screen.getByRole("button", { name: "Assess target compatibility" }),
   );
-  await screen.findByRole("heading", { name: /PENDING_EVIDENCE/ });
+  await screen.findByRole("heading", { name: /Pending evidence/ });
   expect(api.update.mock.calls[1][1].target.clusterId).toBe("CLU-db");
   expect(api.analyzeTarget).toHaveBeenCalledWith("MIG-db");
   fireEvent.click(
@@ -278,4 +274,30 @@ it("checks only the saved scope against a customer target and keeps approval and
   expect(
     screen.getByRole("button", { name: "Execute migration" }),
   ).toBeDisabled();
+});
+
+it("requires a saved scope before showing collection and preserves selections between views", async () => {
+  open();
+  fireEvent.click(
+    within(screen.getByLabelText("Source namespaces")).getByRole("checkbox"),
+  );
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "2. Files & images" }));
+  expect(
+    screen.getByRole("heading", {
+      name: "Save your scope before collecting artifacts",
+    }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Create workspace" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Back to scope selection" }),
+  );
+  expect(
+    screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
+  ).toBeChecked();
+  expect(api.update).not.toHaveBeenCalled();
 });
