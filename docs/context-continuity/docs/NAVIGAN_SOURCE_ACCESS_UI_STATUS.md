@@ -1,3 +1,13 @@
+# Current checkpoint: PROD assessment passed; planning namespace guard correction
+
+The user successfully deployed the scoped connector API promotion. The existing source connector retried its pending report, and the production UI now shows 8 namespaces, 30 workload controllers, 171 collected resources and 125 finding observations across 12 issue groups. GitHub and registry setup are verified. This confirms production discovery and source-only assessment, not artifact collection or target readiness.
+
+Next workflow test reached Migration scope / Files & Images and hit NAMESPACE_OUTSIDE_ASSESSMENT while saving selected planning namespaces. The service still compared the selection to the initial migration_scope namespace preset, despite source-first discovery assessing all captured namespaces before planning selection. For a feature-enabled SOURCE_FIRST draft backed by a SOURCE_ONLY assessment, the guard now derives allowed namespaces from the digest-bound assessed inventory: namespaced resource identities plus explicit core/v1 Namespace records for empty namespaces. Legacy, target-bound or disabled workflows retain their preset-scope boundary. Snapshot/version/digest/resource checks remain unchanged; no assessment scope or inventory is rewritten.
+
+Validation: 47 focused planning, namespace model, source-first and artifact tests passed, including rejection of unknown namespaces, stale digests and expansion in legacy/disabled workflows. This correction needs the existing scoped production migration API prepare/execute release. No frontend rebuild, connector API redeployment, source reinstall or rediscovery is required. After deployment, retry saving the selected namespace/workload scope in Files & Images, then continue artifact collection. Existing production image worker role authorization/trust remains to be verified before private ECR copying.
+
+---
+
 # Current blocker: production connector API promotion
 
 GitHub and registry setup now show Verified. The source agent is healthy and gets the active SOURCE_INVENTORY assignment, but repeated cycles fail at submission. A read-only inventory collection succeeded and produced a small sanitized report. A subsequent normal submission returned HTTP 409 TARGET_CLUSTER_REQUIRED. The production assessment is MANUAL / ASSESSMENT_ONLY without a target, as intended before migration scope and target selection. Read-only inspection confirmed the separate production MigrationConnectorFunction has no source-first flag and lacks source-only handling. Earlier scoped API promotions updated MigrationFunction only; the connector ingestion Lambda was not promoted.

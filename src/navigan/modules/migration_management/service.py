@@ -1054,6 +1054,24 @@ class Service:
         saved_namespaces = draft.get("selectedNamespaces")
         if saved_namespaces is not None:
             assessed_namespaces = set(current.get("migration_scope", {}).get("namespaces", []))
+            if (
+                draft.get("workflow") == "SOURCE_FIRST"
+                and os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") == "true"
+                and (assessment.get("inventorySummary") or {}).get("assessmentMode") == "SOURCE_ONLY"
+            ):
+                # Source-first discovery assesses before namespace selection.
+                # Its digest-bound inventory is the authoritative scope, rather
+                # than the initial registration's empty/preset namespace list.
+                # Namespace objects also cover assessed namespaces with no workloads.
+                assessed_namespaces = {
+                    resource["namespace"] for resource in inventory["resources"]
+                    if resource.get("namespace")
+                } | {
+                    resource["name"] for resource in inventory["resources"]
+                    if resource.get("apiVersion") == "v1"
+                    and resource.get("kind") == "Namespace"
+                    and resource.get("name")
+                }
             if not set(saved_namespaces).issubset(assessed_namespaces):
                 raise ApiError(
                     400, "NAMESPACE_OUTSIDE_ASSESSMENT",
