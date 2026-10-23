@@ -525,3 +525,85 @@ def test_existing_role_keeps_external_id_when_switching_role_paths(source):
     )
     assert updated[key]["externalId"] == previous_id
     assert updated[key]["status"] == "NOT_VERIFIED"
+
+
+GHCR_CHALLENGE = {
+    "www-authenticate": 'Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:user/image:pull"'
+}
+
+
+def test_public_ghcr_setup_probes_endpoint_without_unscoped_token(monkeypatch):
+    calls = []
+
+    def request(url, authorization=None, accept=None):
+        calls.append((url, authorization))
+        assert len(calls) == 1, "Root setup must not request an unscoped GHCR token"
+        return 401, GHCR_CHALLENGE, b""
+
+    monkeypatch.setattr(auth, "request", request)
+    assert auth.registry_read("ghcr.io", {"mode": "PUBLIC"}) == {
+        "_publicRegistryProbe": "ENDPOINT_REACHABLE"
+    }
+    assert calls == [("https://ghcr.io/v2/", None)]
+
+
+@pytest.mark.parametrize("mode", ["TOKEN", "BEARER"])
+def test_ghcr_supplied_credentials_are_still_verified(monkeypatch, mode):
+    calls = []
+
+    def request(url, *args):
+        calls.append(url)
+        return (401, GHCR_CHALLENGE, b"") if len(calls) == 1 else (403, {}, b"")
+
+    monkeypatch.setattr(auth, "request", request)
+    with pytest.raises(ValueError):
+        auth.registry_read("ghcr.io", {"mode": mode, "username": "reader", "token": "secret"})
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("token_status", [200, 403])
+def test_public_ghcr_manifest_requires_scoped_token_and_success(monkeypatch, token_status):
+    calls = []
+
+    def request(url, authorization=None, accept=None):
+        calls.append((url, authorization))
+        if len(calls) == 1:
+            return 401, GHCR_CHALLENGE, b""
+        if len(calls) == 2:
+            assert "scope=repository%3Aheadlamp-k8s%2Fheadlamp%3Apull" in url
+            assert "user" not in url and "push" not in url
+            return token_status, {}, b'{"token":"scoped"}'
+        assert authorization == "Bearer scoped"
+        return 200, {"docker-content-digest": "sha256:" + "a" * 64}, b'{"schemaVersion":2}'
+
+    monkeypatch.setattr(auth, "request", request)
+    args = ("ghcr.io", {"mode": "PUBLIC"}, "/v2/headlamp-k8s/headlamp/manifests/v0.45.0", "headlamp-k8s/headlamp")
+    if token_status == 403:
+        with pytest.raises(ValueError):
+            auth.registry_read(*args)
+        assert len(calls) == 2
+    else:
+        result = auth.registry_read(*args)
+        assert result["schemaVersion"] == 2
+        assert "_publicRegistryProbe" not in result
+        assert result["_registryDigest"] == "sha256:" + "a" * 64
+
+
+@pytest.mark.parametrize("realm", ["https://attacker.example/token", "https://ghcr.io/token?x=1"])
+def test_public_ghcr_probe_rejects_unsafe_challenges(monkeypatch, realm):
+    monkeypatch.setattr(auth, "request", lambda *args: (
+        401, {"www-authenticate": f'Bearer realm="{realm}",service="ghcr.io"'}, b""
+    ))
+    with pytest.raises(ValueError):
+        auth.registry_read("ghcr.io", {"mode": "PUBLIC"})
+
+
+def test_ghcr_setup_message_defers_image_verification(source, monkeypatch):
+    monkeypatch.setattr(auth, "request", lambda *args: (401, GHCR_CHALLENGE, b""))
+    config = {"repositories": [], "registries": ["ghcr.io"]}
+    states = auth.configure(source, config, [], {}, True, lambda _: None)
+    result = states["registry:ghcr.io"]
+    assert result["mode"] == "PUBLIC"
+    assert result["status"] == "CONNECTED"
+    assert result["message"] == "Public registry endpoint reachable. Access to each referenced image is checked during analysis."
+    assert not auth.ready(config, states)  # Repository configuration is still required.

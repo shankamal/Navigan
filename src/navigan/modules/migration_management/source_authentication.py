@@ -248,6 +248,20 @@ def registry_read(host, credential, path="/v2/", repository=None, aws=False, aws
         allowed = {endpoint, "auth.docker.io"} if host == "docker.io" else {endpoint}
         if realm.hostname not in allowed or realm.scheme != "https" or realm.query:
             raise ValueError("Separate registry token service requires a read-only bearer token.")
+        # GHCR issues anonymous pull tokens for a repository, but rejects the
+        # unscoped token request used by a registry-wide setup probe. A valid
+        # root challenge establishes endpoint reachability only. Manifest reads
+        # still negotiate their own repository-scoped token and require HTTP 200.
+        if (
+            host == "ghcr.io"
+            and mode == "PUBLIC"
+            and not aws
+            and path == "/v2/"
+            and repository is None
+            and options.get("realm") == "https://ghcr.io/token"
+            and options.get("service") == "ghcr.io"
+        ):
+            return {"_publicRegistryProbe": "ENDPOINT_REACHABLE"}
         query = {"service": options.get("service", endpoint)}
         if repository:
             query["scope"] = "repository:" + repository + ":pull"
@@ -451,11 +465,13 @@ def configure(source, configuration, credentials, previous, verify, app_token):
                     credential = {"mode": entry["mode"], **read_credential(source, key, entry)}
                     aws_mode = entry["mode"] in {"AWS_IAM", "AWS_ROLE", "AWS_EXISTING_ROLE"}
                     aws_client = ecr_client(host, entry, verify_trust=True) if aws_mode else None
-                    registry_read(host, credential, aws=aws_mode, aws_client=aws_client)
+                    probe = registry_read(host, credential, aws=aws_mode, aws_client=aws_client)
                     if entry["mode"] in {"AWS_ROLE", "AWS_EXISTING_ROLE"}:
                         entry["trustValidated"] = True
                     message = (
-                        "Registry API access verified. Each referenced image is checked during discovery."
+                        "Public registry endpoint reachable. Access to each referenced image is checked during analysis."
+                        if isinstance(probe, dict) and probe.get("_publicRegistryProbe") == "ENDPOINT_REACHABLE"
+                        else "Registry API access verified. Each referenced image is checked during discovery."
                     )
                 entry.update(
                     status="CONNECTED", message=message, verifiedAt=datetime.now(timezone.utc).isoformat()
