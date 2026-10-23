@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision only PROD migration workspace/recovery storage through scoped change sets.
+"""Provision one PROD migration workspace bucket through a scoped change set.
 
 Default: read-only readiness check. --apply creates and executes change sets after
 checking the resource allowlist. Does not update Lambda, APIs, ECS, source hosts,
@@ -33,11 +33,6 @@ SPECS = {
         "resources": {"WorkspaceKey": "AWS::KMS::Key", "WorkspaceBucket": "AWS::S3::Bucket",
                       "WorkspaceBucketPolicy": "AWS::S3::BucketPolicy", "WorkspaceStoragePolicy": "AWS::IAM::Policy"},
     },
-    "source-recovery": {
-        "file": "recovery-storage.yaml",
-        "resources": {"RecoveryBucket": "AWS::S3::Bucket", "RecoveryBucketPolicy": "AWS::S3::BucketPolicy",
-                      "RecoveryStoragePolicy": "AWS::IAM::Policy"},
-    },
 }
 
 
@@ -50,8 +45,7 @@ def check_checkout():
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
     require(branch == BRANCH, f"Use the existing {BRANCH} checkout")
     paths = ["scripts/deploy-migration-storage-prod.py",
-             "infrastructure/modules/migration-management/workspace-storage.yaml",
-             "infrastructure/modules/migration-management/recovery-storage.yaml"]
+             "infrastructure/modules/migration-management/workspace-storage.yaml"]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
     require(not dirty.strip(), "Commit or review local storage-release edits before deploying; no files were changed")
 
@@ -171,12 +165,12 @@ def execute(cfn, plan):
 
 
 def verify_storage(session, suffix):
+    require(suffix == "artifact-workspace", "Only the artifact workspace storage stack is in release scope")
     stack = PARENT + "-" + suffix
     deployed = session.client("cloudformation").describe_stacks(StackName=stack)["Stacks"][0]
     require(deployed["StackStatus"] in STABLE, "Storage deployment did not complete")
     outputs = {o["OutputKey"]: o["OutputValue"] for o in deployed.get("Outputs", [])}
-    workspace = suffix == "artifact-workspace"
-    bucket = outputs["WorkspaceBucketName" if workspace else "RecoveryBucketName"]
+    bucket = outputs["WorkspaceBucketName"]
     s3 = session.client("s3")
     s3.head_bucket(Bucket=bucket, ExpectedBucketOwner=ACCOUNT)
     block = s3.get_public_access_block(Bucket=bucket, ExpectedBucketOwner=ACCOUNT)["PublicAccessBlockConfiguration"]
@@ -185,11 +179,10 @@ def verify_storage(session, suffix):
     require(s3.get_bucket_versioning(Bucket=bucket, ExpectedBucketOwner=ACCOUNT).get("Status") == "Enabled", "Versioning must be enabled")
     encryption = s3.get_bucket_encryption(Bucket=bucket, ExpectedBucketOwner=ACCOUNT)["ServerSideEncryptionConfiguration"]["Rules"]
     default = encryption[0]["ApplyServerSideEncryptionByDefault"]
-    require(default["SSEAlgorithm"] == ("aws:kms" if workspace else "AES256"), "Unexpected bucket encryption")
-    if workspace:
-        require(outputs["WorkspaceBucketOwner"] == ACCOUNT, "Unexpected workspace owner")
-        require(outputs["WorkspaceKmsKeyArn"].startswith(f"arn:aws:kms:{REGION}:{ACCOUNT}:key/"), "Unexpected workspace KMS key")
-        require(default["KMSMasterKeyID"] == outputs["WorkspaceKmsKeyArn"], "Workspace encryption key does not match its output")
+    require(default["SSEAlgorithm"] == "aws:kms", "Unexpected bucket encryption")
+    require(outputs["WorkspaceBucketOwner"] == ACCOUNT, "Unexpected workspace owner")
+    require(outputs["WorkspaceKmsKeyArn"].startswith(f"arn:aws:kms:{REGION}:{ACCOUNT}:key/"), "Unexpected workspace KMS key")
+    require(default["KMSMasterKeyID"] == outputs["WorkspaceKmsKeyArn"], "Workspace encryption key does not match its output")
     return outputs
 
 
@@ -210,7 +203,7 @@ def main():
     templates = {suffix: (ROOT / "infrastructure/modules/migration-management" / spec["file"]).read_text()
                  for suffix, spec in SPECS.items()}
     if not args.apply:
-        print("Readiness check passed. No AWS resources modified. Use --apply to provision the two dedicated storage stacks.")
+        print("Readiness check passed. No AWS resources modified. Use --apply to provision one private workspace bucket.")
         return 0
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-migration-storage-"))
     directory.chmod(0o700)
@@ -218,7 +211,7 @@ def main():
     cfn = session.client("cloudformation")
     plans = [change_set(cfn, PARENT + "-" + suffix, spec, templates[suffix], settings["role"], directory)
              for suffix, spec in SPECS.items()]
-    # Both change sets must pass the scope checks before either executes.
+    # Validate the workspace change set before executing; no legacy recovery stack is provisioned.
     current = session.client("lambda").get_function_configuration(FunctionName=settings["function"])
     require(current["RevisionId"] == settings["revision"] and current["Role"] == settings["roleArn"],
             "Production API changed during preparation; rerun readiness before executing storage changes")

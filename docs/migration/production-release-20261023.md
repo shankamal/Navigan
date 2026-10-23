@@ -34,11 +34,11 @@ TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
   scripts/deploy-migration-storage-prod.py --profile navigan --apply
 ```
 
-The script creates only `navigan-custmanagement-cfnstk-artifact-workspace` and `navigan-custmanagement-cfnstk-source-recovery`, using the existing reviewed storage templates and actual production MigrationFunction execution role. It prepares both change sets, rejects unrelated resources/removal/import/replacement, then executes. New IAM resources are inline storage policies attached to the existing API role; no role trust, source-host access or authentication changes are made. Workspace S3 uses KMS; recovery S3 uses AES256. Both use versioning, private ownership and full public-access blocking. Retained storage resources are not deleted on stack rollback/deletion.
+The script creates only `navigan-custmanagement-cfnstk-artifact-workspace`, containing one private S3 bucket and its KMS key, using the existing reviewed workspace template and actual production MigrationFunction execution role. It prepares a scoped change set, rejects unrelated resources/removal/import/replacement, then executes. New IAM resources are inline storage policies attached to the existing API role; no role trust, source-host access or authentication changes are made. The workspace bucket uses KMS encryption, versioning, private ownership and full public-access blocking. Workspace-bound live-definition and Helm recovery use this same bucket. The separate legacy recovery-storage path is not provisioned by this release. Retained storage resources are not deleted on stack rollback/deletion.
 
 The script verifies all three PROD workspace tables and every SELECT/INSERT/UPDATE grant before provisioning. It checks the API revision again before execution. Existing stacks must have the same role parameter; repeated unchanged deployments are handled without executing empty change sets. Deployment records use a private directory under TMPDIR and contain no secret values or signed URLs.
 
-Success prints `PROD migration storage deployed and verified. API configuration/code and frontend are unchanged.` Keep the bucket/key outputs and deployment-record directory for the next phase. If either stack fails, inspect its events and resume; do not delete buckets or source data.
+Success prints `PROD migration storage deployed and verified. API configuration/code and frontend are unchanged.` Keep the bucket/KMS-key outputs and deployment-record directory for the next phase. If the storage stack fails, inspect its events and resume; do not delete buckets or source data.
 
 ## Remaining release phases — not completed by the storage script
 
@@ -49,3 +49,9 @@ Success prints `PROD migration storage deployed and verified. API configuration/
 5. Confirm actual running task/image digest, steady state, login/callback, read-only platform navigation and the migration API/UI workflow. ECS health alone is insufficient. Keep task `:8` as the known baseline; capture the actual current task again immediately before switching.
 
 Storage completion is not API deployment, collector readiness, frontend rollout, target workload migration or traffic cutover. The agent has no AWS credentials/CLI/Docker in its sandbox; all live release operations are executed by the user in WSL, with outputs recorded as evidence.
+
+## Single-bucket correction
+
+The user clarified that DEV used one workspace bucket. Current artifact_recovery.py confirms that requests bound to a workspace use storage_configuration() from artifact_workspace.py and save recovered objects into the workspace bucket with its KMS key. MIGRATION_RECOVERY_BUCKET is only the older recovery path without a workspace binding. An earlier production-script revision unnecessarily provisioned both templates; the corrected script provisions only the workspace stack. No existing bucket is deleted or repurposed.
+
+User terminal output now confirms migrations 027/028 and scoped grants committed successfully to navigan. Storage deployment is still awaiting confirmed output; the earlier storage attempt stopped at the missing-table preflight before provisioning any resources. Validation of the single-bucket script: 41 focused tests passed, including exact one-stack provisioning and rejection of the legacy recovery stack.

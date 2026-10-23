@@ -195,28 +195,49 @@ def test_default_main_is_read_only(monkeypatch):
     assert release.main() == 0
 
 
-def test_both_plans_must_pass_before_any_executes(monkeypatch, tmp_path):
+def test_unsafe_plan_cannot_execute(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["release", "--apply"])
     monkeypatch.setattr(release, "check_checkout", lambda: None)
     monkeypatch.setattr(release.boto3, "Session", lambda **kw: session())
     monkeypatch.setattr(release.tempfile, "mkdtemp", lambda **kw: str(tmp_path))
-    count = []
     def prepare(*args):
-        count.append(args[1])
-        if len(count) == 2:
-            raise RuntimeError("second plan unsafe")
-        return {"id": "first"}
+        raise RuntimeError("plan unsafe")
     monkeypatch.setattr(release, "change_set", prepare)
-    monkeypatch.setattr(release, "execute", lambda *a: pytest.fail("Executed before both plans validated"))
-    with pytest.raises(RuntimeError, match="second plan unsafe"):
+    monkeypatch.setattr(release, "execute", lambda *a: pytest.fail("Executed before plan validated"))
+    with pytest.raises(RuntimeError, match="plan unsafe"):
         release.main()
 
 
 def test_storage_verification_rejects_public_bucket():
     cfn = SimpleNamespace(describe_stacks=lambda **kw: {"Stacks": [{"StackStatus": "CREATE_COMPLETE", "Outputs": [
-        {"OutputKey": "RecoveryBucketName", "OutputValue": "private-bucket"}]}]})
+        {"OutputKey": "WorkspaceBucketName", "OutputValue": "private-bucket"}]}]})
     s3 = SimpleNamespace(head_bucket=lambda **kw: None, get_public_access_block=lambda **kw: {
         "PublicAccessBlockConfiguration": {"BlockPublicAcls": False}})
     fake = SimpleNamespace(client=lambda name: cfn if name == "cloudformation" else s3)
     with pytest.raises(RuntimeError, match="public-access"):
-        release.verify_storage(fake, "source-recovery")
+        release.verify_storage(fake, "artifact-workspace")
+
+
+def test_apply_provisions_only_one_workspace_stack(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "argv", ["release", "--apply"])
+    monkeypatch.setattr(release, "check_checkout", lambda: None)
+    monkeypatch.setattr(release.boto3, "Session", lambda **kw: session())
+    monkeypatch.setattr(release.tempfile, "mkdtemp", lambda **kw: str(tmp_path))
+    prepared, executed, verified = [], [], []
+    def prepare(cfn, stack, spec, template, role, directory):
+        prepared.append(stack)
+        assert "RecoveryBucket" not in template
+        assert "WorkspaceBucket" in template
+        return {"id": "workspace"}
+    monkeypatch.setattr(release, "change_set", prepare)
+    monkeypatch.setattr(release, "execute", lambda cfn, plan: executed.append(plan["id"]))
+    monkeypatch.setattr(release, "verify_storage", lambda session, suffix: verified.append(suffix) or {})
+    assert release.main() == 0
+    assert prepared == [release.PARENT + "-artifact-workspace"]
+    assert executed == ["workspace"]
+    assert verified == ["artifact-workspace"]
+
+
+def test_legacy_recovery_storage_is_outside_release_scope():
+    with pytest.raises(RuntimeError, match="release scope"):
+        release.verify_storage(None, "source-recovery")
