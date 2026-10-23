@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import base64
 import copy
+from datetime import datetime
 import hashlib
 import importlib.util
 import json
@@ -47,6 +48,13 @@ def require(condition, message):
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+
+
+def aws_record_default(value):
+    """Preserve AWS response timestamps in archival records only."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 def read_service(ecs):
@@ -305,7 +313,7 @@ def main():
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-frontend-"))
     directory.chmod(0o700)
     print("Private frontend release record: " + str(directory), flush=True)
-    (directory / "original-task.json").write_text(json.dumps(described, indent=2))
+    (directory / "original-task.json").write_text(json.dumps(described, indent=2, default=aws_record_default))
     (directory / "public-build-config.json").write_text(json.dumps(public, indent=2))
     image, digests = build_image(session, directory, revision, public)
     candidate = candidate_request(original, image)

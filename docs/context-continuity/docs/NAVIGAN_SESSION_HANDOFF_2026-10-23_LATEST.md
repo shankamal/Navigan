@@ -1,3 +1,13 @@
+## Frontend preparation timestamp fix — 23 October 2026 (Asia/Kolkata)
+
+User ran frontend --prepare: live PROD backend/collectors, stable frontend and public Cognito preflight passed. Preparation then failed while serializing ECS taskDefinition.registeredAt (Python datetime) into original-task.json. It stopped before image build/push, task registration or service update. Last observed live/rollback task remains navigan-frontend-TaskDefinition-j9W80aX9PBkf:8. Failed private record directory: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-frontend-n6886z5g; do not execute it as a release plan.
+
+Fixed archival AWS response serialization to preserve datetime as ISO 8601. Candidate task JSON and baseline hashing remain strict; registration still excludes AWS response metadata. All 28 frontend release tests passed, including a full mocked --prepare with a real UTC registeredAt timestamp, saved rollback/candidate/plan verification and no service update. This is local regression evidence, not a live deployment.
+
+Next: pull the branch and retry scripts/deploy-frontend-prod.py --profile navigan --prepare using the existing deployment venv and TMPDIR. After successful preparation, use only its newly printed release-plan.json with --execute. Production frontend rollout and authenticated smoke tests remain pending; broader UI redesign stays on hold. Existing backend/collectors remain deployed as recorded below.
+
+---
+
 ## PROD collectors running / frontend release helper — 23 October 2026 (Asia/Kolkata)
 
 User output confirmed the repository collector deployed as navigan-custmanagement-cfnstk-workspace-repositories with schedule ENABLED after starting the previously stopped shared Aurora cluster. The earlier InvalidResourceStateException stopped the repository deployment before writes; database availability is restored according to the successful retry. Do not repeat that investigation or restart databases without a current symptom.

@@ -1,5 +1,6 @@
 """Production frontend promotion boundaries; no live AWS, Docker or HTTP calls."""
 import copy
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
@@ -227,3 +228,42 @@ def test_wrong_running_image_digest_is_not_reported_as_success(monkeypatch, tmp_
     session, path = setup_execute(monkeypatch, tmp_path, ecs)
     with pytest.raises(RuntimeError, match="image digest"):
         release.execute(session, path)
+
+
+def test_prepare_archives_aws_timestamp_without_changing_service(monkeypatch, tmp_path):
+    timestamp = datetime(2026, 10, 16, 12, 30, tzinfo=timezone.utc)
+    described = {"taskDefinition": dict(task(), taskDefinitionArn=OLD, registeredAt=timestamp, revision=8),
+                 "tags": [{"key": "owner", "value": "platform"}]}
+    snapshot = copy.deepcopy(described)
+    original = release.task_request(described["taskDefinition"], described["tags"], set(task()) | {"tags"})
+    ecs = ECS()
+    registrations = []
+    def register(**request):
+        registrations.append(request)
+        return {"taskDefinition": {"taskDefinitionArn": NEW}}
+    ecs.register_task_definition = register
+    session = SimpleNamespace(client=lambda name: ecs)
+    monkeypatch.setattr(release.boto3, "Session", lambda **kw: session)
+    monkeypatch.setattr(release, "check_checkout", lambda: "committed-revision")
+    monkeypatch.setattr(release, "readiness", lambda session: (service(), described, original, {"public": "config"}))
+    monkeypatch.setattr(release.tempfile, "mkdtemp", lambda **kw: str(tmp_path))
+    monkeypatch.setattr(release, "build_image", lambda *args: (IMAGE, [DIGEST]))
+    monkeypatch.setattr("sys.argv", ["deploy-frontend-prod.py", "--profile", "navigan", "--prepare"])
+    assert release.main() == 0
+    saved = json.loads((tmp_path / "original-task.json").read_text())
+    assert saved["taskDefinition"]["registeredAt"] == timestamp.isoformat()
+    assert saved["taskDefinition"]["taskDefinitionArn"] == OLD
+    assert described == snapshot
+    assert registrations == [release.candidate_request(original, IMAGE)]
+    assert "registeredAt" not in registrations[0]
+    assert json.loads((tmp_path / "candidate-task-request.json").read_text()) == registrations[0]
+    plan = json.loads((tmp_path / "release-plan.json").read_text())
+    assert plan["previousTask"] == OLD and plan["nextTask"] == NEW
+    assert ecs.live == OLD and not ecs.calls
+
+
+def test_rollback_serializer_rejects_unknown_values_and_task_json_stays_strict():
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        json.dumps({"unsupported": object()}, default=release.aws_record_default)
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        release.canonical({"registeredAt": datetime.now(timezone.utc)})
