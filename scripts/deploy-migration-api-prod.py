@@ -251,6 +251,48 @@ def upload(session, workspace, directory, name, content):
     return code, url
 
 
+def references(value, logical):
+    if isinstance(value, dict):
+        if value.get("Ref") == logical:
+            return True
+        attribute = value.get("Fn::GetAtt")
+        if (isinstance(attribute, list) and attribute and attribute[0] == logical) or (
+                isinstance(attribute, str) and attribute.startswith(logical + ".")):
+            return True
+        sub = value.get("Fn::Sub")
+        text = sub[0] if isinstance(sub, list) and sub else sub
+        if isinstance(text, str) and re.search(r"\$\{" + re.escape(logical) + r"(?:\.|\})", text):
+            return True
+        return any(references(v, logical) for v in value.values())
+    return isinstance(value, list) and any(references(v, logical) for v in value)
+
+
+def unchanged_api_dependency(resource, before, proposed):
+    """Permit dependency reevaluation only when the full resource definition is identical.
+
+    CloudFormation can list Ref/GetAtt dependents as Modify even when their
+    definitions are unchanged. This exception never covers Lambda/role changes,
+    altered integration properties, unprotected routes or a different target.
+    """
+    logical = resource.get("LogicalResourceId")
+    old = before["Resources"].get(logical)
+    new = proposed["Resources"].get(logical)
+    if not old or old != new or old.get("Type") != resource.get("ResourceType"):
+        return False
+    if resource.get("Action") != "Modify" or resource.get("Replacement", "False") != "False" or resource.get("ChangeSetId"):
+        return False
+    kind, props = old["Type"], old.get("Properties", {})
+    if kind == "AWS::ApiGatewayV2::Integration":
+        return logical == "MigrationIntegration" and props.get("IntegrationType") == "AWS_PROXY"
+    if kind == "AWS::ApiGatewayV2::Route":
+        return (props.get("AuthorizationType") == "JWT" and bool(props.get("AuthorizerId"))
+                and references(props.get("Target"), "MigrationIntegration"))
+    if kind == "AWS::Lambda::Permission":
+        return (props.get("Action") == "lambda:InvokeFunction" and props.get("Principal") == "apigateway.amazonaws.com"
+                and references(props.get("FunctionName"), "MigrationFunction"))
+    return False
+
+
 def inspect_plan(cfn, identifier):
     root = cfn.describe_change_set(ChangeSetName=identifier)
     require(root.get("Status") == "CREATE_COMPLETE" and root.get("ExecutionStatus") == "AVAILABLE", "Change set is not executable")
@@ -266,9 +308,22 @@ def inspect_plan(cfn, identifier):
     require(child.get("StackId", "").startswith(f"arn:aws:cloudformation:{REGION}:{ACCOUNT}:stack/{PARENT}-MigrationManagement-"), "Unexpected nested change-set target")
     child_changes = all_items(cfn, "describe_change_set", "Changes", ChangeSetName=nested)
     require(bool(child_changes), "Nested change set has no inspectable changes")
+    templates = None
     for item in child_changes:
         resource = item.get("ResourceChange", {})
         logical = resource.get("LogicalResourceId")
+        if logical not in ALLOWED_CHILD and resource.get("ResourceType") in {
+                "AWS::ApiGatewayV2::Integration", "AWS::ApiGatewayV2::Route", "AWS::Lambda::Permission"}:
+            if templates is None:
+                templates = (
+                    body(cfn.get_template(StackName=child["StackId"], TemplateStage="Processed")["TemplateBody"]),
+                    body(cfn.get_template(StackName=child["StackId"], ChangeSetName=nested,
+                                          TemplateStage="Processed")["TemplateBody"]),
+                )
+            require(unchanged_api_dependency(resource, *templates),
+                    "Existing API dependency definition changed or is outside migration scope: " + str(logical))
+            print(f"  Modify {logical} ({resource['ResourceType']}; unchanged dependency verified)")
+            continue
         require(logical in ALLOWED_CHILD and resource.get("ResourceType") == ALLOWED_CHILD[logical], "Unexpected nested resource change: " + str(logical))
         require(resource.get("Action") in {"Add", "Modify"} and resource.get("Replacement", "False") == "False"
                 and not resource.get("ChangeSetId"), "Nested deletion/replacement/import rejected")

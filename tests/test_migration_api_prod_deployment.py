@@ -246,3 +246,81 @@ def test_default_readiness_does_not_upload_or_create_change_sets(monkeypatch):
     monkeypatch.setattr(release.boto3, "Session", lambda **kw: fake)
     monkeypatch.setattr(release, "upload", lambda *a: pytest.fail("Uploaded during read-only readiness"))
     assert release.main() == 0
+
+
+def dependency_templates():
+    return {"Resources": {
+        "MigrationIntegration": {"Type": "AWS::ApiGatewayV2::Integration", "Properties": {
+            "IntegrationType": "AWS_PROXY", "IntegrationUri": {"Fn::GetAtt": ["MigrationFunction", "Arn"]}, "ApiId": "prod-api"}},
+        "GetMigrationRoute": {"Type": "AWS::ApiGatewayV2::Route", "Properties": {
+            "AuthorizationType": "JWT", "AuthorizerId": "prod-jwt", "AuthorizationScopes": ["navigan/api"],
+            "Target": {"Fn::Join": ["/", ["integrations", {"Ref": "MigrationIntegration"}]]}}},
+        "MigrationInvokePermission": {"Type": "AWS::Lambda::Permission", "Properties": {
+            "Action": "lambda:InvokeFunction", "Principal": "apigateway.amazonaws.com",
+            "FunctionName": {"Ref": "MigrationFunction"}, "SourceArn": "prod-migration-only"}},
+    }}
+
+
+@pytest.mark.parametrize("logical", ["MigrationIntegration", "GetMigrationRoute", "MigrationInvokePermission"])
+def test_identical_api_dependencies_can_be_reevaluated(logical):
+    before = dependency_templates()
+    kind = before["Resources"][logical]["Type"]
+    assert release.unchanged_api_dependency(resource(logical, kind)["ResourceChange"], before, copy.deepcopy(before))
+
+
+@pytest.mark.parametrize("logical,field,value", [
+    ("MigrationIntegration", "IntegrationUri", "different-lambda"),
+    ("MigrationIntegration", "ApiId", "different-api"),
+    ("GetMigrationRoute", "AuthorizationType", "NONE"),
+    ("GetMigrationRoute", "AuthorizationScopes", []),
+    ("GetMigrationRoute", "Target", "integrations/other"),
+    ("MigrationInvokePermission", "Principal", "*"),
+    ("MigrationInvokePermission", "SourceArn", "*"),
+])
+def test_dependency_exception_rejects_any_property_change(logical, field, value):
+    before = dependency_templates()
+    after = copy.deepcopy(before)
+    after["Resources"][logical]["Properties"][field] = value
+    assert not release.unchanged_api_dependency(resource(logical, before["Resources"][logical]["Type"])["ResourceChange"], before, after)
+
+
+@pytest.mark.parametrize("change", [resource("MigrationIntegration", "AWS::ApiGatewayV2::Integration", Replacement="True"),
+    resource("MigrationIntegration", "AWS::ApiGatewayV2::Integration", action="Remove"),
+    resource("MigrationIntegration", "AWS::ApiGatewayV2::Integration", action="Add")])
+def test_dependency_exception_never_allows_replacement_or_recreation(change):
+    before = dependency_templates()
+    assert not release.unchanged_api_dependency(change["ResourceChange"], before, before)
+
+
+def test_unchanged_non_migration_route_is_still_rejected():
+    before = dependency_templates()
+    before["Resources"]["GetMigrationRoute"]["Properties"]["Target"] = {"Ref": "MigrationConnectorIntegration"}
+    assert not release.unchanged_api_dependency(resource("GetMigrationRoute", "AWS::ApiGatewayV2::Route")["ResourceChange"], before, before)
+
+
+def test_scope_inspection_proves_dependency_equality_from_both_aws_templates():
+    class CFN(ChangeSets):
+        def __init__(self):
+            super().__init__(child=[resource("MigrationFunction", "AWS::Lambda::Function"),
+                resource("MigrationIntegration", "AWS::ApiGatewayV2::Integration"),
+                resource("GetMigrationRoute", "AWS::ApiGatewayV2::Route")])
+            self.template_calls = []
+        def get_template(self, **kwargs):
+            self.template_calls.append(kwargs)
+            return {"TemplateBody": dependency_templates()}
+    cfn = CFN()
+    release.inspect_plan(cfn, "root")
+    assert len(cfn.template_calls) == 2
+    assert "ChangeSetName" not in cfn.template_calls[0]
+    assert cfn.template_calls[1]["ChangeSetName"] == "nested"
+
+
+def test_scope_inspection_rejects_actual_integration_change():
+    class CFN(ChangeSets):
+        def get_template(self, **kwargs):
+            template = dependency_templates()
+            if kwargs.get("ChangeSetName"):
+                template["Resources"]["MigrationIntegration"]["Properties"]["IntegrationUri"] = "changed"
+            return {"TemplateBody": template}
+    with pytest.raises(RuntimeError, match="dependency definition changed"):
+        release.inspect_plan(CFN(child=[resource("MigrationIntegration", "AWS::ApiGatewayV2::Integration")]), "root")

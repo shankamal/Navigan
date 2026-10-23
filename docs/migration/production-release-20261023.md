@@ -81,6 +81,14 @@ Use the actual printed path, not the placeholder above. Execution rechecks the A
 
 Validation for preparation/execution boundaries: 76 focused mocked release tests passed (35 API, 26 storage and 15 migration tests). This does not establish live CloudFormation execution, backend integration acceptance or a completed production release.
 
+## API dependency re-evaluation guard correction
+
+The first live API preparation at `800f157` passed database/storage/API/JWT checks and found the existing PROD GitHub App configuration. It saved the rollback record under `/mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-api-hs_2r1sy` and created an unexecuted root change set, then stopped because CloudFormation also listed MigrationIntegration. No API or frontend update was executed. Preserve that record; do not execute that change set manually.
+
+CloudFormation can mark resources referring to modified resources with Ref/GetAtt as dependency updates. The corrected guard reads both the current child template and the proposed child change-set template. It permits only full-definition-identical MigrationIntegration (AWS_PROXY), JWT routes referencing MigrationIntegration, or API Gateway invoke permissions referencing MigrationFunction, and only non-replacing Modify actions. Any changed property, route security/target difference, unrelated dependency, deletion or replacement remains rejected. Other resources, including the connector Lambda and role trust, remain outside scope. References: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_ResourceChangeDetail.html and https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_GetTemplate.html.
+
+Validation after correction: 92 focused release tests passed. Pull the correction and repeat `--prepare`; this creates a fresh checked plan and does not execute the release. The original backup and unexecuted change set are left untouched. API deployment, collectors and frontend promotion remain pending until actual successful output is supplied.
+
 ## Single-bucket correction
 
 The user clarified that DEV used one workspace bucket. Current artifact_recovery.py confirms that requests bound to a workspace use storage_configuration() from artifact_workspace.py and save recovered objects into the workspace bucket with its KMS key. MIGRATION_RECOVERY_BUCKET is only the older recovery path without a workspace binding. An earlier production-script revision unnecessarily provisioned both templates; the corrected script provisions only the workspace stack. No existing bucket is deleted or repurposed.
