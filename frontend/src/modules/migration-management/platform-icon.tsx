@@ -4,7 +4,7 @@ import styles from "./platform-icon.module.css";
 
 type PlatformIconProps = {
   platform: string;
-  size?: "small" | "medium";
+  size?: "small" | "medium" | "compact" | "summary";
 };
 
 function normalizedPlatform(platform: string) {
@@ -17,7 +17,7 @@ function normalizedPlatform(platform: string) {
 
 export function PlatformIcon({ platform, size = "small" }: PlatformIconProps) {
   const normalized = normalizedPlatform(platform);
-  const sizeClass = size === "medium" ? styles.medium : styles.small;
+  const sizeClass = styles[size];
 
   const asset = ["EKS", "AMAZON_EKS"].includes(normalized)
     ? "amazoneks"
