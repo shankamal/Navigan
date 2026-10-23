@@ -1,3 +1,9 @@
+## Export feedback fix — 23 October 2026
+
+Latest published feature: **`ba88ea15ac73aea34657ed8316685d2012c1e28e`** — `fix(ui): show export feedback and download beside workspace actions`. User reported the export click appeared to do nothing. The toolbar action previously rendered feedback farther down the page. Progress, errors and export metadata now appear directly in the workspace controls, and successful export adds a green Download export manifest link to the same action toolbar. An incomplete successful response is explicitly reported rather than silently dropping the result. This fixes feedback placement; it does not establish whether the user's live API request succeeded.
+
+Validation: 38 focused artifact-workspace tests, TypeScript and production build passed; actual React preview verified success and download within the toolbar using fixture data. New tests cover pending response, success, API failure and incomplete response in the fixed-scope controls. Backend unchanged. User should pull/restart frontend, create export, then click Download export manifest; live API errors will appear beside the action. User acceptance pending. Broader workflow redesign remains on hold.
+
 # Current collection follow-up — 23 October 2026
 
 ## Latest follow-up — merged collection and export (23 October 2026)

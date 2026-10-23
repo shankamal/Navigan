@@ -6,11 +6,17 @@ Updated through the user-requested collection/export simplification after Migrat
 
 - Repository: https://github.com/shankamal/Navigan
 - Active user branch: `new_migration_approach_18oct26`.
-- Latest published feature commit, verified on GitHub: **`bc87adf74c6eaf394db22db43cb17ce258adcce7`** — `fix(ui): combine artifact collection and export with named copy progress`.
+- Latest published feature commit, verified on GitHub: **`ba88ea15ac73aea34657ed8316685d2012c1e28e`** — `fix(ui): show export feedback and download beside workspace actions`.
 - User WSL checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`; local Next.js frontend normally runs at `http://localhost:3000`.
 - Current agent checkout: `/workspace/scratch/629aa0f38b35/Navigan`. Its local branch is `master` and local commit IDs differ from the published branch because changes were selectively published onto the actual remote tree. **Do not push this sandbox's full master history or tree.** Use the verified target branch as the authoritative release history. The WSL path is not mounted in this sandbox.
 - User accepted the new overview visually. An exact terminal verification of the user's current WSL HEAD was not supplied after this release; do not invent it.
 - Current work: collection/export follow-up implemented and pushed; awaiting user review after frontend pull/restart. Broader workflow redesign remains deferred.
+
+## Export feedback fix — 23 October 2026
+
+Latest published feature: **`ba88ea15ac73aea34657ed8316685d2012c1e28e`** — `fix(ui): show export feedback and download beside workspace actions`. User reported the export click appeared to do nothing. The toolbar action previously rendered feedback farther down the page. Progress, errors and export metadata now appear directly in the workspace controls, and successful export adds a green Download export manifest link to the same action toolbar. An incomplete successful response is explicitly reported rather than silently dropping the result. This fixes feedback placement; it does not establish whether the user's live API request succeeded.
+
+Validation: 38 focused artifact-workspace tests, TypeScript and production build passed; actual React preview verified success and download within the toolbar using fixture data. New tests cover pending response, success, API failure and incomplete response in the fixed-scope controls. Backend unchanged. User should pull/restart frontend, create export, then click Download export manifest; live API errors will appear beside the action. User acceptance pending. Broader workflow redesign remains on hold.
 
 ## 2. Current scope and explicit deferral
 

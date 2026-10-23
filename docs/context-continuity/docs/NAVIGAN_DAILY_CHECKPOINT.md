@@ -5,11 +5,12 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-10-23_LATEST.md` first. Older checkpoints bel
 | Field | Latest recorded state |
 |---|---|
 | User branch | `new_migration_approach_18oct26` |
-| Verified remote feature HEAD | `bc87adf74c6eaf394db22db43cb17ce258adcce7` |
+| Verified remote feature HEAD | `ba88ea15ac73aea34657ed8316685d2012c1e28e` |
 | User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
 | Artifact DEV work | Schema 027/028, workspace API/routes/storage, repository and image workers deployed per user command output |
 | Runtime acceptance | All 12 displayed collection jobs succeeded; final export downloaded successfully with 14 collected artifacts / 2 historical exclusions |
 | Source recovery | Headlamp Helm/image saved; expired retailflow Jobs reviewed as historical; parent CronJob definition/image collected |
+| Export feedback fix | `ba88ea15`: visible pending/error/result and download next to action; 38 focused tests/typecheck/build passed; live API outcome not independently verified |
 | Files & images release | `bc87adf7`: Check sources → Collect & export; one workspace toolbar; named artifact/source/progress table; active read-only polling; existing guards retained |
 | Overview release | `8236e585`: lifecycle/approval donuts, Graphite theme, compact provider logos, one expandable queue; existing assessment actions retained |
 | Latest user acceptance | Overview: “much better” — accepted visual baseline |

@@ -12,7 +12,7 @@ Read in this order:
 4. `docs/NAVIGAN_DAILY_START_PROMPT.md` — paste into a fresh Codex/chat session with the latest handoff.
 
 **Current branch:** `new_migration_approach_18oct26`.
-**Latest verified feature release:** `bc87adf74c6eaf394db22db43cb17ce258adcce7`.
+**Latest verified feature release:** `ba88ea15ac73aea34657ed8316685d2012c1e28e`.
 **Latest accepted visual baseline:** Migration Overview, user: “much better”.
 **Latest collection follow-up:** Check sources → Collect & export, one workspace toolbar, named artifact/source/copy progress, active read-only updates; user acceptance pending.
 **Broader migration workflow redesign:** explicitly on hold; resume only when the user chooses to.
