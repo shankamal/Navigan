@@ -12,8 +12,9 @@ Read in this order:
 4. `docs/NAVIGAN_DAILY_START_PROMPT.md` — paste into a fresh Codex/chat session with the latest handoff.
 
 **Current branch:** `new_migration_approach_18oct26`.
-**Latest verified feature release:** `8236e58505d148f72c349640ccde3f1cf30d4cfd`.
+**Latest verified feature release:** `bc87adf74c6eaf394db22db43cb17ce258adcce7`.
 **Latest accepted visual baseline:** Migration Overview, user: “much better”.
+**Latest collection follow-up:** Check sources → Collect & export, one workspace toolbar, named artifact/source/copy progress, active read-only updates; user acceptance pending.
 **Broader migration workflow redesign:** explicitly on hold; resume only when the user chooses to.
 
 The workspace export was downloaded successfully (14 collected artifacts, 2 historical exclusions). This is not target readiness or migration execution. Recent releases are frontend-only and do not require redeploying the backend, workers or source connector. Historical DEV deployment evidence and current API limitations are recorded in the latest handoff.

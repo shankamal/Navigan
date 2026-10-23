@@ -1,16 +1,16 @@
 # Navigan — current session handoff, 23 October 2026
 
-Updated through the user acceptance of Migration Overview (“much better”). Dates use Asia/Kolkata. This document supersedes the 20 October handoff as the current recovery point. Preserve earlier handoffs as historical evidence, not current instructions.
+Updated through the user-requested collection/export simplification after Migration Overview acceptance (“much better”). Dates use Asia/Kolkata. This document supersedes the 20 October handoff as the current recovery point. Preserve earlier handoffs as historical evidence, not current instructions.
 
 ## 1. Immediate recovery point
 
 - Repository: https://github.com/shankamal/Navigan
 - Active user branch: `new_migration_approach_18oct26`.
-- Latest published feature commit, verified on GitHub: **`8236e58505d148f72c349640ccde3f1cf30d4cfd`** — `feat(ui): refresh migration overview with Graphite portfolio charts`.
+- Latest published feature commit, verified on GitHub: **`bc87adf74c6eaf394db22db43cb17ce258adcce7`** — `fix(ui): combine artifact collection and export with named copy progress`.
 - User WSL checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`; local Next.js frontend normally runs at `http://localhost:3000`.
 - Current agent checkout: `/workspace/scratch/629aa0f38b35/Navigan`. Its local branch is `master` and local commit IDs differ from the published branch because changes were selectively published onto the actual remote tree. **Do not push this sandbox's full master history or tree.** Use the verified target branch as the authoritative release history. The WSL path is not mounted in this sandbox.
 - User accepted the new overview visually. An exact terminal verification of the user's current WSL HEAD was not supplied after this release; do not invent it.
-- Current work after overview acceptance: update this continuity kit. **No further product implementation task is pending approval.**
+- Current work: collection/export follow-up implemented and pushed; awaiting user review after frontend pull/restart. Broader workflow redesign remains deferred.
 
 ## 2. Current scope and explicit deferral
 
@@ -19,6 +19,19 @@ The user says the entire migration workflow still needs substantial UI/UX improv
 Recent changes are strictly frontend UI/UX. Do not modify backend APIs, Lambda, database, infrastructure, authentication functionality or migration business rules under this UI authorization. Earlier DEV worker/schema deployments below had their own explicit authorization; they are historical completed work, not an instruction to redeploy today. No target workload execution, image import into a target registry, traffic cutover or production rollout was performed in these UI increments.
 
 Preserve local files. Do not reset, clean, delete local files, switch the user to another worktree or create a new worktree. Do not stage unrelated changes. The agent checkout has a pre-existing modified root `design-qa.md`, untracked preview folders, AWS installer fragments and a patch file; these were deliberately left untouched/unpublished.
+
+## Latest follow-up — merged collection and export (23 October 2026)
+
+Published feature commit: **`bc87adf74c6eaf394db22db43cb17ce258adcce7`** — `fix(ui): combine artifact collection and export with named copy progress`. This narrowly scoped Files & images request supersedes the earlier three-stage preparation UI; it does not resume the broader migration workflow redesign, which remains on hold. User acceptance of this follow-up is pending; Migration Overview remains the accepted visual reference.
+
+- Saved-scope Files & images now has **Check sources → Collect & export**. Review/export is no longer a third navigation destination.
+- Create workspace, Refresh workspaces, repository collection, image collection and export are grouped in one toolbar. Existing scope/stale/permission/readiness guards and explicit POST actions are unchanged; a current matching workspace still disables creation.
+- The anonymous “succeeded · Attempt 1” job list is removed. The shared artifact table identifies actual files/images, GitHub repository / container registry / source-cluster live-export or Helm origins, and progress/status matched through the existing API's artifactId.
+- Saved rows show 100%; active copies use an indeterminate animation because the API does not report bytes transferred. Queued, failed/retry, verifying and source-action states are explicit. Overall percent is based on required artifacts saved to S3, excluding historical runs; incomplete work never rounds up to 100%.
+- All / Remaining / Saved-excluded filters use the same table. Export remains available in this view and exact S3 metadata retains the existing export-response limitation.
+- Read-only progress polling runs every five seconds only for active visible pending work, without reloading the page or automatically starting collection/export. It stops on completion, leaving the stage, unmount or read failure. Manual refresh remains available.
+- Validation: **73 focused tests**, TypeScript and production build passed. Tests cover job-to-artifact identity mapping, honest indeterminate progress, one toolbar, polling completion/inactive cleanup and merged navigation. Browser fixture checks covered queued/running/failed/saved rows, creation disabled/export enabled after completion, and no page-wide overflow at 390/768/1024/1280/1440/1920px. This is not live AWS validation or a whole-suite pass.
+- No backend/API payload, Lambda, database, infrastructure, authentication or migration scope/business-rule changes. Pull/restart the frontend for user review; no AWS redeployment is needed for this UI release.
 
 ## 3. Artifact workspace objective and completed DEV work
 
@@ -140,8 +153,8 @@ git status -sb
 git log -8 --oneline
 ```
 
-Compare against the actual current remote branch before assuming an expected HEAD. `8236e585` is this checkpoint's last verified feature release. For these UI-only releases, pull/rebuild or restart the local frontend as appropriate; no Lambda, database, worker or source connector deployment is needed. Preserve local modifications. Read frontend/AGENTS.md and relevant installed Next.js documentation before frontend implementation.
+Compare against the actual current remote branch before assuming an expected HEAD. `bc87adf7` is this checkpoint's last verified feature release. For these UI-only releases, pull/rebuild or restart the local frontend as appropriate; no Lambda, database, worker or source connector deployment is needed. Preserve local modifications. Read frontend/AGENTS.md and relevant installed Next.js documentation before frontend implementation.
 
-Current next action is this continuity update, then wait for the user's next chosen task. The larger migration workflow redesign stays on hold. Later work, only when requested, may include end-to-end workflow usability, persistent S3 locations in read responses, content/dependency review, target compatibility validation, target image/deployment preparation, data migration and traffic strategy. **These are not complete merely because artifacts are collected/exported.**
+Current next action is user review of the merged collection/export UI after pull/restart, then follow the user's next chosen task. The larger migration workflow redesign stays on hold. Later work, only when requested, may include end-to-end workflow usability, persistent S3 locations in read responses, content/dependency review, target compatibility validation, target image/deployment preparation, data migration and traffic strategy. **These are not complete merely because artifacts are collected/exported.**
 
 No current AWS health, worker desired count, queue state, secret policy or production revision was reverified during the recent UI sessions. Treat the known account/stack/resource identifiers as references; obtain minimal read-only live evidence when a future task needs it. Do not repeat resolved source-ID/worker/tmp diagnostics without a current failing symptom.

@@ -1,4 +1,21 @@
-# Current recovery override — 23 October 2026 (Asia/Kolkata)
+# Current collection follow-up — 23 October 2026
+
+## Latest follow-up — merged collection and export (23 October 2026)
+
+Published feature commit: **`bc87adf74c6eaf394db22db43cb17ce258adcce7`** — `fix(ui): combine artifact collection and export with named copy progress`. This narrowly scoped Files & images request supersedes the earlier three-stage preparation UI; it does not resume the broader migration workflow redesign, which remains on hold. User acceptance of this follow-up is pending; Migration Overview remains the accepted visual reference.
+
+- Saved-scope Files & images now has **Check sources → Collect & export**. Review/export is no longer a third navigation destination.
+- Create workspace, Refresh workspaces, repository collection, image collection and export are grouped in one toolbar. Existing scope/stale/permission/readiness guards and explicit POST actions are unchanged; a current matching workspace still disables creation.
+- The anonymous “succeeded · Attempt 1” job list is removed. The shared artifact table identifies actual files/images, GitHub repository / container registry / source-cluster live-export or Helm origins, and progress/status matched through the existing API's artifactId.
+- Saved rows show 100%; active copies use an indeterminate animation because the API does not report bytes transferred. Queued, failed/retry, verifying and source-action states are explicit. Overall percent is based on required artifacts saved to S3, excluding historical runs; incomplete work never rounds up to 100%.
+- All / Remaining / Saved-excluded filters use the same table. Export remains available in this view and exact S3 metadata retains the existing export-response limitation.
+- Read-only progress polling runs every five seconds only for active visible pending work, without reloading the page or automatically starting collection/export. It stops on completion, leaving the stage, unmount or read failure. Manual refresh remains available.
+- Validation: **73 focused tests**, TypeScript and production build passed. Tests cover job-to-artifact identity mapping, honest indeterminate progress, one toolbar, polling completion/inactive cleanup and merged navigation. Browser fixture checks covered queued/running/failed/saved rows, creation disabled/export enabled after completion, and no page-wide overflow at 390/768/1024/1280/1440/1920px. This is not live AWS validation or a whole-suite pass.
+- No backend/API payload, Lambda, database, infrastructure, authentication or migration scope/business-rule changes. Pull/restart the frontend for user review; no AWS redeployment is needed for this UI release.
+
+---
+
+# Earlier 23 October override — superseded where the collection follow-up differs
 
 Read `docs/NAVIGAN_SESSION_HANDOFF_2026-10-23_LATEST.md` first. This override supersedes older current-state labels, blockers, branch references and next-task instructions below.
 

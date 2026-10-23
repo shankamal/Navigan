@@ -5,19 +5,19 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-10-23_LATEST.md` first. Older checkpoints bel
 | Field | Latest recorded state |
 |---|---|
 | User branch | `new_migration_approach_18oct26` |
-| Verified remote feature HEAD | `8236e58505d148f72c349640ccde3f1cf30d4cfd` |
+| Verified remote feature HEAD | `bc87adf74c6eaf394db22db43cb17ce258adcce7` |
 | User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
 | Artifact DEV work | Schema 027/028, workspace API/routes/storage, repository and image workers deployed per user command output |
 | Runtime acceptance | All 12 displayed collection jobs succeeded; final export downloaded successfully with 14 collected artifacts / 2 historical exclusions |
 | Source recovery | Headlamp Helm/image saved; expired retailflow Jobs reviewed as historical; parent CronJob definition/image collected |
-| Files & images release | `125cecb4`: Check sources → Collect artifacts → Review & export; duplicate creation guard; grouped navigation; collapsed job history; S3 folder after export |
+| Files & images release | `bc87adf7`: Check sources → Collect & export; one workspace toolbar; named artifact/source/progress table; active read-only polling; existing guards retained |
 | Overview release | `8236e585`: lifecycle/approval donuts, Graphite theme, compact provider logos, one expandable queue; existing assessment actions retained |
 | Latest user acceptance | Overview: “much better” — accepted visual baseline |
-| Checks | Files flow: 70 focused tests; Overview: 11 focused tests; TypeScript/build passed; browser fixture checks at six widths 390–1920px |
+| Checks | Latest collection follow-up: 73 focused tests; Overview: 11 focused tests; TypeScript/build passed; browser fixture checks at six widths 390–1920px |
 | API limitation | Workspace read responses omit persisted object storage details; folder shown after explicit export, exact artifact/receipt paths in downloaded manifest |
 | Deferred | Entire migration workflow UI/UX redesign explicitly on hold |
 | Not completed | Target readiness, target import/deploy, persistent-data migration, traffic cutover, PROD rollout |
-| Immediate action | Finish kit update, then follow the user's next task; do not autonomously resume deferred redesign |
+| Immediate action | User review of merged collection/export after frontend pull/restart; broader redesign remains on hold |
 | Current live AWS state | Not reverified in UI sessions; historical deployment output is not a new health check |
 
 ---
