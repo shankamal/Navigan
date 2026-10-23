@@ -399,6 +399,23 @@ export function ArtifactWorkspacePanel({
         { version },
         { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
       );
+      if (
+        !data?.exportId ||
+        !data.downloadUrl ||
+        !data.storage?.sha256 ||
+        !Number.isFinite(data.expiresInSeconds) ||
+        data.expiresInSeconds <= 0
+      ) {
+        setExports((items) => ({
+          ...items,
+          [workspaceId]: {
+            pending: false,
+            error:
+              "The export service returned an incomplete response. Refresh workspaces and try again.",
+          },
+        }));
+        return;
+      }
       setExports((items) => ({
         ...items,
         [workspaceId]: {
@@ -477,10 +494,105 @@ export function ArtifactWorkspacePanel({
         aria-describedby={`export-help-${w.workspaceId}`}
         onClick={() => createExport(w.workspaceId)}
       >
+        {exports[w.workspaceId]?.pending && (
+          <LoaderCircle
+            size={13}
+            className={styles.spinning}
+            aria-hidden="true"
+          />
+        )}
         {exports[w.workspaceId]?.pending
           ? "Verifying files and creating export…"
           : "Create workspace export"}
       </button>
+    );
+  }
+  function downloadExport(w: Workspace) {
+    return exports[w.workspaceId]?.result ? (
+      <a
+        className={styles.downloadExport}
+        href={exports[w.workspaceId].result!.downloadUrl}
+        download
+        rel="noopener noreferrer"
+        onClick={(event) => {
+          if (Date.now() >= (exports[w.workspaceId].expiresAt ?? 0)) {
+            event.preventDefault();
+            setExports((items) => ({
+              ...items,
+              [w.workspaceId]: {
+                ...items[w.workspaceId],
+                error:
+                  "The download link expired. Create another export for a fresh link.",
+              },
+            }));
+          }
+        }}
+      >
+        Download export manifest
+      </a>
+    ) : null;
+  }
+  function exportFeedback(w: Workspace) {
+    const { attention, available, required } = workspaceCounts(w);
+    return (
+      <div
+        aria-live="polite"
+        aria-label="Workspace export feedback"
+        className={`${styles.exportResult} ${guided ? journey.collectionExport : ""}`}
+        data-empty={
+          !exports[w.workspaceId]?.pending &&
+          !exports[w.workspaceId]?.error &&
+          !exports[w.workspaceId]?.result
+        }
+      >
+        <p id={`export-help-${w.workspaceId}`}>
+          {w.stale
+            ? "Create a workspace from the current inventory before exporting."
+            : attention > 0
+              ? `Resolve ${attention} artifact${attention === 1 ? "" : "s"} needing attention before exporting.`
+              : available > 0
+                ? `Collect ${available} remaining artifact${available === 1 ? "" : "s"} before exporting.`
+                : required < 1
+                  ? "The workspace needs at least one required artifact to export."
+                  : (w.jobs ?? []).some((job) =>
+                        ["QUEUED", "RUNNING"].includes(job.status),
+                      )
+                    ? "Wait for the current collection jobs to finish before exporting."
+                    : !canEdit
+                      ? "Your role can review this workspace but cannot create an export."
+                      : "Create an export manifest referencing the exact files and images saved to S3. Target validation follows."}
+        </p>
+        {exports[w.workspaceId]?.pending && (
+          <p role="status">
+            Checking stored object versions and review receipts…
+          </p>
+        )}
+        {exports[w.workspaceId]?.error && (
+          <p role="alert">{exports[w.workspaceId].error}</p>
+        )}
+        {exports[w.workspaceId]?.result && (
+          <div>
+            <p role="status">
+              Export saved to S3 ·{" "}
+              {exports[w.workspaceId].result!.collectedArtifactCount} collected
+              artifacts · {exports[w.workspaceId].result!.excludedArtifactCount}{" "}
+              historical exclusions · Target readiness not verified
+            </p>
+            <small>
+              {exports[w.workspaceId].result!.storage.bucket &&
+                exports[w.workspaceId].result!.storage.key && (
+                  <code>{`s3://${exports[w.workspaceId].result!.storage.bucket}/${exports[w.workspaceId].result!.storage.key}`}</code>
+                )}
+              {exports[w.workspaceId].result!.exportId} · SHA-256:{" "}
+              {exports[w.workspaceId].result!.storage.sha256}
+            </small>
+            <small>
+              Download link valid for five minutes. Files and images remain in
+              private S3 storage.
+            </small>
+          </div>
+        )}
+      </div>
     );
   }
   const NamespaceChooser = guided ? "details" : "div";
@@ -740,7 +852,9 @@ export function ArtifactWorkspacePanel({
                 stage !== "review" &&
                 collectionButtons(activeWorkspace)}
               {activeWorkspace && exportButton(activeWorkspace)}
+              {activeWorkspace && downloadExport(activeWorkspace)}
             </div>
+            {activeWorkspace && exportFeedback(activeWorkspace)}
             <p className={styles.toolbarHint}>
               {existingWorkspace
                 ? "Workspace already created for this assessment and saved namespace scope."
@@ -930,86 +1044,13 @@ export function ArtifactWorkspacePanel({
               {!fixedScope && stage !== "review" && (
                 <div className={styles.actions}>{collectionButtons(w)}</div>
               )}
-              <div
-                className={`${styles.exportResult} ${guided ? journey.collectionExport : ""}`}
-                data-empty={
-                  !exports[w.workspaceId]?.pending &&
-                  !exports[w.workspaceId]?.error &&
-                  !exports[w.workspaceId]?.result
-                }
-              >
-                {!fixedScope && exportButton(w)}
-                <p id={`export-help-${w.workspaceId}`}>
-                  {w.stale
-                    ? "Create a workspace from the current inventory before exporting."
-                    : attention > 0
-                      ? `Resolve ${attention} artifact${attention === 1 ? "" : "s"} needing attention before exporting.`
-                      : available > 0
-                        ? `Collect ${available} remaining artifact${available === 1 ? "" : "s"} before exporting.`
-                        : required < 1
-                          ? "The workspace needs at least one required artifact to export."
-                          : (w.jobs ?? []).some((job) =>
-                                ["QUEUED", "RUNNING"].includes(job.status),
-                              )
-                            ? "Wait for the current collection jobs to finish before exporting."
-                            : !canEdit
-                              ? "Your role can review this workspace but cannot create an export."
-                              : "Create an export manifest referencing the exact files and images saved to S3. Target validation follows."}
-                </p>
-                {exports[w.workspaceId]?.pending && (
-                  <p role="status">
-                    Checking stored object versions and review receipts…
-                  </p>
-                )}
-                {exports[w.workspaceId]?.error && (
-                  <p role="alert">{exports[w.workspaceId].error}</p>
-                )}
-                {exports[w.workspaceId]?.result && (
-                  <div>
-                    <p role="status">
-                      Export saved to S3 ·{" "}
-                      {exports[w.workspaceId].result!.collectedArtifactCount}{" "}
-                      collected artifacts ·{" "}
-                      {exports[w.workspaceId].result!.excludedArtifactCount}{" "}
-                      historical exclusions · Target readiness not verified
-                    </p>
-                    <a
-                      href={exports[w.workspaceId].result!.downloadUrl}
-                      download
-                      rel="noopener noreferrer"
-                      onClick={(event) => {
-                        if (
-                          Date.now() >= (exports[w.workspaceId].expiresAt ?? 0)
-                        ) {
-                          event.preventDefault();
-                          setExports((items) => ({
-                            ...items,
-                            [w.workspaceId]: {
-                              ...items[w.workspaceId],
-                              error:
-                                "The download link expired. Create another export for a fresh link.",
-                            },
-                          }));
-                        }
-                      }}
-                    >
-                      Download export manifest
-                    </a>
-                    <small>
-                      {exports[w.workspaceId].result!.storage.bucket &&
-                        exports[w.workspaceId].result!.storage.key && (
-                          <code>{`s3://${exports[w.workspaceId].result!.storage.bucket}/${exports[w.workspaceId].result!.storage.key}`}</code>
-                        )}
-                      {exports[w.workspaceId].result!.exportId} · SHA-256:{" "}
-                      {exports[w.workspaceId].result!.storage.sha256}
-                    </small>
-                    <small>
-                      Download link valid for five minutes. Files and images
-                      remain in private S3 storage.
-                    </small>
-                  </div>
-                )}
-              </div>
+              {!fixedScope && (
+                <>
+                  {exportButton(w)}
+                  {downloadExport(w)}
+                  {exportFeedback(w)}
+                </>
+              )}
               <details
                 open={guided || undefined}
                 className={guided ? journey.artifactList : undefined}

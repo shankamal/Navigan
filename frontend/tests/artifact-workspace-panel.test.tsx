@@ -1287,3 +1287,87 @@ it("stops automatic polling when leaving collection and preserves the current ar
     vi.useRealTimers();
   }
 });
+
+it("keeps export loading and the download next to the fixed-scope action toolbar", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [readyExportWorkspace()] } });
+  let finish!: (result: unknown) => void;
+  api.post.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  const controls = screen.getByRole("region", {
+    name: "Artifact workspace controls",
+  });
+  const button = await within(controls).findByRole("button", {
+    name: "Create workspace export",
+  });
+  fireEvent.click(button);
+  expect(within(controls).getByRole("status")).toHaveTextContent(
+    "Checking stored object versions",
+  );
+  expect(
+    within(controls).getByRole("button", {
+      name: "Verifying files and creating export…",
+    }),
+  ).toBeDisabled();
+  await act(async () => {
+    finish({ data: exportedManifest });
+  });
+  expect(
+    within(controls).getByRole("link", { name: "Download export manifest" }),
+  ).toHaveAttribute("href", exportedManifest.downloadUrl);
+  expect(within(controls).getByRole("status")).toHaveTextContent(
+    "Export saved to S3",
+  );
+  expect(api.post).toHaveBeenCalledTimes(1);
+});
+
+it.each(["failure", "incomplete"])(
+  "shows export %s at the fixed-scope toolbar without offering a download",
+  async (mode) => {
+    api.get.mockResolvedValue({
+      data: { workspaces: [readyExportWorkspace()] },
+    });
+    if (mode === "failure") api.post.mockRejectedValueOnce(new Error("failed"));
+    else api.post.mockResolvedValueOnce({ data: {} });
+    render(
+      <ArtifactWorkspacePanel
+        {...props}
+        namespaces={["shop"]}
+        fixedScope
+        guided
+        active
+        stage="collect"
+      />,
+    );
+    const controls = screen.getByRole("region", {
+      name: "Artifact workspace controls",
+    });
+    fireEvent.click(
+      await within(controls).findByRole("button", {
+        name: "Create workspace export",
+      }),
+    );
+    const alert = await within(controls).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      mode === "failure" ? "Storage not configured" : "incomplete response",
+    );
+    expect(
+      within(controls).queryByRole("link", {
+        name: "Download export manifest",
+      }),
+    ).not.toBeInTheDocument();
+  },
+);

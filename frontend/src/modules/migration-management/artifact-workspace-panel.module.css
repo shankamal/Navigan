@@ -520,6 +520,24 @@
   color: #637078;
   font-size: var(--navigan-font-caption);
 }
+.panel[class] .downloadExport {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  min-height: 32px;
+  box-sizing: border-box;
+  background: #267245;
+  border: 1px solid #267245;
+  border-radius: 4px;
+  color: #fff !important;
+  text-decoration: none;
+  font-weight: 600;
+}
+.downloadExport:focus-visible {
+  outline: 2px solid #267245;
+  outline-offset: 3px;
+}
 .artifactMeta {
   display: block;
   margin-top: 3px;
