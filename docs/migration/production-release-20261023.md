@@ -50,6 +50,37 @@ Success prints `PROD migration storage deployed and verified. API configuration/
 
 Storage completion is not API deployment, collector readiness, frontend rollout, target workload migration or traffic cutover. The agent has no AWS credentials/CLI/Docker in its sandbox; all live release operations are executed by the user in WSL, with outputs recorded as evidence.
 
+## 3. Scoped migration API preparation
+
+Storage is now confirmed by user terminal output: both originally provisioned stacks are CREATE_COMPLETE. Use only workspace bucket `navigan-custmanagement-cfnstk-arti-workspacebucket-xc7zf8yedqxl`, owner `905418045935`, KMS key `arn:aws:kms:ap-south-1:905418045935:key/61119b9e-0d25-4459-9a2d-7e13dbb93568`. The extra bucket `navigan-custmanagement-cfnstk-sourc-recoverybucket-y0q8hr09sgsl` is left untouched. Private storage deployment record: `/mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-storage-2icl083o`.
+
+Prepare without execution:
+
+```bash
+cd /mnt/b/Langchain_Ai/Navigan-migration-test
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python \
+  scripts/deploy-migration-api-prod.py --profile navigan --prepare
+```
+
+This requires only boto3 and pip in the existing deployment venv. The pinned Linux/CPython 3.12 PyYAML wheel is downloaded for the Lambda ZIP; it is not installed into the workstation Python. The script reads the live processed production templates, updates only the migration child template URL in the parent, preserves all existing parent parameters, and builds a scoped migration package from current source while retaining original dependencies. All migration module Python files and the shared GitHub App helper are updated in this API ZIP; the separate connector Lambda package is unchanged. Private rollback records include original ZIP, configuration and templates. Never publish these records or their environment values.
+
+The API is bound only to the workspace bucket/KMS key. Any existing legacy recovery configuration is preserved, not created or repointed. New migration/source-setup/artifact routes inherit the actual production reference JWT authorizer, scopes and integration. Existing routes with unexpected protection are rejected, not overwritten. The dedicated discovery policy grants the API source-discovery role assumption and source-connection-secret operations; any configured GitHub App secret/key grants are restricted to their references. It does not change role trust or source-host permissions. Existing PROD GitHub App references may be read from ClusterFunction when absent on MigrationFunction; missing configuration is reported and must be supplied before repository collection.
+
+The parent change set includes nested details. The validator permits only MigrationManagement at the root and MigrationFunction, the dedicated discovery policy, source-cluster invoke permission and explicitly listed protected migration routes in the child. Connector, unrelated role/trust, other application-stack, destructive or replacement changes stop execution. An API stage without automatic deployment stops readiness for a separately reviewed deployment plan. An unprocessed/non-JSON template also stops safely before package uploads rather than guessing at CloudFormation transforms.
+
+Successful preparation prints the exact private `release-plan.json` path. It has NOT executed the deployment. Review the printed scope before running:
+
+```bash
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python \
+  scripts/deploy-migration-api-prod.py --profile navigan \
+  --execute /actual/path/from-preparation/release-plan.json
+```
+
+Use the actual printed path, not the placeholder above. Execution rechecks the AWS account, stack timestamp, Lambda revision/checksum and full change-set scope before applying. It verifies the new package digest and PROD workspace/source-first settings after completion. The collector services, frontend feature switch/immutable image promotion and authenticated workflow checks remain subsequent steps. Source-agent/connector compatibility still requires actual production workflow evidence before frontend acceptance.
+
+Validation for preparation/execution boundaries: 76 focused mocked release tests passed (35 API, 26 storage and 15 migration tests). This does not establish live CloudFormation execution, backend integration acceptance or a completed production release.
+
 ## Single-bucket correction
 
 The user clarified that DEV used one workspace bucket. Current artifact_recovery.py confirms that requests bound to a workspace use storage_configuration() from artifact_workspace.py and save recovered objects into the workspace bucket with its KMS key. MIGRATION_RECOVERY_BUCKET is only the older recovery path without a workspace binding. An earlier production-script revision unnecessarily provisioned both templates; the corrected script provisions only the workspace stack. No existing bucket is deleted or repurposed.

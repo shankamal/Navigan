@@ -1,3 +1,17 @@
+## PROD storage verified / API preparation — 23 October 2026 (Asia/Kolkata)
+
+User supplied successful storage deployment output and describe-stacks evidence: both navigan-custmanagement-cfnstk-artifact-workspace and navigan-custmanagement-cfnstk-source-recovery are CREATE_COMPLETE. The older script was run before the single-bucket correction. Workspace bucket: navigan-custmanagement-cfnstk-arti-workspacebucket-xc7zf8yedqxl; owner 905418045935; KMS key arn:aws:kms:ap-south-1:905418045935:key/61119b9e-0d25-4459-9a2d-7e13dbb93568. Extra legacy recovery bucket: navigan-custmanagement-cfnstk-sourc-recoverybucket-y0q8hr09sgsl. Leave it untouched; use only the workspace bucket for this workflow. Private storage record: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-storage-2icl083o. Workspace table/runtime-grant verification passed in that output. This supersedes earlier storage/schema-pending status.
+
+New scripts/deploy-migration-api-prod.py prepares a scoped API release without execution (--prepare), or executes an exact saved private plan (--execute PLAN). Default invocation is read-only. It saves original API ZIP/config and live processed parent/child templates, preserves existing dependencies and parent parameters, bundles current migration modules plus the shared GitHub App helper and pinned Lambda-compatible PyYAML. It binds the workspace bucket/KMS key, enables the backend source-first flag, adds only protected migration/source-setup/artifact routes using existing JWT settings, and attaches a scoped discovery policy to the actual PROD API role. Existing PROD GitHub App references may be copied from ClusterFunction; missing references are reported. It never updates connector Lambda, source agents, role trust, collectors or frontend.
+
+The root change set must include nested details and change only MigrationManagement; the child may change only MigrationFunction, the dedicated policy, source invoke permission and explicitly listed JWT routes. Any connector/role-trust/unrelated stack/destructive/replacement changes stop preparation/execution. Execution also rejects stale stack/Lambda revision/checksum. Non-auto-deployed API stages or unprocessed/non-JSON templates stop readiness rather than guessing. These are guards, not evidence the live preparation has succeeded.
+
+Validation: 76 focused mocked release tests pass (35 API, 26 storage, 15 migrations). No AWS API preparation/execution has been run by the agent, which still lacks AWS credentials/CLI/Docker. Immediate next action: user pulls and runs --prepare with deployment venv/profile navigan/existing TMPDIR; inspect the actual proposed changes and printed release-plan path before running --execute. API live execution, collector provisioning/registry access, connector compatibility/workflow smoke checks and frontend feature-switch/immutable image rollout remain pending. Known frontend rollback baseline remains :8. Broader UI redesign stays on hold.
+
+See docs/migration/production-release-20261023.md for the concrete command sequence. Do not rerun storage provisioning or delete the extra bucket as part of API preparation.
+
+---
+
 ## Single workspace bucket correction — 23 October 2026 (Asia/Kolkata)
 
 User terminal output explicitly confirmed migrations 027/028 and runtime grants committed successfully to PROD database navigan. This supersedes the earlier ambiguous “done” and missing-table preflight. Production frontend/API promotion remains pending.
