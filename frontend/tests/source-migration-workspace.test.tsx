@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import { apiClient } from "@/shared/api/client";
 import { SourceMigrationWorkspace } from "@/modules/migration-management/source-migration-workspace";
 vi.mock("@/modules/migration-management/deployment-evidence-service", () => ({
   deploymentDiscovery: {
@@ -340,4 +341,76 @@ it("disables bulk selection for read-only users", () => {
   open();
   expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Deselect all" })).toBeDisabled();
+});
+
+it("guides files and images through one navigation toolbar and reuses an existing workspace", async () => {
+  const get = vi
+    .spyOn(apiClient, "get")
+    .mockResolvedValue({
+      data: {
+        workspaces: [
+          {
+            workspaceId: "AWS-existing",
+            namespaces: ["payments"],
+            stale: false,
+            artifacts: [
+              {
+                artifactId: "file",
+                kind: "REPOSITORY_DEFINITION",
+                status: "COLLECTED",
+                source: { filePath: "api.yaml" },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  try {
+    open();
+    fireEvent.click(
+      within(screen.getByLabelText("Source namespaces")).getByRole("checkbox"),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save scope draft" }));
+    await screen.findByText(/Migration scope saved/);
+    fireEvent.click(screen.getByRole("button", { name: "2. Files & images" }));
+    const navigation = screen.getByRole("navigation", {
+      name: "Files and images preparation",
+    });
+    expect(
+      within(navigation).getByRole("button", { name: "1 Check sources" }),
+    ).toHaveAttribute("aria-current", "step");
+    fireEvent.click(
+      within(navigation).getByRole("button", {
+        name: "Continue to collection",
+      }),
+    );
+    await screen.findByText(/Workspace already created for this assessment/);
+    expect(
+      screen.getByRole("button", { name: "Create workspace" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save scope draft" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(navigation).getByRole("button", {
+        name: "Review saved artifacts",
+      }),
+    );
+    expect(
+      screen.getByRole("columnheader", { name: "S3 location" }),
+    ).toBeVisible();
+    expect(screen.getByText("api.yaml")).toBeVisible();
+    fireEvent.click(
+      within(navigation).getByRole("button", { name: "Continue to target" }),
+    );
+    await screen.findByRole("heading", {
+      name: "Choose a Navigan-managed destination",
+    });
+    expect(api.update).toHaveBeenCalledTimes(1);
+  } finally {
+    get.mockRestore();
+  }
 });

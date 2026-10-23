@@ -562,7 +562,7 @@
   flex-direction: column;
 }
 .collectionExport {
-  order: 10;
+  order: 0;
   background: #f0f3f6;
   padding: 10px 12px;
   border: 1px solid #dfe5eb;

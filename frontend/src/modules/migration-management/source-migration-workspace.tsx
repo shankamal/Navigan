@@ -72,6 +72,7 @@ export function SourceMigrationWorkspace({
     "selection",
   );
   const [manageRequest, setManageRequest] = useState(0);
+  const [filesStage, setFilesStage] = useState(1);
   const [selected, setSelected] = useState(() =>
     restoredWorkloadKeys(inventory.resources, saved),
   );
@@ -694,68 +695,133 @@ export function SourceMigrationWorkspace({
               </section>
             ) : (
               <div className={styles.artifacts}>
-                <section
-                  className={styles.panel}
-                  aria-label="Artifact source access"
+                <nav
+                  className={styles.filesNavigation}
+                  aria-label="Files and images preparation"
                 >
-                  <h2>Repository &amp; registry access</h2>
-                  <SourceConnectionsPanel
-                    sourceId={String(
-                      migration.sourceConfiguration.sourceClusterId ?? "",
+                  <div className={styles.filesSteps}>
+                    {[
+                      "Check sources",
+                      "Collect artifacts",
+                      "Review & export",
+                    ].map((label, index) => (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-current={
+                          filesStage === index + 1 ? "step" : undefined
+                        }
+                        onClick={() => setFilesStage(index + 1)}
+                      >
+                        <span>{index + 1}</span> {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={styles.filesActions}>
+                    <button
+                      className={styles.secondary}
+                      onClick={() =>
+                        filesStage === 1
+                          ? setScopeView("selection")
+                          : setFilesStage(filesStage - 1)
+                      }
+                    >
+                      {filesStage === 1 ? "Back to scope" : "Previous"}
+                    </button>
+                    {filesStage < 3 ? (
+                      <button
+                        className={styles.primary}
+                        onClick={() => setFilesStage(filesStage + 1)}
+                      >
+                        {filesStage === 1
+                          ? "Continue to collection"
+                          : "Review saved artifacts"}
+                        <ArrowRight size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.primary}
+                        disabled={busy}
+                        onClick={() => setStep(4)}
+                      >
+                        Continue to target
+                        <ArrowRight size={16} />
+                      </button>
                     )}
-                    assessmentComplete
-                    showConnector={false}
-                    compact
-                    openRequest={manageRequest}
+                  </div>
+                </nav>
+                <div hidden={filesStage !== 1} className={styles.artifacts}>
+                  <section
+                    className={styles.panel}
+                    aria-label="Artifact source access"
+                  >
+                    <h2>Repository &amp; registry access</h2>
+                    <SourceConnectionsPanel
+                      sourceId={String(
+                        migration.sourceConfiguration.sourceClusterId ?? "",
+                      )}
+                      assessmentComplete
+                      showConnector={false}
+                      compact
+                      openRequest={manageRequest}
+                    />
+                  </section>
+                  <DeploymentEvidencePanel
+                    migration={migration}
+                    selectedKeys={selected}
+                    inventoryDigest={inventory.inventoryDigest}
+                    collapseWorkloads
                   />
-                </section>
-                <DeploymentEvidencePanel
-                  migration={migration}
-                  selectedKeys={selected}
-                  inventoryDigest={inventory.inventoryDigest}
-                  collapseWorkloads
-                />
-                <ArtifactWorkspacePanel
-                  key={`${inventory.inventoryDigest}/${scope.namespaces.slice().sort().join(",")}`}
-                  migrationId={migration.migrationId}
-                  version={migration.version}
-                  inventoryDigest={inventory.inventoryDigest}
-                  namespaces={scope.namespaces}
-                  canEdit={canEdit}
-                  guided
-                  active
-                  fixedScope
-                  onReviewAccess={() => setManageRequest((n) => n + 1)}
-                />
+                </div>
+                <div hidden={filesStage === 1}>
+                  <ArtifactWorkspacePanel
+                    key={`${inventory.inventoryDigest}/${scope.namespaces.slice().sort().join(",")}`}
+                    migrationId={migration.migrationId}
+                    version={migration.version}
+                    inventoryDigest={inventory.inventoryDigest}
+                    namespaces={scope.namespaces}
+                    canEdit={canEdit}
+                    guided
+                    active
+                    fixedScope
+                    stage={filesStage === 3 ? "review" : "collect"}
+                    onReviewAccess={() => {
+                      setFilesStage(1);
+                      setManageRequest((n) => n + 1);
+                    }}
+                  />
+                </div>
               </div>
             ))}
-          <footer className={styles.actions}>
-            <span>
-              {scope.workloads.length} workloads selected ·{" "}
-              {dirty
-                ? "Unsaved changes"
-                : savedScope
-                  ? "Scope saved"
-                  : "Save scope to continue"}
-            </span>
-            <button
-              className={styles.secondary}
-              disabled={busy || !canEdit || !scope.workloads.length}
-              onClick={() => void saveScope()}
-            >
-              <Save size={16} />
-              Save scope draft
-            </button>
+          {(scopeView === "selection" || !savedScope || dirty) && (
+            <footer className={styles.actions}>
+              <span>
+                {scope.workloads.length} workloads selected ·{" "}
+                {dirty
+                  ? "Unsaved changes"
+                  : savedScope
+                    ? "Scope saved"
+                    : "Save scope to continue"}
+              </span>
+              <button
+                className={styles.secondary}
+                disabled={busy || !canEdit || !scope.workloads.length}
+                onClick={() => void saveScope()}
+              >
+                <Save size={16} />
+                Save scope draft
+              </button>
 
-            <button
-              className={styles.primary}
-              disabled={busy || !canEdit || !scope.workloads.length}
-              onClick={() => void saveScope(true)}
-            >
-              {busy ? "Saving…" : "Save & continue to target"}
-              <ArrowRight size={16} />
-            </button>
-          </footer>
+              <button
+                className={styles.primary}
+                disabled={busy || !canEdit || !scope.workloads.length}
+                onClick={() => void saveScope(true)}
+              >
+                {busy ? "Saving…" : "Save & continue to target"}
+                <ArrowRight size={16} />
+              </button>
+            </footer>
+          )}
         </>
       )}
       {step === 4 && (
@@ -941,6 +1007,7 @@ export function SourceMigrationWorkspace({
               className={styles.secondary}
               onClick={() => {
                 setScopeView("artifacts");
+                setFilesStage(3);
                 setStep(3);
               }}
             >

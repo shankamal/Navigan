@@ -15,7 +15,7 @@ type WorkspaceExport = {
   expiresInSeconds: number;
   collectedArtifactCount: number;
   excludedArtifactCount: number;
-  storage: { versionId: string; sha256: string };
+  storage: { versionId: string; sha256: string; bucket?: string; key?: string };
 };
 type Workload = {
   apiVersion?: string;
@@ -29,6 +29,7 @@ type Workspace = {
   stale: boolean;
   status?: string;
   collectedArtifactCount?: number;
+  storage?: { bucket?: string; key?: string; prefix?: string };
   jobs?: {
     jobId: string;
     status: string;
@@ -40,6 +41,7 @@ type Workspace = {
     kind: string;
     status: string;
     workloads?: Workload[];
+    storage?: { bucket?: string; key?: string; versionId?: string };
     source?: {
       reference?: string;
       filePath?: string;
@@ -65,6 +67,7 @@ export function ArtifactWorkspacePanel({
   active = false,
   onReviewAccess,
   fixedScope = false,
+  stage,
 }: {
   migrationId: string;
   version: number;
@@ -75,6 +78,7 @@ export function ArtifactWorkspacePanel({
   active?: boolean;
   onReviewAccess?: () => void;
   fixedScope?: boolean;
+  stage?: "collect" | "review";
 }) {
   const [query, setQuery] = useState("");
   const [exports, setExports] = useState<
@@ -108,6 +112,15 @@ export function ArtifactWorkspacePanel({
     message: string;
   } | null>(null);
   const loadAttempt = useRef("");
+  const previousStage = useRef(stage);
+  useEffect(() => {
+    if (stage === "review" && previousStage.current !== "review") {
+      setShowCompleted(
+        Object.fromEntries(workspaces.map((w) => [w.workspaceId, true])),
+      );
+    }
+    previousStage.current = stage;
+  }, [stage, workspaces]);
   useEffect(() => {
     if (!active || loadAttempt.current === migrationId) return;
     const controller = new AbortController();
@@ -139,6 +152,19 @@ export function ArtifactWorkspacePanel({
     return () => controller.abort();
   }, [active, migrationId]);
   async function run(create: boolean) {
+    if (
+      create &&
+      fixedScope &&
+      (!loaded ||
+        busy ||
+        workspaces.some(
+          (w) =>
+            !w.stale &&
+            w.namespaces.length === namespaces.length &&
+            w.namespaces.every((ns) => namespaces.includes(ns)),
+        ))
+    )
+      return;
     setBusy(true);
     setError("");
     try {
@@ -168,6 +194,7 @@ export function ArtifactWorkspacePanel({
       }
       setLoaded(true);
     } catch (e) {
+      if (fixedScope) setLoaded(false);
       setError(normalizeApiError(e).message);
     } finally {
       setBusy(false);
@@ -396,6 +423,7 @@ export function ArtifactWorkspacePanel({
       ? [activeWorkspace]
       : []
     : scopedWorkspaces;
+  const existingWorkspace = scopedWorkspaces.find((w) => !w.stale);
   const visibleNamespaces = namespaces.filter((ns) =>
     ns.toLowerCase().includes(query.toLowerCase()),
   );
@@ -551,7 +579,7 @@ export function ArtifactWorkspacePanel({
             )}
           </NamespaceChooser>
         )}
-        {fixedScope && (
+        {fixedScope && stage !== "review" && (
           <div className={styles.actions}>
             <div>
               <strong>
@@ -565,11 +593,29 @@ export function ArtifactWorkspacePanel({
             <button
               className={styles.primary}
               type="button"
-              disabled={busy || !canEdit || !inventoryDigest || !scope.length}
+              disabled={
+                busy ||
+                !loaded ||
+                !canEdit ||
+                !inventoryDigest ||
+                !scope.length ||
+                Boolean(existingWorkspace)
+              }
               onClick={() => run(true)}
             >
               Create workspace
             </button>
+            {existingWorkspace && (
+              <p role="status" className={styles.hint}>
+                Workspace already created for this assessment and saved
+                namespace scope. Continue with the existing workspace.
+              </p>
+            )}
+            {!loaded && (
+              <p role="status" className={styles.hint}>
+                Checking existing workspaces before creation…
+              </p>
+            )}
           </div>
         )}
         <div
@@ -652,6 +698,7 @@ export function ArtifactWorkspacePanel({
               {guided && (
                 <>
                   <ol
+                    hidden={Boolean(stage)}
                     className={journey.collectionPipeline}
                     aria-label="Workspace preparation progress"
                   >
@@ -724,8 +771,10 @@ export function ArtifactWorkspacePanel({
                   originally listed. Review receipts are retained in S3.
                 </p>
               )}
-              <h3 className={styles.stageHeading}>Collect files & images</h3>
-              <div className={styles.actions}>
+              <h3 hidden={stage === "review"} className={styles.stageHeading}>
+                Collect files & images
+              </h3>
+              <div hidden={stage === "review"} className={styles.actions}>
                 <button
                   type="button"
                   disabled={
@@ -761,6 +810,7 @@ export function ArtifactWorkspacePanel({
               </div>
               <div
                 className={`${styles.exportResult} ${guided ? journey.collectionExport : ""}`}
+                hidden={stage === "collect"}
               >
                 <button
                   type="button"
@@ -839,6 +889,10 @@ export function ArtifactWorkspacePanel({
                       Download export manifest
                     </a>
                     <small>
+                      {exports[w.workspaceId].result!.storage.bucket &&
+                        exports[w.workspaceId].result!.storage.key && (
+                          <code>{`s3://${exports[w.workspaceId].result!.storage.bucket}/${exports[w.workspaceId].result!.storage.key}`}</code>
+                        )}
                       {exports[w.workspaceId].result!.exportId} · SHA-256:{" "}
                       {exports[w.workspaceId].result!.storage.sha256}
                     </small>
@@ -849,28 +903,61 @@ export function ArtifactWorkspacePanel({
                   </div>
                 )}
               </div>
-              {(w.jobs ?? []).map((job) => (
-                <small key={job.jobId}>
-                  {job.status.toLowerCase()} · Attempt {job.attempts}
-                  {job.errorCode
-                    ? ` · ${job.errorCode.toLowerCase().replaceAll("_", " ")}`
-                    : ""}
-                </small>
-              ))}
+              {Boolean(w.jobs?.length) && (
+                <details className={styles.jobHistory}>
+                  <summary>
+                    Collection jobs · {w.jobs!.length} jobs ·{" "}
+                    {w.jobs!.filter((j) => j.status === "SUCCEEDED").length}{" "}
+                    succeeded
+                  </summary>{" "}
+                  {(w.jobs ?? []).map((job) => (
+                    <small key={job.jobId}>
+                      {job.status.toLowerCase()} · Attempt {job.attempts}
+                      {job.errorCode
+                        ? ` · ${job.errorCode.toLowerCase().replaceAll("_", " ")}`
+                        : ""}
+                    </small>
+                  ))}
+                </details>
+              )}
               <details
                 open={guided || undefined}
                 className={guided ? journey.artifactList : undefined}
               >
                 <summary>
                   {guided
-                    ? "Required files & images"
+                    ? stage === "review"
+                      ? "Review files, images & S3 locations"
+                      : "Required files & images"
                     : "View required files, images & status"}
                 </summary>
+                {guided &&
+                  (showCompleted[w.workspaceId] ?? stage === "review") && (
+                    <div className={styles.s3Summary}>
+                      <strong>Workspace S3 folder</strong>
+                      {workspaceLocation(w, exports[w.workspaceId]?.result) ? (
+                        <code>
+                          {workspaceLocation(w, exports[w.workspaceId]?.result)}
+                        </code>
+                      ) : (
+                        <small>
+                          Create an export manifest to display the workspace
+                          location.
+                        </small>
+                      )}
+                      <small>
+                        The export manifest lists exact object paths and
+                        historical review receipts.
+                      </small>
+                    </div>
+                  )}
                 {guided && (
                   <div className={journey.artifactFilters}>
                     <button
                       type="button"
-                      aria-pressed={!showCompleted[w.workspaceId]}
+                      aria-pressed={
+                        !(showCompleted[w.workspaceId] ?? stage === "review")
+                      }
                       onClick={() =>
                         setShowCompleted((v) => ({
                           ...v,
@@ -882,7 +969,9 @@ export function ArtifactWorkspacePanel({
                     </button>
                     <button
                       type="button"
-                      aria-pressed={Boolean(showCompleted[w.workspaceId])}
+                      aria-pressed={Boolean(
+                        showCompleted[w.workspaceId] ?? stage === "review",
+                      )}
                       onClick={() =>
                         setShowCompleted((v) => ({
                           ...v,
@@ -901,6 +990,7 @@ export function ArtifactWorkspacePanel({
                         <th scope="col">Artifact</th>
                         <th scope="col">Type</th>
                         <th scope="col">Next step / status</th>
+                        <th scope="col">S3 location</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -908,7 +998,8 @@ export function ArtifactWorkspacePanel({
                         .filter(
                           (a) =>
                             !guided ||
-                            (showCompleted[w.workspaceId]
+                            ((showCompleted[w.workspaceId] ??
+                            stage === "review")
                               ? ["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
                                   a.status,
                                 )
@@ -1150,6 +1241,28 @@ export function ArtifactWorkspacePanel({
                                 </small>
                               ) : null}
                             </td>
+                            <td className={styles.s3Location}>
+                              {["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                                a.status,
+                              ) ? (
+                                <>
+                                  {a.storage?.bucket && a.storage.key ? (
+                                    <code>{`s3://${a.storage.bucket}/${a.storage.key}`}</code>
+                                  ) : (
+                                    <small>
+                                      {workspaceLocation(
+                                        w,
+                                        exports[w.workspaceId]?.result,
+                                      )
+                                        ? "In workspace folder · exact path in export manifest"
+                                        : "Create export to view location"}
+                                    </small>
+                                  )}
+                                </>
+                              ) : (
+                                <small>Not saved to S3 yet</small>
+                              )}
+                            </td>
                           </tr>
                         ))}
                     </tbody>
@@ -1212,4 +1325,17 @@ function artifactStatus(status: string) {
       } as Record<string, string>
     )[status] ?? status.toLowerCase().replaceAll("_", " ")
   );
+}
+
+function workspaceLocation(workspace: Workspace, exported?: WorkspaceExport) {
+  if (
+    workspace.storage?.bucket &&
+    (workspace.storage.prefix || workspace.storage.key)
+  )
+    return `s3://${workspace.storage.bucket}/${workspace.storage.prefix || workspace.storage.key}`;
+  if (!exported?.storage.bucket || !exported.storage.key) return null;
+  const marker = exported.storage.key.lastIndexOf("/exports/");
+  return marker < 0
+    ? null
+    : `s3://${exported.storage.bucket}/${exported.storage.key.slice(0, marker + 1)}`;
 }

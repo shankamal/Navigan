@@ -872,14 +872,11 @@ it("uses saved namespaces without a second picker and hides unrelated workspace 
   expect(
     screen.getByText(/Collection includes artifacts across these namespaces/),
   ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Create workspace" }),
+  ).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
-  await waitFor(() =>
-    expect(api.post).toHaveBeenCalledWith(
-      "/migrations/MIG-one/artifact-workspaces",
-      { version: 2, inventoryDigest: "current", namespaces: ["shop"] },
-      expect.anything(),
-    ),
-  );
+  expect(api.post).not.toHaveBeenCalled();
 });
 
 it("shows one current scope snapshot and allows explicit history review", async () => {
@@ -925,4 +922,139 @@ it("shows one current scope snapshot and allows explicit history review", async 
     screen.getByRole("button", { name: "Create workspace export" }),
   ).toBeDisabled();
   expect(api.post).not.toHaveBeenCalled();
+});
+
+it("blocks creation until workspace loading succeeds and after a workspace is created", async () => {
+  let complete!: (value: unknown) => void;
+  api.get.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  api.post.mockResolvedValue({
+    data: {
+      workspaceId: "AWS-created",
+      namespaces: ["shop"],
+      stale: false,
+      artifacts: [],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  const create = screen.getByRole("button", { name: "Create workspace" });
+  expect(create).toBeDisabled();
+  complete({ data: { workspaces: [] } });
+  await waitFor(() => expect(create).toBeEnabled());
+  fireEvent.click(create);
+  await screen.findByText(/Workspace already created for this assessment/);
+  expect(create).toBeDisabled();
+  fireEvent.click(create);
+  expect(api.post).toHaveBeenCalledTimes(1);
+});
+it("shows returned S3 object paths for saved artifacts and exclusion receipts", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-s3",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            {
+              artifactId: "file",
+              kind: "REPOSITORY_DEFINITION",
+              status: "COLLECTED",
+              source: { filePath: "app.yaml" },
+              storage: {
+                bucket: "workspace-bucket",
+                key: "scope/files/app.yaml",
+              },
+            },
+            {
+              artifactId: "review",
+              kind: "LIVE_DEFINITION",
+              status: "EXCLUDED_FROM_REPLAY",
+              source: {
+                resource: { namespace: "shop", kind: "Job", name: "old-job" },
+              },
+              storage: {
+                bucket: "workspace-bucket",
+                key: "scope/reviews/receipt.json",
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="review"
+    />,
+  );
+  expect(
+    await screen.findByText("s3://workspace-bucket/scope/files/app.yaml"),
+  ).toBeVisible();
+  expect(
+    screen.getByText("s3://workspace-bucket/scope/reviews/receipt.json"),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Create workspace" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Collect / retry repository files" }),
+  ).not.toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
+});
+it("shows the verified export location and workspace folder without inventing per-artifact keys", async () => {
+  api.get.mockResolvedValue({ data: { workspaces: [readyExportWorkspace()] } });
+  api.post.mockResolvedValue({
+    data: {
+      ...exportedManifest,
+      storage: {
+        ...exportedManifest.storage,
+        bucket: "workspace-bucket",
+        key: "customers/customer/migrations/MIG-one/workspaces/AWS-one/exports/EXP-one.json",
+      },
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="review"
+    />,
+  );
+  const button = await screen.findByRole("button", {
+    name: "Create workspace export",
+  });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  expect(
+    await screen.findByText(
+      "s3://workspace-bucket/customers/customer/migrations/MIG-one/workspaces/AWS-one/exports/EXP-one.json",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getAllByText(
+      "s3://workspace-bucket/customers/customer/migrations/MIG-one/workspaces/AWS-one/",
+    ).length,
+  ).toBeGreaterThan(0);
 });

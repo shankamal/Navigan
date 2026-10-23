@@ -715,3 +715,66 @@
 .bulkActions small {
   color: #627386;
 }
+
+.filesNavigation {
+  position: sticky;
+  top: 56px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d7dde2;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 2px 6px #20282d0a;
+}
+.filesSteps,
+.filesActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filesSteps button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  background: transparent;
+  color: #59636c;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+}
+.filesSteps button span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #cdd5da;
+  border-radius: 50%;
+}
+.filesSteps button[aria-current="step"] {
+  background: #303638;
+  /* Keep light text on charcoal despite the shared green active-control rule. */
+  color: #fff !important;
+  border-bottom-color: #267245;
+  font-weight: 600;
+}
+.filesSteps button[aria-current="step"] span {
+  background: #267245;
+  color: #fff;
+  border-color: #267245;
+}
+@media (max-width: 650px) {
+  .filesNavigation {
+    position: static;
+  }
+  .filesActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
