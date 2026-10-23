@@ -33,8 +33,15 @@ export function SourceAccessSetup({ migrationId }: { migrationId: string }) {
 
   return (
     <div className={styles.screen}>
-      <PageHeading title="Source access setup" description="Complete repository and registry access before source discovery and assessment." />
-      <Link href={`/migrations/${migrationId}/discovery`}>Back to discovery status</Link>
+      <PageHeading
+        title="Source access setup"
+        description="Complete repository and registry access before source discovery and assessment."
+        action={
+          <Link className="button button-secondary" href={`/migrations/${migrationId}/discovery`}>
+            Back to discovery status
+          </Link>
+        }
+      />
       {assessment.data && <p>{assessment.data.name}</p>}
       {failed ? (
         <section className={styles.panel}>
@@ -54,7 +61,7 @@ export function SourceAccessSetup({ migrationId }: { migrationId: string }) {
             <p role="status">{ready ? "Source access setup is ready for discovery." : settings.isError ? "Unable to check setup readiness. Retry the check." : "Save and verify source access, or save your inventory-only choice, before continuing."}</p>
             {settings.isError && <button type="button" onClick={() => settings.refetch()}>Check readiness again</button>}
             {ready ? (
-              <Link className={styles.primary} href={`/migrations/${migrationId}/discovery`}>Continue to discovery</Link>
+              <Link className="button button-primary" href={`/migrations/${migrationId}/discovery`}>Continue to discovery</Link>
             ) : (
               <button type="button" disabled>Continue to discovery</button>
             )}

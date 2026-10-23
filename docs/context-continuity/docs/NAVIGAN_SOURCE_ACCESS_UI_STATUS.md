@@ -1,3 +1,11 @@
+# Source access navigation button styling
+
+The user confirmed GitHub and registry setup now show Verified and discovery setup is ready. The Continue to discovery link worked but appeared as plain text because it used a CSS class whose rules target button elements only; Back to discovery status was also an unstyled link.
+
+The frontend-only correction uses the shared button classes for both links: secondary Back to discovery status in the shared page header and primary green Continue to discovery in the readiness panel. Routes, access checks and readiness requirements are unchanged. Six existing source access setup tests and TypeScript passed. A new frontend prepare/execute release is required to show the styling in production. Until then, both existing plain-text links remain usable; source assessment testing can continue without waiting for this cosmetic release.
+
+---
+
 # Public GHCR setup verification correction
 
 ECR setup verification passed after the user added the production API principal with its source-specific External ID to the existing registry role trust, preserving DEV trust. Public GHCR verification remained blocked. Read-only network diagnostics reproduced root registry HTTP 401 with a Bearer challenge, unscoped token HTTP 403, and a repository-scoped anonymous pull token HTTP 200 for the public Headlamp repository. No credential values were printed or saved.
