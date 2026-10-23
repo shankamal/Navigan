@@ -25,7 +25,6 @@ import {
   sourceDiscoveryRunning,
   sourceWorkspaceReady,
 } from "./source-discovery-state";
-import { SourceConnectionsPanel } from "./source-connections-panel";
 import { deploymentDiscovery } from "./deployment-evidence-service";
 import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
@@ -774,6 +773,7 @@ export function SourceDiscoveryScreen({
         {" "}
         <MigrationWorkflow
           active={2}
+          hideConnection
           completed={sourceFresh || ready ? [1] : []}
         />
       </div>
@@ -823,28 +823,6 @@ export function SourceDiscoveryScreen({
           </button>
         </p>
       )}
-      {sourceOwned && (
-        <details
-          className={journey.connections}
-          open={!ready || !sourceFresh || undefined}
-        >
-          <summary>
-            Source connections{" "}
-            <span>
-              {sourceFresh ? "Connector connected" : "Check connector"} · Manage
-              repository and registry access
-            </span>
-          </summary>
-          <SourceConnectionsPanel
-            key={sourceId}
-            sourceId={sourceId}
-            assessmentComplete={ready}
-            compact
-            connectorConnected={sourceFresh}
-            connectorName={sourceQuery.data?.name}
-          />
-        </details>
-      )}
       <section
         className={`${shared.panel} ${styles.run} ${ready ? styles.runComplete : ""}`}
         aria-label="Discovery progress"
@@ -885,8 +863,8 @@ export function SourceDiscoveryScreen({
         {(canStart || canAssess) &&
           !connectionSettings.data?.readyForDiscovery && (
             <p role="status">
-              Complete Source connections above and verify access, or save the
-              inventory-only choice, before starting discovery.
+              Discovery configuration is incomplete. Complete migration setup
+              before starting discovery.
             </p>
           )}
         <div className={ready ? styles.completedActions : styles.runActions}>

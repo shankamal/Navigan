@@ -16,7 +16,7 @@ Reviewed 23 October 2026. Frontend presentation and navigation only.
 ## Changes from the reviewed screenshots and code
 
 1. Removed the deployment-evidence workbench from discovery. Opening discovery no longer triggers repository/image analysis or offers collection/recovery actions.
-2. Removed the duplicated discovery checklist access action. One management surface serves repository/registry access on each relevant screen. The scope access surface omits connector verification, which belongs to source connection.
+2. Removed discovery access controls. Repository/registry management belongs to Migration scope / Files & images; connector verification belongs to source connection during creation.
 3. Moved collection to scope and removed its independent namespace picker. Collection is unavailable while scope is unsaved or changed. The existing API collects by namespace, so the UI explicitly says that collection can include artifacts beyond the individually selected execution workloads.
 4. Show one matching workspace snapshot at a time; prefer a current inventory snapshot and allow explicit history selection. Other namespace scopes are not displayed as the active scope. Backend-reported stale snapshots retain their disabled recovery/export actions.
 5. Replaced discovery's parallel Helm/deployment resolution paths with artifact-specific workspace actions: export a live definition, recover a Helm release, or review image access. Repository-candidate confirmation remains available inside selected workload evidence.
@@ -42,3 +42,9 @@ Live S3 writes, collectors, source-host recovery, registry access and target ass
 6. Exercise existing collection, missing-definition recovery, retained Helm recovery, image-access review and export against DEV. Verify stale snapshots remain blocked and other namespace scopes are not mixed in.
 7. Change workload scope and confirm collection becomes unavailable until the scope is saved. Existing S3 workspaces must remain intact.
 8. Save and continue to a target. Assess compatibility, open review, return to Files & images and back to scope. Approval/execution must not become available merely because files were saved to S3.
+
+## Follow-up: post-creation navigation and bulk workload selection
+
+Source connection is handled during migration creation. Discovery no longer repeats its workflow step or the connection-management disclosure. The post-creation workflow starts at Discovery & assessment (1) and has five visible stages. Existing backend identifiers, gates and saved planning payloads remain unchanged. Repository/registry management remains in Migration scope / Files & images.
+
+Select all and Deselect all apply to the workload rows matching the namespaces currently being browsed and the search filter. Selections outside those results are retained. Bulk changes update the same local draft and dependency summary as individual selections; saving remains explicit. Empty-result, busy and read-only states disable the relevant bulk controls.

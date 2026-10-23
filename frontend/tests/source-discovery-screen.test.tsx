@@ -377,7 +377,7 @@ it("brings the selected namespace resources into view and moves keyboard focus",
   }
 });
 
-it("requires connection setup before discovery and renders it before progress", async () => {
+it("keeps the existing discovery readiness gate without rendering connection configuration", async () => {
   vi.mocked(deploymentDiscovery.settings).mockResolvedValue({
     version: 2,
     configuration: { repositories: [], registries: [] },
@@ -388,14 +388,10 @@ it("requires connection setup before discovery and renders it before progress", 
   });
   api.get.mockResolvedValue({ ...migration, status: "DRAFT" });
   open();
-  const connections = await screen.findByRole("region", {
-    name: "Source connections",
-  });
-  const progress = screen.getByRole("region", { name: "Discovery progress" });
+  await screen.findByRole("region", { name: "Discovery progress" });
   expect(
-    connections.compareDocumentPosition(progress) &
-      Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy();
+    screen.queryByRole("region", { name: "Source connections" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Discover source inventory" }),
   ).toBeDisabled();
@@ -512,7 +508,7 @@ it("groups repeated observations and retains every resource-specific recommendat
   expect(api.assess).not.toHaveBeenCalled();
 });
 
-it("keeps discovery read-only for scope and artifact work, with a single access management entry", async () => {
+it("keeps discovery free of source connection setup and artifact work", async () => {
   open();
   await screen.findByRole("link", { name: "Continue to migration scope" });
   expect(deploymentDiscovery.evidence).not.toHaveBeenCalled();
@@ -524,12 +520,18 @@ it("keeps discovery read-only for scope and artifact work, with a single access 
       name: /Resolve Helm|Resolve deployment|Create workspace/,
     }),
   ).not.toBeInTheDocument();
-  fireEvent.click(
-    screen.getByText("Source connections", { selector: "summary" }),
-  );
+  expect(screen.queryByText("Source connections")).not.toBeInTheDocument();
   expect(
-    screen.getAllByRole("button", { name: "Manage connections" }),
-  ).toHaveLength(1);
+    screen.queryByRole("button", { name: "Manage connections" }),
+  ).not.toBeInTheDocument();
+  const flow = screen.getByRole("list", { name: "Migration workflow" });
+  expect(within(flow).getAllByRole("listitem")).toHaveLength(5);
+  expect(
+    within(flow).queryByRole("button", { name: /Source connection/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(flow).getByRole("button", { name: "1 Discovery & assessment" }),
+  ).toBeDisabled();
   expect(
     screen.queryByRole("button", { name: "Review access" }),
   ).not.toBeInTheDocument();

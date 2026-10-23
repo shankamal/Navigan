@@ -127,10 +127,10 @@ beforeEach(() => {
     targetConfiguration: body.target ?? {},
   }));
 });
-it("uses the six-stage application migration flow and never auto-selects all workloads in a namespace", async () => {
+it("uses the five-stage migration flow after source creation and never auto-selects all workloads in a namespace", async () => {
   open();
   const flow = screen.getByRole("list", { name: "Migration workflow" });
-  expect(within(flow).getAllByRole("listitem")).toHaveLength(6);
+  expect(within(flow).getAllByRole("listitem")).toHaveLength(5);
   expect(screen.queryByText("Migration Plan")).not.toBeInTheDocument();
   const save = screen.getByRole("button", {
     name: "Save & continue to target",
@@ -300,4 +300,44 @@ it("requires a saved scope before showing collection and preserves selections be
     screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
   ).toBeChecked();
   expect(api.update).not.toHaveBeenCalled();
+});
+
+it("selects and deselects only shown workloads while retaining other selections", async () => {
+  open();
+  expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+  fireEvent.click(
+    within(screen.getByLabelText("Source namespaces")).getByRole("checkbox"),
+  );
+  const search = screen.getByRole("textbox", { name: "Find workload" });
+  fireEvent.change(search, { target: { value: "payment-api" } });
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  expect(
+    screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
+  ).toBeChecked();
+  expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+  fireEvent.change(search, { target: { value: "payment-worker" } });
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+  fireEvent.change(search, { target: { value: "" } });
+  expect(
+    screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
+  ).toBeChecked();
+  expect(
+    screen.getByRole("checkbox", { name: "Migrate payments/payment-worker" }),
+  ).not.toBeChecked();
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  expect(
+    screen.getByRole("checkbox", { name: "Migrate payments/payment-worker" }),
+  ).toBeChecked();
+  fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+  expect(
+    screen.getByRole("button", { name: "Save scope draft" }),
+  ).toBeDisabled();
+  expect(api.update).not.toHaveBeenCalled();
+});
+it("disables bulk selection for read-only users", () => {
+  api.canEdit = false;
+  open();
+  expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Deselect all" })).toBeDisabled();
 });

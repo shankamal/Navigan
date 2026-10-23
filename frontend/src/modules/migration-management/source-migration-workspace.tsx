@@ -115,6 +115,21 @@ export function SourceMigrationWorkspace({
       browsingNamespaces.includes(r.namespace ?? "") &&
       `${r.name} ${r.kind}`.toLowerCase().includes(search.toLowerCase()),
   );
+  const visibleSelectedCount = workloads.filter((r) =>
+    selected.has(scopeKey(r)),
+  ).length;
+  function selectVisibleWorkloads(include: boolean) {
+    if (busy || !canEdit || !workloads.length) return;
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const resource of workloads) {
+        if (include) next.add(scopeKey(resource));
+        else next.delete(scopeKey(resource));
+      }
+      return next;
+    });
+    markDirty();
+  }
   const pvcs = scope.dependencies.filter(
     (r) => r.kind === "PersistentVolumeClaim",
   );
@@ -316,6 +331,7 @@ export function SourceMigrationWorkspace({
       />
       <MigrationWorkflow
         active={step}
+        hideConnection
         completed={[1, 2, ...(savedScope && !dirty ? [3] : [])]}
         available={
           busy
@@ -410,7 +426,7 @@ export function SourceMigrationWorkspace({
               <div className={styles.sectionHeading}>
                 <div>
                   <span className={styles.eyebrow}>
-                    STEP 3 · MIGRATION SCOPE
+                    STEP 2 · MIGRATION SCOPE
                   </span>
                   <h2>Select application workloads</h2>
                   <p>
@@ -463,6 +479,34 @@ export function SourceMigrationWorkspace({
                         onChange={(e) => setSearch(e.target.value)}
                       />
                     </label>
+                  </div>
+                  <div
+                    className={styles.bulkActions}
+                    aria-label="Bulk workload selection"
+                  >
+                    <button
+                      type="button"
+                      disabled={
+                        busy ||
+                        !canEdit ||
+                        !workloads.length ||
+                        visibleSelectedCount === workloads.length
+                      }
+                      onClick={() => selectVisibleWorkloads(true)}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !canEdit || !visibleSelectedCount}
+                      onClick={() => selectVisibleWorkloads(false)}
+                    >
+                      Deselect all
+                    </button>
+                    <small aria-live="polite">
+                      {visibleSelectedCount} of {workloads.length} shown
+                      selected · Applies to current namespace and search filters
+                    </small>
                   </div>
                   {!browsingNamespaces.length ? (
                     <div className={styles.empty}>
@@ -717,7 +761,7 @@ export function SourceMigrationWorkspace({
       {step === 4 && (
         <section className={styles.panel}>
           <span className={styles.eyebrow}>
-            STEP 4 · TARGET & COMPATIBILITY
+            STEP 3 · TARGET & COMPATIBILITY
           </span>
           <h2>Choose a Navigan-managed destination</h2>
           <p>
@@ -858,7 +902,7 @@ export function SourceMigrationWorkspace({
       )}
       {step === 5 && (
         <section className={styles.panel}>
-          <span className={styles.eyebrow}>STEP 5 · REVIEW & APPROVAL</span>
+          <span className={styles.eyebrow}>STEP 4 · REVIEW & APPROVAL</span>
           <h2>Review the application migration scope</h2>
           <p>
             {scope.workloads.length} workloads · {scope.namespaces.length}{" "}

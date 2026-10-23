@@ -15,16 +15,23 @@ export function MigrationWorkflow({
   completed = [],
   onSelect,
   available = [],
+  hideConnection = false,
 }: {
   active: number;
+  hideConnection?: boolean;
   completed?: number[];
   available?: number[];
   onSelect?: (step: number) => void;
 }) {
   return (
-    <ol className={styles.workflow} aria-label="Migration workflow">
+    <ol
+      className={styles.workflow}
+      data-stages={hideConnection ? 5 : 6}
+      aria-label="Migration workflow"
+    >
       {migrationWorkflowSteps.map((label, index) => {
         const step = index + 1;
+        if (hideConnection && step === 1) return null;
         return (
           <li key={label} aria-current={active === step ? "step" : undefined}>
             <button
@@ -34,8 +41,14 @@ export function MigrationWorkflow({
               onClick={() => onSelect?.(step)}
             >
               <span>
-                {completed.includes(step) ? <Check size={16} /> : step}
-              </span>
+                {completed.includes(step) ? (
+                  <Check size={16} />
+                ) : hideConnection ? (
+                  step - 1
+                ) : (
+                  step
+                )}
+              </span>{" "}
               {label}
             </button>
           </li>
