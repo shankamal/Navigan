@@ -17,6 +17,7 @@ import {
 import { customersService } from "@/modules/customer-management/services/customers";
 import { ApiError, normalizeApiError } from "@/shared/api/client";
 import { migrations, sourceClusters } from "./service";
+import { deploymentDiscovery } from "./deployment-evidence-service";
 import { useSourceClusters } from "./hooks";
 import type {
   CreateSourceClusterInput,
@@ -255,10 +256,18 @@ export function SourceConnectionScreen({
     return true;
   }
 
-  function continueToDiscovery() {
-    if (!validateAction("continue")) return;
-    if (draft)
-      window.location.assign(`/migrations/${draft.migrationId}/discovery`);
+  async function continueToDiscovery() {
+    if (busy || !validateAction("continue") || !draft || !source) return;
+    setBusy(true);
+    setError("");
+    try {
+      const settings = await deploymentDiscovery.settings(source.sourceClusterId);
+      window.location.assign(`/migrations/${draft.migrationId}/${settings.readyForDiscovery ? "discovery" : "source-access"}`);
+    } catch (failure) {
+      setError(normalizeApiError(failure).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function verifyConnection() {

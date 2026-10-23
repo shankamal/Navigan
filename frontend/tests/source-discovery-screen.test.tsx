@@ -536,3 +536,15 @@ it("keeps discovery free of source connection setup and artifact work", async ()
     screen.queryByRole("button", { name: "Review access" }),
   ).not.toBeInTheDocument();
 });
+
+it("links an incomplete inventory-ready assessment to its source access setup", async () => {
+  api.get.mockResolvedValue({ ...migration, status: "INVENTORY_READY" });
+  vi.mocked(deploymentDiscovery.settings).mockResolvedValue({
+    version: 1, sourceClusterId: "SRC-db", readyForDiscovery: false,
+    configuration: { repositories: [], registries: [] }, githubOrganizations: [], registryAdapters: [],
+  });
+  open();
+  expect(await screen.findByRole("link", { name: "Configure source access" })).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
+  expect(screen.getByRole("button", { name: "Run source assessment" })).toBeDisabled();
+  expect(api.assess).not.toHaveBeenCalled();
+});

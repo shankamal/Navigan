@@ -16,3 +16,5 @@ Preserve user files and existing work. Do not reset, clean, delete files or crea
 Current checkpoint: Migration Overview is the accepted visual reference. The broader migration workflow UI/UX redesign is explicitly on hold until the user asks to resume it. Recent product work was frontend-only; this context does not authorize backend, infrastructure, source/target or production changes.
 
 After substantive work, update the current handoff/checkpoint/start prompt with verified release IDs, acceptance, checks, limitations and next actions. Preserve dated history. Never record credentials or presigned download URLs.
+
+Latest source access UI recovery point: read `docs/context-continuity/docs/NAVIGAN_SOURCE_ACCESS_UI_STATUS.md` before historical status labels when continuing the current production workflow test.

@@ -863,8 +863,12 @@ export function SourceDiscoveryScreen({
         {(canStart || canAssess) &&
           !connectionSettings.data?.readyForDiscovery && (
             <p role="status">
-              Discovery configuration is incomplete. Complete migration setup
-              before starting discovery.
+              {connectionSettings.isError
+                ? "Unable to check repository and registry access."
+                : connectionSettings.isPending
+                  ? "Checking repository and registry access…"
+                  : "Repository and registry discovery setup is incomplete. Verify the required source access, or explicitly choose inventory-only discovery."}
+              {" "}<Link href={`/migrations/${migrationId}/source-access`}>Configure source access</Link>
             </p>
           )}
         <div className={ready ? styles.completedActions : styles.runActions}>
