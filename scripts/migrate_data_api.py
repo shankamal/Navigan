@@ -184,7 +184,7 @@ def main() -> int:
     parser.add_argument("--migrations-dir", default="database/migrations")
     parser.add_argument("--roles-file", default="database/bootstrap/roles.sql")
     parser.add_argument("--workspace-only", action="store_true",
-                        help="Apply only workspace migrations and grants to navigan_dev")
+                        help="Apply only workspace migrations 027/028 and grants to navigan_dev or confirmed navigan")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--confirm-production-database",
@@ -192,8 +192,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.workspace_only and args.database != "navigan_dev":
-        raise SystemExit("Safety stop: --workspace-only requires --database navigan_dev")
+    if args.workspace_only and args.database not in {"navigan_dev", "navigan"}:
+        raise SystemExit("Safety stop: --workspace-only supports only navigan_dev or navigan")
 
     if (
         not args.database.endswith("_dev")

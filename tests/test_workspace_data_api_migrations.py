@@ -13,7 +13,9 @@ spec.loader.exec_module(runner)
 
 
 class DataAPI:
-    def __init__(self, *, fail=False, missing=False, checksums=None):
+    def __init__(self, *, fail=False, missing=False, checksums=None, database="navigan_dev", connected_database=None):
+        self.database = database
+        self.connected_database = connected_database or database
         self.calls = []
         self.committed = False
         self.rolled_back = False
@@ -22,7 +24,7 @@ class DataAPI:
         self.checksums = checksums or {}
 
     def begin_transaction(self, **kwargs):
-        assert kwargs["database"] == "navigan_dev"
+        assert kwargs["database"] == self.database
         return {"transactionId": "transaction"}
 
     def execute_statement(self, **kwargs):
@@ -30,7 +32,7 @@ class DataAPI:
         assert kwargs["transactionId"] == "transaction"
         sql = kwargs["sql"]
         if sql == "SELECT current_database()":
-            return {"records": [[{"stringValue": "navigan_dev"}]]}
+            return {"records": [[{"stringValue": self.connected_database}]]}
         if sql.startswith("SELECT checksum"):
             name = kwargs["parameters"][0]["value"]["stringValue"]
             return {"records": [[{"stringValue": self.checksums[name]}]] if name in self.checksums else []}
@@ -93,10 +95,54 @@ def test_dry_run_makes_no_aws_calls(monkeypatch):
     assert runner.main() == 0
 
 
-def test_workspace_mode_refuses_production_even_with_override(monkeypatch):
-    setup(monkeypatch, None, "--database", "navigan", "--confirm-production-database", "navigan")
-    with pytest.raises(SystemExit, match="requires --database navigan_dev"):
+@pytest.mark.parametrize("confirmation", [[], ["--confirm-production-database", "navigan_dev"]])
+def test_workspace_production_requires_exact_confirmation_before_aws(monkeypatch, confirmation):
+    setup(monkeypatch, None, "--database", "navigan", *confirmation)
+    monkeypatch.setattr(runner.boto3, "Session", lambda **kwargs: pytest.fail("AWS called"))
+    with pytest.raises(SystemExit, match="non-Dev targets require"):
         runner.main()
+
+
+def test_workspace_production_dry_run_makes_no_aws_calls(monkeypatch):
+    setup(monkeypatch, None, "--database", "navigan",
+          "--confirm-production-database", "navigan", "--dry-run")
+    monkeypatch.setattr(runner.boto3, "Session", lambda **kwargs: pytest.fail("AWS called"))
+    assert runner.main() == 0
+
+
+@pytest.mark.parametrize("database", ["other", "other_dev"])
+def test_workspace_mode_rejects_unrelated_databases(monkeypatch, database):
+    setup(monkeypatch, None, "--database", database,
+          "--confirm-production-database", database)
+    monkeypatch.setattr(runner.boto3, "Session", lambda **kwargs: pytest.fail("AWS called"))
+    with pytest.raises(SystemExit, match="supports only navigan_dev or navigan"):
+        runner.main()
+
+
+def test_confirmed_production_uses_scoped_migrations_and_grants(monkeypatch):
+    client = DataAPI(database="navigan")
+    setup(monkeypatch, client, "--database", "navigan",
+          "--confirm-production-database", "navigan")
+    assert runner.main() == 0
+    assert client.committed and not client.rolled_back
+    tracked = [call for call in client.calls
+               if call["sql"].startswith("INSERT INTO platform.schema_migrations")]
+    assert [call["parameters"][0]["value"]["stringValue"] for call in tracked] == list(runner.WORKSPACE_MIGRATIONS)
+    grants = [call["sql"] for call in client.calls if call["sql"].startswith("GRANT")]
+    assert grants == [runner.WORKSPACE_GRANTS.strip().rstrip(";")]
+    assert sum(call["sql"].startswith("CREATE TABLE migration_management")
+               for call in client.calls) == 3
+
+
+@pytest.mark.parametrize("options", [{"fail": True}, {"missing": True},
+                                    {"connected_database": "navigan_dev"}])
+def test_production_failure_rolls_back(monkeypatch, options):
+    client = DataAPI(database="navigan", **options)
+    setup(monkeypatch, client, "--database", "navigan",
+          "--confirm-production-database", "navigan")
+    with pytest.raises(RuntimeError):
+        runner.main()
+    assert client.rolled_back and not client.committed
 
 
 def test_repeat_run_skips_ddl(monkeypatch):
