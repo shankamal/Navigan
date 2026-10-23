@@ -89,6 +89,38 @@ CloudFormation can mark resources referring to modified resources with Ref/GetAt
 
 Validation after correction: 92 focused release tests passed. Pull the correction and repeat `--prepare`; this creates a fresh checked plan and does not execute the release. The original backup and unexecuted change set are left untouched. API deployment, collectors and frontend promotion remain pending until actual successful output is supplied.
 
+## API deployment confirmed / production collectors
+
+User terminal output confirmed successful preparation and execution using `/mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-api-uyvrnt7c/release-plan.json`. The validated root change set was `navigan-prod-migration-api-9b194225c17642db/1096740c-2e2f-424d-9897-ad349214fdba`. Output verified the deployed API package and PROD configuration. Nine protected artifact routes, the scoped discovery policy and source invoke permission were added; MigrationIntegration was verified unchanged. Collector services, source agents and frontend were not updated by that operation. Keep the release directory and original rollback artifacts private.
+
+Deploy the repository collector using the dedicated production entry point:
+
+```bash
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python \
+  scripts/deploy-workspace-workers-prod.py \
+  --profile navigan --repository --enable-schedule --apply
+```
+
+Stage the image collector with zero tasks:
+
+```bash
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python \
+  scripts/deploy-workspace-workers-prod.py \
+  --profile navigan --image --apply
+```
+
+The production wrapper explicitly binds the existing collector deployment mechanism to PROD database `navigan`, parent `navigan-custmanagement-cfnstk` and ECR repository `navigan/prod-workspace-image-collector`. It re-verifies actual API function identity/revision/role, source-first flag, schema/grants and workspace bucket/KMS settings. Local collector/source edits stop the release without discarding files. The reusable helper retains its DEV defaults for existing commands and tests. Separate stacks are `navigan-custmanagement-cfnstk-workspace-repositories`, `navigan-custmanagement-cfnstk-workspace-image-runtime` and `navigan-custmanagement-cfnstk-workspace-images`; neither API nor source connector is updated. Registry trust and private network access must be verified before starting image tasks. No source-role trust is changed automatically. A supplied `--worker-image` must be an immutable digest from the dedicated PROD collector repository; do not pass a DEV image. Docker pushes are bounded at ten minutes; an interrupted local image remains available to finish its push and resume with a digest.
+
+The image service is intentionally staged at DesiredCount=0. Capture its worker role ARN, image digest, service name and runtime cluster outputs before configuring exact registry role authorization and starting it. The repository schedule can be enabled by the explicit flag above. Actual collection readiness and authenticated workflow acceptance are still pending.
+
+## Frontend production feature switch prepared
+
+The four migration server routes now use a shared runtime switch. Explicit `MIGRATION_SOURCE_FIRST_ENABLED=true` enables the source-first screens in production; unset/false keeps the legacy flow. Existing DEV default behavior is retained. Next.js `connection()` ensures the switch is evaluated per request rather than frozen during the image build. Production NODE_ENV and all authentication/preview permission checks remain unchanged. The future frontend task needs this explicit server environment setting; no ECS task has been changed by the source commit.
+
+Validation: 117 focused Python tests (existing release guards and DEV/PROD collector tests), 28 frontend feature-switch/proxy tests, TypeScript and production build passed. The build marks all four migration routes dynamic. No claim of live collector deployment, authenticated production acceptance or frontend rollout follows from these checks. Frontend remains on the last observed task revision :8 until the separate immutable image release.
+
 ## Single-bucket correction
 
 The user clarified that DEV used one workspace bucket. Current artifact_recovery.py confirms that requests bound to a workspace use storage_configuration() from artifact_workspace.py and save recovered objects into the workspace bucket with its KMS key. MIGRATION_RECOVERY_BUCKET is only the older recovery path without a workspace binding. An earlier production-script revision unnecessarily provisioned both templates; the corrected script provisions only the workspace stack. No existing bucket is deleted or repurposed.

@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ACCOUNT = "905418045935"
 REGION = "ap-south-1"
 STACK = "navigan-ashok-dev"
+DATABASE = "navigan_dev"
+LABEL = "DEV"
 BRANCH = "new_migration_approach_18oct26"
 REPOSITORY = "navigan/dev-workspace-image-collector"
 HANDLER = "navigan.modules.migration_management.workspace_worker.lambda_handler"
@@ -31,8 +33,8 @@ ROLE_PATTERN = r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+"
 def runtime_settings(config):
     """Copy only runtime settings; never print credentials or unrelated API env."""
     env = config.get("Environment", {}).get("Variables", {})
-    if env.get("DB_NAME") != "navigan_dev":
-        raise SystemExit("Safety stop: migration API must use navigan_dev")
+    if env.get("DB_NAME") != DATABASE:
+        raise SystemExit(f"Safety stop: migration API must use {DATABASE}")
     required = ["DB_PROXY_HOST", "DB_SECRET_ARN", "DB_CA_BUNDLE",
                 "MIGRATION_WORKSPACE_BUCKET", "MIGRATION_WORKSPACE_KMS_KEY",
                 "MIGRATION_WORKSPACE_BUCKET_OWNER"]
@@ -48,7 +50,7 @@ def runtime_settings(config):
         raise SystemExit("Wait for the migration API update to complete")
     vpc = config.get("VpcConfig", {})
     if not vpc.get("SubnetIds") or not vpc.get("SecurityGroupIds"):
-        raise SystemExit("Expected existing private DEV migration network settings")
+        raise SystemExit(f"Expected existing private {LABEL} migration network settings")
     optional = ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY_SECRET_ARN", "DB_PORT"]
     return {key: env[key] for key in ["DB_NAME", *required, *optional] if env.get(key)}
 
@@ -59,7 +61,8 @@ def verify_package(content):
         for name in ["workspace_worker.py", "workspace_collection.py", "repository_collector.py",
                      "artifact_workspace.py", "source_authentication.py", "deployment_sources.py"]:
             member = "navigan/modules/migration_management/" + name
-            if member not in package.namelist() or package.read(member) != (ROOT / "src" / member).read_bytes():
+            source = ROOT / "src" / member
+            if member not in package.namelist() or not source.is_file() or package.read(member) != source.read_bytes():
                 raise SystemExit("Migration API collector code differs from checkout; redeploy its migration-only package first")
     if len(content) > 50 * 1024 * 1024:
         raise SystemExit("Repository worker package exceeds the upload limit")
@@ -68,7 +71,7 @@ def verify_package(content):
 def repository_template(config, env, bucket, object_key, object_version, enabled):
     return {
         "AWSTemplateFormatVersion": "2010-09-09",
-        "Description": "Isolated DEV repository artifact collector; existing API and connector unchanged",
+        "Description": f"Isolated {LABEL} repository artifact collector; existing API and connector unchanged",
         "Resources": {
             "WorkerLogs": {"Type": "AWS::Logs::LogGroup", "Properties": {
                 "LogGroupName": f"/aws/lambda/{STACK}-workspace-repositories", "RetentionInDays": 14}},
@@ -94,7 +97,7 @@ def repository_template(config, env, bucket, object_key, object_version, enabled
 
 
 def image_foundation():
-    """Dedicated DEV build repository, ECS cluster and execution role."""
+    """Dedicated collector build repository, ECS cluster and execution role."""
     return {
         "AWSTemplateFormatVersion": "2010-09-09",
         "Resources": {
@@ -125,7 +128,7 @@ def main():
     mode.add_argument("--repository", action="store_true")
     mode.add_argument("--image", action="store_true")
     parser.add_argument("--profile", default="navigan")
-    parser.add_argument("--worker-image", help="Reuse an existing digest from the dedicated DEV collector repository")
+    parser.add_argument("--worker-image", help=f"Reuse an existing digest from the dedicated {LABEL} collector repository")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--enable-schedule", action="store_true", help="Run repository collector once per minute")
     parser.add_argument("--start-images", action="store_true", help="Start one image task (default stages service at zero)")
@@ -136,7 +139,7 @@ def main():
     if args.worker_image and not re.fullmatch(
         rf"{ACCOUNT}\.dkr\.ecr\.{REGION}\.amazonaws\.com/{REPOSITORY}@sha256:[a-f0-9]{{64}}", args.worker_image
     ):
-        parser.error("Use an immutable digest from the dedicated DEV image collector repository")
+        parser.error(f"Use an immutable digest from the dedicated {LABEL} image collector repository")
     if any(not re.fullmatch(ROLE_PATTERN, role) for role in args.registry_role_arn):
         parser.error("Registry roles must be exact IAM role ARNs")
     command = ["aws", "--profile", args.profile, "--region", REGION, "--output", "json"]
@@ -175,11 +178,11 @@ def main():
     if not isinstance(allowed, list) or any(not isinstance(role, str) or not re.fullmatch(ROLE_PATTERN, role) for role in allowed):
         raise SystemExit("Existing registry role allowlist is invalid")
     roles = sorted(set(allowed + args.registry_role_arn))
-    print(f"DEV {'image' if args.image else 'repository'} collector: navigan_dev; existing API/connector will not be updated")
+    print(f"{LABEL} {'image' if args.image else 'repository'} collector: {DATABASE}; existing API/connector will not be updated")
     print("Using the migration API's existing subnets, security groups and workspace storage")
     if args.image:
         if not parent_params.get("SecretsKmsKeyArn"):
-            raise SystemExit("DEV stack SecretsKmsKeyArn is required")
+            raise SystemExit(f"{LABEL} stack SecretsKmsKeyArn is required")
         if not args.worker_image:
             subprocess.check_call(["docker", "info"], stdout=subprocess.DEVNULL)
         print(f"Build target: {REPOSITORY}; private service desired count: {1 if args.start_images else 0}")
@@ -210,6 +213,9 @@ def main():
             print("In the UI, click Collect / retry repository files, then Refresh workspaces after a minute")
         else:
             foundation = deploy(image_foundation(), STACK + "-workspace-image-runtime", directory)
+            expected_repository = f"{ACCOUNT}.dkr.ecr.{REGION}.amazonaws.com/{REPOSITORY}"
+            if foundation.get("RepositoryUri") != expected_repository:
+                raise SystemExit("Unexpected collector repository; image deployment stopped")
             registry = foundation["RepositoryUri"].split("/")[0]
             worker_image = args.worker_image
             if not worker_image:
@@ -221,7 +227,10 @@ def main():
                 tag = "build-" + uuid.uuid4().hex
                 image = foundation["RepositoryUri"] + ":" + tag
                 subprocess.check_call(["docker", "build", "--platform", "linux/amd64", "-f", "workspace_image_worker/Dockerfile", "-t", image, "."], cwd=ROOT, env=docker_env)
-                subprocess.check_call(["docker", "push", image], env=docker_env)
+                try:
+                    subprocess.check_call(["docker", "push", image], env=docker_env, timeout=600)
+                except subprocess.TimeoutExpired:
+                    raise SystemExit(f"Docker push exceeded 10 minutes. Local image retained: {image}. Finish its push, then resume using --worker-image with the ECR digest.") from None
                 digest = aws("ecr", "describe-images", "--repository-name", REPOSITORY,
                              "--image-ids", "imageTag=" + tag)["imageDetails"][0]["imageDigest"]
                 if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
@@ -231,7 +240,7 @@ def main():
             parameters = dict(ClusterArn=foundation["ClusterArn"], ExecutionRoleArn=foundation["ExecutionRoleArn"],
                 WorkerImage=worker_image,
                 SubnetIds=",".join(config["VpcConfig"]["SubnetIds"]), SecurityGroupIds=",".join(config["VpcConfig"]["SecurityGroupIds"]),
-                DatabaseProxyHost=env["DB_PROXY_HOST"], DatabaseName="navigan_dev", DatabaseSecretArn=env["DB_SECRET_ARN"],
+                DatabaseProxyHost=env["DB_PROXY_HOST"], DatabaseName=DATABASE, DatabaseSecretArn=env["DB_SECRET_ARN"],
                 SecretsKmsKeyArn=parent_params["SecretsKmsKeyArn"], WorkspaceBucketName=env["MIGRATION_WORKSPACE_BUCKET"],
                 WorkspaceBucketOwner=ACCOUNT, WorkspaceKmsKeyArn=env["MIGRATION_WORKSPACE_KMS_KEY"],
                 AllowedRegistryRoleArns=",".join(roles), DesiredCount=str(1 if args.start_images else 0))

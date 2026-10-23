@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import { isSourceFirstEnabled } from "@/modules/migration-management/source-first-config";
 import { MigrationPlanningWorkspace } from "@/modules/migration-management/planning-workspace";
 
 import { SourceWorkspaceEntry } from "@/modules/migration-management/source-workspace-entry";
@@ -7,9 +9,9 @@ export default async function Page({
 }: {
   params: Promise<{ migrationId: string }>;
 }) {
+  await connection();
   const { migrationId } = await params;
-  return process.env.NODE_ENV === "development" &&
-    process.env.MIGRATION_SOURCE_FIRST_ENABLED !== "false" ? (
+  return isSourceFirstEnabled() ? (
     <SourceWorkspaceEntry migrationId={migrationId} />
   ) : (
     <MigrationPlanningWorkspace migrationId={migrationId} />
