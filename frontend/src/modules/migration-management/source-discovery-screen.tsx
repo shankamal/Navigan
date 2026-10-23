@@ -764,9 +764,19 @@ export function SourceDiscoveryScreen({
         }
         icon={<Network size={20} />}
         action={
-          <Link className="button button-secondary" href="/migrations">
-            <ArrowLeft size={15} /> Back to assessments
-          </Link>
+          <>
+            {sourceId && (
+              <Link
+                className="button button-secondary"
+                href={`/migrations/${migrationId}/source-access`}
+              >
+                Configure source access
+              </Link>
+            )}
+            <Link className="button button-secondary" href="/migrations">
+              <ArrowLeft size={15} /> Back to assessments
+            </Link>
+          </>
         }
       />
       <div className={journey.workflow}>
@@ -868,7 +878,7 @@ export function SourceDiscoveryScreen({
                 : connectionSettings.isPending
                   ? "Checking repository and registry access…"
                   : "Repository and registry discovery setup is incomplete. Verify the required source access, or explicitly choose inventory-only discovery."}
-              {" "}<Link href={`/migrations/${migrationId}/source-access`}>Configure source access</Link>
+              {" "}Use Configure source access in the page header.
             </p>
           )}
         <div className={ready ? styles.completedActions : styles.runActions}>

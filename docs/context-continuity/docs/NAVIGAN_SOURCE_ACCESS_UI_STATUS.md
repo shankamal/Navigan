@@ -1,13 +1,9 @@
-# Latest source access UI status
+# Latest correction: persistent source access navigation
 
-Source connection verification and namespace catalogue collection have succeeded in the production test. Detailed inventory and source assessment remain pending.
+The user confirmed the preceding frontend release deployed successfully, but the source access link was still unavailable in their workflow. Code inspection found that the only discovery link was nested inside a conditionally hidden progress panel and also depended on discovery action availability and access readiness.
 
-The assessment action was disabled by the existing source-access readiness requirement, while its setup controls were only reachable later in the workflow. The frontend correction adds a source-access setup child page and a direct discovery link. New-assessment continuation routes through setup when configuration is incomplete. The setup page supports an assessment already at inventory-ready status, validates its source/customer association and excludes unavailable registrations.
+The correction moves Configure source access into the shared Source & Discover page header beside Back to assessments whenever an assessment has a source registration. It remains available after discovery completion and when readiness is already satisfied; the incomplete-setup message refers to that header action. The existing setup page retains source/customer checks and backend readiness requirements. No backend, authentication, connector or infrastructure changes are included.
 
-This uses existing APIs and the existing repository/registry setup panel. Readiness is not bypassed. Inventory-only discovery remains an explicit user choice, and credentials are not copied between environments. Authentication and backend functions are unchanged by this UI correction.
+Validation: 26 focused discovery/setup tests and frontend TypeScript passed. Regression coverage checks the action remains visible while the completed progress panel is hidden and when source access is already ready. Production authenticated visibility still needs verification after this correction is deployed. Prepare a new frontend release plan from the latest branch, then execute that newly prepared plan. Do not reuse the previous executed plan or reinstall the connected connector.
 
-Local validation passed: 59 focused frontend tests, TypeScript and a production build. This correction has not yet been deployed to production. Deploy only the frontend using the repository's existing prepare/execute release workflow and its newly generated plan. Then open the saved assessment, choose Configure source access, save and verify the required access (or explicitly save inventory-only), return to discovery and run source assessment. No connector reinstall is needed for this UI fix.
-
-Shared physical connector customer associations remain a separate pending capability. Detailed inventory, assessment and artifact collection/export still need production workflow evidence. The broader UI redesign remains on hold.
-
-This status note supersedes older pending-connection guidance for the current test. It deliberately omits infrastructure identifiers and private deployment paths.
+Shared physical connector customer associations remain pending. Broader UI redesign remains on hold.

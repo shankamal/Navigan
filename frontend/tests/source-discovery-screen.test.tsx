@@ -548,3 +548,22 @@ it("links an incomplete inventory-ready assessment to its source access setup", 
   expect(screen.getByRole("button", { name: "Run source assessment" })).toBeDisabled();
   expect(api.assess).not.toHaveBeenCalled();
 });
+
+
+it("keeps source access visible when the completed progress panel is hidden", async () => {
+  open();
+  await screen.findByRole("link", { name: "Continue to migration scope" });
+  const access = screen.getByRole("link", { name: "Configure source access" });
+  expect(access).toBeVisible();
+  expect(access).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
+  expect(document.querySelector('section[aria-label="Discovery progress"]')).not.toBeVisible();
+  expect(api.assess).not.toHaveBeenCalled();
+});
+
+it("keeps source access visible when readiness is already satisfied", async () => {
+  api.get.mockResolvedValue({ ...migration, status: "INVENTORY_READY" });
+  open();
+  const access = await screen.findByRole("link", { name: "Configure source access" });
+  expect(access).toBeVisible();
+  expect(access).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
+});
