@@ -1,3 +1,13 @@
+# Current blocker: production connector API promotion
+
+GitHub and registry setup now show Verified. The source agent is healthy and gets the active SOURCE_INVENTORY assignment, but repeated cycles fail at submission. A read-only inventory collection succeeded and produced a small sanitized report. A subsequent normal submission returned HTTP 409 TARGET_CLUSTER_REQUIRED. The production assessment is MANUAL / ASSESSMENT_ONLY without a target, as intended before migration scope and target selection. Read-only inspection confirmed the separate production MigrationConnectorFunction has no source-first flag and lacks source-only handling. Earlier scoped API promotions updated MigrationFunction only; the connector ingestion Lambda was not promoted.
+
+The existing branch connector handler and assessment engine already support source-only assessment. A new deploy-migration-connector-prod.py helper promotes exactly those two modules from the current branch into the existing connector ZIP, preserving native dependencies and other modules. It updates only MigrationConnectorFunction code and its source-first flag through a scoped nested CloudFormation change set, validates unchanged dependency reevaluations, saves private rollback files, and rejects unrelated resource changes, replacement, stale revisions, unexpected environments or package references. No migration API, frontend, IAM, schema, source installation, registration or credential changes are included.
+
+Validation: 46 focused connector, source-only assessment and deployment guard tests passed; CLI help verified. The new helper has not been run against AWS here. Next: pull branch, run the connector helper --prepare, inspect its scoped plan, then --execute that newly prepared plan. The existing source pod should retry the pending inventory submission without another discovery run or reinstall. Refresh discovery status after deployment; live assessment completion is still unverified. Target compatibility remains a later workflow step, and image collector role authorization/trust still needs verification before collection.
+
+---
+
 # Source access navigation button styling
 
 The user confirmed GitHub and registry setup now show Verified and discovery setup is ready. The Continue to discovery link worked but appeared as plain text because it used a CSS class whose rules target button elements only; Back to discovery status was also an unstyled link.
