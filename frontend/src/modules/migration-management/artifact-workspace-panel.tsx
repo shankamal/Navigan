@@ -1,6 +1,18 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Database, Search, ShieldCheck } from "lucide-react";
+import {
+  ChevronDown,
+  Database,
+  Search,
+  ShieldCheck,
+  Github,
+  Container,
+  FileCode2,
+  Layers,
+  CheckCircle2,
+  LoaderCircle,
+  RefreshCw,
+} from "lucide-react";
 import {
   apiClient,
   normalizeApiError,
@@ -34,6 +46,7 @@ type Workspace = {
     jobId: string;
     status: string;
     attempts: number;
+    artifactId?: string;
     errorCode?: string;
   }[];
   artifacts: {
@@ -44,6 +57,7 @@ type Workspace = {
     storage?: { bucket?: string; key?: string; versionId?: string };
     source?: {
       reference?: string;
+      repository?: string;
       filePath?: string;
       namespace?: string;
       release?: string;
@@ -101,9 +115,10 @@ export function ArtifactWorkspacePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [showCompleted, setShowCompleted] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [showCompleted, setShowCompleted] = useState<
+    Record<string, "all" | "remaining" | "saved">
+  >({});
+  const [refreshWarning, setRefreshWarning] = useState("");
   const [recoveryFeedback, setRecoveryFeedback] = useState<{
     workspaceId: string;
     artifactId: string;
@@ -116,7 +131,7 @@ export function ArtifactWorkspacePanel({
   useEffect(() => {
     if (stage === "review" && previousStage.current !== "review") {
       setShowCompleted(
-        Object.fromEntries(workspaces.map((w) => [w.workspaceId, true])),
+        Object.fromEntries(workspaces.map((w) => [w.workspaceId, "saved"])),
       );
     }
     previousStage.current = stage;
@@ -151,6 +166,7 @@ export function ArtifactWorkspacePanel({
       });
     return () => controller.abort();
   }, [active, migrationId]);
+
   async function run(create: boolean) {
     if (
       create &&
@@ -167,6 +183,7 @@ export function ArtifactWorkspacePanel({
       return;
     setBusy(true);
     setError("");
+    setRefreshWarning("");
     try {
       if (create) {
         const { data } = await apiClient.post(
@@ -403,6 +420,69 @@ export function ArtifactWorkspacePanel({
       setBusy(false);
     }
   }
+  function collectionButtons(w: Workspace) {
+    return (
+      <>
+        {" "}
+        <button
+          type="button"
+          disabled={
+            busy ||
+            !canEdit ||
+            w.stale ||
+            w.status === "COLLECTING" ||
+            !w.artifacts.some(
+              (a) =>
+                a.kind === "REPOSITORY_DEFINITION" && a.status !== "COLLECTED",
+            )
+          }
+          onClick={() => collect(w.workspaceId)}
+        >
+          Collect / retry repository files
+        </button>
+        <button
+          type="button"
+          disabled={
+            busy ||
+            !canEdit ||
+            w.stale ||
+            !w.artifacts.some(
+              (a) => a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
+            )
+          }
+          onClick={() => collect(w.workspaceId, "IMAGE")}
+        >
+          Collect / retry available images
+        </button>
+      </>
+    );
+  }
+  function exportButton(w: Workspace) {
+    const { attention, available, required } = workspaceCounts(w);
+    return (
+      <button
+        className={styles.primary}
+        type="button"
+        disabled={
+          busy ||
+          !canEdit ||
+          w.stale ||
+          attention > 0 ||
+          available > 0 ||
+          required < 1 ||
+          (w.jobs ?? []).some((job) =>
+            ["QUEUED", "RUNNING"].includes(job.status),
+          )
+        }
+        aria-describedby={`export-help-${w.workspaceId}`}
+        onClick={() => createExport(w.workspaceId)}
+      >
+        {exports[w.workspaceId]?.pending
+          ? "Verifying files and creating export…"
+          : "Create workspace export"}
+      </button>
+    );
+  }
   const NamespaceChooser = guided ? "details" : "div";
   const scope = fixedScope
     ? namespaces
@@ -427,6 +507,45 @@ export function ArtifactWorkspacePanel({
   const visibleNamespaces = namespaces.filter((ns) =>
     ns.toLowerCase().includes(query.toLowerCase()),
   );
+  useEffect(() => {
+    if (
+      !active ||
+      busy ||
+      !(fixedScope ? visibleWorkspaces : workspaces).some(collectionInProgress)
+    )
+      return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data } = await apiClient.get(
+          `/migrations/${migrationId}/artifact-workspaces`,
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
+        if (!Array.isArray(data.workspaces))
+          throw new Error("Invalid workspace response");
+        setRefreshWarning("");
+        setWorkspaces(data.workspaces);
+      } catch {
+        if (!controller.signal.aborted)
+          setRefreshWarning(
+            "Automatic progress updates paused. Refresh workspaces to check the latest status.",
+          );
+      }
+    }, 5000);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    active,
+    busy,
+    migrationId,
+    workspaces,
+    fixedScope,
+    activeWorkspaceId,
+    namespaces,
+  ]);
   return (
     <details
       className={`${styles.panel} ${guided ? `${styles.guided} ${journey.collection}` : ""}`}
@@ -579,53 +698,72 @@ export function ArtifactWorkspacePanel({
             )}
           </NamespaceChooser>
         )}
-        {fixedScope && stage !== "review" && (
-          <div className={styles.actions}>
-            <div>
-              <strong>
-                Saved namespaces: {namespaces.join(", ") || "None"}
-              </strong>
-              <p className={styles.hint}>
-                Collection includes artifacts across these namespaces. Migration
-                execution remains limited to your saved workloads.
-              </p>
+        {fixedScope ? (
+          <section
+            className={styles.workspaceToolbar}
+            aria-label="Artifact workspace controls"
+          >
+            <div className={styles.toolbarHeading}>
+              <Database size={18} aria-hidden="true" />
+              <div>
+                <h3>Artifact workspace</h3>
+                <p>Saved namespaces: {namespaces.join(", ") || "None"}</p>
+              </div>
             </div>
-            <button
-              className={styles.primary}
-              type="button"
-              disabled={
-                busy ||
-                !loaded ||
-                !canEdit ||
-                !inventoryDigest ||
-                !scope.length ||
-                Boolean(existingWorkspace)
-              }
-              onClick={() => run(true)}
+            <div
+              className={styles.toolbarActions}
+              role="toolbar"
+              aria-label="Workspace actions"
             >
-              Create workspace
+              {stage !== "review" && (
+                <button
+                  className={styles.primary}
+                  type="button"
+                  disabled={
+                    busy ||
+                    !loaded ||
+                    !canEdit ||
+                    !inventoryDigest ||
+                    !scope.length ||
+                    Boolean(existingWorkspace)
+                  }
+                  onClick={() => run(true)}
+                >
+                  Create workspace
+                </button>
+              )}
+              <button type="button" disabled={busy} onClick={() => run(false)}>
+                <RefreshCw size={13} aria-hidden="true" />
+                {loaded ? "Refresh workspaces" : "Load workspaces"}
+              </button>
+              {activeWorkspace &&
+                stage !== "review" &&
+                collectionButtons(activeWorkspace)}
+              {activeWorkspace && exportButton(activeWorkspace)}
+            </div>
+            <p className={styles.toolbarHint}>
+              {existingWorkspace
+                ? "Workspace already created for this assessment and saved namespace scope."
+                : !loaded
+                  ? "Checking existing workspaces before creation…"
+                  : "Create the workspace, then collect available files and images."}
+            </p>
+          </section>
+        ) : (
+          <div
+            className={`${styles.savedHeading} ${guided ? journey.collectionHeading : ""}`}
+          >
+            <h3>Saved workspaces</h3>
+            <button type="button" disabled={busy} onClick={() => run(false)}>
+              {loaded ? "Refresh workspaces" : "Load workspaces"}
             </button>
-            {existingWorkspace && (
-              <p role="status" className={styles.hint}>
-                Workspace already created for this assessment and saved
-                namespace scope. Continue with the existing workspace.
-              </p>
-            )}
-            {!loaded && (
-              <p role="status" className={styles.hint}>
-                Checking existing workspaces before creation…
-              </p>
-            )}
           </div>
         )}
-        <div
-          className={`${styles.savedHeading} ${guided ? journey.collectionHeading : ""}`}
-        >
-          <h3>Saved workspaces</h3>
-          <button type="button" disabled={busy} onClick={() => run(false)}>
-            {loaded ? "Refresh workspaces" : "Load workspaces"}
-          </button>
-        </div>
+        {refreshWarning && (
+          <p role="status" className={styles.hint}>
+            {refreshWarning}
+          </p>
+        )}
         {fixedScope && scopedWorkspaces.length > 1 && (
           <label className={styles.hint}>
             Workspace snapshot{" "}
@@ -655,6 +793,9 @@ export function ArtifactWorkspacePanel({
           </p>
         )}
         {visibleWorkspaces.map((w) => {
+          const artifactView =
+            showCompleted[w.workspaceId] ??
+            (stage === "review" ? "saved" : "all");
           const saved = w.artifacts.filter(
             (a) => a.status === "COLLECTED",
           ).length;
@@ -681,17 +822,16 @@ export function ArtifactWorkspacePanel({
                 <span className={styles.badge}>
                   {w.stale
                     ? "Older inventory snapshot · Create a new workspace"
-                    : saved > 0 && saved === required
-                      ? "All required artifacts saved · Review before deployment"
-                      : w.status === "COLLECTING"
-                        ? "Artifact collection queued or running"
-                        : w.status === "FAILED"
-                          ? "Collection failed · Review details"
-                          : w.status === "PARTIAL"
-                            ? "Partially collected"
-                            : w.status === "COLLECTED" ||
-                                w.status === "VALIDATED"
-                              ? "Collection complete"
+                    : pendingJobs || collectionInProgress(w)
+                      ? "Artifact collection queued or running"
+                      : saved > 0 && saved === required
+                        ? "All required artifacts saved · Review before deployment"
+                        : w.status === "COLLECTING"
+                          ? "Artifact collection queued or running"
+                          : w.status === "FAILED"
+                            ? "Collection failed · Review details"
+                            : w.status === "PARTIAL"
+                              ? "Partially collected"
                               : "Workspace index created"}
                 </span>
               </div>
@@ -729,13 +869,26 @@ export function ArtifactWorkspacePanel({
                   </ol>
                   <div className={journey.collectionProgress}>
                     <span>
-                      {saved} of {required} required artifacts saved
+                      {required ? Math.floor((saved / required) * 100) : 0}%
+                      complete · {saved} of {required} required artifacts saved
                     </span>
                     <progress
                       value={saved}
                       max={Math.max(required, 1)}
                       aria-label={`Collection progress for ${w.namespaces.join(", ")}`}
+                      title="Percentage of required artifacts saved to S3, not bytes transferred."
                     />
+                    <small>Target readiness not verified</small>
+                    {collectionInProgress(w) && (
+                      <small className={styles.liveStatus}>
+                        <LoaderCircle
+                          size={13}
+                          className={styles.spinning}
+                          aria-hidden="true"
+                        />{" "}
+                        Copying or queued · updates every 5 seconds
+                      </small>
+                    )}
                   </div>
                 </>
               )}
@@ -760,7 +913,7 @@ export function ArtifactWorkspacePanel({
                   <span>Needs attention</span>
                 </div>
               </div>
-              <small>
+              <small hidden={guided}>
                 {saved} / {required} artifacts collected · Target readiness not
                 verified
               </small>
@@ -774,64 +927,18 @@ export function ArtifactWorkspacePanel({
               <h3 hidden={stage === "review"} className={styles.stageHeading}>
                 Collect files & images
               </h3>
-              <div hidden={stage === "review"} className={styles.actions}>
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !canEdit ||
-                    w.stale ||
-                    w.status === "COLLECTING" ||
-                    !w.artifacts.some(
-                      (a) =>
-                        a.kind === "REPOSITORY_DEFINITION" &&
-                        a.status !== "COLLECTED",
-                    )
-                  }
-                  onClick={() => collect(w.workspaceId)}
-                >
-                  Collect / retry repository files
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !canEdit ||
-                    w.stale ||
-                    !w.artifacts.some(
-                      (a) =>
-                        a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
-                    )
-                  }
-                  onClick={() => collect(w.workspaceId, "IMAGE")}
-                >
-                  Collect / retry available images
-                </button>
-              </div>
+              {!fixedScope && stage !== "review" && (
+                <div className={styles.actions}>{collectionButtons(w)}</div>
+              )}
               <div
                 className={`${styles.exportResult} ${guided ? journey.collectionExport : ""}`}
-                hidden={stage === "collect"}
+                data-empty={
+                  !exports[w.workspaceId]?.pending &&
+                  !exports[w.workspaceId]?.error &&
+                  !exports[w.workspaceId]?.result
+                }
               >
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !canEdit ||
-                    w.stale ||
-                    attention > 0 ||
-                    available > 0 ||
-                    required < 1 ||
-                    (w.jobs ?? []).some((job) =>
-                      ["QUEUED", "RUNNING"].includes(job.status),
-                    )
-                  }
-                  aria-describedby={`export-help-${w.workspaceId}`}
-                  onClick={() => createExport(w.workspaceId)}
-                >
-                  {exports[w.workspaceId]?.pending
-                    ? "Verifying files and creating export…"
-                    : "Create workspace export"}
-                </button>
+                {!fixedScope && exportButton(w)}
                 <p id={`export-help-${w.workspaceId}`}>
                   {w.stale
                     ? "Create a workspace from the current inventory before exporting."
@@ -903,36 +1010,20 @@ export function ArtifactWorkspacePanel({
                   </div>
                 )}
               </div>
-              {Boolean(w.jobs?.length) && (
-                <details className={styles.jobHistory}>
-                  <summary>
-                    Collection jobs · {w.jobs!.length} jobs ·{" "}
-                    {w.jobs!.filter((j) => j.status === "SUCCEEDED").length}{" "}
-                    succeeded
-                  </summary>{" "}
-                  {(w.jobs ?? []).map((job) => (
-                    <small key={job.jobId}>
-                      {job.status.toLowerCase()} · Attempt {job.attempts}
-                      {job.errorCode
-                        ? ` · ${job.errorCode.toLowerCase().replaceAll("_", " ")}`
-                        : ""}
-                    </small>
-                  ))}
-                </details>
-              )}
               <details
                 open={guided || undefined}
                 className={guided ? journey.artifactList : undefined}
               >
                 <summary>
                   {guided
-                    ? stage === "review"
-                      ? "Review files, images & S3 locations"
-                      : "Required files & images"
+                    ? "Files, images & copy progress"
                     : "View required files, images & status"}
                 </summary>
                 {guided &&
-                  (showCompleted[w.workspaceId] ?? stage === "review") && (
+                  (artifactView === "saved" ||
+                    Boolean(
+                      workspaceLocation(w, exports[w.workspaceId]?.result),
+                    )) && (
                     <div className={styles.s3Summary}>
                       <strong>Workspace S3 folder</strong>
                       {workspaceLocation(w, exports[w.workspaceId]?.result) ? (
@@ -955,13 +1046,23 @@ export function ArtifactWorkspacePanel({
                   <div className={journey.artifactFilters}>
                     <button
                       type="button"
-                      aria-pressed={
-                        !(showCompleted[w.workspaceId] ?? stage === "review")
-                      }
+                      aria-pressed={artifactView === "all"}
                       onClick={() =>
                         setShowCompleted((v) => ({
                           ...v,
-                          [w.workspaceId]: false,
+                          [w.workspaceId]: "all",
+                        }))
+                      }
+                    >
+                      All artifacts ({w.artifacts.length})
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={artifactView === "remaining"}
+                      onClick={() =>
+                        setShowCompleted((v) => ({
+                          ...v,
+                          [w.workspaceId]: "remaining",
                         }))
                       }
                     >
@@ -969,13 +1070,11 @@ export function ArtifactWorkspacePanel({
                     </button>
                     <button
                       type="button"
-                      aria-pressed={Boolean(
-                        showCompleted[w.workspaceId] ?? stage === "review",
-                      )}
+                      aria-pressed={artifactView === "saved"}
                       onClick={() =>
                         setShowCompleted((v) => ({
                           ...v,
-                          [w.workspaceId]: true,
+                          [w.workspaceId]: "saved",
                         }))
                       }
                     >
@@ -988,7 +1087,8 @@ export function ArtifactWorkspacePanel({
                     <thead>
                       <tr>
                         <th scope="col">Artifact</th>
-                        <th scope="col">Type</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Copy progress</th>
                         <th scope="col">Next step / status</th>
                         <th scope="col">S3 location</th>
                       </tr>
@@ -998,8 +1098,8 @@ export function ArtifactWorkspacePanel({
                         .filter(
                           (a) =>
                             !guided ||
-                            ((showCompleted[w.workspaceId] ??
-                            stage === "review")
+                            artifactView === "all" ||
+                            (artifactView === "saved"
                               ? ["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
                                   a.status,
                                 )
@@ -1019,10 +1119,30 @@ export function ArtifactWorkspacePanel({
                                   ? `${a.source.namespace} / ${a.source.release}`
                                   : "") ||
                                 artifactKind(a.kind)}
+                              {a.source?.repository && (
+                                <small className={styles.artifactMeta}>
+                                  {a.source.repository}
+                                </small>
+                              )}
                             </td>
-                            <td>{artifactKind(a.kind)}</td>
                             <td>
-                              {artifactStatus(a.status)}
+                              <ArtifactOrigin artifact={a} />
+                            </td>
+                            <td>
+                              <TransferProgress
+                                artifact={a}
+                                job={(w.jobs ?? []).find(
+                                  (job) => job.artifactId === a.artifactId,
+                                )}
+                              />
+                            </td>
+                            <td>
+                              {collectionStatus(
+                                a,
+                                (w.jobs ?? []).find(
+                                  (job) => job.artifactId === a.artifactId,
+                                ),
+                              )}
                               {a.validation?.reviewRequired &&
                                 a.status === "COLLECTED" && (
                                   <small>
@@ -1268,7 +1388,7 @@ export function ArtifactWorkspacePanel({
                     </tbody>
                   </table>
                   {guided &&
-                    !showCompleted[w.workspaceId] &&
+                    artifactView === "remaining" &&
                     required === saved && (
                       <p className={styles.hint}>
                         All required artifacts are saved. Review saved items
@@ -1282,17 +1402,158 @@ export function ArtifactWorkspacePanel({
         })}
         <details className={styles.collectionHelp}>
           <summary>How collection and recovery work</summary>
+          <p>
+            Collection includes artifacts across these namespaces. Migration
+            execution remains limited to your saved workloads.
+          </p>
           <p className={styles.footer}>
             Collection jobs run in the background and require a running
-            collector. Refresh workspaces to check progress. Missing items need
-            recovery before migration. Live definitions and retained Helm data
-            use the approved source SSM host. They may contain sensitive
-            configuration and require review. Use Check recovery progress until
-            the file is saved to S3.
+            collector. Active jobs update automatically; Refresh workspaces
+            checks manually. Missing items need recovery before migration. Live
+            definitions and retained Helm data use the approved source SSM host.
+            They may contain sensitive configuration and require review. Use
+            Check recovery progress until the file is saved to S3.
           </p>
         </details>
       </div>
     </details>
+  );
+}
+
+type Artifact = Workspace["artifacts"][number];
+type CollectionJob = NonNullable<Workspace["jobs"]>[number];
+
+function collectionStatus(artifact: Artifact, job?: CollectionJob) {
+  if (["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(artifact.status))
+    return artifactStatus(artifact.status);
+  if (job?.status === "RUNNING") return "Copy in progress";
+  if (job?.status === "QUEUED") return "Waiting for collector";
+  if (job?.status === "FAILED") return "Retry collection";
+  if (job?.status === "SUCCEEDED") return "Verifying saved copy";
+  return artifactStatus(artifact.status);
+}
+
+function collectionInProgress(workspace: Workspace) {
+  return (
+    (workspace.jobs ?? []).some((job) =>
+      ["QUEUED", "RUNNING"].includes(job.status),
+    ) ||
+    workspace.artifacts.some(
+      (artifact) =>
+        artifact.status === "RECOVERING" ||
+        ["QUEUED", "RUNNING"].includes(
+          artifact.validation?.recovery?.status ?? "",
+        ),
+    )
+  );
+}
+
+function workspaceCounts(workspace: Workspace) {
+  const saved = workspace.artifacts.filter(
+    (a) => a.status === "COLLECTED",
+  ).length;
+  const available = workspace.artifacts.filter(
+    (a) => a.status === "PENDING_COLLECTION",
+  ).length;
+  const required = workspace.artifacts.filter(
+    (a) => a.status !== "EXCLUDED_FROM_REPLAY",
+  ).length;
+  return {
+    saved,
+    available,
+    required,
+    attention: required - saved - available,
+  };
+}
+
+function ArtifactOrigin({ artifact }: { artifact: Artifact }) {
+  const origin =
+    artifact.kind === "REPOSITORY_DEFINITION"
+      ? { label: "GitHub", Icon: Github, tone: "github" }
+      : artifact.kind === "IMAGE"
+        ? { label: "Container registry", Icon: Container, tone: "registry" }
+        : artifact.kind === "HELM_RELEASE"
+          ? { label: "Source cluster · Helm", Icon: Layers, tone: "cluster" }
+          : {
+              label: "Source cluster · Live export",
+              Icon: FileCode2,
+              tone: "cluster",
+            };
+  return (
+    <span className={styles.origin} data-source={origin.tone}>
+      <origin.Icon size={15} aria-hidden="true" />
+      {origin.label}
+    </span>
+  );
+}
+
+function TransferProgress({
+  artifact,
+  job,
+}: {
+  artifact: Artifact;
+  job?: CollectionJob;
+}) {
+  const saved = artifact.status === "COLLECTED";
+  const excluded = artifact.status === "EXCLUDED_FROM_REPLAY";
+  const recovery = artifact.validation?.recovery?.status;
+  const running =
+    !saved &&
+    !excluded &&
+    (job?.status === "RUNNING" ||
+      artifact.status === "RECOVERING" ||
+      ["QUEUED", "RUNNING"].includes(recovery ?? ""));
+  const verifying =
+    !saved && !excluded && !running && job?.status === "SUCCEEDED";
+  const failed = !saved && !excluded && !running && job?.status === "FAILED";
+  const queued = !saved && !excluded && !running && job?.status === "QUEUED";
+  const label = saved
+    ? "100% · Saved to S3"
+    : excluded
+      ? "Excluded from replay"
+      : running
+        ? artifact.kind === "IMAGE"
+          ? "Copying image to S3"
+          : "Copying definition to S3"
+        : verifying
+          ? "Verifying saved copy"
+          : failed
+            ? "Copy failed · Retry required"
+            : queued
+              ? "Queued · Waiting for collector"
+              : artifact.status === "PENDING_COLLECTION"
+                ? "Ready to copy"
+                : "Source action required";
+  return (
+    <div
+      className={styles.transfer}
+      data-state={saved ? "saved" : failed ? "failed" : "pending"}
+    >
+      <span>
+        {saved ? (
+          <CheckCircle2 size={13} aria-hidden="true" />
+        ) : running || verifying ? (
+          <LoaderCircle
+            size={13}
+            className={styles.spinning}
+            aria-hidden="true"
+          />
+        ) : null}
+        {label}
+      </span>
+      {!excluded && (
+        <progress
+          className={styles.transferBar}
+          max={100}
+          value={running || verifying ? undefined : saved ? 100 : 0}
+          aria-label={`Copy progress for ${artifact.source?.reference || artifact.source?.filePath || artifact.source?.resource?.name || artifact.source?.release || artifact.artifactId}`}
+          aria-valuetext={label}
+        />
+      )}
+      {failed && job?.errorCode && (
+        <small>{job.errorCode.toLowerCase().replaceAll("_", " ")}</small>
+      )}
+    </div>
   );
 }
 

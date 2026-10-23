@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ArtifactWorkspacePanel } from "../src/modules/migration-management/artifact-workspace-panel";
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
@@ -784,6 +791,10 @@ it("separates remaining artifacts from saved copies without changing collection 
   });
   render(<ArtifactWorkspacePanel {...props} guided active />);
   await screen.findByRole("button", { name: "Remaining (1)" });
+  expect(
+    screen.getByRole("button", { name: "All artifacts (2)" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Remaining (1)" }));
   expect(screen.getByText("example.com/shop/api:1")).toBeVisible();
   expect(screen.queryByText("deploy/saved.yaml")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Saved / excluded (1)" }));
@@ -869,6 +880,7 @@ it("uses saved namespaces without a second picker and hides unrelated workspace 
   expect(
     screen.queryByRole("checkbox", { name: "shop" }),
   ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText("How collection and recovery work"));
   expect(
     screen.getByText(/Collection includes artifacts across these namespaces/),
   ).toBeVisible();
@@ -1057,4 +1069,221 @@ it("shows the verified export location and workspace folder without inventing pe
       "s3://workspace-bucket/customers/customer/migrations/MIG-one/workspaces/AWS-one/",
     ).length,
   ).toBeGreaterThan(0);
+});
+
+it("shows each artifact source and links transfer status by artifact ID instead of anonymous job attempts", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-copy",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            {
+              artifactId: "file",
+              kind: "REPOSITORY_DEFINITION",
+              status: "COLLECTED",
+              source: { repository: "team/shop", filePath: "deploy/api.yaml" },
+            },
+            {
+              artifactId: "image",
+              kind: "IMAGE",
+              status: "PENDING_COLLECTION",
+              source: { reference: "registry.example.com/shop/api@sha256:abc" },
+            },
+            {
+              artifactId: "live",
+              kind: "LIVE_DEFINITION",
+              status: "PENDING_COLLECTION",
+              source: {
+                resource: {
+                  namespace: "shop",
+                  kind: "Deployment",
+                  name: "api",
+                },
+              },
+            },
+          ],
+          jobs: [
+            {
+              jobId: "j-image",
+              artifactId: "image",
+              status: "RUNNING",
+              attempts: 1,
+            },
+            {
+              jobId: "j-live",
+              artifactId: "live",
+              status: "FAILED",
+              attempts: 2,
+              errorCode: "SOURCE_UNAVAILABLE",
+            },
+            {
+              jobId: "j-file",
+              artifactId: "file",
+              status: "SUCCEEDED",
+              attempts: 1,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  const row = (text: string) =>
+    within(screen.getByText(text, { exact: true }).closest("tr")!);
+  await screen.findByText("deploy/api.yaml");
+  expect(row("deploy/api.yaml").getByText("GitHub")).toBeVisible();
+  expect(row("deploy/api.yaml").getByRole("progressbar")).toHaveAttribute(
+    "value",
+    "100",
+  );
+  const image = row("registry.example.com/shop/api@sha256:abc");
+  expect(image.getByText("Container registry")).toBeVisible();
+  expect(image.getByText("Copying image to S3")).toBeVisible();
+  expect(image.getByRole("progressbar")).not.toHaveAttribute("value");
+  expect(
+    row("shop / Deployment / api").getByText("Source cluster · Live export"),
+  ).toBeVisible();
+  expect(
+    row("shop / Deployment / api").getByText("Copy failed · Retry required"),
+  ).toBeVisible();
+  expect(screen.getByText(/33% complete/)).toBeVisible();
+  expect(screen.queryByText(/succeeded · Attempt/)).not.toBeInTheDocument();
+  const actions = screen.getByRole("toolbar", { name: "Workspace actions" });
+  for (const name of [
+    "Create workspace",
+    "Refresh workspaces",
+    "Collect / retry repository files",
+    "Collect / retry available images",
+    "Create workspace export",
+  ]) {
+    expect(within(actions).getByRole("button", { name })).toBeVisible();
+    expect(screen.getAllByRole("button", { name })).toHaveLength(1);
+  }
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+it("refreshes active transfers and stops polling when they have been saved", async () => {
+  vi.useFakeTimers();
+  const running = {
+    workspaceId: "AWS-poll",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [
+      {
+        artifactId: "copy",
+        kind: "IMAGE",
+        status: "PENDING_COLLECTION",
+        source: { reference: "registry/shop:1" },
+      },
+    ],
+    jobs: [
+      { jobId: "job", artifactId: "copy", status: "RUNNING", attempts: 1 },
+    ],
+  };
+  api.get
+    .mockResolvedValueOnce({ data: { workspaces: [running] } })
+    .mockResolvedValue({
+      data: {
+        workspaces: [
+          {
+            ...running,
+            artifacts: [{ ...running.artifacts[0], status: "COLLECTED" }],
+            jobs: [{ ...running.jobs[0], status: "SUCCEEDED" }],
+          },
+        ],
+      },
+    });
+  const view = render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  try {
+    await act(async () => {});
+    expect(screen.getByText("Copying image to S3")).toBeVisible();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(screen.getByText("100% · Saved to S3")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Create workspace export" }),
+    ).toBeEnabled();
+    expect(api.get).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("stops automatic polling when leaving collection and preserves the current artifact view", async () => {
+  vi.useFakeTimers();
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-hidden",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            { artifactId: "copy", kind: "IMAGE", status: "PENDING_COLLECTION" },
+          ],
+          jobs: [
+            { jobId: "job", artifactId: "copy", status: "QUEUED", attempts: 0 },
+          ],
+        },
+      ],
+    },
+  });
+  const view = render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  try {
+    await act(async () => {});
+    view.rerender(
+      <ArtifactWorkspacePanel
+        {...props}
+        namespaces={["shop"]}
+        fixedScope
+        guided
+        active={false}
+        stage="collect"
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Queued · Waiting for collector")).toBeVisible();
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
 });

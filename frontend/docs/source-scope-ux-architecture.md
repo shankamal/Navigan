@@ -58,3 +58,12 @@ Creation is blocked until workspace loading succeeds and while a current workspa
 S3 display uses returned storage metadata only. The current workspace-list API omits bucket/object keys. After the user creates an export, its existing response supplies the verified export bucket/key: the UI displays the export URI and its workspace folder above Saved / excluded. Exact per-artifact and historical receipt keys remain in the downloadable export manifest. If a response includes artifact storage metadata, the row displays that exact URI. No bucket names or per-artifact paths are guessed, and no export is created automatically merely to load a path. Displaying persisted per-object paths immediately on page load would require a separate backend read-response enhancement; that is outside this frontend-only change.
 
 Component tests cover the three-view navigation, reuse of an existing workspace, explicit creation after a successful empty list response, creation disabling after success, exact returned S3 locations, export folder display and target navigation without another scope write.
+
+
+## Collection simplification — 23 October follow-up
+
+Supersedes the earlier three-stage Files & images navigation: the saved-scope flow now has **Check sources → Collect & export**. Creation, refresh, repository/image collection and export share one workspace toolbar. Duplicate creation, authorization, stale-snapshot and export-readiness guards are retained. Export remains in the collection view; the old review-only stage is no longer a separate navigation destination.
+
+One artifact table replaces the anonymous job-attempt list. Rows identify the actual artifact and its GitHub/registry/source-cluster origin, matching jobs by the API's artifactId. Saved copies show 100%; queued/failed/source-action states are explicit. Running copies use an indeterminate bar/spinner because the backend does not expose bytes or a per-copy percentage. Overall completion is the required-artifact saved count, excluding historical runs, and never rounds incomplete work up to 100%. All/Remaining/Saved filters share this same table.
+
+Read-only updates occur every five seconds only while the active visible collection has queued/running work, without a full-page refresh or automatic collection/export POST. Polling stops on completion, leaving collection, unmount or a read failure; manual refresh remains available. Exact S3 locations retain the previously documented export metadata limitation.

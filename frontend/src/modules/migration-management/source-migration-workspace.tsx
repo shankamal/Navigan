@@ -700,22 +700,20 @@ export function SourceMigrationWorkspace({
                   aria-label="Files and images preparation"
                 >
                   <div className={styles.filesSteps}>
-                    {[
-                      "Check sources",
-                      "Collect artifacts",
-                      "Review & export",
-                    ].map((label, index) => (
-                      <button
-                        key={label}
-                        type="button"
-                        aria-current={
-                          filesStage === index + 1 ? "step" : undefined
-                        }
-                        onClick={() => setFilesStage(index + 1)}
-                      >
-                        <span>{index + 1}</span> {label}
-                      </button>
-                    ))}
+                    {["Check sources", "Collect & export"].map(
+                      (label, index) => (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-current={
+                            filesStage === index + 1 ? "step" : undefined
+                          }
+                          onClick={() => setFilesStage(index + 1)}
+                        >
+                          <span>{index + 1}</span> {label}
+                        </button>
+                      ),
+                    )}
                   </div>
                   <div className={styles.filesActions}>
                     <button
@@ -728,14 +726,12 @@ export function SourceMigrationWorkspace({
                     >
                       {filesStage === 1 ? "Back to scope" : "Previous"}
                     </button>
-                    {filesStage < 3 ? (
+                    {filesStage === 1 ? (
                       <button
                         className={styles.primary}
                         onClick={() => setFilesStage(filesStage + 1)}
                       >
-                        {filesStage === 1
-                          ? "Continue to collection"
-                          : "Review saved artifacts"}
+                        Continue to collection
                         <ArrowRight size={16} />
                       </button>
                     ) : (
@@ -782,9 +778,9 @@ export function SourceMigrationWorkspace({
                     namespaces={scope.namespaces}
                     canEdit={canEdit}
                     guided
-                    active
+                    active={filesStage === 2}
                     fixedScope
-                    stage={filesStage === 3 ? "review" : "collect"}
+                    stage="collect"
                     onReviewAccess={() => {
                       setFilesStage(1);
                       setManageRequest((n) => n + 1);
@@ -1007,7 +1003,7 @@ export function SourceMigrationWorkspace({
               className={styles.secondary}
               onClick={() => {
                 setScopeView("artifacts");
-                setFilesStage(3);
+                setFilesStage(2);
                 setStep(3);
               }}
             >

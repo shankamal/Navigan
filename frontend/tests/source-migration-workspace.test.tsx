@@ -344,27 +344,25 @@ it("disables bulk selection for read-only users", () => {
 });
 
 it("guides files and images through one navigation toolbar and reuses an existing workspace", async () => {
-  const get = vi
-    .spyOn(apiClient, "get")
-    .mockResolvedValue({
-      data: {
-        workspaces: [
-          {
-            workspaceId: "AWS-existing",
-            namespaces: ["payments"],
-            stale: false,
-            artifacts: [
-              {
-                artifactId: "file",
-                kind: "REPOSITORY_DEFINITION",
-                status: "COLLECTED",
-                source: { filePath: "api.yaml" },
-              },
-            ],
-          },
-        ],
-      },
-    });
+  const get = vi.spyOn(apiClient, "get").mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-existing",
+          namespaces: ["payments"],
+          stale: false,
+          artifacts: [
+            {
+              artifactId: "file",
+              kind: "REPOSITORY_DEFINITION",
+              status: "COLLECTED",
+              source: { filePath: "api.yaml" },
+            },
+          ],
+        },
+      ],
+    },
+  });
   try {
     open();
     fireEvent.click(
@@ -394,11 +392,15 @@ it("guides files and images through one navigation toolbar and reuses an existin
     expect(
       screen.queryByRole("button", { name: "Save scope draft" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      within(navigation).getByRole("button", {
-        name: "Review saved artifacts",
-      }),
-    );
+    expect(
+      within(navigation).getByRole("button", { name: "2 Collect & export" }),
+    ).toHaveAttribute("aria-current", "step");
+    expect(
+      within(navigation).queryByRole("button", { name: /Review & export/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create workspace export" }),
+    ).toBeVisible();
     expect(
       screen.getByRole("columnheader", { name: "S3 location" }),
     ).toBeVisible();
