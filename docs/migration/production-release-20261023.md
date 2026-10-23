@@ -121,6 +121,39 @@ The four migration server routes now use a shared runtime switch. Explicit `MIGR
 
 Validation: 117 focused Python tests (existing release guards and DEV/PROD collector tests), 28 frontend feature-switch/proxy tests, TypeScript and production build passed. The build marks all four migration routes dynamic. No claim of live collector deployment, authenticated production acceptance or frontend rollout follows from these checks. Frontend remains on the last observed task revision :8 until the separate immutable image release.
 
+## Collectors confirmed / frontend image preparation
+
+The initial repository rollout stopped before provisioning because Aurora `aws-infra-platform-db` was stopped. The user confirmed starting the shared cluster, then successfully deployed `navigan-custmanagement-cfnstk-workspace-repositories` with its schedule ENABLED. This was an infrastructure availability issue, not a collector code failure; do not restart databases speculatively in later sessions.
+
+The user also built/pushed the production image and deployed the image runtime/service stacks. Image: `905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/prod-workspace-image-collector@sha256:cd025dfbba9aac18cf6e03431182ba87640fbd9d16fa11ec63325601c471573c`. Task definition `navigan-custmanagement-cfnstk-workspace-images-WorkerTask-NBdI3iULKHyk:1`; worker role `arn:aws:iam::905418045935:role/navigan-custmanagement-cfnstk-workspace--WorkerRole-ZTaZfknnEn2s`; service `navigan-custmanagement-cfnstk-workspace-images-WorkerService-yB0lavZw7aRs`.
+
+Read-only PROD registry-role query returned `[]`; no AWS registry roles are configured in PROD and no source trust changes were made. The user then updated image DesiredCount to 1 using the existing immutable digest. The service update completed and logs showed repeated `{"processed": false}` with no reported error codes. This is queue polling evidence, not a successful image-copy test. Private registries still need appropriate access when configured in PROD. Source agents and the extra recovery bucket remain untouched.
+
+Prepare the frontend candidate without changing the live service:
+
+```bash
+cd /mnt/b/Langchain_Ai/Navigan-migration-test
+TMPDIR=/mnt/b/Langchain_Ai/navigan-deploy-tmp \
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python \
+  scripts/deploy-frontend-prod.py --profile navigan --prepare
+```
+
+The helper verifies PROD API/storage/schema, enabled repository schedule, running image service and the current stable Navigan frontend. Production Cognito public values come from the actual parent stack, are checked for whitespace/pool mismatch, and are checked against its existing public client. Frontend API routing must match the actual PROD migration API. No Cognito resource, login functionality or API routing configuration is changed.
+
+It exports only committed frontend source using `git archive` into a private TMPDIR directory (not another git worktree). Existing modified `frontend/next-env.d.ts`, local environment files and unrelated files are preserved and excluded from the build. The script sources no `.env`/config files; verified public Cognito/app values are passed explicitly to Docker. It builds linux/amd64, pushes a unique ECR tag, resolves an immutable digest and registers a candidate ECS task. Only the frontend container image and explicit server flag `MIGRATION_SOURCE_FIRST_ENABLED=true` change; runtime roles, API settings, network mode, health check, sidecars, sizing and logging are copied from the current task. Reserved AWS metadata/tags are not sent as user-supplied registration fields. The service is unchanged by preparation.
+
+Success prints the candidate task/image and private `release-plan.json` path. Use that actual path for execution:
+
+```bash
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python \
+  scripts/deploy-frontend-prod.py --profile navigan \
+  --execute /actual/path/from-preparation/release-plan.json
+```
+
+Execution rechecks backend readiness, the stable previous task/count and the exact candidate diff, then calls update_service only for `navigan-frontend-Service-vMtHq9h7A9mz` in `navigan-frontend-Cluster-bw32Pkwxn8Cs`. It verifies the final service task revision, every running frontend image digest (including the correct amd64 manifest when an OCI index is used), and public /healthz and /login HTTP 200. A circuit-breaker rollback is reported as a failed promotion, not mistaken for success. Authentication and actual migration workflow/copy/export checks still require user acceptance in a fresh browser session. The saved previous task is the rollback reference; no automatic blind rollback or database/API changes are performed.
+
+Validation: 143 focused Python release tests passed, including 26 frontend task/config/digest/rollout guards. The earlier frontend switch/proxy tests (28), TypeScript and production build also passed; no frontend source changed in this helper addition. Live frontend preparation and rollout are still pending until user output confirms them.
+
 ## Single-bucket correction
 
 The user clarified that DEV used one workspace bucket. Current artifact_recovery.py confirms that requests bound to a workspace use storage_configuration() from artifact_workspace.py and save recovered objects into the workspace bucket with its KMS key. MIGRATION_RECOVERY_BUCKET is only the older recovery path without a workspace binding. An earlier production-script revision unnecessarily provisioned both templates; the corrected script provisions only the workspace stack. No existing bucket is deleted or repurposed.
