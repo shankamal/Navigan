@@ -129,3 +129,50 @@ def test_repository_persists_only_enrollment_token_hash():
     assert insert_params[2] == hashlib.sha256(raw_token.encode()).hexdigest()
     assert raw_token not in str(database.execute.call_args_list)
     assert "tokenSha256" not in result
+
+
+def ssm_body(customer='CUS-demo'):
+    return {'customerId': customer, 'name': 'lab', 'distribution': 'kubeadm',
+            'registrationMethod': 'PROVIDER_AUTOMATION',
+            'location': {'type': 'CLOUD', 'cloudProvider': 'AWS', 'region': 'ap-south-1'},
+            'delivery': {'method': 'AWS_SSM', 'awsSsm': {
+                'accountId': '905418045935', 'region': 'ap-south-1',
+                'managedInstanceId': 'i-08e28d9b2242cbd53', 'kubeconfigPath': '/etc/kubernetes/admin.conf'}}}
+
+
+def test_registering_same_customer_host_reuses_source_across_assessments():
+    repo = MagicMock()
+    repo.principal = SimpleNamespace(user_id='engineer-1')
+    existing = {'source_cluster_id': 'SRC-' + 'a' * 32, 'customer_id': 'CUS-demo', 'status': 'CONNECTED'}
+    repo.find_source_registration.return_value = existing
+    result = Service(repo, Access({'migration.create'}), 'reuse').create_source_cluster(ssm_body())
+    assert result['sourceClusterId'] == existing['source_cluster_id']
+    repo.lock_source_installation.assert_called_once()
+    repo.create_source_cluster.assert_not_called()
+    repo.create_source_enrollment.assert_not_called()
+    repo.audit_source_cluster.assert_called_once()
+
+
+def test_new_customer_registration_is_created_when_no_customer_match_exists():
+    repo = MagicMock()
+    repo.principal = SimpleNamespace(user_id='engineer-1')
+    repo.find_source_registration.return_value = None
+    repo.create_source_cluster.side_effect = lambda row, correlation: row
+    result = Service(repo, Access({'migration.create'}), 'new').create_source_cluster(ssm_body())
+    assert result['customerId'] == 'CUS-demo'
+    repo.create_source_cluster.assert_called_once()
+    repo.create_source_enrollment.assert_not_called()
+
+
+def test_registration_lookup_matches_physical_identity_and_customer_not_display_name():
+    db = MagicMock()
+    principal = SimpleNamespace(platform_scope=True)
+    repo = Repository(db, principal)
+    db.execute.return_value.fetchone.return_value = None
+    body = ssm_body()
+    assert repo.find_source_registration({'customer_id': body['customerId'],
+        'delivery_configuration': body['delivery']['awsSsm']}) is None
+    sql, params = db.execute.call_args.args
+    assert 'customer_id=%s' in sql and "status<>'REVOKED'" in sql
+    assert params == ['CUS-demo', '905418045935', 'ap-south-1', 'i-08e28d9b2242cbd53', '/etc/kubernetes/admin.conf']
+    assert 'name=' not in sql

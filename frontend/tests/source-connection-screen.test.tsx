@@ -515,3 +515,44 @@ it("offers restore for a previously connected registration only after a clear ho
   expect(screen.queryByRole("button", { name: "Install connector" })).not.toBeInTheDocument();
   expect(api.install).not.toHaveBeenCalled();
 });
+
+it("reuses the matching customer host when Connect source is clicked in registration mode", async () => {
+  const existing = { ...source, deliveryConfiguration: {
+    accountId: "123456789012", region: "ap-south-1",
+    managedInstanceId: "i-0123456789abcdef0", kubeconfigPath: "/etc/kubernetes/admin.conf",
+  } };
+  api.list.mockResolvedValue({ items: [existing] });
+  api.get.mockResolvedValue(existing);
+  open();
+  await identify();
+  for (const [label, value] of [
+    [/Source cluster name/, "new-display-name"], [/AWS region/, "ap-south-1"],
+    [/AWS account ID/, "123456789012"], [/SSM managed instance ID/, "i-0123456789abcdef0"],
+  ] as const) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  await screen.findByRole("button", { name: /Reuse connection/ });
+  fireEvent.click(screen.getByRole("button", { name: "Connect source" }));
+  await screen.findByRole("button", { name: "Verify connection" });
+  expect(api.createDraft).toHaveBeenCalledTimes(1);
+  expect(api.createDraft.mock.calls[0][0].source.sourceClusterId).toBe(source.sourceClusterId);
+  expect(api.createSource).not.toHaveBeenCalled();
+  expect(api.install).not.toHaveBeenCalled();
+  expect(screen.getByRole("radio", { name: /Use a connected/ })).toBeChecked();
+});
+
+it("does not reinstall a live registration returned by backend registration reuse", async () => {
+  api.list.mockResolvedValue({ items: [] });
+  api.createSource.mockResolvedValue(source);
+  api.get.mockResolvedValue({ ...source, connectorLastSeenAt: new Date().toISOString(),
+    installationCheck: { canRestore: false, code: "ALREADY_CONNECTED", message: "Already connected", conflicts: [] },
+  });
+  open();
+  await identify();
+  for (const [label, value] of [
+    [/Source cluster name/, "new-display-name"], [/AWS region/, "ap-south-1"],
+    [/AWS account ID/, "123456789012"], [/SSM managed instance ID/, "i-0123456789abcdef0"],
+  ] as const) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  fireEvent.click(screen.getByRole("button", { name: "Connect source" }));
+  expect(await screen.findByText("Existing connector verified and reused. No installation was needed.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Continue to discovery" })).toBeEnabled();
+  expect(api.install).not.toHaveBeenCalled();
+});

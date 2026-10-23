@@ -36,6 +36,10 @@ if not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", token):
 if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
     raise SystemExit("Invalid connector image digest.")
 
+# Stable names isolate credentials, selectors and RBAC for this registration.
+# Never overwrite the legacy shared connector or another customer/environment.
+connector_name = "navigan-source-" + source_id[4:]
+
 # Self-managed Kubernetes does not automatically authenticate its kubelet to
 # private ECR, even when the installer can access AWS Systems Manager. Create
 # an image pull secret from the source host's scoped AWS role, not from a
@@ -65,14 +69,14 @@ if private_ecr:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: navigan-migration-image-pull
+  name: {connector_name}-image-pull
   namespace: navigan-migration
 type: kubernetes.io/dockerconfigjson
 data:
   .dockerconfigjson: {encoded_config}
 """
-    pod_pull_secrets = """      imagePullSecrets:
-      - name: navigan-migration-image-pull
+    pod_pull_secrets = f"""      imagePullSecrets:
+      - name: {connector_name}-image-pull
 """
     # The ECR password expires. Keep this refreshable by the installer rather
     # than including the registry token in long-lived connector settings.
@@ -110,14 +114,14 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: navigan-source-connector
+  name: {connector_name}
   namespace: navigan-migration
 automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: navigan-source-connector
+  name: {connector_name}
 rules:
 - nonResourceURLs: ["/version"]
   verbs: ["get"]
@@ -155,20 +159,20 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: navigan-source-connector
+  name: {connector_name}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: navigan-source-connector
+  name: {connector_name}
 subjects:
 - kind: ServiceAccount
-  name: navigan-source-connector
+  name: {connector_name}
   namespace: navigan-migration
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: navigan-source-connector-credentials
+  name: {connector_name}-credentials
   namespace: navigan-migration
 type: Opaque
 data:
@@ -177,7 +181,7 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: navigan-source-connector
+  name: {connector_name}
   namespace: navigan-migration
 spec:
   replicas: 1
@@ -185,13 +189,13 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: navigan-source-connector
+      app.kubernetes.io/name: {connector_name}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: navigan-source-connector
+        app.kubernetes.io/name: {connector_name}
     spec:
-      serviceAccountName: navigan-source-connector
+      serviceAccountName: {connector_name}
 {pod_pull_secrets}      automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:
@@ -219,7 +223,7 @@ spec:
         - name: NAVIGAN_SOURCE_CONNECTOR_TOKEN
           valueFrom:
             secretKeyRef:
-              name: navigan-source-connector-credentials
+              name: {connector_name}-credentials
               key: connector-token
         - name: NAVIGAN_POLL_SECONDS
           value: "30"
@@ -263,7 +267,7 @@ subprocess.run(
 subprocess.run(
     [
         "kubectl", "--kubeconfig", kubeconfig, "-n", "navigan-migration",
-        "rollout", "status", "deployment/navigan-source-connector",
+        "rollout", "status", "deployment/" + connector_name,
         "--timeout=5m",
     ],
     check=True,

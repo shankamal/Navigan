@@ -131,6 +131,24 @@ class Repository:
         ).fetchall()
         return {"items": [serialize(row) for row in rows]}
 
+    def find_source_registration(self, source):
+        config = source.get("delivery_configuration") or {}
+        row = self.db.execute(
+            "SELECT source_cluster_id FROM migration_management.source_clusters "
+            "WHERE customer_id=%s AND status<>'REVOKED' AND delivery_method='AWS_SSM' "
+            "AND delivery_configuration->>'accountId'=%s "
+            "AND delivery_configuration->>'region'=%s "
+            "AND delivery_configuration->>'managedInstanceId'=%s "
+            "AND COALESCE(delivery_configuration->>'kubeconfigPath','/etc/kubernetes/admin.conf')=%s "
+            "ORDER BY EXISTS(SELECT 1 FROM migration_management.source_cluster_connectors sc "
+            "WHERE sc.source_cluster_id=source_clusters.source_cluster_id AND sc.status='ACTIVE' "
+            "AND sc.expires_at>now() AND sc.last_seen_at>now()-interval '2 minutes') DESC, "
+            "updated_at DESC,source_cluster_id LIMIT 1",
+            [source["customer_id"], config.get("accountId"), config.get("region"),
+             config.get("managedInstanceId"), config.get("kubeconfigPath") or "/etc/kubernetes/admin.conf"],
+        ).fetchone()
+        return self.get_source_cluster(row["source_cluster_id"], lock=True) if row else None
+
     def source_installation_conflicts(self, source):
         # Physical installation identity, never a display-name match. This is an
         # internal conflict check; Service redacts rows outside actor access.
@@ -566,7 +584,7 @@ class Repository:
 
     def save(self, row, old, action, correlation, create=False):
         if create:
-            self.db.execute(
+            inserted = self.db.execute(
                 "INSERT INTO migration_management.migrations("
                 "migration_id,customer_id,name,description,"
                 "source_platform,target_platform,source_configuration,"
@@ -574,7 +592,8 @@ class Repository:
                 "status,version,created_by,updated_by"
                 ") VALUES("
                 "%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,"
-                "%s,%s,%s,%s,%s)",
+                "%s,%s,%s,%s,%s) "
+                "ON CONFLICT(customer_id,name) DO NOTHING RETURNING migration_id",
                 [
                     row["migration_id"],
                     row["customer_id"],
@@ -591,7 +610,10 @@ class Repository:
                     row["created_by"],
                     row["updated_by"],
                 ],
-            )
+            ).fetchone()
+            if not inserted:
+                raise ApiError(409, "ASSESSMENT_NAME_EXISTS",
+                               "An assessment with this name already exists for this customer, including cancelled assessments. Choose a different name.")
         else:
             self.db.execute(
                 "UPDATE migration_management.migrations SET "

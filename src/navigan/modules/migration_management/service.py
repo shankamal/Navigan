@@ -705,6 +705,13 @@ class Service:
             "created_by": self.principal.user_id,
             "updated_by": self.principal.user_id,
         }
+        if row["delivery_method"] == "AWS_SSM":
+            self.repo.lock_source_installation(row)
+            existing = self.repo.find_source_registration(row)
+            if existing:
+                self.repo.audit_source_cluster(existing["source_cluster_id"], "SOURCE_CLUSTER_REUSED",
+                                               self.correlation, {"reason": "Reuse customer source installation"})
+                return serialize(existing)
         return serialize(
             self.repo.create_source_cluster(row, self.correlation)
         )
@@ -812,37 +819,13 @@ class Service:
                 "code": "ALREADY_CONNECTED",
                 "message": "This registration already has a recent connector heartbeat.",
             }
-        conflicts = self.repo.source_installation_conflicts(source)
-        visible = []
-        for other in conflicts:
-            try:
-                self.access.require_customer(other["customer_id"], other["created_by"])
-            except ApiError:
-                return {
-                    **result,
-                    "code": "OTHER_CUSTOMER_ACCESS_REQUIRED",
-                    "message": "Another customer registration uses this installation. A platform administrator with access to both customers must resolve the association.",
-                }
-            if other.get("installation_in_progress"):
-                return {
-                    **result,
-                    "code": "INSTALLATION_IN_PROGRESS",
-                    "message": "Another installation was started on this host within the last ten minutes. Wait for it to finish before recovery.",
-                }
-            if other["has_active_assignment"]:
-                return {
-                    **result,
-                    "code": "INSTALLATION_IN_USE",
-                    "message": "Another assessment is using this installation. Recovery is blocked to avoid interrupting it.",
-                }
-            visible.append(
-                {"sourceClusterId": other["source_cluster_id"], "customerName": other["customer_name"]}
-            )
+        # Installation resources are keyed by source registration. Other
+        # customers/environments on this host are never overwritten or revoked.
         return {
             "canRestore": True,
-            "code": "RESTORE_AVAILABLE",
-            "conflicts": visible,
-            "message": "Restore this customer's existing registration on its saved source host. Other registrations on the same installation will stop receiving heartbeats.",
+            "code": "SOURCE_SCOPED_INSTALL_AVAILABLE",
+            "conflicts": [],
+            "message": "This registration uses its own connector deployment and credentials. Existing source connections will not be replaced.",
         }
 
     def install_source_connector(self, identifier, body, installer):
@@ -870,12 +853,9 @@ class Service:
 
         if source_cluster.get("delivery_method") == "AWS_SSM":
             self.repo.lock_source_installation(source_cluster)
-            if not body.get("recoveryMigrationId") and self.repo.source_installation_conflicts(source_cluster):
-                raise ApiError(
-                    409,
-                    "SOURCE_INSTALLATION_ALREADY_REGISTERED",
-                    "This source host already has another active registration, installation or assessment. Reuse the authorised connection or restore the existing assessment connection.",
-                )
+            check = self.source_installation_check(source_cluster)
+            if not check["canRestore"]:
+                raise ApiError(409, check["code"], check["message"])
 
         if body.get("recoveryMigrationId"):
             migration = self.repo.get(body["recoveryMigrationId"], lock=True)
@@ -883,7 +863,7 @@ class Service:
             if (migration["customer_id"] != source_cluster["customer_id"]
                     or migration["source_configuration"].get("sourceClusterId") != identifier):
                 raise ApiError(409, "SOURCE_RECOVERY_CONTEXT_CHANGED", "The assessment source association changed. Reload before recovery.")
-            if migration["status"] not in {"SOURCE_ENROLLMENT_PENDING", "DISCOVERY_PENDING"}:
+            if migration["status"] not in {"DRAFT", "SOURCE_ENROLLMENT_PENDING", "DISCOVERY_PENDING"}:
                 raise ApiError(409, "SOURCE_RECOVERY_NOT_PENDING", "This assessment is not waiting for a source connector.")
             check = self.source_installation_check(source_cluster)
             if not check["canRestore"]:

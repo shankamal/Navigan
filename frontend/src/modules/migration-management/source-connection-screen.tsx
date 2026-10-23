@@ -351,6 +351,12 @@ export function SourceConnectionScreen({
     if (registered.deliveryMethod === "AWS_SSM") {
       const latest = await sourceClusters.get(registered.sourceClusterId, true);
       setSource(latest);
+      const heartbeatAge = Date.now() - Date.parse(typeof latest.connectorLastSeenAt === "string" ? latest.connectorLastSeenAt : "");
+      if (latest.installationCheck?.code === "ALREADY_CONNECTED" && latest.status === "CONNECTED" && heartbeatAge >= -30_000 && heartbeatAge < 120_000) {
+        setVerifiedAt(new Date().toISOString());
+        setNotice("Existing connector verified and reused. No installation was needed.");
+        return;
+      }
       const blocked = installationBlock(latest);
       if (blocked) {
         throw new ApiError(blocked, 409, "SOURCE_HOST_UNAVAILABLE");
@@ -395,10 +401,15 @@ export function SourceConnectionScreen({
     setVerifiedAt("");
     try {
       let registered = source;
-      if (!registered && possibleMatch && mode === "REGISTER")
-        throw new Error(
-          "This SSM host and kubeconfig already have a registration for this customer. Use the existing source connection instead.",
-        );
+      const reuseMatch = !registered && possibleMatch && mode === "REGISTER";
+      if (reuseMatch) {
+        registered = await sourceClusters.get(possibleMatch.sourceClusterId);
+        if (registered.customerId !== customer || registered.status === "REVOKED")
+          throw new Error("Select an available source registration belonging to this customer.");
+        setMode("EXISTING");
+        setExistingId(registered.sourceClusterId);
+        setSource(registered);
+      }
       if (!registered) {
         if (mode === "EXISTING") {
           registered = await sourceClusters.get(existingId);
@@ -446,6 +457,7 @@ export function SourceConnectionScreen({
           );
         }
         setSource(registered);
+        void sourcesQuery.refetch();
       }
       if (draft) {
         setDraft(
@@ -491,7 +503,7 @@ export function SourceConnectionScreen({
         url.searchParams.set("draft", created.migrationId);
         window.history.replaceState(null, "", url);
       }
-      if (installNow && mode === "REGISTER" && !commandId && !enrollment)
+      if (installNow && mode === "REGISTER" && !reuseMatch && !commandId && !enrollment)
         await deliver(registered);
       else
         setNotice(

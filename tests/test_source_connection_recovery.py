@@ -83,7 +83,8 @@ def test_recovery_reuses_existing_registration_and_does_not_modify_migration(set
     repo.source_installation_conflicts.return_value = [conflict()]
     check = service.source_installation_check(source)
     assert check["canRestore"] is True
-    assert check["conflicts"][0]["customerName"] == "Demo customer"
+    assert check["conflicts"] == []
+    assert check["code"] == "SOURCE_SCOPED_INSTALL_AVAILABLE"
     result = service.install_source_connector(SOURCE, body(), installer)
     assert result["sourceClusterId"] == SOURCE
     repo.lock_source_installation.assert_called_once_with(source)
@@ -92,28 +93,29 @@ def test_recovery_reuses_existing_registration_and_does_not_modify_migration(set
     repo.save.assert_not_called()
 
 
-def test_conflict_outside_customer_access_is_redacted_and_blocks_recovery(setup):
+def test_other_customer_does_not_block_isolated_installation_or_leak_metadata(setup):
     service, repo, source, installer = setup
     service.access = Access(("CUS-db",))
-    repo.source_installation_conflicts.return_value = [conflict(customer_name="Private customer")]
+    repo.source_installation_conflicts.return_value = [conflict(customer_name="Private customer", has_active_assignment=True)]
     check = service.source_installation_check(source)
-    assert check["canRestore"] is False
+    assert check["canRestore"] is True
     assert check["conflicts"] == []
     assert "Private customer" not in str(check)
+    service.install_source_connector(SOURCE, body(), installer)
+    repo.source_installation_conflicts.assert_not_called()
+    installer.start.assert_called_once()
+    repo.save.assert_not_called()
+
+
+def test_installation_of_a_source_outside_customer_access_is_still_denied(setup):
+    service, repo, source, installer = setup
+    service.access = Access(("CUS-demo",))
+    assert service.source_installation_check(source)["canRestore"] is False
     with pytest.raises(ApiError) as error:
         service.install_source_connector(SOURCE, body(), installer)
-    assert error.value.code == "OTHER_CUSTOMER_ACCESS_REQUIRED"
+    assert error.value.code == "FORBIDDEN"
     repo.create_source_enrollment.assert_not_called()
     installer.start.assert_not_called()
-
-
-def test_competing_assessment_prevents_installation(setup):
-    service, repo, source, installer = setup
-    repo.source_installation_conflicts.return_value = [conflict(has_active_assignment=True)]
-    with pytest.raises(ApiError) as error:
-        service.install_source_connector(SOURCE, body(), installer)
-    assert error.value.code == "INSTALLATION_IN_USE"
-    repo.create_source_enrollment.assert_not_called()
 
 
 def test_fresh_heartbeat_does_not_trigger_reinstall(setup):
@@ -187,21 +189,29 @@ def test_existing_source_get_route_returns_recovery_check_without_new_gateway_ro
 
 
 @pytest.mark.parametrize("pending", [False, True])
-def test_normal_install_cannot_overwrite_another_registration(setup, pending):
+def test_another_registrations_install_or_assessment_cannot_block_isolated_resources(setup, pending):
     service, repo, source, installer = setup
-    repo.source_installation_conflicts.return_value = [conflict(installation_in_progress=pending)]
-    with pytest.raises(ApiError) as error:
-        service.install_source_connector(SOURCE, {"version": 2, "reason": "New connector install"}, installer)
-    assert error.value.code == "SOURCE_INSTALLATION_ALREADY_REGISTERED"
+    repo.source_installation_conflicts.return_value = [conflict(installation_in_progress=pending, has_active_assignment=True)]
+    service.install_source_connector(SOURCE, {"version": 2, "reason": "New connector install"}, installer)
     repo.lock_source_installation.assert_called_once_with(source)
+    repo.source_installation_conflicts.assert_not_called()
+    installer.start.assert_called_once_with(source, repo.create_source_enrollment.call_args.args[1])
+    repo.save.assert_not_called()
+
+
+def test_normal_install_also_reuses_a_live_connector_instead_of_rotating_it(setup):
+    service, repo, source, installer = setup
+    source["connector_last_seen_at"] = datetime.now(timezone.utc)
+    with pytest.raises(ApiError) as error:
+        service.install_source_connector(SOURCE, {"version": 2, "reason": "Install connector"}, installer)
+    assert error.value.code == "ALREADY_CONNECTED"
     installer.start.assert_not_called()
     repo.create_source_enrollment.assert_not_called()
 
 
-def test_recovery_waits_for_other_installation_to_finish(setup):
+def test_recovery_can_start_from_an_existing_assessment_draft(setup):
     service, repo, source, installer = setup
-    repo.source_installation_conflicts.return_value = [conflict(installation_in_progress=True)]
-    with pytest.raises(ApiError) as error:
-        service.install_source_connector(SOURCE, body(), installer)
-    assert error.value.code == "INSTALLATION_IN_PROGRESS"
-    installer.start.assert_not_called()
+    repo.get.return_value["status"] = "DRAFT"
+    service.install_source_connector(SOURCE, body(), installer)
+    installer.start.assert_called_once()
+    repo.save.assert_not_called()
