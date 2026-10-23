@@ -1,3 +1,15 @@
+## Source connection installation guard — 23 October 2026 (Asia/Kolkata)
+
+Production frontend task :9 remains the last deployed revision. Authenticated testing found: the saved Db Schenker source SRC-9e51fbb33ad94ea482a24fa0b8a1c91c is PENDING_ENROLLMENT without an active heartbeat. A read-only PROD query also found JPMC India registration SRC-885c7419b2734265a70d91553d6c33d8 on the same physical SSM host/kubeconfig, status CONNECTED but no active connector heartbeat, with legacy corebanking DRAFT (discoveryMode absent). The existing backend treats that draft as an active assignment and blocks a competing installation. Customer-scoped listing correctly excludes the other customer's registration. Do not bypass the conflict or transfer ownership without an explicit customer decision.
+
+The initial Db Schenker assessment DBS_Migration_Assessment_Prod was CANCELLED. Reusing its name produced a generic error; after choosing DBS_Migration_Assessment_Prod_02, the user screenshot confirmed a saved/linked draft and missing heartbeat. Duplicate name is consistent with the existing customer/name unique constraint, but no exception log was collected. Friendly duplicate-name handling remains a separate follow-up.
+
+Frontend-only correction now uses the existing installationCheck API after saving a source and immediately before an AWS SSM installation. Missing/failed checks, denied access, active installation/assessment and any returned conflict prevent the install action; the API's explanation and Check host again appear beside verification. Even recoverable conflicts require the existing explicit recovery flow and cannot trigger an ordinary install. Previously connected registrations show Restore connector only when the host check is clear. Text distinguishes registration selection from a verified running connector. No backend/auth/database/ownership/source agent changes were made.
+
+Validation: 25 focused source connection/validation tests passed, including eight new conflict/unavailable/retry/stale registration checks; TypeScript and a local production build passed. This UI fix is committed for review/deployment, not yet live in PROD. Next: decide whether this lab stays with JPMC or is intended for Db Schenker; resolve the association through an authorized recovery/retirement flow or use a separate host, then verify a recent heartbeat. UI correction alone cannot establish the connector. Broader UI redesign remains on hold.
+
+---
+
 ## PROD frontend deployed — 23 October 2026 (Asia/Kolkata)
 
 User terminal output confirms successful preparation and execution of /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-frontend-necjkwes/release-plan.json. Current deployed frontend: arn:aws:ecs:ap-south-1:905418045935:task-definition/navigan-frontend-TaskDefinition-j9W80aX9PBkf:9. Rollback task remains the same family :8. Built from branch commit b461886889d7c35d0b4aaf47fa9d5d0ef40420c9; immutable running image verified as 905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:cfe98cb5d0627237424cd925a43939eb6d6d4a445750dd4c1c1370929e5f980e.

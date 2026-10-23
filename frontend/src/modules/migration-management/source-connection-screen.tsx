@@ -15,7 +15,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { customersService } from "@/modules/customer-management/services/customers";
-import { normalizeApiError } from "@/shared/api/client";
+import { ApiError, normalizeApiError } from "@/shared/api/client";
 import { migrations, sourceClusters } from "./service";
 import { useSourceClusters } from "./hooks";
 import type {
@@ -38,6 +38,15 @@ const journey = [
   "Review & approval",
   "Execute",
 ];
+
+function installationBlock(source: SourceClusterRegistration): string | null {
+  const check = source.installationCheck;
+  if (!check) return "Unable to check this host. Retry the connection check before installing.";
+  if (!check.canRestore) return check.message;
+  if (check.conflicts.length)
+    return "This host has another source registration. A platform administrator must resolve the association before installation. No connector has been changed.";
+  return null;
+}
 
 export function SourceConnectionScreen({
   initialDraftId,
@@ -123,6 +132,14 @@ export function SourceConnectionScreen({
   const connectedSources = (sourcesQuery.data?.items ?? []).filter(
     (item) => item.customerId === customer && item.status !== "REVOKED",
   );
+  const installationQuery = useQuery({
+    queryKey: ["source-connection", "installation-check", customer, source?.sourceClusterId],
+    queryFn: () => sourceClusters.get(source!.sourceClusterId, true),
+    enabled: Boolean(source && draft && source.deliveryMethod === "AWS_SSM" && !verifiedAt && !checkingUntil),
+    retry: false,
+    staleTime: 0,
+  });
+  const hostBlock = installationQuery.data ? installationBlock(installationQuery.data) : null;
   const customerOptions =
     customersQuery.data?.filter(
       (item) =>
@@ -332,8 +349,12 @@ export function SourceConnectionScreen({
 
   async function deliver(registered: SourceClusterRegistration) {
     if (registered.deliveryMethod === "AWS_SSM") {
-      const latest = await sourceClusters.get(registered.sourceClusterId);
+      const latest = await sourceClusters.get(registered.sourceClusterId, true);
       setSource(latest);
+      const blocked = installationBlock(latest);
+      if (blocked) {
+        throw new ApiError(blocked, 409, "SOURCE_HOST_UNAVAILABLE");
+      }
       const installation = await sourceClusters.install(
         latest.sourceClusterId,
         latest.version,
@@ -496,6 +517,7 @@ export function SourceConnectionScreen({
       await deliver(source);
     } catch (failure) {
       setError(normalizeApiError(failure).message);
+      if (source.deliveryMethod === "AWS_SSM") void installationQuery.refetch();
     } finally {
       setBusy(false);
     }
@@ -803,12 +825,14 @@ export function SourceConnectionScreen({
                 <span>
                   <CheckCircle2 size={14} />
                   {mode === "EXISTING"
-                    ? "Existing connection selected"
+                    ? "Existing registration selected"
                     : "Source cluster registered"}
                 </span>
                 <p>
                   {mode === "EXISTING"
-                    ? "The existing connector will be reused. No additional installation is required."
+                    ? verifiedAt
+                      ? "The running connector will be reused. No additional installation is required."
+                      : "Registration selected. Verify a recent connector heartbeat before continuing."
                     : "This cluster registration is linked to your assessment."}
                 </p>
               </div>
@@ -1207,8 +1231,9 @@ export function SourceConnectionScreen({
                     </dl>
                     <p className={styles.reuseNote}>
                       <ShieldCheck size={18} />
-                      Existing connector will be reused. No additional pod
-                      installation.
+                      {verifiedAt
+                        ? "Verified connector will be reused. No additional pod installation."
+                        : "A saved registration does not confirm a running connector. Verify the connection below."}
                     </p>
                   </>
                 ) : (
@@ -1481,7 +1506,8 @@ export function SourceConnectionScreen({
                 source &&
                 !verifiedAt &&
                 !checkingUntil &&
-                (commandId || source.status !== "CONNECTED") && (
+                (source.deliveryMethod !== "AWS_SSM" ||
+                  (installationQuery.isSuccess && !installationQuery.isFetching && !hostBlock)) && (
                   <button
                     type="button"
                     onClick={retryDelivery}
@@ -1490,7 +1516,9 @@ export function SourceConnectionScreen({
                     {source.deliveryMethod === "AWS_SSM"
                       ? commandId
                         ? "Retry installation"
-                        : "Install connector"
+                        : source.lastConnectedAt || source.status === "CONNECTED"
+                          ? "Restore connector"
+                          : "Install connector"
                       : "Generate enrollment configuration"}
                   </button>
                 )}
@@ -1505,6 +1533,20 @@ export function SourceConnectionScreen({
             </div>
           </div>
           <div aria-live="polite" className={styles.feedback}>
+            {source && draft && source.deliveryMethod === "AWS_SSM" && !verifiedAt && !checkingUntil && (
+              <div>
+                {installationQuery.isFetching ? (
+                  <p>Checking source host availability…</p>
+                ) : installationQuery.isError || hostBlock ? (
+                  <p role="status">
+                    {installationQuery.isError
+                      ? "Unable to check source host availability. Installation is unavailable until the check succeeds."
+                      : hostBlock}
+                    {" "}<button type="button" disabled={locked} onClick={() => installationQuery.refetch()}>Check host again</button>
+                  </p>
+                ) : null}
+              </div>
+            )}
             {notice && <p>{notice}</p>}
             {verifiedAt && (
               <small>Verified {new Date(verifiedAt).toLocaleString()}</small>

@@ -46,6 +46,7 @@ const source = {
   version: 1,
   deliveryMethod: "AWS_SSM",
   connectorLastSeenAt: new Date().toISOString(),
+  installationCheck: { canRestore: true, code: "RESTORE_AVAILABLE", message: "Host available", conflicts: [] },
 };
 function open() {
   return render(
@@ -436,4 +437,81 @@ it("defaults a new assessment to the accessible active DB Schenker record withou
       "CUS-real-db-record",
     ),
   );
+});
+
+async function saveExistingRegistration() {
+  open();
+  await identify();
+  fireEvent.click(screen.getByRole("radio", { name: /Use a connected/ }));
+  fireEvent.change(await screen.findByLabelText(/^Connected source cluster/), {
+    target: { value: source.sourceClusterId },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await screen.findByRole("button", { name: "Verify connection" });
+}
+
+it.each([
+  ["INSTALLATION_IN_USE", "Another assessment is using this installation."],
+  ["OTHER_CUSTOMER_ACCESS_REQUIRED", "A platform administrator must resolve the association."],
+  ["INSTALLATION_IN_PROGRESS", "Another installation is in progress."],
+  ["FORBIDDEN", "Recovery requires edit access to this customer."],
+])("blocks installation and explains %s for an existing registration", async (code, message) => {
+  const pending = { ...source, status: "PENDING_ENROLLMENT", connectorLastSeenAt: null,
+    installationCheck: { canRestore: false, code, message, conflicts: [] } };
+  api.list.mockResolvedValue({ items: [pending] });
+  api.get.mockResolvedValue(pending);
+  await saveExistingRegistration();
+  expect(await screen.findByText(message)).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Install connector|Restore connector/ })).not.toBeInTheDocument();
+  expect(screen.getByText("Existing registration selected")).toBeVisible();
+  expect(screen.queryByText(/The existing connector will be reused/)).not.toBeInTheDocument();
+  expect(api.install).not.toHaveBeenCalled();
+  expect(api.get).toHaveBeenCalledWith(source.sourceClusterId, true);
+});
+
+it("does not treat recoverable conflicts as permission for a normal installation", async () => {
+  api.get.mockResolvedValue({ ...source, status: "PENDING_ENROLLMENT", installationCheck: {
+    canRestore: true, code: "RESTORE_AVAILABLE", message: "Recovery available",
+    conflicts: [{ sourceClusterId: "SRC-other", customerName: "Other customer" }],
+  } });
+  await saveExistingRegistration();
+  expect(await screen.findByText(/This host has another source registration/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Install connector|Restore connector/ })).not.toBeInTheDocument();
+  expect(api.install).not.toHaveBeenCalled();
+});
+
+it("fails closed when the host check cannot be loaded and supports retry", async () => {
+  api.get.mockImplementation(async (_id, check) => {
+    if (check) throw new Error("Unavailable");
+    return { ...source, status: "PENDING_ENROLLMENT" };
+  });
+  await saveExistingRegistration();
+  expect(await screen.findByText(/Unable to check source host availability/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Install connector" })).not.toBeInTheDocument();
+  api.get.mockResolvedValue({ ...source, status: "PENDING_ENROLLMENT", installationCheck: undefined });
+  fireEvent.click(screen.getByRole("button", { name: "Check host again" }));
+  expect(await screen.findByText(/Unable to check this host/)).toBeVisible();
+  expect(api.install).not.toHaveBeenCalled();
+});
+
+it("rechecks the host before installation and blocks a newly reported conflict", async () => {
+  const pending = { ...source, status: "PENDING_ENROLLMENT", connectorLastSeenAt: null };
+  api.list.mockResolvedValue({ items: [pending] });
+  api.get.mockResolvedValue(pending);
+  await saveExistingRegistration();
+  const install = await screen.findByRole("button", { name: "Install connector" });
+  api.get.mockResolvedValue({ ...pending, installationCheck: {
+    canRestore: false, code: "INSTALLATION_IN_USE", message: "Host became unavailable", conflicts: [],
+  } });
+  fireEvent.click(install);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Host became unavailable");
+  expect(api.install).not.toHaveBeenCalled();
+});
+
+it("offers restore for a previously connected registration only after a clear host check", async () => {
+  api.get.mockResolvedValue({ ...source, connectorLastSeenAt: "2020-01-01T00:00:00Z" });
+  await saveExistingRegistration();
+  expect(await screen.findByRole("button", { name: "Restore connector" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Install connector" })).not.toBeInTheDocument();
+  expect(api.install).not.toHaveBeenCalled();
 });
