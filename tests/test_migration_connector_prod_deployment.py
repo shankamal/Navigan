@@ -103,10 +103,10 @@ def test_environment_and_package_reference_tampering_rejected():
         release.validate_children([change()], before, after, CONFIG, CODE)
 
 
-def test_package_replaces_two_modules_and_preserves_dependencies(tmp_path):
+def test_package_replaces_contract_modules_and_preserves_dependencies(tmp_path):
     original = tmp_path / "original.zip"
     entries = {release.PREFIX + name: b"old source" for name in release.MODULES}
-    entries.update({release.PREFIX + "models.py": b"original models", "dependency.so": b"native-dependency",
+    entries.update({release.PREFIX + "repository.py": b"original repository", "dependency.so": b"native-dependency",
         release.PREFIX + "__pycache__/connector_handler.cpython-312.pyc": b"old-bytecode"})
     with zipfile.ZipFile(original, "w") as package:
         for name, content in entries.items():
@@ -116,7 +116,7 @@ def test_package_replaces_two_modules_and_preserves_dependencies(tmp_path):
         for name in release.MODULES:
             assert package.read(release.PREFIX + name) == (ROOT / "src" / release.PREFIX / name).read_bytes()
         assert package.read("dependency.so") == b"native-dependency"
-        assert package.read(release.PREFIX + "models.py") == b"original models"
+        assert package.read(release.PREFIX + "repository.py") == b"original repository"
         assert not any(name.endswith(".pyc") for name in package.namelist())
     with zipfile.ZipFile(original) as package:
         assert package.read("dependency.so") == b"native-dependency"
@@ -128,3 +128,15 @@ def test_unexpected_package_layout_is_rejected(tmp_path):
         package.writestr("unrelated.py", b"pass")
     with pytest.raises(RuntimeError):
         release.package_connector(original, tmp_path)
+
+
+def test_package_adds_runtime_evidence_validator_to_older_connector_bundle(tmp_path):
+    original = tmp_path / "older.zip"
+    with zipfile.ZipFile(original, "w") as package:
+        for name in ("connector_handler.py", "assessment_engine.py", "models.py"):
+            package.writestr(release.PREFIX + name, b"old source")
+        package.writestr("native.so", b"unchanged")
+    result = release.package_connector(original, tmp_path)
+    with zipfile.ZipFile(result) as package:
+        assert package.read(release.PREFIX + "deployment_sources.py") == (ROOT / "src" / release.PREFIX / "deployment_sources.py").read_bytes()
+        assert package.read("native.so") == b"unchanged"

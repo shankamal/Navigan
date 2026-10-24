@@ -33,7 +33,7 @@ spec.loader.exec_module(api)
 ACCOUNT, REGION, PARENT = api.ACCOUNT, api.REGION, api.PARENT
 FUNCTION = "MigrationConnectorFunction"
 FLAG = "MIGRATION_SOURCE_FIRST_ENABLED"
-MODULES = ("connector_handler.py", "assessment_engine.py")
+MODULES = ("connector_handler.py", "assessment_engine.py", "models.py", "deployment_sources.py")
 PREFIX = "navigan/modules/migration_management/"
 require = api.require
 
@@ -52,7 +52,7 @@ def package_connector(original, directory, source=ROOT):
     with zipfile.ZipFile(original) as old:
         names = old.namelist()
         require(len(names) == len(set(names)), "Original connector ZIP contains duplicate members")
-        require(all(name in names for name in replacements), "Unexpected connector package layout")
+        require(all(PREFIX + name in names for name in ("connector_handler.py", "assessment_engine.py", "models.py")), "Unexpected connector package layout")
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
                 if entry.filename.startswith(PREFIX) and entry.filename.endswith(".pyc") and any(
@@ -60,7 +60,10 @@ def package_connector(original, directory, source=ROOT):
                     for name in MODULES
                 ):
                     continue
-                new.writestr(entry, replacements.get(entry.filename, old.read(entry.filename)))
+                content = replacements.pop(entry.filename, None)
+                new.writestr(entry, old.read(entry.filename) if content is None else content)
+            for name, content in sorted(replacements.items()):
+                new.writestr(name, content)
     with zipfile.ZipFile(target) as package:
         require(sum(entry.file_size for entry in package.infolist()) <= 250 * 1024 * 1024, "Lambda uncompressed package limit exceeded")
     return target
