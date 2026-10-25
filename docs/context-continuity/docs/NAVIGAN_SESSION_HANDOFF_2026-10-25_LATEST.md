@@ -1,5 +1,21 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## DEV parity follow-up — second live inventory and packaging correction
+
+User explicitly ordered: finish DEV–PROD parity first, then reconcile the SAM deployment method. Do not start SAM changes yet.
+
+- User execution output confirms all three DEV summary routes/packages deployed and verified using the hf5p046v release plan.
+- User execution output confirms DEV MigrationFunction updated through the legacy --migration-only --apply helper; rollback record: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-source-connection-dev-7w4sdsgf.
+- Second inventory at 2026-10-25T17:24:56.013091+00:00, checkout f79de2b: both inventory error lists empty. DEV has 134 routes, PROD 133; no PROD-only routes; the sole DEV extra is connector upgrade. All common route auth metadata matches.
+- Four previously differing MigrationFunction source files now match PROD. However DEV artifact_workspace.py became the newer committed c42fb1d version (SHA-256 8eae340425badf85f7cc537b57b30c28d59d4b94954a0f1659c8abb823f89bdb). PROD still runs the prior reviewed file (SHA-256 1cd70fe6275537bcbd5c7719ee496c3ade6c9a3f90bcab6d45476d2c75d14e81). Both hashes independently matched the respective GitHub versions.
+- The newer file lazily imports workspace_reuse.py during workspace creation; that module is absent from both deployed ZIP inventories. The old DEV helper omitted it. This is a packaging defect introduced into DEV by the advised sync command, not proof of an observed user-facing exception. Correct it promptly.
+- Added scripts/align-dev-workspace-with-prod.py: exact reviewed PROD/DEV source hashes, all other migration Python files must already match; replace only artifact_workspace.py in DEV's current ZIP, remove its stale bytecode, preserve every unrelated member and DEV configuration. AWS reads-only by default/--prepare; --apply prepares and executes the same one-file correction; --execute PLAN supports an exact private plan. Identity/revision/package/config checks guard the update; private rollback retained. No PROD, schema, IAM, source-agent, collector or storage mutations.
+- Fixed the legacy DEV helper to bundle workspace_reuse.py as an additive module on future deployments. Do not rerun that broader helper simply to apply this correction: it would install the newer branch workspace behavior again. SAM reconciliation must later capture the selected baseline and all dependencies.
+- 45 focused offline tests passed, including a simulated execute proving exactly one DEV Lambda code write and preserved environment. Live correction execution remains pending.
+- PROD frontend remains revision 23 with desired/running 1/1 and rollout COMPLETED. Both image worker services remain 1/1, but source/configuration parity is not established by service health or differing image digests.
+- Remaining after correction: repository/image collector code and runtime/dependency comparison; schema/grants, IAM/trust and storage/configuration checks; local DEV frontend restart and authenticated migration/collection/export smoke checks. No full parity claim is justified yet.
+
+
 ## DEV parity findings — uploaded live inventory, 25 October 2026
 
 This observation supersedes earlier revision-23-unconfirmed notes below.

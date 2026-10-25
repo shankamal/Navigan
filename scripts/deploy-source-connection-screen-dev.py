@@ -27,6 +27,7 @@ FILES = [
     "artifact_workspace.py",
     "workspace_export.py",
     "workspace_collection.py",
+    "workspace_reuse.py",
     "repository_collector.py",
     "workspace_worker.py",
     "image_collector.py",
@@ -39,7 +40,7 @@ FILES = [
 ADDITIVE_FILES = {
     "deployment_sources.py", "source_authentication.py", "artifact_recovery.py", "recovery_worker.py",
     "artifact_workspace.py",
-    "workspace_export.py", "workspace_collection.py", "repository_collector.py", "workspace_worker.py",
+    "workspace_export.py", "workspace_collection.py", "workspace_reuse.py", "repository_collector.py", "workspace_worker.py",
     "image_collector.py", "image_worker.py",
 }
 
