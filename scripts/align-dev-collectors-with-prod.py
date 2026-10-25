@@ -91,8 +91,35 @@ def manifest(ecr,repository,digest):
     require(len(rows)==1,'Conflicting ECR manifest rows')
     row=next(iter(rows));require(row[0]==digest,'ECR returned another digest')
     value=json.loads(row[1])
-    require(value.get('config',{}).get('digest') and value.get('layers'),'Expected a single-platform collector manifest; inspect an index before proceeding')
+    require((value.get('config',{}).get('digest') and value.get('layers')) or
+            isinstance(value.get('manifests'),list),'Expected a collector image manifest or index')
     return value
+
+
+def runtime_manifest(ecr,repository,digest):
+    """Resolve only an unambiguous baseline linux/amd64 image, ignoring attestations."""
+    seen=set()
+    for _ in range(4):
+        require(digest not in seen,'Cyclic collector image index')
+        seen.add(digest)
+        value=manifest(ecr,repository,digest)
+        if value.get('config',{}).get('digest') and value.get('layers'):
+            return digest,value
+        candidates=[m for m in value['manifests'] if
+                    m.get('platform',{}).get('os')=='linux' and
+                    m.get('platform',{}).get('architecture')=='amd64' and
+                    m.get('platform',{}).get('variant') in (None,'','v1')]
+        require(len(candidates)==1,'Collector index must contain exactly one baseline linux/amd64 image')
+        child=candidates[0]
+        require(child.get('mediaType') in (
+                    'application/vnd.oci.image.manifest.v1+json',
+                    'application/vnd.docker.distribution.manifest.v2+json',
+                    'application/vnd.oci.image.index.v1+json',
+                    'application/vnd.docker.distribution.manifest.list.v2+json') and
+                isinstance(child.get('digest'),str) and child['digest'].startswith('sha256:'),
+                'Unsupported collector index descriptor')
+        digest=child['digest']
+    raise RuntimeError('Collector image index exceeds the supported nesting depth')
 
 
 def content_identity(value):
@@ -101,7 +128,9 @@ def content_identity(value):
 
 def copy_image(session,source,directory):
     ecr=session.client('ecr');source_digest=source.rsplit('@',1)[1]
-    expected=manifest(ecr,PROD_REPOSITORY,source_digest)
+    source_digest,expected=runtime_manifest(ecr,PROD_REPOSITORY,source_digest)
+    # Pull/tag the verified platform manifest, rather than an index or attestation.
+    source=REGISTRY+'/'+PROD_REPOSITORY+'@'+source_digest
     with tempfile.TemporaryDirectory(prefix='docker-auth-',dir=directory) as authdir:
         docker=['docker','--config',authdir]
         def run(*args,**kw):
@@ -127,7 +156,8 @@ def copy_image(session,source,directory):
             run('tag',source,target);run('push',target)
             found=ecr.describe_images(repositoryName=DEV_REPOSITORY,imageIds=[{'imageTag':tag}])['imageDetails']
             require(len(found)==1,'DEV image digest cannot be resolved');dest=found[0]['imageDigest']
-        require(content_identity(manifest(ecr,DEV_REPOSITORY,dest))==content_identity(expected),
+        dest,copied=runtime_manifest(ecr,DEV_REPOSITORY,dest)
+        require(content_identity(copied)==content_identity(expected),
                 'Copied DEV image content differs from PROD')
         return REGISTRY+'/'+DEV_REPOSITORY+'@'+dest
 

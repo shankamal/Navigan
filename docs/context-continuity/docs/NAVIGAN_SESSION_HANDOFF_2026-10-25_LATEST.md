@@ -1,5 +1,16 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## Collector image-index correction — no runtime promotion in failed attempt
+
+- User ran collector --apply at ce345cd. Private plan: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-dev-collector-parity-zk9x6g4e/release-plan.json.
+- Preparation succeeded, then copy_image stopped at the single-platform manifest guard. Failure occurred during initial ECR manifest reads, before Docker copy/push, task registration, Lambda update or ECS service update. No collector promotion occurred.
+- Fixed helper to resolve OCI indexes/Docker manifest lists to exactly one baseline linux/amd64 child, ignoring arm64 and unknown-platform attestation entries. Missing/ambiguous matches, unsupported descriptors, mismatched requested digests, cycles and excessive nesting remain blocked.
+- Copy now explicitly pulls/tags the verified PROD child digest. DEV destination is also resolved to the verified platform child; returned DEV URI and final running-task digest checks use that child rather than its index digest. Exact config and ordered-layer comparison and identical-duplicate ECR row checks remain enforced.
+- 74 focused tests passed, including an integration-style mocked copy that starts from PROD/DEV indexes, verifies pulling only the selected PROD child and returns the DEV child URI, plus missing/ambiguous/cyclic index tests.
+- Retry by pulling the correction and --execute of the existing zk9x6g4e plan. Runtime revision/config checks still stop if either environment changed since preparation; do not bypass them or pick an arbitrary latest plan.
+- Collector promotion, minimum PROD target-assessment grants, authenticated workflow validation and subsequent SAM reconciliation remain pending. Do not mark parity complete.
+
+
 ## Collector parity promotion prepared / database grant gap identified
 
 - The runtime report pasted as Pasted text(9).txt is truncated at the beginning of DEV's section. Remaining fields were parsed individually, not treated as a complete JSON report. User then supplied the compact extraction from the original local MWbpd6 report: DEV errors=[], PROD errors=[]; the only catalog difference is navigan_api privileges on migration_management.migration_target_assessments.

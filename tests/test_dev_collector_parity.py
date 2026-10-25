@@ -62,6 +62,92 @@ def test_content_identity_requires_exact_config_and_ordered_layers():
     assert release.content_identity(a)!=release.content_identity(b)
 
 
+def image_index(children,media='application/vnd.oci.image.index.v1+json'):
+    return {'schemaVersion':2,'mediaType':media,'manifests':children}
+
+
+def child(digest='sha256:amd64',os='linux',arch='amd64'):
+    return {'digest':digest,'mediaType':'application/vnd.oci.image.manifest.v1+json',
+            'platform':{'os':os,'architecture':arch}}
+
+
+def test_resolves_amd64_and_ignores_attestation_and_arm(monkeypatch):
+    leaf={'config':{'digest':'config'},'layers':[{'digest':'layer'}]}
+    values={'sha256:index':image_index([child(),child('sha256:arm',arch='arm64'),
+               child('sha256:attestation',os='unknown',arch='unknown')]),'sha256:amd64':leaf}
+    calls=[]
+    def manifest(ecr,repository,digest):
+        calls.append(digest);return values[digest]
+    monkeypatch.setattr(release,'manifest',manifest)
+    assert release.runtime_manifest(object(),'repo','sha256:index')==('sha256:amd64',leaf)
+    assert calls==['sha256:index','sha256:amd64']
+
+
+def test_docker_manifest_list_and_direct_manifest_are_supported(monkeypatch):
+    leaf={'config':{'digest':'config'},'layers':[{'digest':'layer'}]}
+    values={'index':image_index([child()],media='application/vnd.docker.distribution.manifest.list.v2+json'),
+            'sha256:amd64':leaf}
+    monkeypatch.setattr(release,'manifest',lambda ecr,repository,digest:values[digest])
+    assert release.runtime_manifest(object(),'repo','index')==('sha256:amd64',leaf)
+    assert release.runtime_manifest(object(),'repo','sha256:amd64')==('sha256:amd64',leaf)
+
+
+@pytest.mark.parametrize('children',[
+    [child('sha256:arm',arch='arm64')],
+    [child(),child('sha256:other-amd64')],
+    [child('sha256:attestation',os='unknown',arch='unknown')],
+])
+def test_rejects_missing_or_ambiguous_amd64_platform(monkeypatch,children):
+    monkeypatch.setattr(release,'manifest',lambda *args:image_index(children))
+    with pytest.raises(RuntimeError,match='exactly one baseline linux/amd64'):
+        release.runtime_manifest(object(),'repo','sha256:index')
+
+
+def test_rejects_index_cycles(monkeypatch):
+    monkeypatch.setattr(release,'manifest',lambda *args:image_index([child('sha256:index')]))
+    with pytest.raises(RuntimeError,match='Cyclic'):
+        release.runtime_manifest(object(),'repo','sha256:index')
+
+
+def test_index_child_still_requires_matching_manifest_digest():
+    leaf={'config':{'digest':'config'},'layers':[{'digest':'layer'}]}
+    ecr=SimpleNamespace(batch_get_image=lambda **kw:{'images':[{
+        'imageId':{'imageDigest':'sha256:unexpected'},'imageManifest':json.dumps(leaf)}]})
+    with pytest.raises(RuntimeError,match='another digest'):
+        release.runtime_manifest(ecr,'repo','sha256:expected')
+
+
+def test_copy_pulls_verified_child_and_returns_dev_child_digest(tmp_path,monkeypatch):
+    import base64
+    leaf={'config':{'digest':'sha256:config'},'layers':[{'digest':'sha256:layer'}]}
+    values={'sha256:prod-index':image_index([child('sha256:prod-child')]),
+            'sha256:prod-child':leaf,'sha256:dev-index':image_index([child('sha256:dev-child')]),
+            'sha256:dev-child':leaf}
+    class ECR:
+        def batch_get_image(self,repositoryName,imageIds):
+            identifier=imageIds[0]
+            digest=identifier.get('imageDigest','sha256:dev-index')
+            return {'images':[{'imageId':{'imageDigest':digest},'imageManifest':json.dumps(values[digest]),
+                               'imageManifestMediaType':values[digest].get('mediaType','application/vnd.oci.image.manifest.v1+json')}]}
+        def get_authorization_token(self,**kwargs):
+            return {'authorizationData':[{'authorizationToken':base64.b64encode(b'AWS:test').decode()}]}
+        def describe_repositories(self,**kwargs):
+            assert kwargs['repositoryNames']==[release.DEV_REPOSITORY]
+            return {'repositories':[{'registryId':release.ACCOUNT}]}
+    calls=[]
+    def run(command,**kwargs):
+        calls.append(command)
+        stdout=json.dumps([{'Architecture':'amd64','Os':'linux','Id':'sha256:config'}]).encode() if 'inspect' in command else b''
+        return SimpleNamespace(stdout=stdout)
+    monkeypatch.setattr(release.subprocess,'run',run)
+    session=SimpleNamespace(client=lambda name:ECR())
+    result=release.copy_image(session,release.REGISTRY+'/'+release.PROD_REPOSITORY+'@sha256:prod-index',tmp_path)
+    assert result==release.REGISTRY+'/'+release.DEV_REPOSITORY+'@sha256:dev-child'
+    pulled=next(c for c in calls if 'pull' in c)
+    assert pulled[-1]==release.REGISTRY+'/'+release.PROD_REPOSITORY+'@sha256:prod-child'
+    assert not any('push' in c for c in calls)
+
+
 def test_stable_does_not_accept_early_service_waiter_state():
     assert release.stable(service())
     assert not release.stable(service(rollout='IN_PROGRESS'))
