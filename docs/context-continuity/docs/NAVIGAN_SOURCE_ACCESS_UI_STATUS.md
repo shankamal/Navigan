@@ -1,3 +1,11 @@
+## 2026-10-25 — Compact login controls and narrower dark panel
+
+- User approved smaller email/password fields, Sign in button and slightly narrower right panel.
+- CSS only: desktop split 64/36 (previously 60.3/39.7), form maximum 360px (previously 440px), desktop control height 40px. Narrow two-column layouts use 55/45; mobile inputs/tap targets retain 48px/44px heights.
+- Approved branding, slogan and Deloitte green preserved. No auth or backend changes.
+- Fixture build passed; actual-component browser preview has no horizontal/vertical document overflow at 1536x696 and 1024x600.
+- User output confirms PROD revision 22 COMPLETED with 1 running task. Earlier deploy script failure preceded completed rollout; final script image/HTTP checks were not reached. This compact-controls follow-up still requires fresh frontend prepare/execute.
+
 ## 2026-10-25 — ECR duplicate manifest verification fix
 
 - Frontend prepare built/pushed image for accepted login commit 1a7fab6, then stopped before candidate registration: ECR batch_get_image returned two rows for the same requested digest with no failures.
