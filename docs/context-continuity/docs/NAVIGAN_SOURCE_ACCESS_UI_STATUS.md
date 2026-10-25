@@ -1,3 +1,10 @@
+## 2026-10-25 — Login composition follow-up
+
+- User rejected the first no-scroll layout: the illustration was still capped at 42vh, leaving a large gap and unused width; login form remained top-heavy.
+- CSS-only correction: illustration fits its full allocated grid cell, login form vertically centred, maximum form width 440px, moderate heading/wordmark sizes restored. Approved art, colours, sign-in functionality unchanged.
+- Actual-component browser fixture checked at 1536x696 and 1280x580: document scroll and client dimensions match in both axes. Fixture production build passed. These are presentation checks, not live Cognito verification.
+- Requires a newly prepared frontend image after pulling this change.
+
 ## 2026-10-25 — Login viewport sizing correction
 
 - Follow-up to the production screenshot: oversized width-driven typography and spacing made the normal login overflow on shorter / scaled laptop viewports.
