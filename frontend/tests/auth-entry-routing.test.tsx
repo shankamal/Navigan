@@ -40,9 +40,11 @@ describe("Navigan authentication entry routing", () => {
     expect(navigation.redirect).toHaveBeenCalledWith("/login");
   });
 
-  it("displays the login splash only at /login for signed-out users", () => {
+  it("displays the login splash only at /login for signed-out users", async () => {
     render(<AuthGate>Private workspace</AuthGate>);
-    expect(screen.getByRole("region", { name: "About Navigan" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "About Navigan" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Sign-in form")).toBeInTheDocument();
     expect(screen.queryByText("Private workspace")).not.toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
@@ -52,9 +54,13 @@ describe("Navigan authentication entry routing", () => {
     navigation.pathname = "/dashboard";
     render(<AuthGate>Private workspace</AuthGate>);
     expect(screen.getByText("Opening secure sign-in…")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "About Navigan" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "About Navigan" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Private workspace")).not.toBeInTheDocument();
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/login"));
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/login"),
+    );
   });
 
   it("forwards signed-in users from /login to the dashboard", async () => {
@@ -65,8 +71,12 @@ describe("Navigan authentication entry routing", () => {
     });
     render(<AuthGate>Already signed in</AuthGate>);
     expect(screen.getByText("Opening your dashboard…")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "About Navigan" })).not.toBeInTheDocument();
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/dashboard"));
+    expect(
+      screen.queryByRole("region", { name: "About Navigan" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/dashboard"),
+    );
   });
 
   it("renders authenticated workspace content without navigation", () => {

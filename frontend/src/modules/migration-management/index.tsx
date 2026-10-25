@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { IntentLink as Link } from "@/shared/components/intent-link";
 import { useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -30,7 +30,6 @@ import {
 } from "@/shared/auth/permissions";
 import { normalizeApiError } from "@/shared/api/client";
 import { Button, PageHeading } from "@/shared/components/ui";
-import { AssessmentWizard } from "./assessment-wizard";
 import {
   useCancelMigration,
   useDeleteMigrationAssessment,
@@ -675,9 +674,3 @@ export function MigrationManagementPage() {
     </div>
   );
 }
-
-export function MigrationCreatePage() {
-  return <AssessmentWizard />;
-}
-
-export { AssessmentReportCard } from "./assessment-report";

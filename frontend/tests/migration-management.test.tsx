@@ -1,14 +1,21 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  AssessmentReportCard,
-  MigrationCreatePage,
-  MigrationManagementPage,
-} from "@/modules/migration-management";
+import { MigrationManagementPage } from "@/modules/migration-management";
+import { MigrationCreatePage } from "@/modules/migration-management/create-page";
+import { AssessmentReportCard } from "@/modules/migration-management/assessment-report";
 import { sourceClusters } from "@/modules/migration-management/service";
 
-const deletionState = vi.hoisted(() => ({ items: [] as Record<string, unknown>[], mutate: vi.fn() }));
+const deletionState = vi.hoisted(() => ({
+  items: [] as Record<string, unknown>[],
+  mutate: vi.fn(),
+}));
 const catalogueAvailability = vi.hoisted(() => ({ ready: true }));
 const connectedSourceState = vi.hoisted(() => ({
   items: [] as Record<string, unknown>[],
@@ -85,7 +92,12 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 }));
 
 vi.mock("@/modules/migration-management/hooks", () => ({
-  useDeleteMigrationAssessment: () => ({ mutate: deletionState.mutate, isPending: false, isError: false, isSuccess: false }),
+  useDeleteMigrationAssessment: () => ({
+    mutate: deletionState.mutate,
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+  }),
   useCancelMigration: () => ({
     mutate: vi.fn(),
     isPending: false,
@@ -310,18 +322,20 @@ describe("Migration UI", () => {
   it("can retry an enrolled source without inventory using its latest version", async () => {
     catalogueAvailability.ready = false;
     const sourceId = "SRC-" + "f".repeat(32);
-    connectedSourceState.items = [{
-      sourceClusterId: sourceId,
-      customerId: "CUS-active",
-      name: "Previously enrolled source",
-      distribution: "kubeadm",
-      locationType: "CLOUD",
-      cloudProvider: "AWS",
-      region: "ap-south-1",
-      deliveryMethod: "AWS_SSM",
-      status: "CONNECTED",
-      version: 2,
-    }];
+    connectedSourceState.items = [
+      {
+        sourceClusterId: sourceId,
+        customerId: "CUS-active",
+        name: "Previously enrolled source",
+        distribution: "kubeadm",
+        locationType: "CLOUD",
+        cloudProvider: "AWS",
+        region: "ap-south-1",
+        deliveryMethod: "AWS_SSM",
+        status: "CONNECTED",
+        version: 2,
+      },
+    ];
     vi.mocked(sourceClusters.install).mockClear();
 
     try {
@@ -702,34 +716,65 @@ describe("Migration UI", () => {
   });
 });
 
-
-
 it("offers delete for every assessment status and confirms the specific assessment", () => {
-  const statuses = ["DRAFT", "SOURCE_ENROLLMENT_PENDING", "INVENTORY_DISCOVERING", "INVENTORY_READY", "DISCOVERY_PENDING", "DISCOVERING", "ASSESSING", "ASSESSMENT_READY", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "FAILED", "CANCELLED"];
+  const statuses = [
+    "DRAFT",
+    "SOURCE_ENROLLMENT_PENDING",
+    "INVENTORY_DISCOVERING",
+    "INVENTORY_READY",
+    "DISCOVERY_PENDING",
+    "DISCOVERING",
+    "ASSESSING",
+    "ASSESSMENT_READY",
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "APPROVED",
+    "REJECTED",
+    "FAILED",
+    "CANCELLED",
+  ];
   deletionState.items = statuses.map((status, index) => ({
-    migrationId: `MIG-${index}`, name: `Assessment ${status}`, status, version: 3,
-    customerName: "DB Schenker", customerId: "CUS-db", sourcePlatform: "SELF_MANAGED_KUBERNETES",
-    targetPlatform: "EKS", executionMode: "ASSESSMENT_ONLY", updatedAt: "2026-10-19T08:00:00Z",
+    migrationId: `MIG-${index}`,
+    name: `Assessment ${status}`,
+    status,
+    version: 3,
+    customerName: "DB Schenker",
+    customerId: "CUS-db",
+    sourcePlatform: "SELF_MANAGED_KUBERNETES",
+    targetPlatform: "EKS",
+    executionMode: "ASSESSMENT_ONLY",
+    updatedAt: "2026-10-19T08:00:00Z",
   }));
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   deletionState.mutate.mockClear();
   try {
     render(<MigrationManagementPage />);
-    fireEvent.change(screen.getByLabelText("Stage"), { target: { value: "ALL" } });
+    fireEvent.change(screen.getByLabelText("Stage"), {
+      target: { value: "ALL" },
+    });
     for (const status of statuses) {
       const actions = screen.getByLabelText(`Actions for Assessment ${status}`);
       fireEvent.click(actions);
-      const button = within(actions.parentElement!).getByRole("button", { name: "Delete assessment" });
+      const button = within(actions.parentElement!).getByRole("button", {
+        name: "Delete assessment",
+      });
       expect(button).toBeEnabled();
     }
     const actions = screen.getByLabelText("Actions for Assessment APPROVED");
-    const button = within(actions.parentElement!).getByRole("button", { name: "Delete assessment" });
+    const button = within(actions.parentElement!).getByRole("button", {
+      name: "Delete assessment",
+    });
     fireEvent.click(button);
     expect(deletionState.mutate).not.toHaveBeenCalled();
     confirm.mockReturnValue(true);
     fireEvent.click(button);
-    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining('"Assessment APPROVED" for DB Schenker'));
-    expect(deletionState.mutate).toHaveBeenCalledWith({ migrationId: "MIG-10", version: 3 });
+    expect(confirm).toHaveBeenLastCalledWith(
+      expect.stringContaining('"Assessment APPROVED" for DB Schenker'),
+    );
+    expect(deletionState.mutate).toHaveBeenCalledWith({
+      migrationId: "MIG-10",
+      version: 3,
+    });
   } finally {
     deletionState.items = [];
     confirm.mockRestore();

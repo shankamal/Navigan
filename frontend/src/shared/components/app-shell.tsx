@@ -2,7 +2,7 @@
 import "./workspace-navigation.css";
 import "./workspace-backdrop.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { IntentLink as Link } from "@/shared/components/intent-link";
 import {
   WorkspacePageProvider,
   useWorkspacePage,
@@ -473,3 +473,4 @@ function AppShellContent({ children }: { children: ReactNode }) {
     </div>
   );
 }
+

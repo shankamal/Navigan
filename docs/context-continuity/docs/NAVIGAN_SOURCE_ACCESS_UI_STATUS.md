@@ -1,3 +1,13 @@
+## Page loading and Migration Overview bundles — 2026-10-25
+
+Production summary restoration from 62d4b6cfde1e758e9cc91866892338fc9bbc38a3 was executed by the user. The helper verified all three summary routes and Lambda ZIPs. The subsequent authenticated dashboard Network screenshot shows summary HTTP 200 at about 420–434 ms, list requests about 397–437 ms and no pageSize=1 fallback count burst in the capture. This is one successful observation, not an all-screen latency SLA or proof that every cold start is resolved. The browser reported load around 5.98 seconds; Fetch/XHR alone does not identify the remaining critical path. Broader UI inconsistency stabilization is deferred.
+
+The user asked to improve remaining page loading, including Migration Overview. This frontend-only optimization splits sign-in presentation from the shared AuthGate using a deferred component without changing session checks, redirects, Cognito configuration or form logic. Migration Overview no longer imports/re-exports the legacy creation wizard and report; the creation route and tests import dedicated entries while preserving source-first routing. Dashboard, shared shell and overview links now wait for hover, keyboard focus or touch before enabling Next.js prefetch; normal links and modified clicks remain unchanged. Unrelated routes no longer prefetch merely because their links enter the viewport. The accepted Graphite layout, fonts, chart values and workflow actions are preserved.
+
+Validation: 41 focused frontend tests passed, including sign-in/redirects, login form, shell permissions, overview/create/report behavior, summary fallback and link intention. Production compilation, TypeScript and build completed. Inspection of generated Migration Overview client references found no eager sign-in screen or wizard module and no sign-in form/wizard action text in its initial referenced JavaScript. No before/after production bundle-size or six-second load improvement is claimed. No backend, API, database, Lambda, source-agent or collector changes are included.
+
+Next: prepare and execute a new frontend production release using the existing deploy-frontend-prod.py helper. Keep production revision 15 until the new plan is executed. Test signed-in Dashboard and Migration Overview, creation and sign-out/sign-in, hover/focus navigation, and capture Network All plus performance timings on cold/warm loads. Remaining bottlenecks need measured asset/request timings rather than speculative database or Lambda tuning.
+
 ## Production performance: summary API restoration — 2026-10-25
 
 The user deployed frontend revision 15 from af909faa6ef4e2c81b722d2485530bc8bbeec8b5; running image and health/login checks passed, and the user accepted the UI. Remaining UI inconsistencies are deferred to final stabilization. The current task is slow data loading across screens.
@@ -107,5 +117,6 @@ The correction moves Configure source access into the shared Source & Discover p
 Validation: 26 focused discovery/setup tests and frontend TypeScript passed. Regression coverage checks the action remains visible while the completed progress panel is hidden and when source access is already ready. Production authenticated visibility still needs verification after this correction is deployed. Prepare a new frontend release plan from the latest branch, then execute that newly prepared plan. Do not reuse the previous executed plan or reinstall the connected connector.
 
 Shared physical connector customer associations remain pending. Broader UI redesign remains on hold.
+
 
 

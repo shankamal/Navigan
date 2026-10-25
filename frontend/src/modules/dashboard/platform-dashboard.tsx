@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
+import { IntentLink as Link } from "@/shared/components/intent-link";
 import { HelpTip } from "@/shared/components/help-tip";
 import layout from "./dashboard-layout.module.css";
 import { useEffect, useState } from "react";
