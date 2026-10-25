@@ -1,3 +1,15 @@
+## Dashboard layout, frozen heading and on-demand help — 2026-10-25
+
+The user confirmed the migration UI on production frontend revision 14 was visually much better. Preserve that accepted migration navigation and Graphite theme.
+
+This frontend-only update puts Cloud footprint, Active record coverage and Cluster workflow state first on the Dashboard. Compact Estate coverage and Operations summaries follow. The Platform command center title bar stays below the measured global top bar while scrolling; its title, freshness status and actions remain together. Chart columns and summaries adapt to available workspace width.
+
+A shared circled-info help component replaces persistent explanatory paragraphs on the Dashboard and the core source access, discovery, scope, source checks and artifact workspace views. Help appears on hover, keyboard focus or touch, stays available while hovered, and closes with Escape or an outside click. Operational errors, progress, missing evidence and target readiness messages remain visible. This is not a blanket replacement of every legacy form's guidance.
+
+Validation: 114 focused frontend tests passed. The production build, including TypeScript validation, completed successfully. Browser visual checks across resolutions and fresh authenticated workflow checks remain required after deployment. No backend, authentication, API, database, collector or source runtime changes are included. Existing inventory snapshots and saved S3 artifacts are preserved.
+
+Deploy using the existing frontend production prepare/execute helper. This update is not yet deployed. Production revision 14 remains the observed baseline until a new release is executed and verified.
+
 # Current checkpoint: migration UI workflow consolidation — 25 October 2026
 
 The user resumed UI improvement and supplied nine screenshots spanning source access, Source & Discover, migration scope and artifact collection. Screenshots show fourteen of sixteen artifacts saved, including all seven container images, five repository files and two Headlamp recovery artifacts. Two historical Job entries need source review; collection does not establish target readiness. Production frontend revision 13 was previously deployed successfully from the workspace reconciliation release. No later frontend rollout is confirmed here.
@@ -85,3 +97,4 @@ The correction moves Configure source access into the shared Source & Discover p
 Validation: 26 focused discovery/setup tests and frontend TypeScript passed. Regression coverage checks the action remains visible while the completed progress panel is hidden and when source access is already ready. Production authenticated visibility still needs verification after this correction is deployed. Prepare a new frontend release plan from the latest branch, then execute that newly prepared plan. Do not reuse the previous executed plan or reinstall the connected connector.
 
 Shared physical connector customer associations remain pending. Broader UI redesign remains on hold.
+

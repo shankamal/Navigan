@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { HelpTip } from "@/shared/components/help-tip";
 import { MigrationActions } from "./migration-actions";
 import { SourceProviderMark } from "./source-provider-mark";
 import flow from "./migration-experience.module.css";
@@ -871,18 +872,29 @@ export function ArtifactWorkspacePanel({
             <div className={styles.toolbarHeading}>
               <Database size={18} aria-hidden="true" />
               <div>
-                <h3>Artifact workspace</h3>
+                <h3>
+                  Artifact workspace{" "}
+                  <HelpTip label="Artifact workspace">
+                    Use the tabs to collect files, copy images and resolve
+                    source recovery. Workspace options contains refresh and
+                    index updates. Update the index after source checks change.
+                    Files and images are saved in private S3 storage; export
+                    references their exact saved versions. Live definitions and
+                    retained Helm data use the approved source host and require
+                    review before deployment.
+                  </HelpTip>
+                </h3>
                 <p>Saved namespaces: {namespaces.join(", ") || "None"}</p>
               </div>
             </div>
             {activeWorkspace && exportFeedback(activeWorkspace)}
-            <p className={styles.toolbarHint}>
-              {existingWorkspace
-                ? "Use the tabs to collect files, copy images and resolve source recovery. Workspace options contains refresh and index updates."
-                : !loaded
+            {!existingWorkspace && (
+              <p className={styles.toolbarHint}>
+                {!loaded
                   ? "Checking existing workspaces before creation…"
                   : "Create the workspace, then collect available files and images."}
-            </p>
+              </p>
+            )}
           </section>
         ) : (
           <div
@@ -1209,18 +1221,16 @@ export function ArtifactWorkspacePanel({
                     </button>
                   </div>
                 )}
-                {fixedScope && (
+                {fixedScope && artifactGroup !== "recovery" && (
                   <p className={styles.hint}>
-                    {artifactGroup === "recovery"
-                      ? "Recover source definitions and retained Helm data, or review deleted historical Jobs. These are separate from image and repository copy jobs."
-                      : collectionReason(
-                          w,
-                          artifactGroup === "images"
-                            ? "IMAGE"
-                            : "REPOSITORY_DEFINITION",
-                          busy,
-                          canEdit,
-                        )}
+                    {collectionReason(
+                      w,
+                      artifactGroup === "images"
+                        ? "IMAGE"
+                        : "REPOSITORY_DEFINITION",
+                      busy,
+                      canEdit,
+                    )}
                   </p>
                 )}
                 <div className={styles.tableScroll}>
@@ -1663,21 +1673,6 @@ export function ArtifactWorkspacePanel({
             {navigation?.next}
           </MigrationActions>
         )}
-        <details className={styles.collectionHelp}>
-          <summary>How collection and recovery work</summary>
-          <p>
-            Collection includes artifacts across these namespaces. Migration
-            execution remains limited to your saved workloads.
-          </p>
-          <p className={styles.footer}>
-            Collection jobs run in the background and require a running
-            collector. Active jobs update automatically; Refresh workspaces
-            checks manually. Missing items need recovery before migration. Live
-            definitions and retained Helm data use the approved source SSM host.
-            They may contain sensitive configuration and require review. Use
-            Check recovery progress until the file is saved to S3.
-          </p>
-        </details>
       </div>
     </details>
   );

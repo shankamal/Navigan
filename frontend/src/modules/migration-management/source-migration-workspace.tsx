@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpTip } from "@/shared/components/help-tip";
 import { PageHeading } from "@/shared/components/ui";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -437,11 +438,13 @@ export function SourceMigrationWorkspace({
                   <span className={styles.eyebrow}>
                     STEP 2 · MIGRATION SCOPE
                   </span>
-                  <h2>Select application workloads</h2>
-                  <p>
-                    Choose namespaces to browse, then select individual
-                    workloads. No application is selected automatically.
-                  </p>
+                  <h2>
+                    Select application workloads{" "}
+                    <HelpTip label="Selecting application workloads">
+                      Choose namespaces to browse, then select individual
+                      workloads. No application is selected automatically.
+                    </HelpTip>
+                  </h2>
                 </div>
                 <span className={styles.badge}>Selected applications only</span>
               </div>
@@ -450,8 +453,13 @@ export function SourceMigrationWorkspace({
                   className={styles.namespaces}
                   aria-label="Source namespaces"
                 >
-                  <h3>1. Namespaces</h3>
-                  <p>Browse applications by namespace.</p>
+                  <h3>
+                    1. Namespaces{" "}
+                    <HelpTip label="Namespace selection">
+                      Browse applications by namespace. Selecting a namespace
+                      does not select its workloads.
+                    </HelpTip>
+                  </h3>
                   {namespaces.map((ns) => (
                     <label key={ns}>
                       <input
@@ -478,7 +486,15 @@ export function SourceMigrationWorkspace({
                 </aside>
                 <div className={styles.workloads}>
                   <div className={styles.sectionHeading}>
-                    <h3>2. Application workloads</h3>
+                    <h3>
+                      2. Application workloads{" "}
+                      <HelpTip label="Application workloads">
+                        Application controllers are available in the current
+                        inventory. Standalone Pod selection requires Pod
+                        discovery evidence, which this connector has not
+                        collected.
+                      </HelpTip>
+                    </h3>
                     <label className={styles.search}>
                       <Search size={16} />
                       <input
@@ -575,11 +591,6 @@ export function SourceMigrationWorkspace({
                       )}
                     </div>
                   )}
-                  <p className={styles.hint}>
-                    Application controllers are available in the current
-                    inventory. Standalone Pod selection requires Pod discovery
-                    evidence, which this connector has not collected.
-                  </p>
                 </div>
                 <aside
                   className={styles.summary}
@@ -631,12 +642,15 @@ export function SourceMigrationWorkspace({
                   <h2>
                     <Network size={20} />
                     3. Review associated resources
+                    <HelpTip label="Associated resources">
+                      Included from observed workload references, ingress
+                      backends and StatefulSet claim ownership. Unrelated
+                      workloads are excluded. Observed references are not proof
+                      of complete dependencies; network policies, operators,
+                      external services and controller-specific relationships
+                      require review.
+                    </HelpTip>
                   </h2>
-                  <p>
-                    Included from observed workload references, ingress backends
-                    and StatefulSet claim ownership. Unrelated workloads are
-                    excluded.
-                  </p>
                 </div>
                 <span className={styles.badge}>
                   {scope.dependencies.length} resources
@@ -650,16 +664,20 @@ export function SourceMigrationWorkspace({
                   Review before migration approval.
                 </p>
               )}
-              <p className={styles.hint}>
-                <Info size={15} />
-                Observed references are not proof of complete dependencies.
-                Network policies, operators, external services and
-                controller-specific relationships require review.
-              </p>
+
               {pvcs.length > 0 && (
-                <label className={styles.field}>
-                  Persistent data strategy
+                <div className={styles.field}>
+                  <span>
+                    <label htmlFor="migration-data-strategy">
+                      Persistent data strategy
+                    </label>
+                    <HelpTip label="Persistent data strategy">
+                      PVC selection records storage requirements; it does not
+                      transfer persistent data.
+                    </HelpTip>
+                  </span>
                   <select
+                    id="migration-data-strategy"
                     value={dataStrategy}
                     disabled={busy || !canEdit}
                     onChange={(e) => {
@@ -671,11 +689,7 @@ export function SourceMigrationWorkspace({
                     <option value="BACKUP_RESTORE">Backup and restore</option>
                     <option value="REPLICATION">Replication</option>
                   </select>
-                  <small>
-                    PVC selection records storage requirements; it does not
-                    transfer persistent data.
-                  </small>
-                </label>
+                </div>
               )}
             </section>
           </div>

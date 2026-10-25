@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpTip } from "@/shared/components/help-tip";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeading } from "@/shared/components/ui";
 import { migrations, sourceClusters } from "./service";
@@ -76,13 +77,14 @@ export function SourceAccessSetup({ migrationId }: { migrationId: string }) {
             className={styles.panel}
             aria-label="Repository and registry setup"
           >
-            <h2>{source.data?.name}</h2>
-            <p>
-              Configure and verify the GitHub repositories and container
-              registries used by this source. Inventory-only discovery is an
-              explicit alternative; repository and image evidence may be
-              incomplete.
-            </p>
+            <h2>
+              {source.data?.name}
+              <HelpTip label="Source access setup">
+                Configure and verify GitHub repositories and container
+                registries. Inventory-only discovery is an explicit alternative;
+                repository and image evidence may be incomplete.
+              </HelpTip>
+            </h2>
             <SourceConnectionsPanel
               key={sourceId}
               sourceId={sourceId}

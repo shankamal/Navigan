@@ -1107,10 +1107,10 @@ it("uses saved namespaces without a second picker and hides unrelated workspace 
   expect(
     screen.queryByRole("checkbox", { name: "shop" }),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByText("How collection and recovery work"));
-  expect(
-    screen.getByText(/Collection includes artifacts across these namespaces/),
-  ).toBeVisible();
+  fireEvent.mouseEnter(
+    screen.getByRole("button", { name: "About Artifact workspace" }),
+  );
+  expect(screen.getByRole("tooltip")).toBeVisible();
   expect(
     screen.getByRole("button", { name: "Create workspace" }),
   ).toBeDisabled();
@@ -1194,7 +1194,7 @@ it("blocks creation until workspace loading succeeds and after a workspace is cr
   complete({ data: { workspaces: [] } });
   await waitFor(() => expect(create).toBeEnabled());
   fireEvent.click(create);
-  await screen.findByText(/Use the tabs to collect files/);
+  await waitFor(() => expect(create).toBeDisabled());
   expect(create).toBeDisabled();
   fireEvent.click(create);
   expect(api.post).toHaveBeenCalledTimes(1);

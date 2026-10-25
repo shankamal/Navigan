@@ -1,0 +1,52 @@
+.host {
+  display: inline-flex;
+  vertical-align: middle;
+  align-items: center;
+  margin-left: 4px;
+}
+.host .trigger[class] {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #66737d;
+  font: inherit;
+  cursor: help;
+  box-shadow: none;
+}
+.host .trigger[class]:hover,
+.host .trigger[class]:focus-visible {
+  color: #17633c;
+  background: #eef1f3;
+}
+.host .trigger[class]:focus-visible {
+  outline: 2px solid #267245;
+  outline-offset: 2px;
+}
+.popup {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  display: block;
+  max-height: min(240px, calc(100vh - 32px));
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid #cdd5da;
+  border-radius: 5px;
+  background: #fff;
+  color: #354149;
+  box-shadow: 0 5px 20px #20262926;
+  font-family: var(--navigan-font-family, sans-serif);
+  font-size: var(--navigan-font-body, 12px);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  overflow-wrap: anywhere;
+}

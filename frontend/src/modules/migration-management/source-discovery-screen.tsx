@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { HelpTip } from "@/shared/components/help-tip";
 import { PageHeading } from "@/shared/components/ui";
 import {
   ArrowLeft,
@@ -400,11 +401,12 @@ export function SourceDiscoveryScreen({
             ],
           ].map(([label, count, description]) => (
             <div className={shared.panel} key={String(label)}>
-              <span>{label}</span>
+              <span>
+                {label}
+                <HelpTip label={String(label)}>{description}</HelpTip>
+              </span>
               <strong>{count ?? "—"}</strong>
-              <small>
-                {count === null ? "Awaiting discovery" : description}
-              </small>
+              {count === null && <small>Awaiting discovery</small>}
             </div>
           ))}
         </div>
@@ -456,11 +458,13 @@ export function SourceDiscoveryScreen({
           <section className={shared.panel} aria-labelledby="source-namespaces">
             <div className={styles.sectionHeading}>
               <div>
-                <h2 id="source-namespaces">Discovered namespaces</h2>
-                <p>
-                  Inspect inventory here. Select migration scope in the
-                  workspace.
-                </p>
+                <h2 id="source-namespaces">
+                  Discovered namespaces{" "}
+                  <HelpTip label="Discovered namespaces">
+                    Inspect inventory here. Select migration scope in the
+                    workspace.
+                  </HelpTip>
+                </h2>
               </div>
               <label>
                 Find namespace
@@ -524,7 +528,13 @@ export function SourceDiscoveryScreen({
             )}
           </section>
           <section className={shared.panel} aria-labelledby="source-evidence">
-            <h2 id="source-evidence">Source evidence</h2>
+            <h2 id="source-evidence">
+              Source evidence{" "}
+              <HelpTip label="Source evidence">
+                Sanitized inventory only. Secret values and kubeconfig contents
+                are not displayed.
+              </HelpTip>
+            </h2>
             <dl className={shared.facts}>
               <div>
                 <dt>Kubernetes version</dt>
@@ -552,10 +562,6 @@ export function SourceDiscoveryScreen({
               </div>
             </dl>
             <InventoryComposition kinds={summary.kinds} />
-            <p className={styles.note}>
-              <ShieldCheck size={17} /> Sanitized inventory only. Secret values
-              and kubeconfig contents are not displayed.
-            </p>
           </section>
         </div>
         <section
@@ -1024,11 +1030,13 @@ export function SourceDiscoveryScreen({
           <section className={shared.panel} aria-label="Discovery results">
             <div className={styles.reviewHeading}>
               <div>
-                <h2>Discovery &amp; assessment</h2>
-                <p>
-                  Review what is running and the source findings. Choose what to
-                  migrate in the next step.
-                </p>
+                <h2>
+                  Discovery &amp; assessment{" "}
+                  <HelpTip label="Discovery and assessment">
+                    Review what is running and the source findings. Choose what
+                    to migrate in the next step.
+                  </HelpTip>
+                </h2>
               </div>
               <nav
                 className={styles.reviewTabs}

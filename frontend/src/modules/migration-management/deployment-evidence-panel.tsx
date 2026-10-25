@@ -1,4 +1,5 @@
 "use client";
+import { HelpTip } from "@/shared/components/help-tip";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -419,12 +420,13 @@ export function DeploymentEvidencePanel({
             {selectedKeys
               ? "Deployment source evidence"
               : "Deployment sources and versions"}
+            <HelpTip label="Deployment source evidence">
+              Inspect repository matches and running container versions. Collect
+              or recover missing files and images in migration scope. Recheck
+              sources refreshes evidence after inventory, repository or registry
+              access changes; it does not restart discovery.
+            </HelpTip>
           </h2>
-          <p>
-            {selectedKeys
-              ? "Evidence for your selected workloads. Collect or recover missing files and images in this migration scope."
-              : "Discover how applications are deployed and which container versions are running."}
-          </p>
         </div>
       )}
       {selectedKeys && sourceAnalysisAction}
@@ -1533,16 +1535,7 @@ export function DeploymentEvidencePanel({
               </div>
             </div>
           )}
-          {selectedKeys ? (
-            <div className={styles.actions}>
-              <span className={styles.caption}>
-                Checks configured sources against discovered inventory; this
-                table shows your selected workloads. Recheck only after
-                inventory, repository or registry access changes; it does not
-                restart discovery.
-              </span>
-            </div>
-          ) : (
+          {selectedKeys ? null : (
             <p className={styles.caption}>
               <Clock3 size={15} aria-hidden="true" />
               <span title={evidence.observedAt || undefined}>

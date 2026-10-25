@@ -394,7 +394,7 @@ it("guides files and images through one navigation toolbar and reuses an existin
     fireEvent.click(
       screen.getByRole("button", { name: "Continue to collection" }),
     );
-    await screen.findByText(/Use the tabs to collect files/);
+    await screen.findByRole("button", { name: "About Artifact workspace" });
     expect(
       screen.getByRole("button", { name: "Create workspace" }),
     ).toBeDisabled();
