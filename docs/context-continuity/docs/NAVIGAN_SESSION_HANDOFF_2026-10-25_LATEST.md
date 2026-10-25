@@ -1,5 +1,14 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## ECS empty-tags correction — image verified, runtimes not promoted
+
+- User resumed zk9x6g4e plan at e190100. Image copy and content verification passed, then RegisterTaskDefinition rejected tags=[] with "Tags can not be empty." The exception occurred before Lambda code update and ECS service promotion. No candidate task was successfully registered by that rejected call. DEV ECR may now contain the verified copied artifact; preserve/reuse it.
+- Fixed task registration to omit the tags argument for empty/absent tag lists, while retaining nonempty existing tags exactly. Task roles, environment, volumes, logging, sidecars and image-verification guards are unchanged.
+- 85 focused offline tests passed. New regression cases cover []/None omission; the simulated untagged promotion now rejects any tags argument, matching the live ECS restriction. Tagged task preservation is covered separately.
+- Resume the same exact zk9x6g4e --execute plan after pull. Existing revision/config guards continue to protect against changed runtimes; no new build, plan or audit is needed for this request-shape fix.
+- Collector promotion, minimum PROD target-assessment grants and workflow validation remain pending. SAM reconciliation stays after parity per user instruction.
+
+
 ## Docker manifest-ID compatibility correction — verified diagnostic evidence
 
 - Retry at cc830d8 resolved the PROD index and pulled its linux/amd64 child, then stopped at the legacy local config-ID equality check. This was before DEV image push, task registration, Lambda code update or ECS service update. Existing zk9x6g4e plan remains runtime-unexecuted.

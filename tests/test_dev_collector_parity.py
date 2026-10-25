@@ -38,6 +38,14 @@ def test_registration_preserves_all_dev_settings_and_sidecars():
     assert not set(result)&{'revision','taskDefinitionArn','registeredAt'}
 
 
+@pytest.mark.parametrize('tags',[[],None])
+def test_registration_omits_empty_tags_instead_of_sending_rejected_empty_list(tags):
+    task={'family':'dev-family','containerDefinitions':[{'name':'collector','image':'old'}]}
+    result=release.registration(task,tags,'new',{'family','containerDefinitions','tags'})
+    assert 'tags' not in result
+    assert result['containerDefinitions'][0]['image']=='new'
+
+
 @pytest.mark.parametrize('containers',[[],[{'name':'collector','image':'one'},{'name':'collector','image':'two'}]])
 def test_registration_rejects_missing_or_duplicate_collector(containers):
     with pytest.raises(RuntimeError,match='Unexpected collector task'):
@@ -246,6 +254,7 @@ def test_execute_promotes_only_dev_targets_and_retains_dev_configuration(tmp_pat
         meta=SimpleNamespace(service_model=SimpleNamespace(operation_model=lambda name:SimpleNamespace(
             input_shape=SimpleNamespace(members={'family':None,'taskRoleArn':None,'containerDefinitions':None}))))
         def register_task_definition(self,**kwargs):
+            assert 'tags' not in kwargs  # Live ECS rejects tags=[] on this untagged task.
             writes.append(('register',kwargs));return {'taskDefinition':{'taskDefinitionArn':'dev-candidate'}}
         def update_service(self,**kwargs):writes.append(('service',kwargs))
         def list_tasks(self,**kwargs):return {'taskArns':['dev-running']}

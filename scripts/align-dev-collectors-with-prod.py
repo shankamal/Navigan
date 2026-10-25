@@ -178,8 +178,10 @@ def copy_image(session,source,directory):
 
 def registration(task,tags,image,allowed):
     # Copy current DEV settings, including roles, volumes, logging and sidecars.
-    request={k:copy.deepcopy(v) for k,v in task.items() if k in allowed}
-    request['tags']=copy.deepcopy(tags)
+    request={k:copy.deepcopy(v) for k,v in task.items() if k in allowed and k!='tags'}
+    # ECS rejects an explicitly empty tag list; omission retains the untagged state.
+    if tags:
+        request['tags']=copy.deepcopy(tags)
     old=copy.deepcopy(request)
     matches=[c for c in request['containerDefinitions'] if c['name']=='collector']
     require(len(matches)==1,'Unexpected collector task definition')
