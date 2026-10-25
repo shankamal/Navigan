@@ -14,6 +14,16 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 
+@pytest.fixture(autouse=True, params=['prod', 'dev'])
+def release_environment(request, monkeypatch):
+    spec = importlib.util.spec_from_file_location(
+        'summary_release_' + request.param,
+        ROOT / ('scripts/deploy-summary-apis-' + request.param + '.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setitem(globals(), 'release', module)
+
+
 def source(resource, filename):
     return (ROOT / f'src/navigan/modules/{release.SPECS[resource][3]}/{filename}').read_text()
 

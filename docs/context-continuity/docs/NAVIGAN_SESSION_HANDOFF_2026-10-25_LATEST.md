@@ -1,5 +1,21 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## DEV parity findings — uploaded live inventory, 25 October 2026
+
+This observation supersedes earlier revision-23-unconfirmed notes below.
+
+- User inventory observed at `2026-10-25T16:55:34.062993+00:00`, checkout `03f1980`. Both DEV and PROD inventory error lists are empty.
+- PROD frontend is now confirmed task revision **23**, desired/running 1/1, pending 0, rollout COMPLETED, image digest `sha256:bab279913816fed2e113f8e4cb94187bbeeb835f0781896eb0959c25a55047f6`. This proves task-definition/service state, not authenticated browser acceptance.
+- DEV API has 131 routes; PROD 133. PROD alone has GET customer/environment/cluster summary routes. DEV alone has POST /api/v1/clusters/{clusterId}/connector/upgrade. Common route auth metadata matches in this inventory; exact integration targets still require verification. Preserve DEV's extra route.
+- DEV MigrationFunction differs from PROD in four own-module files: repository.py, service.py, source_authentication.py, source_connector_installation.py. Each PROD file hash exactly matches the current branch source read at `03f1980`. Existing `deploy-source-connection-screen-dev.py --migration-only` is the established scoped DEV path; inspect preparation before --apply. No source agent reinstall is needed to update API code.
+- Lambda package-wide differences include unrelated bundled modules. Do not treat every different bundled file as an active function regression or copy whole PROD ZIPs blindly. DEV's shared/access.py matches current branch and both current MigrationFunction packages; several older PROD packages contain a different helper. Preserve current DEV access behavior pending semantic review.
+- Both image services are COMPLETED with desired/running 1/1. DEV and PROD image digests differ; digest inequality alone does not establish which collector code differs. Repository worker packages differ too. Worker source/dependency comparison and schema/grants/IAM/storage checks remain pending.
+- DEV nested Access/Cluster/Customer/Environment stacks report UPDATE_ROLLBACK_COMPLETE. This is historical stable rollback state, not proof of a current failing deployment; inspect scoped change sets rather than deploy the whole parent.
+- Added `scripts/deploy-summary-apis-dev.py`, using the tested summary-only release logic with exact DEV parent/database/workspace/plan format. Default reads only; --prepare uploads versioned artifacts to DEV workspace and creates an UNEXECUTED scoped nested change set; --execute accepts only its DEV plan and verifies resource scope/revisions. PROD release script is unchanged.
+- Shared PROD/DEV summary tests plus DEV-boundary and audit tests: **35 passed**. No AWS release executed here.
+- Next: user pulls current branch and runs DEV summary --prepare; obtain actual printed plan path for execution. Then reconcile DEV MigrationFunction through established scoped DEV helper, assess workers/configuration and schema/grants, restart the WSL frontend on current source, rerun inventory and perform authenticated Dev/Prod smoke checks. Do not declare parity yet.
+
+
 This is the current checkpoint. It supersedes older current-status sections where they conflict; retain older entries as history.
 
 ## Repository and working rules
