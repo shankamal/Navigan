@@ -82,3 +82,15 @@ Commit `d148e62c65e19b0b76d83b2ea440e6a5901bbe3e` fixes identical duplicate ECR 
 2. Confirm whether revision 23 was executed, using existing user evidence or read-only ECS status.
 3. Preserve the accepted login design; no further redesign is requested.
 4. Cluster tools incident is resolved. Stale health reporting and broad UI consistency remain deferred; continue only the next user-directed task.
+
+## DEV parity restoration — new authorized task
+
+User requested restoring all recent PROD implementations/fixes to DEV and verifying parity. This supersedes the previous wait-for-requirement next action, while broader UI redesign stays deferred.
+
+- Repository code is shared on `new_migration_approach_18oct26`; latest inspected starting HEAD was `c508926`. Runtime parity has NOT been established.
+- Added `scripts/audit-dev-prod-parity.py`: AWS read-only inventory for DEV `navigan-ashok-dev` and PROD `navigan-custmanagement-cfnstk`, nested Lambda/application source hashes, route/auth inventory, dedicated collector stacks and ECS task references. Optional `--include-source` downloads ZIPs only into memory and verifies package checksums before hashing application Python files. No cloud writes, secret retrieval, database data copy or source-agent mutation.
+- Six offline tests passed. No live AWS run: agent has no user WSL checkout/AWS session. User must run the audit through existing profile `navigan` before selecting scoped DEV updates. Inventory errors remain explicit; report always says parity UNVERIFIED.
+- This initial audit does not compare database schemas/grants, IAM/trust policy semantics, storage configuration or exact route target mappings. These checks plus authenticated workflow validation are required before declaring parity. DEV frontend is still local WSL unless fresh user evidence establishes a hosted DEV runtime.
+- Preserve DEV database `navigan_dev`, DEV endpoints, storage, connector/customer associations and environment-specific identities. PROD database remains `navigan`. Do not copy PROD records/tokens/config wholesale into DEV or run PROD-only deploy scripts against DEV.
+- Candidate recent gaps: migration API/source lifecycle fixes, customer/environment/cluster summary APIs, worker source/runtime and schedules, accepted login and lazy-loading/performance UI changes. Derive actual changes from live inventory rather than redeploying all components.
+- Revision 23 remains deployment-unconfirmed until fresh ECS evidence. No DEV or PROD runtime changed during this preparation.
