@@ -23,11 +23,11 @@ export function SignInScreen({ configured }: { configured: boolean }) {
         </div>
         <div className="login-story-copy">
           <h1>
-            One platform.
+            Navigate your cloud.
             <br />
-            Every container environment.
+            Simplify your operations.
           </h1>
-          <p>Manage today. Modernize tomorrow.</p>
+          <p>Manage with confidence. Migrate with clarity.</p>
         </div>
         <Image
           className="login-harbour"
@@ -44,7 +44,7 @@ export function SignInScreen({ configured }: { configured: boolean }) {
         >
           {platforms.map(([label, logo]) => (
             <li key={label}>
-              <img src={`/logos/${logo}.svg`} alt="" width="28" height="26" />
+              <img src={`/logos/${logo}.svg`} alt="" width="20" height="18" />
               <span>{label}</span>
             </li>
           ))}

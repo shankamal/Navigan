@@ -90,7 +90,7 @@
 .login-splash .login-story-copy h1 {
   margin: 0;
   color: #20262d;
-  font-size: clamp(30px, 5.4svh, 46px);
+  font-size: clamp(24px, 3.8svh, 32px);
   line-height: 1.12;
   font-weight: 650;
   letter-spacing: -0.04em;
@@ -98,7 +98,7 @@
 .login-splash .login-story-copy p {
   margin: 14px 0 0;
   color: #5d656d;
-  font-size: clamp(16px, 2.5svh, 22px);
+  font-size: clamp(14px, 2svh, 17px);
   line-height: 1.35;
   font-weight: 450;
   letter-spacing: -0.02em;
@@ -129,20 +129,20 @@
   align-items: center;
   gap: 7px;
   color: #34404b;
-  font-size: clamp(11px, 1vw, 15px);
+  font-size: 12px;
   line-height: 1.3;
   white-space: nowrap;
 }
 .login-splash .login-platforms img {
   display: block;
-  width: 28px;
-  max-width: 34px;
-  height: 26px;
+  width: 20px;
+  max-width: 24px;
+  height: 18px;
   object-fit: contain;
 }
 .login-splash .login-platforms li:first-child img {
-  width: 37px;
-  max-width: 37px;
+  width: 28px;
+  max-width: 28px;
 }
 .login-splash .login-panel {
   display: flex;
@@ -350,7 +350,7 @@
     grid-template-columns: minmax(0, 53fr) minmax(0, 47fr);
   }
   .login-splash .login-story-copy h1 {
-    font-size: clamp(26px, 4.4svh, 32px);
+    font-size: clamp(24px, 3.8svh, 30px);
   }
   .login-splash .login-wordmark strong {
     font-size: 30px;

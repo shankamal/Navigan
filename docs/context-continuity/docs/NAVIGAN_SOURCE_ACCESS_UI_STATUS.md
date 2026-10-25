@@ -1,3 +1,9 @@
+## 2026-10-25 — Approved login wording and smaller visual scale
+
+- User-selected headline: “Navigate your cloud.” / “Simplify your operations.” Supporting line: “Manage with confidence. Migrate with clarity.”
+- Headline reduced to 24–32px responsive range; provider icons reduced to 18px high (AWS wordmark 28px wide), provider labels 12px. Existing artwork, form, authentication and layout retained.
+- Actual-component preview build passed; browser checked at 1536x696 with no document overflow. Requires fresh frontend prepare/execute.
+
 ## 2026-10-25 — Login composition follow-up
 
 - User rejected the first no-scroll layout: the illustration was still capped at 42vh, leaving a large gap and unused width; login form remained top-heavy.
