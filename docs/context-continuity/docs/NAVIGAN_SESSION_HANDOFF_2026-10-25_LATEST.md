@@ -1,5 +1,17 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## DEV migration correction confirmed / consolidated remaining checks
+
+- User ran align-dev-workspace-with-prod.py --apply at 66867fb. Output explicitly confirmed the one-file DEV correction deployed, package checksum verified, migration module source matched the reviewed PROD baseline and DEV configuration stayed unchanged. Exact rollback/release plan: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-dev-workspace-parity-p_2julqf/release-plan.json.
+- No further migration API redeployment is indicated by this output. Do not run the broader legacy helper again to verify parity; its current branch source would reintroduce the newer workspace behavior.
+- Added scripts/audit-parity-runtime-details.py to collect the remaining evidence in one read-only run: repository-worker sources/schedule/bindings, image service bindings/role, workspace storage controls, API/collector IAM policies/trust, and catalog table columns/constraints/indexes/RLS policies/navigan_api table privileges.
+- Optional --inspect-images uses local Docker with private temporary ECR authentication, pulls only trusted digest-pinned Navigan images, creates an unstarted container, copies application source/entrypoint/requirements and installed package METADATA for comparison, then removes its own container/credential directory. It never executes image entrypoints or starts collection jobs. Pulled images may remain cached locally.
+- JSON output contains policy ARNs/conditions and schema metadata, not application records, secret values or Lambda download URLs. Errors are explicit and parity remains UNVERIFIED. No cloud update APIs, DDL or business writes are used.
+- Limits: table catalog/grants are not every database object/sequence/function grant; IAM policy inventory requires semantic review/effective-access checks; image metadata/source comparison is not a complete OS/native dependency audit or successful job evidence. Authenticated local DEV frontend/workflow verification remains required.
+- 55 focused offline tests passed across audit/summary/workspace correction modules. The new consolidated audit has not run against live AWS yet. User should pull and run --inspect-images with Docker available, then upload the JSON report.
+- Continue DEV–PROD parity first. SAM method/template reconciliation remains explicitly deferred by user until parity is validated.
+
+
 ## DEV parity follow-up — second live inventory and packaging correction
 
 User explicitly ordered: finish DEV–PROD parity first, then reconcile the SAM deployment method. Do not start SAM changes yet.
