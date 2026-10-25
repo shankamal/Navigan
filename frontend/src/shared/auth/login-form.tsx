@@ -237,7 +237,7 @@ export function LoginForm({
       </h2>
       <p className="muted">
         {mode === "login"
-          ? "Sign in to your Navigan workspace."
+          ? "Sign in to your workspace."
           : mode === "forgot"
             ? "Enter your account email or username to request a reset code."
             : delivery

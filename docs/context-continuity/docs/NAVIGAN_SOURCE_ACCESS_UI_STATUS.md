@@ -1,3 +1,10 @@
+## 2026-10-25 — Login branding simplification and Deloitte green button
+
+- User flagged repeated Navigan mentions. Kept left logo/wordmark and Welcome to Navigan heading; removed duplicate right logo/wordmark and simplified subtitle to Sign in to your workspace.
+- Selected slogan now uses charcoal first line, deep-green second line and smaller muted italic supporting sentence. Compact headline and provider logos retained.
+- User explicitly changed Sign in button from deep green to Deloitte green #86BC25; dark text provides contrast, hover #78A922.
+- Presentation only: auth flow unchanged. 14 focused tests and fixture build passed. Actual-component browser fixture has no overflow at 1536x696. Fresh frontend deployment required.
+
 ## 2026-10-25 — Approved login wording and smaller visual scale
 
 - User-selected headline: “Navigate your cloud.” / “Simplify your operations.” Supporting line: “Manage with confidence. Migrate with clarity.”

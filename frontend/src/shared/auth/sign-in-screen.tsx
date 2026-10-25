@@ -25,7 +25,7 @@ export function SignInScreen({ configured }: { configured: boolean }) {
           <h1>
             Navigate your cloud.
             <br />
-            Simplify your operations.
+            <span>Simplify your operations.</span>
           </h1>
           <p>Manage with confidence. Migrate with clarity.</p>
         </div>
@@ -52,10 +52,6 @@ export function SignInScreen({ configured }: { configured: boolean }) {
       </section>
       <section className="login-panel" aria-label="Secure sign-in">
         <div className="login-panel-content">
-          <div className="login-wordmark login-wordmark-reverse">
-            <NaviganMark reverse />
-            <strong>Navigan</strong>
-          </div>
           {configured ? (
             <LoginForm compactNotice />
           ) : (

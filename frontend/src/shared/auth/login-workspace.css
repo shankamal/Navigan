@@ -91,12 +91,17 @@
   margin: 0;
   color: #20262d;
   font-size: clamp(24px, 3.8svh, 32px);
-  line-height: 1.12;
+  line-height: 1.25;
   font-weight: 650;
   letter-spacing: -0.04em;
 }
+.login-splash .login-story-copy h1 span {
+  color: #1f794a;
+}
 .login-splash .login-story-copy p {
   margin: 14px 0 0;
+  max-width: 40ch;
+  font-style: italic;
   color: #5d656d;
   font-size: clamp(14px, 2svh, 17px);
   line-height: 1.35;
@@ -156,13 +161,6 @@
   width: 100%;
   max-width: 440px;
   margin: 0 auto;
-}
-.login-splash .login-wordmark-reverse {
-  color: #fff;
-  margin-bottom: 24px;
-}
-.login-splash .login-wordmark-reverse strong {
-  font-size: clamp(26px, 4svh, 34px);
 }
 .login-splash .login-form {
   display: block;
@@ -260,14 +258,14 @@
   padding: 10px 18px;
   border: 0;
   border-radius: 4px;
-  background: #1f794a !important;
-  color: #fff !important;
+  background: #86bc25 !important;
+  color: #17210d !important;
   box-shadow: none;
   font-size: 15px;
   font-weight: 600;
 }
 .login-splash .login-fields .button.button-primary:hover:not(:disabled) {
-  background: #176139 !important;
+  background: #78a922 !important;
 }
 .login-splash .login-fields .button.button-ghost {
   width: fit-content;
@@ -340,7 +338,6 @@
 @media (max-height: 740px) and (min-width: 761px) {
   .public-shell.login-public-shell { --login-header-height: 56px; }
   .login-splash .login-panel { padding-block: 20px; }
-  .login-splash .login-wordmark-reverse { margin-bottom: 16px; }
   .login-splash .login-fields { margin-top: 18px; gap: 14px; }
   .login-splash .login-fields .field { gap: 7px; }
   .login-splash .login-protection { margin-top: 14px; padding-top: 12px; }
@@ -394,9 +391,6 @@
   }
   .login-splash .login-panel-content {
     max-width: 440px;
-  }
-  .login-splash .login-wordmark-reverse {
-    margin-bottom: 24px;
   }
   .login-splash .login-form h2 {
     font-size: 28px;
