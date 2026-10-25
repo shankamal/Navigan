@@ -22,6 +22,79 @@ const props = {
   canEdit: true,
 };
 beforeEach(() => vi.clearAllMocks());
+it("keeps images collectable while a source recovery needs polling and shows only the selected category action", async () => {
+  const workspace = {
+    workspaceId: "AWS-independent",
+    namespaces: ["shop"],
+    stale: false,
+    status: "COLLECTING",
+    artifacts: [
+      {
+        artifactId: "image",
+        kind: "IMAGE",
+        status: "PENDING_COLLECTION",
+        source: { reference: "ghcr.io/example/app:1" },
+      },
+      {
+        artifactId: "live",
+        kind: "LIVE_DEFINITION",
+        status: "RECOVERING",
+        source: { resource: { namespace: "shop", kind: "Job", name: "check" } },
+        validation: { recovery: { status: "RECOVERING", jobId: "REC-one" } },
+      },
+    ],
+    jobs: [],
+  };
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  api.post.mockResolvedValue({
+    data: {
+      ...workspace,
+      jobs: [
+        {
+          jobId: "image-job",
+          artifactId: "image",
+          status: "QUEUED",
+          attempts: 0,
+        },
+      ],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Container images/ }),
+  );
+  expect(
+    screen.getByText("Source recovery needs a status check"),
+  ).toBeVisible();
+  expect(
+    screen.queryByText("Artifact collection queued or running"),
+  ).not.toBeInTheDocument();
+  const copy = screen.getByRole("button", {
+    name: "Collect / retry available images",
+  });
+  expect(copy).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: "Collect / retry repository files" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(copy);
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/artifact-workspaces/AWS-independent/collection-jobs",
+      { version: 2, artifactKind: "IMAGE" },
+      expect.anything(),
+    ),
+  );
+  expect(copy).toBeDisabled();
+});
 it("updates a blocked index from current source checks and selects the revised snapshot", async () => {
   const old = {
     workspaceId: "AWS-before-checks",
@@ -75,6 +148,7 @@ it("updates a blocked index from current source checks and selects the revised s
   expect(
     screen.getByRole("button", { name: "Create workspace" }),
   ).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
   expect(
     screen.getByRole("button", { name: "Collect / retry available images" }),
   ).toBeDisabled();
@@ -94,6 +168,7 @@ it("updates a blocked index from current source checks and selects the revised s
   expect(
     screen.getByRole("button", { name: "Collect / retry available images" }),
   ).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: /Repository files/ }));
   expect(
     screen.getByRole("button", { name: "Collect / retry repository files" }),
   ).toBeEnabled();
@@ -401,7 +476,9 @@ it("separates saved artifacts, pending collection, and recovery in its summary",
   render(<ArtifactWorkspacePanel {...props} />);
   fireEvent.click(screen.getByText("Migration files & images"));
   fireEvent.click(screen.getByRole("button", { name: "Load workspaces" }));
-  expect(await screen.findByText("Partially collected")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Ready to collect available artifacts"),
+  ).toBeInTheDocument();
   const metrics = screen.getByLabelText("Artifact collection progress");
   expect(metrics).toHaveTextContent(
     "3Required artifacts1Saved to S31Awaiting collection1Needs attention",
@@ -945,11 +1022,11 @@ it("separates remaining artifacts from saved copies without changing collection 
     screen.getByRole("button", { name: "All artifacts (2)" }),
   ).toHaveAttribute("aria-pressed", "true");
   fireEvent.click(screen.getByRole("button", { name: "Remaining (1)" }));
-  expect(screen.getByText("example.com/shop/api:1")).toBeVisible();
+  expect(screen.getByText("shop/api:1")).toBeVisible();
   expect(screen.queryByText("deploy/saved.yaml")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Saved / excluded (1)" }));
   expect(screen.getByText("deploy/saved.yaml")).toBeVisible();
-  expect(screen.queryByText("example.com/shop/api:1")).not.toBeInTheDocument();
+  expect(screen.queryByText("shop/api:1")).not.toBeInTheDocument();
   expect(api.post).not.toHaveBeenCalled();
 });
 
@@ -1117,7 +1194,7 @@ it("blocks creation until workspace loading succeeds and after a workspace is cr
   complete({ data: { workspaces: [] } });
   await waitFor(() => expect(create).toBeEnabled());
   fireEvent.click(create);
-  await screen.findByText(/After Recheck sources, use Update workspace index/);
+  await screen.findByText(/Use the tabs to collect files/);
   expect(create).toBeDisabled();
   fireEvent.click(create);
   expect(api.post).toHaveBeenCalledTimes(1);
@@ -1171,6 +1248,7 @@ it("shows returned S3 object paths for saved artifacts and exclusion receipts", 
   expect(
     await screen.findByText("s3://workspace-bucket/scope/files/app.yaml"),
   ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Source recovery/ }));
   expect(
     screen.getByText("s3://workspace-bucket/scope/reviews/receipt.json"),
   ).toBeVisible();
@@ -1298,10 +1376,12 @@ it("shows each artifact source and links transfer status by artifact ID instead 
     "value",
     "100",
   );
-  const image = row("registry.example.com/shop/api@sha256:abc");
+  fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
+  const image = row("shop/api");
   expect(image.getByText("Container registry")).toBeVisible();
   expect(image.getByText("Copying image to S3")).toBeVisible();
   expect(image.getByRole("progressbar")).not.toHaveAttribute("value");
+  fireEvent.click(screen.getByRole("button", { name: /Source recovery/ }));
   expect(
     row("shop / Deployment / api").getByText("Source cluster · Live export"),
   ).toBeVisible();
@@ -1310,17 +1390,31 @@ it("shows each artifact source and links transfer status by artifact ID instead 
   ).toBeVisible();
   expect(screen.getByText(/33% complete/)).toBeVisible();
   expect(screen.queryByText(/succeeded · Attempt/)).not.toBeInTheDocument();
-  const actions = screen.getByRole("toolbar", { name: "Workspace actions" });
+  const actions = screen.getByRole("navigation", {
+    name: "Migration step actions",
+  });
+  fireEvent.click(screen.getByText("Workspace options"));
+  fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
   for (const name of [
     "Create workspace",
     "Refresh workspaces",
-    "Collect / retry repository files",
     "Collect / retry available images",
     "Create workspace export",
   ]) {
     expect(within(actions).getByRole("button", { name })).toBeVisible();
     expect(screen.getAllByRole("button", { name })).toHaveLength(1);
   }
+  fireEvent.click(screen.getByRole("button", { name: /Repository files/ }));
+  expect(
+    within(actions).getByRole("button", {
+      name: "Collect / retry repository files",
+    }),
+  ).toBeVisible();
+  expect(
+    within(actions).queryByRole("button", {
+      name: "Collect / retry available images",
+    }),
+  ).not.toBeInTheDocument();
   expect(api.post).not.toHaveBeenCalled();
 });
 
@@ -1367,6 +1461,7 @@ it("refreshes active transfers and stops polling when they have been saved", asy
   );
   try {
     await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
     expect(screen.getByText("Copying image to S3")).toBeVisible();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -1431,6 +1526,7 @@ it("stops automatic polling when leaving collection and preserves the current ar
       await vi.advanceTimersByTimeAsync(15000);
     });
     expect(api.get).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
     expect(screen.getByText("Queued · Waiting for collector")).toBeVisible();
   } finally {
     view.unmount();
@@ -1457,9 +1553,7 @@ it("keeps export loading and the download next to the fixed-scope action toolbar
       stage="collect"
     />,
   );
-  const controls = screen.getByRole("region", {
-    name: "Artifact workspace controls",
-  });
+  const controls = document.body;
   const button = await within(controls).findByRole("button", {
     name: "Create workspace export",
   });
@@ -1502,9 +1596,7 @@ it.each(["failure", "incomplete"])(
         stage="collect"
       />,
     );
-    const controls = screen.getByRole("region", {
-      name: "Artifact workspace controls",
-    });
+    const controls = document.body;
     fireEvent.click(
       await within(controls).findByRole("button", {
         name: "Create workspace export",

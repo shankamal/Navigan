@@ -134,7 +134,7 @@ it("uses the five-stage migration flow after source creation and never auto-sele
   expect(within(flow).getAllByRole("listitem")).toHaveLength(5);
   expect(screen.queryByText("Migration Plan")).not.toBeInTheDocument();
   const save = screen.getByRole("button", {
-    name: "Save & continue to target",
+    name: "Save & continue to files",
   });
   expect(save).toBeDisabled();
   fireEvent.click(
@@ -166,7 +166,7 @@ it("saves only the selected workload, its dependencies without asking for deploy
     }),
   ).not.toBeInTheDocument();
   fireEvent.click(
-    screen.getByRole("button", { name: "Save & continue to target" }),
+    screen.getByRole("button", { name: "Save & continue to files" }),
   );
   await waitFor(() => expect(api.update).toHaveBeenCalled());
   const draft = api.update.mock.calls[0][1].planningDraft;
@@ -177,6 +177,13 @@ it("saves only the selected workload, its dependencies without asking for deploy
   ]);
   expect(draft.selectedNamespaces).toEqual(["payments"]);
   expect(draft.deploymentSources).toEqual([]);
+  expect(api.targets).not.toHaveBeenCalled();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Continue to collection" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Continue to target" }),
+  );
   await screen.findByRole("heading", {
     name: "Choose a Navigan-managed destination",
   });
@@ -195,7 +202,7 @@ it("does not advance to target selection after a failed scope save", async () =>
     screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Save & continue to target" }),
+    screen.getByRole("button", { name: "Save & continue to files" }),
   );
   await screen.findByRole("alert");
   expect(
@@ -252,7 +259,13 @@ it("checks only the saved scope against a customer target and keeps approval and
     screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Save & continue to target" }),
+    screen.getByRole("button", { name: "Save & continue to files" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Continue to collection" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Continue to target" }),
   );
   const target = await screen.findByLabelText("Target cluster *");
   await screen.findByRole("option", { name: /dbs-target/ });
@@ -273,8 +286,8 @@ it("checks only the saved scope against a customer target and keeps approval and
     screen.getByRole("button", { name: "Submit for migration approval" }),
   ).toBeDisabled();
   expect(
-    screen.getByRole("button", { name: "Execute migration" }),
-  ).toBeDisabled();
+    screen.queryByRole("button", { name: "Execute migration" }),
+  ).not.toBeInTheDocument();
 });
 
 it("requires a saved scope before showing collection and preserves selections between views", async () => {
@@ -285,7 +298,7 @@ it("requires a saved scope before showing collection and preserves selections be
   fireEvent.click(
     screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "2. Files & images" }));
+  fireEvent.click(screen.getByRole("button", { name: "2. Check sources" }));
   expect(
     screen.getByRole("heading", {
       name: "Save your scope before collecting artifacts",
@@ -294,9 +307,7 @@ it("requires a saved scope before showing collection and preserves selections be
   expect(
     screen.queryByRole("button", { name: "Create workspace" }),
   ).not.toBeInTheDocument();
-  fireEvent.click(
-    screen.getByRole("button", { name: "Back to scope selection" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "1. Choose scope" }));
   expect(
     screen.getByRole("checkbox", { name: "Migrate payments/payment-api" }),
   ).toBeChecked();
@@ -373,19 +384,17 @@ it("guides files and images through one navigation toolbar and reuses an existin
     );
     fireEvent.click(screen.getByRole("button", { name: "Save scope draft" }));
     await screen.findByText(/Migration scope saved/);
-    fireEvent.click(screen.getByRole("button", { name: "2. Files & images" }));
+    fireEvent.click(screen.getByRole("button", { name: "2. Check sources" }));
     const navigation = screen.getByRole("navigation", {
-      name: "Files and images preparation",
+      name: "Migration scope views",
     });
     expect(
-      within(navigation).getByRole("button", { name: "1 Check sources" }),
-    ).toHaveAttribute("aria-current", "step");
+      within(navigation).getByRole("button", { name: "2. Check sources" }),
+    ).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(
-      within(navigation).getByRole("button", {
-        name: "Continue to collection",
-      }),
+      screen.getByRole("button", { name: "Continue to collection" }),
     );
-    await screen.findByText(/Workspace already created for this assessment/);
+    await screen.findByText(/Use the tabs to collect files/);
     expect(
       screen.getByRole("button", { name: "Create workspace" }),
     ).toBeDisabled();
@@ -393,8 +402,8 @@ it("guides files and images through one navigation toolbar and reuses an existin
       screen.queryByRole("button", { name: "Save scope draft" }),
     ).not.toBeInTheDocument();
     expect(
-      within(navigation).getByRole("button", { name: "2 Collect & export" }),
-    ).toHaveAttribute("aria-current", "step");
+      within(navigation).getByRole("button", { name: "3. Collect & export" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(
       within(navigation).queryByRole("button", { name: /Review & export/ }),
     ).not.toBeInTheDocument();
@@ -405,9 +414,7 @@ it("guides files and images through one navigation toolbar and reuses an existin
       screen.getByRole("columnheader", { name: "S3 location" }),
     ).toBeVisible();
     expect(screen.getByText("api.yaml")).toBeVisible();
-    fireEvent.click(
-      within(navigation).getByRole("button", { name: "Continue to target" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue to target" }));
     await screen.findByRole("heading", {
       name: "Choose a Navigan-managed destination",
     });

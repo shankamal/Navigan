@@ -125,7 +125,7 @@
   color: #63717f;
 }
 .metrics strong {
-  font-size: 27px;
+  font-size: 20px;
   font-weight: 600;
 }
 .metrics small {
@@ -168,7 +168,6 @@
 }
 .tableScroll {
   overflow: auto;
-  max-height: 320px;
 }
 .tableScroll table {
   width: 100%;

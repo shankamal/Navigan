@@ -395,12 +395,12 @@ export function DeploymentEvidencePanel({
   }
   const sourceAnalysisAction = (
     <button
-      className={hideConnections ? undefined : styles.primary}
+      className="button button-secondary"
       disabled={
         !canEdit || !!busy || editing || !evidence?.inventoryDigest || !matching
       }
       onClick={() => void perform("analyze")}
-      title="Read configured repositories and referenced images. Scripts are never executed."
+      title="Refresh repository matches and image availability after inventory or access changes. This does not restart cluster discovery."
     >
       {busy === "analyze" && <LoaderCircle size={15} className={styles.spin} />}
       {busy === "analyze"
@@ -1537,7 +1537,9 @@ export function DeploymentEvidencePanel({
             <div className={styles.actions}>
               <span className={styles.caption}>
                 Checks configured sources against discovered inventory; this
-                table shows your selected workloads.
+                table shows your selected workloads. Recheck only after
+                inventory, repository or registry access changes; it does not
+                restart discovery.
               </span>
             </div>
           ) : (

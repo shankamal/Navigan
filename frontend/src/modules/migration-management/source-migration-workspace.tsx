@@ -33,7 +33,9 @@ import {
   type TargetCompatibilityResponse,
 } from "./service";
 import { ArtifactWorkspacePanel } from "./artifact-workspace-panel";
-import { SourceConnectionsPanel } from "./source-connections-panel";
+import { MigrationActions } from "./migration-actions";
+import { AssociatedResourcesTable } from "./associated-resources-table";
+import flow from "./migration-experience.module.css";
 import { DeploymentEvidencePanel } from "./deployment-evidence-panel";
 import { MigrationWorkflow } from "./migration-workflow";
 import {
@@ -71,7 +73,6 @@ export function SourceMigrationWorkspace({
   const [scopeView, setScopeView] = useState<"selection" | "artifacts">(
     "selection",
   );
-  const [manageRequest, setManageRequest] = useState(0);
   const [filesStage, setFilesStage] = useState(1);
   const [selected, setSelected] = useState(() =>
     restoredWorkloadKeys(inventory.resources, saved),
@@ -262,7 +263,10 @@ export function SourceMigrationWorkspace({
         "Migration scope saved. Only selected application workloads and observed dependencies are included.",
       );
       void cache.invalidateQueries({ queryKey: ["migrations"] });
-      if (continueToTarget) setStep(4);
+      if (continueToTarget) {
+        setScopeView("artifacts");
+        setFilesStage(1);
+      }
     } catch (e) {
       setError(normalizeApiError(e).message);
     } finally {
@@ -321,14 +325,6 @@ export function SourceMigrationWorkspace({
         }
         description="Choose applications, prepare source artifacts, then assess the destination."
         icon={<Boxes size={20} />}
-        action={
-          <Link
-            href={`/migrations/${migration.migrationId}/discovery`}
-            className="button button-secondary"
-          >
-            <ArrowLeft size={16} /> Source assessment
-          </Link>
-        }
       />
       <MigrationWorkflow
         active={step}
@@ -416,10 +412,22 @@ export function SourceMigrationWorkspace({
               1. Choose scope
             </button>
             <button
-              aria-pressed={scopeView === "artifacts"}
-              onClick={() => setScopeView("artifacts")}
+              aria-pressed={scopeView === "artifacts" && filesStage === 1}
+              onClick={() => {
+                setScopeView("artifacts");
+                setFilesStage(1);
+              }}
             >
-              2. Files &amp; images
+              2. Check sources
+            </button>
+            <button
+              aria-pressed={scopeView === "artifacts" && filesStage === 2}
+              onClick={() => {
+                setScopeView("artifacts");
+                setFilesStage(2);
+              }}
+            >
+              3. Collect &amp; export
             </button>
           </nav>
           <div hidden={scopeView !== "selection"}>
@@ -596,15 +604,20 @@ export function SourceMigrationWorkspace({
                       <dd>{pvcs.length}</dd>
                     </div>
                   </dl>
-                  {scope.workloads.map((r) => (
-                    <p key={scopeKey(r)}>
-                      <CheckCircle2 size={14} />
-                      <span>
-                        {r.name}
-                        <small>{r.namespace}</small>
-                      </span>
-                    </p>
-                  ))}
+                  <details>
+                    <summary>
+                      View selected workloads ({scope.workloads.length})
+                    </summary>{" "}
+                    {scope.workloads.map((r) => (
+                      <p key={scopeKey(r)}>
+                        <CheckCircle2 size={14} />
+                        <span>
+                          {r.name}
+                          <small>{r.namespace}</small>
+                        </span>
+                      </p>
+                    ))}
+                  </details>
                 </aside>
               </div>
             </section>
@@ -629,16 +642,7 @@ export function SourceMigrationWorkspace({
                   {scope.dependencies.length} resources
                 </span>
               </div>
-              <div className={styles.chips}>
-                {scope.dependencies.map((r) => (
-                  <span key={scopeKey(r)}>
-                    <strong>{r.name}</strong>
-                    <small>
-                      {r.namespace ?? "Cluster"} · {r.kind}
-                    </small>
-                  </span>
-                ))}
-              </div>
+              <AssociatedResourcesTable resources={scope.dependencies} />
               {scope.missing.length > 0 && (
                 <p role="status" className={styles.warning}>
                   Referenced resources missing from inventory:{" "}
@@ -686,82 +690,10 @@ export function SourceMigrationWorkspace({
                   Files and images use the namespaces from your saved workload
                   selection. Save the current selection to continue.
                 </p>
-                <button
-                  className={styles.secondary}
-                  onClick={() => setScopeView("selection")}
-                >
-                  Back to scope selection
-                </button>
               </section>
             ) : (
               <div className={styles.artifacts}>
-                <nav
-                  className={styles.filesNavigation}
-                  aria-label="Files and images preparation"
-                >
-                  <div className={styles.filesSteps}>
-                    {["Check sources", "Collect & export"].map(
-                      (label, index) => (
-                        <button
-                          key={label}
-                          type="button"
-                          aria-current={
-                            filesStage === index + 1 ? "step" : undefined
-                          }
-                          onClick={() => setFilesStage(index + 1)}
-                        >
-                          <span>{index + 1}</span> {label}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                  <div className={styles.filesActions}>
-                    <button
-                      className={styles.secondary}
-                      onClick={() =>
-                        filesStage === 1
-                          ? setScopeView("selection")
-                          : setFilesStage(filesStage - 1)
-                      }
-                    >
-                      {filesStage === 1 ? "Back to scope" : "Previous"}
-                    </button>
-                    {filesStage === 1 ? (
-                      <button
-                        className={styles.primary}
-                        onClick={() => setFilesStage(filesStage + 1)}
-                      >
-                        Continue to collection
-                        <ArrowRight size={16} />
-                      </button>
-                    ) : (
-                      <button
-                        className={styles.primary}
-                        disabled={busy}
-                        onClick={() => setStep(4)}
-                      >
-                        Continue to target
-                        <ArrowRight size={16} />
-                      </button>
-                    )}
-                  </div>
-                </nav>
                 <div hidden={filesStage !== 1} className={styles.artifacts}>
-                  <section
-                    className={styles.panel}
-                    aria-label="Artifact source access"
-                  >
-                    <h2>Repository &amp; registry access</h2>
-                    <SourceConnectionsPanel
-                      sourceId={String(
-                        migration.sourceConfiguration.sourceClusterId ?? "",
-                      )}
-                      assessmentComplete
-                      showConnector={false}
-                      compact
-                      openRequest={manageRequest}
-                    />
-                  </section>
                   <DeploymentEvidencePanel
                     migration={migration}
                     selectedKeys={selected}
@@ -781,16 +713,31 @@ export function SourceMigrationWorkspace({
                     active={filesStage === 2}
                     fixedScope
                     stage="collect"
-                    onReviewAccess={() => {
-                      setFilesStage(1);
-                      setManageRequest((n) => n + 1);
+                    sourceAccessHref={`/migrations/${migration.migrationId}/source-access`}
+                    navigation={{
+                      back: (
+                        <button onClick={() => setFilesStage(1)}>
+                          <ArrowLeft size={16} /> Back to source checks
+                        </button>
+                      ),
+                      next: (
+                        <button disabled={busy} onClick={() => setStep(4)}>
+                          Continue to target <ArrowRight size={16} />
+                        </button>
+                      ),
                     }}
                   />
                 </div>
               </div>
             ))}
           {(scopeView === "selection" || !savedScope || dirty) && (
-            <footer className={styles.actions}>
+            <MigrationActions
+              back={
+                <Link href={`/migrations/${migration.migrationId}/discovery`}>
+                  <ArrowLeft size={16} /> Source assessment
+                </Link>
+              }
+            >
               <span>
                 {scope.workloads.length} workloads selected ·{" "}
                 {dirty
@@ -809,15 +756,35 @@ export function SourceMigrationWorkspace({
               </button>
 
               <button
-                className={styles.primary}
+                className={flow.primary}
                 disabled={busy || !canEdit || !scope.workloads.length}
                 onClick={() => void saveScope(true)}
               >
-                {busy ? "Saving…" : "Save & continue to target"}
+                {busy ? "Saving…" : "Save & continue to files"}
                 <ArrowRight size={16} />
               </button>
-            </footer>
+            </MigrationActions>
           )}
+          {scopeView === "artifacts" &&
+            savedScope &&
+            !dirty &&
+            filesStage === 1 && (
+              <MigrationActions
+                back={
+                  <button onClick={() => setScopeView("selection")}>
+                    <ArrowLeft size={16} /> Back to scope
+                  </button>
+                }
+                status="Review deployment matches and image availability before collection."
+              >
+                <button
+                  className={flow.primary}
+                  onClick={() => setFilesStage(2)}
+                >
+                  Continue to collection <ArrowRight size={16} />
+                </button>
+              </MigrationActions>
+            )}
         </>
       )}
       {step === 4 && (
@@ -873,20 +840,6 @@ export function SourceMigrationWorkspace({
           {targets.data?.length === 0 && (
             <p>No active EKS targets are registered for this customer.</p>
           )}
-          <button
-            className={styles.primary}
-            disabled={
-              !canEdit ||
-              busy ||
-              !targetId ||
-              !savedScope ||
-              dirty ||
-              !targets.data?.some((c) => c.clusterId === targetId)
-            }
-            onClick={() => void assessTarget()}
-          >
-            {busy ? "Assessing selected scope…" : "Assess target compatibility"}
-          </button>
           {storedCompatibility.isError && !compatibility && (
             <p role="alert" className={styles.error}>
               Unable to load saved target checks.{" "}
@@ -949,17 +902,42 @@ export function SourceMigrationWorkspace({
                   </tbody>
                 </table>
               </div>
-              <button className={styles.secondary} onClick={() => setStep(5)}>
-                Review scope & readiness <ArrowRight size={16} />
-              </button>
             </div>
           )}
-          <div className={styles.actions}>
-            <button className={styles.secondary} onClick={() => setStep(3)}>
-              <ArrowLeft size={16} />
-              Back to migration scope
+          <MigrationActions
+            back={
+              <button onClick={() => setStep(3)}>
+                <ArrowLeft size={16} /> Back to migration scope
+              </button>
+            }
+            status={
+              currentCompatibility
+                ? "Review the reported compatibility before approval."
+                : "Choose a destination and assess the saved workload scope."
+            }
+          >
+            <button
+              className={flow.primary}
+              disabled={
+                !canEdit ||
+                busy ||
+                !targetId ||
+                !savedScope ||
+                dirty ||
+                !targets.data?.some((c) => c.clusterId === targetId)
+              }
+              onClick={() => void assessTarget()}
+            >
+              {busy
+                ? "Assessing selected scope…"
+                : "Assess target compatibility"}
             </button>
-          </div>
+            {currentCompatibility && (
+              <button className={flow.primary} onClick={() => setStep(5)}>
+                Review scope &amp; readiness <ArrowRight size={16} />
+              </button>
+            )}
+          </MigrationActions>
         </section>
       )}
       {step === 5 && (
@@ -998,9 +976,15 @@ export function SourceMigrationWorkspace({
             a validated selected-workload package and resolved compatibility
             checks. These capabilities are not yet connected in this workflow.
           </p>
-          <div className={styles.actions}>
+          <MigrationActions
+            back={
+              <button onClick={() => setStep(4)}>
+                <ArrowLeft size={16} /> Back to target &amp; compatibility
+              </button>
+            }
+            status="Approval remains unavailable until the required validations are connected."
+          >
             <button
-              className={styles.secondary}
               onClick={() => {
                 setScopeView("artifacts");
                 setFilesStage(2);
@@ -1009,18 +993,10 @@ export function SourceMigrationWorkspace({
             >
               Review files &amp; images
             </button>
-            <button className={styles.secondary} onClick={() => setStep(4)}>
-              Back to target & compatibility
+            <button className={flow.primary} disabled>
+              <LockKeyhole size={16} /> Submit for migration approval
             </button>
-            <button className={styles.primary} disabled>
-              <LockKeyhole size={16} />
-              Submit for migration approval
-            </button>
-            <button disabled>
-              <LockKeyhole size={16} />
-              Execute migration
-            </button>
-          </div>
+          </MigrationActions>
         </section>
       )}
     </div>

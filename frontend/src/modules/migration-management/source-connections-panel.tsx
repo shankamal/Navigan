@@ -1,4 +1,5 @@
 "use client";
+import { SourceProviderMark } from "./source-provider-mark";
 
 import { useEffect, useState, type ReactNode } from "react";
 import { EvidenceDrawer } from "./evidence-drawer";
@@ -604,7 +605,7 @@ export function SourceConnectionsPanel({
             </div>
           )}
           <div>
-            <GitBranch size={22} />
+            <SourceProviderMark provider="github" />
             <span>
               <strong>GitHub</strong>
               <small>
@@ -626,7 +627,7 @@ export function SourceConnectionsPanel({
             </span>
           </div>
           <div>
-            <Database size={22} />
+            <SourceProviderMark provider="docker" />
             <span>
               <strong>Source registry</strong>
               <small title={registries.join(", ")}>

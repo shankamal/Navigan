@@ -486,39 +486,107 @@
 .toolbarHeading p {
   color: #637078;
 }
-.toolbarActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-.panel[class] .toolbarActions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0;
-  padding: 6px 9px;
-  min-height: 32px;
-  border-radius: 4px;
-  background: #fff;
-  border: 1px solid #d3dbe0;
-  color: #42515b;
-  font: inherit;
-}
-.panel[class] .toolbarActions .primary {
-  background: #267245;
-  border-color: #267245;
-  color: #fff !important;
-}
-.panel[class] .toolbarActions button:disabled {
-  background: #f1f3f4 !important;
-  border-color: #d9dfe3 !important;
-  color: #7a858e !important;
-  opacity: 1;
-}
 .toolbarHint {
   color: #637078;
   font-size: var(--navigan-font-caption);
+}
+
+.collectionTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0;
+  border-bottom: 1px solid #d7dcdf;
+}
+.panel[class] .collectionTabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 11px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #526069;
+  font: inherit;
+}
+.panel[class] .collectionTabs button[aria-pressed="true"] {
+  border-bottom-color: #267245;
+  background: #303638;
+  color: #fff !important;
+}
+.collectionTabs button > span {
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+.workspaceOptions {
+  position: relative;
+}
+.workspaceOptions > summary {
+  list-style: none;
+  padding: 8px 10px;
+  border: 1px solid #cdd5da;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.workspaceOptions[open] > summary {
+  border-color: #526069;
+}
+.workspaceOptions > div {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 25;
+  display: grid;
+  gap: 6px;
+  width: 235px;
+  max-width: calc(100vw - 32px);
+  padding: 10px;
+  border: 1px solid #d7dcdf;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 8px 24px #20262926;
+}
+.panel[class] .workspaceOptions button {
+  width: 100%;
+  justify-content: flex-start;
+  color: #354149;
+  background: #fff;
+  border-color: #d7dcdf;
+}
+.artifactReference {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #627078;
+}
+.artifactReference summary {
+  cursor: pointer;
+}
+.artifactReference code {
+  display: block;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 5px 0;
+}
+.tableScroll {
+  max-width: 100%;
+}
+@media (max-width: 700px) {
+  .collectionTabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .panel[class] .collectionTabs button {
+    justify-content: flex-start;
+    padding: 7px 9px;
+  }
+  .artifactTable {
+    min-width: 580px;
+  }
 }
 .panel[class] .downloadExport {
   display: inline-flex;
@@ -639,15 +707,6 @@
   .spinning,
   .transferBar:not([value]) {
     animation: none;
-  }
-}
-@container (max-width: 600px) {
-  .toolbarActions {
-    align-items: stretch;
-  }
-  .panel[class] .toolbarActions button {
-    flex: 1 1 140px;
-    justify-content: center;
   }
 }
 .s3Location {

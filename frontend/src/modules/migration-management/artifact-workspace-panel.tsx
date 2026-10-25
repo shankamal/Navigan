@@ -1,5 +1,9 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { MigrationActions } from "./migration-actions";
+import { SourceProviderMark } from "./source-provider-mark";
+import flow from "./migration-experience.module.css";
 import {
   ChevronDown,
   Database,
@@ -81,6 +85,8 @@ export function ArtifactWorkspacePanel({
   guided = false,
   active = false,
   onReviewAccess,
+  sourceAccessHref,
+  navigation,
   fixedScope = false,
   stage,
 }: {
@@ -92,10 +98,15 @@ export function ArtifactWorkspacePanel({
   guided?: boolean;
   active?: boolean;
   onReviewAccess?: () => void;
+  sourceAccessHref?: string;
+  navigation?: { back: ReactNode; next: ReactNode };
   fixedScope?: boolean;
   stage?: "collect" | "review";
 }) {
   const [query, setQuery] = useState("");
+  const [artifactGroup, setArtifactGroup] = useState<
+    "files" | "images" | "recovery"
+  >("files");
   const [exports, setExports] = useState<
     Record<
       string,
@@ -451,36 +462,60 @@ export function ArtifactWorkspacePanel({
     return (
       <>
         {" "}
-        <button
-          type="button"
-          disabled={
-            busy ||
-            !canEdit ||
-            w.stale ||
-            w.status === "COLLECTING" ||
-            !w.artifacts.some(
-              (a) =>
-                a.kind === "REPOSITORY_DEFINITION" && a.status !== "COLLECTED",
-            )
-          }
-          onClick={() => collect(w.workspaceId)}
-        >
-          Collect / retry repository files
-        </button>
-        <button
-          type="button"
-          disabled={
-            busy ||
-            !canEdit ||
-            w.stale ||
-            !w.artifacts.some(
-              (a) => a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
-            )
-          }
-          onClick={() => collect(w.workspaceId, "IMAGE")}
-        >
-          Collect / retry available images
-        </button>
+        {(!fixedScope || artifactGroup === "files") && (
+          <button
+            className={flow.primary}
+            type="button"
+            title={collectionReason(w, "REPOSITORY_DEFINITION", busy, canEdit)}
+            disabled={
+              busy ||
+              !canEdit ||
+              w.stale ||
+              (w.jobs ?? []).some(
+                (j) =>
+                  ["QUEUED", "RUNNING"].includes(j.status) &&
+                  w.artifacts.some(
+                    (a) =>
+                      a.artifactId === j.artifactId &&
+                      a.kind === "REPOSITORY_DEFINITION",
+                  ),
+              ) ||
+              !w.artifacts.some(
+                (a) =>
+                  a.kind === "REPOSITORY_DEFINITION" &&
+                  a.status !== "COLLECTED",
+              )
+            }
+            onClick={() => collect(w.workspaceId)}
+          >
+            Collect / retry repository files
+          </button>
+        )}
+        {(!fixedScope || artifactGroup === "images") && (
+          <button
+            className={flow.primary}
+            type="button"
+            title={collectionReason(w, "IMAGE", busy, canEdit)}
+            disabled={
+              busy ||
+              !canEdit ||
+              w.stale ||
+              (w.jobs ?? []).some(
+                (j) =>
+                  ["QUEUED", "RUNNING"].includes(j.status) &&
+                  w.artifacts.some(
+                    (a) => a.artifactId === j.artifactId && a.kind === "IMAGE",
+                  ),
+              ) ||
+              !w.artifacts.some(
+                (a) => a.kind === "IMAGE" && a.status === "PENDING_COLLECTION",
+              )
+            }
+            onClick={() => collect(w.workspaceId, "IMAGE")}
+          >
+            Collect / retry available images
+          </button>
+        )}
       </>
     );
   }
@@ -488,7 +523,7 @@ export function ArtifactWorkspacePanel({
     const { attention, available, required } = workspaceCounts(w);
     return (
       <button
-        className={styles.primary}
+        className={flow.primary}
         type="button"
         disabled={
           busy ||
@@ -626,6 +661,14 @@ export function ArtifactWorkspacePanel({
       : []
     : scopedWorkspaces;
   const existingWorkspace = scopedWorkspaces.find((w) => !w.stale);
+  const canExport = Boolean(
+    activeWorkspace &&
+    !activeWorkspace.stale &&
+    workspaceCounts(activeWorkspace).required > 0 &&
+    workspaceCounts(activeWorkspace).attention === 0 &&
+    workspaceCounts(activeWorkspace).available === 0 &&
+    !collectionInProgress(activeWorkspace),
+  );
   const visibleNamespaces = namespaces.filter((ns) =>
     ns.toLowerCase().includes(query.toLowerCase()),
   );
@@ -832,64 +875,10 @@ export function ArtifactWorkspacePanel({
                 <p>Saved namespaces: {namespaces.join(", ") || "None"}</p>
               </div>
             </div>
-            <div
-              className={styles.toolbarActions}
-              role="toolbar"
-              aria-label="Workspace actions"
-            >
-              {stage !== "review" && (
-                <button
-                  className={styles.primary}
-                  type="button"
-                  disabled={
-                    busy ||
-                    !loaded ||
-                    !canEdit ||
-                    !inventoryDigest ||
-                    !scope.length ||
-                    Boolean(existingWorkspace)
-                  }
-                  onClick={() => run(true)}
-                >
-                  Create workspace
-                </button>
-              )}
-              <button type="button" disabled={busy} onClick={() => run(false)}>
-                <RefreshCw size={13} aria-hidden="true" />
-                {loaded ? "Refresh workspaces" : "Load workspaces"}
-              </button>
-              {existingWorkspace && stage !== "review" && (
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !loaded ||
-                    !canEdit ||
-                    !inventoryDigest ||
-                    !scope.length ||
-                    scopedWorkspaces.some(
-                      (w) =>
-                        (w.jobs ?? []).some((j) =>
-                          ["QUEUED", "RUNNING"].includes(j.status),
-                        ) || w.artifacts.some((a) => a.status === "RECOVERING"),
-                    )
-                  }
-                  onClick={() => run(true, true)}
-                  title="Use current source checks and reuse verified files and images. Earlier snapshots are retained."
-                >
-                  Update workspace index
-                </button>
-              )}
-              {activeWorkspace &&
-                stage !== "review" &&
-                collectionButtons(activeWorkspace)}
-              {activeWorkspace && exportButton(activeWorkspace)}
-              {activeWorkspace && downloadExport(activeWorkspace)}
-            </div>
             {activeWorkspace && exportFeedback(activeWorkspace)}
             <p className={styles.toolbarHint}>
               {existingWorkspace
-                ? "After Recheck sources, use Update workspace index to apply current mappings and reuse verified saved artifacts. Refresh workspaces only reloads copy progress."
+                ? "Use the tabs to collect files, copy images and resolve source recovery. Workspace options contains refresh and index updates."
                 : !loaded
                   ? "Checking existing workspaces before creation…"
                   : "Create the workspace, then collect available files and images."}
@@ -940,6 +929,9 @@ export function ArtifactWorkspacePanel({
           </p>
         )}
         {visibleWorkspaces.map((w) => {
+          const groupArtifacts = fixedScope
+            ? w.artifacts.filter((a) => artifactCategory(a) === artifactGroup)
+            : w.artifacts;
           const artifactView =
             showCompleted[w.workspaceId] ??
             (stage === "review" ? "saved" : "all");
@@ -969,17 +961,19 @@ export function ArtifactWorkspacePanel({
                 <span className={styles.badge}>
                   {w.stale
                     ? "Older inventory snapshot · Create a new workspace"
-                    : pendingJobs || collectionInProgress(w)
+                    : pendingJobs
                       ? "Artifact collection queued or running"
-                      : saved > 0 && saved === required
-                        ? "All required artifacts saved · Review before deployment"
-                        : w.status === "COLLECTING"
-                          ? "Artifact collection queued or running"
-                          : w.status === "FAILED"
-                            ? "Collection failed · Review details"
-                            : w.status === "PARTIAL"
-                              ? "Partially collected"
-                              : "Workspace index created"}
+                      : collectionInProgress(w)
+                        ? "Source recovery needs a status check"
+                        : saved > 0 && saved === required
+                          ? "All required artifacts saved · Review before deployment"
+                          : available > 0
+                            ? "Ready to collect available artifacts"
+                            : w.status === "FAILED"
+                              ? "Collection failed · Review details"
+                              : attention > 0
+                                ? "Source action required"
+                                : "Workspace index created"}
                 </span>
               </div>
               {guided && (
@@ -1033,7 +1027,9 @@ export function ArtifactWorkspacePanel({
                           className={styles.spinning}
                           aria-hidden="true"
                         />{" "}
-                        Copying or queued · updates every 5 seconds
+                        {pendingJobs
+                          ? "Copying or queued · updates every 5 seconds"
+                          : "Source recovery pending · use Check recovery progress"}
                       </small>
                     )}
                   </div>
@@ -1106,8 +1102,7 @@ export function ArtifactWorkspacePanel({
                         </code>
                       ) : (
                         <small>
-                          Create an export manifest to display the workspace
-                          location.
+                          S3 workspace path was not returned by the API.
                         </small>
                       )}
                       <small>
@@ -1116,6 +1111,47 @@ export function ArtifactWorkspacePanel({
                       </small>
                     </div>
                   )}
+                {fixedScope && (
+                  <nav
+                    className={styles.collectionTabs}
+                    aria-label="Artifact categories"
+                  >
+                    {(
+                      [
+                        ["files", "Repository files", Github],
+                        ["images", "Container images", Container],
+                        ["recovery", "Source recovery", Layers],
+                      ] as const
+                    ).map(([key, label, Icon]) => (
+                      <button
+                        type="button"
+                        key={key}
+                        aria-pressed={artifactGroup === key}
+                        onClick={() => setArtifactGroup(key)}
+                      >
+                        <Icon size={16} aria-hidden="true" />
+                        {label}
+                        <span>
+                          {
+                            w.artifacts
+                              .filter((a) => artifactCategory(a) === key)
+                              .filter((a) =>
+                                ["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                                  a.status,
+                                ),
+                              ).length
+                          }
+                          /
+                          {
+                            w.artifacts.filter(
+                              (a) => artifactCategory(a) === key,
+                            ).length
+                          }
+                        </span>
+                      </button>
+                    ))}
+                  </nav>
+                )}
                 {guided && (
                   <div className={journey.artifactFilters}>
                     <button
@@ -1128,7 +1164,7 @@ export function ArtifactWorkspacePanel({
                         }))
                       }
                     >
-                      All artifacts ({w.artifacts.length})
+                      All artifacts ({groupArtifacts.length})
                     </button>
                     <button
                       type="button"
@@ -1140,7 +1176,16 @@ export function ArtifactWorkspacePanel({
                         }))
                       }
                     >
-                      Remaining ({required - saved})
+                      Remaining (
+                      {
+                        groupArtifacts.filter(
+                          (a) =>
+                            !["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                              a.status,
+                            ),
+                        ).length
+                      }
+                      )
                     </button>
                     <button
                       type="button"
@@ -1152,9 +1197,31 @@ export function ArtifactWorkspacePanel({
                         }))
                       }
                     >
-                      Saved / excluded ({saved + historical})
+                      Saved / excluded (
+                      {
+                        groupArtifacts.filter((a) =>
+                          ["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(
+                            a.status,
+                          ),
+                        ).length
+                      }
+                      )
                     </button>
                   </div>
+                )}
+                {fixedScope && (
+                  <p className={styles.hint}>
+                    {artifactGroup === "recovery"
+                      ? "Recover source definitions and retained Helm data, or review deleted historical Jobs. These are separate from image and repository copy jobs."
+                      : collectionReason(
+                          w,
+                          artifactGroup === "images"
+                            ? "IMAGE"
+                            : "REPOSITORY_DEFINITION",
+                          busy,
+                          canEdit,
+                        )}
+                  </p>
                 )}
                 <div className={styles.tableScroll}>
                   <table className={styles.artifactTable}>
@@ -1168,7 +1235,15 @@ export function ArtifactWorkspacePanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {w.artifacts
+                      {!groupArtifacts.length && (
+                        <tr>
+                          <td colSpan={5}>
+                            No artifacts in this category for the selected
+                            workspace.
+                          </td>
+                        </tr>
+                      )}
+                      {groupArtifacts
                         .filter(
                           (a) =>
                             !guided ||
@@ -1184,15 +1259,22 @@ export function ArtifactWorkspacePanel({
                         .map((a) => (
                           <tr key={a.artifactId}>
                             <td>
-                              {a.source?.reference ||
-                                a.source?.filePath ||
-                                (a.source?.resource
-                                  ? `${a.source.resource.namespace} / ${a.source.resource.kind} / ${a.source.resource.name}`
-                                  : "") ||
-                                (a.source?.release
-                                  ? `${a.source.namespace} / ${a.source.release}`
-                                  : "") ||
-                                artifactKind(a.kind)}
+                              {a.source?.reference
+                                ? imageDisplayName(a.source.reference)
+                                : a.source?.filePath ||
+                                  (a.source?.resource
+                                    ? `${a.source.resource.namespace} / ${a.source.resource.kind} / ${a.source.resource.name}`
+                                    : "") ||
+                                  (a.source?.release
+                                    ? `${a.source.namespace} / ${a.source.release}`
+                                    : "") ||
+                                  artifactKind(a.kind)}
+                              {a.source?.reference && (
+                                <details className={styles.artifactReference}>
+                                  <summary>Full image reference</summary>
+                                  <code>{a.source.reference}</code>
+                                </details>
+                              )}
                               {a.source?.repository && (
                                 <small className={styles.artifactMeta}>
                                   {a.source.repository}
@@ -1264,11 +1346,18 @@ export function ArtifactWorkspacePanel({
                                 )}
                               {a.kind === "IMAGE" &&
                                 a.status === "ACCESS_REQUIRED" &&
-                                onReviewAccess && (
+                                (onReviewAccess || sourceAccessHref) && (
                                   <button
                                     type="button"
                                     disabled={busy}
-                                    onClick={onReviewAccess}
+                                    onClick={
+                                      sourceAccessHref
+                                        ? () =>
+                                            window.location.assign(
+                                              sourceAccessHref,
+                                            )
+                                        : onReviewAccess
+                                    }
                                   >
                                     Review registry access
                                   </button>
@@ -1323,7 +1412,7 @@ export function ArtifactWorkspacePanel({
                                         <option value="">
                                           Select the saved CronJob definition
                                         </option>
-                                        {w.artifacts
+                                        {groupArtifacts
                                           .filter(
                                             (candidate) =>
                                               [
@@ -1449,7 +1538,7 @@ export function ArtifactWorkspacePanel({
                                         exports[w.workspaceId]?.result,
                                       )
                                         ? "In workspace folder · exact path in export manifest"
-                                        : "Create export to view location"}
+                                        : "Saved in private S3 · path not returned by API"}
                                     </small>
                                   )}
                                 </>
@@ -1474,6 +1563,106 @@ export function ArtifactWorkspacePanel({
             </div>
           );
         })}
+        {fixedScope && (
+          <MigrationActions
+            back={navigation?.back}
+            status={
+              error
+                ? `Action failed: ${error}`
+                : indexFeedback
+                  ? "Workspace updated · Review the saved and remaining counts."
+                  : activeWorkspace
+                    ? `${activeWorkspace.artifacts.filter((a) => ["COLLECTED", "EXCLUDED_FROM_REPLAY"].includes(a.status)).length} of ${activeWorkspace.artifacts.length} resolved · Target validation follows`
+                    : "Prepare a workspace to collect artifacts"
+            }
+          >
+            {activeWorkspace &&
+              stage !== "review" &&
+              collectionButtons(activeWorkspace)}
+            {!existingWorkspace && stage !== "review" && (
+              <button
+                className={flow.primary}
+                type="button"
+                disabled={
+                  busy ||
+                  !loaded ||
+                  !canEdit ||
+                  !inventoryDigest ||
+                  !scope.length
+                }
+                onClick={() => run(true)}
+              >
+                Create workspace
+              </button>
+            )}
+            {activeWorkspace && canExport && exportButton(activeWorkspace)}
+            {activeWorkspace && downloadExport(activeWorkspace)}
+            <details
+              className={styles.workspaceOptions}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector("summary")?.focus();
+                }
+              }}
+            >
+              <summary>Workspace options</summary>
+              <div role="toolbar" aria-label="Workspace actions">
+                {existingWorkspace && stage !== "review" && (
+                  <button
+                    className={styles.primary}
+                    type="button"
+                    disabled={
+                      busy ||
+                      !loaded ||
+                      !canEdit ||
+                      !inventoryDigest ||
+                      !scope.length ||
+                      Boolean(existingWorkspace)
+                    }
+                    onClick={() => run(true)}
+                  >
+                    Create workspace
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => run(false)}
+                >
+                  <RefreshCw size={13} aria-hidden="true" />
+                  {loaded ? "Refresh workspaces" : "Load workspaces"}
+                </button>
+                {existingWorkspace && stage !== "review" && (
+                  <button
+                    type="button"
+                    disabled={
+                      busy ||
+                      !loaded ||
+                      !canEdit ||
+                      !inventoryDigest ||
+                      !scope.length ||
+                      scopedWorkspaces.some(
+                        (w) =>
+                          (w.jobs ?? []).some((j) =>
+                            ["QUEUED", "RUNNING"].includes(j.status),
+                          ) ||
+                          w.artifacts.some((a) => a.status === "RECOVERING"),
+                      )
+                    }
+                    onClick={() => run(true, true)}
+                    title="Use current source checks and reuse verified files and images. Earlier snapshots are retained."
+                  >
+                    Update workspace index
+                  </button>
+                )}
+
+                {activeWorkspace && !canExport && exportButton(activeWorkspace)}
+              </div>
+            </details>
+            {navigation?.next}
+          </MigrationActions>
+        )}
         <details className={styles.collectionHelp}>
           <summary>How collection and recovery work</summary>
           <p>
@@ -1555,7 +1744,21 @@ function ArtifactOrigin({ artifact }: { artifact: Artifact }) {
             };
   return (
     <span className={styles.origin} data-source={origin.tone}>
-      <origin.Icon size={15} aria-hidden="true" />
+      <SourceProviderMark
+        provider={
+          artifact.kind === "REPOSITORY_DEFINITION"
+            ? "github"
+            : artifact.kind === "HELM_RELEASE"
+              ? "helm"
+              : artifact.kind === "LIVE_DEFINITION"
+                ? "kubernetes"
+                : artifact.source?.reference?.includes(".dkr.ecr.")
+                  ? "aws"
+                  : artifact.source?.reference?.startsWith("ghcr.io/")
+                    ? "github"
+                    : "docker"
+        }
+      />
       {origin.label}
     </span>
   );
@@ -1673,4 +1876,47 @@ function workspaceLocation(workspace: Workspace, exported?: WorkspaceExport) {
   return marker < 0
     ? null
     : `s3://${exported.storage.bucket}/${exported.storage.key.slice(0, marker + 1)}`;
+}
+
+function artifactCategory(artifact: Artifact) {
+  return artifact.kind === "REPOSITORY_DEFINITION"
+    ? "files"
+    : artifact.kind === "IMAGE"
+      ? "images"
+      : "recovery";
+}
+
+function imageDisplayName(reference: string) {
+  const name = reference.split("@")[0];
+  return name.split("/").slice(-2).join("/");
+}
+
+function collectionReason(
+  workspace: Workspace,
+  kind: string,
+  busy: boolean,
+  canEdit: boolean,
+) {
+  if (busy) return "Waiting for the current request to finish.";
+  if (!canEdit)
+    return "This workspace is read-only for your account or workflow status.";
+  if (workspace.stale)
+    return "This is an older inventory snapshot. Choose the current workspace to collect artifacts.";
+  const artifacts = workspace.artifacts.filter((a) => a.kind === kind);
+  if (
+    (workspace.jobs ?? []).some(
+      (j) =>
+        ["QUEUED", "RUNNING"].includes(j.status) &&
+        artifacts.some((a) => a.artifactId === j.artifactId),
+    )
+  )
+    return "Collection is queued or running for this category. Progress updates automatically.";
+  if (artifacts.length && artifacts.every((a) => a.status === "COLLECTED"))
+    return "All artifacts in this category are saved to S3.";
+  const available = artifacts.filter(
+    (a) => a.status === "PENDING_COLLECTION",
+  ).length;
+  return available
+    ? `${available} ready to collect. Start collection using the action bar below.`
+    : "No available copies in this category. Review source checks and update the workspace index if evidence changed.";
 }

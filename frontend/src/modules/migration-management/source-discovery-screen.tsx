@@ -30,6 +30,9 @@ import { MigrationWorkflow } from "./migration-workflow";
 import shared from "./source-connection-screen.module.css";
 import styles from "./source-discovery-screen.module.css";
 import journey from "./discovery-journey.module.css";
+import { MigrationActions } from "./migration-actions";
+import { InventoryComposition } from "./inventory-composition";
+import flow from "./migration-experience.module.css";
 
 import {
   workloadKinds,
@@ -299,8 +302,43 @@ export function SourceDiscoveryScreen({
             ? "Source discovery in progress"
             : "Ready to discover your source";
 
+  const startDiscoveryControl = (
+    <>
+      {" "}
+      {(canStart || canAssess) && (
+        <button
+          className={flow.primary}
+          disabled={
+            busy ||
+            recovering ||
+            !sourceOwned ||
+            query.isError ||
+            !sourceFresh ||
+            !connectionSettings.data?.readyForDiscovery
+          }
+          onClick={run}
+        >
+          {busy
+            ? "Starting…"
+            : canAssess
+              ? "Run source assessment"
+              : ready
+                ? "Refresh discovery"
+                : "Discover source inventory"}
+        </button>
+      )}
+    </>
+  );
   const workspaceControls = (
-    <div className={styles.footerActions}>
+    <MigrationActions
+      back={
+        <Link href="/migrations">
+          <ArrowLeft size={15} /> Back to assessments
+        </Link>
+      }
+      status={phase}
+    >
+      {startDiscoveryControl}
       {ready && migration.status === "ASSESSMENT_READY" && (
         <button
           disabled={
@@ -317,18 +355,19 @@ export function SourceDiscoveryScreen({
         </button>
       )}
       {ready && !query.isError ? (
-        <Link className={shared.back} href={`/migrations/${migrationId}/plan`}>
+        <Link className={flow.primary} href={`/migrations/${migrationId}/plan`}>
           Continue to migration scope <ArrowRight size={16} />
         </Link>
       ) : (
         <button
+          className={flow.primary}
           disabled
           title="Requires completed discovery, matching inventory and assessment evidence, and a successful status refresh."
         >
           Continue to migration scope <ArrowRight size={16} />
         </button>
       )}
-    </div>
+    </MigrationActions>
   );
   const discoveryDiagnostics = (
     <>
@@ -506,12 +545,13 @@ export function SourceDiscoveryScreen({
               <div>
                 <dt>Observed at</dt>
                 <dd>
-                  {inventory?.observedAt ??
-                    catalogue?.observedAt ??
-                    "Not reported"}
+                  {formatObservedTime(
+                    inventory?.observedAt ?? catalogue?.observedAt,
+                  )}
                 </dd>
               </div>
             </dl>
+            <InventoryComposition kinds={summary.kinds} />
             <p className={styles.note}>
               <ShieldCheck size={17} /> Sanitized inventory only. Secret values
               and kubeconfig contents are not displayed.
@@ -773,9 +813,6 @@ export function SourceDiscoveryScreen({
                 Configure source access
               </Link>
             )}
-            <Link className="button button-secondary" href="/migrations">
-              <ArrowLeft size={15} /> Back to assessments
-            </Link>
           </>
         }
       />
@@ -877,33 +914,11 @@ export function SourceDiscoveryScreen({
                 ? "Unable to check repository and registry access."
                 : connectionSettings.isPending
                   ? "Checking repository and registry access…"
-                  : "Repository and registry discovery setup is incomplete. Verify the required source access, or explicitly choose inventory-only discovery."}
-              {" "}Use Configure source access in the page header.
+                  : "Repository and registry discovery setup is incomplete. Verify the required source access, or explicitly choose inventory-only discovery."}{" "}
+              Use Configure source access in the page header.
             </p>
           )}
         <div className={ready ? styles.completedActions : styles.runActions}>
-          {(canStart || canAssess) && (
-            <button
-              className={shared.primary}
-              disabled={
-                busy ||
-                recovering ||
-                !sourceOwned ||
-                query.isError ||
-                !sourceFresh ||
-                !connectionSettings.data?.readyForDiscovery
-              }
-              onClick={run}
-            >
-              {busy
-                ? "Starting…"
-                : canAssess
-                  ? "Run source assessment"
-                  : ready
-                    ? "Refresh discovery"
-                    : "Discover source inventory"}
-            </button>
-          )}
           {waitingForConnector && installationCheck?.canRestore && (
             <button
               className={shared.primary}
@@ -1037,22 +1052,20 @@ export function SourceDiscoveryScreen({
             </div>
             {discoveryDiagnostics}
           </section>
-          <footer className={`${shared.panel} ${styles.footer}`}>
-            {workspaceControls}
-          </footer>
         </>
       )}
-      {!sourceOwned && (
-        <footer className={`${shared.panel} ${styles.footer}`}>
-          <p>Confirm the source connection to continue.</p>
-          <button
-            disabled
-            title="Requires verified source ownership and completed matching inventory and assessment evidence."
-          >
-            Continue to migration scope <ArrowRight size={16} />
-          </button>
-        </footer>
-      )}
+      {workspaceControls}
     </div>
   );
+}
+
+function formatObservedTime(value?: string) {
+  if (!value) return "Not reported";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Not reported"
+    : date.toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
 }
