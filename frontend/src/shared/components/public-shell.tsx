@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import "../auth/login-workspace.css";
 
@@ -10,17 +9,13 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <header className="topbar">
         <Link href="/login" className="brand" aria-label="Navigan sign in">
           <img
-            src={logo || "/logos/deloitte.svg"}
+            src={logo || "/logos/deloitte-reverse.svg"}
             alt="Deloitte"
             className="corporate-logo login-deloitte-logo"
           />
         </Link>
         <span className="brand-divider" />
         <span className="platform-title">Container Management Platform</span>
-        <div className="topbar-account">
-          <ShieldCheck size={18} aria-hidden="true" />
-          <span>Secure access</span>
-        </div>
       </header>
       <main id="main-content" className="public-main">
         {children}

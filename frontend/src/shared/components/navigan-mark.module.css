@@ -1,41 +1,18 @@
 .mark {
-  position: relative;
-  width: 49px;
-  height: 49px;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  width: 58px;
+  height: 46px;
   flex: 0 0 auto;
-  border: 1px solid #355774;
-  border-radius: 12px;
-  color: #e5eff7;
-  background: #19364f;
-  box-shadow: 0 5px 16px rgb(25 54 79 / 16%);
+  align-items: center;
+  justify-content: center;
 }
-.compass {width:34px;height:34px}
-.pointer {
-  position:absolute;
-  width:15px;
-  height:15px;
-  color:#92c939;
-  fill:#92c939;
-  transform:translate(4px,-4px) rotate(18deg);
+.mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
-.compact {width:34px;height:34px;border-radius:9px;box-shadow:none}
-.compact .compass {width:25px;height:25px}
-.compact .pointer {width:11px;height:11px;transform:translate(3px,-3px) rotate(18deg)}
-.containers {position:absolute;width:18px;height:18px;right:3px;bottom:4px;color:#fff}
-.compact .containers {width:13px;height:13px;right:1px;bottom:2px}
-/* The public login uses a larger, transparent compass-and-container emblem. */
-.loginMark {background:transparent}
-.mark:not(.compact) {
-  width:74px;
-  height:74px;
-  border:0;
-  border-radius:0;
-  box-shadow:none;
-  color:#132e4d;
-  background:transparent;
+.compact {
+  width: 26px;
+  height: 24px;
 }
-.mark:not(.compact) .compass{width:65px;height:65px}
-.mark:not(.compact) .pointer{width:27px;height:27px;transform:translate(8px,-8px) rotate(18deg);color:#86bc25;fill:#86bc25}
-.mark:not(.compact) .containers{width:29px;height:29px;color:#18395a;right:2px;bottom:3px}

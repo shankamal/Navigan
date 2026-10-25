@@ -1,110 +1,75 @@
 "use client";
 import Image from "next/image";
-import { Cloud, LockKeyhole, ShieldCheck } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import { LoginForm } from "./login-form";
 import { NaviganMark } from "@/shared/components/navigan-mark";
 import "./login-workspace.css";
 
-const clouds = [
+const platforms = [
   ["AWS", "amazonwebservices"],
   ["Azure", "microsoftazure"],
   ["Google Cloud", "googlecloud"],
-  ["Oracle Cloud", "oracle"],
-];
-const containers = [
-  ["Amazon EKS", "amazoneks"],
-  ["Amazon ECS", "amazonecs"],
-  ["Azure AKS", "microsoftazure"],
-  ["Google GKE", "googlecloud"],
-  ["Red Hat OpenShift", "redhatopenshift"],
+  ["Red Hat", "redhatopenshift"],
   ["Kubernetes", "kubernetes"],
 ];
+
 export function SignInScreen({ configured }: { configured: boolean }) {
   return (
-    <div className="signin-layout navigan-signin">
-      <section
-        className="signin-message login-introduction"
-        aria-label="About Navigan"
-      >
-        <div className="login-product-brand">
+    <div className="login-splash">
+      <section className="login-story" aria-label="About Navigan">
+        <div className="login-wordmark">
           <NaviganMark />
           <strong>Navigan</strong>
         </div>
-        <div className="login-hero-copy">
+        <div className="login-story-copy">
           <h1>
-            Navigate your container cloud estate.
+            One platform.
             <br />
-            With confidence.
+            Every container environment.
           </h1>
-          <h2 className="login-hero-tagline">
-            Manage today. Modernize tomorrow.
-          </h2>
-          <p>
-            Discover, manage and modernize container workloads across clouds—all
-            from one secure workspace.
-          </p>
+          <p>Manage today. Modernize tomorrow.</p>
         </div>
         <Image
-          className="login-estate-illustration"
-          src="/graphics/Deloitte-Maritime-Transparent.webp"
-          alt="Maritime navigator connecting ships, ports and containers — illustrating Navigan's connected container ecosystem"
-          width={1672}
-          height={941}
-          sizes="(max-width: 700px) 100vw, (max-width: 1050px) 50vw, 55vw"
-          priority
+          className="login-harbour"
+          src="/graphics/navigan-royal-harbour.webp"
+          alt="A royal navigator at the helm, guiding a container ship toward the harbour"
+          width={1500}
+          height={625}
+          sizes="(max-width: 760px) 100vw, 60vw"
+          preload
         />
-        <section
-          className="login-ecosystem"
-          aria-label="Cloud and container platform coverage"
+        <ul
+          className="login-platforms"
+          aria-label="Cloud and container platforms"
         >
-          <div className="login-ecosystem-row">
-            <h3>Cloud platforms</h3>
-            <ul>
-              {clouds.map(([label, logo]) => (
-                <li key={label}>
-                  <img src={`/logos/${logo}.svg`} alt="" />
-                  <span>{label}</span>
-                </li>
-              ))}
-              <li>
-                <Cloud size={22} aria-hidden="true" />
-                <span>Other clouds</span>
-              </li>
-            </ul>
-          </div>
-          <div className="login-ecosystem-row">
-            <h3>Container platforms</h3>
-            <ul>
-              {containers.map(([label, logo]) => (
-                <li key={label}>
-                  <img src={`/logos/${logo}.svg`} alt="" />
-                  <span>{label}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+          {platforms.map(([label, logo]) => (
+            <li key={label}>
+              <img src={`/logos/${logo}.svg`} alt="" width="28" height="26" />
+              <span>{label}</span>
+            </li>
+          ))}
+        </ul>
       </section>
-      <section className="login-access-panel" aria-label="Secure sign-in">
-        <div className="signin-card login-access-card">
+      <section className="login-panel" aria-label="Secure sign-in">
+        <div className="login-panel-content">
+          <div className="login-wordmark login-wordmark-reverse">
+            <NaviganMark reverse />
+            <strong>Navigan</strong>
+          </div>
           {configured ? (
-            <LoginForm />
+            <LoginForm compactNotice />
           ) : (
-            <>
+            <div className="login-configuration">
               <h2>Connect your organization</h2>
               <p>
                 An administrator needs to configure sign-in before you can
                 continue.
               </p>
-            </>
-          )}
-          <div className="login-access-security">
-            <LockKeyhole size={20} aria-hidden="true" />
-            <div>
-              <strong>Protected enterprise access</strong>
-              <span>Secure authentication for your Navigan workspace.</span>
             </div>
-            <ShieldCheck size={17} aria-hidden="true" />
+          )}
+          <div className="login-protection">
+            <LockKeyhole size={22} aria-hidden="true" />
+            <span>Protected enterprise access</span>
           </div>
         </div>
       </section>

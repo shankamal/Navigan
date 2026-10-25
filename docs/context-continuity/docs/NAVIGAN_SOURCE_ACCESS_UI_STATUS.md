@@ -1,3 +1,13 @@
+## Approved login splash and Navigan logo — 2026-10-25
+
+The user approved the attached image(20261025-115255).png for implementation. It selects the coloured royal navigator/harbour illustration, three-facet directional Navigan logo, white story pane, charcoal sign-in pane, Welcome to Navigan heading and deep-green button. This explicitly supersedes the briefly proposed grayscale king and lime sign-in button. Preserve the accepted platform theme and migration workflows.
+
+Implemented SignInScreen and one scoped responsive login stylesheet, replacing obsolete competing login rules and nested-card scrolling. Existing PublicShell uses the reverse Deloitte mark; the new Navigan mark also replaces the stacked sidebar logo, using white/green on dark compact surfaces. Standalone generated/optimized WebP assets are committed with code. Existing Cognito calls, session handling, SRP/challenges, reset submission and backend APIs remain unchanged. Password visibility is a presentation control; it does not submit and resets when the form resets or completes a request. The approved desktop composition adapts to laptop height; phones prioritize the full-width form and omit the decorative story panel.
+
+Validation: 23 focused login/auth-entry/shell tests and production build passed. Cloud browser verified the real components/styles in an isolated local presentation fixture at desktop, laptop and phone sizes, and the recovery/back interaction. Production credentials were not entered. The final comparison, screenshot and QA report are in docs/design/login-splash-20261025; no application rendering error was observed in the checked fixture, while unrelated browser-extension metadata errors were present. Some generated illustration linework/provider logo differences are recorded as P3 fidelity limits.
+
+Next: pull and use deploy-frontend-prod.py --prepare, then execute the newly printed release plan. Do not reuse the earlier revision-16 preparation plan for this splash. No backend, migration API, database, collector or source-runtime release is needed. Verify actual production sign-in, MFA and recovery after rollout. Frontend revision 16 was prepared in the conversation; execution output for it was not provided before this design task, so read actual deployed revision in preflight rather than assuming it.
+
 ## Page loading and Migration Overview bundles — 2026-10-25
 
 Production summary restoration from 62d4b6cfde1e758e9cc91866892338fc9bbc38a3 was executed by the user. The helper verified all three summary routes and Lambda ZIPs. The subsequent authenticated dashboard Network screenshot shows summary HTTP 200 at about 420–434 ms, list requests about 397–437 ms and no pageSize=1 fallback count burst in the capture. This is one successful observation, not an all-screen latency SLA or proof that every cold start is resolved. The browser reported load around 5.98 seconds; Fetch/XHR alone does not identify the remaining critical path. Broader UI inconsistency stabilization is deferred.
@@ -117,6 +127,7 @@ The correction moves Configure source access into the shared Source & Discover p
 Validation: 26 focused discovery/setup tests and frontend TypeScript passed. Regression coverage checks the action remains visible while the completed progress panel is hidden and when source access is already ready. Production authenticated visibility still needs verification after this correction is deployed. Prepare a new frontend release plan from the latest branch, then execute that newly prepared plan. Do not reuse the previous executed plan or reinstall the connected connector.
 
 Shared physical connector customer associations remain pending. Broader UI redesign remains on hold.
+
 
 
 
