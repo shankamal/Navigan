@@ -1,3 +1,13 @@
+## Production performance: summary API restoration — 2026-10-25
+
+The user deployed frontend revision 15 from af909faa6ef4e2c81b722d2485530bc8bbeec8b5; running image and health/login checks passed, and the user accepted the UI. Remaining UI inconsistencies are deferred to final stabilization. The current task is slow data loading across screens.
+
+Three supplied browser Network screenshots show summary HTTP 404s followed by pageSize=1 fallback count requests. Successful list requests take about 4–8 seconds, while effective-access calls in the capture are about 200–480 ms. Branch code already implements scoped summary endpoints and client fallback. Production route/handler readiness requires live inspection; do not assert the precise missing layer or blame authentication/cold starts without evidence.
+
+Added scripts/deploy-summary-apis-prod.py and docs/migration/summary-api-production-fix-20261025.md. The helper uses the existing prepare/execute production pattern, reads live protected list-route configuration, preserves deployed modules and native dependencies, adds only known summary handler/repository logic and missing summary routes, and creates a scoped change set for CustomerManagement, EnvironmentManagement and ClusterManagement. It preserves authentication settings, tenant scope and non-summary business logic; no schema, frontend, migration Lambda, connector or collector changes. Unknown deployed contracts stop for review. Original ZIPs/configuration/templates are saved privately. A working summary path replaces 28 legacy count requests with three aggregate requests; regular list calls and their latency remain to be measured separately.
+
+Validation: 12 focused Python release/query/package tests and 4 existing frontend summary tests passed; CLI help checked. AWS credentials are unavailable to the agent. Next: user pulls the branch and runs the helper with --prepare, then executes the newly printed plan after scope validation. Confirm authenticated summary HTTP 200 and disappearance of fallback counts; measure remaining list durations before further tuning. No live production performance improvement is claimed yet.
+
 ## Dashboard layout, frozen heading and on-demand help — 2026-10-25
 
 The user confirmed the migration UI on production frontend revision 14 was visually much better. Preserve that accepted migration navigation and Graphite theme.
@@ -97,4 +107,5 @@ The correction moves Configure source access into the shared Source & Discover p
 Validation: 26 focused discovery/setup tests and frontend TypeScript passed. Regression coverage checks the action remains visible while the completed progress panel is hidden and when source access is already ready. Production authenticated visibility still needs verification after this correction is deployed. Prepare a new frontend release plan from the latest branch, then execute that newly prepared plan. Do not reuse the previous executed plan or reinstall the connected connector.
 
 Shared physical connector customer associations remain pending. Broader UI redesign remains on hold.
+
 
