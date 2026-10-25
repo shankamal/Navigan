@@ -1,4 +1,5 @@
 "use client";
+import { NaviganMark } from "@/shared/components/navigan-mark";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   signIn,
@@ -232,8 +233,9 @@ export function LoginForm({
       }}
       aria-busy={pending}
     >
-      <h2 ref={heading} tabIndex={-1}>
-        {title}
+      <h2 ref={heading} tabIndex={-1} className={compactNotice && mode === "login" ? "login-welcome-title" : undefined}>
+        {compactNotice && mode === "login" && <NaviganMark reverse />}
+        <span>{title}</span>
       </h2>
       <p className="muted">
         {mode === "login"

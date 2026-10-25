@@ -1,3 +1,10 @@
+## 2026-10-25 — Single welcome brand and calmer slogan hierarchy
+
+- User requested no left Navigan/logo block; logo now appears only beside Welcome to Navigan on the right. Compact splash login title alone gains decorative reverse mark; recovery/challenge title behavior unchanged.
+- Left slogan uses lighter first line, separated green second line, normal-weight supporting sentence and looser leading/tracking. Removed obsolete left-wordmark styling and its grid row.
+- Deloitte green sign-in button, small provider logos and AWS logo-only representation preserved.
+- 14 focused login/auth-entry tests and fixture build passed. Actual-component fixture: no overflow at 1536x696 and 390x650. Frontend-only; fresh release required.
+
 ## 2026-10-25 — Login branding simplification and Deloitte green button
 
 - User flagged repeated Navigan mentions. Kept left logo/wordmark and Welcome to Navigan heading; removed duplicate right logo/wordmark and simplified subtitle to Sign in to your workspace.

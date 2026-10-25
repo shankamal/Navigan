@@ -2,7 +2,6 @@
 import Image from "next/image";
 import { LockKeyhole } from "lucide-react";
 import { LoginForm } from "./login-form";
-import { NaviganMark } from "@/shared/components/navigan-mark";
 import "./login-workspace.css";
 
 const platforms = [
@@ -17,10 +16,6 @@ export function SignInScreen({ configured }: { configured: boolean }) {
   return (
     <div className="login-splash">
       <section className="login-story" aria-label="About Navigan">
-        <div className="login-wordmark">
-          <NaviganMark />
-          <strong>Navigan</strong>
-        </div>
         <div className="login-story-copy">
           <h1>
             Navigate your cloud.
