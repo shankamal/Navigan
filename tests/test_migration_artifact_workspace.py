@@ -67,8 +67,10 @@ def test_reject_before_storage(body,code):
  assert error.value.code==code
  api.repo.create_artifact_workspace.assert_not_called()
 def test_create_index_only(monkeypatch):
+ monkeypatch.setattr(w, 'build_report', lambda *args: {'analysisCurrent': True, 'workloads': []})
  for name,value in [('BUCKET','bucket'),('KMS_KEY','key'),('BUCKET_OWNER','0'*12)]:monkeypatch.setenv('MIGRATION_WORKSPACE_'+name,value)
- api=service();result=w.create(api,MID,dict(version=2,inventoryDigest='current',namespaces=['shop']),S3())
+ api=service();api.repo.list_artifact_workspaces.return_value=[]
+ result=w.create(api,MID,dict(version=2,inventoryDigest='current',namespaces=['shop']),S3())
  assert result['status']=='PLANNED' and result['collectedArtifactCount']==0
  api.access.require.assert_called_with('migration.edit')
  api.access.require_customer.assert_called_with('CUS-one','owner')
@@ -209,3 +211,4 @@ def test_historical_review_uses_existing_recovery_api_without_ssm(monkeypatch):
  result=recover(api,MID,body,factory=factory)
  assert result['workspace']['artifacts'][0]['status']=='EXCLUDED_FROM_REPLAY'
  assert calls==['s3']
+

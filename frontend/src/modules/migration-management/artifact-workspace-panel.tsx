@@ -41,6 +41,7 @@ type Workspace = {
   stale: boolean;
   status?: string;
   collectedArtifactCount?: number;
+  reusedArtifactCount?: number;
   storage?: { bucket?: string; key?: string; prefix?: string };
   jobs?: {
     jobId: string;
@@ -119,6 +120,7 @@ export function ArtifactWorkspacePanel({
     Record<string, "all" | "remaining" | "saved">
   >({});
   const [refreshWarning, setRefreshWarning] = useState("");
+  const [indexFeedback, setIndexFeedback] = useState("");
   const [recoveryFeedback, setRecoveryFeedback] = useState<{
     workspaceId: string;
     artifactId: string;
@@ -167,23 +169,25 @@ export function ArtifactWorkspacePanel({
     return () => controller.abort();
   }, [active, migrationId]);
 
-  async function run(create: boolean) {
+  async function run(create: boolean, updateIndex = false) {
     if (
       create &&
       fixedScope &&
       (!loaded ||
         busy ||
-        workspaces.some(
-          (w) =>
-            !w.stale &&
-            w.namespaces.length === namespaces.length &&
-            w.namespaces.every((ns) => namespaces.includes(ns)),
-        ))
+        (!updateIndex &&
+          workspaces.some(
+            (w) =>
+              !w.stale &&
+              w.namespaces.length === namespaces.length &&
+              w.namespaces.every((ns) => namespaces.includes(ns)),
+          )))
     )
       return;
     setBusy(true);
     setError("");
     setRefreshWarning("");
+    setIndexFeedback("");
     try {
       if (create) {
         const { data } = await apiClient.post(
@@ -197,8 +201,14 @@ export function ArtifactWorkspacePanel({
           },
           { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
         );
-        setWorkspaces((items) => [data, ...items]);
+        setWorkspaces((items) => [
+          data,
+          ...items.filter((item) => item.workspaceId !== data.workspaceId),
+        ]);
         if (fixedScope) setActiveWorkspaceId(data.workspaceId);
+        setIndexFeedback(
+          `Workspace index updated from current source checks. ${data.reusedArtifactCount ?? 0} previously saved artifacts reused after verification. Earlier snapshots are retained.`,
+        );
       } else {
         const { data } = await apiClient.get(
           `/migrations/${migrationId}/artifact-workspaces`,
@@ -848,6 +858,28 @@ export function ArtifactWorkspacePanel({
                 <RefreshCw size={13} aria-hidden="true" />
                 {loaded ? "Refresh workspaces" : "Load workspaces"}
               </button>
+              {existingWorkspace && stage !== "review" && (
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !loaded ||
+                    !canEdit ||
+                    !inventoryDigest ||
+                    !scope.length ||
+                    scopedWorkspaces.some(
+                      (w) =>
+                        (w.jobs ?? []).some((j) =>
+                          ["QUEUED", "RUNNING"].includes(j.status),
+                        ) || w.artifacts.some((a) => a.status === "RECOVERING"),
+                    )
+                  }
+                  onClick={() => run(true, true)}
+                  title="Use current source checks and reuse verified files and images. Earlier snapshots are retained."
+                >
+                  Update workspace index
+                </button>
+              )}
               {activeWorkspace &&
                 stage !== "review" &&
                 collectionButtons(activeWorkspace)}
@@ -857,7 +889,7 @@ export function ArtifactWorkspacePanel({
             {activeWorkspace && exportFeedback(activeWorkspace)}
             <p className={styles.toolbarHint}>
               {existingWorkspace
-                ? "Workspace already created for this assessment and saved namespace scope."
+                ? "After Recheck sources, use Update workspace index to apply current mappings and reuse verified saved artifacts. Refresh workspaces only reloads copy progress."
                 : !loaded
                   ? "Checking existing workspaces before creation…"
                   : "Create the workspace, then collect available files and images."}
@@ -899,6 +931,7 @@ export function ArtifactWorkspacePanel({
           <p>Complete source discovery before creating a workspace.</p>
         )}
         {error && <p role="alert">{error}</p>}
+        {indexFeedback && <p role="status">{indexFeedback}</p>}
         {loaded && !visibleWorkspaces.length && (
           <p className={styles.empty}>
             {fixedScope

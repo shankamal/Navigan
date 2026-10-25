@@ -78,10 +78,11 @@ def storage_configuration():
     return bucket, key, owner
 
 
-def s3_client():
+def s3_client(*, fast=False):
     import boto3
     from botocore.config import Config
-    return boto3.client('s3', config=Config(signature_version='s3v4',connect_timeout=3,read_timeout=5,retries={'max_attempts':2}))
+    return boto3.client('s3', config=Config(signature_version='s3v4',connect_timeout=1 if fast else 3,
+                       read_timeout=2 if fast else 5,retries={'max_attempts':0 if fast else 2}))
 
 
 def persist_manifest(client, bucket, key_id, owner, key, manifest):
@@ -122,20 +123,47 @@ def create(service, identifier, body, client=None):
         raise ApiError(400,'UNKNOWN_NAMESPACE','Select namespaces present in captured inventory.')
     bucket, key_id, owner = storage_configuration()
     report = build_report(migration,inventory,source)
+    if not report.get('analysisCurrent'):
+        raise ApiError(409, 'SOURCE_CHECK_REQUIRED', 'Run Recheck sources against the current inventory before updating the workspace index.')
+    planned = plan_artifacts(report, body['namespaces'])
+    fingerprint = hashlib.sha256(canonical(planned)).hexdigest()
+    previous = service.repo.list_artifact_workspaces(identifier, migration['customer_id'])
+    for existing in previous:
+        saved = existing['manifest']
+        if (existing['inventory_digest'] == body['inventoryDigest']
+                and existing['source_cluster_id'] == source['source_cluster_id']
+                and sorted(saved['namespaces']) == sorted(body['namespaces'])
+                and saved.get('analysisFingerprint') == fingerprint):
+            return read(service, identifier, existing['workspace_id'])
     workspace_id = 'AWS-' + uuid.uuid4().hex
     manifest = dict(schemaVersion=1,workspaceId=workspace_id,migrationId=identifier,customerId=migration['customer_id'],
                     sourceClusterId=source['source_cluster_id'],inventoryDigest=body['inventoryDigest'],
                     inventoryVersion=inventory['inventoryVersion'],migrationVersion=migration['version'],
                     namespaces=body['namespaces'],createdAt=datetime.now(timezone.utc).isoformat(),status='PLANNED',
-                    artifacts=plan_artifacts(report,body['namespaces']),
+                    artifacts=planned, analysisFingerprint=fingerprint,
                     mappingEvidence=[{'workload':r['workload'],'mappingStatus':r.get('mappingStatus','UNRESOLVED')}
                                      for r in report.get('workloads',[]) if r['workload'].get('namespace') in body['namespaces']],
-                    limitations=['Only the workspace index is stored. Files and images have not been collected.',
+                    limitations=['Uncollected files and images require collection. Reused objects are verified copies of exact source identities.',
                                  'Persistent data and target deployment are separate workstreams.'])
+    from .workspace_reuse import carry_forward, save_reused
+    client = client or s3_client(fast=True)
+    reused = carry_forward(service, manifest, client, bucket, key_id, owner)
+    by_id = {r['artifact_id']: r for r in reused}
+    for artifact in manifest['artifacts']:
+        if artifact['artifactId'] in by_id:
+            artifact['status'] = 'COLLECTED'
+            artifact['validation'] = by_id[artifact['artifactId']]['validation']
+    manifest['reusedArtifactCount'] = len(reused)
+    manifest['storage'] = {'bucket': bucket, 'prefix': workspace_prefix(migration['customer_id'], identifier, workspace_id)}
+    for artifact in manifest['artifacts']:
+        if artifact['artifactId'] in by_id:
+            record = by_id[artifact['artifactId']]
+            artifact['storage'] = {'bucket': bucket, 'key': record['object_key'], 'versionId': record['object_version']}
     key = workspace_prefix(migration['customer_id'],identifier,workspace_id) + 'workspace-manifest.json'
-    version, sha = persist_manifest(client or s3_client(),bucket,key_id,owner,key,manifest)
+    version, sha = persist_manifest(client,bucket,key_id,owner,key,manifest)
     service.repo.create_artifact_workspace(manifest,bucket,key,version,sha)
-    return {**manifest,'stale':False,'collectedArtifactCount':0}
+    save_reused(service, workspace_id, reused)
+    return {**manifest,'stale':False,'collectedArtifactCount':len(reused)}
 
 
 def read(service,identifier,workspace_id=None):
@@ -234,3 +262,4 @@ def exclude_historical_job(service, identifier, body, client=None):
         'object_key=%s,object_version=%s,sha256=%s,size_bytes=%s,updated_at=now() WHERE workspace_id=%s AND artifact_id=%s',
         [canonical(validation).decode(), key, version, sha, len(canonical(receipt)), workspace_id, artifact_id])
     return read(service, identifier, workspace_id)
+

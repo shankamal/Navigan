@@ -22,6 +22,156 @@ const props = {
   canEdit: true,
 };
 beforeEach(() => vi.clearAllMocks());
+it("updates a blocked index from current source checks and selects the revised snapshot", async () => {
+  const old = {
+    workspaceId: "AWS-before-checks",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [
+      { artifactId: "old-image", kind: "IMAGE", status: "CHECK_REQUIRED" },
+    ],
+  };
+  const revised = {
+    workspaceId: "AWS-updated",
+    namespaces: ["shop"],
+    stale: false,
+    reusedArtifactCount: 1,
+    artifacts: [
+      {
+        artifactId: "reused",
+        kind: "IMAGE",
+        status: "COLLECTED",
+        source: { reference: "registry.example/reused" },
+      },
+      {
+        artifactId: "image",
+        kind: "IMAGE",
+        status: "PENDING_COLLECTION",
+        source: { reference: "registry.example/new" },
+      },
+      {
+        artifactId: "file",
+        kind: "REPOSITORY_DEFINITION",
+        status: "PENDING_COLLECTION",
+        source: { filePath: "app.yaml" },
+      },
+    ],
+  };
+  api.get.mockResolvedValue({ data: { workspaces: [old] } });
+  api.post.mockResolvedValue({ data: revised });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  const update = await screen.findByRole("button", {
+    name: "Update workspace index",
+  });
+  expect(
+    screen.getByRole("button", { name: "Create workspace" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Collect / retry available images" }),
+  ).toBeDisabled();
+  fireEvent.click(update);
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/artifact-workspaces",
+      { version: 2, inventoryDigest: "current", namespaces: ["shop"] },
+      expect.anything(),
+    ),
+  );
+  expect(
+    await screen.findByText(
+      /1 previously saved artifacts reused after verification/,
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Collect / retry available images" }),
+  ).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Collect / retry repository files" }),
+  ).toBeEnabled();
+  expect(
+    screen.getByRole("option", { name: /AWS-updated/ }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("option", { name: /AWS-before-checks/ }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("combobox")).toHaveValue("AWS-updated");
+});
+it("retains the existing snapshot if updating the index fails", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-existing",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [],
+        },
+      ],
+    },
+  });
+  api.post.mockRejectedValue(new Error("source check failed"));
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Update workspace index" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Storage not configured",
+  );
+  expect(
+    document.getElementById("export-help-AWS-existing"),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/previously saved artifacts reused/),
+  ).not.toBeInTheDocument();
+});
+it("prevents index updates while copying is running or for a viewer", async () => {
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-existing",
+          namespaces: ["shop"],
+          stale: false,
+          jobs: [{ jobId: "job", status: "RUNNING", attempts: 1 }],
+          artifacts: [],
+        },
+      ],
+    },
+  });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+      canEdit={false}
+    />,
+  );
+  expect(
+    await screen.findByRole("button", { name: "Update workspace index" }),
+  ).toBeDisabled();
+  expect(api.post).not.toHaveBeenCalled();
+});
 it("requires scope and does not collect automatically", () => {
   render(<ArtifactWorkspacePanel {...props} />);
   expect(api.get).not.toHaveBeenCalled();
@@ -967,7 +1117,7 @@ it("blocks creation until workspace loading succeeds and after a workspace is cr
   complete({ data: { workspaces: [] } });
   await waitFor(() => expect(create).toBeEnabled());
   fireEvent.click(create);
-  await screen.findByText(/Workspace already created for this assessment/);
+  await screen.findByText(/After Recheck sources, use Update workspace index/);
   expect(create).toBeDisabled();
   fireEvent.click(create);
   expect(api.post).toHaveBeenCalledTimes(1);
