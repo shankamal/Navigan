@@ -196,8 +196,19 @@ def readiness(session):
 
 def runtime_digests(ecr, digest):
     response = ecr.batch_get_image(repositoryName=REPOSITORY, imageIds=[{"imageDigest": digest}])
-    require(not response.get("failures") and len(response.get("images", [])) == 1, "Published frontend manifest cannot be verified")
-    manifest = json.loads(response["images"][0]["imageManifest"])
+    images = response.get("images", [])
+    require(not response.get("failures") and bool(images), "Published frontend manifest cannot be verified")
+    # ECR can return duplicate rows for one digest. Only identical content and
+    # media type may collapse; conflicting or unexpected digests still stop.
+    first = images[0]
+    require(all(image.get("imageId", {}).get("imageDigest", digest) == digest for image in images),
+        "Published frontend manifest returned an unexpected digest")
+    require(all(image.get("imageManifest") == first.get("imageManifest")
+        and image.get("imageManifestMediaType") == first.get("imageManifestMediaType") for image in images),
+        "Published frontend manifest returned conflicting duplicate entries")
+    require(isinstance(first.get("imageManifest"), str) and bool(first["imageManifest"]),
+        "Published frontend manifest cannot be verified")
+    manifest = json.loads(first["imageManifest"])
     accepted = [digest]
     if "manifests" in manifest:
         platform = [m for m in manifest["manifests"] if m.get("platform", {}).get("os") == "linux" and m.get("platform", {}).get("architecture") == "amd64"]

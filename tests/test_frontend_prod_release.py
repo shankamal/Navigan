@@ -267,3 +267,35 @@ def test_rollback_serializer_rejects_unknown_values_and_task_json_stays_strict()
         json.dumps({"unsupported": object()}, default=release.aws_record_default)
     with pytest.raises(TypeError, match="not JSON serializable"):
         release.canonical({"registeredAt": datetime.now(timezone.utc)})
+
+
+def test_identical_ecr_duplicate_manifests_are_accepted():
+    image = {"imageId": {"imageDigest": DIGEST},
+        "imageManifestMediaType": "application/vnd.oci.image.manifest.v1+json",
+        "imageManifest": '{"schemaVersion":2,"layers":[]}'}
+    ecr = SimpleNamespace(batch_get_image=lambda **kw: {"failures": [], "images": [image, copy.deepcopy(image)]})
+    assert release.runtime_digests(ecr, DIGEST) == [DIGEST]
+
+
+@pytest.mark.parametrize("change", [
+    {"imageManifest": '{"schemaVersion":2,"layers":[{"digest":"different"}]}'},
+    {"imageManifestMediaType": "different/type"},
+    {"imageId": {"imageDigest": "sha256:" + "f" * 64}},
+])
+def test_conflicting_ecr_duplicate_manifests_are_rejected(change):
+    image = {"imageId": {"imageDigest": DIGEST},
+        "imageManifestMediaType": "application/vnd.oci.image.manifest.v1+json",
+        "imageManifest": '{"schemaVersion":2,"layers":[]}'}
+    other = dict(copy.deepcopy(image), **change)
+    ecr = SimpleNamespace(batch_get_image=lambda **kw: {"images": [image, other]})
+    with pytest.raises(RuntimeError, match="manifest"):
+        release.runtime_digests(ecr, DIGEST)
+
+
+def test_duplicate_ecr_index_still_selects_linux_amd64():
+    amd64 = "sha256:" + "b" * 64
+    image = {"imageId": {"imageDigest": DIGEST},
+        "imageManifest": json.dumps({"manifests": [
+            {"digest": amd64, "platform": {"os": "linux", "architecture": "amd64"}}]})}
+    ecr = SimpleNamespace(batch_get_image=lambda **kw: {"images": [image, copy.deepcopy(image)]})
+    assert release.runtime_digests(ecr, DIGEST) == [DIGEST, amd64]

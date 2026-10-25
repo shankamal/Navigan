@@ -1,3 +1,10 @@
+## 2026-10-25 — ECR duplicate manifest verification fix
+
+- Frontend prepare built/pushed image for accepted login commit 1a7fab6, then stopped before candidate registration: ECR batch_get_image returned two rows for the same requested digest with no failures.
+- Deployment helper now accepts repeated rows only when requested digest, manifest text and media type agree. Missing manifests, ECR failures, unexpected digests and conflicting duplicates remain blocked. Linux/amd64 index selection retained.
+- 33 offline deployment tests passed, including identical duplicates, conflicting content/type/digest and duplicate index cases. No live AWS writes performed by these tests.
+- User must pull and rerun frontend --prepare. Docker can reuse its cached build layers; use the new printed release-plan path for --execute. Existing production service was not changed by failed preparation.
+
 ## 2026-10-25 — Single welcome brand and calmer slogan hierarchy
 
 - User requested no left Navigan/logo block; logo now appears only beside Welcome to Navigan on the right. Compact splash login title alone gains decorative reverse mark; recovery/challenge title behavior unchanged.
