@@ -117,7 +117,8 @@ def test_index_child_still_requires_matching_manifest_digest():
         release.runtime_manifest(ecr,'repo','sha256:expected')
 
 
-def test_copy_pulls_verified_child_and_returns_dev_child_digest(tmp_path,monkeypatch):
+@pytest.mark.parametrize('storage',['classic','manifest-id'])
+def test_copy_pulls_verified_child_and_returns_dev_child_digest(tmp_path,monkeypatch,storage):
     import base64
     leaf={'config':{'digest':'sha256:config'},'layers':[{'digest':'sha256:layer'}]}
     values={'sha256:prod-index':image_index([child('sha256:prod-child')]),
@@ -137,7 +138,11 @@ def test_copy_pulls_verified_child_and_returns_dev_child_digest(tmp_path,monkeyp
     calls=[]
     def run(command,**kwargs):
         calls.append(command)
-        stdout=json.dumps([{'Architecture':'amd64','Os':'linux','Id':'sha256:config'}]).encode() if 'inspect' in command else b''
+        local={'Architecture':'amd64','Os':'linux','Id':'sha256:config'}
+        if storage=='manifest-id':
+            local.update(Id='sha256:prod-child',RepoDigests=[release.REGISTRY+'/'+release.PROD_REPOSITORY+'@sha256:prod-child'],
+                Descriptor={'digest':'sha256:prod-child','mediaType':'application/vnd.oci.image.manifest.v1+json'})
+        stdout=json.dumps([local]).encode() if 'inspect' in command else b''
         return SimpleNamespace(stdout=stdout)
     monkeypatch.setattr(release.subprocess,'run',run)
     session=SimpleNamespace(client=lambda name:ECR())
@@ -146,6 +151,31 @@ def test_copy_pulls_verified_child_and_returns_dev_child_digest(tmp_path,monkeyp
     pulled=next(c for c in calls if 'pull' in c)
     assert pulled[-1]==release.REGISTRY+'/'+release.PROD_REPOSITORY+'@sha256:prod-child'
     assert not any('push' in c for c in calls)
+
+
+def test_local_manifest_id_accepts_observed_descriptor_and_reference():
+    digest='sha256:manifest';source='registry/repository@'+digest
+    local={'Id':digest,'Architecture':'amd64','Os':'linux','RepoDigests':[source],
+           'Descriptor':{'digest':digest,'mediaType':'application/vnd.oci.image.manifest.v1+json'}}
+    release.verify_local_image(local,source,digest,{'config':{'digest':'sha256:config'}})
+
+
+@pytest.mark.parametrize('change',[
+    {'Id':'sha256:unknown'},
+    {'Descriptor':None},
+    {'Descriptor':{'digest':'sha256:other','mediaType':'application/vnd.oci.image.manifest.v1+json'}},
+    {'Descriptor':{'digest':'sha256:manifest','mediaType':'application/vnd.oci.image.index.v1+json'}},
+    {'RepoDigests':['registry/wrong@sha256:manifest']},
+    {'Architecture':'arm64'},
+    {'Os':'windows'},
+])
+def test_local_manifest_id_rejects_mismatched_evidence(change):
+    digest='sha256:manifest';source='registry/repository@'+digest
+    local={'Id':digest,'Architecture':'amd64','Os':'linux','RepoDigests':[source],
+           'Descriptor':{'digest':digest,'mediaType':'application/vnd.oci.image.manifest.v1+json'}}
+    local.update(change)
+    with pytest.raises(RuntimeError):
+        release.verify_local_image(local,source,digest,{'config':{'digest':'sha256:config'}})
 
 
 def test_stable_does_not_accept_early_service_waiter_state():

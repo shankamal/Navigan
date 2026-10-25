@@ -1,5 +1,15 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## Docker manifest-ID compatibility correction — verified diagnostic evidence
+
+- Retry at cc830d8 resolved the PROD index and pulled its linux/amd64 child, then stopped at the legacy local config-ID equality check. This was before DEV image push, task registration, Lambda code update or ECS service update. Existing zk9x6g4e plan remains runtime-unexecuted.
+- User diagnostic confirmed resolved manifest sha256:a4ca0e6ef7ce55a650fd6cc992be48b8195ae398123049fd136f229a63111f21; config digest sha256:1bd0ae681504763c6497ecc23af71b03436225cec657caa805464c6250682661. Docker Id equals the resolved manifest digest, not the config digest. Docker Descriptor identifies the same OCI manifest, RepoDigests includes the exact PROD child reference, and platform is linux/amd64.
+- Added verify_local_image: retain classic config-ID verification; additionally recognize a manifest-ID only with exact resolved manifest Id + descriptor digest/mediaType + repository digest reference + linux/amd64 platform. Unrelated identities, absent/conflicting descriptors, index descriptors, wrong references and wrong platforms remain blocked. Destination ECR config and ordered layer digests are still compared with source before any runtime promotion.
+- 83 focused tests passed, including integration-style copy coverage for both Docker identity formats and seven negative identity/platform cases. This is offline validation, not a claim of successful cloud promotion.
+- Next: pull correction and resume --execute with the exact zk9x6g4e release plan. Do not rerun the whole parity audit or rebuild branch images to address this metadata-format issue. Existing revision/config guards remain enforced.
+- Remaining objective/order unchanged: collector promotion, minimum PROD target-assessment grant correction, frontend/workflow validation; then SAM reconciliation.
+
+
 ## Collector image-index correction — no runtime promotion in failed attempt
 
 - User ran collector --apply at ce345cd. Private plan: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-dev-collector-parity-zk9x6g4e/release-plan.json.

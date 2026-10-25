@@ -126,6 +126,21 @@ def content_identity(value):
     return {'config':value['config']['digest'],'layers':[v['digest'] for v in value['layers']]}
 
 
+def verify_local_image(local,source,manifest_digest,expected):
+    require(local.get('Architecture')=='amd64' and local.get('Os')=='linux','Unsupported collector platform')
+    if local.get('Id')==expected['config']['digest']:
+        # Classic Docker storage reports the config digest as the image ID.
+        return
+    # Containerd-backed storage may report the manifest digest as its ID.
+    # Require the exact descriptor and repository reference as corroboration.
+    descriptor=local.get('Descriptor') or {}
+    require(local.get('Id')==manifest_digest and descriptor.get('digest')==manifest_digest and
+            descriptor.get('mediaType') in ('application/vnd.oci.image.manifest.v1+json',
+                                           'application/vnd.docker.distribution.manifest.v2+json') and
+            source in local.get('RepoDigests',[]),
+            'Local image identity differs from the verified ECR manifest/config')
+
+
 def copy_image(session,source,directory):
     ecr=session.client('ecr');source_digest=source.rsplit('@',1)[1]
     source_digest,expected=runtime_manifest(ecr,PROD_REPOSITORY,source_digest)
@@ -141,8 +156,7 @@ def copy_image(session,source,directory):
         print('Copying the verified PROD image into the existing DEV repository; no source build.',flush=True)
         run('pull','--platform','linux/amd64',source)
         local=json.loads(run('image','inspect',source).stdout)[0]
-        require(local['Architecture']=='amd64' and local['Os']=='linux','Unsupported collector platform')
-        require(local['Id']==expected['config']['digest'],'Local image config differs from ECR')
+        verify_local_image(local,source,source_digest,expected)
         tag='parity-'+source_digest.split(':',1)[1]
         target=REGISTRY+'/'+DEV_REPOSITORY+':'+tag
         existing=ecr.describe_repositories(repositoryNames=[DEV_REPOSITORY])['repositories']
