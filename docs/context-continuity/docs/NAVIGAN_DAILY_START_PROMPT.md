@@ -1,3 +1,15 @@
+## Latest checkpoint — 25 October 2026
+
+Read [NAVIGAN_SESSION_HANDOFF_2026-10-25_LATEST.md](./NAVIGAN_SESSION_HANDOFF_2026-10-25_LATEST.md) first. It supersedes conflicting status in older entries below.
+
+- Accepted login: one logo beside Welcome to Navigan; approved new slogan; Deloitte-green button; smaller provider logos; latest compact controls and 36% dark panel in `6916e11`.
+- PROD frontend revision 22 confirmed COMPLETED. Revision 23 prepared; execution not confirmed. Exact image/plan and validation limits are in the latest handoff.
+- Identical duplicate ECR response fix `d148e62` tested (33 tests); already pushed.
+- Disabled cluster-tool incident resolved after worker capacity returned: `dbs-sims-clus2-system-ng` had desired size 0. User confirmed healthy tools and enabled buttons. No reinstall or code fix for this incident.
+- Stale health reporting and broader UI consistency remain deferred. No new auth/backend/gateway changes requested.
+
+---
+
 ## Current requirement and PROD delivery trust — 23 October 2026
 
 User clarified: an authorized customer should register an association with the same existing healthy physical source connector in the SAME Navigan instance, without another agent installation per customer. The prior source-scoped installation change prevents resource collisions but is NOT the required shared-connector association implementation. Do not present it as the final lifecycle solution or require retirement/reassignment of JPMC records. Keep customer-scoped permissions, explicit authorization of additional customer bindings, assessment/artifact isolation and association revocation. Source agent tokens must not be copied between customer records. DEV connectivity alone does not prove PROD connectivity; the agent's actual API endpoint/connector ID must be checked first.
