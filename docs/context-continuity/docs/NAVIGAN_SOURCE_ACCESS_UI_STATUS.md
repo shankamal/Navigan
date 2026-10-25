@@ -1,3 +1,11 @@
+## 2026-10-25 — Login viewport sizing correction
+
+- Follow-up to the production screenshot: oversized width-driven typography and spacing made the normal login overflow on shorter / scaled laptop viewports.
+- CSS-only fix: height-aware typography and branding, 400px maximum form width, compact fields and gaps, fixed viewport allocation for the desktop illustration and provider row. No hidden-scrollbar workaround.
+- Retains the approved coloured king, graphite panels, logos and deep-green button. No authentication, API or backend changes.
+- Browser fixture using actual login components and application CSS: normal login document scrollHeight equals clientHeight at 1536x696, 1280x580 and 390x650; no horizontal overflow. Fixture preview build and 14 login/auth-entry tests passed. Live Cognito smoke testing remains required after deployment.
+- Prepare a fresh frontend release from this branch and execute its newly printed release-plan.json. Earlier prepared images do not contain this sizing fix.
+
 ## Approved login splash and Navigan logo — 2026-10-25
 
 The user approved the attached image(20261025-115255).png for implementation. It selects the coloured royal navigator/harbour illustration, three-facet directional Navigan logo, white story pane, charcoal sign-in pane, Welcome to Navigan heading and deep-green button. This explicitly supersedes the briefly proposed grayscale king and lime sign-in button. Preserve the accepted platform theme and migration workflows.

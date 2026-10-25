@@ -1,5 +1,6 @@
 /* Approved royal-harbour login. Scoped to the public shell; workspace styles stay independent. */
 .public-shell.login-public-shell {
+  --login-header-height: 64px;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -14,8 +15,8 @@
   justify-content: flex-start;
   gap: 24px;
   flex-shrink: 0;
-  height: clamp(76px, 5.9vw, 94px);
-  min-height: clamp(76px, 5.9vw, 94px);
+  height: var(--login-header-height);
+  min-height: var(--login-header-height);
   padding: 0 clamp(24px, 3.3vw, 54px);
   background: #20262d;
   border: 0;
@@ -62,15 +63,16 @@
   display: grid;
   grid-template-columns: minmax(0, 60.3fr) minmax(0, 39.7fr);
   width: 100%;
-  min-height: calc(100svh - clamp(76px, 5.9vw, 94px));
+  height: calc(100svh - var(--login-header-height));
+  min-height: 0;
 }
 .login-splash .login-story {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(150px, 1fr) auto;
-  gap: clamp(24px, 4.5vh, 46px);
-  padding: clamp(28px, 4vh, 54px) clamp(24px, 3.3vw, 54px);
-  padding-bottom: clamp(32px, 8vh, 80px);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: clamp(12px, 2.4svh, 24px);
+  padding: clamp(20px, 3svh, 32px) clamp(24px, 3.3vw, 54px);
+  min-height: 0;
   background: #fafaf9;
 }
 .login-splash .login-wordmark {
@@ -80,7 +82,7 @@
   color: #20262d;
 }
 .login-splash .login-wordmark strong {
-  font-size: clamp(26px, 3vw, 42px);
+  font-size: clamp(24px, 3.4svh, 34px);
   line-height: 1;
   font-weight: 650;
   letter-spacing: -0.045em;
@@ -88,7 +90,7 @@
 .login-splash .login-story-copy h1 {
   margin: 0;
   color: #20262d;
-  font-size: clamp(28px, 3.6vw, 56px);
+  font-size: clamp(28px, 4.4svh, 42px);
   line-height: 1.12;
   font-weight: 650;
   letter-spacing: -0.04em;
@@ -96,7 +98,7 @@
 .login-splash .login-story-copy p {
   margin: 14px 0 0;
   color: #5d656d;
-  font-size: clamp(16px, 1.9vw, 28px);
+  font-size: clamp(16px, 2.5svh, 22px);
   line-height: 1.35;
   font-weight: 450;
   letter-spacing: -0.02em;
@@ -118,7 +120,7 @@
   justify-content: space-between;
   gap: 12px;
   list-style: none;
-  padding: 20px 0 8px;
+  padding: 12px 0 0;
   margin: 0;
   border-top: 1px solid #d5dadd;
 }
@@ -146,13 +148,13 @@
   display: flex;
   align-items: flex-start;
   min-width: 0;
-  padding: clamp(38px, 6.5vh, 72px) clamp(26px, 4vw, 64px);
+  padding: clamp(24px, 4svh, 42px) clamp(24px, 3.5vw, 56px);
   background: #20282e;
   color: #f7f8f9;
 }
 .login-splash .login-panel-content {
   width: 100%;
-  max-width: 510px;
+  max-width: 400px;
   margin: 0 auto;
 }
 .login-splash .login-wordmark-reverse {
@@ -160,7 +162,7 @@
   margin-bottom: 24px;
 }
 .login-splash .login-wordmark-reverse strong {
-  font-size: clamp(26px, 2.7vw, 40px);
+  font-size: clamp(24px, 3.4svh, 32px);
 }
 .login-splash .login-form {
   display: block;
@@ -172,7 +174,7 @@
   margin: 0;
   padding: 0;
   color: #fff;
-  font-size: clamp(25px, 2.7vw, 42px);
+  font-size: clamp(24px, 3.5svh, 32px);
   font-weight: 650;
   line-height: 1.2;
   letter-spacing: -0.045em;
@@ -182,13 +184,13 @@
 .login-splash .login-configuration p {
   margin: 8px 0 0;
   color: #c7cfd5;
-  font-size: clamp(13px, 1.4vw, 20px);
+  font-size: clamp(13px, 1.9svh, 16px);
   line-height: 1.45;
 }
 .login-splash .login-fields {
   display: grid;
-  gap: 30px;
-  margin: 40px 0 0;
+  gap: 18px;
+  margin: 24px 0 0;
   padding: 0;
   border: 0;
   min-width: 0;
@@ -198,7 +200,7 @@
   gap: 10px;
   margin: 0;
   color: #f7f8f9;
-  font-size: clamp(13px, 1.2vw, 18px);
+  font-size: clamp(13px, 1.8svh, 15px);
   line-height: 1.3;
   font-weight: 550;
 }
@@ -206,8 +208,8 @@
   box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 48px;
-  height: clamp(46px, 6.2vh, 60px);
+  min-height: 42px;
+  height: clamp(42px, 5.5svh, 48px);
   padding: 12px 14px;
   background: #fff;
   color: #20262d;
@@ -252,8 +254,8 @@
   display: flex;
   justify-content: center;
   width: 100%;
-  min-height: 48px;
-  height: clamp(46px, 6.2vh, 60px);
+  min-height: 42px;
+  height: clamp(42px, 5.5svh, 48px);
   margin-top: 4px;
   padding: 10px 18px;
   border: 0;
@@ -261,7 +263,7 @@
   background: #1f794a !important;
   color: #fff !important;
   box-shadow: none;
-  font-size: clamp(14px, 1.3vw, 19px);
+  font-size: 15px;
   font-weight: 600;
 }
 .login-splash .login-fields .button.button-primary:hover:not(:disabled) {
@@ -275,7 +277,7 @@
   padding: 8px;
   border: 0;
   min-height: 36px;
-  font-size: clamp(13px, 1.2vw, 18px);
+  font-size: clamp(13px, 1.8svh, 15px);
   font-weight: 450;
   text-decoration: none;
 }
@@ -294,11 +296,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-top: 24px;
-  margin-top: 30px;
+  padding-top: 16px;
+  margin-top: 18px;
   border-top: 1px solid #7f8990;
   color: #c7cfd5;
-  font-size: clamp(12px, 1.2vw, 17px);
+  font-size: 13px;
   line-height: 1.4;
 }
 .login-splash .login-access-note {
@@ -334,40 +336,21 @@
   background: #fff;
   padding: 12px;
 }
-@media (max-height: 800px) and (min-width: 761px) {
-  .public-shell.login-public-shell .topbar {
-    height: 64px;
-    min-height: 64px;
-  }
-  .login-splash {
-    min-height: calc(100svh - 64px);
-  }
-  .login-splash .login-story {
-    padding-top: 28px;
-    padding-bottom: 24px;
-    gap: 18px;
-  }
-  .login-splash .login-story-copy h1 {
-    font-size: clamp(28px, 3.3vw, 46px);
-  }
-  .login-splash .login-wordmark-reverse {
-    margin-bottom: 18px;
-  }
-  .login-splash .login-fields {
-    margin-top: 28px;
-    gap: 18px;
-  }
-  .login-splash .login-protection {
-    margin-top: 22px;
-    padding-top: 20px;
-  }
+/* Short laptop viewports, including display scaling and browser chrome. */
+@media (max-height: 740px) and (min-width: 761px) {
+  .public-shell.login-public-shell { --login-header-height: 56px; }
+  .login-splash .login-panel { padding-block: 20px; }
+  .login-splash .login-wordmark-reverse { margin-bottom: 16px; }
+  .login-splash .login-fields { margin-top: 18px; gap: 14px; }
+  .login-splash .login-fields .field { gap: 7px; }
+  .login-splash .login-protection { margin-top: 14px; padding-top: 12px; }
 }
 @media (max-width: 1050px) and (min-width: 761px) {
   .login-splash {
     grid-template-columns: minmax(0, 53fr) minmax(0, 47fr);
   }
   .login-splash .login-story-copy h1 {
-    font-size: 32px;
+    font-size: clamp(26px, 4.4svh, 32px);
   }
   .login-splash .login-wordmark strong {
     font-size: 30px;
@@ -398,6 +381,7 @@
   .login-splash {
     display: flex;
     flex-direction: column;
+    height: auto;
     min-height: calc(100svh - 64px);
   }
   .login-splash .login-story {
@@ -405,7 +389,7 @@
   }
   .login-splash .login-panel {
     flex: 1;
-    padding: 38px 24px;
+    padding: 24px;
     align-items: center;
   }
   .login-splash .login-panel-content {
@@ -418,8 +402,8 @@
     font-size: 28px;
   }
   .login-splash .login-fields {
-    margin-top: 32px;
-    gap: 22px;
+    margin-top: 20px;
+    gap: 16px;
   }
   .login-splash .login-fields :is(input, select) {
     font-size: 16px;
@@ -433,6 +417,6 @@
 }
 
 .login-splash .login-wordmark > span {
-  width: clamp(48px, 4.8vw, 76px);
-  height: clamp(40px, 3.8vw, 60px);
+  width: clamp(40px, 6svh, 60px);
+  height: clamp(32px, 4.8svh, 48px);
 }
