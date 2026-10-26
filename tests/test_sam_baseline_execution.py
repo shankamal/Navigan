@@ -26,6 +26,15 @@ def test_conditional_permission_requires_unchanged_definition_and_stable_identit
             helper.allow_change(candidate, set())
 
 
+def test_unchanged_inline_policy_dependency_is_allowed_only_for_policy_document():
+    candidate = item('AWS::IAM::Policy', 'False')
+    candidate['properties'] = ['PolicyDocument']
+    helper.allow_change(candidate, set())
+    candidate['properties'] = ['Roles']
+    with pytest.raises(RuntimeError, match='properties'):
+        helper.allow_change(candidate, set())
+
+
 @pytest.mark.parametrize('field,value', [('action', 'Remove'), ('action', 'Add'), ('replacement', 'True'),
     ('properties', ['Principal']), ('scope', ['Metadata']), ('dependencyEvidence', None), ('type', 'AWS::RDS::DBInstance')])
 def test_execution_refuses_unreviewed_or_destructive_scope(field, value):

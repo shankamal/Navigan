@@ -26,6 +26,7 @@ runtime = module('sam_execution_runtime', 'verify-sam-runtime-bindings.py')
 read = release.read; write = release.write; require = release.require
 
 DEPENDENCIES = {
+    'AWS::IAM::Policy': {'PolicyDocument'},
     'AWS::S3::BucketPolicy': {'PolicyDocument'},
     'AWS::S3::Bucket': {'BucketEncryption'},
     'AWS::ApiGatewayV2::Integration': {'IntegrationUri'},
@@ -52,7 +53,7 @@ def allow_change(item, verified):
                 'Unexpected nested stack modification')
         require(set(item.get('properties', [])) <= {'TemplateURL'}, 'Nested stack parameters or configuration changed')
         return
-    require(kind in DEPENDENCIES, 'Unsupported resource type in execution scope')
+    require(kind in DEPENDENCIES, 'Unsupported resource type in execution scope: ' + str(kind))
     require(set(item.get('scope', [])) <= {'Properties'}, 'Unexpected dependency resource scope')
     properties = set(item.get('properties', []))
     require(properties and properties <= DEPENDENCIES[kind], 'Unexpected dependency properties')

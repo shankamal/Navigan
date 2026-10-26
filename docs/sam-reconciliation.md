@@ -221,6 +221,8 @@ runtime checks immediately before executing the existing stages in order.
 The execution gate accepts unchanged dependency definitions only when referenced
 resource identities are stable. Conditional updates are limited to the reviewed
 Lambda permission `SourceArn` and ECS task-definition `TaskRoleArn` cases.
+The same unchanged-definition proof covers an IAM inline policy's
+`PolicyDocument`; changes to its role bindings remain blocked.
 CloudFormation may still replace those permissions or register a task revision;
 no other resource identity changes, additions or removals are accepted. The
 script stops on rollback/failure and records requested/completed stages in
