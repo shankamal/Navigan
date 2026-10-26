@@ -258,3 +258,16 @@ def main():
     manifest={'format':1,'observedAt':datetime.now(timezone.utc).isoformat(),'deploymentReady':False,'environments':{}}
     for label in labels:
         try:manifest['environments'][label]=capture(session,label,getattr(args,label+'_stack'),directory,args.capture_artifacts,getattr(args,label+'_frontend_stack'))
+        except Exception as error:manifest['environments'][label]={'deploymentReady':False,'errors':[error_record('environment',error)]}
+    if labels==['dev','prod'] and all((directory/label/'sam-parameters.json').is_file() for label in labels):
+        databases=[next(p['ParameterValue'] for p in json.loads((directory/label/'sam-parameters.json').read_text())['Parameters']
+                        if p['ParameterKey']=='DatabaseName') for label in labels]
+        if databases[0]==databases[1]:
+            for label in labels:manifest['environments'][label]['errors'].append({'scope':'environment-isolation','code':'DATABASE_IDENTITIES_NOT_DISTINCT'})
+    summary=directory/'reconciliation-summary.json';write(summary,manifest)
+    print('Read-only SAM capture finished. No AWS resources changed.')
+    print('Private capture directory: '+str(directory));print('Share this compact summary: '+str(summary))
+    print('Deployment remains blocked pending ownership and code-baseline reconciliation.')
+    return 2 if any(e.get('errors') for e in manifest['environments'].values()) else 0
+
+if __name__=='__main__':raise SystemExit(main())
