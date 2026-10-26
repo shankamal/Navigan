@@ -179,6 +179,21 @@ replacements, validate every policy grant, or set `deploymentReady` to true.
 The compact shareable output is `existing-plan-review-summary.json`; full local
 AWS evidence stays under each stage's `review-evidence` directory.
 
+Add `--verify-runtime` to that read-only command to compare the proposed templates
+in AWS with live IAM role trust/inline/managed policies and boundaries, core Lambda
+configuration and concurrency, and ECS service task revision/count. The verifier
+also downloads each proposed S3 ZIP and checks its SHA-256 against the running
+Lambda package and the recorded code lock. Thus a matching local filename is not
+treated as evidence of matching code. Lambda updates in progress fail verification.
+The report identifies mismatching fields without printing policy/environment
+values; private code downloads remain in memory. The mode makes no AWS writes.
+
+CodeBuild project references are checked against their project-name identity when
+explaining event-rule dependencies. These checks provide review evidence; they do
+not approve conditional replacements, validate every resource property, execute a
+release, or finish reconciliation of the maintained source templates. Inspect
+`runtime-binding-verification.json` and the printed summary before any execution.
+
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never
    imports, deletes or recreates them automatically.

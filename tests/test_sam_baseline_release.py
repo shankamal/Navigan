@@ -288,3 +288,14 @@ def test_review_existing_function_cannot_write_to_aws():
     for name in ('review_existing', 'inspect_changes', 'dependency_proof', 'resource_references'):
         calls = {n.func.attr for n in ast.walk(functions[name]) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
         assert not calls & {'create_change_set', 'execute_change_set', 'update_stack', 'put_object', 'update_function_code', 'put_role_policy'}
+
+
+def test_codebuild_name_reference_keeps_event_rule_identity_evidence(tmp_path):
+    before = {'Resources': {'Project': {'Type': 'AWS::CodeBuild::Project', 'Properties': {'Name': 'same-project', 'ServiceRole': 'old'}},
+        'Rule': {'Type': 'AWS::Events::Rule', 'Properties': {'EventPattern': {'detail': {'project-name': [{'Ref': 'Project'}]}}}}}}
+    after = copy.deepcopy(before); after['Resources']['Project']['Properties']['ServiceRole'] = 'new'
+    resource = change('AWS::Events::Rule', logical='Rule')['ResourceChange']
+    changes = {'Project': change('AWS::CodeBuild::Project', logical='Project')['ResourceChange']}
+    assert helper.dependency_proof(resource, before, after, changes, {'Project': 'same-project', 'Rule': 'same-rule'})
+    after['Resources']['Project']['Properties']['Name'] = 'another-project'
+    assert helper.dependency_proof(resource, before, after, changes, {'Project': 'same-project', 'Rule': 'same-rule'}) is None

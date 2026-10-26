@@ -151,6 +151,7 @@ def dependency_proof(resource, before, after, changes, physical):
         'AWS::Lambda::Function': ('FunctionName',),
         'AWS::S3::Bucket': ('BucketName',),
         'AWS::KMS::Key': (),
+        'AWS::CodeBuild::Project': ('Name',),
     }
     evidence = []
     for target, attribute in sorted(resource_references(new.get('Properties', {}))):
@@ -392,7 +393,9 @@ def main():
     parser.add_argument('--profile'); parser.add_argument('--region', required=True)
     parser.add_argument('--artifact-bucket', help='Optional explicit bucket already referenced by the captured environment')
     parser.add_argument('--review-directory', type=Path, help='Read-only review of existing saved change sets; no packaging or AWS writes')
+    parser.add_argument('--verify-runtime', action='store_true', help='With --review-directory, compare proposed IAM/Lambda/ECS values with live AWS')
     args = parser.parse_args()
+    require(not args.verify_runtime or args.review_directory, '--verify-runtime requires --review-directory')
     if not args.review_directory:
         require(shutil.which('sam'), 'AWS SAM CLI is not available in PATH')
     source = args.capture_directory.resolve(); private = source / args.environment
@@ -417,6 +420,10 @@ def main():
                              'replacement': c['replacement'], 'properties': c['properties'],
                              'dependencyEvidence': c.get('dependencyEvidence')}
                             for c in changes if not c['reviewPassed']]}
+        if args.verify_runtime:
+            runtime_spec = importlib.util.spec_from_file_location('sam_runtime_binding_verifier', ROOT / 'scripts/verify-sam-runtime-bindings.py')
+            runtime = importlib.util.module_from_spec(runtime_spec); runtime_spec.loader.exec_module(runtime)
+            compact['runtimeVerification'] = runtime.verify(session, args.review_directory.resolve(), private, args.expected_account)
         write(args.review_directory / 'existing-plan-review-summary.json', compact)
         print(json.dumps(compact, indent=2))
         print('Read-only review complete. No change sets created, approved or executed; no artifacts uploaded.')

@@ -94,3 +94,18 @@ resources retain their identity fields and have no replacement proposed. It does
 not create new plans or uploads, relax the approval gates, execute changes, or
 declare public authored-template reconciliation complete. Live results from this
 mode and semantic policy/environment review remain pending.
+
+The user supplied the existing-plan review with no read errors. Its evidence
+confirmed unchanged definitions and stable referenced identities for all four
+conditional warnings and most other blocked entries. BuildStateRule lacked
+evidence because its project-name reference used an unsupported CodeBuild type;
+the checker now verifies that identity field too, without changing approval gates.
+
+The same saved-plan command now supports a read-only runtime comparison of
+proposed IAM role policies, core Lambda configuration/concurrency and ECS service
+task/count against live AWS. Uploaded S3 ZIP bytes must match the running Lambda
+SHA-256 and code lock. Reports omit raw policy/environment values. Local tests
+cover grant changes, policy removal, environment/revision differences and uploaded
+ZIP mismatches. Live runtime comparison, maintained-template reconciliation,
+application execution and authenticated acceptance remain pending. No new change
+sets or application deployment were performed by this implementation.
