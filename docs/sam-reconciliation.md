@@ -47,6 +47,29 @@ can regenerate the contract using `scripts/generate-sam-contract.py --write`
 
 ## Remaining before deployment
 
+### Route identity and adoption stage
+
+`scripts/prepare-sam-route-ownership.py --capture-directory <private-capture>`
+creates private route identity maps and verified per-function ZIP locks from the
+saved capture. It preserves deployed logical IDs, omits routes absent from the
+captured environment, and checks ownership across all captured stacks. It does
+not build branch source or apply these maps to application templates yet.
+
+Add `--prepare-import --profile <profile> --region <region>
+--expected-account <account>` to prepare an **unexecuted** import-only change set
+for routes without captured ownership. This stage rechecks live route settings
+and CloudFormation ownership, discovers import identifiers from CloudFormation,
+and aborts on conflicting ownership or unexpected operations. Routes are adopted
+into a separate companion stack to preserve their physical IDs without changing
+existing nested application stacks. Every route has retain policies.
+
+Only `route-ownership-summary.json` is shareable. The private `import-plan.json`,
+route templates and identity maps retain live identifiers. A failed or timed-out
+preparation may leave an unexecuted change set or review stack: inspect the saved
+plan before retrying. This command never executes, deletes or updates resources.
+Import execution and application-template/IAM reconciliation remain separate
+steps; ordinary SAM deployment is still blocked.
+
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never
    imports, deletes or recreates them automatically.
