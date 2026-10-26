@@ -118,12 +118,12 @@ def check_inventory(before, after, allowed):
                     'Unexpected resource identity changed during execution')
 
 
-def wait_for_update(cfn, plan, previous, timeout=3600):
+def wait_for_update(cfn, plan, previous, environment='dev', timeout=3600):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         current = cfn.describe_stacks(StackName=plan['stackId'])['Stacks'][0]
         status = current['StackStatus']
-        print('DEV baseline update: ' + status, flush=True)
+        print(environment.upper() + ' baseline update: ' + status, flush=True)
         changed = str(current.get('LastUpdatedTime')) != str(previous.get('LastUpdatedTime'))
         if changed and status == 'UPDATE_COMPLETE':
             return
@@ -159,14 +159,14 @@ def execute(session, directory, private, environment, stack, account, region):
             require(previous['StackStatus'] in release.baseline.routes.capture.STABLE and
                     str(previous.get('LastUpdatedTime')) == str(records[stage]['description'].get('LastUpdatedTime')),
                     'Stage changed after preflight')
-            token = 'navigan-dev-baseline-' + uuid.uuid4().hex
+            token = 'navigan-' + environment + '-baseline-' + uuid.uuid4().hex
             journal['stages'][stage] = {'status': 'REQUESTED', 'clientRequestToken': token,
                                        'stackId': plan['stackId'], 'changeSetId': plan['changeSetId']}
             write(journal_path, journal)
             print('Executing verified ' + environment.upper() + ' stage: ' + stage, flush=True)
             cfn.execute_change_set(ChangeSetName=plan['changeSetId'], StackName=plan['stackId'], ClientRequestToken=token)
             journal['executed'] = True; write(journal_path, journal)
-            wait_for_update(cfn, plan, previous)
+            wait_for_update(cfn, plan, previous, environment)
             journal['stages'][stage]['status'] = 'UPDATE_COMPLETE'; write(journal_path, journal)
         after = inventory(cfn, records)
         write(directory / 'post-execution-inventory.json', after)
@@ -180,7 +180,7 @@ def execute(session, directory, private, environment, stack, account, region):
     finally:
         write(journal_path, journal)
     print(environment.upper() + ' baseline change sets executed and runtime/inventory verified.', flush=True)
-    print('Maintained source SAM templates and authenticated workflow validation remain separate pending work.', flush=True)
+    print('Authenticated workflow validation remains separate pending work.', flush=True)
     return journal
 
 

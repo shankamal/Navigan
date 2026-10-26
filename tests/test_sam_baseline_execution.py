@@ -85,14 +85,14 @@ def test_wait_does_not_mistake_previous_update_complete_for_execution_success(mo
                    {'StackStatus': 'UPDATE_COMPLETE', 'LastUpdatedTime': 'new'}])
     cfn = SimpleNamespace(describe_stacks=lambda **kw: {'Stacks': [next(values)]})
     sleeps = []; monkeypatch.setattr(helper.time, 'sleep', lambda seconds: sleeps.append(seconds))
-    helper.wait_for_update(cfn, {'stackId': 'root'}, {'LastUpdatedTime': 'old'})
+    helper.wait_for_update(cfn, {'stackId': 'root'}, {'LastUpdatedTime': 'old'}, 'prod')
     assert len(sleeps) == 2
 
 
 def test_rollback_stops_instead_of_waiting_for_the_next_stage():
     cfn = SimpleNamespace(describe_stacks=lambda **kw: {'Stacks': [{'StackStatus': 'UPDATE_ROLLBACK_IN_PROGRESS'}]})
     with pytest.raises(RuntimeError, match='rollback'):
-        helper.wait_for_update(cfn, {'stackId': 'root'}, {})
+        helper.wait_for_update(cfn, {'stackId': 'root'}, {}, 'prod')
 
 
 def setup_execution(tmp_path, monkeypatch):
