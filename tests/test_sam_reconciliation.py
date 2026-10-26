@@ -14,6 +14,10 @@ capture=load('sam_reconcile_test','scripts/reconcile-sam.py')
 generator=load('sam_contract_test','scripts/generate-sam-contract.py')
 
 
+def test_successful_resource_import_is_a_stable_stack_state():
+    assert 'IMPORT_COMPLETE' in capture.STABLE
+
+
 def test_contract_exactly_matches_source_and_hashes():
     assert capture.contract()==generator.build()
 
