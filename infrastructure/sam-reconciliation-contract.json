@@ -1,0 +1,883 @@
+{
+  "version": 1,
+  "sources": {
+    "infrastructure/template.yaml": "720a8d806cebe0363c21c026e919a5e7d2ea95b8582bfaa1a7e4c394d1e8eaf9",
+    "infrastructure/modules/customer-management/template.yaml": "b12eaf98cb72a5b038e50f0c57e871a26ed6d1ae0ee8ef8921ecb25c5347c945",
+    "infrastructure/modules/environment-management/template.yaml": "2ecfb56762d3002ec5ee0cfd22d1fb7b8ed3d83ffb8b0aa49f9fb9d0d855e890",
+    "infrastructure/modules/cluster-management/template.yaml": "ad03a2ef995d4ce1086cff1bdd8712c92c63a5516d3ae6f881dc3e18a32335f6",
+    "infrastructure/modules/migration-management/template.yaml": "8b7f2e2c0238e0c1b1f2cc569bc56c9cb4b14613671f4ed02974831bbe0e7283",
+    "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa"
+  },
+  "parameters": [
+    "JwtIssuer",
+    "JwtAudience",
+    "IdentityUserPoolId",
+    "JwtScope",
+    "DatabaseName",
+    "DatabaseProxyHost",
+    "ApiDatabaseSecretArn",
+    "EventsDatabaseSecretArn",
+    "SecretsKmsKeyArn",
+    "PrivateSubnetIds",
+    "LambdaSecurityGroupIds",
+    "RdsCaLayerArn",
+    "OutboxScheduleEnabled",
+    "TerraformRunnerImageUri",
+    "ConnectorImageUri",
+    "MigrationConnectorImageRepository",
+    "MigrationConnectorImageDigest",
+    "SourceConnectorDeliveryRoleArn",
+    "MigrationSourceFirstEnabled",
+    "MigrationWorkspaceBucketName",
+    "MigrationWorkspaceKmsKeyArn",
+    "MigrationWorkspaceBucketOwner",
+    "SourceRegistryAllowedRoleArns",
+    "GitHubAppId",
+    "GitHubAppSlug",
+    "GitHubAppPrivateKeySecretArn",
+    "GitHubAppPrivateKeyKmsKeyArn",
+    "BlueprintAdvisorModelId",
+    "PlatformToolsBaseUrl",
+    "PlatformToolsGatewayEnabled",
+    "PlatformToolsTunnelEnabled"
+  ],
+  "requiredParameters": [
+    "JwtIssuer",
+    "JwtAudience",
+    "IdentityUserPoolId",
+    "DatabaseProxyHost",
+    "ApiDatabaseSecretArn",
+    "EventsDatabaseSecretArn",
+    "SecretsKmsKeyArn",
+    "PrivateSubnetIds",
+    "LambdaSecurityGroupIds",
+    "RdsCaLayerArn",
+    "TerraformRunnerImageUri"
+  ],
+  "routes": {
+    "CustomerManagement": {
+      "Resources": {
+        "CreateCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers"
+          }
+        },
+        "ListCustomersRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers"
+          }
+        },
+        "CustomerSummaryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers/summary"
+          }
+        },
+        "GetCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers/{customerId}"
+          }
+        },
+        "UpdateCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/customers/{customerId}"
+          }
+        },
+        "GetCustomerProvidersRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers/{customerId}/cloud-providers"
+          }
+        },
+        "ReplaceCustomerProvidersRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/customers/{customerId}/cloud-providers"
+          }
+        },
+        "SubmitCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/submit"
+          }
+        },
+        "ResubmitCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/resubmit"
+          }
+        },
+        "ReviewStartCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/review/start"
+          }
+        },
+        "ApproveCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/approve"
+          }
+        },
+        "RejectCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/reject"
+          }
+        },
+        "ActivateCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/activate"
+          }
+        },
+        "SuspendCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/suspend"
+          }
+        },
+        "ReactivateCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/reactivate"
+          }
+        },
+        "DeactivateCustomerRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/customers/{customerId}/deactivate"
+          }
+        },
+        "GetStatusHistoryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers/{customerId}/status-history"
+          }
+        },
+        "GetAuditLogRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers/{customerId}/audit-log"
+          }
+        },
+        "GetReviewsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/customers/{customerId}/reviews"
+          }
+        }
+      }
+    },
+    "EnvironmentManagement": {
+      "Resources": {
+        "BlueprintReadinessRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/blueprint-readiness"
+          }
+        },
+        "GetProvisioningOptionsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}/provisioning-options"
+          }
+        },
+        "CreateBootstrapRemediationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/bootstrap-remediations"
+          }
+        },
+        "ListBootstrapRemediationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/bootstrap-remediations"
+          }
+        },
+        "GetBootstrapRemediationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/bootstrap-remediations/{requestId}"
+          }
+        },
+        "ApproveBootstrapRemediationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/approve"
+          }
+        },
+        "RejectBootstrapRemediationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/reject"
+          }
+        },
+        "VerifyBootstrapRemediationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/verify"
+          }
+        },
+        "CreateEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments"
+          }
+        },
+        "ListEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments"
+          }
+        },
+        "EnvironmentSummaryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/summary"
+          }
+        },
+        "GetEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}"
+          }
+        },
+        "UpdateEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/environments/{environmentId}"
+          }
+        },
+        "MetadataEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/metadata"
+          }
+        },
+        "SchemaEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/configuration-schemas/{distribution}/{schemaVersion}"
+          }
+        },
+        "DiscoverAwsEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/discover/aws"
+          }
+        },
+        "HistoryEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}/status-history"
+          }
+        },
+        "VersionsEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}/versions"
+          }
+        },
+        "VersionEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}/versions/{version}"
+          }
+        },
+        "ReviewsEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}/reviews"
+          }
+        },
+        "AuditEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/environments/{environmentId}/audit-log"
+          }
+        },
+        "StatusEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PATCH /api/v1/environments/{environmentId}/status"
+          }
+        },
+        "SubmitEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/submit"
+          }
+        },
+        "ReviseEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/revise"
+          }
+        },
+        "ResubmitEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/resubmit"
+          }
+        },
+        "ReviewEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/review"
+          }
+        },
+        "ApproveEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/approve"
+          }
+        },
+        "RejectEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/reject"
+          }
+        },
+        "ActivateEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/activate"
+          }
+        },
+        "SuspendEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/suspend"
+          }
+        },
+        "ReactivateEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/reactivate"
+          }
+        },
+        "DeactivateEnvironmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/environments/{environmentId}/deactivate"
+          }
+        }
+      }
+    },
+    "ClusterManagement": {
+      "Resources": {
+        "CreateRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters"
+          }
+        },
+        "ListRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters"
+          }
+        },
+        "ClusterSummaryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/summary"
+          }
+        },
+        "GetRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}"
+          }
+        },
+        "ExecutionLogsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/execution-logs"
+          }
+        },
+        "IdentityRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/identity"
+          }
+        },
+        "KubernetesAccessRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/access"
+          }
+        },
+        "KubernetesAccessSubjectsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/access/subjects"
+          }
+        },
+        "KubernetesAccessNamespacesRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/access/namespaces"
+          }
+        },
+        "InstallConnectorRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/connector/install"
+          }
+        },
+        "UpgradeConnectorRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/connector/upgrade"
+          }
+        },
+        "ListNodeGroupRequestsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/node-groups"
+          }
+        },
+        "CreateNodeGroupRequestRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/node-groups"
+          }
+        },
+        "MigrateSystemNodeGroupRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/migrate-system-node-group"
+          }
+        },
+        "NodeGroupRequestActionRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/node-groups/{requestId}/{nodeGroupAction}"
+          }
+        },
+        "NodeGroupExecutionLogsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/node-groups/{requestId}/execution-logs"
+          }
+        },
+        "ClusterAuditLogRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/audit-log"
+          }
+        },
+        "GetClusterPlatformComponentsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/platform-components"
+          }
+        },
+        "GetClusterToolsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/clusters/{clusterId}/tools"
+          }
+        },
+        "CreateClusterToolSessionRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/tools/{toolCode}/sessions"
+          }
+        },
+        "ReportConnectorNamespacesRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/connectors/{connectorId}/inventory/namespaces"
+          }
+        },
+        "ReportConnectorPlatformComponentsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/connectors/{connectorId}/inventory/platform-components"
+          }
+        },
+        "GetConnectorDesiredAccessRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/connectors/{connectorId}/access/desired"
+          }
+        },
+        "ReportConnectorAccessStatusRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/connectors/{connectorId}/access/status"
+          }
+        },
+        "GetConnectorGitHubCredentialsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/connectors/{connectorId}/github/credentials"
+          }
+        },
+        "AuthorizeConnectorToolsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/connectors/{connectorId}/tools/authorize"
+          }
+        },
+        "ReportConnectorToolsStatusRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/connectors/{connectorId}/tools/status"
+          }
+        },
+        "ExchangeToolSessionRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/tool-sessions/{sessionId}/exchange"
+          }
+        },
+        "ValidateToolSessionRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/tool-sessions/{sessionId}/validate"
+          }
+        },
+        "CreateKubernetesAccessRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/access/assignments"
+          }
+        },
+        "RevokeKubernetesAccessRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/access/assignments/{assignmentId}/revoke"
+          }
+        },
+        "UpdateRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/clusters/{clusterId}"
+          }
+        },
+        "SubmitRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/submit"
+          }
+        },
+        "ReviewRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/review"
+          }
+        },
+        "ApproveRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/approve"
+          }
+        },
+        "RejectRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/reject"
+          }
+        },
+        "PlanRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/plan"
+          }
+        },
+        "ApplyRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/apply"
+          }
+        },
+        "BeginGitHubAuthorizationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/github/authorize"
+          }
+        },
+        "CompleteGitHubAuthorizationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/github/complete"
+          }
+        },
+        "StopRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/stop"
+          }
+        },
+        "StartRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/start"
+          }
+        },
+        "DeleteRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/clusters/{clusterId}/delete"
+          }
+        }
+      }
+    },
+    "MigrationManagement": {
+      "Resources": {
+        "GetSourceDeploymentSourcesRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources"
+          }
+        },
+        "SaveSourceDeploymentSourcesRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources"
+          }
+        },
+        "GetMigrationDeploymentEvidenceRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/deployment-evidence"
+          }
+        },
+        "AnalyzeMigrationDeploymentEvidenceRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/deployment-evidence"
+          }
+        },
+        "ListArtifactWorkspacesRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces"
+          }
+        },
+        "CreateArtifactWorkspaceRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces"
+          }
+        },
+        "GetArtifactWorkspaceRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}"
+          }
+        },
+        "StartWorkspaceCollectionRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs"
+          }
+        },
+        "CreateWorkspaceExportRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports"
+          }
+        },
+        "MigrationConnectorAssignmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migration-connectors/{connectorId}/assignment"
+          }
+        },
+        "MigrationConnectorInventoryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migration-connectors/{connectorId}/inventory"
+          }
+        },
+        "MigrationConnectorSourceInventoryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migration-connectors/{connectorId}/source-inventory"
+          }
+        },
+        "EnrollSourceConnectorRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/source-connectors/enroll"
+          }
+        },
+        "SourceConnectorAssignmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/source-connectors/{connectorId}/assignment"
+          }
+        },
+        "SourceConnectorInventoryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/source-connectors/{connectorId}/inventory"
+          }
+        },
+        "SourceConnectorDetailedInventoryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/source-connectors/{connectorId}/source-inventory"
+          }
+        },
+        "GetMigrationTargetAssessmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/target-assessment"
+          }
+        },
+        "RunMigrationTargetAssessmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/target-assessment"
+          }
+        },
+        "GetMigrationTargetCompatibilityRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/target-compatibility"
+          }
+        },
+        "CreateMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations"
+          }
+        },
+        "ListMigrationsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations"
+          }
+        },
+        "CreateSourceClusterRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/source-clusters"
+          }
+        },
+        "ListSourceClustersRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/source-clusters"
+          }
+        },
+        "GetSourceClusterRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/source-clusters/{sourceClusterId}"
+          }
+        },
+        "UpdateSourceClusterRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/source-clusters/{sourceClusterId}"
+          }
+        },
+        "CreateSourceClusterEnrollmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/source-clusters/{sourceClusterId}/enrollments"
+          }
+        },
+        "InstallSourceClusterConnectorRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/source-clusters/{sourceClusterId}/install"
+          }
+        },
+        "GetMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}"
+          }
+        },
+        "GetMigrationSourceCatalogueRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/source-catalogue"
+          }
+        },
+        "GetMigrationSourceInventoryRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/source-inventory"
+          }
+        },
+        "GetMigrationAssessmentRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/migrations/{migrationId}/assessment"
+          }
+        },
+        "UpdateMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "PUT /api/v1/migrations/{migrationId}"
+          }
+        },
+        "DiscoverMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/discover"
+          }
+        },
+        "AssessMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/assess"
+          }
+        },
+        "SubmitMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/submit"
+          }
+        },
+        "ReviewMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/review"
+          }
+        },
+        "ApproveMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/approve"
+          }
+        },
+        "RejectMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/reject"
+          }
+        },
+        "CancelMigrationRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "POST /api/v1/migrations/{migrationId}/cancel"
+          }
+        }
+      }
+    },
+    "AccessManagement": {
+      "Resources": {
+        "GetCurrentAccessRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "RouteKey": "GET /api/v1/access/me"
+          }
+        }
+      }
+    }
+  }
+}

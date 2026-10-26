@@ -4,4 +4,4 @@ The user confirmed successful deployment and verification of the development sum
 
 No further deployment is indicated for these completed fixes. Full functional parity is not yet accepted: authenticated development frontend and migration workflow validation, including collection and export, remain pending.
 
-Complete parity validation first. Reconcile the SAM deployment method and templates afterward, as requested by the user. Do not run a full SAM deployment before reconciliation and change-set review.
+The user has now authorized SAM reconciliation while authenticated workflow validation remains pending. Template parameter wiring and a read-only ownership/baseline capture are implemented; live resource-ID reconciliation and reviewed change sets are still required. The legacy platform wrapper is capture-only during this work. See [SAM reconciliation](../../sam-reconciliation.md). No full SAM deployment has been performed.

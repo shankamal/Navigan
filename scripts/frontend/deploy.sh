@@ -2,7 +2,8 @@
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 validate_public_config
-require IMAGE_URI VPC_ID PUBLIC_SUBNET_IDS PRIVATE_SUBNET_IDS CERTIFICATE_ARN
+require IMAGE_URI VPC_ID PUBLIC_SUBNET_IDS PRIVATE_SUBNET_IDS CERTIFICATE_ARN NAVIGAN_API_ORIGIN MIGRATION_SOURCE_FIRST_ENABLED
+[[ "$MIGRATION_SOURCE_FIRST_ENABLED" == true || "$MIGRATION_SOURCE_FIRST_ENABLED" == false ]] || { printf 'MIGRATION_SOURCE_FIRST_ENABLED must be explicitly true or false.\n' >&2; exit 1; }
 [[ "$IMAGE_URI" =~ @sha256:[0-9a-f]{64}$ ]] || { printf 'IMAGE_URI must reference an immutable sha256 digest from build-and-push.sh.\n' >&2; exit 1; }
 MIN_TASKS="${MIN_TASKS:-2}"
 MAX_TASKS="${MAX_TASKS:-4}"
@@ -23,8 +24,9 @@ aws "${AWS_ARGS[@]}" cloudformation deploy \
     "CertificateArn=$CERTIFICATE_ARN" "FrontendHostname=$FRONTEND_HOST" \
     "HostedZoneId=${HOSTED_ZONE_ID:-}" "AllowedIngressCidr=${ALLOWED_INGRESS_CIDR:-0.0.0.0/0}" \
     "MinTasks=${MIN_TASKS:-2}" "MaxTasks=${MAX_TASKS:-4}" \
-    "ApiOrigin=${NAVIGAN_API_ORIGIN:-https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com}" \
-    "ApiBasePath=${NAVIGAN_API_BASE_PATH:-/v1/api/v1}"
+    "ApiOrigin=$NAVIGAN_API_ORIGIN" \
+    "ApiBasePath=${NAVIGAN_API_BASE_PATH:-/v1/api/v1}" \
+    "MigrationSourceFirstEnabled=$MIGRATION_SOURCE_FIRST_ENABLED"
 CLUSTER="$(stack_output "$FRONTEND_STACK_NAME" ClusterName)"
 SERVICE="$(stack_output "$FRONTEND_STACK_NAME" ServiceName)"
 aws "${AWS_ARGS[@]}" ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"

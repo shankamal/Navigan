@@ -3,6 +3,14 @@ Transform: AWS::Serverless-2016-10-31
 Description: Navigan assessment-only Migration Management API
 
 Parameters:
+  MigrationSourceFirstEnabled: {Type: String, Default: 'false', AllowedValues: ['true','false']}
+  GitHubAppId: {Type: String, Default: ''}
+  GitHubAppPrivateKeySecretArn: {Type: String, Default: ''}
+  GitHubAppPrivateKeyKmsKeyArn: {Type: String, Default: ''}
+  SourceRegistryAllowedRoleArns:
+    Type: CommaDelimitedList
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z-]+:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$'
   EnableWorkspaceCollector: {Type: String, Default: 'false', AllowedValues: ['true','false']}
   WorkspaceGithubAppId: {Type: String, Default: ''}
   WorkspaceGithubKeySecretArn: {Type: String, Default: ''}
@@ -23,7 +31,18 @@ Parameters:
   MigrationConnectorImageDigest: {Type: String, Default: ''}
   SourceConnectorDeliveryRoleArn:
     Type: String
-    Default: arn:aws:iam::000000000000:role/NaviganSourceConnectorDeliveryRole
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z-]+:iam::(?!000000000000)[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$'
+
+Rules:
+  MigrationWorkspaceRequired:
+    RuleCondition: !Equals [!Ref MigrationSourceFirstEnabled, 'true']
+    Assertions:
+      - Assert: !And
+          - !Not [!Equals [!Ref WorkspaceBucketName, '']]
+          - !Not [!Equals [!Ref WorkspaceKmsKeyArn, '']]
+          - !Not [!Equals [!Ref WorkspaceBucketOwner, '']]
+        AssertDescription: Source-first migration requires existing workspace storage configuration.
 
 Globals:
   Function:
@@ -44,9 +63,61 @@ Globals:
         DB_SECRET_ARN: {Ref: ApiDatabaseSecretArn}
 
 Conditions:
+  MigrationGithubConfigured: !And [!Not [!Equals [!Ref GitHubAppId, '']], !Not [!Equals [!Ref GitHubAppPrivateKeySecretArn, '']]]
+  MigrationGithubKeyConfigured: !Not [!Equals [!Ref GitHubAppPrivateKeyKmsKeyArn, '']]
+  MigrationDeliveryRoleConfigured: !Not [!Equals [!Ref SourceConnectorDeliveryRoleArn, '']]
+  AdditionalRegistryRolesConfigured: !Not [!Equals [!Join ['', !Ref SourceRegistryAllowedRoleArns], '']]
   WorkspaceCollectorEnabled: !Equals [!Ref EnableWorkspaceCollector, 'true']
   WorkspaceAppKeyConfigured: !And [!Equals [!Ref EnableWorkspaceCollector, 'true'], !Not [!Equals [!Ref WorkspaceGithubKeySecretArn, '']]]
 Resources:
+  MigrationGithubReadPolicy:
+    Type: AWS::IAM::Policy
+    Condition: MigrationGithubConfigured
+    Properties:
+      PolicyName: NaviganMigrationGithubRead
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref GitHubAppPrivateKeySecretArn
+  MigrationGithubDecryptPolicy:
+    Type: AWS::IAM::Policy
+    Condition: MigrationGithubKeyConfigured
+    Properties:
+      PolicyName: NaviganMigrationGithubDecrypt
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Ref GitHubAppPrivateKeyKmsKeyArn
+  MigrationDeliveryRolePolicy:
+    Type: AWS::IAM::Policy
+    Condition: MigrationDeliveryRoleConfigured
+    Properties:
+      PolicyName: NaviganMigrationDeliveryRole
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Ref SourceConnectorDeliveryRoleArn
+  MigrationRegistryRolesPolicy:
+    Type: AWS::IAM::Policy
+    Condition: AdditionalRegistryRolesConfigured
+    Properties:
+      PolicyName: NaviganMigrationConfiguredRegistryRoles
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Ref SourceRegistryAllowedRoleArns
   WorkspaceAppKeyReadPolicy:
     Type: AWS::IAM::Policy
     Condition: WorkspaceAppKeyConfigured
@@ -88,6 +159,15 @@ Resources:
       ReservedConcurrentExecutions: 10
       Environment:
         Variables:
+          MIGRATION_SOURCE_FIRST_ENABLED: !Ref MigrationSourceFirstEnabled
+          GITHUB_APP_ID: !Ref GitHubAppId
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
+          SOURCE_REGISTRY_ALLOWED_ROLE_ARNS: !If
+            - AdditionalRegistryRolesConfigured
+            - !Sub
+              - '["${Roles}"]'
+              - Roles: !Join ['","', !Ref SourceRegistryAllowedRoleArns]
+            - '[]'
           MIGRATION_WORKSPACE_BUCKET: {Ref: WorkspaceBucketName}
           MIGRATION_WORKSPACE_KMS_KEY: {Ref: WorkspaceKmsKeyArn}
           MIGRATION_WORKSPACE_BUCKET_OWNER: {Ref: WorkspaceBucketOwner}
@@ -117,9 +197,6 @@ Resources:
                 - secretsmanager:PutSecretValue
                 - secretsmanager:GetSecretValue
               Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/source-connections/*
-            - Effect: Allow
-              Action: sts:AssumeRole
-              Resource: {Ref: SourceConnectorDeliveryRoleArn}
             - Effect: Allow
               Action: sts:AssumeRole
               Resource: arn:aws:iam::*:role/navigan-source-discovery/*
