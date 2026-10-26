@@ -1,5 +1,16 @@
 # Navigan session handoff — 25 October 2026 (latest)
 
+## 26 October 2026 — collector parity confirmed; target grants repair prepared
+
+- User created and executed a fresh collector plan at /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-dev-collector-parity-xubpn5k2/release-plan.json after the older zk9x6g4e plan failed its runtime-signature freshness check. Do not reuse zk9x6g4e.
+- User output explicitly confirms DEV repository collector code verified, DEV image rollout completed, PROD/DEV collector artifacts match, DEV settings/roles/schedule retained, no PROD/database commands performed. The helper verifies the actual running task image digest before this success line. No further collector redeploy is indicated.
+- Remaining catalog grant gap: navigan_api has SELECT/INSERT on migration_management.migration_target_assessments in DEV but neither in PROD. UPDATE/DELETE are false in both. Existing repository methods SELECT/INSERT this table. Baseline database/bootstrap/roles.sql omitted this table; add it to the existing SELECT,INSERT-only migration evidence grant list.
+- Added scripts/repair-target-assessment-grants.py. Default is read-only; --apply restores only SELECT, INSERT on the existing PROD target-assessment table to navigan_api. Exact account/region/Aurora/stack/database/table/role/schema checks; verifies DEV minimum baseline first; transactionally rechecks PROD grants, applies one constant GRANT, verifies, commits and verifies again. Unexpected broad grants or prerequisites stop before writes. Private before/after grant record retained. Idempotent when already correct.
+- This changes PROD database permissions deliberately to close the confirmed gap; no application rows, table definitions, DEV permissions, IAM or runtimes are changed. It is not a full database migration or a SAM deployment.
+- 98 focused offline checks passed across grant/collector/audit/summary/workspace modules, including read-only default, PROD-only narrow grant, transaction rollback, wrong identity/prerequisite rejection and idempotency. No live grant repair executed here yet.
+- Next: user pulls and runs target grant --apply, then confirms output. Follow with local DEV frontend restart/configuration and authenticated summary/migration/discovery/scope/collection/export checks. Until workflow validation is supplied, report verified artifact/configuration parity only. SAM reconciliation follows per user order.
+
+
 ## ECS empty-tags correction — image verified, runtimes not promoted
 
 - User resumed zk9x6g4e plan at e190100. Image copy and content verification passed, then RegisterTaskDefinition rejected tags=[] with "Tags can not be empty." The exception occurred before Lambda code update and ECS service promotion. No candidate task was successfully registered by that rejected call. DEV ECR may now contain the verified copied artifact; preserve/reuse it.
