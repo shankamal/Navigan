@@ -115,3 +115,19 @@ def test_unstable_lambda_does_not_pass_runtime_verification(tmp_path):
     cfg['LastUpdateStatus'] = 'InProgress'
     result = helper.verify(session, directory, private, '000000000001')
     assert result['matchesLive'] is False and result['errors']
+
+
+def test_post_execution_allows_new_revision_but_still_requires_same_code_and_settings(tmp_path):
+    session, directory, private, template, cfg, *_ = fixture(tmp_path)
+    cfg['RevisionId'] = 'updated-by-cloudformation'
+    assert helper.verify(session, directory, private, '000000000001', after_execution=True)['matchesLive'] is True
+    cfg['CodeSha256'] = 'different-code'
+    assert helper.verify(session, directory, private, '000000000001', after_execution=True)['matchesLive'] is False
+
+
+def test_post_execution_reads_current_template_instead_of_unexecuted_changeset(tmp_path):
+    session, directory, private, template, *_ = fixture(tmp_path)
+    calls = []
+    session.client('cloudformation').get_template = lambda **kw: calls.append(kw) or {'TemplateBody': template}
+    helper.verify(session, directory, private, '000000000001', after_execution=True)
+    assert calls and all('ChangeSetName' not in call for call in calls)

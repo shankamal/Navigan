@@ -9,7 +9,7 @@ import json
 import re
 
 
-def verify(session, directory, private, account):
+def verify(session, directory, private, account, after_execution=False):
     read = lambda path: json.loads(path.read_text())
     import importlib.util
     from pathlib import Path
@@ -41,7 +41,10 @@ def verify(session, directory, private, account):
             current = cfn.describe_stacks(StackName=stack_id)['Stacks'][0]
             if current['StackStatus'] not in baseline.routes.capture.STABLE:
                 raise RuntimeError('Stack is not stable during runtime verification')
-            source = baseline.body(cfn.get_template(StackName=stack_id, ChangeSetName=detail['ChangeSetId'], TemplateStage='Processed')['TemplateBody'])
+            template_request = {'StackName': stack_id, 'TemplateStage': 'Processed'}
+            if not after_execution:
+                template_request['ChangeSetName'] = detail['ChangeSetId']
+            source = baseline.body(cfn.get_template(**template_request)['TemplateBody'])
             before = baseline.body(record['templates']['Processed'])
             physical = {r['LogicalResourceId']: r['PhysicalResourceId'] for r in record['resources']}
             parameters = {p['ParameterKey']: p.get('ParameterValue') for p in current.get('Parameters', [])}
@@ -108,7 +111,11 @@ def verify(session, directory, private, account):
                         raise RuntimeError('Lambda environment is unreadable')
                     expected_lock = locks[name + '--' + logical]
                     mismatch(fields, 'CodeSha256', expected_lock['CodeSha256'], actual['CodeSha256'])
-                    mismatch(fields, 'RevisionId', expected_lock['RevisionId'], actual['RevisionId'])
+                    # CloudFormation legitimately advances RevisionId while
+                    # reapplying identical code/settings. Code hashes and all
+                    # configuration comparisons remain mandatory afterward.
+                    if not after_execution:
+                        mismatch(fields, 'RevisionId', expected_lock['RevisionId'], actual['RevisionId'])
                     defaults = {'Environment': {'Variables': {}}, 'Description': '', 'TracingConfig': {'Mode': 'PassThrough'},
                         'EphemeralStorage': {'Size': 512}, 'Architectures': ['x86_64'], 'Layers': [], 'FileSystemConfigs': [],
                         'DeadLetterConfig': {}, 'KMSKeyArn': None, 'PackageType': 'Zip'}
@@ -157,5 +164,5 @@ def verify(session, directory, private, account):
         errors.append({'scope': 'runtime', 'code': 'NO_RESOURCES_VERIFIED'})
     result = {'matchesLive': bool(results) and not errors and all(r['matchesLive'] for r in results),
               'resources': results, 'errors': errors, 'deploymentReady': False}
-    baseline.write(directory / 'runtime-binding-verification.json', result)
+    baseline.write(directory / ('post-execution-runtime-verification.json' if after_execution else 'runtime-binding-verification.json'), result)
     return result

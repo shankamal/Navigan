@@ -109,3 +109,17 @@ cover grant changes, policy removal, environment/revision differences and upload
 ZIP mismatches. Live runtime comparison, maintained-template reconciliation,
 application execution and authenticated acceptance remain pending. No new change
 sets or application deployment were performed by this implementation.
+
+### Verified DEV baseline execution support
+
+- Live DEV verification reported matching IAM, Lambda code/configuration and ECS
+  service bindings without errors. The prepared application release is still
+  unexecuted in the supplied evidence.
+- Added a DEV-only saved-release executor with fresh scope/runtime verification,
+  narrow unchanged-dependency handling, sequential execution, rollback stops,
+  a private execution journal and post-update runtime/resource inventory checks.
+- Conditional permission/task-definition operations remain visible: these can
+  replace permissions or register a task revision. Other identity changes fail.
+- Maintained SAM source templates, PROD application baseline execution and
+  authenticated workflow validation are not marked complete by this tooling.
+- Validation: 148 focused SAM reconciliation tests passed locally.

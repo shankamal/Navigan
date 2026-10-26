@@ -209,3 +209,29 @@ release, or finish reconciliation of the maintained source templates. Inspect
 `deploymentReady` remains false in every capture, even with no read errors.
 Capture success does not establish that a full SAM deployment is safe or that
 authenticated workflow validation has passed.
+
+### Execute a reviewed DEV baseline
+
+`execute-sam-baseline-release.py` now accepts an existing release directory and
+its original capture, with explicit `--environment dev`, `--expected-stack`,
+`--expected-account`, `--region` and optional `--profile`. It creates no new
+change sets or artifacts. It independently repeats the saved-plan scope and live
+runtime checks immediately before executing the existing stages in order.
+
+The execution gate accepts unchanged dependency definitions only when referenced
+resource identities are stable. Conditional updates are limited to the reviewed
+Lambda permission `SourceArn` and ECS task-definition `TaskRoleArn` cases.
+CloudFormation may still replace those permissions or register a task revision;
+no other resource identity changes, additions or removals are accepted. The
+script stops on rollback/failure and records requested/completed stages in
+`execution-record.json`. An existing execution record blocks duplicate runs;
+inspect it and AWS stack status after interruption rather than deleting it and
+retrying blindly.
+
+After updates, all captured resource inventories are compared and IAM, Lambda
+configuration/code hashes and ECS service bindings are checked again. Lambda
+RevisionId is allowed to advance after CloudFormation updates; code hashes and
+configuration remain mandatory. This executes the private deployed baseline; it
+does not finish maintained source-template reconciliation, PROD adoption, or
+application workflow validation. The existing preparer and review modes remain
+non-executing.
