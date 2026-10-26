@@ -108,6 +108,30 @@ functions; install `scripts/requirements-sam-reconciliation.txt` in the existing
 deployment environment. Invalid or unsupported YAML stops without printing
 private source lines. The completed DEV route import does not need repeating.
 
+### Prepare application change sets
+
+`scripts/prepare-sam-baseline-release.py` takes the private capture, one explicit
+environment, expected root stack/account, profile and region. It freshly
+materializes the baseline and verifies every template-owned IAM role, including
+roles absent from the original Lambda/ECS-derived capture. It discovers the
+existing deployment bucket from captured nested-template URLs and checks bucket
+ownership/region before packaging with `sam package`. No source build is run.
+
+The command uploads artifacts and creates unexecuted UPDATE change sets for the
+root hierarchy and captured companion stacks (plus hosted frontend when present).
+It retains prior stack parameters, tags and service role. Nested change sets are
+inspected recursively. Only non-replacing modifications to the expected Lambda,
+IAM, nested-stack and ECS service resources pass the mechanical review; additions,
+deletions, replacements and other resource types are flagged for review. Empty
+change sets are recorded as no-ops. Failed stages leave their private plan/logs
+available; inspect them before retrying. No change set is executed or deleted.
+
+Share only `release-summary.json`. The summary deliberately keeps
+`deploymentReady: false`: passing its mechanical scope checks does not establish
+semantic IAM correctness, workflow acceptance, or final reconciliation of the
+public authored SAM templates. Review the proposed changes before executing Dev;
+production preparation/execution remains a separate stage.
+
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never
    imports, deletes or recreates them automatically.

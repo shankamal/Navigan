@@ -108,14 +108,23 @@ def materialize(session, private, output):
         require(current['StackStatus'] in routes.capture.STABLE and current['StackId'] == previous['StackId'], 'Stack is not stable')
         require(str(current.get('LastUpdatedTime')) == str(previous.get('LastUpdatedTime')), 'Stack changed since capture')
     live_roles = {}
-    for path in sorted((private / 'iam').glob('role-*.json')):
-        captured = read(path); role = captured['role']; name = role['RoleName']
+    def fetch_role(name, expected_arn=None):
         fresh = iam.get_role(RoleName=name)['Role']
-        require(fresh['Arn'] == role['Arn'], 'IAM role identity differs')
+        require(fresh.get('RoleName') == name, 'IAM role name differs')
+        require(not expected_arn or fresh['Arn'] == expected_arn, 'IAM role identity differs')
         policies = [iam.get_role_policy(RoleName=name, PolicyName=n) for n in
                     routes.capture.items(iam, 'list_role_policies', 'PolicyNames', RoleName=name)]
         attached = routes.capture.items(iam, 'list_attached_role_policies', 'AttachedPolicies', RoleName=name)
         live_roles[name] = {'role': fresh, 'inline': policies, 'attached': attached}
+    for path in sorted((private / 'iam').glob('role-*.json')):
+        captured = read(path); role = captured['role']; name = role['RoleName']
+        fetch_role(name, role['Arn'])
+    # The original capture found roles through Lambda and active ECS tasks.
+    # Also verify template-owned roles used by other resources or inactive tasks.
+    for record in records.values():
+        for resource in record['resources']:
+            if resource['ResourceType'] == 'AWS::IAM::Role' and resource['PhysicalResourceId'] not in live_roles:
+                fetch_role(resource['PhysicalResourceId'])
     # Separate AWS::IAM::Policy resources already own these inline policies.
     policy_names = {r['PhysicalResourceId'] for record in records.values() for r in record['resources']
                     if r['ResourceType'] == 'AWS::IAM::Policy'}

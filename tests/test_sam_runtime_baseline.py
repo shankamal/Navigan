@@ -124,3 +124,11 @@ def test_invalid_yaml_cannot_execute_tags_or_leak_private_content(value):
     with pytest.raises(RuntimeError) as error:
         helper.body(value)
     assert 'echo unsafe' not in str(error.value)
+
+
+def test_managed_roles_missing_from_original_capture_are_fetched(tmp_path):
+    private, output, cfg, session = fixture(tmp_path)
+    (private / 'iam/role-0.json').unlink()
+    counts = helper.materialize(session, private, output)
+    assert counts['roles'] == 1 and counts['unverifiedRoles'] == 0
+    assert helper.read(output / 'iam-locks.json')['role']['role']['RoleName'] == 'role'

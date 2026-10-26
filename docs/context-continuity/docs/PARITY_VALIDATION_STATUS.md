@@ -41,3 +41,14 @@ then failed in both environments with JSONDecodeError before AWS writes. The
 materializer now accepts CloudFormation YAML as well as JSON and preserves
 intrinsics with a safe loader. Retry only baseline generation after installing
 its YAML dependency; do not repeat the completed route import.
+
+The user confirmed both baselines generated without errors, retaining the
+captured functions/services, with one unverified template-owned role per
+environment. Materialization now reads those remaining roles directly. A release
+preparer freshly materializes one explicitly selected environment, packages its
+verified artifacts into the existing deployment bucket, and creates unexecuted
+root/nested/companion UPDATE change sets. Recursive review flags non-modifications,
+replacement risk and unexpected resource types. Local regression checks cover
+nested scope, no-op handling and secret-parameter retention. No application change
+set has yet been prepared or executed in AWS; public authored-template integration
+and authenticated Dev/Prod workflow acceptance remain incomplete.
