@@ -82,3 +82,45 @@ def test_runtime_change_stops_before_baseline_can_be_used(tmp_path):
     cfg['RevisionId'] = 'new-revision'
     with pytest.raises(RuntimeError, match='changed since capture'):
         helper.materialize(session, private, output)
+
+
+def test_yaml_processed_template_preserves_intrinsics():
+    template = helper.body('''AWSTemplateFormatVersion: '2010-09-09'
+Conditions:
+  Enabled: !Equals [!Ref Mode, enabled]
+Resources:
+  LegacyRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: Enabled
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: GET /example
+      Target: !Join ['/', [integrations, !GetAtt Integration.Id]]
+Outputs:
+  Example:
+    Value: !Sub ['${Name}-${Suffix}', {Name: !Ref Api, Suffix: !If [Enabled, yes-value, no-value]}]
+''')
+    props = template['Resources']['LegacyRoute']['Properties']
+    assert props['ApiId'] == {'Ref': 'Api'}
+    assert props['Target'] == {'Fn::Join': ['/', ['integrations', {'Fn::GetAtt': ['Integration', 'Id']}]]}
+    assert template['Outputs']['Example']['Value']['Fn::Sub'][1]['Name'] == {'Ref': 'Api'}
+    assert template['Conditions']['Enabled'] == {'Fn::Equals': [{'Ref': 'Mode'}, 'enabled']}
+
+
+def test_materializes_yaml_capture_without_changing_resource_identity(tmp_path):
+    import yaml
+    private, output, cfg, session = fixture(tmp_path)
+    path = private / 'stacks/root.json'; record = helper.read(path)
+    record['templates']['Processed'] = yaml.safe_dump(record['templates']['Processed'])
+    helper.write(path, record)
+    counts = helper.materialize(session, private, output)
+    assert counts['functions'] == 1
+    assert set(helper.read(output / 'root.json')['Resources']) == {'Function', 'ExistingRole'}
+
+
+@pytest.mark.parametrize('value', ['Resources: !!python/object/apply:os.system [echo unsafe]',
+    'Resources: !Unknown {Function: value}', 'Resources: [invalid', 'Resources: []'])
+def test_invalid_yaml_cannot_execute_tags_or_leak_private_content(value):
+    with pytest.raises(RuntimeError) as error:
+        helper.body(value)
+    assert 'echo unsafe' not in str(error.value)

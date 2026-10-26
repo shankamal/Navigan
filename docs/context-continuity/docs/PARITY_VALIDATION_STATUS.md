@@ -34,3 +34,10 @@ The parser now splits that entry before constructing the import request, matchin
 AWS CDK's importer behavior. Regression coverage includes the exact live response.
 Earlier attempts created no import plan and executed no imports. Reprepare before
 attempting saved-plan execution; do not reuse the earlier missing-plan path.
+
+The user confirmed DEV route import reached IMPORT_COMPLETE and verification
+retained route identities/settings; production was unchanged. The baseline run
+then failed in both environments with JSONDecodeError before AWS writes. The
+materializer now accepts CloudFormation YAML as well as JSON and preserves
+intrinsics with a safe loader. Retry only baseline generation after installing
+its YAML dependency; do not repeat the completed route import.

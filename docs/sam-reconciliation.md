@@ -102,6 +102,12 @@ behavior still require review. No packaging, uploads or deployment are performed
 Full runtime settings may contain sensitive values: share only the printed compact
 summary, never the generated templates or locks. `deploymentReady` stays false.
 
+The materializer supports processed templates returned as JSON objects, JSON text
+or CloudFormation YAML. YAML support uses a safe loader preserving intrinsic
+functions; install `scripts/requirements-sam-reconciliation.txt` in the existing
+deployment environment. Invalid or unsupported YAML stops without printing
+private source lines. The completed DEV route import does not need repeating.
+
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never
    imports, deletes or recreates them automatically.

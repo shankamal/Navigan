@@ -20,7 +20,10 @@ require = routes.require; read = routes.read; write = routes.write
 
 def body(value):
     if isinstance(value, str):
-        value = json.loads(value)
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            value = yaml_body(value)
     require(isinstance(value, dict) and isinstance(value.get('Resources'), dict), 'Invalid processed template')
     require(not any(r.get('Type', '').startswith('AWS::Serverless::') for r in value['Resources'].values()),
             'Capture must contain processed native CloudFormation resources')
@@ -29,6 +32,36 @@ def body(value):
     require(transform in (None, 'AWS::Serverless-2016-10-31', ['AWS::Serverless-2016-10-31']),
             'Unexpected transform requires manual review')
     return value
+
+
+def yaml_body(value):
+    """Read CFN YAML without evaluating arbitrary Python tags or intrinsics."""
+    try:
+        import yaml
+    except ImportError:
+        raise RuntimeError('YAML templates require PyYAML; install scripts/requirements-sam-reconciliation.txt with the deployment Python') from None
+    class Loader(yaml.SafeLoader):
+        pass
+    allowed = {'Ref', 'Condition', 'And', 'Base64', 'Cidr', 'Equals', 'FindInMap',
+               'GetAtt', 'GetAZs', 'If', 'ImportValue', 'Join', 'Length', 'Not',
+               'Or', 'Select', 'Split', 'Sub', 'ToJsonString', 'Transform'}
+    def intrinsic(loader, tag, node):
+        require(tag in allowed, 'Unsupported CloudFormation YAML intrinsic')
+        if isinstance(node, yaml.ScalarNode):
+            result = loader.construct_scalar(node)
+        elif isinstance(node, yaml.SequenceNode):
+            result = loader.construct_sequence(node, deep=True)
+        else:
+            result = loader.construct_mapping(node, deep=True)
+        if tag == 'GetAtt' and isinstance(result, str):
+            result = result.split('.', 1)
+        return {tag if tag in ('Ref', 'Condition') else 'Fn::' + tag: result}
+    Loader.add_multi_constructor('!', intrinsic)
+    try:
+        return yaml.load(value, Loader=Loader)
+    except yaml.YAMLError:
+        # Parser diagnostics can embed lines containing private template values.
+        raise RuntimeError('Invalid CloudFormation YAML; inspect the private captured template locally') from None
 
 
 def function_properties(properties, cfg, archive):
@@ -63,7 +96,12 @@ def materialize(session, private, output):
     locks = routes.baseline(private)
     records = {p.stem: read(p) for p in (private / 'stacks').glob('*.json')}
     require('root' in records, 'Missing root stack')
-    templates = {name: body(record['templates']['Processed']) for name, record in records.items()}
+    templates = {}
+    for name, record in records.items():
+        try:
+            templates[name] = body(record['templates']['Processed'])
+        except RuntimeError as error:
+            raise RuntimeError('Processed template ' + name + ': ' + str(error)) from None
     cfn = session.client('cloudformation'); lam = session.client('lambda'); iam = session.client('iam')
     for record in records.values():
         previous = record['description']; current = cfn.describe_stacks(StackName=previous['StackId'])['Stacks'][0]
