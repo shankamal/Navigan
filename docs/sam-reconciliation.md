@@ -160,6 +160,25 @@ fresh plans only from the corrected code and review their actual results. The
 replacement/resource-type guards have not been relaxed, and the maintained public
 SAM templates still require reconciliation before normal source releases resume.
 
+### Inspect already prepared plans without repeating packaging
+
+Add `--review-directory <saved-release-directory>` to the release-preparer command
+with the same capture, environment and explicit target/account/region options.
+This mode reads saved plan IDs and current AWS change-set/template/resource data.
+It does not require SAM CLI, choose a bucket, package, upload, create or execute
+change sets. The mode checks target identity, availability, stable stacks and
+unchanged parameter bindings, including nested change sets.
+
+For unchanged definitions it can attach dependency evidence: local references
+exist, reference targets have no replacement proposed, and relevant identity
+properties (role name/path, function name, rule name/event bus) remain unchanged.
+Unknown/external intrinsics and changed conditions/mappings are not inferred safe.
+The summary preserves AWS's replacement classification. Evidence explains a
+dependency warning; it does not override `reviewPassed`, approve conditional
+replacements, validate every policy grant, or set `deploymentReady` to true.
+The compact shareable output is `existing-plan-review-summary.json`; full local
+AWS evidence stays under each stage's `review-evidence` directory.
+
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never
    imports, deletes or recreates them automatically.

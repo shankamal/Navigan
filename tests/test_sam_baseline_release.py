@@ -230,3 +230,61 @@ def test_nested_packaging_rejects_paths_outside_the_baseline(tmp_path):
         'Properties': {'TemplateURL': str(child)}}}})
     with pytest.raises(RuntimeError, match='escapes'):
         helper.package(root, output / 'packaged.json', 'bucket', 'prefix', None, 'ap-south-1', output / 'package.log')
+
+
+def dependency_fixture():
+    template = {'Resources': {
+        'Poll': {'Type': 'AWS::Events::Rule', 'Properties': {'Name': 'poll', 'Targets': [{'Arn': {'Fn::GetAtt': ['Function', 'Arn']}}]}},
+        'Function': {'Type': 'AWS::Lambda::Function', 'Properties': {'FunctionName': 'function', 'Code': 'old'}},
+        'Invoke': {'Type': 'AWS::Lambda::Permission', 'Properties': {
+            'SourceArn': {'Fn::GetAtt': ['Poll', 'Arn']}, 'FunctionName': {'Ref': 'Function'},
+            'Action': 'lambda:InvokeFunction', 'Principal': 'events.amazonaws.com'}}}}
+    proposed = copy.deepcopy(template); proposed['Resources']['Function']['Properties']['Code'] = 'new'
+    changes = {'Poll': change('AWS::Events::Rule', logical='Poll')['ResourceChange'],
+               'Function': change(logical='Function')['ResourceChange']}
+    resource = change('AWS::Lambda::Permission', replacement='Conditional', logical='Invoke')['ResourceChange']
+    physical = {'Poll': 'existing-rule', 'Function': 'existing-function', 'Invoke': 'existing-permission'}
+    return template, proposed, changes, resource, physical
+
+
+def test_unchanged_permission_dependencies_are_explained_without_approval():
+    before, after, changes, resource, physical = dependency_fixture()
+    proof = helper.dependency_proof(resource, before, after, changes, physical)
+    assert proof['definitionUnchanged'] and proof['referencedIdentitiesStable']
+    assert proof['conditionalReplacementStillRequiresReview'] is True
+    assert helper.review_change({'ResourceChange': resource})['reviewPassed'] is False
+
+
+@pytest.mark.parametrize('failure', ['rule-name', 'rule-bus', 'function-name', 'reference-replaced', 'changed-grant', 'missing-resource'])
+def test_dependency_evidence_does_not_hide_identity_or_permission_changes(failure):
+    before, after, changes, resource, physical = dependency_fixture()
+    if failure == 'rule-name': after['Resources']['Poll']['Properties']['Name'] = 'another-rule'
+    if failure == 'rule-bus': after['Resources']['Poll']['Properties']['EventBusName'] = 'another-bus'
+    if failure == 'function-name': after['Resources']['Function']['Properties']['FunctionName'] = 'another-function'
+    if failure == 'reference-replaced': changes['Poll']['Replacement'] = 'True'
+    if failure == 'changed-grant': after['Resources']['Invoke']['Properties']['Principal'] = '*'
+    if failure == 'missing-resource': physical.pop('Poll')
+    assert helper.dependency_proof(resource, before, after, changes, physical) is None
+
+
+def test_unchanged_task_role_reference_with_in_place_role_update():
+    before = {'Parameters': {'Image': {'Type': 'String'}}, 'Resources': {
+        'Role': {'Type': 'AWS::IAM::Role', 'Properties': {'Policies': []}},
+        'Task': {'Type': 'AWS::ECS::TaskDefinition', 'Properties': {
+            'TaskRoleArn': {'Fn::GetAtt': ['Role', 'Arn']}, 'ContainerDefinitions': [{'Image': {'Ref': 'Image'}}]}}}}
+    after = copy.deepcopy(before); after['Resources']['Role']['Properties']['Policies'] = [{'PolicyName': 'new'}]
+    resource = change('AWS::ECS::TaskDefinition', replacement='Conditional', logical='Task')['ResourceChange']
+    proof = helper.dependency_proof(resource, before, after,
+        {'Role': change('AWS::IAM::Role', logical='Role')['ResourceChange']}, {'Role': 'existing-role', 'Task': 'existing-task'})
+    assert proof['referencedIdentitiesStable'] is True
+    after['Resources']['Role']['Properties']['Path'] = '/different/'
+    assert helper.dependency_proof(resource, before, after,
+        {'Role': change('AWS::IAM::Role', logical='Role')['ResourceChange']}, {'Role': 'existing-role', 'Task': 'existing-task'}) is None
+
+
+def test_review_existing_function_cannot_write_to_aws():
+    tree = ast.parse((ROOT / 'scripts/prepare-sam-baseline-release.py').read_text())
+    functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+    for name in ('review_existing', 'inspect_changes', 'dependency_proof', 'resource_references'):
+        calls = {n.func.attr for n in ast.walk(functions[name]) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+        assert not calls & {'create_change_set', 'execute_change_set', 'update_stack', 'put_object', 'update_function_code', 'put_role_policy'}

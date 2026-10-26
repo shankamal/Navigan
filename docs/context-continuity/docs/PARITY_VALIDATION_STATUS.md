@@ -80,3 +80,17 @@ tests cover child metadata cleanup, unrelated-property rejection, reference
 identity checks and default/nondefault configuration. Earlier plans remain blocked
 and must not execute. Corrected live preparation and public authored-template
 reconciliation remain pending; this is not a completed SAM restoration.
+
+The user supplied the corrected five-stage development preparation. Metadata-only
+route changes disappeared; four conditional replacements remained. A subsequent
+local comparison confirmed every property on those four resources was identical
+before/after, including the source-rule and worker-role ARN references. This alone
+does not establish that their referenced identities remain unchanged.
+
+A read-only existing-plan review mode now checks the saved AWS change sets,
+original/proposed templates, current resource identities and parameter bindings.
+It annotates unchanged definitions with dependency evidence when the referenced
+resources retain their identity fields and have no replacement proposed. It does
+not create new plans or uploads, relax the approval gates, execute changes, or
+declare public authored-template reconciliation complete. Live results from this
+mode and semantic policy/environment review remain pending.

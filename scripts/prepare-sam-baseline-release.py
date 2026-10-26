@@ -93,7 +93,94 @@ def review_change(change):
             'action': resource.get('Action'), 'replacement': resource.get('Replacement'), 'reviewPassed': passed}
 
 
-def inspect_changes(cfn, change_set, output, seen=None):
+def resource_references(value):
+    """Extract only explicit local resource references; do not evaluate code."""
+    found = set()
+    if isinstance(value, list):
+        for item in value:
+            found.update(resource_references(item))
+    elif isinstance(value, dict):
+        if set(value) == {'Fn::GetAtt'}:
+            target = value['Fn::GetAtt']
+            if isinstance(target, str):
+                target = target.split('.', 1)
+            if isinstance(target, list) and len(target) == 2 and all(isinstance(v, str) for v in target):
+                found.add(tuple(target))
+        elif set(value) == {'Ref'} and isinstance(value['Ref'], str):
+            found.add((value['Ref'], 'Ref'))
+        for key, item in value.items():
+            if key == 'Fn::Sub':
+                text = item[0] if isinstance(item, list) and item else item
+                if isinstance(text, str):
+                    overrides = set(item[1]) if isinstance(item, list) and len(item) == 2 and isinstance(item[1], dict) else set()
+                    for name in re.findall(r'\$\{([^}]+)\}', text):
+                        if name.startswith('!') or name in overrides:
+                            continue
+                        parts = name.split('.', 1)
+                        found.add((parts[0], parts[1] if len(parts) == 2 else 'Ref'))
+            found.update(resource_references(item))
+    return found
+
+
+def dependency_proof(resource, before, after, changes, physical):
+    """Explain an unchanged definition's dynamic dependency without hiding risk.
+
+    This evidence does not override a Conditional replacement or deployment gate.
+    The original AWS replacement value is retained for review.
+    """
+    logical = resource.get('LogicalResourceId')
+    old = before.get('Resources', {}).get(logical); new = after.get('Resources', {}).get(logical)
+    if not old or not new or old != new or resource.get('Action') != 'Modify':
+        return None
+    if before.get('Conditions', {}) != after.get('Conditions', {}) or before.get('Mappings', {}) != after.get('Mappings', {}):
+        return None
+    def external_or_unknown(value):
+        if isinstance(value, list):
+            return any(external_or_unknown(v) for v in value)
+        if isinstance(value, dict):
+            supported = {'Fn::GetAtt', 'Fn::Sub', 'Fn::Join', 'Fn::If', 'Fn::Select',
+                         'Fn::Split', 'Fn::FindInMap', 'Fn::Base64'}
+            return any((key.startswith('Fn::') and key not in supported) or external_or_unknown(v)
+                       for key, v in value.items())
+        return False
+    if external_or_unknown(new.get('Properties', {})):
+        return None
+    identity_fields = {
+        'AWS::IAM::Role': ('RoleName', 'Path'),
+        'AWS::Events::Rule': ('Name', 'EventBusName'),
+        'AWS::Lambda::Function': ('FunctionName',),
+        'AWS::S3::Bucket': ('BucketName',),
+        'AWS::KMS::Key': (),
+    }
+    evidence = []
+    for target, attribute in sorted(resource_references(new.get('Properties', {}))):
+        if target.startswith('AWS::') or target in before.get('Parameters', {}):
+            continue
+        source_old = before['Resources'].get(target); source_new = after['Resources'].get(target)
+        if not source_old or not source_new or not physical.get(target) or source_old['Type'] != source_new['Type']:
+            return None
+        proposed = changes.get(target)
+        if proposed:
+            if proposed.get('Action') != 'Modify' or proposed.get('Replacement') != 'False':
+                return None
+            fields = identity_fields.get(source_old['Type'])
+            if fields is None or attribute not in ('Arn', 'Ref'):
+                return None
+            if any(source_old.get('Properties', {}).get(k) != source_new.get('Properties', {}).get(k) for k in fields):
+                return None
+            if source_old.get('Condition') != source_new.get('Condition'):
+                return None
+        elif source_old != source_new:
+            return None
+        evidence.append({'resource': target, 'attribute': attribute,
+                         'referenceChange': proposed.get('Replacement') if proposed else 'not-changed'})
+    if not evidence:
+        return None
+    return {'definitionUnchanged': True, 'referencedIdentitiesStable': True, 'references': evidence,
+            'conditionalReplacementStillRequiresReview': resource.get('Replacement') == 'Conditional'}
+
+
+def inspect_changes(cfn, change_set, output, seen=None, explain=False, stack_path='root'):
     seen = set() if seen is None else seen
     require(change_set not in seen, 'Repeated nested change set')
     seen.add(change_set)
@@ -102,16 +189,84 @@ def inspect_changes(cfn, change_set, output, seen=None):
     changes = baseline.routes.capture.items(cfn, 'describe_change_set', 'Changes', ChangeSetName=change_set)
     details['Changes'] = changes
     write(output / (hashlib.sha256(change_set.encode()).hexdigest() + '.json'), details)
+    context = None
+    if explain:
+        before = baseline.body(cfn.get_template(StackName=details['StackId'], TemplateStage='Processed')['TemplateBody'])
+        after = baseline.body(cfn.get_template(StackName=details['StackId'], ChangeSetName=change_set,
+                                               TemplateStage='Processed')['TemplateBody'])
+        current = cfn.describe_stacks(StackName=details['StackId'])['Stacks'][0]
+        require(current['StackStatus'] in baseline.routes.capture.STABLE, 'Nested stack is not stable')
+        bindings = {p['ParameterKey']: p.get('ParameterValue') for p in current.get('Parameters', [])}
+        for parameter in details.get('Parameters', []):
+            require(parameter.get('UsePreviousValue') is True or
+                    parameter.get('ParameterValue') == bindings.get(parameter['ParameterKey']),
+                    'Nested change-set parameters differ from the running stack')
+            old_parameter = next((p for p in current.get('Parameters', []) if p['ParameterKey'] == parameter['ParameterKey']), {})
+            require(parameter.get('ResolvedValue') == old_parameter.get('ResolvedValue'), 'Resolved parameter values differ')
+        live = baseline.routes.capture.items(cfn, 'list_stack_resources', 'StackResourceSummaries', StackName=details['StackId'])
+        physical = {r['LogicalResourceId']: r['PhysicalResourceId'] for r in live
+                    if r.get('PhysicalResourceId') and r.get('ResourceStatus') != 'DELETE_COMPLETE'}
+        context = (before, after, {c['ResourceChange']['LogicalResourceId']: c['ResourceChange'] for c in changes}, physical)
     reviewed = []
     for change in changes:
         item = review_change(change); reviewed.append(item)
         resource = change.get('ResourceChange', {})
+        if explain:
+            item['stackPath'] = stack_path
+            item['scope'] = resource.get('Scope', [])
+            item['properties'] = sorted({d.get('Target', {}).get('Name') for d in resource.get('Details', [])
+                                         if d.get('Target', {}).get('Attribute') == 'Properties' and d.get('Target', {}).get('Name')})
+            proof = dependency_proof(resource, *context)
+            if proof:
+                item['dependencyEvidence'] = proof
         nested = resource.get('ChangeSetId')
         if resource.get('ResourceType') == 'AWS::CloudFormation::Stack':
             require(nested, 'Nested stack change set is missing; cannot review child operations')
         if nested:
-            reviewed.extend(inspect_changes(cfn, nested, output, seen))
+            reviewed.extend(inspect_changes(cfn, nested, output, seen, explain,
+                stack_path + '/' + resource['LogicalResourceId']))
     return reviewed
+
+
+def review_existing(session, directory, private, environment, expected_stack, account, region):
+    """Read existing AWS plans; never package, upload, execute, or approve them."""
+    summary = read(directory / 'release-summary.json')
+    require(summary.get('environment') == environment and summary.get('executed') is False, 'Release environment/status differs')
+    records = {p.stem: read(p) for p in (private / 'stacks').glob('*.json')}
+    root_arn = records['root']['description']['StackId']
+    require(root_arn.split(':stack/', 1)[1].split('/')[0] == expected_stack, 'Unexpected root stack')
+    prefix = 'arn:aws:cloudformation:' + region + ':' + account + ':'
+    cfn = session.client('cloudformation')
+    result = {'environment': environment, 'executed': False, 'deploymentReady': False, 'stages': {}, 'errors': []}
+    for stage in summary.get('stages', {}):
+        try:
+            require(stage in records, 'Stage is not in the environment capture')
+            plan = read(directory / stage / 'plan.json')
+            expected = records[stage]['description']['StackId']
+            require(expected.startswith(prefix + 'stack/') and plan['stackId'] == expected and not plan.get('executed'), 'Unexpected stage target or executed plan')
+            require(plan['changeSetId'].startswith(prefix + 'changeSet/'), 'Change-set account/region differs')
+            details = cfn.describe_change_set(ChangeSetName=plan['changeSetId'])
+            require(details['StackId'] == expected, 'AWS change-set stack differs from saved plan')
+            if plan.get('noChanges'):
+                result['stages'][stage] = {'noChanges': True, 'changes': []}; continue
+            require(details.get('ExecutionStatus') == 'AVAILABLE', 'Change set is no longer available')
+            current = cfn.describe_stacks(StackName=expected)['Stacks'][0]
+            require(current['StackStatus'] in baseline.routes.capture.STABLE and
+                    str(current.get('LastUpdatedTime')) == str(records[stage]['description'].get('LastUpdatedTime')), 'Stack changed since capture')
+            # Unchanged definitions are meaningful only while parameter bindings
+            # and conditions retain their previous values.
+            current_parameters = {p['ParameterKey']: p.get('ParameterValue') for p in current.get('Parameters', [])}
+            for parameter in details.get('Parameters', []):
+                require(parameter.get('UsePreviousValue') is True or
+                        parameter.get('ParameterValue') == current_parameters.get(parameter['ParameterKey']), 'Change-set parameters differ from the running stack')
+            changes = inspect_changes(cfn, plan['changeSetId'], directory / stage / 'review-evidence',
+                                      explain=True, stack_path=stage)
+            result['stages'][stage] = {'changes': changes,
+                'scopeReviewPassed': all(c['reviewPassed'] for c in changes)}
+        except Exception as error:
+            result['errors'].append(baseline.routes.capture.error_record(stage, error))
+    write(directory / 'existing-plan-review.json', result)
+    return result
 
 
 def sam_package(template, destination, bucket, prefix, profile, region, log):
@@ -236,7 +391,10 @@ def main():
     parser.add_argument('--expected-stack', required=True); parser.add_argument('--expected-account', required=True)
     parser.add_argument('--profile'); parser.add_argument('--region', required=True)
     parser.add_argument('--artifact-bucket', help='Optional explicit bucket already referenced by the captured environment')
-    args = parser.parse_args(); require(shutil.which('sam'), 'AWS SAM CLI is not available in PATH')
+    parser.add_argument('--review-directory', type=Path, help='Read-only review of existing saved change sets; no packaging or AWS writes')
+    args = parser.parse_args()
+    if not args.review_directory:
+        require(shutil.which('sam'), 'AWS SAM CLI is not available in PATH')
     source = args.capture_directory.resolve(); private = source / args.environment
     summary = read(source / 'reconciliation-summary.json')
     require(not summary['environments'][args.environment].get('errors'), 'Capture has errors')
@@ -246,6 +404,23 @@ def main():
     import boto3
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
     require(session.client('sts').get_caller_identity()['Account'] == args.expected_account, 'Unexpected AWS account')
+    if args.review_directory:
+        result = review_existing(session, args.review_directory.resolve(), private, args.environment,
+                                 args.expected_stack, args.expected_account, args.region)
+        compact = {'environment': args.environment, 'executed': False, 'deploymentReady': False,
+                   'stages': {}, 'errors': result['errors']}
+        for stage, data in result['stages'].items():
+            changes = data.get('changes', [])
+            compact['stages'][stage] = {'noChanges': data.get('noChanges', False), 'changes': len(changes),
+                'unchangedDependenciesExplained': sum('dependencyEvidence' in c for c in changes),
+                'blocked': [{'stackPath': c['stackPath'], 'logicalId': c['logicalId'], 'type': c['type'],
+                             'replacement': c['replacement'], 'properties': c['properties'],
+                             'dependencyEvidence': c.get('dependencyEvidence')}
+                            for c in changes if not c['reviewPassed']]}
+        write(args.review_directory / 'existing-plan-review-summary.json', compact)
+        print(json.dumps(compact, indent=2))
+        print('Read-only review complete. No change sets created, approved or executed; no artifacts uploaded.')
+        return 2 if result['errors'] else 0
     s3 = session.client('s3'); cfn = session.client('cloudformation')
     bucket = select_artifact_bucket(s3, root, args.expected_account, args.region, args.artifact_bucket)
     print('Existing deployment bucket verified for the expected account and region.', flush=True)
