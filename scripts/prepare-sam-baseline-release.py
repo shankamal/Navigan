@@ -24,7 +24,7 @@ baseline = importlib.util.module_from_spec(spec); spec.loader.exec_module(baseli
 read = baseline.read; write = baseline.write; require = baseline.require
 
 
-def artifact_bucket(record):
+def artifact_buckets(record):
     candidates = set()
     for resource in baseline.body(record['templates']['Processed'])['Resources'].values():
         if resource['Type'] != 'AWS::CloudFormation::Stack':
@@ -50,8 +50,36 @@ def artifact_bucket(record):
             bucket = match.group(1)
         require(re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]', bucket), 'Invalid deployment bucket')
         candidates.add(bucket)
-    require(len(candidates) == 1, 'Existing deployment bucket is ambiguous; inspect captured templates')
-    return candidates.pop()
+    require(candidates, 'No existing deployment buckets found in captured templates')
+    # Scoped releases can leave nested templates in several deployment buckets.
+    # Prefer the normal SAM bucket, then use stable lexical ordering.
+    return sorted(candidates, key=lambda name: (not name.startswith('aws-sam-cli-managed-'), name))
+
+
+def artifact_bucket(record):
+    return artifact_buckets(record)[0]
+
+
+def select_artifact_bucket(s3, record, account, region, requested=None):
+    candidates = artifact_buckets(record)
+    if requested:
+        require(requested in candidates, 'Requested bucket is not referenced by this environment capture')
+        candidates = [requested]
+    rejected = {}
+    for bucket in candidates:
+        try:
+            location = s3.get_bucket_location(Bucket=bucket, ExpectedBucketOwner=account).get('LocationConstraint') or 'us-east-1'
+        except Exception as error:
+            code = baseline.routes.capture.error_code(error)
+            if code not in ('AccessDenied', '403', 'NoSuchBucket', '404'):
+                raise
+            rejected[code] = rejected.get(code, 0) + 1
+            continue
+        if ('eu-west-1' if location == 'EU' else location) != region:
+            rejected['REGION_MISMATCH'] = rejected.get('REGION_MISMATCH', 0) + 1
+            continue
+        return bucket
+    raise RuntimeError('No captured deployment bucket passed owner/region verification: ' + json.dumps(rejected, sort_keys=True))
 
 
 def review_change(change):
@@ -147,6 +175,7 @@ def main():
     parser.add_argument('--environment', choices=['dev', 'prod'], required=True)
     parser.add_argument('--expected-stack', required=True); parser.add_argument('--expected-account', required=True)
     parser.add_argument('--profile'); parser.add_argument('--region', required=True)
+    parser.add_argument('--artifact-bucket', help='Optional explicit bucket already referenced by the captured environment')
     args = parser.parse_args(); require(shutil.which('sam'), 'AWS SAM CLI is not available in PATH')
     source = args.capture_directory.resolve(); private = source / args.environment
     summary = read(source / 'reconciliation-summary.json')
@@ -157,9 +186,9 @@ def main():
     import boto3
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
     require(session.client('sts').get_caller_identity()['Account'] == args.expected_account, 'Unexpected AWS account')
-    s3 = session.client('s3'); cfn = session.client('cloudformation'); bucket = artifact_bucket(root)
-    location = s3.get_bucket_location(Bucket=bucket, ExpectedBucketOwner=args.expected_account).get('LocationConstraint') or 'us-east-1'
-    require(('eu-west-1' if location == 'EU' else location) == args.region, 'Deployment bucket is in another region')
+    s3 = session.client('s3'); cfn = session.client('cloudformation')
+    bucket = select_artifact_bucket(s3, root, args.expected_account, args.region, args.artifact_bucket)
+    print('Existing deployment bucket verified for the expected account and region.', flush=True)
     output = Path(tempfile.mkdtemp(prefix='navigan-sam-release-')); output.chmod(0o700)
     print('Private release directory: ' + str(output), flush=True)
     templates = output / 'templates'

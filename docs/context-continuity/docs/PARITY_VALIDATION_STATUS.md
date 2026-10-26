@@ -59,3 +59,9 @@ version/signature query parameters, standard regional/dual-stack endpoints and
 S3 URIs. It extracts only the bucket and never fetches or prints query values;
 authenticated bucket owner/region verification remains required. Application
 preparation needs retrying; the completed route import must not be repeated.
+
+The next attempt stopped before uploads because different nested templates
+referenced multiple deployment buckets. Discovery now accepts multiple candidates,
+prefers the SAM managed bucket deterministically, and verifies account/region
+before selecting a usable candidate. An explicit captured-bucket override is also
+available. This changes discovery only; no application deployment has executed.

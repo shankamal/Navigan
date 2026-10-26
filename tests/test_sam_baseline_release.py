@@ -127,3 +127,53 @@ def test_bucket_discovery_never_prints_or_fetches_signed_query_values(capsys):
         'Type': 'AWS::CloudFormation::Stack', 'Properties': {'TemplateURL': value}}}}}})
     assert result == 'existing-bucket'
     assert 'do-not-print' not in str(capsys.readouterr())
+
+
+def multiple_bucket_record():
+    return {'templates': {'Processed': {'Resources': {name: {'Type': 'AWS::CloudFormation::Stack',
+        'Properties': {'TemplateURL': 'https://' + bucket + '.s3.ap-south-1.amazonaws.com/template?versionId=example'}}
+        for name, bucket in [('First', 'scoped-release-bucket'), ('Second', 'aws-sam-cli-managed-example'),
+                             ('Third', 'another-release-bucket')]}}}}
+
+
+def test_multiple_deployment_buckets_are_supported_with_stable_sam_preference():
+    assert helper.artifact_buckets(multiple_bucket_record()) == [
+        'aws-sam-cli-managed-example', 'another-release-bucket', 'scoped-release-bucket']
+
+
+def test_selection_verifies_owner_and_region_before_accepting_bucket():
+    calls = []
+    def location(**kw):
+        calls.append(kw)
+        return {'LocationConstraint': 'us-east-1' if kw['Bucket'].startswith('aws-sam-') else 'ap-south-1'}
+    bucket = helper.select_artifact_bucket(SimpleNamespace(get_bucket_location=location),
+        multiple_bucket_record(), '000000000001', 'ap-south-1')
+    assert bucket == 'another-release-bucket'
+    assert all(call['ExpectedBucketOwner'] == '000000000001' for call in calls)
+
+
+def test_inaccessible_bucket_does_not_prevent_verifying_another_captured_bucket():
+    class Denied(Exception):
+        response = {'Error': {'Code': 'AccessDenied'}}
+    def location(**kw):
+        if kw['Bucket'].startswith('aws-sam-'):
+            raise Denied()
+        return {'LocationConstraint': 'ap-south-1'}
+    assert helper.select_artifact_bucket(SimpleNamespace(get_bucket_location=location),
+        multiple_bucket_record(), '000000000001', 'ap-south-1') == 'another-release-bucket'
+
+
+def test_explicit_bucket_selection_is_checked_against_capture_and_owner():
+    calls = []
+    s3 = SimpleNamespace(get_bucket_location=lambda **kw: calls.append(kw) or {'LocationConstraint': 'ap-south-1'})
+    assert helper.select_artifact_bucket(s3, multiple_bucket_record(), '000000000001', 'ap-south-1',
+        'scoped-release-bucket') == 'scoped-release-bucket'
+    with pytest.raises(RuntimeError, match='not referenced'):
+        helper.select_artifact_bucket(s3, multiple_bucket_record(), '000000000001', 'ap-south-1', 'other-bucket')
+    assert len(calls) == 1
+
+
+def test_all_wrong_region_buckets_stop_before_upload():
+    s3 = SimpleNamespace(get_bucket_location=lambda **kw: {'LocationConstraint': 'us-east-1'})
+    with pytest.raises(RuntimeError, match='owner/region'):
+        helper.select_artifact_bucket(s3, multiple_bucket_record(), '000000000001', 'ap-south-1')

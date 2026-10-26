@@ -116,6 +116,10 @@ materializes the baseline and verifies every template-owned IAM role, including
 roles absent from the original Lambda/ECS-derived capture. It discovers the
 existing deployment bucket from captured nested-template URLs and checks bucket
 ownership/region before packaging with `sam package`. No source build is run.
+Multiple referenced deployment buckets are supported. Selection prefers a SAM
+managed bucket and otherwise uses stable ordering, accepting only a bucket that
+passes authenticated account/region checks. An explicit `--artifact-bucket` may
+select one of the captured buckets and retains the same checks.
 
 The command uploads artifacts and creates unexecuted UPDATE change sets for the
 root hierarchy and captured companion stacks (plus hosted frontend when present).
