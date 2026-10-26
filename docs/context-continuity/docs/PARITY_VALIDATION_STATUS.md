@@ -52,3 +52,10 @@ replacement risk and unexpected resource types. Local regression checks cover
 nested scope, no-op handling and secret-parameter retention. No application change
 set has yet been prepared or executed in AWS; public authored-template integration
 and authenticated Dev/Prod workflow acceptance remain incomplete.
+
+The first live application preparation stopped during deployment-bucket discovery,
+before uploads or change-set creation. Discovery now accepts S3 HTTPS URLs with
+version/signature query parameters, standard regional/dual-stack endpoints and
+S3 URIs. It extracts only the bucket and never fetches or prints query values;
+authenticated bucket owner/region verification remains required. Application
+preparation needs retrying; the completed route import must not be repeated.

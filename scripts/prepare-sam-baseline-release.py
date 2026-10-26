@@ -32,11 +32,20 @@ def artifact_bucket(record):
         value = resource['Properties'].get('TemplateURL')
         require(isinstance(value, str), 'Deployment artifact URL is not a literal S3 URL')
         url = urlparse(value); host = url.hostname or ''
-        require(url.scheme == 'https' and not url.query and not url.fragment, 'Unexpected deployment artifact URL')
-        if host == 's3.amazonaws.com' or re.fullmatch(r's3[.-][a-z0-9-]+\.amazonaws\.com', host):
+        # Only discover the bucket. Captured version/signature query parameters
+        # are neither fetched nor printed, and need not remain valid. Ownership
+        # and region are independently verified with the authenticated S3 API.
+        require(url.scheme in ('https', 's3') and not url.fragment and not url.username and not url.password,
+                'Unexpected deployment artifact URL structure (query values omitted)')
+        if url.scheme == 's3':
+            require(not url.query and url.port is None, 'Unexpected S3 URI structure')
+            bucket = host
+        elif host == 's3.amazonaws.com' or re.fullmatch(r's3(?:\.dualstack)?[.-][a-z0-9-]+\.amazonaws\.com', host):
+            require(url.port in (None, 443), 'Unexpected deployment artifact URL port')
             bucket = url.path.lstrip('/').split('/')[0]
         else:
-            match = re.fullmatch(r'(.+)\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com', host)
+            require(url.port in (None, 443), 'Unexpected deployment artifact URL port')
+            match = re.fullmatch(r'(.+)\.s3(?:\.dualstack)?(?:[.-][a-z0-9-]+)?\.amazonaws\.com', host)
             require(match, 'Deployment artifact URL is not hosted in S3')
             bucket = match.group(1)
         require(re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]', bucket), 'Invalid deployment bucket')

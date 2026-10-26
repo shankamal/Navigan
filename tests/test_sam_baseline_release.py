@@ -16,6 +16,11 @@ helper = importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
     'https://s3.ap-south-1.amazonaws.com/existing-bucket/path/template',
     'https://existing-bucket.s3.amazonaws.com/path/template',
     'https://s3.amazonaws.com/existing-bucket/path/template',
+    'https://existing-bucket.s3.ap-south-1.amazonaws.com/path/template?versionId=example-version',
+    'https://s3.ap-south-1.amazonaws.com/existing-bucket/template?X-Amz-Credential=private&X-Amz-Signature=private',
+    'https://existing-bucket.s3.dualstack.ap-south-1.amazonaws.com/path/template',
+    'https://s3.dualstack.ap-south-1.amazonaws.com/existing-bucket/template',
+    's3://existing-bucket/path/template',
 ])
 def test_discovers_existing_bucket_from_root_nested_template_urls(url):
     record = {'templates': {'Processed': {'Resources': {'Nested': {'Type': 'AWS::CloudFormation::Stack',
@@ -24,7 +29,10 @@ def test_discovers_existing_bucket_from_root_nested_template_urls(url):
 
 
 @pytest.mark.parametrize('url', ['https://example.com/template', 'http://s3.amazonaws.com/bucket/template',
-                              'https://existing-bucket.s3.amazonaws.com/template?private=query'])
+    'https://existing-bucket.s3.amazonaws.com/template#fragment',
+    'https://existing-bucket.s3.amazonaws.com.evil.example/template?private=query',
+    'https://user:private@existing-bucket.s3.amazonaws.com/template',
+    'https://existing-bucket.s3.amazonaws.com:8443/template', 's3://existing-bucket/template?private=query'])
 def test_rejects_unexpected_bucket_locations(url):
     with pytest.raises(RuntimeError):
         helper.artifact_bucket({'templates': {'Processed': {'Resources': {'Nested': {
@@ -111,3 +119,11 @@ def test_preparer_cannot_execute_changes_or_mutate_application_runtime():
     tree = ast.parse((ROOT / 'scripts/prepare-sam-baseline-release.py').read_text())
     calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
     assert not calls & {'execute_change_set', 'update_stack', 'update_function_code', 'put_role_policy', 'execute_statement'}
+
+
+def test_bucket_discovery_never_prints_or_fetches_signed_query_values(capsys):
+    value = 'https://existing-bucket.s3.amazonaws.com/template?X-Amz-Signature=do-not-print'
+    result = helper.artifact_bucket({'templates': {'Processed': {'Resources': {'Nested': {
+        'Type': 'AWS::CloudFormation::Stack', 'Properties': {'TemplateURL': value}}}}}})
+    assert result == 'existing-bucket'
+    assert 'do-not-print' not in str(capsys.readouterr())
