@@ -26,14 +26,35 @@ def load_template(path):
 
 def build():
     root=load_template(ROOT/'infrastructure/template.yaml')
-    value={'version':1,'sources':{},'parameters':list(root['Parameters']),
-           'requiredParameters':[k for k,v in root['Parameters'].items() if 'Default' not in v],'routes':{}}
-    paths=['infrastructure/template.yaml']+['infrastructure/modules/'+f+'/template.yaml' for f in capture.MODULES.values()]
+    value={'version':2,'sources':{},'parameters':list(root['Parameters']),
+           'requiredParameters':[k for k,v in root['Parameters'].items() if 'Default' not in v],
+           'routes':{'dev':[],'prod':[]}}
+    companion='infrastructure/companion/dev-route-ownership.yaml'
+    paths=['infrastructure/template.yaml']+['infrastructure/modules/'+f+'/template.yaml' for f in capture.MODULES.values()]+[companion]
     for path in paths:value['sources'][path]=hashlib.sha256((ROOT/path).read_bytes()).hexdigest()
     for module,folder in capture.MODULES.items():
         template=load_template(ROOT/'infrastructure/modules'/folder/'template.yaml')
-        value['routes'][module]={'Resources':{k:{'Type':v['Type'],'Properties':{'RouteKey':v['Properties']['RouteKey']}}
-            for k,v in template['Resources'].items() if v['Type']=='AWS::ApiGatewayV2::Route'}}
+        for logical,resource in template['Resources'].items():
+            if resource['Type']!='AWS::ApiGatewayV2::Route':continue
+            condition=resource.get('Condition')
+            environments={'IsDev':['dev'],'IsProd':['prod'],None:['dev','prod']}.get(condition)
+            if environments is None:raise RuntimeError('Unsupported route environment condition: '+str(condition))
+            for environment in environments:
+                value['routes'][environment].append({'module':module,'sourceLogicalId':logical,
+                    'routeKey':resource['Properties']['RouteKey'],
+                    'owner':{'captureStack':'root--'+module,'logicalId':logical}})
+    companion_template=load_template(ROOT/companion)
+    for logical,resource in companion_template['Resources'].items():
+        if resource['Type']!='AWS::ApiGatewayV2::Route':continue
+        module=next((name for name in capture.MODULES if logical.startswith(name)),None)
+        if not module:raise RuntimeError('Companion route is not namespaced by a known module: '+logical)
+        value['routes']['dev'].append({'module':module,'sourceLogicalId':logical[len(module):],
+            'routeKey':resource['Properties']['RouteKey'],
+            'owner':{'captureStack':'companion--sam-route-ownership','logicalId':logical}})
+    for environment in value['routes']:
+        value['routes'][environment].sort(key=lambda route:(route['module'],route['routeKey'],route['owner']['logicalId']))
+        keys=[route['routeKey'] for route in value['routes'][environment]]
+        if len(keys)!=len(set(keys)):raise RuntimeError('Duplicate active route key for '+environment)
     return value
 
 def main():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute an existing DEV baseline only after fresh scope and runtime checks.
+"""Execute one existing environment baseline after fresh scope and runtime checks.
 
 Does not build, package, upload, create change sets, or touch PROD/database.
 Conditional permission/task-definition updates are permitted only with a fresh
@@ -67,15 +67,16 @@ def allow_change(item, verified):
 
 def expected_stages(private):
     return {p.stem for p in (private / 'stacks').glob('*.json')
-            if p.stem == 'root' or (p.stem.startswith('companion--') and p.stem.count('--') == 1)}
+            if p.stem in ('root', 'frontend') or
+            (p.stem.startswith('companion--') and p.stem.count('--') == 1)}
 
 
-def preflight(session, directory, private, stack, account, region):
+def preflight(session, directory, private, environment, stack, account, region):
     summary = read(directory / 'release-summary.json')
-    require(summary.get('environment') == 'dev' and summary.get('executed') is False
-            and not summary.get('errors'), 'Release is not an unexecuted DEV plan without errors')
+    require(summary.get('environment') == environment and summary.get('executed') is False
+            and not summary.get('errors'), 'Release is not an unexecuted plan for the selected environment without errors')
     require(set(summary['stages']) == expected_stages(private), 'Prepared release has missing or unexpected stages')
-    review = release.review_existing(session, directory, private, 'dev', stack, account, region)
+    review = release.review_existing(session, directory, private, environment, stack, account, region)
     require(not review['errors'] and set(review['stages']) == expected_stages(private),
             'Fresh saved-plan review failed; inspect existing-plan-review.json')
     live = runtime.verify(session, directory, private, account)
@@ -134,15 +135,15 @@ def wait_for_update(cfn, plan, previous, timeout=3600):
     raise RuntimeError('Update is still running; inspect execution-record.json and AWS stack status before any retry')
 
 
-def execute(session, directory, private, stack, account, region):
+def execute(session, directory, private, environment, stack, account, region):
     journal_path = directory / 'execution-record.json'
     require(not journal_path.exists(), 'An execution record already exists; inspect its stage statuses before retrying')
-    review, allowed = preflight(session, directory, private, stack, account, region)
+    review, allowed = preflight(session, directory, private, environment, stack, account, region)
     cfn = session.client('cloudformation')
     records = {p.stem: read(p) for p in (private / 'stacks').glob('*.json')}
     before = inventory(cfn, records)
     write(directory / 'pre-execution-inventory.json', before)
-    journal = {'environment': 'dev', 'executed': False, 'complete': False,
+    journal = {'environment': environment, 'executed': False, 'complete': False,
                'scopeVerified': True, 'runtimeVerified': True, 'stages': {}, 'reviewedChanges': allowed}
     write(journal_path, journal)
     try:
@@ -162,7 +163,7 @@ def execute(session, directory, private, stack, account, region):
             journal['stages'][stage] = {'status': 'REQUESTED', 'clientRequestToken': token,
                                        'stackId': plan['stackId'], 'changeSetId': plan['changeSetId']}
             write(journal_path, journal)
-            print('Executing verified DEV stage: ' + stage, flush=True)
+            print('Executing verified ' + environment.upper() + ' stage: ' + stage, flush=True)
             cfn.execute_change_set(ChangeSetName=plan['changeSetId'], StackName=plan['stackId'], ClientRequestToken=token)
             journal['executed'] = True; write(journal_path, journal)
             wait_for_update(cfn, plan, previous)
@@ -178,7 +179,7 @@ def execute(session, directory, private, stack, account, region):
         raise
     finally:
         write(journal_path, journal)
-    print('DEV baseline change sets executed and runtime/inventory verified. PROD unchanged.', flush=True)
+    print(environment.upper() + ' baseline change sets executed and runtime/inventory verified.', flush=True)
     print('Maintained source SAM templates and authenticated workflow validation remain separate pending work.', flush=True)
     return journal
 
@@ -187,22 +188,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--release-directory', type=Path, required=True)
     parser.add_argument('--capture-directory', type=Path, required=True)
-    parser.add_argument('--environment', choices=['dev'], required=True)
+    parser.add_argument('--environment', choices=['dev', 'prod'], required=True)
     parser.add_argument('--expected-stack', required=True)
     parser.add_argument('--expected-account', required=True)
     parser.add_argument('--region', required=True); parser.add_argument('--profile')
     args = parser.parse_args()
-    private = args.capture_directory.resolve() / 'dev'
+    private = args.capture_directory.resolve() / args.environment
     capture = read(args.capture_directory / 'reconciliation-summary.json')
-    require(not capture['environments']['dev'].get('errors'), 'DEV capture has errors')
+    require(not capture['environments'][args.environment].get('errors'), args.environment.upper() + ' capture has errors')
     root = read(private / 'stacks/root.json')['description']['StackId']
     require(root.startswith('arn:aws:cloudformation:' + args.region + ':' + args.expected_account + ':stack/')
             and root.split(':stack/', 1)[1].split('/')[0] == args.expected_stack,
-            'Expected account/region/DEV stack differs from capture')
+            'Expected account/region/environment stack differs from capture')
     import boto3
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
     require(session.client('sts').get_caller_identity()['Account'] == args.expected_account, 'Unexpected AWS account')
-    execute(session, args.release_directory.resolve(), private, args.expected_stack, args.expected_account, args.region)
+    execute(session, args.release_directory.resolve(), private, args.environment, args.expected_stack,
+            args.expected_account, args.region)
     return 0
 
 

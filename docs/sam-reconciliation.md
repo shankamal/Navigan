@@ -210,6 +210,38 @@ release, or finish reconciliation of the maintained source templates. Inspect
 Capture success does not establish that a full SAM deployment is safe or that
 authenticated workflow validation has passed.
 
+## Maintained environment route ownership
+
+The root template requires `DeploymentEnvironment=dev|prod` and forwards it to
+the customer, environment, cluster and migration modules. The `dev` and `prod`
+SAM config profiles provide only that non-secret selector; stack names and live
+bindings remain explicit private release inputs.
+
+Summary routes and permissions use their established environment logical IDs.
+PROD artifact routes use `NaviganProdArtifactRoute0` through
+`NaviganProdArtifactRoute8`. DEV's thirteen previously unmanaged routes are
+maintained in `infrastructure/companion/dev-route-ownership.yaml` with the exact
+logical IDs of the imported `-sam-route-ownership` stack and Retain policies.
+The connector-upgrade route exists only in that DEV companion; it remains absent
+from PROD.
+
+The generated reconciliation contract is environment-aware and records the
+expected stack plus logical ID for every route. DEV currently has 134 declared
+routes, including 13 in its companion; PROD has 133. A new capture now reports a
+missing route or wrong CloudFormation owner instead of silently treating any
+owner as acceptable. The route-ownership companion is optional for PROD and is
+captured when present in DEV.
+
+The baseline executor accepts DEV or PROD only with an explicit environment,
+stack, account and region. It repeats saved-plan and live-runtime checks before
+each environment's existing change sets and includes the hosted frontend when it
+is part of the PROD capture.
+
+`validate-authenticated-read-paths.py` performs only authenticated GET requests.
+It prompts for bearer tokens without echo, never saves or prints them, and checks
+the three summary APIs plus migration/source-cluster read paths. Optional IDs add
+read-only assessment, inventory, compatibility and deployment-source checks.
+
 ### Execute a reviewed DEV baseline
 
 `execute-sam-baseline-release.py` now accepts an existing release directory and

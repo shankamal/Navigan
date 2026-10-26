@@ -21,7 +21,8 @@ ROOT=Path(__file__).resolve().parents[1]
 STABLE={'CREATE_COMPLETE','UPDATE_COMPLETE','UPDATE_ROLLBACK_COMPLETE'}
 MODULES={'CustomerManagement':'customer-management','EnvironmentManagement':'environment-management',
  'ClusterManagement':'cluster-management','MigrationManagement':'migration-management','AccessManagement':'access-management'}
-COMPANIONS=('artifact-workspace','workspace-repositories','workspace-image-runtime','workspace-images')
+COMPANIONS=('artifact-workspace','workspace-repositories','workspace-image-runtime','workspace-images','sam-route-ownership')
+OPTIONAL_COMPANIONS={'source-recovery','sam-route-ownership'}
 ENV_KEYS={'DB_NAME','DB_PROXY_HOST','DB_SECRET_ARN','MIGRATION_SOURCE_FIRST_ENABLED','MIGRATION_WORKSPACE_BUCKET',
  'MIGRATION_WORKSPACE_KMS_KEY','MIGRATION_WORKSPACE_BUCKET_OWNER','SOURCE_CONNECTOR_DELIVERY_ROLE_ARN',
  'SOURCE_REGISTRY_ALLOWED_ROLE_ARNS','SOURCE_REGISTRY_PRINCIPAL_ARN','GITHUB_APP_ID','GITHUB_APP_PRIVATE_KEY_SECRET_ARN',
@@ -43,8 +44,9 @@ def error_record(scope,error):
 
 def contract():
     value=json.loads((ROOT/'infrastructure/sam-reconciliation-contract.json').read_text())
-    require(value.get('version')==1,'Unknown source contract version')
-    paths={'infrastructure/template.yaml',*('infrastructure/modules/'+v+'/template.yaml' for v in MODULES.values())}
+    require(value.get('version')==2,'Unknown source contract version')
+    paths={'infrastructure/template.yaml','infrastructure/companion/dev-route-ownership.yaml',
+           *('infrastructure/modules/'+v+'/template.yaml' for v in MODULES.values())}
     require(set(value['sources'])==paths,'Source contract has unexpected template coverage')
     for path,expected in value['sources'].items():
         require(hashlib.sha256((ROOT/path).read_bytes()).hexdigest()==expected,
@@ -54,13 +56,16 @@ def contract():
 def items(client,operation,key,**kwargs):
     return [item for page in client.get_paginator(operation).paginate(**kwargs) for item in page.get(key,[])]
 
-def parameters(current,env,github_kms=''):
+def parameters(current,env,github_kms='',environment=None):
     result=dict(current);flag=env.get('MIGRATION_SOURCE_FIRST_ENABLED','false')
     require(flag in ('true','false'),'Invalid source-first flag')
     result.update(MigrationSourceFirstEnabled=flag,
       MigrationWorkspaceBucketName=env.get('MIGRATION_WORKSPACE_BUCKET',''),
       MigrationWorkspaceKmsKeyArn=env.get('MIGRATION_WORKSPACE_KMS_KEY',''),
       MigrationWorkspaceBucketOwner=env.get('MIGRATION_WORKSPACE_BUCKET_OWNER',''))
+    if environment is not None:
+        require(environment in ('dev','prod'),'Unknown deployment environment')
+        result['DeploymentEnvironment']=environment
     if flag=='true':require(all(result[k] for k in ('MigrationWorkspaceBucketName','MigrationWorkspaceKmsKeyArn','MigrationWorkspaceBucketOwner')),'Enabled workspace has incomplete live bindings')
     role=env.get('SOURCE_CONNECTOR_DELIVERY_ROLE_ARN',result.get('SourceConnectorDeliveryRoleArn',''))
     require(not role or re.fullmatch(r'arn:[a-z-]+:iam::(?!000000000000)[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+',role),'Placeholder or malformed delivery role')
@@ -76,16 +81,15 @@ def parameters(current,env,github_kms=''):
 
 def route_gaps(authored,owned,live):
     result=[]
-    for logical,r in authored.get('Resources',{}).items():
-        if r.get('Type')!='AWS::ApiGatewayV2::Route':continue
-        route=r.get('Properties',{}).get('RouteKey')
+    for definition in authored:
+        logical=definition['sourceLogicalId'];route=definition.get('routeKey');expected=definition['owner']
         if not isinstance(route,str):reason='DYNAMIC_ROUTE_REQUIRES_REVIEW'
         elif route not in live:reason='NOT_LIVE_REQUIRES_REVIEW'
-        elif not owned.get(route):reason='LIVE_ROUTE_NOT_OWNED_BY_THIS_STACK'
-        elif owned[route]!=[logical]:reason='LOGICAL_ID_RECONCILIATION_REQUIRED'
+        elif not owned.get(route):reason='LIVE_ROUTE_NOT_OWNED_BY_CLOUDFORMATION'
+        elif owned[route]!=[expected]:reason='ROUTE_OWNER_RECONCILIATION_REQUIRED'
         else:continue
         result.append({'route':route if isinstance(route,str) else None,'sourceLogicalId':logical,
-                       'deployedLogicalIds':owned.get(route,[]) if isinstance(route,str) else [],'reason':reason})
+                       'expectedOwner':expected,'deployedOwners':owned.get(route,[]) if isinstance(route,str) else [],'reason':reason})
     return result
 
 def capture(session,label,parent,directory,artifacts=False,frontend=None):
@@ -183,7 +187,7 @@ def capture(session,label,parent,directory,artifacts=False,frontend=None):
         if key:
             meta=session.client('kms').describe_key(KeyId=key)['KeyMetadata']
             if meta.get('KeyManager')=='CUSTOMER':github_kms=meta['Arn']
-    definitions=contract();resolved=parameters(current,env,github_kms)
+    definitions=contract();resolved=parameters(current,env,github_kms,label)
     require(not [k for k in definitions['requiredParameters'] if not resolved.get(k)],'Required source parameters missing from live state')
     write(private/'sam-parameters.json',{'StackName':parent,'Parameters':[{'ParameterKey':k,'ParameterValue':str(v)} for k,v in sorted(resolved.items()) if k in definitions['parameters']]})
     summary['migrationSettingsResolved']=True;summary['sourceFirstEnabled']=resolved['MigrationSourceFirstEnabled']=='true'
@@ -193,7 +197,7 @@ def capture(session,label,parent,directory,artifacts=False,frontend=None):
         try:visit(parent+'-'+suffix,'companion/'+suffix);summary['companionStacks'][suffix]='captured'
         except Exception as error:
             detail=getattr(error,'response',{}).get('Error',{})
-            if suffix=='source-recovery' and detail.get('Code')=='ValidationError' and 'does not exist' in detail.get('Message',''):
+            if suffix in OPTIONAL_COMPANIONS and detail.get('Code')=='ValidationError' and 'does not exist' in detail.get('Message',''):
                 summary['companionStacks'][suffix]='absent'
             else:summary['errors'].append(error_record('companion/'+suffix,error))
     workspace=stacks.get('companion/artifact-workspace')
@@ -208,15 +212,17 @@ def capture(session,label,parent,directory,artifacts=False,frontend=None):
         try:visit(frontend,'frontend');summary['frontend']='captured'
         except Exception as error:summary['errors'].append(error_record('frontend',error))
     routes=[r for a in apis.values() for r in a['routes']];live={r['RouteKey']:r for r in routes}
-    for module,folder in MODULES.items():
-        owned={}
-        for r in stacks.get('root/'+module,{}).get('resources',[]):
+    owned={}
+    for capture_stack,stack in stacks.items():
+        for r in stack.get('resources',[]):
             if r['ResourceType']=='AWS::ApiGatewayV2::Route':
                 matches=[v for v in routes if v['RouteId']==r['PhysicalResourceId'].rsplit('|',1)[-1]]
                 require(len(matches)==1,'Managed route mapping is ambiguous')
-                owned.setdefault(matches[0]['RouteKey'],[]).append(r['LogicalResourceId'])
-        gaps=route_gaps(definitions['routes'][module],owned,live)
-        summary['routeOwnershipGaps'].extend({'module':module,**g} for g in gaps)
+                owned.setdefault(matches[0]['RouteKey'],[]).append({'captureStack':capture_stack.replace('/','--'),
+                                                                    'logicalId':r['LogicalResourceId']})
+    gaps=route_gaps(definitions['routes'][label],owned,live)
+    summary['routeOwnershipGaps'].extend({'module':next(r['module'] for r in definitions['routes'][label]
+        if r['routeKey']==g['route']),**g} for g in gaps)
     iam=session.client('iam')
     for index,arn in enumerate(sorted(roles)):
         try:

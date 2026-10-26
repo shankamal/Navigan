@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Maintained ownership for DEV API routes imported from the live gateway.
+Parameters:
+  ApiId: {Type: String}
+  AuthorizerId: {Type: String}
+  JwtScope: {Type: String, Default: navigan/api}
+  MigrationIntegrationId: {Type: String}
+  ClusterIntegrationId: {Type: String}
+Resources:
+  MigrationManagementGetSourceDeploymentSourcesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementSaveSourceDeploymentSourcesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementGetMigrationDeploymentEvidenceRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/migrations/{migrationId}/deployment-evidence
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementAnalyzeMigrationDeploymentEvidenceRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/migrations/{migrationId}/deployment-evidence
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementListArtifactWorkspacesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementCreateArtifactWorkspaceRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementGetArtifactWorkspaceRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementStartWorkspaceCollectionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementCreateWorkspaceExportRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementInstallSourceClusterConnectorRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/source-clusters/{sourceClusterId}/install
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementGetMigrationSourceInventoryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/migrations/{migrationId}/source-inventory
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  MigrationManagementAssessMigrationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/migrations/{migrationId}/assess
+      Target: !Join ['/', [integrations, !Ref MigrationIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  ClusterManagementUpgradeConnectorRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/connector/upgrade
+      Target: !Join ['/', [integrations, !Ref ClusterIntegrationId]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]

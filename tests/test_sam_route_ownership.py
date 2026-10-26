@@ -20,23 +20,25 @@ def captured(tmp_path):
     helper.write(tmp_path / 'stacks/root.json', {'description': {'StackId': root}, 'resources': [
         {'ResourceType': 'AWS::ApiGatewayV2::Api', 'LogicalResourceId': 'Api', 'PhysicalResourceId': 'api'}]})
     helper.write(tmp_path / 'stacks/root--MigrationManagement.json', {'description': {'StackId': root + '-module'}, 'resources': [
-        {'ResourceType': helper.ROUTE, 'LogicalResourceId': 'LegacyRoute', 'PhysicalResourceId': 'existing'}]})
+        {'ResourceType': helper.ROUTE, 'LogicalResourceId': 'OwnedRoute', 'PhysicalResourceId': 'existing'}]})
     helper.write(tmp_path / 'apis/root--Api.json', {'routes': [route, unmanaged]})
     (tmp_path / 'artifacts').mkdir(); (tmp_path / 'artifacts/code.zip').write_bytes(b'captured-code')
     helper.write(tmp_path / 'functions/root--Function.json', {'FunctionArn': 'function', 'RevisionId': 'revision',
         'CodeSha256': base64.b64encode(hashlib.sha256(b'captured-code').digest()).decode(), 'deployedArchive': 'artifacts/code.zip'})
-    definitions = {'routes': {'MigrationManagement': {'Resources': {
-        logical: {'Type': helper.ROUTE, 'Properties': {'RouteKey': key}}
-        for logical, key in [('OwnedRoute', 'GET /owned'), ('UnmanagedRoute', 'GET /unmanaged'), ('AbsentRoute', 'GET /absent')]}}}}
-    return helper.build(tmp_path, definitions)
+    definitions = {'routes': {'dev': [
+        {'module': 'MigrationManagement', 'sourceLogicalId': 'OwnedRoute', 'routeKey': 'GET /owned',
+         'owner': {'captureStack': 'root--MigrationManagement', 'logicalId': 'OwnedRoute'}},
+        {'module': 'MigrationManagement', 'sourceLogicalId': 'UnmanagedRoute', 'routeKey': 'GET /unmanaged',
+         'owner': {'captureStack': 'companion--sam-route-ownership', 'logicalId': 'MigrationManagementUnmanagedRoute'}},
+    ]}}
+    return helper.build(tmp_path, definitions, 'dev')
 
 
 def test_preserves_live_ids_auth_and_absent_features(tmp_path):
     data = captured(tmp_path)
-    owned, unmanaged, absent = data['routes']
-    assert owned['action'] == 'retain-managed' and owned['owner']['logicalId'] == 'LegacyRoute'
+    owned, unmanaged = data['routes']
+    assert owned['action'] == 'retain-managed' and owned['owner']['logicalId'] == 'OwnedRoute'
     assert unmanaged['action'] == 'import-candidate'
-    assert absent['action'] == 'omit-not-live'
     resource = data['template']['Resources'][unmanaged['importLogicalId']]
     assert resource['DeletionPolicy'] == resource['UpdateReplacePolicy'] == 'Retain'
     assert resource['Properties'] == {'ApiId': 'api', 'RouteKey': 'GET /unmanaged',
@@ -48,10 +50,22 @@ def test_checks_ownership_in_companions_too(tmp_path):
     captured(tmp_path)
     helper.write(tmp_path / 'stacks/companion--other.json', {'description': {'StackId': 'other-owner'}, 'resources': [
         {'ResourceType': helper.ROUTE, 'LogicalResourceId': 'ExistingCompanionRoute', 'PhysicalResourceId': 'unmanaged'}]})
-    definition = {'routes': {'MigrationManagement': {'Resources': {'Route': {'Type': helper.ROUTE, 'Properties': {'RouteKey': 'GET /unmanaged'}}}}}}
-    data = helper.build(tmp_path, definition)
+    definition = {'routes': {'dev': [{'module': 'MigrationManagement', 'sourceLogicalId': 'Route',
+        'routeKey': 'GET /unmanaged', 'owner': {'captureStack': 'companion--other',
+        'logicalId': 'ExistingCompanionRoute'}}]}}
+    data = helper.build(tmp_path, definition, 'dev')
     assert not data['candidates']
     assert data['routes'][0]['owner']['stack'] == 'other-owner'
+
+
+@pytest.mark.parametrize('failure', ['missing-live', 'wrong-owner'])
+def test_contract_mismatch_stops_before_import_preparation(tmp_path, failure):
+    captured(tmp_path)
+    route = 'GET /absent' if failure == 'missing-live' else 'GET /owned'
+    definition = {'routes': {'dev': [{'module': 'MigrationManagement', 'sourceLogicalId': 'Expected',
+        'routeKey': route, 'owner': {'captureStack': 'root--MigrationManagement', 'logicalId': 'Expected'}}]}}
+    with pytest.raises(RuntimeError, match='ownership differs'):
+        helper.build(tmp_path, definition, 'dev')
 
 
 def test_tampered_zip_stops_baseline(tmp_path):

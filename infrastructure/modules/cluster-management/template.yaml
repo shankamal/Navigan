@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Navigan Cluster Management API and asynchronous Terraform execution
 Parameters:
+  DeploymentEnvironment: {Type: String, AllowedValues: [dev, prod]}
   JwtScope: {Type: String, Default: navigan/api}
   DatabaseName: {Type: String}
   DatabaseProxyHost: {Type: String}
@@ -50,6 +51,8 @@ Globals:
         TERRAFORM_ARTIFACT_BUCKET: !Ref TerraformArtifacts
         TERRAFORM_STATE_KMS_KEY_ARN: !GetAtt TerraformStateKey.Arn
 Conditions:
+  IsDev: !Equals [!Ref DeploymentEnvironment, dev]
+  IsProd: !Equals [!Ref DeploymentEnvironment, prod]
   HasGitHubAppPrivateKey: !Not [!Equals [!Ref GitHubAppPrivateKeySecretArn, '']]
 Resources:
   ConnectorRepository:
@@ -396,9 +399,39 @@ Resources:
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
       AuthorizationScopes: [!Ref JwtScope]
-  ClusterSummaryRoute:
+  NaviganDevSummaryInvoke:
+    Type: AWS::Lambda::Permission
+    Condition: IsDev
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ClusterFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/clusters/summary
+  NaviganDevSummaryRoute:
     Type: AWS::ApiGatewayV2::Route
-    DependsOn: ClusterInvokePermission
+    Condition: IsDev
+    DependsOn: NaviganDevSummaryInvoke
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/summary
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
+  NaviganProductionSummaryInvoke:
+    Type: AWS::Lambda::Permission
+    Condition: IsProd
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ClusterFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/clusters/summary
+  NaviganProductionSummaryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: NaviganProductionSummaryInvoke
     Properties:
       ApiId: !Ref ApiId
       RouteKey: GET /api/v1/clusters/summary
@@ -472,16 +505,6 @@ Resources:
     Properties:
       ApiId: !Ref ApiId
       RouteKey: POST /api/v1/clusters/{clusterId}/connector/install
-      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
-      AuthorizationType: JWT
-      AuthorizerId: !Ref AuthorizerId
-      AuthorizationScopes: [!Ref JwtScope]
-  UpgradeConnectorRoute:
-    Type: AWS::ApiGatewayV2::Route
-    DependsOn: ClusterInvokePermission
-    Properties:
-      ApiId: !Ref ApiId
-      RouteKey: POST /api/v1/clusters/{clusterId}/connector/upgrade
       Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId

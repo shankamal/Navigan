@@ -123,3 +123,21 @@ sets or application deployment were performed by this implementation.
 - Maintained SAM source templates, PROD application baseline execution and
   authenticated workflow validation are not marked complete by this tooling.
 - Validation: 148 focused SAM reconciliation tests passed locally.
+
+### DEV baseline completed and maintained ownership encoded
+
+- The verified DEV application baseline executed all five stages successfully;
+  every stack reached `UPDATE_COMPLETE`, followed by successful runtime and
+  resource-inventory verification. Do not reuse that executed release.
+- Maintained SAM templates now encode DEV/PROD summary logical IDs, PROD artifact
+  route IDs, and the 13-route DEV companion stack. Contract counts are DEV 134
+  and PROD 133, matching the reviewed live route totals.
+- The ownership audit now checks the exact environment, stack and logical ID and
+  captures the DEV route companion. It rejects missing routes and wrong owners.
+- The saved-baseline executor supports a separately prepared and reviewed PROD
+  release, including the hosted frontend, with the same pre/post safeguards.
+- Added hidden-token, GET-only authenticated read validation. Live PROD baseline
+  execution and authenticated results remain pending.
+- Validation: 177 focused parity/SAM/authentication tests passed locally. A full
+  local suite could not collect two summary deployment tests because this
+  workspace Python lacks boto3; those scripts use the deployment virtualenv.

@@ -57,7 +57,7 @@ def baseline(private):
     return result
 
 
-def build(private, definitions):
+def build(private, definitions, environment):
     """Resolve authored routes across all captured stacks, not just their module."""
     stacks = {p.stem: read(p) for p in (private / 'stacks').glob('*.json')}
     require('root' in stacks, 'Root stack capture missing')
@@ -82,32 +82,35 @@ def build(private, definitions):
                     'stack': stack['description']['StackId'], 'captureStack': name,
                     'logicalId': r['LogicalResourceId']})
     mappings = []; candidates = []; template = {'AWSTemplateFormatVersion': '2010-09-09', 'Resources': {}}
-    for module, definition in definitions['routes'].items():
-        for logical, authored in definition.get('Resources', {}).items():
-            if authored['Type'] != ROUTE:
-                continue
-            key = authored['Properties']['RouteKey']
-            require(isinstance(key, str), 'Dynamic route key requires review')
-            value = {'module': module, 'sourceLogicalId': logical, 'routeKey': key}
-            route = routes.get(key)
-            if route is None:
-                value['action'] = 'omit-not-live'
+    require(environment in definitions['routes'], 'Environment route contract missing')
+    for authored in definitions['routes'][environment]:
+        module = authored['module']; logical = authored['sourceLogicalId']; key = authored['routeKey']
+        require(isinstance(key, str), 'Dynamic route key requires review')
+        expected = authored['owner']
+        value = {'module': module, 'sourceLogicalId': logical, 'routeKey': key, 'expectedOwner': expected}
+        route = routes.get(key)
+        if route is None:
+            value['action'] = 'missing-live-route'
+        else:
+            matched = owners.get(route['RouteId'], [])
+            require(len(matched) <= 1, 'Route has multiple captured owners')
+            value.update(apiId=api_id, routeId=route['RouteId'])
+            if matched:
+                actual = {'captureStack': matched[0]['captureStack'], 'logicalId': matched[0]['logicalId']}
+                value.update(owner=matched[0], action='retain-managed' if actual == expected else 'ownership-mismatch')
             else:
-                matched = owners.get(route['RouteId'], [])
-                require(len(matched) <= 1, 'Route has multiple captured owners')
-                value.update(apiId=api_id, routeId=route['RouteId'])
-                if matched:
-                    value.update(owner=matched[0], action='retain-managed')
-                else:
-                    # Canonical IDs are namespaced by module in the companion stack.
-                    adopted_id = module + logical
-                    require(adopted_id not in template['Resources'], 'Import logical ID collision')
-                    template['Resources'][adopted_id] = {
-                        'Type': ROUTE, 'DeletionPolicy': 'Retain', 'UpdateReplacePolicy': 'Retain',
-                        'Properties': route_properties(api_id, route)}
-                    value.update(action='import-candidate', importLogicalId=adopted_id)
-                    candidates.append(value)
-            mappings.append(value)
+                require(expected['captureStack'] == 'companion--sam-route-ownership',
+                        'A module-owned route is live but unmanaged; restore it through its module stack')
+                adopted_id = expected['logicalId']
+                require(adopted_id not in template['Resources'], 'Import logical ID collision')
+                template['Resources'][adopted_id] = {
+                    'Type': ROUTE, 'DeletionPolicy': 'Retain', 'UpdateReplacePolicy': 'Retain',
+                    'Properties': route_properties(api_id, route)}
+                value.update(action='import-candidate', importLogicalId=adopted_id)
+                candidates.append(value)
+        mappings.append(value)
+    require(not [r for r in mappings if r['action'] in ('missing-live-route', 'ownership-mismatch')],
+            'Live route set or CloudFormation ownership differs from the maintained environment contract')
     return {'rootStack': stacks['root']['description']['StackId'], 'routes': mappings,
             'template': template, 'candidates': candidates, 'codeBaseline': baseline(private)}
 
@@ -274,7 +277,7 @@ def main():
     environments = summary['environments']
     require(environments and not any(v.get('errors') for v in environments.values()), 'Capture contains errors')
     # Resolve and verify both environments before preparing any AWS change set.
-    datasets = {label: build(source / label, definitions) for label in environments}
+    datasets = {label: build(source / label, definitions, label) for label in environments}
     session = None
     if args.prepare_import:
         require(args.region and args.expected_account, 'Import preparation requires explicit region and account')
@@ -291,7 +294,7 @@ def main():
         write(directory / 'ownership-map.json', {k: v for k, v in data.items() if k not in ('template', 'candidates')})
         write(directory / 'route-import-template.json', data['template'])
         counts = {action: sum(r['action'] == action for r in data['routes'])
-                  for action in ('retain-managed', 'import-candidate', 'omit-not-live')}
+                  for action in ('retain-managed', 'import-candidate', 'missing-live-route', 'ownership-mismatch')}
         result['environments'][label] = {'routes': counts, 'codeBaselinesVerified': len(data['codeBaseline']),
             'importPrepared': False, 'errors': []}
         try:

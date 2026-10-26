@@ -3,6 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Navigan parent stack: shared platform and separate module CloudFormation
   stacks'
 Parameters:
+  DeploymentEnvironment:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Selects the established environment-specific CloudFormation route ownership.
   JwtIssuer:
     Type: String
   JwtAudience:
@@ -136,6 +140,8 @@ Resources:
     Properties:
       Location: modules/customer-management/template.yaml
       Parameters:
+        DeploymentEnvironment:
+          Ref: DeploymentEnvironment
         JwtScope: &id001
           Ref: JwtScope
         DatabaseName: &id002
@@ -181,6 +187,8 @@ Resources:
     Properties:
       Location: modules/environment-management/template.yaml
       Parameters:
+        DeploymentEnvironment:
+          Ref: DeploymentEnvironment
         JwtScope: *id001
         DatabaseName: *id002
         DatabaseProxyHost: *id003
@@ -198,6 +206,8 @@ Resources:
     Properties:
       Location: modules/cluster-management/template.yaml
       Parameters:
+        DeploymentEnvironment:
+          Ref: DeploymentEnvironment
         JwtScope: *id001
         DatabaseName: *id002
         DatabaseProxyHost: *id003
@@ -231,6 +241,7 @@ Resources:
     Properties:
       Location: modules/migration-management/template.yaml
       Parameters:
+        DeploymentEnvironment: !Ref DeploymentEnvironment
         MigrationSourceFirstEnabled: !Ref MigrationSourceFirstEnabled
         WorkspaceBucketName: !Ref MigrationWorkspaceBucketName
         WorkspaceKmsKeyArn: !Ref MigrationWorkspaceKmsKeyArn

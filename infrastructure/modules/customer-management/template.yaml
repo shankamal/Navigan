@@ -2,6 +2,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: 'Navigan Customer Management: Lambda APIs, routes, outbox publisher, notifications and alarms'
 Parameters:
+  DeploymentEnvironment:
+    Type: String
+    AllowedValues: [dev, prod]
   JwtScope:
     Type: String
     Default: navigan/api
@@ -40,6 +43,8 @@ Parameters:
   EventBusArn:
     Type: String
 Conditions:
+  IsDev: !Equals [!Ref DeploymentEnvironment, dev]
+  IsProd: !Equals [!Ref DeploymentEnvironment, prod]
   PublishOutbox:
     Fn::Equals:
     - Ref: OutboxScheduleEnabled
@@ -291,10 +296,20 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
-  CustomerSummaryRoute:
+  NaviganDevSummaryInvoke:
+    Type: AWS::Lambda::Permission
+    Condition: IsDev
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CustomerFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/customers/summary
+  NaviganDevSummaryRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsDev
     DependsOn:
-    - CustomerInvokePermission
+    - NaviganDevSummaryInvoke
     Properties:
       ApiId:
         Ref: ApiId
@@ -309,6 +324,27 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
+  NaviganProductionSummaryInvoke:
+    Type: AWS::Lambda::Permission
+    Condition: IsProd
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CustomerFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/customers/summary
+  NaviganProductionSummaryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn:
+    - NaviganProductionSummaryInvoke
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/customers/summary
+      Target: !Join ['/', [integrations, !Ref CustomerIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
   GetCustomerRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn:

@@ -65,7 +65,59 @@ def test_all_sam_profiles_stage_without_embedded_live_targets(env):
     deploy=config[env]['deploy']['parameters']
     assert deploy['no_execute_changeset'] is True
     assert deploy['confirm_changeset'] is True
-    assert 'parameter_overrides' not in deploy and 'stack_name' not in deploy
+    assert 'stack_name' not in deploy
+    if env == 'default':
+        assert 'parameter_overrides' not in deploy
+    else:
+        assert deploy['parameter_overrides'] == 'DeploymentEnvironment=' + env
+
+
+def test_environment_specific_route_ownership_is_maintained_in_source():
+    root=generator.load_template(ROOT/'infrastructure/template.yaml')
+    assert 'Default' not in root['Parameters']['DeploymentEnvironment']
+    for module in ('CustomerManagement','EnvironmentManagement','ClusterManagement','MigrationManagement'):
+        assert root['Resources'][module]['Properties']['Parameters']['DeploymentEnvironment']=={'Ref':'DeploymentEnvironment'}
+    for folder,resource,generic in [('customer-management','customers','CustomerSummaryRoute'),
+                                    ('environment-management','environments','EnvironmentSummaryRoute'),
+                                    ('cluster-management','clusters','ClusterSummaryRoute')]:
+        template=generator.load_template(ROOT/'infrastructure/modules'/folder/'template.yaml')
+        for environment,prefix in [('dev','NaviganDev'),('prod','NaviganProduction')]:
+            route=template['Resources'][prefix+'SummaryRoute']
+            permission=template['Resources'][prefix+'SummaryInvoke']
+            assert route['Condition']=='Is'+environment.title()
+            assert route['Properties']['RouteKey']==f'GET /api/v1/{resource}/summary'
+            assert permission['Condition']=='Is'+environment.title()
+        assert generic not in template['Resources']
+
+
+def test_prod_artifact_routes_and_dev_companion_match_established_owners():
+    migration=generator.load_template(ROOT/'infrastructure/modules/migration-management/template.yaml')
+    expected=[
+        'GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources',
+        'PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources',
+        'GET /api/v1/migrations/{migrationId}/deployment-evidence',
+        'POST /api/v1/migrations/{migrationId}/deployment-evidence',
+        'GET /api/v1/migrations/{migrationId}/artifact-workspaces',
+        'POST /api/v1/migrations/{migrationId}/artifact-workspaces',
+        'GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}',
+        'POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs',
+        'POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports',
+    ]
+    assert [migration['Resources'][f'NaviganProdArtifactRoute{i}']['Properties']['RouteKey']
+            for i in range(9)]==expected
+    assert all(migration['Resources'][f'NaviganProdArtifactRoute{i}']['Condition']=='IsProd' for i in range(9))
+    for logical in ('InstallSourceClusterConnectorRoute','GetMigrationSourceInventoryRoute','AssessMigrationRoute'):
+        assert migration['Resources'][logical]['Condition']=='IsProd'
+    cluster=generator.load_template(ROOT/'infrastructure/modules/cluster-management/template.yaml')
+    assert 'UpgradeConnectorRoute' not in cluster['Resources']
+    companion=generator.load_template(ROOT/'infrastructure/companion/dev-route-ownership.yaml')
+    assert len(companion['Resources'])==13
+    assert all(r['Type']=='AWS::ApiGatewayV2::Route' and r['DeletionPolicy']=='Retain'
+               and r['UpdateReplacePolicy']=='Retain' for r in companion['Resources'].values())
+    dev_routes={r['routeKey']:r for r in generator.build()['routes']['dev']}
+    assert dev_routes[expected[0]]['owner']=={'captureStack':'companion--sam-route-ownership',
+        'logicalId':'MigrationManagementGetSourceDeploymentSourcesRoute'}
+    assert len(dev_routes)==len(generator.build()['routes']['dev'])
 
 
 def bindings():
@@ -100,13 +152,16 @@ def test_invalid_runtime_bindings_stop_capture(values):
     with pytest.raises(RuntimeError):capture.parameters({},env)
 
 
-def authored():return {'Resources':{'ExpectedRoute':{'Type':'AWS::ApiGatewayV2::Route','Properties':{'RouteKey':'GET /example'}}}}
+def authored():return [{'module':'MigrationManagement','sourceLogicalId':'ExpectedRoute','routeKey':'GET /example',
+    'owner':{'captureStack':'root--MigrationManagement','logicalId':'ExpectedRoute'}}]
 
 
 def test_route_ownership_differences_are_not_silently_adopted():
-    assert capture.route_gaps(authored(),{'GET /example':['ExpectedRoute']},{'GET /example':{}})==[]
-    assert capture.route_gaps(authored(),{'GET /example':['LegacyRoute']},{'GET /example':{}})[0]['reason']=='LOGICAL_ID_RECONCILIATION_REQUIRED'
-    assert capture.route_gaps(authored(),{}, {'GET /example':{}})[0]['reason']=='LIVE_ROUTE_NOT_OWNED_BY_THIS_STACK'
+    expected={'captureStack':'root--MigrationManagement','logicalId':'ExpectedRoute'}
+    assert capture.route_gaps(authored(),{'GET /example':[expected]},{'GET /example':{}})==[]
+    assert capture.route_gaps(authored(),{'GET /example':[{'captureStack':'root--MigrationManagement','logicalId':'LegacyRoute'}]},
+                              {'GET /example':{}})[0]['reason']=='ROUTE_OWNER_RECONCILIATION_REQUIRED'
+    assert capture.route_gaps(authored(),{}, {'GET /example':{}})[0]['reason']=='LIVE_ROUTE_NOT_OWNED_BY_CLOUDFORMATION'
     assert capture.route_gaps(authored(),{}, {})[0]['reason']=='NOT_LIVE_REQUIRES_REVIEW'
 
 
@@ -136,7 +191,7 @@ def test_capture_collects_ownership_and_filters_runtime_secret_values(tmp_path,m
         response={'Error':{'Code':'ValidationError','Message':'Stack does not exist'}}
     class CFN:
         def describe_stacks(self,StackName):
-            if StackName.endswith('-source-recovery'):raise Missing()
+            if StackName.endswith(('-source-recovery','-sam-route-ownership')):raise Missing()
             outputs=[{'OutputKey':k,'OutputValue':v} for k,v in {
                 'WorkspaceBucketName':'example-bucket','WorkspaceKmsKeyArn':'example-key','WorkspaceBucketOwner':account}.items()]
             return {'Stacks':[{'StackId':f'arn:aws:cloudformation:{region}:{account}:stack/{StackName}/id',
@@ -156,14 +211,14 @@ def test_capture_collects_ownership_and_filters_runtime_secret_values(tmp_path,m
              'lambda':SimpleNamespace(get_function_configuration=lambda **kw:lambda_cfg,
                  get_policy=lambda **kw:{'Policy':json.dumps({'Statement':[]})}),'apigatewayv2':API(),'iam':IAM()}
     session=SimpleNamespace(region_name=region,client=lambda name:clients[name])
-    contract={'requiredParameters':['DatabaseName'],'parameters':['DatabaseName',
+    contract={'requiredParameters':['DatabaseName','DeploymentEnvironment'],'parameters':['DatabaseName','DeploymentEnvironment',
         'MigrationSourceFirstEnabled','MigrationWorkspaceBucketName','MigrationWorkspaceKmsKeyArn','MigrationWorkspaceBucketOwner'],
-        'routes':{module:authored() if module=='MigrationManagement' else {'Resources':{}} for module in capture.MODULES}}
+        'routes':{'dev':authored(),'prod':authored()}}
     monkeypatch.setattr(capture,'contract',lambda:contract)
     summary=capture.capture(session,'dev','example',tmp_path)
     assert summary['errors']==[] and summary['deploymentReady'] is False
     assert summary['workspaceBindingsMatchCompanion'] is True
-    assert summary['routeOwnershipGaps'][0]['reason']=='LOGICAL_ID_RECONCILIATION_REQUIRED'
+    assert summary['routeOwnershipGaps'][0]['reason']=='ROUTE_OWNER_RECONCILIATION_REQUIRED'
     assert 'do-not-report-this-value' not in json.dumps(summary)
     metadata=json.loads(next((tmp_path/'dev/functions').glob('*.json')).read_text())
     assert 'PRIVATE_TOKEN' not in metadata['Environment']['Variables']

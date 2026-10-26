@@ -3,6 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: Navigan assessment-only Migration Management API
 
 Parameters:
+  DeploymentEnvironment: {Type: String, AllowedValues: [dev, prod]}
   MigrationSourceFirstEnabled: {Type: String, Default: 'false', AllowedValues: ['true','false']}
   GitHubAppId: {Type: String, Default: ''}
   GitHubAppPrivateKeySecretArn: {Type: String, Default: ''}
@@ -63,6 +64,7 @@ Globals:
         DB_SECRET_ARN: {Ref: ApiDatabaseSecretArn}
 
 Conditions:
+  IsProd: !Equals [!Ref DeploymentEnvironment, prod]
   MigrationGithubConfigured: !And [!Not [!Equals [!Ref GitHubAppId, '']], !Not [!Equals [!Ref GitHubAppPrivateKeySecretArn, '']]]
   MigrationGithubKeyConfigured: !Not [!Equals [!Ref GitHubAppPrivateKeyKmsKeyArn, '']]
   MigrationDeliveryRoleConfigured: !Not [!Equals [!Ref SourceConnectorDeliveryRoleArn, '']]
@@ -246,8 +248,9 @@ Resources:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-clusters*
 
-  GetSourceDeploymentSourcesRoute:
+  NaviganProdArtifactRoute0:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: SourceClusterInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -257,8 +260,9 @@ Resources:
       RouteKey: GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  SaveSourceDeploymentSourcesRoute:
+  NaviganProdArtifactRoute1:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: SourceClusterInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -268,8 +272,9 @@ Resources:
       RouteKey: PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  GetMigrationDeploymentEvidenceRoute:
+  NaviganProdArtifactRoute2:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -279,8 +284,9 @@ Resources:
       RouteKey: GET /api/v1/migrations/{migrationId}/deployment-evidence
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  AnalyzeMigrationDeploymentEvidenceRoute:
+  NaviganProdArtifactRoute3:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -290,8 +296,9 @@ Resources:
       RouteKey: POST /api/v1/migrations/{migrationId}/deployment-evidence
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  ListArtifactWorkspacesRoute:
+  NaviganProdArtifactRoute4:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -301,8 +308,9 @@ Resources:
       RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  CreateArtifactWorkspaceRoute:
+  NaviganProdArtifactRoute5:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -312,8 +320,9 @@ Resources:
       RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  GetArtifactWorkspaceRoute:
+  NaviganProdArtifactRoute6:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -323,8 +332,9 @@ Resources:
       RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
-  StartWorkspaceCollectionRoute:
+  NaviganProdArtifactRoute7:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -389,8 +399,9 @@ Resources:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-connectors*
 
-  CreateWorkspaceExportRoute:
+  NaviganProdArtifactRoute8:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     Properties:
       ApiId: {Ref: ApiId}
       AuthorizationType: JWT
@@ -607,6 +618,7 @@ Resources:
 
   InstallSourceClusterConnectorRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: SourceClusterInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -644,6 +656,7 @@ Resources:
 
   GetMigrationSourceInventoryRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -692,6 +705,7 @@ Resources:
 
   AssessMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}

@@ -32,6 +32,7 @@ capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 confirm_changeset = true
 no_execute_changeset = true
 fail_on_empty_changeset = false
+parameter_overrides = "DeploymentEnvironment=dev"
 
 [prod.validate.parameters]
 template_file = "infrastructure/template.yaml"
@@ -47,3 +48,4 @@ capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 confirm_changeset = true
 no_execute_changeset = true
 fail_on_empty_changeset = false
+parameter_overrides = "DeploymentEnvironment=prod"

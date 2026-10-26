@@ -1,14 +1,16 @@
 {
-  "version": 1,
+  "version": 2,
   "sources": {
-    "infrastructure/template.yaml": "720a8d806cebe0363c21c026e919a5e7d2ea95b8582bfaa1a7e4c394d1e8eaf9",
-    "infrastructure/modules/customer-management/template.yaml": "b12eaf98cb72a5b038e50f0c57e871a26ed6d1ae0ee8ef8921ecb25c5347c945",
-    "infrastructure/modules/environment-management/template.yaml": "2ecfb56762d3002ec5ee0cfd22d1fb7b8ed3d83ffb8b0aa49f9fb9d0d855e890",
-    "infrastructure/modules/cluster-management/template.yaml": "ad03a2ef995d4ce1086cff1bdd8712c92c63a5516d3ae6f881dc3e18a32335f6",
-    "infrastructure/modules/migration-management/template.yaml": "8b7f2e2c0238e0c1b1f2cc569bc56c9cb4b14613671f4ed02974831bbe0e7283",
-    "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa"
+    "infrastructure/template.yaml": "f00aee22e2b3c8191b1553b68ac589d4dcf28c42bd30317d25f65f281faa8859",
+    "infrastructure/modules/customer-management/template.yaml": "84941ee3fc783f123f2bfabf163802bb7c0129949bd34a1c33bb49aa90c91cd1",
+    "infrastructure/modules/environment-management/template.yaml": "b836162e08d8387d29659f6efaba4eb5087f964771530f00dfd2b65ae9a5517e",
+    "infrastructure/modules/cluster-management/template.yaml": "dafeedc108bb2e45c1c88377a3cdf6553f3eb88814e039d35fac9c411d65d5e0",
+    "infrastructure/modules/migration-management/template.yaml": "cbc5bbab40a4d997c6b7be7830ec0dbfcf2b17161508df9c3c7e9d5742fe23af",
+    "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa",
+    "infrastructure/companion/dev-route-ownership.yaml": "b9a24be23c5c876542e8a8e44ccf0c66f003758bf7fd55450cba861d6f574825"
   },
   "parameters": [
+    "DeploymentEnvironment",
     "JwtIssuer",
     "JwtAudience",
     "IdentityUserPoolId",
@@ -42,6 +44,7 @@
     "PlatformToolsTunnelEnabled"
   ],
   "requiredParameters": [
+    "DeploymentEnvironment",
     "JwtIssuer",
     "JwtAudience",
     "IdentityUserPoolId",
@@ -55,829 +58,2412 @@
     "TerraformRunnerImageUri"
   ],
   "routes": {
-    "CustomerManagement": {
-      "Resources": {
-        "CreateCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers"
-          }
-        },
-        "ListCustomersRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers"
-          }
-        },
-        "CustomerSummaryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers/summary"
-          }
-        },
-        "GetCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers/{customerId}"
-          }
-        },
-        "UpdateCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/customers/{customerId}"
-          }
-        },
-        "GetCustomerProvidersRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers/{customerId}/cloud-providers"
-          }
-        },
-        "ReplaceCustomerProvidersRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/customers/{customerId}/cloud-providers"
-          }
-        },
-        "SubmitCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/submit"
-          }
-        },
-        "ResubmitCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/resubmit"
-          }
-        },
-        "ReviewStartCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/review/start"
-          }
-        },
-        "ApproveCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/approve"
-          }
-        },
-        "RejectCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/reject"
-          }
-        },
-        "ActivateCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/activate"
-          }
-        },
-        "SuspendCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/suspend"
-          }
-        },
-        "ReactivateCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/reactivate"
-          }
-        },
-        "DeactivateCustomerRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/customers/{customerId}/deactivate"
-          }
-        },
-        "GetStatusHistoryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers/{customerId}/status-history"
-          }
-        },
-        "GetAuditLogRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers/{customerId}/audit-log"
-          }
-        },
-        "GetReviewsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/customers/{customerId}/reviews"
-          }
+    "dev": [
+      {
+        "module": "AccessManagement",
+        "sourceLogicalId": "GetCurrentAccessRoute",
+        "routeKey": "GET /api/v1/access/me",
+        "owner": {
+          "captureStack": "root--AccessManagement",
+          "logicalId": "GetCurrentAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ListRoute",
+        "routeKey": "GET /api/v1/clusters",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ListRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "NaviganDevSummaryRoute",
+        "routeKey": "GET /api/v1/clusters/summary",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "NaviganDevSummaryRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "KubernetesAccessRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/access",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "KubernetesAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "KubernetesAccessNamespacesRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/access/namespaces",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "KubernetesAccessNamespacesRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "KubernetesAccessSubjectsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/access/subjects",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "KubernetesAccessSubjectsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ClusterAuditLogRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/audit-log",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ClusterAuditLogRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ExecutionLogsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/execution-logs",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ExecutionLogsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "IdentityRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/identity",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "IdentityRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ListNodeGroupRequestsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/node-groups",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ListNodeGroupRequestsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "NodeGroupExecutionLogsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/node-groups/{requestId}/execution-logs",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "NodeGroupExecutionLogsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterPlatformComponentsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/platform-components",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterPlatformComponentsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterToolsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/tools",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetConnectorDesiredAccessRoute",
+        "routeKey": "GET /api/v1/connectors/{connectorId}/access/desired",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetConnectorDesiredAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetConnectorGitHubCredentialsRoute",
+        "routeKey": "GET /api/v1/connectors/{connectorId}/github/credentials",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetConnectorGitHubCredentialsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "AuthorizeConnectorToolsRoute",
+        "routeKey": "GET /api/v1/connectors/{connectorId}/tools/authorize",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "AuthorizeConnectorToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateRoute",
+        "routeKey": "POST /api/v1/clusters",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateKubernetesAccessRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/access/assignments",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateKubernetesAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "RevokeKubernetesAccessRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/access/assignments/{assignmentId}/revoke",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "RevokeKubernetesAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ApplyRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/apply",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ApplyRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ApproveRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/approve",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ApproveRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "InstallConnectorRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/connector/install",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "InstallConnectorRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "UpgradeConnectorRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/connector/upgrade",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "ClusterManagementUpgradeConnectorRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "DeleteRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/delete",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "DeleteRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "BeginGitHubAuthorizationRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/github/authorize",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "BeginGitHubAuthorizationRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CompleteGitHubAuthorizationRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/github/complete",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CompleteGitHubAuthorizationRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "MigrateSystemNodeGroupRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/migrate-system-node-group",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "MigrateSystemNodeGroupRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateNodeGroupRequestRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/node-groups",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateNodeGroupRequestRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "NodeGroupRequestActionRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/node-groups/{requestId}/{nodeGroupAction}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "NodeGroupRequestActionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "PlanRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/plan",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "PlanRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "RejectRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/reject",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "RejectRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReviewRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/review",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReviewRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "StartRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/start",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "StartRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "StopRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/stop",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "StopRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "SubmitRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/submit",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "SubmitRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateClusterToolSessionRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/tools/{toolCode}/sessions",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateClusterToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorAccessStatusRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/access/status",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorAccessStatusRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorNamespacesRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/inventory/namespaces",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorNamespacesRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorPlatformComponentsRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/inventory/platform-components",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorPlatformComponentsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorToolsStatusRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/tools/status",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorToolsStatusRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ExchangeToolSessionRoute",
+        "routeKey": "POST /api/v1/tool-sessions/{sessionId}/exchange",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ExchangeToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ValidateToolSessionRoute",
+        "routeKey": "POST /api/v1/tool-sessions/{sessionId}/validate",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ValidateToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "UpdateRoute",
+        "routeKey": "PUT /api/v1/clusters/{clusterId}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "UpdateRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ListCustomersRoute",
+        "routeKey": "GET /api/v1/customers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ListCustomersRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "NaviganDevSummaryRoute",
+        "routeKey": "GET /api/v1/customers/summary",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "NaviganDevSummaryRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetCustomerRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetAuditLogRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/audit-log",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetAuditLogRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetCustomerProvidersRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/cloud-providers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetCustomerProvidersRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetReviewsRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/reviews",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetReviewsRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetStatusHistoryRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/status-history",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetStatusHistoryRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "CreateCustomerRoute",
+        "routeKey": "POST /api/v1/customers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "CreateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ActivateCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/activate",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ActivateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ApproveCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/approve",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ApproveCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "DeactivateCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/deactivate",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "DeactivateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ReactivateCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/reactivate",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ReactivateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "RejectCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/reject",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "RejectCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ResubmitCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/resubmit",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ResubmitCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ReviewStartCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/review/start",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ReviewStartCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "SubmitCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/submit",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "SubmitCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "SuspendCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/suspend",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "SuspendCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "UpdateCustomerRoute",
+        "routeKey": "PUT /api/v1/customers/{customerId}",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "UpdateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ReplaceCustomerProvidersRoute",
+        "routeKey": "PUT /api/v1/customers/{customerId}/cloud-providers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ReplaceCustomerProvidersRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ListEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ListEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ListBootstrapRemediationRoute",
+        "routeKey": "GET /api/v1/environments/bootstrap-remediations",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ListBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "GetBootstrapRemediationRoute",
+        "routeKey": "GET /api/v1/environments/bootstrap-remediations/{requestId}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "GetBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "SchemaEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/configuration-schemas/{distribution}/{schemaVersion}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "SchemaEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "MetadataEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/metadata",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "MetadataEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "NaviganDevSummaryRoute",
+        "routeKey": "GET /api/v1/environments/summary",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "NaviganDevSummaryRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "GetEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "GetEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "AuditEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/audit-log",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "AuditEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "GetProvisioningOptionsRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/provisioning-options",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "GetProvisioningOptionsRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReviewsEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/reviews",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReviewsEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "HistoryEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/status-history",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "HistoryEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "VersionsEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/versions",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "VersionsEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "VersionEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/versions/{version}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "VersionEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "StatusEnvironmentRoute",
+        "routeKey": "PATCH /api/v1/environments/{environmentId}/status",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "StatusEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "CreateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "CreateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "BlueprintReadinessRoute",
+        "routeKey": "POST /api/v1/environments/blueprint-readiness",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "BlueprintReadinessRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "CreateBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "CreateBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ApproveBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/approve",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ApproveBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "RejectBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/reject",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "RejectBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "VerifyBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/verify",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "VerifyBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "DiscoverAwsEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/discover/aws",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "DiscoverAwsEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ActivateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/activate",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ActivateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ApproveEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/approve",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ApproveEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "DeactivateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/deactivate",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "DeactivateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReactivateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/reactivate",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReactivateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "RejectEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/reject",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "RejectEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ResubmitEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/resubmit",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ResubmitEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReviewEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/review",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReviewEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReviseEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/revise",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReviseEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "SubmitEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/submit",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "SubmitEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "SuspendEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/suspend",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "SuspendEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "UpdateEnvironmentRoute",
+        "routeKey": "PUT /api/v1/environments/{environmentId}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "UpdateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "MigrationConnectorAssignmentRoute",
+        "routeKey": "GET /api/v1/migration-connectors/{connectorId}/assignment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "MigrationConnectorAssignmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ListMigrationsRoute",
+        "routeKey": "GET /api/v1/migrations",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ListMigrationsRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ListArtifactWorkspacesRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementListArtifactWorkspacesRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetArtifactWorkspaceRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementGetArtifactWorkspaceRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationAssessmentRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/assessment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationAssessmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationDeploymentEvidenceRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/deployment-evidence",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementGetMigrationDeploymentEvidenceRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationSourceCatalogueRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/source-catalogue",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationSourceCatalogueRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationSourceInventoryRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/source-inventory",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementGetMigrationSourceInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationTargetAssessmentRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/target-assessment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationTargetAssessmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationTargetCompatibilityRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/target-compatibility",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationTargetCompatibilityRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ListSourceClustersRoute",
+        "routeKey": "GET /api/v1/source-clusters",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ListSourceClustersRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetSourceClusterRoute",
+        "routeKey": "GET /api/v1/source-clusters/{sourceClusterId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetSourceClusterRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetSourceDeploymentSourcesRoute",
+        "routeKey": "GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementGetSourceDeploymentSourcesRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SourceConnectorAssignmentRoute",
+        "routeKey": "GET /api/v1/source-connectors/{connectorId}/assignment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SourceConnectorAssignmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "MigrationConnectorInventoryRoute",
+        "routeKey": "POST /api/v1/migration-connectors/{connectorId}/inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "MigrationConnectorInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "MigrationConnectorSourceInventoryRoute",
+        "routeKey": "POST /api/v1/migration-connectors/{connectorId}/source-inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "MigrationConnectorSourceInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateMigrationRoute",
+        "routeKey": "POST /api/v1/migrations",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CreateMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ApproveMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/approve",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ApproveMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateArtifactWorkspaceRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementCreateArtifactWorkspaceRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "StartWorkspaceCollectionRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementStartWorkspaceCollectionRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateWorkspaceExportRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementCreateWorkspaceExportRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "AssessMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/assess",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementAssessMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CancelMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/cancel",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CancelMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "AnalyzeMigrationDeploymentEvidenceRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/deployment-evidence",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementAnalyzeMigrationDeploymentEvidenceRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "DiscoverMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/discover",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "DiscoverMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "RejectMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/reject",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "RejectMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ReviewMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/review",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ReviewMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SubmitMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/submit",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SubmitMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "RunMigrationTargetAssessmentRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/target-assessment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "RunMigrationTargetAssessmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateSourceClusterRoute",
+        "routeKey": "POST /api/v1/source-clusters",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CreateSourceClusterRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateSourceClusterEnrollmentRoute",
+        "routeKey": "POST /api/v1/source-clusters/{sourceClusterId}/enrollments",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CreateSourceClusterEnrollmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "InstallSourceClusterConnectorRoute",
+        "routeKey": "POST /api/v1/source-clusters/{sourceClusterId}/install",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementInstallSourceClusterConnectorRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "EnrollSourceConnectorRoute",
+        "routeKey": "POST /api/v1/source-connectors/enroll",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "EnrollSourceConnectorRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SourceConnectorInventoryRoute",
+        "routeKey": "POST /api/v1/source-connectors/{connectorId}/inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SourceConnectorInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SourceConnectorDetailedInventoryRoute",
+        "routeKey": "POST /api/v1/source-connectors/{connectorId}/source-inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SourceConnectorDetailedInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "UpdateMigrationRoute",
+        "routeKey": "PUT /api/v1/migrations/{migrationId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "UpdateMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "UpdateSourceClusterRoute",
+        "routeKey": "PUT /api/v1/source-clusters/{sourceClusterId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "UpdateSourceClusterRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SaveSourceDeploymentSourcesRoute",
+        "routeKey": "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "owner": {
+          "captureStack": "companion--sam-route-ownership",
+          "logicalId": "MigrationManagementSaveSourceDeploymentSourcesRoute"
         }
       }
-    },
-    "EnvironmentManagement": {
-      "Resources": {
-        "BlueprintReadinessRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/blueprint-readiness"
-          }
-        },
-        "GetProvisioningOptionsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}/provisioning-options"
-          }
-        },
-        "CreateBootstrapRemediationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/bootstrap-remediations"
-          }
-        },
-        "ListBootstrapRemediationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/bootstrap-remediations"
-          }
-        },
-        "GetBootstrapRemediationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/bootstrap-remediations/{requestId}"
-          }
-        },
-        "ApproveBootstrapRemediationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/approve"
-          }
-        },
-        "RejectBootstrapRemediationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/reject"
-          }
-        },
-        "VerifyBootstrapRemediationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/verify"
-          }
-        },
-        "CreateEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments"
-          }
-        },
-        "ListEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments"
-          }
-        },
-        "EnvironmentSummaryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/summary"
-          }
-        },
-        "GetEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}"
-          }
-        },
-        "UpdateEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/environments/{environmentId}"
-          }
-        },
-        "MetadataEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/metadata"
-          }
-        },
-        "SchemaEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/configuration-schemas/{distribution}/{schemaVersion}"
-          }
-        },
-        "DiscoverAwsEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/discover/aws"
-          }
-        },
-        "HistoryEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}/status-history"
-          }
-        },
-        "VersionsEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}/versions"
-          }
-        },
-        "VersionEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}/versions/{version}"
-          }
-        },
-        "ReviewsEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}/reviews"
-          }
-        },
-        "AuditEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/environments/{environmentId}/audit-log"
-          }
-        },
-        "StatusEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PATCH /api/v1/environments/{environmentId}/status"
-          }
-        },
-        "SubmitEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/submit"
-          }
-        },
-        "ReviseEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/revise"
-          }
-        },
-        "ResubmitEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/resubmit"
-          }
-        },
-        "ReviewEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/review"
-          }
-        },
-        "ApproveEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/approve"
-          }
-        },
-        "RejectEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/reject"
-          }
-        },
-        "ActivateEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/activate"
-          }
-        },
-        "SuspendEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/suspend"
-          }
-        },
-        "ReactivateEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/reactivate"
-          }
-        },
-        "DeactivateEnvironmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/environments/{environmentId}/deactivate"
-          }
+    ],
+    "prod": [
+      {
+        "module": "AccessManagement",
+        "sourceLogicalId": "GetCurrentAccessRoute",
+        "routeKey": "GET /api/v1/access/me",
+        "owner": {
+          "captureStack": "root--AccessManagement",
+          "logicalId": "GetCurrentAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ListRoute",
+        "routeKey": "GET /api/v1/clusters",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ListRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "NaviganProductionSummaryRoute",
+        "routeKey": "GET /api/v1/clusters/summary",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "NaviganProductionSummaryRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "KubernetesAccessRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/access",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "KubernetesAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "KubernetesAccessNamespacesRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/access/namespaces",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "KubernetesAccessNamespacesRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "KubernetesAccessSubjectsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/access/subjects",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "KubernetesAccessSubjectsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ClusterAuditLogRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/audit-log",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ClusterAuditLogRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ExecutionLogsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/execution-logs",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ExecutionLogsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "IdentityRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/identity",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "IdentityRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ListNodeGroupRequestsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/node-groups",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ListNodeGroupRequestsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "NodeGroupExecutionLogsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/node-groups/{requestId}/execution-logs",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "NodeGroupExecutionLogsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterPlatformComponentsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/platform-components",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterPlatformComponentsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterToolsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/tools",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetConnectorDesiredAccessRoute",
+        "routeKey": "GET /api/v1/connectors/{connectorId}/access/desired",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetConnectorDesiredAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetConnectorGitHubCredentialsRoute",
+        "routeKey": "GET /api/v1/connectors/{connectorId}/github/credentials",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetConnectorGitHubCredentialsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "AuthorizeConnectorToolsRoute",
+        "routeKey": "GET /api/v1/connectors/{connectorId}/tools/authorize",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "AuthorizeConnectorToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateRoute",
+        "routeKey": "POST /api/v1/clusters",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateKubernetesAccessRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/access/assignments",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateKubernetesAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "RevokeKubernetesAccessRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/access/assignments/{assignmentId}/revoke",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "RevokeKubernetesAccessRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ApplyRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/apply",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ApplyRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ApproveRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/approve",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ApproveRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "InstallConnectorRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/connector/install",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "InstallConnectorRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "DeleteRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/delete",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "DeleteRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "BeginGitHubAuthorizationRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/github/authorize",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "BeginGitHubAuthorizationRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CompleteGitHubAuthorizationRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/github/complete",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CompleteGitHubAuthorizationRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "MigrateSystemNodeGroupRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/migrate-system-node-group",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "MigrateSystemNodeGroupRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateNodeGroupRequestRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/node-groups",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateNodeGroupRequestRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "NodeGroupRequestActionRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/node-groups/{requestId}/{nodeGroupAction}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "NodeGroupRequestActionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "PlanRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/plan",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "PlanRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "RejectRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/reject",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "RejectRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReviewRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/review",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReviewRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "StartRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/start",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "StartRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "StopRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/stop",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "StopRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "SubmitRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/submit",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "SubmitRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateClusterToolSessionRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/tools/{toolCode}/sessions",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateClusterToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorAccessStatusRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/access/status",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorAccessStatusRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorNamespacesRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/inventory/namespaces",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorNamespacesRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorPlatformComponentsRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/inventory/platform-components",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorPlatformComponentsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ReportConnectorToolsStatusRoute",
+        "routeKey": "POST /api/v1/connectors/{connectorId}/tools/status",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ReportConnectorToolsStatusRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ExchangeToolSessionRoute",
+        "routeKey": "POST /api/v1/tool-sessions/{sessionId}/exchange",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ExchangeToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ValidateToolSessionRoute",
+        "routeKey": "POST /api/v1/tool-sessions/{sessionId}/validate",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ValidateToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "UpdateRoute",
+        "routeKey": "PUT /api/v1/clusters/{clusterId}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "UpdateRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ListCustomersRoute",
+        "routeKey": "GET /api/v1/customers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ListCustomersRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "NaviganProductionSummaryRoute",
+        "routeKey": "GET /api/v1/customers/summary",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "NaviganProductionSummaryRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetCustomerRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetAuditLogRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/audit-log",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetAuditLogRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetCustomerProvidersRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/cloud-providers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetCustomerProvidersRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetReviewsRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/reviews",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetReviewsRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "GetStatusHistoryRoute",
+        "routeKey": "GET /api/v1/customers/{customerId}/status-history",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "GetStatusHistoryRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "CreateCustomerRoute",
+        "routeKey": "POST /api/v1/customers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "CreateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ActivateCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/activate",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ActivateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ApproveCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/approve",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ApproveCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "DeactivateCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/deactivate",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "DeactivateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ReactivateCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/reactivate",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ReactivateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "RejectCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/reject",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "RejectCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ResubmitCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/resubmit",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ResubmitCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ReviewStartCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/review/start",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ReviewStartCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "SubmitCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/submit",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "SubmitCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "SuspendCustomerRoute",
+        "routeKey": "POST /api/v1/customers/{customerId}/suspend",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "SuspendCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "UpdateCustomerRoute",
+        "routeKey": "PUT /api/v1/customers/{customerId}",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "UpdateCustomerRoute"
+        }
+      },
+      {
+        "module": "CustomerManagement",
+        "sourceLogicalId": "ReplaceCustomerProvidersRoute",
+        "routeKey": "PUT /api/v1/customers/{customerId}/cloud-providers",
+        "owner": {
+          "captureStack": "root--CustomerManagement",
+          "logicalId": "ReplaceCustomerProvidersRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ListEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ListEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ListBootstrapRemediationRoute",
+        "routeKey": "GET /api/v1/environments/bootstrap-remediations",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ListBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "GetBootstrapRemediationRoute",
+        "routeKey": "GET /api/v1/environments/bootstrap-remediations/{requestId}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "GetBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "SchemaEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/configuration-schemas/{distribution}/{schemaVersion}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "SchemaEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "MetadataEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/metadata",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "MetadataEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "NaviganProductionSummaryRoute",
+        "routeKey": "GET /api/v1/environments/summary",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "NaviganProductionSummaryRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "GetEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "GetEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "AuditEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/audit-log",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "AuditEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "GetProvisioningOptionsRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/provisioning-options",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "GetProvisioningOptionsRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReviewsEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/reviews",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReviewsEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "HistoryEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/status-history",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "HistoryEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "VersionsEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/versions",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "VersionsEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "VersionEnvironmentRoute",
+        "routeKey": "GET /api/v1/environments/{environmentId}/versions/{version}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "VersionEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "StatusEnvironmentRoute",
+        "routeKey": "PATCH /api/v1/environments/{environmentId}/status",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "StatusEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "CreateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "CreateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "BlueprintReadinessRoute",
+        "routeKey": "POST /api/v1/environments/blueprint-readiness",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "BlueprintReadinessRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "CreateBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "CreateBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ApproveBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/approve",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ApproveBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "RejectBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/reject",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "RejectBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "VerifyBootstrapRemediationRoute",
+        "routeKey": "POST /api/v1/environments/bootstrap-remediations/{requestId}/verify",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "VerifyBootstrapRemediationRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "DiscoverAwsEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/discover/aws",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "DiscoverAwsEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ActivateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/activate",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ActivateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ApproveEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/approve",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ApproveEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "DeactivateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/deactivate",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "DeactivateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReactivateEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/reactivate",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReactivateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "RejectEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/reject",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "RejectEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ResubmitEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/resubmit",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ResubmitEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReviewEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/review",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReviewEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "ReviseEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/revise",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "ReviseEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "SubmitEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/submit",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "SubmitEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "SuspendEnvironmentRoute",
+        "routeKey": "POST /api/v1/environments/{environmentId}/suspend",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "SuspendEnvironmentRoute"
+        }
+      },
+      {
+        "module": "EnvironmentManagement",
+        "sourceLogicalId": "UpdateEnvironmentRoute",
+        "routeKey": "PUT /api/v1/environments/{environmentId}",
+        "owner": {
+          "captureStack": "root--EnvironmentManagement",
+          "logicalId": "UpdateEnvironmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "MigrationConnectorAssignmentRoute",
+        "routeKey": "GET /api/v1/migration-connectors/{connectorId}/assignment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "MigrationConnectorAssignmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ListMigrationsRoute",
+        "routeKey": "GET /api/v1/migrations",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ListMigrationsRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute4",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute4"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute6",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute6"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationAssessmentRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/assessment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationAssessmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute2",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/deployment-evidence",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute2"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationSourceCatalogueRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/source-catalogue",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationSourceCatalogueRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationSourceInventoryRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/source-inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationSourceInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationTargetAssessmentRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/target-assessment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationTargetAssessmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetMigrationTargetCompatibilityRoute",
+        "routeKey": "GET /api/v1/migrations/{migrationId}/target-compatibility",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetMigrationTargetCompatibilityRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ListSourceClustersRoute",
+        "routeKey": "GET /api/v1/source-clusters",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ListSourceClustersRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "GetSourceClusterRoute",
+        "routeKey": "GET /api/v1/source-clusters/{sourceClusterId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "GetSourceClusterRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute0",
+        "routeKey": "GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute0"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SourceConnectorAssignmentRoute",
+        "routeKey": "GET /api/v1/source-connectors/{connectorId}/assignment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SourceConnectorAssignmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "MigrationConnectorInventoryRoute",
+        "routeKey": "POST /api/v1/migration-connectors/{connectorId}/inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "MigrationConnectorInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "MigrationConnectorSourceInventoryRoute",
+        "routeKey": "POST /api/v1/migration-connectors/{connectorId}/source-inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "MigrationConnectorSourceInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateMigrationRoute",
+        "routeKey": "POST /api/v1/migrations",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CreateMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ApproveMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/approve",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ApproveMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute5",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute5"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute7",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute7"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute8",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute8"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "AssessMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/assess",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "AssessMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CancelMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/cancel",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CancelMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute3",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/deployment-evidence",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute3"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "DiscoverMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/discover",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "DiscoverMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "RejectMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/reject",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "RejectMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "ReviewMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/review",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "ReviewMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SubmitMigrationRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/submit",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SubmitMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "RunMigrationTargetAssessmentRoute",
+        "routeKey": "POST /api/v1/migrations/{migrationId}/target-assessment",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "RunMigrationTargetAssessmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateSourceClusterRoute",
+        "routeKey": "POST /api/v1/source-clusters",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CreateSourceClusterRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "CreateSourceClusterEnrollmentRoute",
+        "routeKey": "POST /api/v1/source-clusters/{sourceClusterId}/enrollments",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "CreateSourceClusterEnrollmentRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "InstallSourceClusterConnectorRoute",
+        "routeKey": "POST /api/v1/source-clusters/{sourceClusterId}/install",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "InstallSourceClusterConnectorRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "EnrollSourceConnectorRoute",
+        "routeKey": "POST /api/v1/source-connectors/enroll",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "EnrollSourceConnectorRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SourceConnectorInventoryRoute",
+        "routeKey": "POST /api/v1/source-connectors/{connectorId}/inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SourceConnectorInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "SourceConnectorDetailedInventoryRoute",
+        "routeKey": "POST /api/v1/source-connectors/{connectorId}/source-inventory",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "SourceConnectorDetailedInventoryRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "UpdateMigrationRoute",
+        "routeKey": "PUT /api/v1/migrations/{migrationId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "UpdateMigrationRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "UpdateSourceClusterRoute",
+        "routeKey": "PUT /api/v1/source-clusters/{sourceClusterId}",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "UpdateSourceClusterRoute"
+        }
+      },
+      {
+        "module": "MigrationManagement",
+        "sourceLogicalId": "NaviganProdArtifactRoute1",
+        "routeKey": "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "owner": {
+          "captureStack": "root--MigrationManagement",
+          "logicalId": "NaviganProdArtifactRoute1"
         }
       }
-    },
-    "ClusterManagement": {
-      "Resources": {
-        "CreateRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters"
-          }
-        },
-        "ListRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters"
-          }
-        },
-        "ClusterSummaryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/summary"
-          }
-        },
-        "GetRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}"
-          }
-        },
-        "ExecutionLogsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/execution-logs"
-          }
-        },
-        "IdentityRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/identity"
-          }
-        },
-        "KubernetesAccessRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/access"
-          }
-        },
-        "KubernetesAccessSubjectsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/access/subjects"
-          }
-        },
-        "KubernetesAccessNamespacesRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/access/namespaces"
-          }
-        },
-        "InstallConnectorRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/connector/install"
-          }
-        },
-        "UpgradeConnectorRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/connector/upgrade"
-          }
-        },
-        "ListNodeGroupRequestsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/node-groups"
-          }
-        },
-        "CreateNodeGroupRequestRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/node-groups"
-          }
-        },
-        "MigrateSystemNodeGroupRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/migrate-system-node-group"
-          }
-        },
-        "NodeGroupRequestActionRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/node-groups/{requestId}/{nodeGroupAction}"
-          }
-        },
-        "NodeGroupExecutionLogsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/node-groups/{requestId}/execution-logs"
-          }
-        },
-        "ClusterAuditLogRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/audit-log"
-          }
-        },
-        "GetClusterPlatformComponentsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/platform-components"
-          }
-        },
-        "GetClusterToolsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/clusters/{clusterId}/tools"
-          }
-        },
-        "CreateClusterToolSessionRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/tools/{toolCode}/sessions"
-          }
-        },
-        "ReportConnectorNamespacesRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/connectors/{connectorId}/inventory/namespaces"
-          }
-        },
-        "ReportConnectorPlatformComponentsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/connectors/{connectorId}/inventory/platform-components"
-          }
-        },
-        "GetConnectorDesiredAccessRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/connectors/{connectorId}/access/desired"
-          }
-        },
-        "ReportConnectorAccessStatusRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/connectors/{connectorId}/access/status"
-          }
-        },
-        "GetConnectorGitHubCredentialsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/connectors/{connectorId}/github/credentials"
-          }
-        },
-        "AuthorizeConnectorToolsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/connectors/{connectorId}/tools/authorize"
-          }
-        },
-        "ReportConnectorToolsStatusRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/connectors/{connectorId}/tools/status"
-          }
-        },
-        "ExchangeToolSessionRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/tool-sessions/{sessionId}/exchange"
-          }
-        },
-        "ValidateToolSessionRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/tool-sessions/{sessionId}/validate"
-          }
-        },
-        "CreateKubernetesAccessRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/access/assignments"
-          }
-        },
-        "RevokeKubernetesAccessRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/access/assignments/{assignmentId}/revoke"
-          }
-        },
-        "UpdateRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/clusters/{clusterId}"
-          }
-        },
-        "SubmitRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/submit"
-          }
-        },
-        "ReviewRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/review"
-          }
-        },
-        "ApproveRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/approve"
-          }
-        },
-        "RejectRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/reject"
-          }
-        },
-        "PlanRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/plan"
-          }
-        },
-        "ApplyRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/apply"
-          }
-        },
-        "BeginGitHubAuthorizationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/github/authorize"
-          }
-        },
-        "CompleteGitHubAuthorizationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/github/complete"
-          }
-        },
-        "StopRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/stop"
-          }
-        },
-        "StartRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/start"
-          }
-        },
-        "DeleteRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/clusters/{clusterId}/delete"
-          }
-        }
-      }
-    },
-    "MigrationManagement": {
-      "Resources": {
-        "GetSourceDeploymentSourcesRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources"
-          }
-        },
-        "SaveSourceDeploymentSourcesRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources"
-          }
-        },
-        "GetMigrationDeploymentEvidenceRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/deployment-evidence"
-          }
-        },
-        "AnalyzeMigrationDeploymentEvidenceRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/deployment-evidence"
-          }
-        },
-        "ListArtifactWorkspacesRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces"
-          }
-        },
-        "CreateArtifactWorkspaceRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces"
-          }
-        },
-        "GetArtifactWorkspaceRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}"
-          }
-        },
-        "StartWorkspaceCollectionRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs"
-          }
-        },
-        "CreateWorkspaceExportRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports"
-          }
-        },
-        "MigrationConnectorAssignmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migration-connectors/{connectorId}/assignment"
-          }
-        },
-        "MigrationConnectorInventoryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migration-connectors/{connectorId}/inventory"
-          }
-        },
-        "MigrationConnectorSourceInventoryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migration-connectors/{connectorId}/source-inventory"
-          }
-        },
-        "EnrollSourceConnectorRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/source-connectors/enroll"
-          }
-        },
-        "SourceConnectorAssignmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/source-connectors/{connectorId}/assignment"
-          }
-        },
-        "SourceConnectorInventoryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/source-connectors/{connectorId}/inventory"
-          }
-        },
-        "SourceConnectorDetailedInventoryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/source-connectors/{connectorId}/source-inventory"
-          }
-        },
-        "GetMigrationTargetAssessmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/target-assessment"
-          }
-        },
-        "RunMigrationTargetAssessmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/target-assessment"
-          }
-        },
-        "GetMigrationTargetCompatibilityRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/target-compatibility"
-          }
-        },
-        "CreateMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations"
-          }
-        },
-        "ListMigrationsRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations"
-          }
-        },
-        "CreateSourceClusterRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/source-clusters"
-          }
-        },
-        "ListSourceClustersRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/source-clusters"
-          }
-        },
-        "GetSourceClusterRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/source-clusters/{sourceClusterId}"
-          }
-        },
-        "UpdateSourceClusterRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/source-clusters/{sourceClusterId}"
-          }
-        },
-        "CreateSourceClusterEnrollmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/source-clusters/{sourceClusterId}/enrollments"
-          }
-        },
-        "InstallSourceClusterConnectorRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/source-clusters/{sourceClusterId}/install"
-          }
-        },
-        "GetMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}"
-          }
-        },
-        "GetMigrationSourceCatalogueRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/source-catalogue"
-          }
-        },
-        "GetMigrationSourceInventoryRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/source-inventory"
-          }
-        },
-        "GetMigrationAssessmentRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/migrations/{migrationId}/assessment"
-          }
-        },
-        "UpdateMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "PUT /api/v1/migrations/{migrationId}"
-          }
-        },
-        "DiscoverMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/discover"
-          }
-        },
-        "AssessMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/assess"
-          }
-        },
-        "SubmitMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/submit"
-          }
-        },
-        "ReviewMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/review"
-          }
-        },
-        "ApproveMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/approve"
-          }
-        },
-        "RejectMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/reject"
-          }
-        },
-        "CancelMigrationRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "POST /api/v1/migrations/{migrationId}/cancel"
-          }
-        }
-      }
-    },
-    "AccessManagement": {
-      "Resources": {
-        "GetCurrentAccessRoute": {
-          "Type": "AWS::ApiGatewayV2::Route",
-          "Properties": {
-            "RouteKey": "GET /api/v1/access/me"
-          }
-        }
-      }
-    }
+    ]
   }
 }

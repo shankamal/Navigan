@@ -121,12 +121,12 @@ def setup_execution(tmp_path, monkeypatch):
 def test_executes_only_saved_plans_and_persists_completion(tmp_path, monkeypatch):
     session, directory, private, calls = setup_execution(tmp_path, monkeypatch)
     monkeypatch.setattr(helper, 'wait_for_update', lambda *a: None)
-    result = helper.execute(session, directory, private, 'example-dev', '000000000001', 'ap-south-1')
+    result = helper.execute(session, directory, private, 'dev', 'example-dev', '000000000001', 'ap-south-1')
     assert result['complete'] and result['postRuntimeVerified']
     assert [c['ChangeSetName'] for c in calls] == ['cs-companion--example', 'cs-root']
     assert all(c['ClientRequestToken'].startswith('navigan-dev-baseline-') for c in calls)
     with pytest.raises(RuntimeError, match='already exists'):
-        helper.execute(session, directory, private, 'example-dev', '000000000001', 'ap-south-1')
+        helper.execute(session, directory, private, 'dev', 'example-dev', '000000000001', 'ap-south-1')
     assert len(calls) == 2
 
 
@@ -135,7 +135,7 @@ def test_first_stage_failure_prevents_root_execution_and_saves_failure(tmp_path,
     def fail(*args): raise RuntimeError('Stack entered rollback')
     monkeypatch.setattr(helper, 'wait_for_update', fail)
     with pytest.raises(RuntimeError, match='rollback'):
-        helper.execute(session, directory, private, 'example-dev', '000000000001', 'ap-south-1')
+        helper.execute(session, directory, private, 'dev', 'example-dev', '000000000001', 'ap-south-1')
     assert len(calls) == 1
     journal = helper.read(directory / 'execution-record.json')
     assert journal['complete'] is False and journal['error']['code'] == 'RuntimeError'
@@ -146,7 +146,7 @@ def test_fresh_preflight_failure_prevents_every_aws_execution(tmp_path, monkeypa
     def fail(*args): raise RuntimeError('Runtime no longer matches')
     monkeypatch.setattr(helper, 'preflight', fail)
     with pytest.raises(RuntimeError, match='no longer matches'):
-        helper.execute(session, directory, private, 'example-dev', '000000000001', 'ap-south-1')
+        helper.execute(session, directory, private, 'dev', 'example-dev', '000000000001', 'ap-south-1')
     assert not calls and not (directory / 'execution-record.json').exists()
 
 
@@ -159,8 +159,14 @@ def test_preflight_requires_complete_stages_and_matching_runtime(tmp_path, monke
     monkeypatch.setattr(actual.release, 'review_existing', lambda *a: review)
     monkeypatch.setattr(actual.runtime, 'verify', lambda *a: {'matchesLive': False, 'errors': []})
     with pytest.raises(RuntimeError, match='runtime verification failed'):
-        actual.preflight(session, directory, private, 'example-dev', '000000000001', 'ap-south-1')
+        actual.preflight(session, directory, private, 'dev', 'example-dev', '000000000001', 'ap-south-1')
     summary = actual.read(directory / 'release-summary.json'); summary['stages'].pop('root')
     actual.write(directory / 'release-summary.json', summary)
     with pytest.raises(RuntimeError, match='missing or unexpected'):
-        actual.preflight(session, directory, private, 'example-dev', '000000000001', 'ap-south-1')
+        actual.preflight(session, directory, private, 'dev', 'example-dev', '000000000001', 'ap-south-1')
+
+
+def test_prod_stage_inventory_includes_hosted_frontend_and_companions(tmp_path):
+    for name in ('root','frontend','companion--workspace-images','root--MigrationManagement'):
+        helper.write(tmp_path / 'stacks' / (name + '.json'), {})
+    assert helper.expected_stages(tmp_path) == {'root','frontend','companion--workspace-images'}

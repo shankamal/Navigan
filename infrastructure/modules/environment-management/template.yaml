@@ -24,6 +24,9 @@ Globals:
         DB_CA_BUNDLE: /opt/certs/global-bundle.pem
 Description: 'Navigan Environment Management: provider-aware API, JWT routes and diagnostics'
 Parameters:
+  DeploymentEnvironment:
+    Type: String
+    AllowedValues: [dev, prod]
   JwtScope:
     Type: String
     Default: navigan/api
@@ -51,6 +54,9 @@ Parameters:
   BlueprintAdvisorModelId:
     Type: String
     Default: ''
+Conditions:
+  IsDev: !Equals [!Ref DeploymentEnvironment, dev]
+  IsProd: !Equals [!Ref DeploymentEnvironment, prod]
 Resources:
   EnvironmentFunction:
     Properties:
@@ -304,10 +310,20 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
-  EnvironmentSummaryRoute:
+  NaviganDevSummaryInvoke:
+    Type: AWS::Lambda::Permission
+    Condition: IsDev
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EnvironmentFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/environments/summary
+  NaviganDevSummaryRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsDev
     DependsOn:
-    - EnvironmentInvokePermission
+    - NaviganDevSummaryInvoke
     Properties:
       ApiId:
         Ref: ApiId
@@ -322,6 +338,27 @@ Resources:
         Ref: AuthorizerId
       AuthorizationScopes:
       - Ref: JwtScope
+  NaviganProductionSummaryInvoke:
+    Type: AWS::Lambda::Permission
+    Condition: IsProd
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EnvironmentFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/GET/api/v1/environments/summary
+  NaviganProductionSummaryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn:
+    - NaviganProductionSummaryInvoke
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/environments/summary
+      Target: !Join ['/', [integrations, !Ref EnvironmentIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
   GetEnvironmentRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn:
