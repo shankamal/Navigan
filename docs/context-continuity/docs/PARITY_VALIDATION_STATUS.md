@@ -13,3 +13,9 @@ environment-specific route absence are retained. Preparation checks all captured
 owners and rechecks live ownership/settings before creating a change set. The new
 stage has local regression coverage; live import preparation/execution, application
 template overlays, permission ownership and baseline wiring remain pending.
+
+The first live route preparation stopped before change-set creation because of
+a fixed import-identifier assumption. Preparation now uses CloudFormation's
+returned identifier names with route-specific validation and saves its private
+template summary. Retry preparation using the existing capture; no import or
+application deployment has been executed.

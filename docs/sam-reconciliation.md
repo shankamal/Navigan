@@ -63,6 +63,11 @@ and aborts on conflicting ownership or unexpected operations. Routes are adopted
 into a separate companion stack to preserve their physical IDs without changing
 existing nested application stacks. Every route has retain policies.
 
+Import preparation uses the identifier names returned by CloudFormation instead
+of requiring a fixed pair. Values come from the revalidated API route. Unknown
+or incomplete identifier sets still stop preparation; the private template
+summary is saved for diagnosis.
+
 Only `route-ownership-summary.json` is shareable. The private `import-plan.json`,
 route templates and identity maps retain live identifiers. A failed or timed-out
 preparation may leave an unexecuted change set or review stack: inspect the saved

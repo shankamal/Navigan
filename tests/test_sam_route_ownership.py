@@ -143,3 +143,27 @@ def test_other_stack_owner_stops_before_change_set(tmp_path):
 def test_access_denied_is_not_treated_as_unowned():
     error = NotFound(); error.response = {'Error': {'Code': 'AccessDenied', 'Message': 'not found'}}
     assert not helper.missing(error)
+
+
+@pytest.mark.parametrize('names', [['ApiId', 'RouteId'], ['ApiId', 'Id'], ['RouteId'], ['ApiId', 'RouteKey']])
+def test_import_uses_exact_identifier_names_returned_by_cloudformation(names):
+    info = {'ResourceIdentifierSummaries': [{'ResourceType': helper.ROUTE, 'ResourceIdentifiers': names}]}
+    values = helper.import_identifiers(info, {'apiId': 'api', 'routeId': 'route', 'routeKey': 'GET /example'})
+    assert list(values) == names
+    assert values == {name: {'ApiId': 'api', 'RouteId': 'route', 'Id': 'route', 'RouteKey': 'GET /example'}[name] for name in names}
+
+
+@pytest.mark.parametrize('names', [[], ['ApiId'], ['UnknownIdentifier']])
+def test_incomplete_or_unknown_identifier_sets_stop_before_import(names):
+    with pytest.raises(RuntimeError):
+        helper.import_identifiers({'ResourceIdentifierSummaries': [{'ResourceType': helper.ROUTE, 'ResourceIdentifiers': names}]},
+            {'apiId': 'api', 'routeId': 'route', 'routeKey': 'GET /example'})
+
+
+@pytest.mark.parametrize('names', [['ApiId', 'Id'], ['RouteId'], ['ApiId', 'RouteKey']])
+def test_prepare_passes_discovered_names_to_import_request(tmp_path, names):
+    data = captured(tmp_path); cfn = CFN(data['template']['Resources'])
+    cfn.get_template_summary = lambda **kw: {'ResourceIdentifierSummaries': [
+        {'ResourceType': helper.ROUTE, 'ResourceIdentifiers': names}]}
+    helper.prepare(session(cfn, live_route(data)), data, tmp_path / 'output')
+    assert set(cfn.created[0]['ResourcesToImport'][0]['ResourceIdentifier']) == set(names)

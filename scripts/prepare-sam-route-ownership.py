@@ -127,6 +127,25 @@ def validate_changes(response, expected):
             'Change set contains an operation other than route import')
 
 
+def import_identifiers(info, route):
+    """Use CloudFormation's identifier names rather than a fixed pair.
+
+    Legacy and registry-backed types can expose different identifier names.
+    Values always come from the captured route revalidated through GetRoute.
+    """
+    entries = [r.get('ResourceIdentifiers', [])
+               for r in info.get('ResourceIdentifierSummaries', [])
+               if r.get('ResourceType') == ROUTE]
+    require(len(entries) == 1 and entries[0], 'CloudFormation returned no unique route import identifier set')
+    names = entries[0]
+    values = {'ApiId': route['apiId'], 'RouteId': route['routeId'],
+              'Id': route['routeId'], 'RouteKey': route['routeKey']}
+    require(all(name in values for name in names),
+            'Unsupported CloudFormation route import identifier names: ' + json.dumps(names))
+    require(set(names) & {'RouteId', 'Id', 'RouteKey'}, 'Import identifiers do not identify an individual route')
+    return {name: values[name] for name in names}
+
+
 def prepare(session, data, directory):
     cfn = session.client('cloudformation'); api = session.client('apigatewayv2')
     if not data['candidates']:
@@ -150,10 +169,10 @@ def prepare(session, data, directory):
     body = json.dumps(data['template'])
     require(len(body.encode()) <= 51200, 'Import template exceeds inline limit')
     info = cfn.get_template_summary(TemplateBody=body)
-    identifiers = [r['ResourceIdentifiers'] for r in info.get('ResourceIdentifierSummaries', [])
-                   if r['ResourceType'] == ROUTE]
-    require(len(identifiers) == 1 and set(identifiers[0]) == {'ApiId', 'RouteId'},
-            'Unexpected CloudFormation route import identifiers; inspect before import')
+    write(directory / 'import-template-summary.json', info)
+    resources = [{'ResourceType': ROUTE, 'LogicalResourceId': r['importLogicalId'],
+                  'ResourceIdentifier': import_identifiers(info, r)}
+                 for r in data['candidates']]
     stack_name = data['rootStack'].split(':stack/', 1)[1].split('/')[0] + '-sam-route-ownership'
     require(len(stack_name) <= 128, 'Route ownership stack name is too long')
     try:
@@ -163,9 +182,6 @@ def prepare(session, data, directory):
             raise
     else:
         raise RuntimeError('Route ownership stack already exists; inspect its state before continuing')
-    resources = [{'ResourceType': ROUTE, 'LogicalResourceId': r['importLogicalId'],
-                  'ResourceIdentifier': {'ApiId': r['apiId'], 'RouteId': r['routeId']}}
-                 for r in data['candidates']]
     write(directory / 'resources-to-import.json', resources)
     response = cfn.create_change_set(StackName=stack_name, ChangeSetName='route-import-' + uuid.uuid4().hex[:12],
         ChangeSetType='IMPORT', TemplateBody=body, ResourcesToImport=resources,
