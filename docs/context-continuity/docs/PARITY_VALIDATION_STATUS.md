@@ -19,3 +19,11 @@ a fixed import-identifier assumption. Preparation now uses CloudFormation's
 returned identifier names with route-specific validation and saves its private
 template summary. Retry preparation using the existing capture; no import or
 application deployment has been executed.
+
+Saved DEV route plans can now be explicitly executed with target/account checks,
+import-only validation and post-import route-identity/settings verification. A
+private baseline materializer preserves processed resource IDs, deployed ZIPs,
+fresh Lambda configuration, IAM role policies and ECS service task revisions.
+Both paths have local regression coverage. The user has not yet supplied a
+successful import execution or reviewed packaged application change set; full
+SAM restoration and authenticated workflow acceptance remain incomplete.

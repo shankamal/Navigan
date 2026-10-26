@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Preserve deployed route IDs and optionally prepare unexecuted route imports.
 
-Uses a private reconcile-sam capture. Never executes a change set, updates a
-route, builds code, changes IAM, or deploys an application stack.
+Uses a private reconcile-sam capture. Execution requires an explicit DEV-only
+flag and verifies an import-only plan. Never updates routes, builds code,
+changes IAM, or deploys an application stack.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -201,12 +203,66 @@ def prepare(session, data, directory):
     return plan
 
 
+def execute_import(session, data, directory, plan):
+    """Execute only the just-prepared, revalidated, route-only import."""
+    cfn = session.client('cloudformation'); api = session.client('apigatewayv2')
+    changes = capture.items(cfn, 'describe_change_set', 'Changes', ChangeSetName=plan['changeSetId'])
+    details = cfn.describe_change_set(ChangeSetName=plan['changeSetId'])
+    details['Changes'] = changes
+    validate_changes(details, data['template']['Resources'])
+    live_template = cfn.get_template(ChangeSetName=plan['changeSetId'], TemplateStage='Original')['TemplateBody']
+    if isinstance(live_template, str):
+        live_template = json.loads(live_template)
+    require(live_template == data['template'], 'Import template changed after preparation')
+    for route in data['candidates']:
+        require(route_properties(route['apiId'], api.get_route(ApiId=route['apiId'], RouteId=route['routeId'])) ==
+                data['template']['Resources'][route['importLogicalId']]['Properties'],
+                'Route changed after preparation')
+    plan['executionRequested'] = True
+    write(directory / 'import-plan.json', plan)
+    cfn.execute_change_set(ChangeSetName=plan['changeSetId'])
+    plan['executed'] = True
+    write(directory / 'import-plan.json', plan)
+    for _ in range(120):
+        state = cfn.describe_stacks(StackName=plan['stackId'])['Stacks'][0]['StackStatus']
+        print('Route ownership import: ' + state, flush=True)
+        if state == 'IMPORT_COMPLETE':
+            break
+        require(state in ('REVIEW_IN_PROGRESS', 'IMPORT_IN_PROGRESS'), 'Import did not complete successfully; inspect private plan')
+        time.sleep(5)
+    else:
+        raise RuntimeError('Import still running; inspect the saved stack ID before retrying')
+    actual = capture.items(cfn, 'list_stack_resources', 'StackResourceSummaries', StackName=plan['stackId'])
+    require({r['LogicalResourceId'] for r in actual} == set(data['template']['Resources']), 'Imported resource set differs')
+    by_id = {r['LogicalResourceId']: r for r in actual}
+    for route in data['candidates']:
+        resource = by_id[route['importLogicalId']]
+        require(resource['ResourceType'] == ROUTE and resource['PhysicalResourceId'].rsplit('|', 1)[-1] == route['routeId'],
+                'Imported route physical ID differs')
+        require(route_properties(route['apiId'], api.get_route(ApiId=route['apiId'], RouteId=route['routeId'])) ==
+                data['template']['Resources'][route['importLogicalId']]['Properties'], 'Route settings differ after import')
+    plan['verifiedComplete'] = True
+    write(directory / 'import-plan.json', plan)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--capture-directory', type=Path, required=True)
+    parser.add_argument('--capture-directory', type=Path)
     parser.add_argument('--prepare-import', action='store_true')
+    parser.add_argument('--execute-dev-import', type=Path, help='Execute an existing DEV import-plan.json after revalidation')
+    parser.add_argument('--expected-dev-stack', help='Explicit DEV root stack name for saved-plan execution')
     parser.add_argument('--profile'); parser.add_argument('--region'); parser.add_argument('--expected-account')
     args = parser.parse_args()
+    if args.execute_dev_import:
+        require(not (args.prepare_import or args.capture_directory), 'Use the saved execution plan separately from preparation')
+        require(args.region and args.expected_account and args.expected_dev_stack, 'Execution requires explicit region, account and DEV stack')
+        import boto3
+        session = boto3.Session(profile_name=args.profile, region_name=args.region)
+        require(session.client('sts').get_caller_identity()['Account'] == args.expected_account, 'Unexpected AWS account')
+        execute_saved_import(session, args.execute_dev_import, args.expected_account, args.region, args.expected_dev_stack)
+        print('DEV route import completed and verified. Existing route IDs and settings retained. PROD unchanged.')
+        return 0
+    require(args.capture_directory, 'Provide --capture-directory for preparation')
     definitions = capture.contract()
     source = args.capture_directory.resolve(); summary = read(source / 'reconciliation-summary.json')
     require(summary.get('format') == 1, 'Unknown capture format')
@@ -242,8 +298,31 @@ def main():
         write(output / 'route-ownership-summary.json', result)
     print('Route identity maps and deployed ZIP locks written: ' + str(output))
     print('Share: ' + str(output / 'route-ownership-summary.json'))
-    print('No change set executed. Application stacks, code, IAM and database unchanged.')
+    print('Application stacks, code, IAM and database unchanged. Route import executed: ' + str(result['executed']))
     return 2 if any(e['errors'] for e in result['environments'].values()) else 0
+
+
+def execute_saved_import(session, path, account, region, expected_dev_stack):
+    path = path.resolve(); directory = path.parent
+    require(path.name == 'import-plan.json' and directory.name == 'dev', 'Only a saved DEV import plan can execute')
+    require(path.is_file(), 'No prepared import plan exists; inspect route-ownership-summary.json first')
+    plan = read(path); data = read(directory / 'ownership-map.json')
+    data['template'] = read(directory / 'route-import-template.json')
+    data['candidates'] = [r for r in data['routes'] if r['action'] == 'import-candidate']
+    prefix = 'arn:aws:cloudformation:' + region + ':' + account + ':'
+    require(data['rootStack'].startswith(prefix + 'stack/'), 'DEV capture account or region differs')
+    require(data['rootStack'].split(':stack/', 1)[1].split('/')[0] == expected_dev_stack, 'Saved plan is not for the explicitly requested DEV stack')
+    require(plan['changeSetId'].startswith(prefix + 'changeSet/') and plan['stackId'].startswith(prefix + 'stack/'),
+            'Import plan account or region differs')
+    expected_name = data['rootStack'].split(':stack/', 1)[1].split('/')[0] + '-sam-route-ownership'
+    require(plan['stackId'].split(':stack/', 1)[1].split('/')[0] == expected_name, 'Import stack differs from DEV plan')
+    require(plan.get('verifiedImportOnly') and not plan.get('executionRequested') and not plan.get('executed'),
+            'Plan is unverified or execution was already requested; inspect stack status before retrying')
+    require({r['importLogicalId'] for r in data['candidates']} == set(data['template']['Resources']), 'Candidate resource set differs')
+    require(set(data['template']) <= {'AWSTemplateFormatVersion', 'Resources'}, 'Import template contains unexpected top-level sections')
+    require(all(r['Type'] == ROUTE and r.get('DeletionPolicy') == 'Retain' and r.get('UpdateReplacePolicy') == 'Retain'
+                for r in data['template']['Resources'].values()), 'Import template must contain retained routes only')
+    execute_import(session, data, directory, plan)
 
 
 if __name__ == '__main__':

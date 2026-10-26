@@ -71,9 +71,33 @@ summary is saved for diagnosis.
 Only `route-ownership-summary.json` is shareable. The private `import-plan.json`,
 route templates and identity maps retain live identifiers. A failed or timed-out
 preparation may leave an unexecuted change set or review stack: inspect the saved
-plan before retrying. This command never executes, deletes or updates resources.
-Import execution and application-template/IAM reconciliation remain separate
-steps; ordinary SAM deployment is still blocked.
+plan before retrying. Preparation never executes, deletes or updates resources.
+
+Use `--execute-dev-import <private-dev-import-plan.json>` with an explicit
+`--expected-dev-stack`, profile, region and account to execute an already verified
+development plan. The executor rechecks the exact change-set template, route
+settings, import-only actions, retain policies and target stack; then verifies
+completion and unchanged route identities/settings. It refuses production paths,
+unverified plans and repeated execution requests. A failed or interrupted request
+must be inspected in AWS using its saved plan before retrying.
+
+### Private deployment baseline
+
+`scripts/materialize-sam-baseline.py` uses the existing capture plus fresh read-only
+checks to write packageable native CloudFormation templates for each environment.
+The templates preserve deployed logical IDs, checksum-verified Lambda ZIPs, full
+live Lambda environment/configuration and current role policies. Nested templates
+use local paths for subsequent packaging. ECS services retain their current task
+revision and desired count. Secret input parameters use `UsePreviousValue`.
+
+This is a private reconciliation bridge for reviewing `sam package`/CloudFormation
+change sets; it does not make the public authored templates the final source of
+truth. It pins current ECS task revisions rather than promoting new images. It
+does not adopt unmanaged Lambda permission statements. Unverified roles, route
+ownership, other resource drift, packaged nested changes, and authenticated
+behavior still require review. No packaging, uploads or deployment are performed.
+Full runtime settings may contain sensitive values: share only the printed compact
+summary, never the generated templates or locks. `deploymentReady` stays false.
 
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never

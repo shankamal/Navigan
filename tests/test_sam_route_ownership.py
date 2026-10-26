@@ -167,3 +167,45 @@ def test_prepare_passes_discovered_names_to_import_request(tmp_path, names):
         {'ResourceType': helper.ROUTE, 'ResourceIdentifiers': names}]}
     helper.prepare(session(cfn, live_route(data)), data, tmp_path / 'output')
     assert set(cfn.created[0]['ResourcesToImport'][0]['ResourceIdentifier']) == set(names)
+
+
+def execution_fixture(tmp_path):
+    data = captured(tmp_path); directory = tmp_path / 'dev'
+    prefix = 'arn:aws:cloudformation:us-east-1:000000000001:'
+    plan = {'stackId': prefix + 'stack/example-sam-route-ownership/id',
+        'changeSetId': prefix + 'changeSet/example/id', 'verifiedImportOnly': True, 'executed': False}
+    helper.write(directory / 'ownership-map.json', {k: v for k, v in data.items() if k not in ('template', 'candidates')})
+    helper.write(directory / 'route-import-template.json', data['template'])
+    helper.write(directory / 'import-plan.json', plan)
+    cfn = CFN(data['template']['Resources']); cfn.executions = []
+    cfn.get_template = lambda **kw: {'TemplateBody': data['template']}
+    cfn.execute_change_set = lambda **kw: cfn.executions.append(kw)
+    cfn.describe_stacks = lambda **kw: {'Stacks': [{'StackStatus': 'IMPORT_COMPLETE'}]}
+    cfn.get_paginator = lambda name: SimpleNamespace(paginate=lambda **kw: [
+        {'StackResourceSummaries': [{'LogicalResourceId': data['candidates'][0]['importLogicalId'],
+            'ResourceType': helper.ROUTE, 'PhysicalResourceId': 'unmanaged'}]}
+        if name == 'list_stack_resources' else cfn.describe_change_set(**kw)])
+    return data, directory / 'import-plan.json', cfn
+
+
+def test_saved_dev_import_executes_and_verifies_unchanged_route(tmp_path):
+    data, path, cfn = execution_fixture(tmp_path)
+    helper.execute_saved_import(session(cfn, live_route(data)), path, '000000000001', 'us-east-1', 'example')
+    assert len(cfn.executions) == 1
+    assert helper.read(path)['verifiedComplete'] is True
+
+
+@pytest.mark.parametrize('failure', ['wrong-stack', 'wrong-account', 'template-drift', 'route-drift', 'already-requested', 'modify'])
+def test_saved_execution_rejects_unsafe_or_stale_plans(tmp_path, failure):
+    data, path, cfn = execution_fixture(tmp_path); expected = 'example'; account = '000000000001'; live = live_route(data)
+    if failure == 'wrong-stack': expected = 'another-stack'
+    if failure == 'wrong-account': account = '000000000002'
+    if failure == 'template-drift': cfn.get_template = lambda **kw: {'TemplateBody': {'Resources': {}}}
+    if failure == 'route-drift': live['AuthorizationType'] = 'NONE'
+    if failure == 'already-requested': helper.write(path, {**helper.read(path), 'executionRequested': True})
+    if failure == 'modify': cfn.describe_change_set = lambda **kw: {'Status': 'CREATE_COMPLETE', 'ExecutionStatus': 'AVAILABLE',
+        'Changes': [{'ResourceChange': {'Action': 'Modify', 'ResourceType': helper.ROUTE,
+            'LogicalResourceId': data['candidates'][0]['importLogicalId']}}]}
+    with pytest.raises(RuntimeError):
+        helper.execute_saved_import(session(cfn, live), path, account, 'us-east-1', expected)
+    assert cfn.executions == []
