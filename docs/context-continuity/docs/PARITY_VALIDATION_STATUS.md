@@ -27,3 +27,10 @@ fresh Lambda configuration, IAM role policies and ECS service task revisions.
 Both paths have local regression coverage. The user has not yet supplied a
 successful import execution or reviewed packaged application change set; full
 SAM restoration and authenticated workflow acceptance remain incomplete.
+
+The next preparation output identified CloudFormation's composite identifier
+encoding: one comma-separated entry containing both route identifier properties.
+The parser now splits that entry before constructing the import request, matching
+AWS CDK's importer behavior. Regression coverage includes the exact live response.
+Earlier attempts created no import plan and executed no imports. Reprepare before
+attempting saved-plan execution; do not reuse the earlier missing-plan path.

@@ -209,3 +209,26 @@ def test_saved_execution_rejects_unsafe_or_stale_plans(tmp_path, failure):
     with pytest.raises(RuntimeError):
         helper.execute_saved_import(session(cfn, live), path, account, 'us-east-1', expected)
     assert cfn.executions == []
+
+
+def test_exact_live_composite_identifier_response():
+    info = {'ResourceIdentifierSummaries': [{'ResourceType': helper.ROUTE,
+        'ResourceIdentifiers': ['ApiId,RouteId']}]}
+    assert helper.import_identifiers(info, {'apiId': 'api', 'routeId': 'route', 'routeKey': 'GET /example'}) == {
+        'ApiId': 'api', 'RouteId': 'route'}
+
+
+def test_prepare_with_exact_live_composite_identifiers(tmp_path):
+    data = captured(tmp_path); cfn = CFN(data['template']['Resources'])
+    cfn.get_template_summary = lambda **kw: {'ResourceIdentifierSummaries': [
+        {'ResourceType': helper.ROUTE, 'ResourceIdentifiers': ['ApiId,RouteId']}]}
+    plan = helper.prepare(session(cfn, live_route(data)), data, tmp_path / 'output')
+    assert plan['verifiedImportOnly'] is True and plan['executed'] is False
+    assert cfn.created[0]['ResourcesToImport'][0]['ResourceIdentifier'] == {'ApiId': 'api', 'RouteId': 'unmanaged'}
+
+
+@pytest.mark.parametrize('names', [['ApiId,'], ['ApiId,Unknown'], ['ApiId,RouteId', 'RouteId'], [None]])
+def test_malformed_composite_identifiers_stop(names):
+    with pytest.raises(RuntimeError):
+        helper.import_identifiers({'ResourceIdentifierSummaries': [{'ResourceType': helper.ROUTE, 'ResourceIdentifiers': names}]},
+            {'apiId': 'api', 'routeId': 'route', 'routeKey': 'GET /example'})

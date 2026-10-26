@@ -139,7 +139,12 @@ def import_identifiers(info, route):
                for r in info.get('ResourceIdentifierSummaries', [])
                if r.get('ResourceType') == ROUTE]
     require(len(entries) == 1 and entries[0], 'CloudFormation returned no unique route import identifier set')
-    names = entries[0]
+    # CloudFormation encodes a composite identifier as one comma-separated
+    # entry (for example ["ApiId,RouteId"]). AWS CDK's resource importer also
+    # splits these entries before constructing ResourceIdentifier properties.
+    require(all(isinstance(name, str) for name in entries[0]), 'Malformed route import identifier names')
+    names = [part.strip() for entry in entries[0] for part in entry.split(',')]
+    require(all(names) and len(names) == len(set(names)), 'Empty or duplicate route import identifier names')
     values = {'ApiId': route['apiId'], 'RouteId': route['routeId'],
               'Id': route['routeId'], 'RouteKey': route['routeKey']}
     require(all(name in values for name in names),
@@ -298,6 +303,11 @@ def main():
         write(output / 'route-ownership-summary.json', result)
     print('Route identity maps and deployed ZIP locks written: ' + str(output))
     print('Share: ' + str(output / 'route-ownership-summary.json'))
+    print(json.dumps(result, indent=2))
+    if result['environments'].get('dev', {}).get('importPrepared'):
+        print('Verified DEV import plan: ' + str(output / 'dev/import-plan.json'))
+    if any(e['errors'] for e in result['environments'].values()):
+        print('PREPARATION FAILED: do not run import execution from this output directory.')
     print('Application stacks, code, IAM and database unchanged. Route import executed: ' + str(result['executed']))
     return 2 if any(e['errors'] for e in result['environments'].values()) else 0
 

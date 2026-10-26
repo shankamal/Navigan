@@ -66,7 +66,10 @@ existing nested application stacks. Every route has retain policies.
 Import preparation uses the identifier names returned by CloudFormation instead
 of requiring a fixed pair. Values come from the revalidated API route. Unknown
 or incomplete identifier sets still stop preparation; the private template
-summary is saved for diagnosis.
+summary is saved for diagnosis. Composite entries such as `ApiId,RouteId` are
+split into their individual request properties. Preparation prints its compact
+summary directly, and prints an execution-plan path only after successful
+import-only verification. Failed preparation must not be followed by execution.
 
 Only `route-ownership-summary.json` is shareable. The private `import-plan.json`,
 route templates and identity maps retain live identifiers. A failed or timed-out
