@@ -65,3 +65,18 @@ referenced multiple deployment buckets. Discovery now accepts multiple candidate
 prefers the SAM managed bucket deterministically, and verifies account/region
 before selecting a usable candidate. An explicit captured-bucket override is also
 available. This changes discovery only; no application deployment has executed.
+
+The user supplied successful preparation output for five development stages. All
+were blocked by scope review, including four conditional replacements. No change
+set executed. Subsequent property-level evidence showed route changes were
+metadata-only, three conditional Lambda permissions depended on event-rule source
+ARNs, and a worker task depended on its role ARN. Direct Lambda/IAM rewrites also
+require review. AWS SAM CLI source confirms packaging adds resource metadata.
+
+The preparation path now restores original metadata before uploading each nested
+template, preserves verified local Lambda role references, avoids introducing
+implicit Lambda defaults, and omits newly added empty IAM policy arrays. Regression
+tests cover child metadata cleanup, unrelated-property rejection, reference
+identity checks and default/nondefault configuration. Earlier plans remain blocked
+and must not execute. Corrected live preparation and public authored-template
+reconciliation remain pending; this is not a completed SAM restoration.

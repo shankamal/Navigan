@@ -1,4 +1,5 @@
 import ast
+import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -177,3 +178,55 @@ def test_all_wrong_region_buckets_stop_before_upload():
     s3 = SimpleNamespace(get_bucket_location=lambda **kw: {'LocationConstraint': 'us-east-1'})
     with pytest.raises(RuntimeError, match='owner/region'):
         helper.select_artifact_bucket(s3, multiple_bucket_record(), '000000000001', 'ap-south-1')
+
+
+def test_restores_existing_metadata_and_removes_only_packaging_added_metadata():
+    before = {'Resources': {'Route': {'Type': 'AWS::ApiGatewayV2::Route', 'Properties': {'RouteKey': 'GET /example'}},
+        'Function': {'Type': 'AWS::Lambda::Function', 'Metadata': {'Owner': 'keep'}, 'Properties': {'Code': '/private/code.zip'}}}}
+    after = copy.deepcopy(before)
+    after['Resources']['Route']['Metadata'] = {'SamResourceId': 'Route'}
+    after['Resources']['Function']['Metadata']['SamResourceId'] = 'Function'
+    after['Resources']['Function']['Properties']['Code'] = {'S3Bucket': 'bucket', 'S3Key': 'zip'}
+    cleaned = helper.restore_package_metadata(before, after)
+    assert 'Metadata' not in cleaned['Resources']['Route']
+    assert cleaned['Resources']['Function']['Metadata'] == {'Owner': 'keep'}
+    assert cleaned['Resources']['Function']['Properties']['Code'] == {'S3Bucket': 'bucket', 'S3Key': 'zip'}
+
+
+def test_metadata_cleanup_does_not_hide_packaging_property_changes():
+    before = {'Resources': {'Route': {'Type': 'AWS::ApiGatewayV2::Route', 'Properties': {'AuthorizationType': 'JWT'}}}}
+    after = copy.deepcopy(before); after['Resources']['Route']['Properties']['AuthorizationType'] = 'NONE'
+    with pytest.raises(RuntimeError, match='fields beyond'):
+        helper.restore_package_metadata(before, after)
+
+
+def test_nested_templates_are_cleaned_before_upload_not_only_the_root(tmp_path, monkeypatch):
+    templates = tmp_path / 'templates'; templates.mkdir(); output = tmp_path / 'output'; output.mkdir()
+    child = templates / 'child.json'; root = templates / 'root.json'
+    helper.write(child, {'Resources': {'Route': {'Type': 'AWS::ApiGatewayV2::Route', 'Properties': {'RouteKey': 'GET /example'}}}})
+    helper.write(root, {'Resources': {'Child': {'Type': 'AWS::CloudFormation::Stack', 'Properties': {'TemplateURL': str(child)}}}})
+    inputs = []
+    def fake_sam(source, destination, *args):
+        data = helper.read(source); inputs.append(copy.deepcopy(data))
+        for logical, resource in data['Resources'].items():
+            resource.setdefault('Metadata', {})['SamResourceId'] = logical
+        helper.write(destination, data)
+    monkeypatch.setattr(helper, 'sam_package', fake_sam)
+    uploads = []
+    s3 = SimpleNamespace(put_object=lambda **kw: uploads.append(kw))
+    helper.package(root, output / 'packaged.json', 'existing-bucket', 'prefix', None, 'ap-south-1',
+        output / 'package.log', s3, '000000000001')
+    assert len(uploads) == 1 and uploads[0]['ExpectedBucketOwner'] == '000000000001'
+    assert 'Metadata' not in json.loads(uploads[0]['Body'])['Resources']['Route']
+    packaged = helper.read(output / 'packaged.json')
+    assert 'Metadata' not in packaged['Resources']['Child']
+    assert packaged['Resources']['Child']['Properties']['TemplateURL'].startswith('https://existing-bucket.s3.ap-south-1.amazonaws.com/prefix/templates/')
+
+
+def test_nested_packaging_rejects_paths_outside_the_baseline(tmp_path):
+    templates = tmp_path / 'templates'; templates.mkdir(); output = tmp_path / 'output'; output.mkdir()
+    child = tmp_path / 'outside.json'; helper.write(child, {'Resources': {}})
+    root = templates / 'root.json'; helper.write(root, {'Resources': {'Child': {'Type': 'AWS::CloudFormation::Stack',
+        'Properties': {'TemplateURL': str(child)}}}})
+    with pytest.raises(RuntimeError, match='escapes'):
+        helper.package(root, output / 'packaged.json', 'bucket', 'prefix', None, 'ap-south-1', output / 'package.log')

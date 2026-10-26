@@ -136,6 +136,30 @@ semantic IAM correctness, workflow acceptance, or final reconciliation of the
 public authored SAM templates. Review the proposed changes before executing Dev;
 production preparation/execution remains a separate stage.
 
+### Review finding: unnecessary snapshot and packaging changes
+
+The first prepared development plans were blocked. Property-level evidence showed
+many route/storage/runtime entries changed only in resource metadata, alongside
+direct Lambda/IAM snapshot rewrites and conditional dependency changes. SAM CLI's
+`ResourceMetadataNormalizer` adds `SamResourceId` during packaging; these metadata
+changes are not evidence of new route behavior or key rotation.
+
+Packaging now processes child templates first, restores their original resource
+metadata before uploading them, and then packages the parent against those clean
+child URLs. The normalizer rejects any packaging changes beyond Lambda code
+locations and restored metadata. Existing metadata is retained exactly. Removing
+metadata from the parent alone is insufficient because nested templates have
+already been uploaded by ordinary recursive packaging.
+
+Materialization also preserves verified same-stack Lambda role ARN expressions,
+omits implicit Lambda defaults absent from the original template, and avoids
+adding empty IAM policy arrays. This reduces unnecessary changes; it does not
+prove all IAM/environment changes are semantically safe or eliminate all dynamic
+replacement risks. The original blocked plans must remain unexecuted. Prepare
+fresh plans only from the corrected code and review their actual results. The
+replacement/resource-type guards have not been relaxed, and the maintained public
+SAM templates still require reconciliation before normal source releases resume.
+
 1. Map authored route and permission resources to the actual deployed logical IDs.
    Existing unowned routes require an explicit adoption strategy; capture never
    imports, deletes or recreates them automatically.

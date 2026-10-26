@@ -132,3 +132,31 @@ def test_managed_roles_missing_from_original_capture_are_fetched(tmp_path):
     counts = helper.materialize(session, private, output)
     assert counts['roles'] == 1 and counts['unverifiedRoles'] == 0
     assert helper.read(output / 'iam-locks.json')['role']['role']['RoleName'] == 'role'
+
+
+def test_verified_same_stack_role_expression_is_preserved(tmp_path):
+    original = {'Role': {'Fn::GetAtt': ['FunctionRole', 'Arn']}}
+    cfg = {'Role': 'arn:aws:iam::000000000001:role/example'}
+    result = helper.function_properties(original, cfg, tmp_path / 'code.zip', {'FunctionRole': cfg['Role']})
+    assert result['Role'] == original['Role']
+    changed = helper.function_properties(original, cfg, tmp_path / 'code.zip', {'FunctionRole': 'different-arn'})
+    assert changed['Role'] == cfg['Role']
+
+
+def test_default_runtime_values_do_not_create_unsolicited_properties(tmp_path):
+    cfg = {'FunctionName': 'example', 'Description': '', 'TracingConfig': {'Mode': 'PassThrough'},
+        'EphemeralStorage': {'Size': 512}, 'Architectures': ['x86_64'], 'FileSystemConfigs': [],
+        'LoggingConfig': {'LogFormat': 'Text', 'LogGroup': '/aws/lambda/example'}}
+    result = helper.function_properties({}, cfg, tmp_path / 'code.zip')
+    assert result == {'Code': str(tmp_path / 'code.zip')}
+
+
+def test_explicit_and_nondefault_runtime_configuration_is_retained(tmp_path):
+    cfg = {'EphemeralStorage': {'Size': 1024}, 'TracingConfig': {'Mode': 'Active'},
+        'LoggingConfig': {'LogFormat': 'JSON', 'LogGroup': 'custom'}}
+    result = helper.function_properties({}, cfg, tmp_path / 'code.zip')
+    assert result['EphemeralStorage'] == {'Size': 1024}
+    assert result['TracingConfig'] == {'Mode': 'Active'}
+    assert result['LoggingConfig']['LogGroup'] == 'custom'
+    result = helper.function_properties({'EphemeralStorage': {'Size': 512}}, {'EphemeralStorage': {'Size': 512}}, tmp_path / 'code.zip')
+    assert result['EphemeralStorage'] == {'Size': 512}

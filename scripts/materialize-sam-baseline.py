@@ -64,7 +64,7 @@ def yaml_body(value):
         raise RuntimeError('Invalid CloudFormation YAML; inspect the private captured template locally') from None
 
 
-def function_properties(properties, cfg, archive):
+def function_properties(properties, cfg, archive, role_bindings=None):
     result = copy.deepcopy(properties)
     # Keep logical IDs and existing resource attributes. Pin current configuration
     # rather than replacing it with the branch's newer shared source or defaults.
@@ -87,6 +87,22 @@ def function_properties(properties, cfg, archive):
         result['Layers'] = [layer['Arn'] for layer in cfg['Layers']]
     else:
         result.pop('Layers', None)
+    # Preserve a verified same-stack role expression instead of turning it into
+    # a literal ARN. Do not assume that any similarly named role is equivalent.
+    original_role = properties.get('Role', {})
+    target = original_role.get('Fn::GetAtt') if isinstance(original_role, dict) else None
+    if isinstance(target, list) and len(target) == 2 and target[1] == 'Arn':
+        if (role_bindings or {}).get(target[0]) == cfg.get('Role') and cfg.get('Role'):
+            result['Role'] = copy.deepcopy(original_role)
+    defaults = {'Description': '', 'TracingConfig': {'Mode': 'PassThrough'},
+                'EphemeralStorage': {'Size': 512}, 'Architectures': ['x86_64'], 'FileSystemConfigs': []}
+    for key, default in defaults.items():
+        if key not in properties and result.get(key) == default:
+            result.pop(key, None)
+    logging = result.get('LoggingConfig', {})
+    if 'LoggingConfig' not in properties and cfg.get('FunctionName') and logging == {
+            'LogFormat': 'Text', 'LogGroup': '/aws/lambda/' + cfg['FunctionName']}:
+        result.pop('LoggingConfig', None)
     require(cfg.get('PackageType', 'Zip') == 'Zip', 'Only captured ZIP functions are supported')
     result['Code'] = str(archive)
     return result
@@ -132,6 +148,9 @@ def materialize(session, private, output):
               'services': 0, 'unverifiedRoles': 0}
     for name, record in records.items():
         resources = templates[name]['Resources']
+        role_bindings = {r['LogicalResourceId']: live_roles[r['PhysicalResourceId']]['role']['Arn']
+                         for r in record['resources'] if r['ResourceType'] == 'AWS::IAM::Role'
+                         and r['PhysicalResourceId'] in live_roles}
         for resource in record['resources']:
             logical = resource['LogicalResourceId']; kind = resource['ResourceType']
             require(logical in resources, 'Captured resource missing from processed template')
@@ -146,7 +165,8 @@ def materialize(session, private, output):
                 require(cfg['CodeSha256'] == locks[key]['CodeSha256'] and cfg['RevisionId'] == locks[key]['RevisionId'],
                         'Lambda changed since capture; refresh before preparing a baseline')
                 require(cfg.get('State') == 'Active' and cfg.get('LastUpdateStatus') == 'Successful', 'Lambda is not stable')
-                resources[logical]['Properties'] = function_properties(props, cfg, (private / meta['deployedArchive']).resolve())
+                resources[logical]['Properties'] = function_properties(props, cfg,
+                    (private / meta['deployedArchive']).resolve(), role_bindings)
                 concurrency = lam.get_function_concurrency(FunctionName=meta['FunctionArn'])
                 if 'ReservedConcurrentExecutions' in concurrency:
                     resources[logical]['Properties']['ReservedConcurrentExecutions'] = concurrency['ReservedConcurrentExecutions']
@@ -163,9 +183,13 @@ def materialize(session, private, output):
                     props['PermissionsBoundary'] = role['role']['PermissionsBoundary']['PermissionsBoundaryArn']
                 else:
                     props.pop('PermissionsBoundary', None)
-                props['ManagedPolicyArns'] = [p['PolicyArn'] for p in role['attached']]
-                props['Policies'] = [{'PolicyName': p['PolicyName'], 'PolicyDocument': p['PolicyDocument']}
-                                     for p in role['inline'] if p['PolicyName'] not in policy_names]
+                managed = [p['PolicyArn'] for p in role['attached']]
+                inline = [{'PolicyName': p['PolicyName'], 'PolicyDocument': p['PolicyDocument']}
+                          for p in role['inline'] if p['PolicyName'] not in policy_names]
+                if managed or 'ManagedPolicyArns' in props:
+                    props['ManagedPolicyArns'] = managed
+                if inline or 'Policies' in props:
+                    props['Policies'] = inline
                 counts['roles'] += 1
             elif kind == 'AWS::IAM::Policy':
                 matches = [p['PolicyDocument'] for role in live_roles.values() for p in role['inline']

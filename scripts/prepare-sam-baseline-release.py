@@ -5,6 +5,7 @@ Uploads verified artifacts to the existing deployment bucket and creates UPDATE
 change sets for one explicitly selected environment. Never executes changes.
 """
 import argparse
+import copy
 import hashlib
 import importlib.util
 import json
@@ -113,7 +114,7 @@ def inspect_changes(cfn, change_set, output, seen=None):
     return reviewed
 
 
-def package(template, destination, bucket, prefix, profile, region, log):
+def sam_package(template, destination, bucket, prefix, profile, region, log):
     command = ['sam', 'package', '--template-file', str(template), '--output-template-file', str(destination),
                '--s3-bucket', bucket, '--s3-prefix', prefix, '--region', region, '--use-json']
     if profile:
@@ -125,6 +126,65 @@ def package(template, destination, bucket, prefix, profile, region, log):
             print('Packaging verified baseline artifacts...', flush=True)
             time.sleep(5)
     require(process.returncode == 0 and destination.is_file(), 'SAM packaging failed; inspect private packaging log')
+
+
+def restore_package_metadata(before, after):
+    """Remove packaging-only changes without permitting property rewrites."""
+    result = copy.deepcopy(after)
+    require(set(before['Resources']) == set(result['Resources']), 'Packaging changed the resource set')
+    for logical, original in before['Resources'].items():
+        packaged = result['Resources'][logical]
+        require(packaged['Type'] == original['Type'], 'Packaging changed a resource type')
+        if 'Metadata' in original:
+            packaged['Metadata'] = copy.deepcopy(original['Metadata'])
+        else:
+            packaged.pop('Metadata', None)
+        comparable = copy.deepcopy(packaged)
+        if original['Type'] == 'AWS::Lambda::Function':
+            code = comparable.get('Properties', {}).get('Code')
+            require(isinstance(code, dict) and code.get('S3Bucket') and code.get('S3Key'),
+                    'Packaged Lambda code is not an S3 ZIP reference')
+            comparable['Properties']['Code'] = copy.deepcopy(original['Properties']['Code'])
+        require(comparable == original, 'Packaging changed resource fields beyond code and packaging metadata')
+    before_top = {k: v for k, v in before.items() if k != 'Resources'}
+    after_top = {k: v for k, v in result.items() if k != 'Resources'}
+    require(before_top == after_top, 'Packaging changed template-level fields')
+    return result
+
+
+def package(template, destination, bucket, prefix, profile, region, log, s3=None, expected_owner=None, active=None):
+    """Package children first so metadata is restored before any child upload.
+
+    SAM adds SamResourceId metadata even to native resources. Restoring only the
+    root after recursive packaging would leave that churn in uploaded children.
+    """
+    template = template.resolve(); active = set() if active is None else active
+    require(template not in active, 'Repeated nested template reference')
+    active.add(template)
+    try:
+        original = read(template)
+        for resource in original['Resources'].values():
+            if resource['Type'] != 'AWS::CloudFormation::Stack':
+                continue
+            value = resource.get('Properties', {}).get('TemplateURL')
+            if isinstance(value, str) and urlparse(value).scheme in ('https', 's3'):
+                continue
+            require(isinstance(value, str), 'Nested template must be a literal local path')
+            child = Path(value).resolve()
+            require(child.is_file() and child.is_relative_to(template.parent), 'Nested template escapes the generated baseline')
+            require(s3 is not None and expected_owner, 'Nested packaging requires the verified artifact bucket client and owner')
+            child_output = destination.parent / (child.stem + '-packaged.json')
+            package(child, child_output, bucket, prefix, profile, region,
+                    destination.parent / (child.stem + '-package.log'), s3, expected_owner, active)
+            raw = child_output.read_bytes(); key = prefix + '/templates/' + hashlib.sha256(raw).hexdigest() + '.json'
+            s3.put_object(Bucket=bucket, Key=key, Body=raw, ExpectedBucketOwner=expected_owner)
+            resource['Properties']['TemplateURL'] = 'https://' + bucket + '.s3.' + region + '.amazonaws.com/' + key
+        prepared_input = destination.parent / (template.stem + '-package-input.json')
+        write(prepared_input, original)
+        sam_package(prepared_input, destination, bucket, prefix, profile, region, log)
+        write(destination, restore_package_metadata(original, read(destination)))
+    finally:
+        active.remove(template)
 
 
 def prepare_stack(cfn, s3, record, packaged, bucket, prefix, output):
@@ -205,7 +265,8 @@ def main():
             directory = output / name; directory.mkdir()
             packaged = directory / (name + '-packaged.json')
             print('Preparing stage: ' + name, flush=True)
-            package(templates / (name + '.json'), packaged, bucket, prefix, args.profile, args.region, directory / 'package.log')
+            package(templates / (name + '.json'), packaged, bucket, prefix, args.profile, args.region,
+                    directory / 'package.log', s3, args.expected_account)
             result['stages'][name] = prepare_stack(cfn, s3, records[name], packaged, bucket, prefix, directory)
             write(output / 'release-summary.json', result)
         except Exception as error:
