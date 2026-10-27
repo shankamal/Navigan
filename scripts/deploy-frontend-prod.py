@@ -144,6 +144,29 @@ def check_checkout():
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
 
+def verify_api_target(session, current, expected):
+    """Accept the retained PROD endpoint or its verified custom-domain mapping."""
+    if current == expected:
+        return
+    require(current == "https://api.navigan.click/api/v1", "Frontend API target is not an approved PROD URL")
+    match = re.fullmatch(r"https://([a-z0-9]+)\.execute-api\.ap-south-1\.amazonaws\.com/v1/api/v1", expected)
+    require(match is not None, "Expected PROD API identity is invalid")
+    gateway = session.client("apigatewayv2")
+    domain = gateway.get_domain_name(DomainName="api.navigan.click")
+    configs = domain.get("DomainNameConfigurations", [])
+    require(len(configs) == 1 and all(configs[0].get(k) == v for k, v in (
+        ("EndpointType", "REGIONAL"), ("SecurityPolicy", "TLS_1_2"), ("DomainNameStatus", "AVAILABLE"))), "PROD API domain is not available with regional TLS")
+    mappings, token = [], None
+    while True:
+        page = gateway.get_api_mappings(DomainName="api.navigan.click", **({"NextToken": token} if token else {}))
+        mappings.extend(page.get("Items", []))
+        token = page.get("NextToken")
+        if not token:
+            break
+    require(len(mappings) == 1 and mappings[0].get("ApiId") == match[1] and mappings[0].get("Stage") == "v1"
+            and not mappings[0].get("ApiMappingKey"), "Custom domain must map only to the same existing PROD API/v1 stage")
+
+
 def backend_readiness(session):
     settings = storage.preflight(session)
     workspace = storage.verify_storage(session, "artifact-workspace")
@@ -188,7 +211,7 @@ def readiness(session):
     nested_params = {p["ParameterKey"]: p["ParameterValue"] for p in cfn.describe_stacks(StackName=nested)["Stacks"][0].get("Parameters", [])}
     expected = f"https://{nested_params['ApiId']}.execute-api.{REGION}.amazonaws.com/v1/api/v1"
     current = env.get("NAVIGAN_API_ORIGIN", "").rstrip("/") + "/" + env.get("NAVIGAN_API_BASE_PATH", "").strip("/")
-    require(current == expected, "Existing frontend API target does not match PROD; do not copy DEV or default API settings")
+    verify_api_target(session, current, expected)
     ecr = session.client("ecr").describe_repositories(repositoryNames=[REPOSITORY])["repositories"][0]
     require(ecr.get("repositoryUri") == IMAGE_PREFIX, "Unexpected frontend image repository")
     return service, described, original, public
