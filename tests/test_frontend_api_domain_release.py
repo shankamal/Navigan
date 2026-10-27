@@ -290,6 +290,8 @@ def guardduty_setup(tmp_path, monkeypatch):
         result["tasks"] = [injected_guardduty(item, name) for item in result["tasks"]]
         return result
     f.ecs.describe_tasks.side_effect = runtime
+    f.ecs.list_account_settings.return_value = {"settings": [{"name": "guardDutyActivate", "value": "enabled", "type": "aws_managed"}]}
+    f.ecs.describe_clusters.return_value = {"clusters": [{"clusterArn": f"arn:aws:ecs:{m.front.REGION}:{m.front.ACCOUNT}:cluster/{m.front.CLUSTER}", "tags": []}]}
     return f
 
 
@@ -377,3 +379,104 @@ def test_guardduty_required_cannot_be_removed_from_the_private_plan(tmp_path, mo
     with pytest.raises(ValueError, match="retain captured GuardDuty"):
         m.execute(f.session, f.path)
     f.ecs.update_service.assert_not_called()
+
+
+def stopped_guardduty_setup(tmp_path, monkeypatch, *, after="STOPPED", omit=False):
+    f = guardduty_setup(tmp_path, monkeypatch)
+    def metadata(item, state):
+        result = copy.deepcopy(item)
+        agent = result["containers"][-1]
+        agent.update(lastStatus=state, healthStatus="UNKNOWN")
+        for key in ("image", "imageDigest"):
+            if omit: agent.pop(key, None)
+            else: agent[key] = None
+        return result
+    f.baseline["runningTasks"]["tasks"] = [metadata(item, "STOPPED") for item in f.baseline["runningTasks"]["tasks"]]
+    m.write(f.capture / "frontend-capture.json", f.baseline)
+    reader = f.ecs.describe_tasks.side_effect
+    def runtime(**kw):
+        result = reader(**kw)
+        state = "STOPPED" if f.service["taskDefinition"] == OLD else after
+        result["tasks"] = [metadata(item, state) for item in result["tasks"]]
+        return result
+    f.ecs.describe_tasks.side_effect = runtime
+    return f
+
+
+@pytest.mark.parametrize("after,omit", [("STOPPED", False), ("RUNNING", False), ("STOPPED", True)])
+def test_actual_stopped_agent_missing_image_shape_is_supported_without_claiming_monitoring_health(tmp_path, monkeypatch, capsys, after, omit):
+    from botocore.validate import validate_parameters
+    f = stopped_guardduty_setup(tmp_path, monkeypatch, after=after, omit=omit)
+    plan = prepare(f)
+    assert plan["baselineAgentStates"] == ["STOPPED"] and plan["guardDutyRunningRequired"] is False
+    assert plan["guardDutyConfiguration"]["accountValue"] == "enabled"
+    assert "private-agent-credential" not in json.dumps(f.ecs.register_task_definition.call_args.kwargs)
+    f.ecs.list_account_settings.assert_called_with(name="guardDutyActivate", effectiveSettings=True)
+    f.ecs.describe_clusters.assert_called_with(clusters=[m.front.CLUSTER], include=["TAGS"])
+    # AWS omits optional image fields; explicit null is diagnostic rendering,
+    # so validate the corresponding actual response with those fields omitted.
+    item = copy.deepcopy(f.baseline["runningTasks"]["tasks"][0])
+    item["containers"][-1].pop("image", None)
+    item["containers"][-1].pop("imageDigest", None)
+    model = botocore.session.get_session().get_service_model("ecs")
+    validate_parameters(item, model.operation_model("DescribeTasks").output_shape.members["tasks"].member)
+    m.execute(f.session, f.path)
+    record = m.read(f.path.parent / "verification.json")
+    assert record["guardDutyAgentStates"] == [after]
+    assert record["guardDutyConfigurationUnchanged"] is True
+    assert record["guardDutyMonitoringAcceptance"] is False
+    assert record["frontendConfigurationVerified"] is True
+    m.execute(f.session, f.path, rollback=True)
+    assert "Existing monitoring health remains" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fault", ["account_disabled", "cluster_scope", "wrong_cluster", "missing_setting", "unmanaged_setting", "denied"])
+def test_independent_guardduty_configuration_is_required_and_preserved(tmp_path, monkeypatch, fault):
+    from botocore.exceptions import ClientError
+    f = stopped_guardduty_setup(tmp_path, monkeypatch)
+    prepare(f)
+    if fault == "account_disabled": f.ecs.list_account_settings.return_value["settings"][0]["value"] = "disabled"
+    elif fault == "cluster_scope": f.ecs.describe_clusters.return_value["clusters"][0]["tags"] = [{"key": "GuardDutyManaged", "value": "false"}]
+    elif fault == "wrong_cluster": f.ecs.describe_clusters.return_value["clusters"][0]["clusterArn"] += "-other"
+    elif fault == "missing_setting": f.ecs.list_account_settings.return_value = {"settings": []}
+    elif fault == "unmanaged_setting": f.ecs.list_account_settings.return_value["settings"][0]["type"] = "user"
+    else: f.ecs.list_account_settings.side_effect = ClientError({"Error": {"Code": "AccessDeniedException", "Message": "private"}}, "ListAccountSettings")
+    with pytest.raises((ValueError, ClientError)): m.execute(f.session, f.path)
+    f.ecs.update_service.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", ["frontend_override", "wrong_image", "wrong_digest", "unknown_sidecar"])
+def test_managed_settings_proof_does_not_bypass_application_or_provided_identity_checks(tmp_path, monkeypatch, fault):
+    f = stopped_guardduty_setup(tmp_path, monkeypatch)
+    item = f.baseline["runningTasks"]["tasks"][0]
+    if fault == "frontend_override": item["overrides"]["containerOverrides"][0]["environment"] = [{"name": "bad", "value": "secret"}]
+    elif fault == "wrong_image": item["containers"][-1]["image"] = "attacker.test/agent:latest"
+    elif fault == "wrong_digest": item["containers"][-1]["imageDigest"] = "invalid"
+    else: item["containers"][-1]["name"] = "unknown-sidecar"
+    proof = m.guardduty_configuration(f.session)
+    with pytest.raises(ValueError): m.runtime_overrides(item, f.baseline["task"]["taskDefinition"], guardduty_proof=proof)
+
+
+def test_running_agent_regression_is_rejected_even_with_managed_configuration_proof(tmp_path, monkeypatch):
+    f = guardduty_setup(tmp_path, monkeypatch)
+    prepare(f)
+    reader = f.ecs.describe_tasks.side_effect
+    def runtime(**kw):
+        result = reader(**kw)
+        if f.service["taskDefinition"] == NEXT: result["tasks"][0]["containers"][-1]["lastStatus"] = "STOPPED"
+        return result
+    f.ecs.describe_tasks.side_effect = runtime
+    with pytest.raises(ValueError, match="regressed from its running baseline"):
+        m.execute(f.session, f.path)
+    assert not (f.path.parent / "verification.json").exists()
+
+
+def test_readonly_guardduty_sdk_requests_and_responses_are_valid(tmp_path, monkeypatch):
+    from botocore.validate import validate_parameters
+    f = guardduty_setup(tmp_path, monkeypatch)
+    m.guardduty_configuration(f.session)
+    model = botocore.session.get_session().get_service_model("ecs")
+    validate_parameters(f.ecs.list_account_settings.call_args.kwargs, model.operation_model("ListAccountSettings").input_shape)
+    validate_parameters(f.ecs.list_account_settings.return_value, model.operation_model("ListAccountSettings").output_shape)
+    validate_parameters(f.ecs.describe_clusters.call_args.kwargs, model.operation_model("DescribeClusters").input_shape)
+    validate_parameters(f.ecs.describe_clusters.return_value, model.operation_model("DescribeClusters").output_shape)
