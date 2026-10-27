@@ -1,3 +1,11 @@
+## 27 October 2026 — DEV authenticated summary parity passed
+
+The user reran the same-environment validator with a fresh DEV credential and supplied passed=true. Customer, Environment and Cluster summaries each returned HTTP 200 on the existing endpoint and custom domain with identical JSON. The prior attempt returned 401 on both endpoints; the retry establishes that a current accepted credential resolves that validation blocker. It does not establish the exact reason the earlier credential was rejected.
+
+DEV domain resource/TLS/unauthenticated checks and these three authenticated summary reads are now verified through user-run output. No frontend switch, broader browser/workflow acceptance or PROD domain rollout is reported. The validator's private authenticated-verification.json contains the result. Tokens and response bodies remain private and are not included here.
+
+Next: test the local DEV frontend with process-scoped NAVIGAN_API_ORIGIN=https://api-dev.navigan.click and NAVIGAN_API_BASE_PATH=/api/v1 while starting its existing dev server on port 3000. Stop only that existing local frontend process first. This changes the two server-side API proxy settings for this process; it does not edit environment files, rebuild an image, alter OIDC settings or deploy to AWS. Verify fresh login and Customer/Environment/Cluster navigation through the browser. Use the original execute-api origin and /v1/api/v1 path to restart that process for rollback. Persist the reviewed DEV configuration only after browser acceptance; then prepare PROD separately from a refreshed two-environment audit. SAM ownership/runtime/source parity remains a separate pending activity. No additional code change or test run is required for this evidence-only checkpoint.
+
 ## 27 October 2026 — DEV domain verification passed; authenticated comparison next
 
 The user supplied the success marker from read-only verification after pulling the certificate verifier correction. DEV's custom domain passed certificate identity/validity, regional domain, empty existing-stage mapping, DNS alias, preserved existing API settings/default endpoint, HTTPS/TLS and unauthenticated protected-route checks. The frontend remains unchanged. This confirms domain verification, not authenticated workflow acceptance or SAM parity. PROD domain rollout remains pending.
