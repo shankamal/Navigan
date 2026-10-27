@@ -1,3 +1,26 @@
+## 27 October 2026 — nested reference warnings diagnosed; verified-preview resume ready
+
+**Runtime remains undeployed:** the first --apply built and verified runner image `afb7ccc4d69697229e9cacf67b450501b465d90941197adf87f9864bc7db2158` and staged the release, but the guard stopped before execution. The private release record is `/var/tmp/navigan-bootstrap-release-x1192p_3`. Its original parent change set is `navigan-bootstrap-dfc1df0a199c4a6e/d91e538c-d1b3-4683-9c73-f48a9df69da2`; keep it unexecuted.
+
+The user supplied the full nested plan: 52 reported changes, including API replacements through ApiId/AuthorizerId references. A separate, unexecuted child-stack preview using existing parameter values removes the API replacements. Its ARN is `arn:aws:cloudformation:ap-south-1:905418045935:changeSet/bootstrap-preview-070660357d2d/cd93c922-0208-42da-990d-d143a5e9124d`. It reports exactly six entries: ClusterFunction.Code, StatusFunction.Code and TerraformProject.Environment with Replacement=False; unchanged ClusterIntegration.IntegrationUri and BuildStateRule.Targets dependencies with Replacement=False; and the unchanged BuildStatePermission.SourceArn dependency with Replacement=Conditional on BuildStateRule.Arn. Neither preview was executed.
+
+**Implemented correction:** the release helper accepts --preview-change-set with --execute. The new reference-proof module independently resolves unchanged parent parameters/sibling outputs, checks that the concrete preview has the identical prepared child template and parameter values, rejects actual primary-resource replacements or unrelated preview changes, and verifies the existing API/JWT, EventBridge target/ARN and stack resource identities. The original hierarchy is reviewed only as diagnostic evidence. Execution uses a freshly created parent change set with IncludeNestedStacks=False, with its exact parent scope/template/parameter delta rechecked against the concrete child preview. Parent ownership and intrinsic bindings remain intact; no direct Lambda/project writes, child-preview execution or binding pinning occurs.
+
+Before execution the helper rechecks the capture and live proof. After execution it checks the two code hashes, runner/configuration, templates, API/auth/routing settings and physical resource identities. Automatic-stage deployment metadata may advance, but API configuration and resource identities must remain unchanged. It reuses the existing image and versioned ZIP/template artifacts.
+
+**Validation:** 191 targeted tests passed and git diff --check passed. Added tests cover concrete-preview replacements, changed/redacted/unsupported bindings, API/auth/callback identity drift, fresh-parent scope, and selection of only the fresh parent as the execution target. No AWS deployment was executed in this session.
+
+**Next action:** after pulling the branch in the existing checkout, resume using the saved plan and diagnostic preview:
+
+```bash
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python scripts/deploy-cluster-bootstrap-prod.py \
+  --profile navigan \
+  --execute /var/tmp/navigan-bootstrap-release-x1192p_3/release-plan.json \
+  --preview-change-set arn:aws:cloudformation:ap-south-1:905418045935:changeSet/bootstrap-preview-070660357d2d/cd93c922-0208-42da-990d-d143a5e9124d
+```
+
+Wait for `PROD bootstrap release verified` before creating the fresh test cluster. Record the actual fresh parent change-set ID/image/code verification and refresh the private SAM baseline after successful promotion; the rejected original hierarchy is not the deployed release ID. Preserve all prior recovery history and private local release records.
+
 ## 27 October 2026 — production audit reviewed; scoped bootstrap release helper ready
 
 **Verified from the user's audit:** both production ClusterFunction and StatusFunction packages still generate Falco chart 9.1.0 without the corrected image/plugin pins. Installer failure polling is absent. The production Terraform runner is pinned to image digest `565d9da23955ec84ba906e0ebb07d9cc5c1fac8d9fce23fc72cc05e6fcd283b0`, has no protected-pool plan guard, and its module differs from current source in main.tf, variables.tf and outputs.tf.

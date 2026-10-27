@@ -5,6 +5,9 @@
 change set. --apply additionally executes it after strict scope checks.
 --execute PLAN resumes an unchanged prepared release. Existing clusters are not
 reprovisioned and no installer build is started. Private records stay local.
+With --preview-change-set, a verified concrete child preview permits replanning
+the parent without unresolved nested previews. The rejected hierarchy and the
+diagnostic child preview are never executed.
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from types import SimpleNamespace
 from urllib.parse import quote
 import uuid
 
@@ -45,6 +49,7 @@ def load(name, filename):
 audit = load("bootstrap_runtime_audit", "audit-cluster-bootstrap-runtime.py")
 patch = load("bootstrap_runtime_patch", "cluster-bootstrap-patch.py")
 storage = load("bootstrap_storage", "deploy-migration-storage-prod.py")
+references = load("bootstrap_reference_proof", "cluster-bootstrap-reference-proof.py")
 require = patch.require
 
 
@@ -225,7 +230,18 @@ def items(client, operation, key, **kwargs):
             return result
 
 
-def inspect_change_set(cfn, saved, plan):
+def proof_context():
+    return SimpleNamespace(require=require, ACCOUNT=ACCOUNT, REGION=REGION, PARENT=PARENT,
+                           parameters=parameters, stamp=stamp, audit=audit, FUNCTIONS=FUNCTIONS,
+                           items=items, fingerprint=fingerprint)
+
+
+def inspect_change_set(cfn, saved, plan, reference_proof=None):
+    if reference_proof is not None:
+        require(reference_proof.get("releaseChangeSet") == plan["changeSet"]
+                and reference_proof.get("childHash") == plan["childHash"]
+                and reference_proof.get("newImage") == plan["newImage"]
+                and reference_proof.get("snapshot") and reference_proof.get("inputs"), "Reference proof belongs to another release.")
     root = cfn.describe_change_set(ChangeSetName=plan["changeSet"])
     require(root["StackId"] == saved["root"]["StackId"] and root["Status"] == "CREATE_COMPLETE"
             and root["ExecutionStatus"] == "AVAILABLE", "Change set is unavailable or targets another stack.")
@@ -252,20 +268,24 @@ def inspect_change_set(cfn, saved, plan):
     for entry in items(cfn, "describe_change_set", "Changes", ChangeSetName=child_id):
         resource = entry["ResourceChange"]
         logical, kind = resource["LogicalResourceId"], resource["ResourceType"]
-        require(resource["Action"] == "Modify" and resource.get("Replacement") == "False" and not resource.get("ChangeSetId"), "Resource creation/deletion/replacement rejected.")
         if logical in FUNCTIONS:
+            require(resource["Action"] == "Modify" and resource.get("Replacement") == "False" and not resource.get("ChangeSetId"), "Lambda creation/deletion/replacement rejected.")
             require(kind == "AWS::Lambda::Function", "Unexpected function resource type.")
             allowed_property = "Code"
         elif logical == "TerraformProject":
+            require(resource["Action"] == "Modify" and resource.get("Replacement") == "False" and not resource.get("ChangeSetId"), "Project creation/deletion/replacement rejected.")
             require(kind == "AWS::CodeBuild::Project", "Unexpected runner project type.")
             allowed_property = "Environment"
         else:
-            require(kind in {"AWS::ApiGatewayV2::Integration", "AWS::ApiGatewayV2::Route", "AWS::Lambda::Permission"}
-                    and saved["childTemplate"]["Resources"].get(logical) == child_template["Resources"].get(logical),
-                    "Unrelated resource change rejected: " + logical)
-            # Only unchanged dependencies of the two updated Lambda functions are permitted.
-            text = json.dumps(child_template["Resources"][logical])
-            require(any(name in text for name in FUNCTIONS), "Unrelated dependency change rejected: " + logical)
+            if reference_proof is not None:
+                references.dependency(proof_context(), resource, saved["childTemplate"]["Resources"], child_template["Resources"], concrete=False)
+            else:
+                require(resource["Action"] == "Modify" and resource.get("Replacement") == "False" and not resource.get("ChangeSetId"), "Resource creation/deletion/replacement rejected.")
+                require(kind in {"AWS::ApiGatewayV2::Integration", "AWS::ApiGatewayV2::Route", "AWS::Lambda::Permission"}
+                        and saved["childTemplate"]["Resources"].get(logical) == child_template["Resources"].get(logical),
+                        "Unrelated resource change rejected: " + logical)
+                text = json.dumps(child_template["Resources"][logical])
+                require(any(name in text for name in FUNCTIONS), "Unrelated dependency change rejected: " + logical)
             allowed_property = None
         if allowed_property:
             require(resource.get("Details") and all(
@@ -273,7 +293,8 @@ def inspect_change_set(cfn, saved, plan):
                 and detail.get("Target", {}).get("Name") == allowed_property
                 for detail in resource["Details"]), "Unrelated property change rejected: " + logical)
         seen.add(logical)
-        print(f"  Modify {logical} ({kind}); replacement=False", flush=True)
+        suffix = "; independent binding/ARN proof verified" if reference_proof is not None and logical not in {*FUNCTIONS, "TerraformProject"} else ""
+        print(f"  Modify {logical} ({kind}); reported replacement={resource.get('Replacement')}{suffix}", flush=True)
     require(set(FUNCTIONS) | {"TerraformProject"} <= seen, "Expected both Lambda code changes and runner project update.")
 
 
@@ -334,16 +355,27 @@ def prepare(session, capture):
     return path
 
 
-def execute(session, path):
+def execute(session, path, preview_change_set=None):
     plan = read(path)
     require((plan.get("format"), plan.get("account"), plan.get("region"), plan.get("parent")) == (FORMAT, ACCOUNT, REGION, PARENT), "Unexpected release plan.")
     require(re.fullmatch(rf"{ACCOUNT}\.dkr\.ecr\.{REGION}\.amazonaws\.com/navigan-terraform-runner@sha256:[a-f0-9]{{64}}", plan["newImage"]), "Unexpected runner target.")
     saved = baseline(Path(plan["baseline"]))
     preflight(session, saved)
     cfn = session.client("cloudformation")
-    inspect_change_set(cfn, saved, plan)
+    proof = references.verify(proof_context(), session, saved, plan, preview_change_set) if preview_change_set else None
+    if proof is not None:
+        audit.write_json(path.parent / "reference-proof.json", proof)
+        print("Concrete preview and unchanged parent parameter/API/ARN identities verified.", flush=True)
+        print("Reviewing the original hierarchy for context only; it will not be executed.", flush=True)
+    inspect_change_set(cfn, saved, plan, reference_proof=proof)
     preflight(session, saved)
-    cfn.execute_change_set(ChangeSetName=plan["changeSet"])
+    execution_id = plan["changeSet"]
+    if proof is not None:
+        execution_id = references.parent_plan(proof_context(), session, saved, plan, path.parent)
+        preflight(session, saved)
+        references.unchanged(proof_context(), session, saved, plan, proof)
+        references.inspect_parent(proof_context(), cfn, saved, plan, execution_id)
+    cfn.execute_change_set(ChangeSetName=execution_id)
     print("Executing the scoped bootstrap release...", flush=True)
     cfn.get_waiter("stack_update_complete").wait(StackName=PARENT, WaiterConfig={"Delay": 10, "MaxAttempts": 180})
     for key in ("root", "child"):
@@ -363,8 +395,11 @@ def execute(session, path):
     old_project.pop("lastModified", None)
     current.pop("lastModified", None)
     require(fingerprint(current) == fingerprint(old_project), "Unrelated CodeBuild project configuration changed.")
+    if proof is not None:
+        references.after_deployment(proof_context(), session, saved, proof)
     audit.write_json(path.parent / "verification.json", {"verifiedAt": datetime.now(timezone.utc).isoformat(),
-        "changeSet": plan["changeSet"], "runnerImage": plan["newImage"], "codeHashes": plan["newCodeHashes"]})
+        "changeSet": execution_id, "sourceChangeSet": plan["changeSet"],
+        "previewChangeSet": preview_change_set, "runnerImage": plan["newImage"], "codeHashes": plan["newCodeHashes"]})
     print("PROD bootstrap release verified: two Lambda packages and the pinned runner updated. Existing clusters were not reprovisioned. A fresh-cluster acceptance test is now required.", flush=True)
 
 
@@ -372,20 +407,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--capture", type=Path)
+    parser.add_argument("--preview-change-set", help="With --execute, independently verify a concrete child-stack preview and unchanged nested references")
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--prepare", action="store_true")
     modes.add_argument("--apply", action="store_true")
     modes.add_argument("--execute", type=Path, metavar="PLAN")
     args = parser.parse_args()
+    require(not args.preview_change_set or args.execute, "--preview-change-set requires --execute PLAN.")
     os.umask(0o077)
     require(subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip() == "new_migration_approach_18oct26", "Use the existing project feature-branch checkout.")
-    paths = ["scripts/deploy-cluster-bootstrap-prod.py", "scripts/cluster-bootstrap-patch.py", "scripts/audit-cluster-bootstrap-runtime.py",
+    paths = ["scripts/deploy-cluster-bootstrap-prod.py", "scripts/cluster-bootstrap-patch.py", "scripts/cluster-bootstrap-reference-proof.py", "scripts/audit-cluster-bootstrap-runtime.py",
              "scripts/deploy-migration-storage-prod.py", "src/navigan/modules/cluster_management/connector_installation.py",
              "src/navigan/modules/cluster_management/bootstrap_status.py", "provisioning/runner/runner.py"]
     require(not subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True).strip(), "Release inputs have local changes; preserve and review them before deployment.")
     session = boto3.Session(profile_name=args.profile, region_name=REGION)
     if args.execute:
-        execute(session, args.execute.resolve())
+        execute(session, args.execute.resolve(), args.preview_change_set)
     else:
         require(args.capture is not None, "--capture is required for preparation.")
         path = prepare(session, args.capture.resolve())
