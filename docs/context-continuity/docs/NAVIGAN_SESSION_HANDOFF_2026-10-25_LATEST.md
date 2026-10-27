@@ -1,3 +1,15 @@
+## 27 October 2026 — PROD bootstrap prevention deployed and verified
+
+The user supplied the completed WSL release output after pulling source `6b2a841a21c16f25df36cc69f2af64d09f3e6083`. The helper printed `Executing the scoped bootstrap release...` followed by `PROD bootstrap release verified: two Lambda packages and the pinned runner updated. Existing clusters were not reprovisioned. A fresh-cluster acceptance test is now required.`
+
+**Actual successful parent change set:** `arn:aws:cloudformation:ap-south-1:905418045935:changeSet/navigan-bootstrap-concrete-76a6af862262/2e228219-aa11-4521-a09d-4ad42e41107a`. Private release record remains `/var/tmp/navigan-bootstrap-release-x1192p_3`. The resumed release reused the prepared immutable runner `905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan-terraform-runner@sha256:afb7ccc4d69697229e9cacf67b450501b465d90941197adf87f9864bc7db2158` and Lambda package artifacts.
+
+Concrete preview and existing parent parameter/API/ARN identities passed. SharedPlatform, AccessManagement, CustomerManagement, EnvironmentManagement and MigrationManagement each passed independent unexecuted no-op preview checks and freshness revalidation. The final success marker is emitted only after stack/template, Lambda package/configuration, runner project, API/auth/routing/physical identity and sibling preservation checks. This is verified user-run deployment output, not direct AWS access from this session. Earlier rejected parent plans and the diagnostic child preview were not the executed release.
+
+**New live defaults:** both production Lambda packages have Falco chart 9.2.0/image 0.45.1/container plugin 0.7.5; ClusterFunction has exact installer terminal-failure polling; the pinned runner includes managed SYSTEM pool labels/taint and plan guards. The scope excludes unrelated newer runner networking/adoption/deletion changes. Source/full SAM parity is not implied.
+
+**Next action:** create one fresh cluster through the normal approved Navigan flow. Verify the generated GitOps Falco pins, managed system-node labels/taint, at least two Ready protected system nodes, Falco desired/Ready counts matching, all required platform components Ready, lifecycle ACTIVE and successful Headlamp/Grafana/Prometheus/Argo CD launches. Do not manually repair labels or change Falco values during this acceptance run; capture any failure first. Existing recovered demo-cluster health does not prove fresh-cluster acceptance. Controlled installer-failure behavior still needs test-environment acceptance. Refresh the private deployed baseline for future scoped releases; do not reuse the old baseline as a new release source. Keep private capture/release directories local.
+
 ## 27 October 2026 — demo complete; bootstrap release resumed with YAML parsing fix
 
 The user confirmed the leadership demo went very well and authorized resuming the permanent bootstrap fix. The recovered customer cluster remains the verified demo recovery point; fresh-cluster acceptance is still pending.
