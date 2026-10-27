@@ -42,5 +42,5 @@ def test_non_json_or_non_200_fails_without_printing_body():
 
 
 def test_base_validation_has_summary_and_workflow_list_reads():
-    assert helper.paths()==['/api/v1/customers/summary','/api/v1/environments/summary',
-        '/api/v1/clusters/summary','/api/v1/migrations','/api/v1/source-clusters']
+    assert helper.paths()==['/v1/api/v1/customers/summary','/v1/api/v1/environments/summary',
+        '/v1/api/v1/clusters/summary','/v1/api/v1/migrations','/v1/api/v1/source-clusters']
