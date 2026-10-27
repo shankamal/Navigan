@@ -189,6 +189,7 @@ Resources:
         Variables:
           CONNECTOR_IMAGE_URI: !Ref ConnectorImageUri
           CONNECTOR_API_BASE_URL: !Sub 'https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1'
+          PLATFORM_TOOLS_BASE_URL: !Ref PlatformToolsBaseUrl
           GITHUB_APP_ID: !Ref GitHubAppId
           GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
       Policies:
