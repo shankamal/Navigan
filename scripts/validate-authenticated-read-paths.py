@@ -13,11 +13,11 @@ from urllib.request import Request, urlopen
 
 
 BASE_PATHS = (
-    '/api/v1/customers/summary',
-    '/api/v1/environments/summary',
-    '/api/v1/clusters/summary',
-    '/api/v1/migrations',
-    '/api/v1/source-clusters',
+    '/v1/api/v1/customers/summary',
+    '/v1/api/v1/environments/summary',
+    '/v1/api/v1/clusters/summary',
+    '/v1/api/v1/migrations',
+    '/v1/api/v1/source-clusters',
 )
 
 
@@ -38,13 +38,13 @@ def paths(migration_id=None, source_cluster_id=None):
     result = list(BASE_PATHS)
     if migration_id:
         item = quote(migration_id, safe='')
-        result.extend((f'/api/v1/migrations/{item}', f'/api/v1/migrations/{item}/source-inventory',
-                       f'/api/v1/migrations/{item}/target-assessment',
-                       f'/api/v1/migrations/{item}/target-compatibility'))
+        result.extend((f'/v1/api/v1/migrations/{item}', f'/v1/api/v1/migrations/{item}/source-inventory',
+                       f'/v1/api/v1/migrations/{item}/target-assessment',
+                       f'/v1/api/v1/migrations/{item}/target-compatibility'))
     if source_cluster_id:
         item = quote(source_cluster_id, safe='')
-        result.extend((f'/api/v1/source-clusters/{item}',
-                       f'/api/v1/source-clusters/{item}/deployment-sources'))
+        result.extend((f'/v1/api/v1/source-clusters/{item}',
+                       f'/v1/api/v1/source-clusters/{item}/deployment-sources'))
     return result
 
 
