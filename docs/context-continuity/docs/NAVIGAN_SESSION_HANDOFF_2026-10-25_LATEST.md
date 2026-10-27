@@ -1,3 +1,22 @@
+## 27 October 2026 — cluster platform services recovered (verified)
+
+This recovery entry supersedes older blockers for `dbs-demo-cluster-creation` only. Preserve the historical entries below.
+
+**Verified outcome:** user confirmed Headlamp, Argo CD, Prometheus and Grafana buttons are enabled and all four tools launch. The final dashboard screenshot reports nodes 2/2 Ready, pods 24/24 Ready, workload replicas 48/48 Ready and 100% readiness. Falco's live DaemonSet was independently verified 2/2 Ready with image `docker.io/falcosecurity/falco:0.45.1`. No further bootstrap restart is indicated.
+
+**Applied recovery:**
+- The original installer failed because the system node group lacked `navigan.io/platform-services=true`, although two nodes were Ready. User added this label through the managed node-group configuration and verified the update succeeded, then restarted bootstrap once. The connector and Argo CD installation completed successfully.
+- Falco then repeatedly crashed while loading its modern eBPF `signal_deliver` probe. Logs matched the upstream kernel-verifier compatibility issue on AL2023 kernel 6.18.54 (Falco issue 4017 / libs fix 3119).
+- In the cluster's existing system GitOps repository, the user reviewed and pushed commit `76adb56ed04d519ce3cfbb95175740901e0fda57` to `main`: Falco chart 9.1.0 -> 9.2.0; explicit Falco image tag 0.45.1; container plugin reference `ghcr.io/falcosecurity/plugins/plugin/container:0.7.5`. Existing driver mode, node selector, tolerations and resource limits were retained.
+- Argo CD subsequently synced that exact commit successfully. An earlier report still showing chart 9.1.0 preceded reconciliation; the later diagnostic verified the updated image and 2/2 Ready. A successful diagnostic build by itself was not proof of component health.
+- Component health and tool-launch access use separate checks. No gateway, permission or tunnel change was applied; no exact /tools disabledReason was captured. The final cluster lifecycle/ACTIVE field was not separately supplied.
+
+**Prevention work remains pending:** ensure newly provisioned system groups receive the required label; update Navigan's platform/system-repository templates with compatible Falco pins; propagate installer failures into backend/UI status. These source/deployment changes were NOT implemented by the live repair. The recovery commit belongs to the cluster's system GitOps repository, not shankamal/Navigan.
+
+This note records the user-confirmed recovery only. It does not declare global DEV/PROD SAM or Lambda-source parity complete, authorize unrelated deployments, or resume the deferred broader migration UI redesign. Current source/runtime differences must be inspected before preparing any prevention change.
+
+---
+
 # Navigan session handoff — 25 October 2026 (latest)
 
 ## 26 October 2026 — collector parity confirmed; target grants repair prepared
