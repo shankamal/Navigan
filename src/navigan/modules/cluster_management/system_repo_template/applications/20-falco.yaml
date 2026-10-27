@@ -8,7 +8,7 @@ spec:
   sources:
     - repoURL: https://falcosecurity.github.io/charts
       chart: falco
-      targetRevision: 9.1.0
+      targetRevision: 9.2.0
       helm:
         releaseName: navigan-falco
         valueFiles:
@@ -22,3 +22,4 @@ spec:
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, ServerSideApply=true]
+

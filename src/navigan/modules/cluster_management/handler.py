@@ -33,6 +33,7 @@ from .models import (
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
 from .connector_installation import ConnectorInstaller
+from .bootstrap_status import refresh_installer_status
 from .tool_access import resolve_tool_access
 
 BASE = "/api/v1/clusters"
@@ -444,6 +445,8 @@ def execute(event, principal, correlation):
                 value = repo.list(query_of(event), access)
             else:
                 row = repo.get(identifier)
+                if action in {None, "", "platform-components", "tools"}:
+                    row = refresh_installer_status(repo, row, correlation)
                 if action == "execution-logs":
                     value = execution_logs(row)
                 elif action == "identity":
@@ -703,3 +706,4 @@ def lambda_handler(event, context):
         }))
         error = ApiError(500, "INTERNAL_ERROR", "An unexpected error occurred.")
         return response(error.status, error.payload(correlation), correlation)
+

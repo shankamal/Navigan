@@ -25,8 +25,56 @@ def run_json(*args):
     return json.loads(subprocess.check_output(args, cwd=work))
 
 
-def security_scan(plan, request):
+def system_node_findings(plan, request):
+    """Verify the planned protected pool, including pre-existing no-op groups."""
+    resources = {
+        change.get("address"): change
+        for change in plan.get("resource_changes", [])
+        if change.get("type") == "aws_eks_node_group"
+        and isinstance(change.get("change", {}).get("after"), dict)
+        and "delete" not in change.get("change", {}).get("actions", [])
+    }
     findings = []
+    for index, group in enumerate(request["configuration"].get("nodeGroups", [])):
+        purpose = group.get("purpose", "SYSTEM" if index == 0 else "APPLICATION")
+        if purpose != "SYSTEM" or group.get("managementMode", "MANAGED") != "MANAGED":
+            continue
+        address = 'aws_eks_node_group.this[' + json.dumps(group["name"]) + ']'
+        resource = resources.get(address, {})
+        planned = resource.get("change", {}).get("after", {})
+        labels = planned.get("labels") or {}
+        taints = planned.get("taint") or []
+        scaling = planned.get("scaling_config") or []
+        protected = any(
+            taint.get("key") == "navigan.io/system-only"
+            and taint.get("value") == "true"
+            and taint.get("effect") == "NO_SCHEDULE"
+            for taint in taints
+        )
+        capacity = any(
+            isinstance(item.get("min_size"), (int, float))
+            and isinstance(item.get("desired_size"), (int, float))
+            and item["min_size"] >= 2 and item["desired_size"] >= 2
+            for item in scaling
+        )
+        if not (
+            planned.get("node_group_name") == group["name"]
+            and labels.get("navigan.io/platform-services") == "true"
+            and labels.get("navigan.io/node-purpose") == "system"
+            and protected and capacity
+        ):
+            findings.append({
+                "severity": "HIGH",
+                "rule": "PROTECTED_SYSTEM_NODE_GROUP",
+                "message": "The system node group must have platform-service labels, "
+                           "the system-only taint, and minimum/desired capacity of at least two.",
+                "resources": [group["name"]],
+            })
+    return findings
+
+
+def security_scan(plan, request):
+    findings = system_node_findings(plan, request)
     configuration = request["configuration"]
     if configuration.get("endpointAccess") != "PRIVATE":
         findings.append({
@@ -282,6 +330,9 @@ try:
         if hashlib.sha256(plan).hexdigest() != expected:
             raise ValueError("Approved Terraform plan hash mismatch.")
         (work / "terraform.tfplan").write_bytes(plan)
+        shown = run_json("terraform", "show", "-json", "terraform.tfplan")
+        if system_node_findings(shown, request):
+            raise ValueError("Approved plan does not provision a protected system node group.")
         run("terraform", "apply", "-input=false", "-auto-approve", "terraform.tfplan")
         raw = subprocess.check_output(["terraform", "output", "-json"], cwd=work)
         put_result({"success": True, "mode": mode, "outputs": json.loads(raw)})
@@ -336,3 +387,4 @@ try:
 except Exception as error:
     put_result({"success": False, "mode": mode, "errorCode": type(error).__name__})
     raise
+

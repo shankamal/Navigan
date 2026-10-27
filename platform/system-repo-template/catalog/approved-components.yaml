@@ -29,7 +29,8 @@ spec:
       required: true
     - code: falco
       chart: falco
-      chartVersion: 9.1.0
+      chartVersion: 9.2.0
+      appVersion: 0.45.1
       upstreamRepository: https://falcosecurity.github.io/charts
       approvedChart: oci://__PLATFORM_REGISTRY__/helm/falco
       required: true
@@ -40,3 +41,4 @@ spec:
       upstreamRepository: https://kubernetes-sigs.github.io/headlamp
       approvedChart: oci://__PLATFORM_REGISTRY__/helm/headlamp
       required: true
+

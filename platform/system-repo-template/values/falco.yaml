@@ -1,12 +1,21 @@
+image:
+  tag: "0.45.1"
+collectors:
+  containerEngine:
+    pluginRef: "ghcr.io/falcosecurity/plugins/plugin/container:0.7.5"
 driver:
   kind: modern_ebpf
 
 falco:
   jsonOutput: true
   jsonIncludeOutputProperty: true
-
 tolerations:
-  - operator: Exists
+  - key: navigan.io/system-only
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+nodeSelector:
+  navigan.io/platform-services: "true"
 
 resources:
   requests: {cpu: 100m, memory: 256Mi}
@@ -14,4 +23,5 @@ resources:
 
 falcosidekick:
   enabled: false
+
 

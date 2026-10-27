@@ -1,3 +1,29 @@
+## 27 October 2026 — new-cluster prevention source ready; runtime deployment pending
+
+The user authorized permanent fixes before retesting new-cluster creation. Existing cluster recovery remains verified as recorded below; it does not prove that newly generated clusters use the new defaults.
+
+**Implemented in source:**
+
+- Both the packaged system repository template and the platform scaffold use Falco chart 9.2.0, explicit Falco image 0.45.1 and container plugin 0.7.5 with modern eBPF and protected-system-node scheduling. The scaffold catalog matches the new Falco versions.
+- The Terraform runner rejects plans whose managed SYSTEM node groups lack the platform-services/system-purpose labels, system-only NoSchedule taint, or minimum/desired capacity of two. It checks the intended Terraform resource address and node-group name, including no-op resources, during certification and again before applying an approved saved plan. ADOPTED groups remain outside managed-resource checks.
+- Authorized cluster detail, platform-components and tools polling checks the exact recorded customer-account installer build. Verified FAILED/FAULT/STOPPED/TIMED_OUT states become BOOTSTRAP_FAILED with an INSTALLER_BUILD_* failure code and version/history/audit records. Unknown lookups retain the existing lifecycle state. Account, region, project, registered connector and execution identity are checked; locks reject results from superseded installations. Build success alone never activates a cluster or bypasses component health.
+- Added scripts/audit-cluster-bootstrap-runtime.py. It reads the requested stable parent/ClusterManagement stack, captures the two Lambda ZIPs/configurations and Terraform project, and prints a summary excluding runtime secrets. Optional --inspect-runner resolves the deployed ECR digest and copies runner/module files from an unstarted Docker container. AWS operations are read-only. Private captures must remain local; share only summary.json.
+
+**Validation:** 130 targeted tests passed covering cluster behavior, connector installation, capabilities, tool access, generated Falco manifests, plan protection, stale/terminal installer results, the detail API failure response, and audit target/secret/read-only/container-start constraints. git diff --check passed. No live AWS deployment, Docker build, Terraform validation or fresh-cluster acceptance test was performed in this environment.
+
+**Next action:** run the read-only production audit from the existing project checkout after pulling this branch:
+
+```bash
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python scripts/audit-cluster-bootstrap-runtime.py \
+  --profile navigan --region ap-south-1 --environment prod \
+  --stack-name navigan-custmanagement-cfnstk --expected-database navigan \
+  --inspect-runner
+```
+
+Review that summary and prepare a scoped CloudFormation release based on the captured live processed templates and ZIPs. Preserve unrelated deployed code/configuration, IAM, authorization, API routes and the separate frontend release. Update both ClusterFunction and StatusFunction packaged Falco templates, add failure polling to ClusterFunction, and rebuild/pin the runner with the protected-node module and plan checks. Do not use a broad branch SAM deployment or the older deploy-system-node-migration-dev.sh helper: known source/live package differences must first be accounted for. No AWS runtime changes were performed in this session. Continue the authorized scoped fix without repeating historical deployments or restarting the recovered cluster.
+
+**Acceptance pending after runtime promotion:** create one fresh cluster; confirm the managed system pool has its labels/taint and two Ready nodes, the generated Falco manifest uses the corrected artifacts, all required components become Ready, the lifecycle reaches ACTIVE, and all four tools launch. Verify a controlled installer terminal-failure case in a test environment surfaces the failure without requiring a manual restart.
+
 ## 27 October 2026 — cluster platform services recovered (verified)
 
 This recovery entry supersedes older blockers for `dbs-demo-cluster-creation` only. Preserve the historical entries below.
