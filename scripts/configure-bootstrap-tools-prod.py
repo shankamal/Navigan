@@ -52,13 +52,13 @@ def desired(saved, child_url=None):
     current = saved["childTemplate"]
     require(current["Resources"]["StatusFunction"]["Type"] == "AWS::Lambda::Function", "Expected processed Lambda resource.")
     cluster_env = current["Resources"]["ClusterFunction"]["Properties"]["Environment"]["Variables"]
-    require(cluster_env.get(KEY) == {"Ref": "PlatformToolsBaseUrl"}, "Existing tools URL is not the expected parameter binding.")
+    require(cluster_env.get(KEY) in ({"Ref": "PlatformToolsBaseUrl"}, URL), "Existing tools URL is neither the verified literal URL nor its parameter binding.")
     status_env = saved["configs"]["StatusFunction"]["Environment"]["Variables"]
     require(not status_env.get(KEY), "StatusFunction already has a tools URL; inspect rather than overwrite it.")
     child = copy.deepcopy(current)
     variables = child["Resources"]["StatusFunction"]["Properties"]["Environment"]["Variables"]
     require(not variables.get(KEY), "StatusFunction template already has a tools URL binding.")
-    variables[KEY] = copy.deepcopy(cluster_env[KEY])
+    variables[KEY] = {"Ref": "PlatformToolsBaseUrl"}
     root = copy.deepcopy(saved["rootTemplate"])
     if child_url:
         root["Resources"]["ClusterManagement"]["Properties"]["TemplateURL"] = child_url

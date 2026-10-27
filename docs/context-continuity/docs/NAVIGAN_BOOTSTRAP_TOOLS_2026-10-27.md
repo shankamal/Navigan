@@ -1,3 +1,9 @@
+## Verified literal URL representation supported
+
+The first configuration attempt stopped before artifact upload or change-set creation because its gateway URL representation check required a parameter reference. The helper now also accepts the exact expected literal gateway URL, provided both parent/child parameters and the live gateway configuration independently match it. It preserves the existing cluster API configuration and adds the parameter binding only to the automatic bootstrap function. Unknown URLs and expressions remain blocked.
+
+Validation: 262 targeted tests passed, including preservation of literal gateway configuration and rejection of runtime/parameter mismatches. Runtime correction and existing-cluster GitOps repair remain pending. Retry --apply from the updated source; the stopped attempt created no executable plan. Keep private records local.
+
 # Automatic-bootstrap tools URL correction
 
 The fresh-cluster bootstrap test reached ACTIVE with healthy platform services, but private tool launches remained unavailable. Read-only diagnostics confirmed that the asynchronous status handler lacked the tools base URL that was already configured on the cluster API handler.

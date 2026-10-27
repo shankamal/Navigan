@@ -75,7 +75,7 @@ def test_unknown_configuration_and_broader_template_edits_are_blocked(tmp_path, 
     elif fault in {"root_url", "child_url"}:
         key = "root" if fault == "root_url" else "child"
         saved[key]["Parameters"][-1]["ParameterValue"] = "https://other.example/tools"
-    elif fault == "binding": saved["childTemplate"]["Resources"]["ClusterFunction"]["Properties"]["Environment"]["Variables"][m.KEY] = m.URL
+    elif fault == "binding": saved["childTemplate"]["Resources"]["ClusterFunction"]["Properties"]["Environment"]["Variables"][m.KEY] = "https://unknown.example/tools"
     elif fault == "status_existing": saved["configs"]["StatusFunction"]["Environment"]["Variables"][m.KEY] = m.URL
     elif fault == "status_template_existing": saved["childTemplate"]["Resources"]["StatusFunction"]["Properties"]["Environment"]["Variables"][m.KEY] = m.URL
     elif fault == "code": child["Resources"]["StatusFunction"]["Properties"]["Code"] = {"ZipFile": "unexpected"}
@@ -90,6 +90,29 @@ def test_concrete_environment_preview_keeps_api_and_callback_identity_checks(tmp
     assert proof["inputs"]["parameters"]["PlatformToolsBaseUrl"] == m.URL
     assert proof["snapshot"]["api"]["api"]["ApiId"] == "testapi"
     clients["cloudformation"].execute_change_set.assert_not_called()
+
+
+def test_exact_literal_gateway_url_is_preserved_and_new_status_binding_uses_verified_parameter(tmp_path):
+    session, clients, saved, plan, _, _, _ = fixture(tmp_path)
+    saved["childTemplate"]["Resources"]["ClusterFunction"]["Properties"]["Environment"]["Variables"][m.KEY] = m.URL
+    root, child = m.desired(saved, "new-child-url")
+    assert child["Resources"]["ClusterFunction"] == saved["childTemplate"]["Resources"]["ClusterFunction"]
+    assert child["Resources"]["StatusFunction"]["Properties"]["Environment"]["Variables"][m.KEY] == {"Ref": "PlatformToolsBaseUrl"}
+    plan["childHash"] = m.h.fingerprint(child)
+    clients["cloudformation"].get_template.return_value = {"TemplateBody": child}
+    m.verify_child(session, saved, plan)
+    clients["cloudformation"].execute_change_set.assert_not_called()
+
+
+@pytest.mark.parametrize("scope", ["root", "child", "runtime"])
+def test_literal_url_acceptance_does_not_bypass_parameter_and_runtime_consistency(tmp_path, scope):
+    _, _, saved, _, _, _, _ = fixture(tmp_path)
+    saved["childTemplate"]["Resources"]["ClusterFunction"]["Properties"]["Environment"]["Variables"][m.KEY] = m.URL
+    if scope == "runtime":
+        saved["configs"]["ClusterFunction"]["Environment"]["Variables"][m.KEY] = "https://unknown.example/tools"
+    else:
+        saved[scope]["Parameters"][-1]["ParameterValue"] = "https://unknown.example/tools"
+    with pytest.raises(ValueError): m.desired(saved)
 
 
 @pytest.mark.parametrize("fault", ["replacement", "field", "extra", "missing", "parameter", "duplicate", "nested", "stack", "template"])
