@@ -149,9 +149,16 @@ def no_existing_stack(cfn, stack_name):
 
 def inspect_plan(cfn, plan):
     meta = cfn.describe_change_set(ChangeSetName=plan["changeSet"])
-    require(meta.get("StackId") == plan["stackId"] and meta.get("ChangeSetType") == "CREATE"
+    # DescribeChangeSet does not return ChangeSetType. Prove a new stack via
+    # its actual REVIEW_IN_PROGRESS state plus the exact additions-only plan.
+    stacks = cfn.describe_stacks(StackName=plan["stackId"])["Stacks"]
+    require(len(stacks) == 1 and stacks[0].get("StackId") == plan["stackId"] and stacks[0].get("StackName") == plan["stackName"]
+            and stacks[0].get("StackStatus") == "REVIEW_IN_PROGRESS" and not stacks[0].get("ParentId"),
+            "Change set does not target a new independent review stack.")
+    require(meta.get("StackId") == plan["stackId"]
             and meta.get("Status") == "CREATE_COMPLETE" and meta.get("ExecutionStatus") == "AVAILABLE"
-            and not meta.get("IncludeNestedStacks") and not meta.get("ParentChangeSetId"), "Prepared CREATE change set is not available and independent.")
+            and not meta.get("IncludeNestedStacks") and not meta.get("ParentChangeSetId")
+            and not meta.get("ImportExistingResources"), "Prepared CREATE change set is not available and independent.")
     values = {item["ParameterKey"]: item.get("ParameterValue") for item in meta.get("Parameters", [])}
     require(len(values) == len(meta.get("Parameters", [])) and values == plan["parameters"], "Change-set parameters differ from the reviewed target.")
     raw = cfn.get_template(StackName=plan["stackId"], ChangeSetName=plan["changeSet"], TemplateStage="Original")["TemplateBody"]

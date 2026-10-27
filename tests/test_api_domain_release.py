@@ -40,10 +40,15 @@ def fixture(tmp_path, monkeypatch):
     clients["cloudformation"] = cfn = MagicMock()
     stack_id = f"arn:aws:cloudformation:{REGION}:{ACCOUNT}:stack/navigan-dev-api-domain/stack-id"
     change_id = f"arn:aws:cloudformation:{REGION}:{ACCOUNT}:changeSet/api-domain-test/change-id"
-    cfn.describe_stacks.side_effect = ClientError({"Error": {"Code": "ValidationError", "Message": "Stack does not exist"}}, "DescribeStacks")
+    review = {"StackId": stack_id, "StackName": "navigan-dev-api-domain", "StackStatus": "REVIEW_IN_PROGRESS", "CreationTime": datetime.now(timezone.utc)}
+    def describe(StackName):
+        if StackName == "navigan-dev-api-domain":
+            raise ClientError({"Error": {"Code": "ValidationError", "Message": "Stack does not exist"}}, "DescribeStacks")
+        return {"Stacks": [review]}
+    cfn.describe_stacks.side_effect = describe
     cfn.create_change_set.return_value = {"Id": change_id, "StackId": stack_id}
     params = {"ApiId": "dev123", "StageName": "v1", "DomainName": "api-dev.navigan.click", "HostedZoneId": "public"}
-    meta = {"StackId": stack_id, "ChangeSetType": "CREATE", "Status": "CREATE_COMPLETE", "ExecutionStatus": "AVAILABLE", "IncludeNestedStacks": False,
+    meta = {"StackId": stack_id, "Status": "CREATE_COMPLETE", "ExecutionStatus": "AVAILABLE", "IncludeNestedStacks": False,
             "Parameters": [{"ParameterKey": key, "ParameterValue": value} for key, value in params.items()],
             "Changes": [{"ResourceChange": {"LogicalResourceId": key, "ResourceType": value, "Action": "Add", "Replacement": "False"}} for key, value in m.TYPES.items()]}
     cfn.describe_change_set.return_value = meta
@@ -110,7 +115,7 @@ def test_preparation_rejects_existing_resources_and_drift_before_creating_a_chan
     clients["cloudformation"].create_change_set.assert_not_called()
 
 
-@pytest.mark.parametrize("fault", ["modify", "remove", "replace", "extra", "missing", "duplicate", "parameters", "template", "stack", "update", "nested"])
+@pytest.mark.parametrize("fault", ["modify", "remove", "replace", "extra", "missing", "duplicate", "parameters", "template", "stack", "update", "nested", "import", "parent", "review_identity"])
 def test_prepared_plan_must_be_exactly_four_additions_with_no_existing_resource_actions(tmp_path, monkeypatch, fault):
     session, clients, _, capture, _, _, meta = fixture(tmp_path, monkeypatch)
     plan = m.read(m.prepare(session, capture, "dev", ACCOUNT, REGION))
@@ -123,7 +128,12 @@ def test_prepared_plan_must_be_exactly_four_additions_with_no_existing_resource_
     elif fault == "parameters": meta["Parameters"][0]["ParameterValue"] = "other-api"
     elif fault == "template": clients["cloudformation"].get_template.return_value["TemplateBody"] = "{}"
     elif fault == "stack": meta["StackId"] = "other-stack"
-    elif fault == "update": meta["ChangeSetType"] = "UPDATE"
+    elif fault in {"update", "parent", "review_identity"}:
+        stack = clients["cloudformation"].describe_stacks(StackName=plan["stackId"])["Stacks"][0]
+        if fault == "update": stack["StackStatus"] = "UPDATE_COMPLETE"
+        elif fault == "parent": stack["ParentId"] = "parent-stack"
+        else: stack["StackId"] = "other-stack"
+    elif fault == "import": meta["ImportExistingResources"] = True
     else: meta["IncludeNestedStacks"] = True
     with pytest.raises(ValueError): m.inspect_plan(clients["cloudformation"], plan)
     clients["cloudformation"].execute_change_set.assert_not_called()
@@ -134,7 +144,8 @@ def test_execute_journals_and_runs_only_the_saved_companion_change_set(tmp_path,
     path = m.prepare(session, capture, "dev", ACCOUNT, REGION)
     cfn = clients["cloudformation"]
     cfn.describe_stacks.side_effect = None
-    cfn.describe_stacks.return_value = {"Stacks": [{"StackStatus": "REVIEW_IN_PROGRESS"}]}
+    plan = m.read(path)
+    cfn.describe_stacks.return_value = {"Stacks": [{"StackId": plan["stackId"], "StackName": plan["stackName"], "StackStatus": "REVIEW_IN_PROGRESS"}]}
     verification = MagicMock()
     monkeypatch.setattr(m, "verify", verification)
     def execute(**kwargs):
@@ -145,6 +156,20 @@ def test_execute_journals_and_runs_only_the_saved_companion_change_set(tmp_path,
     assert cfn.execute_change_set.call_count == 1
     verification.assert_called_once_with(session, path, ACCOUNT, REGION)
     with pytest.raises(ValueError, match="already requested"): m.execute(session, path, ACCOUNT, REGION)
+
+
+def test_create_preview_fixture_matches_the_actual_sdk_response_shapes(tmp_path, monkeypatch):
+    import botocore.session
+    from botocore.validate import validate_parameters
+    session, clients, _, capture, _, _, meta = fixture(tmp_path, monkeypatch)
+    path = m.prepare(session, capture, "dev", ACCOUNT, REGION)
+    plan = m.read(path)
+    model = botocore.session.get_session().get_service_model("cloudformation")
+    assert "ChangeSetType" not in model.operation_model("DescribeChangeSet").output_shape.members
+    validate_parameters(meta, model.operation_model("DescribeChangeSet").output_shape)
+    validate_parameters(clients["cloudformation"].describe_stacks(StackName=plan["stackId"]), model.operation_model("DescribeStacks").output_shape)
+    m.inspect_plan(clients["cloudformation"], plan)
+    clients["cloudformation"].execute_change_set.assert_not_called()
 
 
 def verified_fixture(tmp_path, monkeypatch):

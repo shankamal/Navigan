@@ -1,3 +1,11 @@
+## Prepared-plan verification corrected
+
+DEV preparation reached a saved, unexecuted companion change set after the freshness and public-delegation checks, then stopped because the verifier incorrectly expected ChangeSetType in DescribeChangeSet. AWS does not return that field. No deployment was executed.
+
+The verifier now proves new-stack creation from the live independent REVIEW_IN_PROGRESS stack identity/status and the exact four Add actions. It retains parameter/template/availability checks and rejects imports, nested targets, existing stacks, modifications, removals and replacements. The response fixtures are validated against the actual botocore DescribeChangeSet and DescribeStacks schemas.
+
+Validation: 71 domain audit/release tests passed; git diff --check passed. Reuse the saved release-plan.json with --execute after pulling the correction; do not repeat --prepare or create another stack. Execution still repeats all freshness/delegation/scope checks and journals before mutation. Runtime rollout, authenticated parity and frontend switching remain pending.
+
 ## DEV-first domain deployment prepared
 
 The user-run read-only audit completed without read errors. Both existing HTTP APIs retain their v1 stages and enabled default endpoints. The two intended custom domains and target address/delegation records are absent, and no matching regional certificate candidates were found. Public DNS delegation was not established by that inventory; it must be verified before staging.
