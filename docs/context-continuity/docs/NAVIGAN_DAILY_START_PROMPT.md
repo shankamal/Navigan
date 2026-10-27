@@ -1,3 +1,15 @@
+## 27 October 2026 — demo complete; bootstrap release resumed with YAML parsing fix
+
+The user confirmed the leadership demo went very well and authorized resuming the permanent bootstrap fix. The recovered customer cluster remains the verified demo recovery point; fresh-cluster acceptance is still pending.
+
+The last production attempt used source c83c6b4 and stopped with JSONDecodeError after creating parent change set `navigan-bootstrap-concrete-28c93c2e6265/d5a0ed31-c290-4036-a585-ef0ebde6cb35`. No execution was reported. A CloudFormation sibling template returned as YAML is the likely cause; the private AWS response was not supplied, so this diagnosis is not claimed as a live trace.
+
+**Correction:** the shared template reader accepts structured responses, JSON and CloudFormation YAML. A SafeLoader retains supported intrinsic tags as data and normalizes scalar GetAtt syntax; dates remain strings. Invalid/unsupported input fails without echoing private template text. The helper identifies each sibling before inspecting it, and malformed local JSON records report the filename. Existing scope, no-op preview, drift, API/ARN identity and replacement checks remain enforced.
+
+**Validation:** 217 targeted tests passed, including JSON/YAML intrinsic equivalence, invalid/unsafe input rejection and sibling no-op/post-deployment verification with YAML responses. git diff --check passed. No AWS runtime operation was performed from this environment.
+
+**Next action:** pull the source correction in the existing WSL checkout and resume `--execute /var/tmp/navigan-bootstrap-release-x1192p_3/release-plan.json` with the same concrete preview `bootstrap-preview-070660357d2d/cd93c922-0208-42da-990d-d143a5e9124d`. Reuse the prepared runner/image/package artifacts; do not rerun --apply or execute earlier rejected/diagnostic plans manually. The helper rechecks freshness, creates a fresh parent plan and independently proves any sibling entries are no-ops before execution. Stop and inspect any new error. Record the actual successful change-set ID only after `PROD bootstrap release verified`, then refresh the private baseline and run one fresh-cluster acceptance test for system labels/taint, two Ready system nodes, Falco 0.45.1, all components Ready, ACTIVE lifecycle and four tool launches.
+
 ## 27 October 2026 — automatic sibling entries require explicit no-op evidence
 
 The user resumed with commit 707d588. Concrete cluster bindings/API/ARN verification passed. The helper created parent change set `navigan-bootstrap-concrete-bd8cfaabb413/cf227cc5-932f-43b6-8305-8ce4db4b4123`, then stopped before execution because the parent preview listed additional stacks. Production runtime remains unchanged.

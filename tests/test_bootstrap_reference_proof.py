@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location("reference_release", ROOT / "scripts/deploy-cluster-bootstrap-prod.py")
@@ -279,6 +280,16 @@ def test_unchanged_sibling_requires_an_authoritative_noop_and_is_never_executed(
     assert clients["cloudformation"].create_change_set.call_count == 1
     ref.siblings_after(h.proof_context(), clients["cloudformation"], saved, {"AccessManagement": proof})
     clients["cloudformation"].execute_change_set.assert_not_called()
+
+
+def test_sibling_noop_and_postverification_accept_cloudformation_yaml_responses():
+    session, clients, saved, plan, _, _ = sibling_fixture()
+    cfn = clients["cloudformation"]
+    cfn.get_template.return_value["TemplateBody"] = yaml.safe_dump(cfn.get_template.return_value["TemplateBody"])
+    proof = ref.sibling_noop(h.proof_context(), cfn, saved, plan, "AccessManagement")
+    ref.sibling_noop(h.proof_context(), cfn, saved, plan, "AccessManagement", prior=proof)
+    ref.siblings_after(h.proof_context(), cfn, saved, {"AccessManagement": proof})
+    cfn.execute_change_set.assert_not_called()
 
 
 @pytest.mark.parametrize("fault", ["stamp", "parameter", "template", "identity"])

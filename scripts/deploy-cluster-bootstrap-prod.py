@@ -54,7 +54,10 @@ require = patch.require
 
 
 def read(path):
-    return json.loads(path.read_text())
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        raise ValueError("Invalid local JSON record: " + path.name + "; inspect the private file locally.") from None
 
 
 def digest(value):

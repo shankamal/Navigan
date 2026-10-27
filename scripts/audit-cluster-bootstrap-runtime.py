@@ -44,9 +44,47 @@ def write_json(path, value):
 
 
 def template_body(value):
-    result = json.loads(value) if isinstance(value, str) else value
-    require(isinstance(result, dict), "Processed template is not a JSON object.")
+    result = value
+    if isinstance(value, str):
+        try:
+            result = json.loads(value)
+        except json.JSONDecodeError:
+            result = yaml_template(value)
+    require(isinstance(result, dict) and isinstance(result.get("Resources"), dict),
+            "Processed CloudFormation template must contain a Resources mapping.")
     return result
+
+
+def yaml_template(value):
+    """Parse CFN YAML as data, retaining intrinsics without evaluating them."""
+    class Loader(yaml.SafeLoader):
+        pass
+    # CloudFormation version/date strings must remain strings, matching JSON.
+    Loader.yaml_implicit_resolvers = {
+        key: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
+        for key, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+    }
+    allowed = {"Ref", "Condition", "And", "Base64", "Cidr", "Equals", "FindInMap", "GetAtt", "GetAZs",
+               "If", "ImportValue", "Join", "Length", "Not", "Or", "Select", "Split", "Sub", "ToJsonString", "Transform"}
+
+    def intrinsic(loader, tag, node):
+        require(tag in allowed, "Unsupported CloudFormation YAML tag; inspect the private template locally.")
+        if isinstance(node, yaml.ScalarNode):
+            result = loader.construct_scalar(node)
+        elif isinstance(node, yaml.SequenceNode):
+            result = loader.construct_sequence(node, deep=True)
+        else:
+            result = loader.construct_mapping(node, deep=True)
+        if tag == "GetAtt" and isinstance(result, str):
+            result = result.split(".", 1)
+        return {tag if tag in {"Ref", "Condition"} else "Fn::" + tag: result}
+
+    Loader.add_multi_constructor("!", intrinsic)
+    try:
+        return yaml.load(value, Loader=Loader)
+    except yaml.YAMLError:
+        # YAML diagnostics can quote private values from the source text.
+        raise ValueError("Invalid CloudFormation JSON/YAML template; inspect it locally.") from None
 
 
 def validate_stack(stack, account, region, parent=None):

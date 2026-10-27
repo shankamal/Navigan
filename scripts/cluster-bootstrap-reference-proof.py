@@ -310,6 +310,7 @@ def parent_dependency(h, row, before, after):
 
 
 def sibling_noop(h, cfn, saved, plan, logical, prior=None):
+    print("  Inspecting unchanged sibling template and bindings: " + logical, flush=True)
     physical = cfn.describe_stack_resource(StackName=saved["root"]["StackId"], LogicalResourceId=logical)["StackResourceDetail"]["PhysicalResourceId"]
     stack = cfn.describe_stacks(StackName=physical)["Stacks"][0]
     h.audit.validate_stack(stack, h.ACCOUNT, h.REGION, saved["root"]["StackId"])

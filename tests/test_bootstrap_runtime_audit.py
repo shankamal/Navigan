@@ -2,6 +2,7 @@ import base64
 import hashlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import shutil
 from types import SimpleNamespace
@@ -15,6 +16,47 @@ ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location("bootstrap_audit", ROOT / "scripts/audit-cluster-bootstrap-runtime.py")
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
+
+
+def test_cfn_yaml_and_json_have_identical_intrinsic_structure_and_date_strings():
+    source = '''AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  Name: {Type: String, Default: test}
+Conditions:
+  Enabled: !Equals [!Ref Name, test]
+Resources:
+  Function:
+    Type: AWS::Lambda::Function
+    Condition: Enabled
+    Properties:
+      FunctionName: !Sub '${Name}-function'
+      Role: !GetAtt Role.Arn
+      Environment:
+        Variables:
+          Date: 2026-10-27
+          Joined: !Join [',', [!Ref Name, value]]
+          Choice: !If [Enabled, yes-value, no-value]
+  Role:
+    Type: AWS::IAM::Role
+Outputs:
+  Arn: {Value: !GetAtt [Function, Arn]}
+'''
+    expected = {"AWSTemplateFormatVersion": "2010-09-09", "Parameters": {"Name": {"Type": "String", "Default": "test"}},
+        "Conditions": {"Enabled": {"Fn::Equals": [{"Ref": "Name"}, "test"]}},
+        "Resources": {"Function": {"Type": "AWS::Lambda::Function", "Condition": "Enabled", "Properties": {
+            "FunctionName": {"Fn::Sub": "${Name}-function"}, "Role": {"Fn::GetAtt": ["Role", "Arn"]}, "Environment": {"Variables": {
+                "Date": "2026-10-27", "Joined": {"Fn::Join": [",", [{"Ref": "Name"}, "value"]]},
+                "Choice": {"Fn::If": ["Enabled", "yes-value", "no-value"]}}}}}, "Role": {"Type": "AWS::IAM::Role"}},
+        "Outputs": {"Arn": {"Value": {"Fn::GetAtt": ["Function", "Arn"]}}}}
+    assert audit.template_body(source) == audit.template_body(json.dumps(expected)) == audit.template_body(expected)
+
+
+@pytest.mark.parametrize("source", ["Resources: [private-value", "Resources: !Unknown private-value",
+                                    "!!python/object/apply:os.system ['private-value']", "[private-value]", "{}"])
+def test_template_parser_rejects_invalid_or_unsafe_input_without_exposing_values(source):
+    with pytest.raises(ValueError) as caught:
+        audit.template_body(source)
+    assert "private-value" not in str(caught.value)
 
 
 def package():
