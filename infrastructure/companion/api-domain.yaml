@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Add one regional API hostname to an existing HTTP API stage
+Parameters:
+  ApiId: {Type: String}
+  StageName: {Type: String}
+  DomainName: {Type: String}
+  HostedZoneId: {Type: String}
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: {Ref: DomainName}
+      ValidationMethod: DNS
+      KeyAlgorithm: RSA_2048
+      DomainValidationOptions:
+        - DomainName: {Ref: DomainName}
+          HostedZoneId: {Ref: HostedZoneId}
+  ApiDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: {Ref: DomainName}
+      RoutingMode: API_MAPPING_ONLY
+      DomainNameConfigurations:
+        - EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+          CertificateArn: {Ref: Certificate}
+  RootMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Properties:
+      ApiId: {Ref: ApiId}
+      Stage: {Ref: StageName}
+      DomainName: {Ref: ApiDomain}
+  ApiDns:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: {Ref: HostedZoneId}
+      Name: {Ref: DomainName}
+      Type: A
+      AliasTarget:
+        DNSName: {Fn::GetAtt: [ApiDomain, RegionalDomainName]}
+        HostedZoneId: {Fn::GetAtt: [ApiDomain, RegionalHostedZoneId]}
+        EvaluateTargetHealth: false
+Outputs:
+  BaseUrl:
+    Value: {Fn::Sub: 'https://${DomainName}/api/v1'}
+  DomainName:
+    Value: {Ref: ApiDomain}
+  CertificateArn:
+    Value: {Ref: Certificate}

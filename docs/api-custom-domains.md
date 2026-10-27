@@ -1,3 +1,17 @@
+## DEV-first domain deployment prepared
+
+The user-run read-only audit completed without read errors. Both existing HTTP APIs retain their v1 stages and enabled default endpoints. The two intended custom domains and target address/delegation records are absent, and no matching regional certificate candidates were found. Public DNS delegation was not established by that inventory; it must be verified before staging.
+
+infrastructure/companion/api-domain.yaml defines exactly four resources for one explicitly selected environment: a new RSA-2048 DNS-validated ACM certificate, regional TLS 1.2 API domain, empty mapping to the existing API/stage, and Route 53 A alias. Existing certificate candidates, custom domains or address/delegation records stop this creation-only flow for separate reuse/ownership review. The application parent stacks, APIs/stages/routes/authorizers, frontend, backend and tools URLs are not updated.
+
+scripts/deploy-api-domain.py --prepare --capture PRIVATE_AUDIT --environment dev stages an unexecuted CREATE change set after verifying the explicit account/region, fresh API snapshots for both environments, DNS/CAA state, absent target resources/stack, and public nameservers using HTTPS DNS resolvers. Permission and delegation failures block staging. Review the exact four Add entries before using --execute with the actual printed release-plan.json. The script rechecks the target, source template, parameters, change-set scope and freshness before execution; it writes an execution journal first and rejects duplicate execution requests.
+
+Post-deployment verification checks companion resource ownership, regional certificate issuance, exact mapping and alias, unchanged settings for both existing APIs, preserved other-environment domain configuration, HTTPS/TLS and unauthenticated HTTP 401 at a known JWT-protected read route. It does not treat unauthenticated 401 as authenticated workflow acceptance. The frontend remains unchanged. DNS/TLS propagation can be checked again with --verify PLAN without executing another deployment. Inspect failed/interrupted stack creation before any retry; the helper never deletes/recreates a stack automatically.
+
+Validation: 67 domain audit/release tests passed, including 43 new deployment checks for absent-resource and drift gates, public delegation, exact additions-only scope, journaled execution and DNS/certificate/mapping/TLS/HTTP verification. git diff --check passed. No certificate, custom domain, DNS record or change set was created from this development workspace.
+
+Next: user stages DEV using the existing private audit and shares only the printed scope/result. After DEV creation, verify authenticated API parity before changing its frontend. Prepare PROD separately only after DEV acceptance, using a refreshed audit that includes the deployed DEV domain. Complete the resulting live ownership/runtime/SAM reconciliation afterward. Operational account/API/zone/stack identifiers and private capture/release paths remain outside this public record.
+
 # Additive API custom domains
 
 The user resumed the deferred API URL cleanup after the leadership demo. This
