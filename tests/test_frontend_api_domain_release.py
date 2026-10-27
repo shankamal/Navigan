@@ -59,8 +59,11 @@ def setup(tmp_path, monkeypatch):
     ecs.update_service.side_effect = update
     ecs.get_paginator.return_value.paginate.return_value = [{"taskArns": ["task"]}]
     tasks = lambda: {"tasks": [{"taskDefinitionArn": service["taskDefinition"], "lastStatus": "RUNNING", "healthStatus": "HEALTHY",
-        "overrides": {"containerOverrides": [{"name": "frontend"}]}, "containers": [{"name": "frontend", "imageDigest": DIGEST}]}]}
+        "overrides": {"containerOverrides": [{"name": "frontend"}]}, "containers": [
+            {"name": "frontend", "imageDigest": DIGEST}, {"name": "unchanged-sidecar", "imageDigest": DIGEST}]}]}
     ecs.describe_tasks.side_effect = lambda **kw: tasks()
+    baseline["runningTasks"] = tasks()
+    m.write(capture / "frontend-capture.json", baseline)
     cfn.describe_stacks.side_effect = lambda **kw: {"Stacks": [copy.deepcopy(stack)]}
     cfn.list_stack_resources.side_effect = lambda **kw: {"StackResourceSummaries": copy.deepcopy(resources)}
     cfn.get_template.return_value = {"TemplateBody": "{}"}
@@ -262,3 +265,115 @@ def test_future_image_release_accepts_only_same_prod_domain_mapping(fault):
     else:
         m.front.verify_api_target(session, custom, OLD_URL)
         m.front.verify_api_target(session, OLD_URL, OLD_URL)
+
+
+def injected_guardduty(item, name="aws-guardduty-agent-FixtureA"):
+    result = copy.deepcopy(item)
+    result["launchType"] = "FARGATE"
+    result["containers"].append({"name": name, "image": m.GUARDDUTY_REPOSITORY + ":fixture1",
+        "imageDigest": "sha256:" + "b" * 64, "lastStatus": "RUNNING"})
+    result["overrides"].update(inferenceAcceleratorOverrides=[])
+    result["overrides"]["containerOverrides"].append({"name": name, "memory": 128,
+        "environment": [{"name": "AGENT_SETTING", "value": "private-agent-credential"}]})
+    return result
+
+
+def guardduty_setup(tmp_path, monkeypatch):
+    f = setup(tmp_path, monkeypatch)
+    f.baseline["runningTasks"]["tasks"] = [injected_guardduty(item) for item in f.baseline["runningTasks"]["tasks"]]
+    m.write(f.capture / "frontend-capture.json", f.baseline)
+    original_reader = f.ecs.describe_tasks.side_effect
+    def runtime(**kw):
+        result = original_reader(**kw)
+        # AWS generates a new container name at each task launch.
+        name = "aws-guardduty-agent-FixtureA" if f.service["taskDefinition"] == OLD else "aws-guardduty-agent-FixtureB"
+        result["tasks"] = [injected_guardduty(item, name) for item in result["tasks"]]
+        return result
+    f.ecs.describe_tasks.side_effect = runtime
+    return f
+
+
+def test_managed_guardduty_is_verified_but_never_copied_or_disabled(tmp_path, monkeypatch, capsys):
+    f = guardduty_setup(tmp_path, monkeypatch)
+    plan = prepare(f)
+    assert plan["guardDutyRequired"] is True
+    request = f.ecs.register_task_definition.call_args.kwargs
+    assert "aws-guardduty-agent" not in json.dumps(request)
+    assert "private-agent-credential" not in json.dumps(request)
+    m.execute(f.session, f.path)
+    assert m.read(f.path.parent / "verification.json")["guardDutyPresencePreserved"] is True
+    m.execute(f.session, f.path, rollback=True)
+    assert f.ecs.update_service.call_args.kwargs["taskDefinition"] == OLD
+    assert "private-agent-credential" not in capsys.readouterr().out
+    # This helper cannot configure the detector, cluster tags, IAM or agents.
+    assert all(call[0] not in {"update_cluster", "tag_resource", "untag_resource"} for call in f.ecs.method_calls)
+
+
+def test_injected_override_fixture_matches_the_sdk_response_schema(tmp_path, monkeypatch):
+    from botocore.validate import validate_parameters
+    f = guardduty_setup(tmp_path, monkeypatch)
+    item = f.baseline["runningTasks"]["tasks"][0]
+    model = botocore.session.get_session().get_service_model("ecs")
+    shape = model.operation_model("DescribeTasks").output_shape.members["tasks"].member
+    validate_parameters(item, shape)
+    assert m.runtime_overrides(item, f.baseline["task"]["taskDefinition"]) is True
+
+
+@pytest.mark.parametrize("fault", ["unknown_name", "application_registry", "other_region", "missing_digest", "not_running", "not_fargate",
+                                  "extra_agent", "duplicate_name", "task_override", "frontend_env", "frontend_command", "sidecar_env",
+                                  "agent_command", "agent_cpu", "agent_memory", "agent_duplicate_env", "unknown_override"])
+def test_guardduty_exception_does_not_allow_lookalikes_or_application_changes(tmp_path, monkeypatch, fault):
+    f = guardduty_setup(tmp_path, monkeypatch)
+    item = f.baseline["runningTasks"]["tasks"][0]
+    definition = f.baseline["task"]["taskDefinition"]
+    agent = item["containers"][-1]
+    row = item["overrides"]["containerOverrides"][-1]
+    if fault == "unknown_name": agent["name"] = row["name"] = "unapproved-sidecar"
+    elif fault == "application_registry": agent["image"] = "example.test/aws-guardduty-agent-fargate:fixture1"
+    elif fault == "other_region": agent["image"] = agent["image"].replace("ap-south-1", "us-west-2")
+    elif fault == "missing_digest": agent.pop("imageDigest")
+    elif fault == "not_running": agent["lastStatus"] = "STOPPED"
+    elif fault == "not_fargate": item["launchType"] = "EC2"
+    elif fault == "extra_agent": item["containers"].append({**agent, "name": "aws-guardduty-agent-FixtureC"})
+    elif fault == "duplicate_name": item["containers"].append(copy.deepcopy(agent))
+    elif fault == "task_override": item["overrides"]["cpu"] = "2048"
+    elif fault in {"frontend_env", "frontend_command"}:
+        item["overrides"]["containerOverrides"][0]["environment" if fault == "frontend_env" else "command"] = (
+            [{"name": "unapproved", "value": "secret"}] if fault == "frontend_env" else ["unapproved-command"])
+    elif fault == "sidecar_env": item["overrides"]["containerOverrides"].append({"name": "unchanged-sidecar", "environment": [{"name": "unapproved", "value": "secret"}]})
+    elif fault == "agent_command": row["command"] = ["unapproved-command"]
+    elif fault == "agent_cpu": row["cpu"] = 256
+    elif fault == "agent_memory": row["memory"] = True
+    elif fault == "agent_duplicate_env": row["environment"].append(copy.deepcopy(row["environment"][0]))
+    else: item["overrides"]["containerOverrides"].append({"name": "not-a-runtime-container"})
+    with pytest.raises(ValueError): m.runtime_overrides(item, definition)
+    f.ecs.register_task_definition.assert_not_called()
+    f.ecs.update_service.assert_not_called()
+
+
+def test_missing_previously_present_guardduty_after_rollout_is_not_success(tmp_path, monkeypatch):
+    f = guardduty_setup(tmp_path, monkeypatch)
+    prepare(f)
+    previous_reader = f.ecs.describe_tasks.side_effect
+    def runtime(**kw):
+        result = previous_reader(**kw)
+        if f.service["taskDefinition"] == NEXT:
+            item = result["tasks"][0]
+            item["containers"] = [c for c in item["containers"] if not c["name"].startswith("aws-guardduty-agent-")]
+            item["overrides"]["containerOverrides"] = [c for c in item["overrides"]["containerOverrides"] if not c["name"].startswith("aws-guardduty-agent-")]
+        return result
+    f.ecs.describe_tasks.side_effect = runtime
+    with pytest.raises(ValueError, match="previously present GuardDuty"):
+        m.execute(f.session, f.path)
+    assert (f.path.parent / "execution.json").exists()
+    assert not (f.path.parent / "verification.json").exists()
+
+
+def test_guardduty_required_cannot_be_removed_from_the_private_plan(tmp_path, monkeypatch):
+    f = guardduty_setup(tmp_path, monkeypatch)
+    plan = prepare(f)
+    plan["guardDutyRequired"] = False
+    m.write(f.path, plan)
+    with pytest.raises(ValueError, match="retain captured GuardDuty"):
+        m.execute(f.session, f.path)
+    f.ecs.update_service.assert_not_called()

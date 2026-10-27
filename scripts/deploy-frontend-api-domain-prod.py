@@ -32,6 +32,9 @@ FORMAT = "navigan-frontend-api-domain-v1"
 STACK = "navigan-frontend"
 KEYS = ("NAVIGAN_API_ORIGIN", "NAVIGAN_API_BASE_PATH")
 NEW = {KEYS[0]: "https://api.navigan.click", KEYS[1]: "/api/v1"}
+# AWS's documented Mumbai Fargate agent repository, not an application image:
+# https://docs.aws.amazon.com/guardduty/latest/ug/ecs-runtime-agent-ecr-image-uri.html
+GUARDDUTY_REPOSITORY = "251508486986.dkr.ecr.ap-south-1.amazonaws.com/aws-guardduty-agent-fargate"
 
 
 def task_arn(value):
@@ -121,7 +124,54 @@ def check_service(session, baseline, expected_task, *, stable=True):
     return service
 
 
-def running(session, task, digests, count):
+def runtime_overrides(item, definition):
+    """Recognize a proven AWS-injected agent without copying its overrides."""
+    declared = {c["name"] for c in definition["containerDefinitions"]}
+    containers = item.get("containers", [])
+    names = [c.get("name") for c in containers]
+    require(all(isinstance(name, str) and name for name in names) and len(names) == len(set(names))
+            and declared <= set(names), "Runtime container identities differ from the registered task.")
+    injected = [c for c in containers if c["name"] not in declared]
+    require(len(injected) <= 1, "Unexpected extra runtime containers require review.")
+    for agent in injected:
+        require(item.get("launchType") == "FARGATE"
+                and re.fullmatch(r"aws-guardduty-agent-[A-Za-z0-9_-]+", agent["name"])
+                and re.fullmatch(re.escape(GUARDDUTY_REPOSITORY) + r"(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})", agent.get("image", ""))
+                and re.fullmatch(r"sha256:[a-f0-9]{64}", agent.get("imageDigest", ""))
+                and agent.get("lastStatus") == "RUNNING",
+                "Extra container is not a running GuardDuty agent from the documented regional AWS repository.")
+    overrides = item.get("overrides", {})
+    require(not any(value for key, value in overrides.items() if key != "containerOverrides"),
+            "Task-level runtime overrides require review before copying this task.")
+    rows = overrides.get("containerOverrides", [])
+    row_names = [row.get("name") for row in rows]
+    require(len(row_names) == len(set(row_names)) and set(row_names) <= set(names), "Unexpected or duplicate container override identity.")
+    for row in rows:
+        if row["name"] in declared:
+            require(not any(value for key, value in row.items() if key != "name"),
+                    "Application container runtime overrides require review before copying this task.")
+        else:
+            require(set(row) <= {"name", "environment", "memory"}, "Unexpected GuardDuty runtime override fields require review.")
+            require("memory" not in row or (type(row["memory"]) is int and row["memory"] > 0), "Invalid GuardDuty memory override.")
+            env = row.get("environment", [])
+            require(isinstance(env, list) and all(set(v) == {"name", "value"} and isinstance(v["name"], str)
+                    and bool(v["name"]) and isinstance(v["value"], str) for v in env)
+                    and len({v["name"] for v in env}) == len(env), "Invalid GuardDuty environment override shape.")
+    return bool(injected)
+
+
+def captured_guardduty(baseline):
+    result = baseline.get("runningTasks", {})
+    tasks = result.get("tasks", [])
+    require(not result.get("failures") and len(tasks) == baseline["service"]["runningCount"] and bool(tasks),
+            "Capture requires the complete running-task metadata.")
+    require(all(item["taskDefinitionArn"] == baseline["service"]["taskDefinition"] for item in tasks), "Captured running task identity differs.")
+    coverage = [runtime_overrides(item, baseline["task"]["taskDefinition"]) for item in tasks]
+    require(all(value == coverage[0] for value in coverage), "Mixed GuardDuty agent presence requires review.")
+    return coverage[0]
+
+
+def running(session, task, digests, count, *, guardduty_required=False):
     ecs = session.client("ecs")
     arns = []
     for page in ecs.get_paginator("list_tasks").paginate(cluster=front.CLUSTER, serviceName=front.SERVICE, desiredStatus="RUNNING"):
@@ -133,13 +183,12 @@ def running(session, task, digests, count):
         require(not result.get("failures"), "Could not read all running frontend tasks.")
         tasks.extend(result["tasks"])
     require(len(tasks) == count, "Running task inventory is incomplete.")
+    definition = task_state(session, task)
     for item in tasks:
         require(item["taskDefinitionArn"] == task and item.get("lastStatus") == "RUNNING" and item.get("healthStatus") == "HEALTHY",
                 "An unexpected or unhealthy frontend task is running.")
-        overrides = item.get("overrides", {})
-        require(not any(value for key, value in overrides.items() if key != "containerOverrides")
-                and all(not any(value for key, value in row.items() if key != "name") for row in overrides.get("containerOverrides", [])),
-                "Runtime task overrides require review before copying this task.")
+        present = runtime_overrides(item, definition)
+        require(not guardduty_required or present, "The previously present GuardDuty runtime agent is missing; inspect security monitoring.")
         container = next((c for c in item["containers"] if c["name"] == front.CONTAINER), {})
         require(container.get("imageDigest") in digests, "Running frontend image digest differs from the retained image.")
 
@@ -163,7 +212,8 @@ def prepare(session, capture, domain_path):
     require(task_state(session, previous) == original, "Original task configuration changed since capture.")
     image = front.container(original)["image"]
     digests = front.runtime_digests(session.client("ecr"), image.split("@", 1)[1])
-    running(session, previous, digests, service["desiredCount"])
+    guardduty = captured_guardduty(baseline)
+    running(session, previous, digests, service["desiredCount"], guardduty_required=guardduty)
     directory = Path(tempfile.mkdtemp(prefix="navigan-frontend-api-release-"))
     directory.chmod(0o700)
     write(directory / "baseline.json", baseline)
@@ -171,7 +221,7 @@ def prepare(session, capture, domain_path):
     print("Private frontend API release record: " + str(directory), flush=True)
     plan = {"format": FORMAT, "account": front.ACCOUNT, "region": front.REGION, "previousTask": previous,
             "domainPlan": str(domain_path), "originalHash": fingerprint(original), "candidateHash": fingerprint(candidate),
-            "oldUrl": old_url, "image": image, "runtimeDigests": digests}
+            "oldUrl": old_url, "image": image, "runtimeDigests": digests, "guardDutyRequired": guardduty}
     # Registration does not update the service. Save its identity before any
     # follow-up validation so an interrupted preview remains inspectable.
     registered = ecs.register_task_definition(**candidate)["taskDefinition"]["taskDefinitionArn"]
@@ -184,6 +234,8 @@ def prepare(session, capture, domain_path):
     print("Candidate registered: " + registered, flush=True)
     print("Scope verified: only NAVIGAN_API_ORIGIN and NAVIGAN_API_BASE_PATH change; running image and all other task/service settings retained.")
     print("Frontend service unchanged. Rollback task: " + previous)
+    if guardduty:
+        print("AWS-managed GuardDuty sidecar recognized; its presence is required after rollout. Agent overrides are not copied into the candidate.")
     print("Existing CloudFormation task/image drift is recorded, not reconciled by this release.")
     print("Release plan: " + str(path))
 
@@ -195,6 +247,7 @@ def load_plan(session, path):
     task_arn(plan["previousTask"])
     task_arn(plan["nextTask"])
     require(plan["previousTask"] == baseline["service"]["taskDefinition"] and plan["nextTask"] != plan["previousTask"], "Invalid previous/candidate task binding.")
+    require(plan.get("guardDutyRequired") is captured_guardduty(baseline), "Plan does not retain captured GuardDuty agent presence.")
     original = original_request(session.client("ecs"), baseline["task"])
     expected = candidate_request(original, plan["oldUrl"])
     require(fingerprint(original) == plan["originalHash"] and fingerprint(expected) == plan["candidateHash"]
@@ -212,14 +265,14 @@ def verify(session, path, *, rolled_back=False):
     if not rolled_back:
         require(domain_gate(session, Path(plan["domainPlan"]), authenticated=False) == plan["oldUrl"], "Domain plan API target differs.")
     service = check_service(session, baseline, target)
-    running(session, target, plan["runtimeDigests"], service["desiredCount"])
+    running(session, target, plan["runtimeDigests"], service["desiredCount"], guardduty_required=plan["guardDutyRequired"])
     for endpoint in ("/healthz", "/login"):
         require(domain.probe(front.APP_URL + endpoint) == 200, "Frontend public health/login HTTP check failed.")
     write(path.parent / ("rollback-verification.json" if rolled_back else "verification.json"), {
         "verifiedAt": datetime.now(timezone.utc).isoformat(), "task": target, "image": plan["image"],
         "apiUrl": plan["oldUrl"] if rolled_back else NEW[KEYS[0]] + NEW[KEYS[1]],
         "frontendConfigurationVerified": True, "authenticatedBrowserAcceptance": False,
-        "cloudFormationDriftPending": True})
+        "cloudFormationDriftPending": True, "guardDutyPresencePreserved": plan["guardDutyRequired"]})
     print("PROD frontend API " + ("rollback" if rolled_back else "configuration") + " verified: " + target)
     print("Running image preserved; health/login HTTP checks passed. Fresh authenticated browser checks remain required.")
 
@@ -235,7 +288,7 @@ def execute(session, path, *, rollback=False):
         require(domain_gate(session, Path(plan["domainPlan"]), authenticated=True) == plan["oldUrl"], "Domain plan API target differs.")
     service = check_service(session, baseline, current, stable=not rollback)
     if not rollback:
-        running(session, current, plan["runtimeDigests"], service["desiredCount"])
+        running(session, current, plan["runtimeDigests"], service["desiredCount"], guardduty_required=plan["guardDutyRequired"])
     write(journal, {"requestedAt": datetime.now(timezone.utc).isoformat(), "task": target, "previousTask": current})
     session.client("ecs").update_service(cluster=front.CLUSTER, service=front.SERVICE, taskDefinition=target)
     print("Updating only Navigan frontend task reference; saved prior task: " + current, flush=True)

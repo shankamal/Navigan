@@ -1,3 +1,17 @@
+## 27 October 2026 — GuardDuty-injected runtime sidecar recognized
+
+The first user-run frontend URL preparation stopped at the runtime-override guard before registering a candidate or updating the service. The selected diagnostic confirms the running task matches its captured definition; the frontend container has no overrides. A separate aws-guardduty-agent container has environment and memory overrides, while inferenceAcceleratorOverrides is empty. The original guard incorrectly treated all nonempty container overrides as application configuration changes.
+
+AWS documents that GuardDuty attaches its managed security agent to new ECS Fargate tasks at launch, outside the application task definition. The correction recognizes only an undeclared running Fargate sidecar whose name matches the GuardDuty pattern, whose image comes from the documented regional AWS GuardDuty repository, and whose digest is present. Only the observed agent environment/memory override shape is permitted. Unknown containers, application overrides, nonempty task-level overrides, lookalike images/regions and unexpected agent override fields still stop the release. Actual agent image metadata is checked from the complete private capture and fresh ECS responses; the selected diagnostic did not itself expose that image.
+
+The helper records whether GuardDuty was present, requires that presence before/after rollout and rollback, and verifies the injected agent independently of its generated container name. Agent runtime values are never copied into the registered application candidate or printed. The release does not alter GuardDuty, cluster tags, roles or IAM. Application images, task configuration and the exact two-URL delta remain enforced; stale CloudFormation drift remains pending SAM reconciliation.
+
+Validation: 206 targeted frontend/domain tests passed, including 21 added checks for the real injected-override response shape, regional image identity, generated agent names, no credential copying/logging, rejected application/lookalike overrides, immutable presence requirements and post-rollout agent disappearance. SDK response/request shape checks and git diff --check passed. No live AWS registration or service update was performed here. Next: pull the correction and repeat only --prepare with the same frontend capture and verified PROD domain plan; no candidate was created by the earlier stopped attempt. Review the printed new candidate/rollback/plan before execution.
+
+AWS references:
+- https://docs.aws.amazon.com/guardduty/latest/ug/how-runtime-monitoring-works-ecs-fargate.html
+- https://docs.aws.amazon.com/guardduty/latest/ug/ecs-runtime-agent-ecr-image-uri.html
+
 ## 27 October 2026 — PROD frontend URL-only task release prepared
 
 The user-run frontend capture confirms the live service is stable on task revision 23 with a digest-pinned image, while CloudFormation still records task revision 1 and a different older ImageUri. The actual running image digest matches its task definition. Both API proxy values still use the original PROD execute-api endpoint. A direct frontend stack parameter update from that stale definition could revert the live image or other task settings.
