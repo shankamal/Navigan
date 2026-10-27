@@ -1,3 +1,9 @@
+## Runtime URL correction verified; existing-cluster GitOps repair next
+
+The user-run configuration release completed and printed the automatic-bootstrap tools URL verification marker. The scope check, independent sibling no-op checks, parent-only execution and post-deployment verification all passed. Future automatic bootstrap now receives the existing gateway URL. The current cluster's generated desired state still requires the separate three-field GitOps URL repair; tool-launch acceptance remains pending. Do not repeat the completed configuration deployment or the earlier bootstrap package/image release.
+
+Deliver the scoped values-file repair through the existing customer GitOps repository using the recorded cluster/connector identities privately. After reconciliation, verify tunnel readiness, enabled launch buttons and successful Headlamp, Grafana, Prometheus and Argo CD launches. Keep environment-specific release records and repository/cluster identifiers out of this public checkpoint.
+
 ## Verified literal URL representation supported
 
 The first configuration attempt stopped before artifact upload or change-set creation because its gateway URL representation check required a parameter reference. The helper now also accepts the exact expected literal gateway URL, provided both parent/child parameters and the live gateway configuration independently match it. It preserves the existing cluster API configuration and adds the parameter binding only to the automatic bootstrap function. Unknown URLs and expressions remain blocked.
