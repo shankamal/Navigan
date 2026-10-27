@@ -236,6 +236,25 @@ def probe(url):
         return code
 
 
+def verify_certificate(acm, cert_arn, domain):
+    # Describe the CFN-owned certificate itself: inventory listing can lag, and
+    # another valid candidate must never establish validity for this resource.
+    cert = acm.describe_certificate(CertificateArn=cert_arn)["Certificate"]
+    require(cert.get("CertificateArn") == cert_arn and cert.get("DomainName") == domain,
+            "Certificate identity/domain differs from the companion resource.")
+    require(cert.get("Status") == "ISSUED", "Companion certificate is not ISSUED.")
+    # ACM documents RSA-2048 in DescribeCertificate examples and RSA_2048 in
+    # request/filter enums. Both denote the same exact key algorithm/size.
+    require(cert.get("KeyAlgorithm") in {"RSA_2048", "RSA-2048"},
+            "Companion certificate key algorithm is not RSA 2048.")
+    before, after = cert.get("NotBefore"), cert.get("NotAfter")
+    require(isinstance(before, datetime) and isinstance(after, datetime)
+            and before.utcoffset() is not None and after.utcoffset() is not None,
+            "Companion certificate validity timestamps are missing or invalid.")
+    require(before <= datetime.now(timezone.utc) < after,
+            "Companion certificate is outside its validity period.")
+
+
 def verify(session, path, account, region):
     plan, original, saved, args = load_plan(path, account, region)
     cfn = session.client("cloudformation")
@@ -261,9 +280,7 @@ def verify(session, path, account, region):
             and audit.normalized(aliases[0]["AliasTarget"]["DNSName"]) == audit.normalized(configs[0]["ApiGatewayDomainName"])
             and aliases[0]["AliasTarget"]["HostedZoneId"] == configs[0]["HostedZoneId"], "DNS A alias does not match the new regional endpoint.")
     require(fingerprint([item for item in new_records if item["Type"] != "A"]) == fingerprint(original["environments"][plan["environment"]].get("dnsRecords", [])), "Other target DNS records changed.")
-    certificates = [item for item in observed["certificates"] if item["CertificateArn"] == cert_arn]
-    require(len(certificates) == 1 and certificates[0]["Status"] == "ISSUED" and certificates[0]["DomainName"] == plan["parameters"]["DomainName"]
-            and certificates[0].get("KeyAlgorithm") == "RSA_2048" and current["environments"][plan["environment"]]["hasIssuedTimeValidCertificate"], "Certificate issuance/identity verification failed.")
+    verify_certificate(session.client("acm"), cert_arn, plan["parameters"]["DomainName"])
     old = current["environments"][plan["environment"]]["existingBaseUrl"] + "/customers/summary"
     new = current["environments"][plan["environment"]]["plannedBaseUrl"] + "/customers/summary"
     require(probe(old) == 401, "Existing JWT-protected endpoint did not return expected unauthenticated HTTP 401.")

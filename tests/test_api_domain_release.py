@@ -207,6 +207,41 @@ def test_verify_checks_new_resource_bindings_tls_401_and_unchanged_apis_without_
     clients["cloudformation"].execute_change_set.assert_not_called()
 
 
+@pytest.mark.parametrize("algorithm", ["RSA_2048", "RSA-2048"])
+def test_verify_reads_the_owned_certificate_with_both_documented_algorithm_forms(tmp_path, monkeypatch, algorithm):
+    session, clients, path, _, _, _, cert = verified_fixture(tmp_path, monkeypatch)
+    cert["KeyAlgorithm"] = algorithm
+    # The exact DescribeCertificate read remains authoritative when a newly
+    # created certificate has not appeared in inventory listing yet.
+    clients["acm"].get_paginator.return_value.paginate.return_value = [{"CertificateSummaryList": []}]
+    m.verify(session, path, ACCOUNT, REGION)
+    clients["acm"].describe_certificate.assert_called_once_with(CertificateArn=cert["CertificateArn"])
+    clients["cloudformation"].execute_change_set.assert_not_called()
+    assert m.read(path.parent / "verification.json")["authenticatedAcceptance"] is False
+
+
+@pytest.mark.parametrize("fault", ["arn", "domain", "status", "large_key", "small_key", "unknown_key", "missing_key",
+                                  "expired", "future", "missing_before", "missing_after", "naive_date", "string_date"])
+def test_exact_certificate_identity_algorithm_and_validity_are_required(tmp_path, monkeypatch, fault):
+    session, clients, path, _, _, _, cert = verified_fixture(tmp_path, monkeypatch)
+    clients["acm"].get_paginator.return_value.paginate.return_value = [{"CertificateSummaryList": []}]
+    if fault == "arn": cert["CertificateArn"] += "-other"
+    elif fault == "domain": cert["DomainName"] = "other.example.test"
+    elif fault == "status": cert["Status"] = "REVOKED"
+    elif fault in {"large_key", "small_key", "unknown_key", "missing_key"}:
+        cert["KeyAlgorithm"] = {"large_key": "RSA-4096", "small_key": "RSA_1024", "unknown_key": "rsa2048", "missing_key": None}[fault]
+    elif fault == "expired": cert["NotAfter"] = datetime.now(timezone.utc) - timedelta(days=1)
+    elif fault == "future": cert["NotBefore"] = datetime.now(timezone.utc) + timedelta(days=1)
+    elif fault == "missing_before": cert.pop("NotBefore")
+    elif fault == "missing_after": cert.pop("NotAfter")
+    elif fault == "naive_date": cert["NotBefore"] = datetime.now()
+    else: cert["NotAfter"] = "2099-01-01"
+    with pytest.raises(ValueError, match="[Cc]ertificate"):
+        m.verify(session, path, ACCOUNT, REGION)
+    assert not (path.parent / "verification.json").exists()
+    clients["cloudformation"].execute_change_set.assert_not_called()
+
+
 @pytest.mark.parametrize("fault", ["domain", "mapping_id", "mapping_stage", "mapping_path", "alias", "certificate", "routes", "tls", "old_http", "new_http", "parameter", "extra_resource"])
 def test_verify_rejects_incorrect_dns_certificate_mapping_identity_and_behavior(tmp_path, monkeypatch, fault):
     session, clients, path, config, mapping, alias, cert = verified_fixture(tmp_path, monkeypatch)

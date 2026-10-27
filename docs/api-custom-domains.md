@@ -1,3 +1,11 @@
+## 27 October 2026 — DEV domain created; certificate verification recovery
+
+The user-run execution passed stack CREATE_COMPLETE, exact four-resource creation, unchanged API snapshots, regional domain availability, certificate attachment, root mapping and DNS alias checks, then stopped at the aggregate certificate metadata check. DNS/TLS/HTTP and authenticated acceptance remain unverified. This is a post-deployment verification failure; do not repeat preparation or execution.
+
+The verifier incorrectly accepted only RSA_2048 even though AWS DescribeCertificate examples also use RSA-2048. The correction accepts those two exact RSA 2048 forms and directly describes the CloudFormation-owned certificate. Exact certificate identity/domain, ISSUED status and explicit timezone-aware validity dates remain required. Another certificate's validity and inventory-list presence cannot establish the owned certificate's validity. Failure messages now identify identity, status, algorithm or validity rather than an aggregate check. The supplied output does not reveal the actual certificate metadata, so the exact live mismatch is not yet confirmed.
+
+Validation: 86 domain audit/release tests passed, covering both documented algorithm forms, inventory listing lag, wrong identity/domain/key/status, expired/future/missing/invalid validity dates, preserved API/mapping/DNS scope and read-only verification. Resume only with --verify and the existing saved release plan. No template change, AWS mutation, frontend switch or PROD rollout is part of this verifier correction. Require the verification success marker, then authenticated DEV parity before frontend/PROD work.
+
 ## Prepared-plan verification corrected
 
 DEV preparation reached a saved, unexecuted companion change set after the freshness and public-delegation checks, then stopped because the verifier incorrectly expected ChangeSetType in DescribeChangeSet. AWS does not return that field. No deployment was executed.
