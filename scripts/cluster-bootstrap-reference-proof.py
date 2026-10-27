@@ -10,7 +10,7 @@ import re
 import uuid
 
 
-def resolve_inputs(h, cfn, saved, plan):
+def resolve_inputs(h, cfn, saved, plan, *, logical="ClusterManagement", child=None, child_template=None):
     root = saved["rootTemplate"]
     values = h.parameters(saved["root"])
     values["TerraformRunnerImageUri"] = plan["newImage"]
@@ -60,16 +60,19 @@ def resolve_inputs(h, cfn, saved, plan):
         h.require(isinstance(value, (str, int, float, bool)), "Invalid resolved parameter value.")
         return str(value).lower() if isinstance(value, bool) else str(value)
 
-    expected = h.parameters(saved["child"])
-    expected["TerraformRunnerImageUri"] = plan["newImage"]
-    bindings = root["Resources"]["ClusterManagement"]["Properties"]["Parameters"]
+    child = saved["child"] if child is None else child
+    child_template = saved["childTemplate"] if child_template is None else child_template
+    expected = h.parameters(child)
+    if logical == "ClusterManagement":
+        expected["TerraformRunnerImageUri"] = plan["newImage"]
+    bindings = root["Resources"][logical]["Properties"].get("Parameters", {})
     h.require(set(bindings) <= set(expected), "Unexpected parent-to-child parameter binding.")
     resolved = {}
     for name in expected:
         if name in bindings:
             resolved[name] = string(resolve(bindings[name]))
         else:
-            definition = saved["childTemplate"].get("Parameters", {}).get(name, {})
+            definition = child_template.get("Parameters", {}).get(name, {})
             h.require("Default" in definition, "An omitted required child parameter cannot be resolved.")
             resolved[name] = string(definition["Default"])
         h.require(resolved[name] == expected[name], "Parent binding would change child parameter: " + name)
@@ -237,11 +240,12 @@ standalone diagnostic child preview is executed.
     h.audit.write_json(directory / "resolved-parent-plan.json", record)
     print("Fresh parent change set: " + identifier, flush=True)
     cfn.get_waiter("change_set_create_complete").wait(ChangeSetName=identifier, WaiterConfig={"Delay": 5, "MaxAttempts": 180})
-    inspect_parent(h, cfn, saved, plan, identifier)
+    proofs = inspect_parent(h, cfn, saved, plan, identifier)
+    h.audit.write_json(directory / "sibling-noop-proof.json", proofs)
     return identifier
 
 
-def inspect_parent(h, cfn, saved, plan, identifier):
+def inspect_parent(h, cfn, saved, plan, identifier, module_proofs=None):
     meta = cfn.describe_change_set(ChangeSetName=identifier)
     h.require(meta.get("StackId") == saved["root"]["StackId"] and meta.get("Status") == "CREATE_COMPLETE"
               and meta.get("ExecutionStatus") == "AVAILABLE" and meta.get("IncludeNestedStacks") is False,
@@ -260,10 +264,107 @@ def inspect_parent(h, cfn, saved, plan, identifier):
             actual[key] = item.get("ParameterValue")
     h.require(actual == wanted, "Fresh parent plan changes unrelated parameters.")
     rows = h.items(cfn, "describe_change_set", "Changes", ChangeSetName=identifier)
-    h.require(len(rows) == 1, "Fresh parent plan affects another module.")
-    row = rows[0]["ResourceChange"]
-    h.require((row.get("LogicalResourceId"), row.get("ResourceType"), row.get("Action"), row.get("Replacement"))
-              == ("ClusterManagement", "AWS::CloudFormation::Stack", "Modify", "False") and not row.get("ChangeSetId"),
-              "Fresh parent plan creates, deletes, replaces or precomputes nested resources.")
     template = h.audit.template_body(cfn.get_template(StackName=saved["root"]["StackId"], ChangeSetName=identifier, TemplateStage="Processed")["TemplateBody"])
     h.require(h.fingerprint(template) == plan["rootHash"], "Fresh parent template differs from the reviewed release.")
+    names_seen, extras = set(), []
+    for entry in rows:
+        row = entry["ResourceChange"]
+        logical = row.get("LogicalResourceId")
+        h.require(logical not in names_seen, "Duplicate parent resource.")
+        names_seen.add(logical)
+        h.require((row.get("ResourceType"), row.get("Action"), row.get("Replacement"))
+                  == ("AWS::CloudFormation::Stack", "Modify", "False") and not row.get("ChangeSetId"),
+                  "Fresh parent plan creates, deletes, replaces or precomputes nested resources.")
+        if logical != "ClusterManagement":
+            parent_dependency(h, row, saved["rootTemplate"], template)
+            extras.append(logical)
+    h.require("ClusterManagement" in names_seen, "Fresh parent plan omits the intended module.")
+    if module_proofs is not None:
+        h.require(set(module_proofs) == set(extras), "Sibling proof set differs from the parent plan.")
+    proofs = {}
+    for logical in sorted(extras, key=lambda name: (name != "SharedPlatform", name)):
+        proofs[logical] = sibling_noop(h, cfn, saved, plan, logical,
+                                      None if module_proofs is None else module_proofs[logical])
+        print("  Unchanged sibling template/parameters and no-op preview verified: " + logical, flush=True)
+    return proofs
+
+
+def parent_dependency(h, row, before, after):
+    logical = row.get("LogicalResourceId")
+    h.require(logical in {"SharedPlatform", "AccessManagement", "CustomerManagement", "EnvironmentManagement", "MigrationManagement"}
+              and before["Resources"].get(logical) == after["Resources"].get(logical), "An unrelated sibling definition changed.")
+    details = row.get("Details") or []
+    h.require(details, "Sibling change details are missing.")
+    for detail in details:
+        target = detail.get("Target", {})
+        h.require(target.get("Attribute") == "Properties" and target.get("RequiresRecreation") == "Never"
+                  and detail.get("Evaluation") == "Dynamic", "Sibling has a static or recreating change.")
+        if logical == "SharedPlatform":
+            h.require(detail.get("ChangeSource") == "Automatic" and target.get("Name") is None
+                      and not detail.get("CausingEntity"), "SharedPlatform is not an unchanged automatic entry.")
+        else:
+            h.require(target.get("Name") == "Parameters" and detail.get("ChangeSource") == "ResourceAttribute"
+                      and detail.get("CausingEntity") in {"SharedPlatform.Outputs.ApiId", "SharedPlatform.Outputs.AuthorizerId",
+                                                        "SharedPlatform.Outputs.EventBusName", "SharedPlatform.Outputs.EventBusArn"},
+                      "Sibling change is not a known unchanged shared-output dependency.")
+
+
+def sibling_noop(h, cfn, saved, plan, logical, prior=None):
+    physical = cfn.describe_stack_resource(StackName=saved["root"]["StackId"], LogicalResourceId=logical)["StackResourceDetail"]["PhysicalResourceId"]
+    stack = cfn.describe_stacks(StackName=physical)["Stacks"][0]
+    h.audit.validate_stack(stack, h.ACCOUNT, h.REGION, saved["root"]["StackId"])
+    current = h.audit.template_body(cfn.get_template(StackName=physical, TemplateStage="Processed")["TemplateBody"])
+    url = saved["rootTemplate"]["Resources"][logical]["Properties"]["TemplateURL"]
+    h.require(isinstance(url, str) and url.startswith("https://"), "Sibling template URL is not a captured HTTPS artifact.")
+    summary = cfn.get_template_summary(TemplateURL=url)
+    h.require({item["ParameterKey"] for item in summary.get("Parameters", [])} == set(h.parameters(stack))
+              and all(not item.get("ParameterType", "").startswith("AWS::SSM::") for item in summary.get("Parameters", [])),
+              "Sibling parameter definitions changed or contain mutable SSM bindings.")
+    source = {"Parameters": {item["ParameterKey"]: {"Type": item.get("ParameterType", "String"), **(
+        {"Default": item["DefaultValue"]} if "DefaultValue" in item else {})} for item in summary.get("Parameters", [])}}
+    resolved = resolve_inputs(h, cfn, saved, plan, logical=logical, child=stack, child_template=source)
+    record = {"stackId": physical, "stamp": h.stamp(stack), "templateHash": h.fingerprint(current),
+              "sourceUrl": url, "parameters": resolved["parameters"]}
+    if prior is None:
+        request = {"StackName": physical, "ChangeSetName": "bootstrap-noop-" + logical.lower() + "-" + uuid.uuid4().hex[:10],
+                   "ChangeSetType": "UPDATE", "TemplateURL": url, "IncludeNestedStacks": False,
+                   "Capabilities": ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],
+                   "Parameters": [{"ParameterKey": item["ParameterKey"], "UsePreviousValue": True} for item in stack.get("Parameters", [])]}
+        if stack.get("RoleARN"):
+            request["RoleARN"] = stack["RoleARN"]
+        change_id = cfn.create_change_set(**request)["Id"]
+        print("  Checking an unexecuted no-op preview: " + logical, flush=True)
+        try:
+            cfn.get_waiter("change_set_create_complete").wait(ChangeSetName=change_id, WaiterConfig={"Delay": 5, "MaxAttempts": 180})
+        except Exception:
+            # No-change sets deliberately finish FAILED. Check AWS's exact
+            # terminal reason below; never accept permission/template failures.
+            pass
+    else:
+        h.require({key: value for key, value in prior.items() if key != "changeSet"} == record,
+                  "An unchanged sibling changed since its no-op proof.")
+        change_id = prior["changeSet"]
+    meta = cfn.describe_change_set(ChangeSetName=change_id)
+    h.require(meta.get("StackId") == physical, "No-op preview targets another stack.")
+    if meta.get("Status") == "FAILED":
+        reason = meta.get("StatusReason", "").lower()
+        h.require(reason.startswith("the submitted information didn't contain changes") or reason.startswith("no updates are to be performed"),
+                  "Sibling no-op preview failed for another reason: " + logical)
+    else:
+        h.require(meta.get("Status") == "CREATE_COMPLETE" and meta.get("ExecutionStatus") == "AVAILABLE"
+                  and not h.items(cfn, "describe_change_set", "Changes", ChangeSetName=change_id),
+                  "Sibling preview contains actual changes: " + logical)
+        desired = h.audit.template_body(cfn.get_template(StackName=physical, ChangeSetName=change_id, TemplateStage="Processed")["TemplateBody"])
+        h.require(h.fingerprint(desired) == record["templateHash"], "Sibling preview changes its template.")
+    return {**record, "changeSet": change_id}
+
+
+def siblings_after(h, cfn, saved, proofs):
+    for logical, proof in proofs.items():
+        physical = cfn.describe_stack_resource(StackName=saved["root"]["StackId"], LogicalResourceId=logical)["StackResourceDetail"]["PhysicalResourceId"]
+        h.require(physical == proof["stackId"], "A sibling stack identity changed.")
+        stack = cfn.describe_stacks(StackName=physical)["Stacks"][0]
+        h.audit.validate_stack(stack, h.ACCOUNT, h.REGION, saved["root"]["StackId"])
+        current = h.audit.template_body(cfn.get_template(StackName=physical, TemplateStage="Processed")["TemplateBody"])
+        h.require(h.stamp(stack) == proof["stamp"] and h.fingerprint(current) == proof["templateHash"]
+                  and h.parameters(stack) == proof["parameters"], "A verified unchanged sibling was updated: " + logical)

@@ -232,16 +232,120 @@ def test_execute_selects_only_the_fresh_parent_after_all_preflight_checks(tmp_pa
     plan["newImage"] = f"{h.ACCOUNT}.dkr.ecr.{h.REGION}.amazonaws.com/navigan-terraform-runner@sha256:" + "a" * 64
     path = tmp_path / "release-plan.json"
     path.write_text(json.dumps(plan))
+    (tmp_path / "sibling-noop-proof.json").write_text("{}")
     monkeypatch.setattr(h, "baseline", lambda path: saved)
     monkeypatch.setattr(h, "preflight", lambda *args: None)
     monkeypatch.setattr(h, "inspect_change_set", lambda *args, **kwargs: None)
     monkeypatch.setattr(ref, "verify", lambda *args: {"preview": PREVIEW})
     monkeypatch.setattr(ref, "parent_plan", lambda *args: "fresh-parent")
     monkeypatch.setattr(ref, "unchanged", lambda *args: None)
-    monkeypatch.setattr(ref, "inspect_parent", lambda *args: None)
+    monkeypatch.setattr(ref, "inspect_parent", lambda *args, **kwargs: None)
     # Stop immediately after recording the selected execution target, before
     # post-deployment AWS verification; no real clients are used in this test.
     clients["cloudformation"].execute_change_set.side_effect = RuntimeError("execution target recorded")
     with pytest.raises(RuntimeError, match="execution target recorded"):
         h.execute(session, path, PREVIEW)
     clients["cloudformation"].execute_change_set.assert_called_once_with(ChangeSetName="fresh-parent")
+
+
+def sibling_fixture():
+    session, clients, saved, plan, meta, shared = fixture()
+    cfn = clients["cloudformation"]
+    access_id = saved["root"]["StackId"] + "-access"
+    access = {"StackId": access_id, "ParentId": saved["root"]["StackId"], "StackStatus": "UPDATE_COMPLETE", "CreationTime": "initial",
+              "Parameters": [{"ParameterKey": name, "ParameterValue": value} for name, value in
+                             (("ApiId", "testapi"), ("AuthorizerId", "testauth"), ("DatabaseName", "navigan"))]}
+    saved["rootTemplate"]["Resources"]["AccessManagement"] = {"Type": "AWS::CloudFormation::Stack", "Properties": {
+        "TemplateURL": "https://bucket.s3.ap-south-1.amazonaws.com/access.json", "Parameters": {
+            "ApiId": {"Fn::GetAtt": ["SharedPlatform", "Outputs.ApiId"]}, "AuthorizerId": {"Fn::GetAtt": ["SharedPlatform", "Outputs.AuthorizerId"]}, "DatabaseName": {"Ref": "DatabaseName"}}}}
+    cfn.describe_stack_resource.side_effect = lambda **kw: {"StackResourceDetail": {"PhysicalResourceId": access_id if kw["LogicalResourceId"] == "AccessManagement" else shared["StackId"]}}
+    cfn.describe_stacks.side_effect = lambda **kw: {"Stacks": [access if kw["StackName"] == access_id else shared]}
+    template = {"Parameters": {item["ParameterKey"]: {"Type": "String"} for item in access["Parameters"]}, "Resources": {"Role": {"Type": "AWS::IAM::Role", "Properties": {"RoleName": "preserve"}}}}
+    cfn.get_template.return_value = {"TemplateBody": template}
+    cfn.get_template_summary.return_value = {"Parameters": [{"ParameterKey": item["ParameterKey"], "ParameterType": "String"} for item in access["Parameters"]]}
+    noop = {"StackId": access_id, "Status": "FAILED", "StatusReason": "The submitted information didn't contain changes. Submit different information to create a change set."}
+    cfn.create_change_set.return_value = {"Id": "noop-access"}
+    cfn.describe_change_set.return_value = noop
+    cfn.get_waiter.return_value.wait.side_effect = RuntimeError("No-change waiter ends FAILED")
+    return session, clients, saved, plan, access, noop
+
+
+def test_unchanged_sibling_requires_an_authoritative_noop_and_is_never_executed():
+    session, clients, saved, plan, _, _ = sibling_fixture()
+    proof = ref.sibling_noop(h.proof_context(), clients["cloudformation"], saved, plan, "AccessManagement")
+    assert proof["parameters"]["ApiId"] == "testapi"
+    assert proof["changeSet"] == "noop-access"
+    ref.sibling_noop(h.proof_context(), clients["cloudformation"], saved, plan, "AccessManagement", prior=proof)
+    assert clients["cloudformation"].create_change_set.call_count == 1
+    ref.siblings_after(h.proof_context(), clients["cloudformation"], saved, {"AccessManagement": proof})
+    clients["cloudformation"].execute_change_set.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", ["stamp", "parameter", "template", "identity"])
+def test_postverification_detects_an_unrelated_sibling_update(fault):
+    session, clients, saved, plan, access, _ = sibling_fixture()
+    cfn = clients["cloudformation"]
+    proof = ref.sibling_noop(h.proof_context(), cfn, saved, plan, "AccessManagement")
+    if fault == "stamp": access["LastUpdatedTime"] = "different"
+    elif fault == "parameter": access["Parameters"][0]["ParameterValue"] = "other-api"
+    elif fault == "template": cfn.get_template.return_value["TemplateBody"]["Resources"]["Role"]["Properties"]["RoleName"] = "changed"
+    else: cfn.describe_stack_resource.side_effect = None; cfn.describe_stack_resource.return_value = {"StackResourceDetail": {"PhysicalResourceId": "other-stack"}}
+    with pytest.raises(ValueError): ref.siblings_after(h.proof_context(), cfn, saved, {"AccessManagement": proof})
+
+
+@pytest.mark.parametrize("fault", ["actual_changes", "permission_error", "binding_change", "parameter_definition", "mutable", "updating", "stale_proof"])
+def test_sibling_proof_does_not_hide_changes_or_failures(fault):
+    session, clients, saved, plan, access, noop = sibling_fixture()
+    cfn = clients["cloudformation"]
+    prior = None
+    if fault == "actual_changes":
+        noop.update(Status="CREATE_COMPLETE", ExecutionStatus="AVAILABLE", Changes=[{"ResourceChange": {"LogicalResourceId": "Role", "Action": "Modify"}}])
+    elif fault == "permission_error": noop["StatusReason"] = "Access denied while preparing the template"
+    elif fault == "binding_change": saved["rootTemplate"]["Resources"]["AccessManagement"]["Properties"]["Parameters"]["DatabaseName"] = "other-db"
+    elif fault == "parameter_definition": cfn.get_template_summary.return_value["Parameters"].pop()
+    elif fault == "mutable": cfn.get_template_summary.return_value["Parameters"][0]["ParameterType"] = "AWS::SSM::Parameter::Value<String>"
+    elif fault == "updating": access["StackStatus"] = "UPDATE_IN_PROGRESS"
+    else:
+        prior = ref.sibling_noop(h.proof_context(), cfn, saved, plan, "AccessManagement")
+        access["LastUpdatedTime"] = "changed"
+    with pytest.raises(ValueError): ref.sibling_noop(h.proof_context(), cfn, saved, plan, "AccessManagement", prior=prior)
+    cfn.execute_change_set.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", ["replacement", "static", "url", "definition", "unknown_output", "wrong_kind"])
+def test_only_exact_dynamic_unchanged_sibling_entries_are_eligible(fault):
+    session, clients, saved, plan, _, _ = sibling_fixture()
+    before = saved["rootTemplate"]
+    after = deepcopy(before)
+    row = {"LogicalResourceId": "AccessManagement", "Details": [{"Target": {"Attribute": "Properties", "Name": "Parameters", "RequiresRecreation": "Never"},
+            "Evaluation": "Dynamic", "ChangeSource": "ResourceAttribute", "CausingEntity": "SharedPlatform.Outputs.ApiId"}]}
+    # Replacement/action/type are checked by inspect_parent before this helper.
+    if fault == "replacement": row["Details"][0]["Target"]["RequiresRecreation"] = "Always"
+    elif fault == "static": row["Details"][0]["Evaluation"] = "Static"
+    elif fault == "url": row["Details"][0]["Target"]["Name"] = "TemplateURL"
+    elif fault == "definition": after["Resources"]["AccessManagement"]["Properties"]["TemplateURL"] = "changed"
+    elif fault == "unknown_output": row["Details"][0]["CausingEntity"] = "OtherStack.Outputs.ApiId"
+    else: row["LogicalResourceId"] = "UnrelatedModule"
+    with pytest.raises(ValueError): ref.parent_dependency(h.proof_context(), row, before, after)
+
+
+def test_dynamic_shared_output_entries_require_noop_proofs_and_postverification(monkeypatch):
+    session, clients, saved, plan, meta = fresh_parent_fixture()
+    saved["rootTemplate"]["Resources"]["AccessManagement"] = {"Type": "AWS::CloudFormation::Stack", "Properties": {"TemplateURL": "same"}}
+    root_after = deepcopy(saved["rootTemplate"])
+    root_after["Resources"]["ClusterManagement"]["Properties"]["TemplateURL"] = "new"
+    plan["rootHash"] = h.fingerprint(root_after)
+    clients["cloudformation"].get_template.return_value = {"TemplateBody": root_after}
+    for logical in ("SharedPlatform", "AccessManagement"):
+        detail = {"Target": {"Attribute": "Properties", "RequiresRecreation": "Never"}, "Evaluation": "Dynamic", "ChangeSource": "Automatic"}
+        if logical == "AccessManagement": detail.update(Target={"Attribute": "Properties", "Name": "Parameters", "RequiresRecreation": "Never"}, ChangeSource="ResourceAttribute", CausingEntity="SharedPlatform.Outputs.ApiId")
+        meta["Changes"].append({"ResourceChange": {"LogicalResourceId": logical, "ResourceType": "AWS::CloudFormation::Stack", "Action": "Modify", "Replacement": "False", "Details": [detail]}})
+    calls = []
+    def noop(h, cfn, saved, plan, logical, prior=None):
+        calls.append(logical)
+        return {"verified": logical}
+    monkeypatch.setattr(ref, "sibling_noop", noop)
+    proofs = ref.inspect_parent(h.proof_context(), clients["cloudformation"], saved, plan, "fresh-parent")
+    assert calls == ["SharedPlatform", "AccessManagement"]
+    assert set(proofs) == {"SharedPlatform", "AccessManagement"}
+    with pytest.raises(ValueError): ref.inspect_parent(h.proof_context(), clients["cloudformation"], saved, plan, "fresh-parent", module_proofs={})

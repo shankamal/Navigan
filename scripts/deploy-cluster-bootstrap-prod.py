@@ -370,11 +370,13 @@ def execute(session, path, preview_change_set=None):
     inspect_change_set(cfn, saved, plan, reference_proof=proof)
     preflight(session, saved)
     execution_id = plan["changeSet"]
+    sibling_proofs = {}
     if proof is not None:
         execution_id = references.parent_plan(proof_context(), session, saved, plan, path.parent)
+        sibling_proofs = read(path.parent / "sibling-noop-proof.json")
         preflight(session, saved)
         references.unchanged(proof_context(), session, saved, plan, proof)
-        references.inspect_parent(proof_context(), cfn, saved, plan, execution_id)
+        references.inspect_parent(proof_context(), cfn, saved, plan, execution_id, module_proofs=sibling_proofs)
     cfn.execute_change_set(ChangeSetName=execution_id)
     print("Executing the scoped bootstrap release...", flush=True)
     cfn.get_waiter("stack_update_complete").wait(StackName=PARENT, WaiterConfig={"Delay": 10, "MaxAttempts": 180})
@@ -397,6 +399,7 @@ def execute(session, path, preview_change_set=None):
     require(fingerprint(current) == fingerprint(old_project), "Unrelated CodeBuild project configuration changed.")
     if proof is not None:
         references.after_deployment(proof_context(), session, saved, proof)
+        references.siblings_after(proof_context(), cfn, saved, sibling_proofs)
     audit.write_json(path.parent / "verification.json", {"verifiedAt": datetime.now(timezone.utc).isoformat(),
         "changeSet": execution_id, "sourceChangeSet": plan["changeSet"],
         "previewChangeSet": preview_change_set, "runnerImage": plan["newImage"], "codeHashes": plan["newCodeHashes"]})

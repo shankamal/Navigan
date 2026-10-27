@@ -1,3 +1,15 @@
+## 27 October 2026 — automatic sibling entries require explicit no-op evidence
+
+The user resumed with commit 707d588. Concrete cluster bindings/API/ARN verification passed. The helper created parent change set `navigan-bootstrap-concrete-bd8cfaabb413/cf227cc5-932f-43b6-8305-8ce4db4b4123`, then stopped before execution because the parent preview listed additional stacks. Production runtime remains unchanged.
+
+The supplied AWS details show Replacement=False throughout: SharedPlatform has only a Dynamic/Automatic Properties entry; AccessManagement, CustomerManagement, EnvironmentManagement and MigrationManagement have only Dynamic Parameters dependencies on unchanged SharedPlatform ApiId/AuthorizerId/EventBusName/EventBusArn outputs. ClusterManagement has the intended runner parameter/template URL changes. No additional static template edits were approved.
+
+**Correction implemented:** the reference checker now accepts only those exact unchanged automatic/shared-output entry shapes. It verifies each sibling definition is identical before/after, resolves the effective parameters against the sibling's existing values using its referenced template's parameter definitions/defaults, and stages an independent, unexecuted preview from the exact existing template URL. AWS must report no changes; resource changes, template errors, permission errors, mutable SSM bindings, changed definitions/defaults/parameters, replacements and unknown dependency shapes still block the release. No-op records are saved privately and revalidated before parent execution. Sibling stack IDs, timestamps, templates and parameters are checked again after deployment.
+
+**Validation:** 210 targeted tests passed; git diff --check passed. Tests now cover authoritative no-op evidence, exact dependency shapes, actual-change/error rejection, cached-proof freshness and post-deployment sibling preservation. No production change set was executed in this session.
+
+**Next action:** pull the branch and rerun the same --execute command with the existing private release plan and concrete cluster preview. It reuses the built image and package artifacts, creates a fresh parent plan and checks unexecuted no-op previews for additional entries. Keep all earlier rejected parent plans and diagnostic previews unexecuted. Wait for `PROD bootstrap release verified` before fresh-cluster creation, then record the actual successful parent change-set ID and refresh the private SAM baseline.
+
 ## 27 October 2026 — nested reference warnings diagnosed; verified-preview resume ready
 
 **Runtime remains undeployed:** the first --apply built and verified runner image `afb7ccc4d69697229e9cacf67b450501b465d90941197adf87f9864bc7db2158` and staged the release, but the guard stopped before execution. The private release record is `/var/tmp/navigan-bootstrap-release-x1192p_3`. Its original parent change set is `navigan-bootstrap-dfc1df0a199c4a6e/d91e538c-d1b3-4683-9c73-f48a9df69da2`; keep it unexecuted.
