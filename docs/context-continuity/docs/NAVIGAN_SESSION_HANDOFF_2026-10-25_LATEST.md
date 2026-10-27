@@ -1,3 +1,24 @@
+## 27 October 2026 — production audit reviewed; scoped bootstrap release helper ready
+
+**Verified from the user's audit:** both production ClusterFunction and StatusFunction packages still generate Falco chart 9.1.0 without the corrected image/plugin pins. Installer failure polling is absent. The production Terraform runner is pinned to image digest `565d9da23955ec84ba906e0ebb07d9cc5c1fac8d9fce23fc72cc05e6fcd283b0`, has no protected-pool plan guard, and its module differs from current source in main.tf, variables.tf and outputs.tf.
+
+**Scope decision after reviewing the supplied code diff:** do not replace the runner/module with the complete branch source. That would also promote unrelated networking, adopted-node-group/migration and deletion behavior. The release builds an overlay on the exact deployed image. It adds only purpose normalization, protected-pool certification/apply checks, node labels/taints and the Terraform purpose type. Existing security groups, resource addresses, outputs, deletion checks, dependencies and other runner functions remain as deployed.
+
+**New release tooling:** `scripts/cluster-bootstrap-patch.py` patches captured live code with AST preservation checks. `scripts/deploy-cluster-bootstrap-prod.py` updates the two Lambda ZIPs and the runner image through the existing production parent/ClusterManagement CloudFormation hierarchy. ClusterFunction receives failure polling and Falco defaults; StatusFunction receives Falco defaults only. Unrelated ZIP members and runtime configuration remain intact. The script reuses the existing private versioned workspace bucket and ECR repository; it adds no IAM, API, frontend or customer-cluster resources and starts no installer/cluster build.
+
+`--prepare` builds/pushes the overlay, uploads versioned artifacts and creates an unexecuted change set. `--apply` additionally executes after checking the live capture, parameter bindings, exact template delta, change-set scope and absence of replacements. `--execute PLAN` resumes a prepared release after repeating the same checks. The expected effective changes are ClusterFunction.Code, StatusFunction.Code and TerraformProject.Environment.Image. Parent and child templates/configurations, original ZIPs, prepared packages and the plan are saved privately for review/recovery.
+
+**Validation:** 155 targeted tests passed; git diff --check passed. The narrow Terraform overlay parses successfully. Tests cover preservation of legacy destructive-plan rejection/network behavior, only the intended package changes, stale runtime rejection, runner overlay contents and rejection of unrelated/replacing/incomplete CloudFormation changes. The historical runner/module fixture is reconstructed from the supplied diff for regression tests; it is not claimed to match the live artifact byte hash. Actual preparation checks captured files against the pinned ECR image.
+
+**Runtime deployment remains pending.** No AWS deployment or Docker build was performed by this session. From the existing feature-branch checkout, pull the new helper and run:
+
+```bash
+/mnt/b/Langchain_Ai/navigan-deploy-venv/bin/python scripts/deploy-cluster-bootstrap-prod.py \
+  --profile navigan --capture /var/tmp/navigan-bootstrap-audit-8n_7dlrj --apply
+```
+
+Use the final `PROD bootstrap release verified` message as the deployment check before creating a fresh cluster. Then verify system labels/taint, two Ready system nodes, Falco 0.45.1/Ready, required components Ready, lifecycle ACTIVE and all four tool launches. If capture freshness or scope checks stop the release, inspect the error rather than bypassing the checks. Keep private capture/release records local and share only the printed summary/error. After promotion refresh the private SAM baseline; full branch/source parity is still not implied because unrelated newer source behavior was deliberately excluded.
+
 ## 27 October 2026 — new-cluster prevention source ready; runtime deployment pending
 
 The user authorized permanent fixes before retesting new-cluster creation. Existing cluster recovery remains verified as recorded below; it does not prove that newly generated clusters use the new defaults.
