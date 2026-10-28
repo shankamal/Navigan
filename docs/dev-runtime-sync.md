@@ -57,6 +57,11 @@ execute in one invocation. Already requested execution is never blindly repeated
 If an update finishes but verification is interrupted, inspect CloudFormation
 and use `--verify /path/to/release-plan.json`.
 
+Dependency comparison ignores JSON object-key order while retaining all values,
+metadata and array order. The private `preparation.json` records preview IDs even
+when preparation stops; it is diagnostic and is not an executable release plan.
+`runner-image.json` records the verified overlay image before SAM preview checks.
+
 Private records retain original templates, Lambda configurations, original ZIPs,
 the previous runner reference, exact proposed templates and the execution record.
 CloudFormation rollback restores its previous managed template; where code was

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from botocore.handlers import json_decode_template_body
 
 ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location("dev_runtime_sync", ROOT / "scripts/sync-dev-runtime.py")
@@ -526,3 +527,78 @@ def test_known_validation_messages_are_visible_but_private_errors_stay_redacted(
         h.failure_reason(h.common.ReleaseError("Reviewed release check failed."))
         == "Reviewed release check failed."
     )
+
+
+def sdk_template(value, *, sort_keys):
+    # Exercise the real GetTemplate response hook rather than ordinary dicts.
+    response = {"TemplateBody": json.dumps(value, sort_keys=sort_keys)}
+    json_decode_template_body(response)
+    return response["TemplateBody"]
+
+
+def ordered_dependency_fixture(monkeypatch):
+    state, plan, cfn, rows = preview_fixture(monkeypatch)
+    key = "root/ClusterManagement"
+    before = state["stacks"][key]["processed"]
+    after = cfn.get_template.return_value["TemplateBody"]
+    for template in (before, after):
+        template["Resources"]["BuildStateRule"]["Metadata"] = {"SamResourceId": "BuildStateRule"}
+        template["Resources"]["BuildStateRule"]["Properties"]["Targets"] = [
+            {"Id": "first", "Arn": {"Fn::GetAtt": ["StatusFunction", "Arn"]}},
+            {"Id": "second", "Arn": {"Fn::GetAtt": ["StatusFunction", "Arn"]}},
+        ]
+    state["stacks"][key]["processed"] = sdk_template(before, sort_keys=False)
+    cfn.get_template.return_value["TemplateBody"] = sdk_template(after, sort_keys=True)
+    plan["templateHashes"]["ClusterManagement"] = h.fingerprint(after)
+    rows.append(
+        {
+            "ResourceChange": {
+                "LogicalResourceId": "BuildStateRule",
+                "ResourceType": "AWS::Events::Rule",
+                "Action": "Modify",
+                "Replacement": "False",
+                "Details": [
+                    {
+                        "Target": {
+                            "Attribute": "Properties",
+                            "Name": "Targets",
+                            "RequiresRecreation": "Never",
+                        },
+                        "Evaluation": "Dynamic",
+                        "ChangeSource": "ResourceAttribute",
+                        "CausingEntity": "StatusFunction.Arn",
+                    }
+                ],
+            }
+        }
+    )
+    return state, plan, cfn
+
+
+def test_sdk_ordered_templates_do_not_turn_key_sorting_into_a_dependency_change(monkeypatch):
+    state, plan, cfn = ordered_dependency_fixture(monkeypatch)
+    before = state["stacks"]["root/ClusterManagement"]["processed"]["Resources"]["BuildStateRule"]
+    after = cfn.get_template.return_value["TemplateBody"]["Resources"]["BuildStateRule"]
+    assert before != after  # Real SDK OrderedDict equality sees only key reordering.
+    assert h.fingerprint(before) == h.fingerprint(after)
+    h.inspect_preview(cfn, state, plan, "ClusterManagement", "preview")
+    cfn.execute_change_set.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", ["binding", "list_order", "metadata", "type"])
+def test_order_independent_comparison_still_rejects_real_dependency_changes(monkeypatch, fault):
+    state, plan, cfn = ordered_dependency_fixture(monkeypatch)
+    after = cfn.get_template.return_value["TemplateBody"]
+    resource = after["Resources"]["BuildStateRule"]
+    if fault == "binding":
+        resource["Properties"]["Targets"][0]["Arn"] = {"Fn::GetAtt": ["ClusterFunction", "Arn"]}
+    elif fault == "list_order":
+        resource["Properties"]["Targets"].reverse()
+    elif fault == "metadata":
+        resource["Metadata"]["SamResourceId"] = "changed"
+    else:
+        resource["Type"] = "AWS::IAM::Role"
+    plan["templateHashes"]["ClusterManagement"] = h.fingerprint(after)
+    with pytest.raises(ValueError, match="Dependency resource definition changed"):
+        h.inspect_preview(cfn, state, plan, "ClusterManagement", "preview")
+    cfn.execute_change_set.assert_not_called()

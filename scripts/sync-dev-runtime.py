@@ -341,6 +341,8 @@ def guard_overlay(session, directory, dev_capture, prod_capture, image):
         == {p.name: p.read_bytes() for p in (check / "runner/aws-eks").iterdir() if p.is_file()},
         "Runner overlay changed DEV Terraform files.",
     )
+    common.write(directory / "runner-image.json", {"baseImage": image, "verifiedImage": pinned})
+    print("Runner overlay verified: " + pinned, flush=True)
     return pinned
 
 
@@ -573,9 +575,13 @@ def inspect_preview(cfn, state, plan, module, identifier):
                 "Unexpected runner project change.",
             )
         else:
+            # Botocore's GetTemplate hook returns OrderedDicts. Our staged JSON
+            # sorts object keys, so their order-sensitive equality can reject an
+            # unchanged dependency. Canonical hashes retain every field/value
+            # and array order while ignoring only object-key order.
             require(
-                before["Resources"].get(logical) == after["Resources"].get(logical),
-                "Dependency resource definition changed.",
+                fingerprint(before["Resources"].get(logical)) == fingerprint(after["Resources"].get(logical)),
+                "Dependency resource definition changed: " + module + "/" + logical + ".",
             )
             require(
                 row.get("ResourceType")
@@ -784,6 +790,7 @@ def prepare(session, args):
         plan["templateHashes"][logical] = fingerprint(template)
         identifier = preview(cfn, record["stack"], url, new_image if logical == "ClusterManagement" else None)
         plan["previews"][logical] = identifier
+        common.write(directory / "preparation.json", {"status": "PREPARING", "plan": plan})
         inspect_preview(cfn, state, plan, logical, identifier)
         print("SAM module preview verified: " + logical, flush=True)
     root_item = upload(session, bucket, "root.json", common.canonical(root))
