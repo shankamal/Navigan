@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tarfile
 import time
 import urllib.error
@@ -326,7 +327,7 @@ def validations(component, source, directory):
                    source, directory / "frontend-checks.log")
     elif component in {"backend", "database", "release-tooling", "api-contract", "template-consistency", "gateway", "terraform", "cluster-connector", "migration-connector", "image-worker", "tools-gateway", "terraform-runner"}:
         common.run(["bash", str(source / "scripts/ci/verify-backend-container.sh")], source,
-                   directory / (component + "-checks.log"))
+                   directory / (component + "-checks.log"), env={**os.environ, "NAVIGAN_PYTHON": sys.executable})
     elif component == "infrastructure":
         for relative in template_files(source):
             common.run(["sam", "validate", "--lint", "--template-file", str(source / relative)],

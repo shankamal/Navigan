@@ -3,6 +3,9 @@ import base64
 import copy
 import io
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -641,3 +644,43 @@ def test_default_verification_records_auth_as_not_requested(monkeypatch, tmp_pat
     result = common.get_optional(s3, cfg["artifactBucket"], deploy.CURRENT, ACCOUNT)[0]
     assert result["status"] == "SUCCEEDED" and result["authenticatedAcceptance"] == "NOT_REQUESTED"
     assert result["authenticatedChecks"] == []
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_backend_wrapper_runs_without_unversioned_host_python(tmp_path, explicit):
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    calls = tmp_path / "docker-calls"
+    docker = tools / "docker"
+    docker.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "$DOCKER_CALLS"\nexit 0\n')
+    docker.chmod(0o755)
+    (tools / "seq").symlink_to(shutil.which("seq"))
+    env = {**os.environ, "PATH": str(tools), "DOCKER_CALLS": str(calls)}
+    env.pop("NAVIGAN_PYTHON", None)
+    if explicit:
+        interpreter = tmp_path / "Python with spaces"
+        interpreter.symlink_to(sys.executable)
+        env["NAVIGAN_PYTHON"] = str(interpreter)
+    else:
+        (tools / "python3").symlink_to(sys.executable)
+    result = subprocess.run([shutil.which("bash"), str(common.ROOT / "scripts/ci/verify-backend-container.sh")], cwd=tmp_path, env=env, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+    assert calls.read_text().splitlines().count("run") == 2
+    assert calls.read_text().splitlines()[-2:] == ["rm", "network"]
+
+
+def test_backend_wrapper_rejects_missing_explicit_interpreter_before_docker(tmp_path):
+    result = subprocess.run([shutil.which("bash"), str(common.ROOT / "scripts/ci/verify-backend-container.sh")], cwd=tmp_path,
+                            env={**os.environ, "NAVIGAN_PYTHON": str(tmp_path / "missing-python")}, text=True, capture_output=True)
+    assert result.returncode != 0
+    assert "Host Python 3 not found" in result.stderr
+
+
+def test_backend_validation_passes_the_running_build_interpreter(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(build.common, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setenv("NAVIGAN_PYTHON", "/incorrect/inherited/python")
+    build.validations("api-contract", tmp_path, tmp_path)
+    assert calls[0][0][0] == ["bash", str(tmp_path / "scripts/ci/verify-backend-container.sh")]
+    assert calls[0][1]["env"]["NAVIGAN_PYTHON"] == sys.executable
+    assert calls[0][1]["env"]["PATH"] == os.environ["PATH"]

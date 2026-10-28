@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Disposable test database only. No AWS credential/profile mounts.
 set -euo pipefail
-task_id="navigan-test-$(python -c 'import uuid; print(uuid.uuid4().hex[:12])')"
+host_python="${NAVIGAN_PYTHON:-python3}"
+if ! command -v "$host_python" >/dev/null 2>&1; then
+  echo "Host Python 3 not found. Set NAVIGAN_PYTHON to an executable Python 3 interpreter." >&2
+  exit 1
+fi
+task_id="navigan-test-$("$host_python" -c 'import uuid; print(uuid.uuid4().hex[:12])')"
 task_network="${task_id}-network"
-task_password="$(python -c 'import secrets; print(secrets.token_hex(16))')"
+task_password="$("$host_python" -c 'import secrets; print(secrets.token_hex(16))')"
 cleanup() {
   docker rm --force "$task_id" >/dev/null 2>&1 || true
   docker network rm "$task_network" >/dev/null 2>&1 || true
