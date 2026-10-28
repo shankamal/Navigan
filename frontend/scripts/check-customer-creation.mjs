@@ -143,7 +143,7 @@ try {
   await page.getByRole("checkbox", { name: "Azure — Microsoft Azure" }).check();
   await page.getByRole("button", { name: "Add contact", exact: true }).click();
   await page.getByLabel(/Full name/).fill("Alex Morgan");
-  await page.getByLabel("Email (optional)", { exact: true }).fill("invalid");
+  await page.getByLabel(/^Email \(optional\)/).fill("invalid");
   await page
     .getByRole("button", { name: "Add to customer", exact: true })
     .click();
@@ -157,7 +157,7 @@ try {
     0,
   );
   await page
-    .getByLabel("Email (optional)", { exact: true })
+    .getByLabel(/^Email \(optional\)/)
     .fill("alex.morgan@example.com");
   await page
     .getByRole("button", { name: "Add to customer", exact: true })
