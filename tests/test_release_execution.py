@@ -570,3 +570,74 @@ def test_production_is_not_a_workflow_or_runner_action():
     assert "upload-artifact" not in text
     runner = (common.ROOT / "scripts/run-dev-release.py").read_text()
     assert '"prod"' not in runner
+
+
+def test_default_deployment_never_requests_a_browser_token(monkeypatch):
+    monkeypatch.delenv("NAVIGAN_DEV_SMOKE_TOKEN", raising=False)
+    monkeypatch.setattr("builtins.input", lambda *args: pytest.fail("No interactive credential collection"))
+    monkeypatch.setattr(deploy.builder, "http", lambda *args, **kw: pytest.fail("No unauthenticated calls to protected summary APIs"))
+    assert deploy.token_value() is None
+    assert deploy.smoke(config(), None) == []
+    assert deploy.smoke(config(), None, frontend=True) == []
+
+
+def test_optional_token_is_validated_and_bearer_prefix_normalized(monkeypatch):
+    monkeypatch.setenv("NAVIGAN_DEV_SMOKE_TOKEN", "Bearer fixture.access.token")
+    assert deploy.token_value() == "fixture.access.token"
+    monkeypatch.setenv("NAVIGAN_DEV_SMOKE_TOKEN", "invalid\nheader")
+    with pytest.raises(common.ReleaseError, match="format"):
+        deploy.token_value()
+
+
+def test_supplied_token_still_runs_all_authenticated_smoke_checks(monkeypatch):
+    calls = []
+    def http(url, **kw):
+        calls.append((url, kw))
+        return common.canonical({"total": 0, "byStatus": {}, "byProvider": {}})
+    monkeypatch.setattr(deploy.builder, "http", http)
+    assert len(deploy.smoke(config(), "fixture")) == 3
+    assert all(kw == {"token": "fixture"} for _, kw in calls)
+
+
+def test_optional_auth_does_not_bypass_frontend_health_checks(monkeypatch, tmp_path):
+    cfg = config()
+    image = artifact("frontend")
+    plan = {"config": cfg, "id": "a" * 32, "selected": ["frontend"], "manifest": manifest(frontend=image), "cloudPlans": [], "databaseRequired": False}
+    common.write(tmp_path / "execution.json", {"planId": plan["id"], "frontend": {"container": "fixture", "image": image["uri"]}})
+    common.write(tmp_path / "baseline.json", {"stacks": {}})
+    common.write(tmp_path / "previous-record.json", None)
+    monkeypatch.setattr(deploy, "load_plan", lambda *args: plan)
+    monkeypatch.setattr(target, "snapshot", lambda *args: {"stacks": {}})
+    monkeypatch.setattr(deploy, "verify_target_manifest", lambda *args, **kw: None)
+    monkeypatch.setattr(deploy.subprocess, "check_output", lambda *args: common.canonical([{"State": {"Running": True}, "Config": {"Image": image["uri"]}}]))
+    monkeypatch.setattr(deploy, "verify_frontend_runtime", lambda *args: None)
+    def http(url, **kw):
+        if url.endswith("/healthz"):
+            raise common.ReleaseError("frontend health failed")
+        return b"{}"
+    monkeypatch.setattr(deploy.builder, "http", http)
+    s3 = MemoryS3()
+    with pytest.raises(common.ReleaseError, match="frontend health failed"):
+        deploy.verify(session(s3), tmp_path / "release-plan.json")
+    assert not s3.calls
+
+
+def test_default_verification_records_auth_as_not_requested(monkeypatch, tmp_path):
+    cfg = config()
+    plan = {"config": cfg, "id": "a" * 32, "selected": [], "manifest": manifest(), "cloudPlans": [], "databaseRequired": False,
+            "configurationHash": "fixture", "previousEtag": None}
+    s3 = MemoryS3()
+    reference = deploy.lock(session(s3), plan)
+    common.write(tmp_path / "execution.json", {"planId": plan["id"], "lock": reference})
+    common.write(tmp_path / "baseline.json", {"stacks": {}})
+    common.write(tmp_path / "previous-record.json", None)
+    monkeypatch.delenv("NAVIGAN_DEV_SMOKE_TOKEN", raising=False)
+    monkeypatch.setattr(deploy, "load_plan", lambda *args: plan)
+    monkeypatch.setattr(target, "snapshot", lambda *args: {"stacks": {}})
+    monkeypatch.setattr(target, "stamp", lambda *args: "fixture")
+    monkeypatch.setattr(deploy, "verify_target_manifest", lambda *args, **kw: None)
+    monkeypatch.setattr(deploy.builder, "http", lambda *args, **kw: pytest.fail("No token required"))
+    deploy.verify(session(s3), tmp_path / "release-plan.json")
+    result = common.get_optional(s3, cfg["artifactBucket"], deploy.CURRENT, ACCOUNT)[0]
+    assert result["status"] == "SUCCEEDED" and result["authenticatedAcceptance"] == "NOT_REQUESTED"
+    assert result["authenticatedChecks"] == []
