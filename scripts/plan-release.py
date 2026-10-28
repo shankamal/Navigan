@@ -64,7 +64,7 @@ def changes(base, head, root=ROOT):
 
 def classify(path):
     """Artifact owners, validation families, and reason for a tracked input."""
-    if path in {"AGENTS.md", "README.md", "LICENSE", ".gitignore", "frontend/README.md"} or path.endswith("/AGENTS.md"):
+    if path in {"AGENTS.md", "README.md", "LICENSE", ".gitignore", "frontend/README.md", "design-qa.md"} or path.endswith("/AGENTS.md"):
         return set(), set(), "documentation or repository metadata"
     if path in {"docs/openapi.json", "docs/environment-openapi.json"}:
         return set(), {"backend", "frontend", "api-contract"}, "API contract consumers"

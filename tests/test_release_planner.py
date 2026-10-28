@@ -39,6 +39,7 @@ def repository(tmp_path):
     ("frontend/src/page.tsx", {"frontend"}, {"frontend"}),
     ("frontend/tests/page.test.tsx", set(), {"frontend"}),
     ("frontend/README.md", set(), set()),
+    ("design-qa.md", set(), set()),
     ("src/navigan/shared/database.py", {"backend", "image-worker"}, {"backend"}),
     ("src/requirements.txt", {"backend", "image-worker"}, {"backend"}),
     ("pyproject.toml", {"backend"}, {"backend"}),
