@@ -1,7 +1,7 @@
 # Selective releases: build once, deploy many
 
 The DEV pilot now implements change planning, selective validation/builds, immutable
-artifact publication, saved deployment plans, execution, authenticated verification,
+artifact publication, saved deployment plans, execution, health/runtime verification,
 and application rollback. PROD execution remains disabled. No live deployment was
 performed while implementing these scripts. Docker/SAM builds and the first AWS DEV
 release must be accepted on the connected runner before calling this operational.
@@ -34,7 +34,7 @@ bash scripts/deploy.sh dev
 Build validates/tests the selected components, builds once, pushes only those
 artifacts into the existing storage, and saves its manifest. Deploy consumes that
 manifest, prepares/verifies the DEV target and change set, deploys, and performs
-authenticated checks. It does not rebuild. Existing resources are never created
+artifact, startup, health and runtime checks. It does not rebuild. Existing resources are never created
 or reconfigured by the build wrapper. The bucket must already be private and
 versioned; no special release tags are required. ECR settings stay unchanged and
 images deploy by exact digest, including when an existing repository uses mutable tags.
@@ -42,7 +42,10 @@ images deploy by exact digest, including when an existing repository uses mutabl
 Python is used internally; the operator entry points are Bash. They select the
 existing sibling `navigan-deploy-venv` automatically; `NAVIGAN_PYTHON` can override it.
 For database/SAM stages provide the existing DEV migration connection through
-`MIGRATION_DATABASE_URL`. Deployment asks for a fresh DEV token in a hidden prompt.
+`MIGRATION_DATABASE_URL`. Deployment uses the existing AWS profile and never asks for a browser token.
+Authenticated API smoke tests are optional: supply `NAVIGAN_DEV_SMOKE_TOKEN` only
+when requesting those additional checks. Otherwise the deployment record explicitly
+marks authenticated acceptance `NOT_REQUESTED`; browser sign-in can be tested afterward.
 After an interrupted deployment, use `bash scripts/deploy.sh dev --verify` or
 `--rollback`. No new build is performed during recovery. An unfinished deployment
 is not silently replaced by another attempt. PROD execution remains disabled.
@@ -115,8 +118,7 @@ DEV machine; offline tests alone do not establish a live successful deployment.
 ## Failure handling
 
 Execution is journaled before mutations and cannot be blindly repeated. A command
-interrupted after a successful AWS update can finish using `--verify` and a fresh
-token. Inspect the private plan/journal when a stage fails. Restore the captured
+interrupted after a successful AWS update can finish using `--verify`. Inspect the private plan/journal when a stage fails. Restore the captured
 working application state using `--rollback <same-plan>`; Lambda rollback uses the
 actual prior deployed ZIPs/configuration, not a potentially stale source template.
 Rollback does not rebuild, remove infrastructure, or reverse SQL. Migrations remain
@@ -126,7 +128,8 @@ The executor fixes DEV API/database/stack bindings, prepares nested SAM change s
 blocks deletion/replacement outside proven unchanged references, and checks physical
 resource identities after execution. Unexpected or destructive infrastructure work
 requires a separately reviewed change. The last-successful S3 pointer updates
-conditionally only after all selected stages and authenticated checks pass.
+conditionally only after all selected deployment stages and runtime checks pass.
+If an optional smoke token is supplied, its authenticated API checks must also pass.
 
 ## GitHub Actions (optional after the local DEV trial)
 
@@ -135,7 +138,7 @@ persistent private runner labelled `navigan-dev-release`, in GitHub environment
 `dev`. Configure `DEV_RELEASE_CONFIG` with the absolute private config path and
 `DEV_RELEASE_ROLE_ARN` with the existing DEV-scoped OIDC role. Set the config's
 `profile` to null there to use the assumed role, rather than a local named profile.
-Authenticated checks need a fresh protected `DEV_RELEASE_SMOKE_TOKEN`; SAM/schema
+Optional authenticated checks can use a fresh protected `DEV_RELEASE_SMOKE_TOKEN`; SAM/schema
 stages need the protected `DEV_MIGRATION_DATABASE_URL`. Do not log either value.
 Build and deploy runs must use the same persistent private configuration/state.
 
