@@ -55,7 +55,7 @@ jobs:
           python -m pytest -q tests/test_release_planner.py tests/test_release_execution.py tests/test_simple_release.py
       - name: Run the selected DEV action
         env:
-          # Fresh DEV token, refreshed for this manual acceptance run; never logged or persisted.
+          # Optional API smoke-test credential; leave unset for ordinary build/deploy.
           NAVIGAN_DEV_SMOKE_TOKEN: ${{ secrets.DEV_RELEASE_SMOKE_TOKEN }}
           MIGRATION_DATABASE_URL: ${{ secrets.DEV_MIGRATION_DATABASE_URL }}
         run: |
