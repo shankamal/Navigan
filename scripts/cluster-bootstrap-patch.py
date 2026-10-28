@@ -179,8 +179,9 @@ def patch_package(original, destination, *, polling):
     return destination
 
 
-def patch_runner(original):
-    desired = (ROOT / "provisioning/runner/runner.py").read_text()
+def patch_runner(original, *, desired=None):
+    if desired is None:
+        desired = (ROOT / "provisioning/runner/runner.py").read_text()
     before = tree(original)
     require(not any(isinstance(n, ast.FunctionDef) and n.name == "system_node_findings" for n in before.body),
             "Runner guard already present; capture a fresh baseline.")
