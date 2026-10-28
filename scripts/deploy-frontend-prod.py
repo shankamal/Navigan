@@ -344,6 +344,8 @@ def main():
     if not args.prepare:
         print("Read-only check passed. Use --prepare to build/push and register a candidate; the service will remain unchanged.")
         return 0
+    require(not (ROOT / "frontend/src/shared/config/public-config.ts").exists(),
+            "Portable frontend source requires the manifest deployment path. The legacy PROD build is disabled; no image or task was created.")
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-frontend-"))
     directory.chmod(0o700)
     print("Private frontend release record: " + str(directory), flush=True)

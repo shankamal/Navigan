@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+if [[ -f "$NAVIGAN_ROOT/frontend/src/shared/config/public-config.ts" ]]; then
+  printf 'Portable frontend source requires scripts/build-release.py and the DEV manifest deployment path. Legacy build/deploy is disabled before AWS writes.\n' >&2
+  exit 1
+fi
 validate_public_config
 require IMAGE_URI VPC_ID PUBLIC_SUBNET_IDS PRIVATE_SUBNET_IDS CERTIFICATE_ARN NAVIGAN_API_ORIGIN MIGRATION_SOURCE_FIRST_ENABLED
 [[ "$MIGRATION_SOURCE_FIRST_ENABLED" == true || "$MIGRATION_SOURCE_FIRST_ENABLED" == false ]] || { printf 'MIGRATION_SOURCE_FIRST_ENABLED must be explicitly true or false.\n' >&2; exit 1; }

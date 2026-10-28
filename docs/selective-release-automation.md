@@ -1,112 +1,153 @@
 # Selective releases: build once, deploy many
 
-This is the DEV-first automation contract. The first implementation is a read-only
-planner and a GitHub workflow that tests the planner. It does not yet build or
-publish release artifacts, execute CloudFormation, apply SQL or update a service.
-Existing verification workflows remain independent. Do not describe this planning
-pilot as an enabled end-to-end deployment pipeline.
+The DEV pilot now implements change planning, selective validation/builds, immutable
+artifact publication, saved deployment plans, execution, authenticated verification,
+and application rollback. PROD execution remains disabled. No live deployment was
+performed while implementing these scripts. Docker/SAM builds and the first AWS DEV
+release must be accepted on the connected runner before calling this operational.
 
-## Two independent decisions
+## Build and deployment decisions
 
-1. **Build:** compare a selected source revision with the previous release
-   manifest. Build only artifacts affected by changed inputs and dependencies.
-   Keep all unchanged artifact references in the next manifest.
-2. **Deploy:** compare the approved candidate manifest with the target
-   environment's last successful deployment record. Deploy only changed artifact
-   references and required configuration changes. Promotion performs no builds
-   and no republishing.
+Build compares the committed revision with the previous complete build manifest.
+Only changed input/dependency families build; unchanged artifacts retain their exact
+references. Deploy separately compares the candidate manifest with DEV's last
+successful deployment record. A failed deployment never replaces that record.
+Configuration-only changes deploy retained artifacts without rebuilding.
 
-Do not use the latest push or HEAD~1 as a guessed deployed baseline. Changes can
-span multiple commits, deployments can fail, and DEV and PROD can run different
-releases. Initial baseline adoption must be established explicitly from live
-evidence before an executor can operate on an existing environment.
-
-## Impact rules
-
-| Change | Artifact selection | Other checks |
+| Change | Build | Deployment |
 |---|---|---|
-| Frontend source/dependencies | Frontend | Frontend tests/build checks |
-| Frontend tests only | None | Frontend tests |
-| Python source/dependencies | Backend and image worker | Backend tests |
-| Infrastructure only | Template bundle | Infrastructure validation |
-| Lambda runtime/build inputs in templates | Backend and templates | Backend/infrastructure checks |
-| New SQL migration | Database bundle | Disposable database migration tests |
-| Applied SQL edit/deletion/rename | Review required | Do not silently replace history |
-| Runner or embedded EKS Terraform | Runner image | Terraform checks |
-| Connector or tools gateway source | Corresponding image | Corresponding checks |
-| API specification | No automatic application rebuild | Producer/consumer contract checks |
-| Documentation | None | No cloud deployment |
-| Unknown path | Review required | Define its dependencies first |
+| Frontend source/dependencies | Frontend image | DEV preview only |
+| Frontend tests only | No artifact | Checks only |
+| Python source | Lambda ZIP and image-worker image | SAM references and existing DEV collector |
+| Python dependencies | Lambda ZIP | SAM references |
+| Infrastructure only | Template bundle, reusing Lambda ZIP | Reviewed SAM hierarchy |
+| Lambda runtime/build contract | Backend and template bundle | Reviewed SAM hierarchy |
+| New SQL migration | Checksummed SQL bundle | Pending DEV migrations only |
+| Existing migration edits/removals | Blocked for review | No automatic execution |
+| Documentation | None | No application stage |
+| API contracts | Producer/consumer verification | No automatic application rebuild |
+| Unknown path | Blocked for classification | None |
 
-The image-worker Dockerfile currently copies the Python source tree, so source
-changes also invalidate that image's input hash. This is an explicit dependency,
-not an instruction to build every component. Bootstrap-template changes require
-backend/template-consistency checks. Existing source agents and customer GitOps
-repositories are not automatically upgraded by an image build or by this planner.
+The first SAM adoption includes backend, infrastructure and database artifacts so
+that schema history can be verified. Later backend changes repackage template
+references without building the Lambda ZIP twice. `--enroll` explicitly adds an
+unmanaged component to an existing build manifest.
 
-## Immutable release manifest
+The builder also supports connector, runner and tools-gateway images. Their
+customer-agent/shared-service deployment bindings are not enabled in this DEV
+pilot; selecting them for deployment stops with a clear scope error. Publishing
+an image does not upgrade existing customer clusters or source agents.
 
-The format is `navigan-release-manifest-v1`, with `sourceRevision` and a `components`
-map. Each component has an `inputHash`, artifact `sha256`, immutable `uri`, and an
-explicit `portable` boolean. Container URIs contain an exact digest. Packaged
-artifacts have an S3 object key and `versionId`; record the content checksum too.
-No credentials, tokens or environment-specific secrets belong in the manifest.
+## Immutable artifacts and portable frontend
 
-Each successful target deployment separately records `environment`, `status`,
-`configurationHash`, and the exact deployed `manifest`. A failed run must not
-replace that successful record. Configuration is not baked into a release bundle.
-An environment-only change can require a deployment without any artifact build.
+`navigan-release-manifest-v1` records committed source revision, component input
+hashes, recipe hashes/dependencies and artifact checksums. Images use ECR digests;
+packages and templates use exact S3 object versions. Content-addressed storage
+reuses the same version for identical bytes. Per-recipe locks prevent concurrent
+duplicate builds; deployment has its own target lock. A cached artifact is verified
+before reuse. Promotion/execution invokes no build commands.
 
-The planner validates references, not their remote existence or provenance. A
-future executor must independently verify artifact bytes/digests, retained object
-versions, approvals, live targets, scope, pending migrations and post-deployment
-acceptance. No planner flag authorizes execution; `readyForDeployment` stays false.
+The frontend image has no environment build arguments. A dynamic, no-store
+`/api/runtime-config` endpoint exposes an exact public allowlist; authentication
+loads it before mounting the application. Private upstream settings stay server
+side. `NAVIGAN_PUBLIC_*` is preferred; existing `NEXT_PUBLIC_*` values are accepted
+through dynamic runtime lookups. Missing API configuration cannot fall back to PROD.
+The image builder starts the same image with DEV and PROD fixture settings and
+requires both to pass. These fixtures do not contact or deploy PROD.
 
-## Frontend portability prerequisite
+Legacy frontend build/deploy entry points refuse portable source before AWS writes
+because their task templates do not supply its runtime identity settings. Saved
+legacy execution plans still work for their existing images. The new DEV executor
+does not modify the running PROD frontend or its CloudFormation drift.
 
-The current frontend embeds public identity/application settings with
-`NEXT_PUBLIC_*` build arguments. It is not yet a portable single-image artifact
-across differently configured environments. Do not build a second PROD image and
-call that build-once promotion. Move environment-specific browser settings into a
-validated, non-secret runtime configuration mechanism, retain private values on
-the server, and test the same image with both configurations in DEV before
-enabling frontend promotion. Until then, mark these artifacts non-portable; the
-planner reports them for review instead of silently accepting promotion.
+## Start on the connected DEV machine
 
-## Try the planner locally
-
-Use an explicit known release commit, or a complete previous release manifest:
+Prerequisites: Python 3.12, the project Python dependencies, AWS SAM CLI, Docker
+Engine with buildx, git, and the existing authorized AWS profile. Linux/WSL Docker
+must be usable from the same shell. A SAM/database release also needs a private
+migration-owner connection to `navigan_dev` through `MIGRATION_DATABASE_URL`.
+The frontend-only pilot does not require that connection.
 
 ```bash
-python scripts/plan-release.py --base <baseline-commit> --head HEAD --output release-plan.json
-python scripts/plan-release.py --baseline-manifest <previous-manifest.json> --head HEAD
+python scripts/deploy-release-dev.py --init --bootstrap-registry \
+  --profile navigan --region ap-south-1 --expected-account <account-id>
 ```
 
-For an implementation smoke test, compare the commit immediately before adding
-the planner with its new commit. That only tests change classification; it does
-not establish a live deployment baseline. The CLI never guesses one.
+This verifies the existing DEV root/domain/database ownership and creates only an
+isolated versioned S3 artifact bucket and immutable ECR repositories. It prints a
+private `dev-config.json` and bucket name. Preserve that file locally; do not commit
+configuration captures, tokens, connection strings or deployment journals.
 
-Promotion planning uses `--promote-manifest`, `--deployment-record`,
-`--environment`, and `--config-hash`. Both selected and skipped components are
-explicit. Promotion always returns empty build/publish lists.
+First try the frontend alone, using the printed bucket/config path:
 
-`.github/workflows/dev-release-plan.yml` runs these rules on PRs and supports a
-manual baseline input. GitHub requires a workflow_dispatch definition on the
-default branch before manual dispatch becomes available. Use the local CLI while
-the workflow exists only on a feature branch. This workflow has no AWS credentials
-or OIDC permission and cannot deploy either environment.
+```bash
+python scripts/build-release.py --profile navigan --region ap-south-1 \
+  --expected-account <account-id> --artifact-bucket <printed-bucket> --initial frontend
+python scripts/deploy-release-dev.py --profile navigan --prepare \
+  --config <private-dev-config.json> --manifest <printed-release-manifest.json>
+```
 
-## Remaining implementation sequence
+Review the printed selected/skipped stages and private summary. Execute its exact
+saved plan, then open `http://localhost:3001` and sign in using DEV credentials:
 
-1. Verify classification against representative changes in the DEV pilot.
-2. Establish the initial successful artifact/deployment records from live evidence.
-3. Implement portable frontend runtime configuration with the same-image DEV test.
-4. Build and publish only selected artifacts, once, then finalize the manifest.
-5. Add a DEV executor consuming that manifest: prepare the SAM change set, apply
-   only required compatible migrations through a private runner, deploy selected
-   components, and perform authenticated checks before recording success.
-6. Add PROD promotion of the accepted manifest after DEV acceptance. Do not rebuild
-   artifacts during approval, deployment, retries or rollback.
+```bash
+python scripts/deploy-release-dev.py --profile navigan --execute <printed-release-plan.json>
+python scripts/deploy-release-dev.py --profile navigan --verify <same-release-plan.json>
+```
 
-Application rollback restores prior immutable artifacts/configuration. Database
-changes stay forward-only and backward-compatible; rollback does not drop schema.
+Execution requests a fresh DEV access token through a hidden prompt (or protected
+`NAVIGAN_DEV_SMOKE_TOKEN`). Authenticated summary checks run before mutation and
+through the candidate frontend proxy after deployment. The current port-3000
+frontend is preserved. An unmanaged process on 3001 is never stopped. Later runs
+replace only the recorded managed preview after testing an ephemeral candidate.
+
+Use `--baseline-manifest <last-build-manifest.json>` for later builds. To adopt SAM
+and schema stages after the frontend trial, add
+`--enroll backend,infrastructure,database,image-worker`. Existing DEV collector
+ownership must verify; its desired count, including zero, is retained.
+
+## Failure handling
+
+Execution is journaled before mutations and cannot be blindly repeated. A command
+interrupted after a successful AWS update can finish using `--verify` and a fresh
+token. Inspect the private plan/journal when a stage fails. Restore the captured
+working application state using `--rollback <same-plan>`; Lambda rollback uses the
+actual prior deployed ZIPs/configuration, not a potentially stale source template.
+Rollback does not rebuild, remove infrastructure, or reverse SQL. Migrations remain
+forward-only; changes must be backward compatible with the previous application.
+
+The executor fixes DEV API/database/stack bindings, prepares nested SAM change sets,
+blocks deletion/replacement outside proven unchanged references, and checks physical
+resource identities after execution. Unexpected or destructive infrastructure work
+requires a separately reviewed change. The last-successful S3 pointer updates
+conditionally only after all selected stages and authenticated checks pass.
+
+## Persistent runner / GitHub Actions
+
+For repeated runs, create a mode-700 runner directory, copy the private
+`dev-config.json` into it, and use:
+
+```bash
+python scripts/run-dev-release.py --home <private-runner-home> --profile navigan --action build-prepare
+python scripts/run-dev-release.py --home <same-home> --profile navigan --action execute --plan-id <printed-id>
+```
+
+The runner retains the last complete build manifest and reviewed plans. Other
+actions are `verify` and `rollback`, using that same saved plan ID. A shared DEV
+frontend is not provisioned by this pilot. Remote runners expose the local preview
+only through an approved SSH tunnel.
+
+`.github/workflows/dev-release.yml` invokes these same commands manually on a
+persistent private runner labelled `navigan-dev-release`, in GitHub environment
+`dev`. Configure `DEV_RELEASE_HOME`, `DEV_RELEASE_ROLE_ARN`, a fresh protected
+`DEV_RELEASE_SMOKE_TOKEN`, and (for schema/SAM) `DEV_MIGRATION_DATABASE_URL` there.
+The OIDC role must trust only this repository/environment and access only verified
+DEV resources and the dedicated registry. No AWS keys belong in the workflow.
+Runner/environment/OIDC setup has not been performed by this implementation.
+Manual dispatch requires the workflow definition on the repository's default branch;
+the local CLI works from this feature branch immediately.
+
+`.github/workflows/dev-release-plan.yml` remains a read-only PR impact review.
+Existing CI stays independent and credential-free. Source-agent rollout and PROD
+promotion are separate follow-ups after DEV acceptance; PROD must consume the
+accepted immutable manifest with its own runtime configuration, never rebuild it.

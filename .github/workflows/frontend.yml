@@ -15,7 +15,7 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       NEXT_PUBLIC_OIDC_AUTHORITY: 'https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz'
-      NEXT_PUBLIC_OIDC_CLIENT_ID: 'ci-public-client'
+      NEXT_PUBLIC_OIDC_CLIENT_ID: 'cipublicclient'
       NEXT_PUBLIC_APP_URL: 'http://127.0.0.1:3101'
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +48,8 @@ jobs:
           fi
           node scripts/check-login.mjs
           node scripts/check-environments.mjs
+      - name: Verify one compiled artifact with two runtime configurations
+        run: node scripts/check-runtime-config.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

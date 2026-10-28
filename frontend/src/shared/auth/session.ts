@@ -2,6 +2,8 @@
 import { Amplify } from "aws-amplify";
 import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
 import { fetchAuthSession, signOut as cognitoSignOut } from "aws-amplify/auth";
+import { authConfigured, runtimeConfig } from "@/shared/config/runtime-config";
+export { authConfigured } from "@/shared/config/runtime-config";
 import {
   identityFromClaims,
   isHumanReadableDisplayName,
@@ -19,7 +21,6 @@ interface EffectiveAccessResponse {
   source: "DYNAMIC" | "LEGACY_CLAIMS";
 }
 
-export const authConfigured = Boolean(process.env.NEXT_PUBLIC_OIDC_CLIENT_ID);
 let configured = false;
 export function configureAuth(): void {
   if (typeof window === "undefined") return;
@@ -28,9 +29,7 @@ export function configureAuth(): void {
       "Sign-in has not been configured. Contact your administrator.",
     );
   if (configured) return;
-  const authority =
-    process.env.NEXT_PUBLIC_OIDC_AUTHORITY ||
-    "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz";
+  const authority = runtimeConfig().oidcAuthority;
   const userPoolId = new URL(authority).pathname
     .split("/")
     .filter(Boolean)
@@ -39,7 +38,7 @@ export function configureAuth(): void {
     Auth: {
       Cognito: {
         userPoolId,
-        userPoolClientId: process.env.NEXT_PUBLIC_OIDC_CLIENT_ID!,
+        userPoolClientId: runtimeConfig().oidcClientId,
       },
     },
   });

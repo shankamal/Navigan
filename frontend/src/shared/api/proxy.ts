@@ -197,10 +197,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   return method === "POST" && actions.includes(suffix);
 }
 export function upstreamUrl(path: string[], query: string): URL {
-  const origin = new URL(
-    process.env.NAVIGAN_API_ORIGIN ||
-      "https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com",
-  );
+  const origin = new URL(process.env.NAVIGAN_API_ORIGIN || "");
   if (
     origin.protocol !== "https:" ||
     origin.username ||
@@ -210,7 +207,7 @@ export function upstreamUrl(path: string[], query: string): URL {
     origin.hash
   )
     throw new Error("Invalid API origin configuration");
-  const base = process.env.NAVIGAN_API_BASE_PATH || "/v1/api/v1";
+  const base = process.env.NAVIGAN_API_BASE_PATH || "";
   if (!/^\/[A-Za-z0-9/_-]+$/.test(base))
     throw new Error("Invalid API base path");
   const url = new URL(

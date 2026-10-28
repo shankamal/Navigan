@@ -1,0 +1,83 @@
+name: DEV selective build and deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Build/prepare first, review private summary, then execute its saved plan
+        type: choice
+        options: [build-prepare, execute, verify, rollback]
+        required: true
+      plan_id:
+        description: Saved plan ID on the same persistent private DEV runner
+        type: string
+      initial:
+        description: First run only; explicit managed component list
+        type: string
+        default: frontend
+      enroll:
+        description: Optional additional components absent from the previous build manifest
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: navigan-dev-manifest-release
+  cancel-in-progress: false
+
+jobs:
+  dev-release:
+    environment: dev
+    # Dedicated persistent runner: Docker, SAM, DEV DB connectivity, private plan storage.
+    # No PR trigger; do not attach this runner to untrusted pull-request workflows.
+    runs-on: [self-hosted, linux, x64, navigan-dev-release]
+    timeout-minutes: 120
+    env:
+      AWS_DEFAULT_REGION: ap-south-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      SAM_CLI_TELEMETRY: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+      RELEASE_HOME: ${{ vars.DEV_RELEASE_HOME }}
+      ACTION: ${{ inputs.action }}
+      PLAN_ID: ${{ inputs.plan_id }}
+      INITIAL: ${{ inputs.initial }}
+      ENROLL: ${{ inputs.enroll }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: aws-actions/setup-sam@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.DEV_RELEASE_ROLE_ARN }}
+          aws-region: ap-south-1
+          role-session-name: navigan-dev-release
+      - name: Install release dependencies and test release contracts
+        run: |
+          python -m pip install boto3==1.40.30 PyYAML==6.0.2 'psycopg[binary]==3.2.10' pytest==8.4.2
+          python -m pytest -q tests/test_release_planner.py tests/test_release_execution.py
+      - name: Run the selected DEV action
+        env:
+          # Fresh DEV token, refreshed for this manual acceptance run; never logged or persisted.
+          NAVIGAN_DEV_SMOKE_TOKEN: ${{ secrets.DEV_RELEASE_SMOKE_TOKEN }}
+          MIGRATION_DATABASE_URL: ${{ secrets.DEV_MIGRATION_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_HOME"
+          args=(--home "$RELEASE_HOME" --action "$ACTION")
+          if [ -n "$PLAN_ID" ]; then args+=(--plan-id "$PLAN_ID"); fi
+          if [ -n "$INITIAL" ]; then args+=(--initial "$INITIAL"); fi
+          if [ -n "$ENROLL" ]; then args+=(--enroll "$ENROLL"); fi
+          python scripts/run-dev-release.py "${args[@]}"
+      - name: Record pilot scope
+        if: always()
+        run: |
+          echo 'DEV only. Build-prepare and execute are separate actions; no PROD deployment path.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Artifacts and private plans stay in the dedicated DEV registry/runner, not public workflow artifacts.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Frontend acceptance uses the same persistent runner at localhost:3001; use an approved SSH tunnel for remote access.' >> "$GITHUB_STEP_SUMMARY"

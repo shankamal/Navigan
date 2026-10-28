@@ -1,5 +1,7 @@
 "use client";
 
+import { runtimeConfig } from "@/shared/config/runtime-config";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -193,11 +195,11 @@ export function AssessmentWizard() {
     if (!sourceEnrollment || !selectedSource) return;
 
     const apiBaseUrl =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
+      runtimeConfig().migrationConnectorApiBaseUrl ?? "";
     const imageRepository =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ?? "";
+      runtimeConfig().migrationConnectorImageRepository ?? "";
     const imageDigest =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST ?? "";
+      runtimeConfig().migrationConnectorImageDigest ?? "";
     if (!apiBaseUrl || !imageRepository || !imageDigest) {
       setSourceError(
         "The source connector image and API endpoint are not configured.",

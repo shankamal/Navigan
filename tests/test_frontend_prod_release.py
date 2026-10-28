@@ -231,6 +231,8 @@ def test_wrong_running_image_digest_is_not_reported_as_success(monkeypatch, tmp_
 
 
 def test_prepare_archives_aws_timestamp_without_changing_service(monkeypatch, tmp_path):
+    # Exercise the legacy serializer using a checkout predating portable runtime configuration.
+    monkeypatch.setattr(release, "ROOT", tmp_path)
     timestamp = datetime(2026, 10, 16, 12, 30, tzinfo=timezone.utc)
     described = {"taskDefinition": dict(task(), taskDefinitionArn=OLD, registeredAt=timestamp, revision=8),
                  "tags": [{"key": "owner", "value": "platform"}]}
@@ -260,6 +262,20 @@ def test_prepare_archives_aws_timestamp_without_changing_service(monkeypatch, tm
     plan = json.loads((tmp_path / "release-plan.json").read_text())
     assert plan["previousTask"] == OLD and plan["nextTask"] == NEW
     assert ecs.live == OLD and not ecs.calls
+
+
+def test_portable_source_blocks_legacy_prod_build_before_writes(monkeypatch, tmp_path):
+    marker = tmp_path / "frontend/src/shared/config/public-config.ts"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("fixture")
+    monkeypatch.setattr(release, "ROOT", tmp_path)
+    monkeypatch.setattr(release.boto3, "Session", lambda **kw: None)
+    monkeypatch.setattr(release, "check_checkout", lambda: "committed-revision")
+    monkeypatch.setattr(release, "readiness", lambda session: (service(), {}, {}, {}))
+    monkeypatch.setattr(release, "build_image", lambda *args: pytest.fail("Legacy build must not run"))
+    monkeypatch.setattr("sys.argv", ["deploy-frontend-prod.py", "--profile", "navigan", "--prepare"])
+    with pytest.raises(RuntimeError, match="legacy PROD build is disabled"):
+        release.main()
 
 
 def test_rollback_serializer_rejects_unknown_values_and_task_json_stays_strict():

@@ -1,5 +1,7 @@
 "use client";
 
+import { runtimeConfig } from "@/shared/config/runtime-config";
+
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -381,9 +383,9 @@ export function SourceConnectionScreen({
       setCheckingUntil(Date.now() + 120_000);
     } else {
       if (
-        !process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ||
-        !process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ||
-        !process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST
+        !runtimeConfig().migrationConnectorApiBaseUrl ||
+        !runtimeConfig().migrationConnectorImageRepository ||
+        !runtimeConfig().migrationConnectorImageDigest
       )
         throw new Error(
           "The platform administrator must configure the connector API endpoint and pinned image before Helm or GitOps delivery is available.",
@@ -555,11 +557,11 @@ export function SourceConnectionScreen({
               enrollmentToken: enrollment.enrollmentToken,
               enrollmentExpiresAt: enrollment.expiresAt,
               apiBaseUrl:
-                process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL,
+                runtimeConfig().migrationConnectorApiBaseUrl,
               imageRepository:
-                process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY,
+                runtimeConfig().migrationConnectorImageRepository,
               imageDigest:
-                process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST,
+                runtimeConfig().migrationConnectorImageDigest,
             },
             null,
             2,

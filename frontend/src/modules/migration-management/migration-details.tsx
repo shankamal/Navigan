@@ -1,5 +1,7 @@
 "use client";
 
+import { runtimeConfig } from "@/shared/config/runtime-config";
+
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -452,11 +454,11 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     if (!sourceEnrollment || !effectiveSourceCluster) return;
 
     const apiBaseUrl =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
+      runtimeConfig().migrationConnectorApiBaseUrl ?? "";
     const imageRepository =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ?? "";
+      runtimeConfig().migrationConnectorImageRepository ?? "";
     const imageDigest =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST ?? "";
+      runtimeConfig().migrationConnectorImageDigest ?? "";
     if (!apiBaseUrl || !imageRepository || !imageDigest) return;
 
     const bootstrap = JSON.stringify(

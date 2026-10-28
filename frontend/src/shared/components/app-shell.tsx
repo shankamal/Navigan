@@ -34,6 +34,7 @@ import {
   type PlatformPermission,
 } from "@/shared/auth/permissions";
 import { signOut } from "@/shared/auth/session";
+import { runtimeConfig } from "@/shared/config/runtime-config";
 import { Button } from "./ui";
 
 interface NavigationItem {
@@ -280,7 +281,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       ["localhost", "127.0.0.1"].includes(window.location.hostname),
     );
   }, []);
-  const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
+  const logo = runtimeConfig().corporateLogoUrl;
   useEffect(() => {
     const header = document.querySelector<HTMLElement>(
       ".app-shell > header.topbar",
@@ -473,4 +474,3 @@ function AppShellContent({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

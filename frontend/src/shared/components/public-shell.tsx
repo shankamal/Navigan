@@ -1,9 +1,11 @@
+"use client";
 import Link from "next/link";
+import { runtimeConfig } from "@/shared/config/runtime-config";
 import type { ReactNode } from "react";
 import "../auth/login-workspace.css";
 
 export function PublicShell({ children }: { children: ReactNode }) {
-  const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
+  const logo = runtimeConfig().corporateLogoUrl;
   return (
     <div className="public-shell login-public-shell">
       <header className="topbar">

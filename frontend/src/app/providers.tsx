@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/shared/auth/auth-provider";
 import { ApiError } from "@/shared/api/client";
+import { RuntimeConfigGate } from "@/shared/config/runtime-config-gate";
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
@@ -23,7 +24,9 @@ export function Providers({ children }: { children: ReactNode }) {
   );
   return (
     <QueryClientProvider client={client}>
-      <AuthProvider>{children}</AuthProvider>
+      <RuntimeConfigGate>
+        <AuthProvider>{children}</AuthProvider>
+      </RuntimeConfigGate>
     </QueryClientProvider>
   );
 }

@@ -180,7 +180,7 @@ describe("migration planning", () => {
     }]} as SourceInventory;
     open({ migrationScope: { namespaces: ["retailflow", "payments"] } }, multiInventory);
     selectAllAssessedNamespaces();
-    expect(screen.getByText(/2 selected of 2/)).toBeVisible();
+    expect(screen.getByText(/selected of 2/)).toHaveTextContent("2 selected of 2");
     await analyzeScope();
     const planning = screen.getByRole("region", { name: "Source migration planning" });
     expect(planning).toHaveTextContent("retailflow-api");

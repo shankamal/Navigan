@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   assess: vi.fn(),
   enroll: vi.fn(),
   install: vi.fn(),
+  list: vi.fn(),
 }));
 
 vi.mock("@/shared/auth/auth-provider", () => ({
@@ -145,6 +146,7 @@ vi.mock("@/modules/migration-management/service", () => ({
     enroll: state.enroll,
     updateDelivery: vi.fn(),
     install: state.install,
+    list: state.list,
   },
 }));
 
@@ -166,6 +168,16 @@ describe("Migration approval gate", () => {
     state.assessmentPending = false;
     state.assessmentError = false;
     state.catalogueReady = true;
+    state.list.mockReset();
+    state.list.mockResolvedValue({
+      items: [
+        {
+          sourceClusterId: "SRC-" + "b".repeat(32),
+          status: "PENDING_ENROLLMENT",
+          version: 2,
+        },
+      ],
+    });
     state.deliveryMethod = "MANUAL_HELM";
     state.action.mockReset();
     state.action.mockResolvedValue({});
@@ -235,10 +247,10 @@ describe("Migration approval gate", () => {
     renderDetails();
 
     await waitFor(() =>
-      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1),
+      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 2),
     );
     expect(
-      await screen.findByText("Source connector installation submitted"),
+      await screen.findByText("Source connector installation requested"),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Install source connector" }),
@@ -256,9 +268,9 @@ describe("Migration approval gate", () => {
     ).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1);
+      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 2);
       expect(
-        screen.getByText("Source connector installation submitted"),
+        screen.getByText("Source connector installation requested"),
       ).toBeInTheDocument();
     });
   });

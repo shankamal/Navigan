@@ -1,11 +1,15 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   forwardRequest,
   isAllowedRoute,
   upstreamUrl,
 } from "@/shared/api/proxy";
+beforeEach(() => {
+  vi.stubEnv("NAVIGAN_API_ORIGIN", "https://api-dev.example.invalid");
+  vi.stubEnv("NAVIGAN_API_BASE_PATH", "/api/v1");
+});
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -36,8 +40,12 @@ describe("Same-origin API proxy", () => {
   });
   it("uses the supplied API host and explicit SAM stage", () => {
     expect(upstreamUrl(["customers", "CUS-test-123"], "?page=0").href).toBe(
-      "https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com/v1/api/v1/customers/CUS-test-123?page=0",
+      "https://api-dev.example.invalid/api/v1/customers/CUS-test-123?page=0",
     );
+  });
+  it("never defaults an unconfigured runtime to another environment's API", () => {
+    vi.stubEnv("NAVIGAN_API_ORIGIN", "");
+    expect(() => upstreamUrl(["customers"], "")).toThrow();
   });
   it("rejects unauthenticated requests without contacting AWS", async () => {
     const fetcher = vi.fn();

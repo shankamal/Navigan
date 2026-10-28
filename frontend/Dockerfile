@@ -9,16 +9,8 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-# These are public browser settings, not secrets. Next.js embeds them during build.
-ARG NEXT_PUBLIC_OIDC_AUTHORITY
-ARG NEXT_PUBLIC_OIDC_CLIENT_ID
-ARG NEXT_PUBLIC_APP_URL
-ARG NEXT_PUBLIC_CORPORATE_LOGO_URL=""
-ENV NEXT_PUBLIC_OIDC_AUTHORITY=$NEXT_PUBLIC_OIDC_AUTHORITY \
-    NEXT_PUBLIC_OIDC_CLIENT_ID=$NEXT_PUBLIC_OIDC_CLIENT_ID \
-    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
-    NEXT_PUBLIC_CORPORATE_LOGO_URL=$NEXT_PUBLIC_CORPORATE_LOGO_URL
-RUN test -n "$NEXT_PUBLIC_OIDC_CLIENT_ID" && test -n "$NEXT_PUBLIC_OIDC_AUTHORITY" && test -n "$NEXT_PUBLIC_APP_URL"
+# Environment-specific browser settings are supplied to the running container.
+# The same image is promoted; /api/runtime-config exposes only a public allowlist.
 RUN npm run build
 
 FROM gcr.io/distroless/nodejs22-debian13:nonroot AS runtime
