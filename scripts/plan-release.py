@@ -117,7 +117,15 @@ def template_build_contract(content):
         return {tag: value}
 
     Loader.add_multi_constructor("!", intrinsic)
-    document = yaml.load(content, Loader=Loader) or {}
+    documents = [value for value in yaml.load_all(content, Loader=Loader) if value is not None]
+    require(all(isinstance(value, dict) for value in documents), "Infrastructure YAML must be a mapping.")
+    if len(documents) > 1:
+        require(not any(value.get("Globals", {}).get("Function") or any(
+            item.get("Type") == "AWS::Serverless::Function" for item in value.get("Resources", {}).values()
+        ) for value in documents), "SAM build templates must contain a single YAML document.")
+        # Kubernetes bundles under infrastructure/ are not Lambda build inputs.
+        return {"globals": {}, "functions": {}, "referencedParameters": {}}
+    document = documents[0] if documents else {}
     require(isinstance(document, dict), "Infrastructure YAML must be a mapping.")
     keys = {"CodeUri", "Runtime", "Architectures", "Layers", "PackageType"}
     properties = lambda value: {key: value[key] for key in keys if key in value}

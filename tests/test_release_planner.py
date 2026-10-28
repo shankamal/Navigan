@@ -299,3 +299,14 @@ def test_workflow_is_plan_only():
     assert "configure-aws-credentials" not in text
     assert "execute-change-set" not in text
     assert "update-service" not in text
+
+
+def test_multidocument_kubernetes_bundle_is_not_a_lambda_build_contract():
+    content = b"apiVersion: apps/v1\nkind: Deployment\n---\napiVersion: v1\nkind: Service\n"
+    assert planner.template_build_contract(content) == {"globals": {}, "functions": {}, "referencedParameters": {}}
+
+
+def test_sam_build_contract_in_a_multidocument_bundle_is_rejected():
+    content = b"Resources:\n  Api:\n    Type: AWS::Serverless::Function\n---\nkind: Service\n"
+    with pytest.raises(ValueError, match="single YAML document"):
+        planner.template_build_contract(content)

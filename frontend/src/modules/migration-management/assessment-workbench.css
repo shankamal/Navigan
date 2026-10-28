@@ -51,7 +51,7 @@
 }
 .migration-report-workspace .migration-decision-copy > span {
   color: #55881a;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   letter-spacing: 0.08em;
 }
 .migration-report-workspace .migration-decision-copy h3 {
@@ -76,7 +76,7 @@
   border-left: 1px solid #e5e9ed;
 }
 .migration-report-workspace .migration-decision-summary > div {
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-report-workspace .migration-kpi-strip {
   display: grid;
@@ -102,7 +102,7 @@
   line-height: 1.1;
 }
 .migration-report-workspace .migration-kpi span {
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-workbench-distribution {
   display: grid;
@@ -132,7 +132,7 @@
   gap: 6px;
   align-items: center;
   color: #687481;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-workbench-distribution-legend i {
   width: 7px;
@@ -153,10 +153,10 @@
 .migration-report-workspace .migration-report-reading-guide > summary {
   min-height: 34px;
   padding: 7px 12px;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-report-workspace .migration-report-guide-hint {
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
 }
 .migration-report-workspace .migration-report-tabs {
   display: grid;
@@ -178,7 +178,7 @@
   margin: 0;
   padding: 0;
   color: #77818c;
-  font-size:var(--navigan-font-label);
+  font-size: var(--navigan-font-label);
 }
 .migration-report-workspace .migration-report-tab-items {
   display: flex;
@@ -245,7 +245,7 @@
   border-radius: 6px;
   background: #f9fafb;
   color: #5b6672;
-  font-size:var(--navigan-font-control);
+  font-size: var(--navigan-font-control);
   font-weight: 550;
   line-height: 1.2;
 }
@@ -274,7 +274,7 @@
 }
 .migration-report-workspace .migration-report-tab-count {
   padding: 2px 5px;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 
 /* Full width is reserved for findings and inventory, not a permanent sidebar. */
@@ -327,7 +327,7 @@
   background: #fff;
   color: #304050;
   font: inherit;
-  font-size:var(--navigan-font-control);
+  font-size: var(--navigan-font-control);
 }
 .migration-workbench-filters input {
   width: 100%;
@@ -349,10 +349,9 @@
 .migration-workbench-findings-heading,
 .migration-workbench-finding-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1.25fr) minmax(
-      72px,
-      0.58fr
-    ) minmax(0, 1.9fr) minmax(88px, 0.72fr);
+  grid-template-columns:
+    minmax(0, 2fr) minmax(0, 1.25fr) minmax(72px, 0.58fr)
+    minmax(0, 1.9fr) minmax(88px, 0.72fr);
   gap: 12px;
   align-items: center;
 }
@@ -361,7 +360,7 @@
   padding: 7px 15px;
   background: #f5f7f9;
   color: #677480;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 700;
   letter-spacing: 0.035em;
   text-transform: uppercase;
@@ -381,7 +380,7 @@
   min-height: 71px;
   padding: 10px 15px;
   color: #52606d;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   line-height: 1.45;
 }
 .migration-workbench-finding-row > div {
@@ -410,7 +409,7 @@
 .migration-workbench-finding-resource strong {
   display: block;
   color: #283440;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 650;
 }
 .migration-workbench-finding-title small,
@@ -420,12 +419,12 @@
   display: block;
   margin-top: 3px;
   color: #78838c;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
 }
 .migration-workbench-finding-title .migration-severity {
   display: inline-flex;
   margin-top: 6px;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 650;
 }
 .migration-workbench-finding-evidence {
@@ -443,7 +442,7 @@
 }
 .migration-workbench-finding-status .migration-remediation-status {
   display: inline-flex;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-workbench-finding[open] .migration-workbench-finding-status small {
   color: #5d8a29;
@@ -456,7 +455,7 @@
   border-top: 1px solid #e8edf1;
   background: #fbfcfd;
   color: #526171;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   line-height: 1.6;
 }
 .migration-workbench-finding-details h4 {
@@ -480,7 +479,7 @@
   padding: 10px;
   border-top: 1px solid #e8edf1;
   color: #73808b;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-workbench-more button {
   display: inline-flex;
@@ -529,12 +528,12 @@
   display: block;
   margin-bottom: 4px;
   color: #7b8590;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-workbench-governance-strip strong {
   display: block;
   color: #2e3b47;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 650;
   line-height: 1.5;
 }
@@ -557,7 +556,7 @@
   padding: 8px 15px;
   color: #596876;
   cursor: pointer;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 600;
 }
 .migration-workbench-report-details > summary:focus-visible {
@@ -570,7 +569,7 @@
   padding: 16px;
   border-top: 1px solid #e9edf0;
   color: #4b5c6b;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .migration-workbench-governance-details h4 {
   margin: 9px 0;
@@ -613,10 +612,9 @@
 }
 .migration-report-workspace .migration-findings-table-header,
 .migration-report-workspace .migration-findings-table-row {
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.2fr) 75px 75px minmax(
-      0,
-      1.5fr
-    ) 82px 75px;
+  grid-template-columns:
+    minmax(0, 1.65fr) minmax(0, 1.2fr) 75px 75px minmax(0, 1.5fr)
+    82px 75px;
   gap: 9px;
   min-width: 0;
 }
@@ -644,10 +642,9 @@
   }
   .migration-report-workspace .migration-findings-table-header,
   .migration-report-workspace .migration-findings-table-row {
-    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.2fr) 70px 70px minmax(
-        0,
-        1.5fr
-      ) 70px;
+    grid-template-columns:
+      minmax(0, 1.65fr) minmax(0, 1.2fr) 70px 70px minmax(0, 1.5fr)
+      70px;
   }
 }
 @media (max-width: 1000px) {
@@ -702,10 +699,9 @@
   }
   .migration-report-workspace .migration-findings-table-header,
   .migration-report-workspace .migration-findings-table-row {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 65px minmax(
-        0,
-        1.5fr
-      ) 70px;
+    grid-template-columns:
+      minmax(0, 1.6fr) minmax(0, 1fr) 65px minmax(0, 1.5fr)
+      70px;
   }
   .migration-report-workspace .migration-findings-table-header > :nth-child(4),
   .migration-report-workspace .migration-findings-table-row > :nth-child(4) {
@@ -823,28 +819,73 @@
   }
 }
 
-
-
 /* ADAPTIVE ASSESSMENT WORKBENCH DENSITY */
-@container (max-width:1800px){
-  .migration-report-workspace{font-size:var(--navigan-font-body)}
-  .migration-report-workspace .migration-decision-banner{min-height:52px;padding:7px 10px;gap:7px}
-  .migration-report-workspace .migration-kpi{min-height:50px;padding:6px 9px}
-  .migration-report-workspace .migration-kpi strong{font-size:15px}
-  .migration-workbench-distribution{margin:6px 10px;padding:8px 10px}
-  .migration-workbench-filters{gap:6px;padding:0 10px 7px}
-  .migration-workbench-finding-row{padding:7px 9px}
-  .migration-workbench-finding-details,.migration-workbench-governance-details{gap:7px;padding:8px 9px}
-  .migration-workbench-governance{margin:0 10px 8px}
-  .migration-workbench-governance-strip{gap:6px;padding:7px 9px}
+@container (max-width:1800px) {
+  .migration-report-workspace {
+    font-size: var(--navigan-font-body);
+  }
+  .migration-report-workspace .migration-decision-banner {
+    min-height: 52px;
+    padding: 7px 10px;
+    gap: 7px;
+  }
+  .migration-report-workspace .migration-kpi {
+    min-height: 50px;
+    padding: 6px 9px;
+  }
+  .migration-report-workspace .migration-kpi strong {
+    font-size: 15px;
+  }
+  .migration-workbench-distribution {
+    margin: 6px 10px;
+    padding: 8px 10px;
+  }
+  .migration-workbench-filters {
+    gap: 6px;
+    padding: 0 10px 7px;
+  }
+  .migration-workbench-finding-row {
+    padding: 7px 9px;
+  }
+  .migration-workbench-finding-details,
+  .migration-workbench-governance-details {
+    gap: 7px;
+    padding: 8px 9px;
+  }
+  .migration-workbench-governance {
+    margin: 0 10px 8px;
+  }
+  .migration-workbench-governance-strip {
+    gap: 6px;
+    padding: 7px 9px;
+  }
 }
 
-
 /* FINAL ASSESSMENT WORKBENCH TYPOGRAPHY */
-.migration-report-workspace{font-family:var(--navigan-font-family)!important;font-size:var(--navigan-font-body)!important;line-height:1.35!important}
-.migration-report-workspace :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
-.migration-report-workspace :is(h3,h4,h5,h6){font-size:var(--navigan-font-subsection-title)!important;line-height:1.25!important;font-weight:600!important}
-.migration-report-workspace :is(p,li,summary,dt,dd){font-size:var(--navigan-font-body)!important;line-height:1.35!important}
-.migration-report-workspace small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
-.migration-report-workspace :is(button,input,select,textarea){font-size:var(--navigan-font-control)!important;line-height:1.25!important}
-
+.migration-report-workspace {
+  font-family: var(--navigan-font-family) !important;
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.35 !important;
+}
+.migration-report-workspace :is(h2) {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.migration-report-workspace :is(h3, h4, h5, h6) {
+  font-size: var(--navigan-font-subsection-title) !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.migration-report-workspace :is(p, li, summary, dt, dd) {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.35 !important;
+}
+.migration-report-workspace small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.migration-report-workspace :is(button, input, select, textarea) {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.25 !important;
+}

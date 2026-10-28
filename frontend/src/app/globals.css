@@ -8736,7 +8736,7 @@ td {
   font-size: 14px;
 }
 .dashboard-shell .nav-section {
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   color: #64748b;
 }
 .dashboard-shell .button-primary {
@@ -8829,7 +8829,8 @@ td {
   box-sizing: border-box;
 }
 
-.content-column :is(.table-scroll, [class*="TableScroll"], [class*="tableScroll"]) {
+.content-column
+  :is(.table-scroll, [class*="TableScroll"], [class*="tableScroll"]) {
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -8889,7 +8890,8 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .content-column :is(.page-heading, .heading-actions, .form-actions, .list-heading) {
+  .content-column
+    :is(.page-heading, .heading-actions, .form-actions, .list-heading) {
     flex-wrap: wrap;
   }
 }
@@ -8938,7 +8940,7 @@ td {
   overflow-wrap: break-word;
   letter-spacing: 0.04em;
   padding: 0 9px 4px;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 
 /* Keep Deloitte green for navigation selection, not decorative card corners. */
@@ -8971,11 +8973,15 @@ td {
   border-color: #91ad70;
   color: #426519;
 }
-.app-shell .content-column :is(.button-secondary, .button-ghost):hover:not(:disabled) {
+.app-shell
+  .content-column
+  :is(.button-secondary, .button-ghost):hover:not(:disabled) {
   background: #f1f6eb;
   border-color: var(--action-green);
 }
-.app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost):focus-visible {
+.app-shell
+  .content-column
+  :is(.button-primary, .button-secondary, .button-ghost):focus-visible {
   outline: 2px solid var(--action-green);
   outline-offset: 2px;
 }
@@ -8986,19 +8992,26 @@ td {
   border-radius: 12px;
   box-shadow: 0 2px 9px rgb(20 38 55 / 4%);
 }
-.app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost),
+.app-shell
+  .content-column
+  :is(.button-primary, .button-secondary, .button-ghost),
 .app-shell .sidebar :is(.nav-item, .nav-subitem) {
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
 }
 .app-shell .content-column .button-primary:hover:not(:disabled) {
   box-shadow: 0 3px 9px rgb(72 108 20 / 15%);
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-shell .content-column :is(.button-primary, .button-secondary, .button-ghost),
+  .app-shell
+    .content-column
+    :is(.button-primary, .button-secondary, .button-ghost),
   .app-shell .sidebar :is(.nav-item, .nav-subitem) {
     transition: none;
   }
 }
 
 /* Navigan's unified card, panel and accent rules live in navigan-theme.css. */
-

@@ -177,6 +177,24 @@ class DevConnectorReleaseTests(unittest.TestCase):
 
     def test_pinning_preserves_production_and_other_dev_parameters(self):
         before = (ROOT / "samconfig.toml").read_text(encoding="utf-8")
+        # Public SAM profiles omit private bindings. Exercise an operator's
+        # temporary private configuration with approved synthetic DEV values.
+        import re
+        parsed_before = tomllib.loads(before)
+        for environment in ("default", "dev"):
+            pattern = re.compile(r"(?ms)(^\[" + environment + r"\.deploy\.parameters\]\n)(.*?)(?=^\[|\Z)")
+            section = pattern.search(before)
+            block = section.group(2)
+            tokens = parsed_before[environment]["deploy"]["parameters"].get("parameter_overrides", "")
+            values = dict(token.split("=", 1) for token in shlex.split(tokens))
+            values.update({"DatabaseName": "navigan_dev", "ApiDatabaseSecretArn": "fixture-dev-secret-reference",
+                           "SourceConnectorDeliveryRoleArn": "arn:aws:iam::905418045935:role/test-approved-delivery"})
+            line = "parameter_overrides = " + json.dumps(" ".join(shlex.quote(key + "=" + value) for key, value in values.items()))
+            if re.search(r"(?m)^parameter_overrides\s*=", block):
+                block = re.sub(r"(?m)^parameter_overrides\s*=.*$", lambda _: line, block)
+            else:
+                block += line + "\n"
+            before = before[:section.start(2)] + block + before[section.end(2):]
         before_prod = before.split("[prod.validate.parameters]", 1)[1]
         original = tomllib.loads(before)
 
@@ -195,7 +213,7 @@ class DevConnectorReleaseTests(unittest.TestCase):
                     parse_parameters(original, "dev")["SourceConnectorDeliveryRoleArn"],
                 )
                 for name, value in original_params.items():
-                    if name != "SourceConnectorDeliveryRoleArn":
+                    if name not in {"SourceConnectorDeliveryRoleArn", "MigrationConnectorImageRepository", "MigrationConnectorImageDigest"}:
                         self.assertEqual(params[name], value)
 
         self.assertEqual(after, pin_module.pin_dev_config(after, REPOSITORY, DIGEST))
@@ -279,8 +297,8 @@ class DevConnectorReleaseTests(unittest.TestCase):
 
         ecr.assert_called_once()
         manifest = run.call_args_list[0].kwargs["input"]
-        self.assertIn("name: navigan-migration-image-pull", manifest)
-        self.assertIn("imagePullSecrets:\n      - name: navigan-migration-image-pull", manifest)
+        self.assertIn("name: navigan-source-" + "a" * 32 + "-image-pull", manifest)
+        self.assertIn("imagePullSecrets:\n      - name: navigan-source-" + "a" * 32 + "-image-pull", manifest)
         self.assertIn("type: kubernetes.io/dockerconfigjson", manifest)
         self.assertIn(REPOSITORY + "@" + DIGEST, manifest)
         self.assertNotIn("test-ecr-password", manifest)

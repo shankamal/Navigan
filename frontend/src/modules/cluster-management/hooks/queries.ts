@@ -13,7 +13,8 @@ export const useClusterCount = (status?: string, enabled = true) =>
   useQuery({
     queryKey: ["cluster-count", "summary"],
     queryFn: ({ signal }) => clusters.summary(signal),
-    select: (summary) => status ? (summary.byStatus[status] ?? 0) : summary.total,
+    select: (summary) =>
+      status ? (summary.byStatus[status] ?? 0) : summary.total,
     retry: false,
     enabled,
   });

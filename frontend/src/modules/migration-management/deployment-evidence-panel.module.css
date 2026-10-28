@@ -122,7 +122,7 @@
 }
 .panel code {
   display: block;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   overflow-wrap: anywhere;
   color: #4c6151;
   line-height: 1.7;
@@ -140,7 +140,7 @@
   color: #6a5820;
   background: #faf5e6;
   padding: 5px 8px;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .note {
   display: flex;
@@ -875,7 +875,7 @@
 .workbench > .caption {
   order: 1;
   margin: 10px 0 0;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
   line-height: 1.5;
 }
 .workbench .scroll {
@@ -1025,12 +1025,12 @@
   gap: 12px;
   background: #f0f3f6;
   padding: 8px;
-  font-size:var(--navigan-font-table);
+  font-size: var(--navigan-font-table);
   color: #63717f;
 }
 .containerEvidence > summary > small {
   margin: 0;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
 }
 .containerEvidence > summary > small > span {
   display: block;
@@ -1095,7 +1095,7 @@
 }
 .workloadNavigator button small {
   display: block;
-  font-size:var(--navigan-font-control);
+  font-size: var(--navigan-font-control);
   color: #687684;
   margin-top: 3px;
 }
@@ -1165,7 +1165,7 @@
 }
 .containerImage summary small {
   display: block;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
   color: #687684;
   margin-bottom: 4px;
 }
@@ -1401,7 +1401,7 @@
   font-size: 18px;
 }
 .recoveryWindow .drawerHeader p {
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   margin-top: 8px;
   line-height: 1.6;
 }
@@ -1502,7 +1502,7 @@
 }
 .registryDiagnostic summary span {
   flex-shrink: 0;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   text-transform: capitalize;
   color: #64778c;
 }
@@ -1726,7 +1726,7 @@
 }
 .discoverySummary > p {
   margin: 12px 0 0;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   color: #66758a;
 }
 @media (max-width: 700px) {

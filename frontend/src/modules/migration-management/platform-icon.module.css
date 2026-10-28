@@ -23,8 +23,16 @@
   font-size: 0.65rem;
 }
 
-.compact { width: 18px; height: 18px; font-size: 9px; }
-.summary { width: 20px; height: 20px; font-size: 10px; }
+.compact {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+.summary {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
 
 .logo svg {
   width: 58%;
@@ -148,4 +156,3 @@
   height: 100%;
   object-fit: contain;
 }
-

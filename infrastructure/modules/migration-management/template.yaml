@@ -406,6 +406,7 @@ Resources:
       ApiId: {Ref: ApiId}
       AuthorizationType: JWT
       AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports
       Target:
         Fn::Join:

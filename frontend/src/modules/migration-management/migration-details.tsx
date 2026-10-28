@@ -250,8 +250,11 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
       }
       // Enrollment increments the source version after SSM submission.
       // Fetch it fresh so retry uses a new installation idempotency key.
-      const latest = (await sourceClusters.list(migration.customerId)).items.find(
-        (item) => item.sourceClusterId === effectiveSourceCluster.sourceClusterId,
+      const latest = (
+        await sourceClusters.list(migration.customerId)
+      ).items.find(
+        (item) =>
+          item.sourceClusterId === effectiveSourceCluster.sourceClusterId,
       );
       if (!latest || latest.status === "REVOKED") {
         throw new Error("The registered source cluster is unavailable.");
@@ -453,12 +456,10 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   function downloadSourceBootstrap() {
     if (!sourceEnrollment || !effectiveSourceCluster) return;
 
-    const apiBaseUrl =
-      runtimeConfig().migrationConnectorApiBaseUrl ?? "";
+    const apiBaseUrl = runtimeConfig().migrationConnectorApiBaseUrl ?? "";
     const imageRepository =
       runtimeConfig().migrationConnectorImageRepository ?? "";
-    const imageDigest =
-      runtimeConfig().migrationConnectorImageDigest ?? "";
+    const imageDigest = runtimeConfig().migrationConnectorImageDigest ?? "";
     if (!apiBaseUrl || !imageRepository || !imageDigest) return;
 
     const bootstrap = JSON.stringify(
@@ -1016,8 +1017,8 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                   ) : effectiveSourceCluster?.deliveryMethod === "AWS_SSM" ? (
                     effectiveSourceCluster.status === "CONNECTED" ? (
                       <p role="status" className="muted">
-                        Connector enrollment was accepted, but no source inventory
-                        has arrived. Installation is not yet verified.
+                        Connector enrollment was accepted, but no source
+                        inventory has arrived. Installation is not yet verified.
                       </p>
                     ) : automaticInstallation.isError ? (
                       <p role="alert" className="muted">
@@ -1063,7 +1064,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                       <button
                         type="button"
                         className="button button-secondary"
-                        disabled={!canPrepareSource || automaticInstallation.isPending}
+                        disabled={
+                          !canPrepareSource || automaticInstallation.isPending
+                        }
                         onClick={() => {
                           setSourceError("");
                           automaticInstallation.reset();

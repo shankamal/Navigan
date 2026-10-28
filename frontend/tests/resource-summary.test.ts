@@ -19,18 +19,27 @@ describe("Scoped resource summaries", () => {
       data: { total: 3, byStatus: { ACTIVE: 2 }, byProvider: { AWS: 3 } },
     });
     const fallback = vi.fn();
-    const summary = await resourceSummary("customers", ["ACTIVE"], ["AWS"], fallback);
+    const summary = await resourceSummary(
+      "customers",
+      ["ACTIVE"],
+      ["AWS"],
+      fallback,
+    );
     expect(request).toHaveBeenCalledOnce();
     expect(fallback).not.toHaveBeenCalled();
     expect(summary.total).toBe(3);
   });
 
   it("falls back only for unavailable summary routes", async () => {
-    vi.spyOn(apiClient, "get").mockRejectedValue(new ApiError("Missing", 404, "ROUTE_NOT_FOUND"));
+    vi.spyOn(apiClient, "get").mockRejectedValue(
+      new ApiError("Missing", 404, "ROUTE_NOT_FOUND"),
+    );
     const fallback = vi.fn(async (status?: string, provider?: string) =>
       status ? 2 : provider ? 1 : 3,
     );
-    expect(await resourceSummary("environments", ["ACTIVE"], ["AWS"], fallback)).toEqual({
+    expect(
+      await resourceSummary("environments", ["ACTIVE"], ["AWS"], fallback),
+    ).toEqual({
       total: 3,
       byStatus: { ACTIVE: 2 },
       byProvider: { AWS: 1 },
@@ -39,9 +48,13 @@ describe("Scoped resource summaries", () => {
   });
 
   it("never hides authorization failures behind fallback requests", async () => {
-    vi.spyOn(apiClient, "get").mockRejectedValue(new ApiError("Forbidden", 403, "FORBIDDEN"));
+    vi.spyOn(apiClient, "get").mockRejectedValue(
+      new ApiError("Forbidden", 403, "FORBIDDEN"),
+    );
     const fallback = vi.fn();
-    await expect(resourceSummary("clusters", [], [], fallback)).rejects.toMatchObject({ status: 403 });
+    await expect(
+      resourceSummary("clusters", [], [], fallback),
+    ).rejects.toMatchObject({ status: 403 });
     expect(fallback).not.toHaveBeenCalled();
   });
 });

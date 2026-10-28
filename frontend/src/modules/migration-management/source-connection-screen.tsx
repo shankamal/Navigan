@@ -44,7 +44,8 @@ const journey = [
 
 function installationBlock(source: SourceClusterRegistration): string | null {
   const check = source.installationCheck;
-  if (!check) return "Unable to check this host. Retry the connection check before installing.";
+  if (!check)
+    return "Unable to check this host. Retry the connection check before installing.";
   if (!check.canRestore) return check.message;
   if (check.conflicts.length)
     return "This host has another source registration. A platform administrator must resolve the association before installation. No connector has been changed.";
@@ -136,13 +137,26 @@ export function SourceConnectionScreen({
     (item) => item.customerId === customer && item.status !== "REVOKED",
   );
   const installationQuery = useQuery({
-    queryKey: ["source-connection", "installation-check", customer, source?.sourceClusterId],
+    queryKey: [
+      "source-connection",
+      "installation-check",
+      customer,
+      source?.sourceClusterId,
+    ],
     queryFn: () => sourceClusters.get(source!.sourceClusterId, true),
-    enabled: Boolean(source && draft && source.deliveryMethod === "AWS_SSM" && !verifiedAt && !checkingUntil),
+    enabled: Boolean(
+      source &&
+      draft &&
+      source.deliveryMethod === "AWS_SSM" &&
+      !verifiedAt &&
+      !checkingUntil,
+    ),
     retry: false,
     staleTime: 0,
   });
-  const hostBlock = installationQuery.data ? installationBlock(installationQuery.data) : null;
+  const hostBlock = installationQuery.data
+    ? installationBlock(installationQuery.data)
+    : null;
   const customerOptions =
     customersQuery.data?.filter(
       (item) =>
@@ -263,8 +277,12 @@ export function SourceConnectionScreen({
     setBusy(true);
     setError("");
     try {
-      const settings = await deploymentDiscovery.settings(source.sourceClusterId);
-      window.location.assign(`/migrations/${draft.migrationId}/${settings.readyForDiscovery ? "discovery" : "source-access"}`);
+      const settings = await deploymentDiscovery.settings(
+        source.sourceClusterId,
+      );
+      window.location.assign(
+        `/migrations/${draft.migrationId}/${settings.readyForDiscovery ? "discovery" : "source-access"}`,
+      );
     } catch (failure) {
       setError(normalizeApiError(failure).message);
     } finally {
@@ -362,10 +380,23 @@ export function SourceConnectionScreen({
     if (registered.deliveryMethod === "AWS_SSM") {
       const latest = await sourceClusters.get(registered.sourceClusterId, true);
       setSource(latest);
-      const heartbeatAge = Date.now() - Date.parse(typeof latest.connectorLastSeenAt === "string" ? latest.connectorLastSeenAt : "");
-      if (latest.installationCheck?.code === "ALREADY_CONNECTED" && latest.status === "CONNECTED" && heartbeatAge >= -30_000 && heartbeatAge < 120_000) {
+      const heartbeatAge =
+        Date.now() -
+        Date.parse(
+          typeof latest.connectorLastSeenAt === "string"
+            ? latest.connectorLastSeenAt
+            : "",
+        );
+      if (
+        latest.installationCheck?.code === "ALREADY_CONNECTED" &&
+        latest.status === "CONNECTED" &&
+        heartbeatAge >= -30_000 &&
+        heartbeatAge < 120_000
+      ) {
         setVerifiedAt(new Date().toISOString());
-        setNotice("Existing connector verified and reused. No installation was needed.");
+        setNotice(
+          "Existing connector verified and reused. No installation was needed.",
+        );
         return;
       }
       const blocked = installationBlock(latest);
@@ -415,8 +446,13 @@ export function SourceConnectionScreen({
       const reuseMatch = !registered && possibleMatch && mode === "REGISTER";
       if (reuseMatch) {
         registered = await sourceClusters.get(possibleMatch.sourceClusterId);
-        if (registered.customerId !== customer || registered.status === "REVOKED")
-          throw new Error("Select an available source registration belonging to this customer.");
+        if (
+          registered.customerId !== customer ||
+          registered.status === "REVOKED"
+        )
+          throw new Error(
+            "Select an available source registration belonging to this customer.",
+          );
         setMode("EXISTING");
         setExistingId(registered.sourceClusterId);
         setSource(registered);
@@ -514,7 +550,13 @@ export function SourceConnectionScreen({
         url.searchParams.set("draft", created.migrationId);
         window.history.replaceState(null, "", url);
       }
-      if (installNow && mode === "REGISTER" && !reuseMatch && !commandId && !enrollment)
+      if (
+        installNow &&
+        mode === "REGISTER" &&
+        !reuseMatch &&
+        !commandId &&
+        !enrollment
+      )
         await deliver(registered);
       else
         setNotice(
@@ -556,12 +598,10 @@ export function SourceConnectionScreen({
               sourceClusterId: source.sourceClusterId,
               enrollmentToken: enrollment.enrollmentToken,
               enrollmentExpiresAt: enrollment.expiresAt,
-              apiBaseUrl:
-                runtimeConfig().migrationConnectorApiBaseUrl,
+              apiBaseUrl: runtimeConfig().migrationConnectorApiBaseUrl,
               imageRepository:
                 runtimeConfig().migrationConnectorImageRepository,
-              imageDigest:
-                runtimeConfig().migrationConnectorImageDigest,
+              imageDigest: runtimeConfig().migrationConnectorImageDigest,
             },
             null,
             2,
@@ -1530,7 +1570,9 @@ export function SourceConnectionScreen({
                 !verifiedAt &&
                 !checkingUntil &&
                 (source.deliveryMethod !== "AWS_SSM" ||
-                  (installationQuery.isSuccess && !installationQuery.isFetching && !hostBlock)) && (
+                  (installationQuery.isSuccess &&
+                    !installationQuery.isFetching &&
+                    !hostBlock)) && (
                   <button
                     type="button"
                     onClick={retryDelivery}
@@ -1539,7 +1581,8 @@ export function SourceConnectionScreen({
                     {source.deliveryMethod === "AWS_SSM"
                       ? commandId
                         ? "Retry installation"
-                        : source.lastConnectedAt || source.status === "CONNECTED"
+                        : source.lastConnectedAt ||
+                            source.status === "CONNECTED"
                           ? "Restore connector"
                           : "Install connector"
                       : "Generate enrollment configuration"}
@@ -1556,20 +1599,30 @@ export function SourceConnectionScreen({
             </div>
           </div>
           <div aria-live="polite" className={styles.feedback}>
-            {source && draft && source.deliveryMethod === "AWS_SSM" && !verifiedAt && !checkingUntil && (
-              <div>
-                {installationQuery.isFetching ? (
-                  <p>Checking source host availability…</p>
-                ) : installationQuery.isError || hostBlock ? (
-                  <p role="status">
-                    {installationQuery.isError
-                      ? "Unable to check source host availability. Installation is unavailable until the check succeeds."
-                      : hostBlock}
-                    {" "}<button type="button" disabled={locked} onClick={() => installationQuery.refetch()}>Check host again</button>
-                  </p>
-                ) : null}
-              </div>
-            )}
+            {source &&
+              draft &&
+              source.deliveryMethod === "AWS_SSM" &&
+              !verifiedAt &&
+              !checkingUntil && (
+                <div>
+                  {installationQuery.isFetching ? (
+                    <p>Checking source host availability…</p>
+                  ) : installationQuery.isError || hostBlock ? (
+                    <p role="status">
+                      {installationQuery.isError
+                        ? "Unable to check source host availability. Installation is unavailable until the check succeeds."
+                        : hostBlock}{" "}
+                      <button
+                        type="button"
+                        disabled={locked}
+                        onClick={() => installationQuery.refetch()}
+                      >
+                        Check host again
+                      </button>
+                    </p>
+                  ) : null}
+                </div>
+              )}
             {notice && <p>{notice}</p>}
             {verifiedAt && (
               <small>Verified {new Date(verifiedAt).toLocaleString()}</small>

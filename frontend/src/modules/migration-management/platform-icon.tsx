@@ -25,20 +25,20 @@ export function PlatformIcon({ platform, size = "small" }: PlatformIconProps) {
       ? "amazonecs"
       : ["AWS", "AMAZON_WEB_SERVICES"].includes(normalized)
         ? "amazonwebservices"
-    : ["OPENSHIFT", "RED_HAT_OPENSHIFT", "ROSA"].includes(normalized)
-      ? "redhatopenshift"
-      : ["ARGOCD", "ARGO_CD", "GITOPS"].includes(normalized)
-        ? "argo"
-      : ["AKS", "AZURE", "AZURE_AKS"].includes(normalized)
-      ? "microsoftazure"
-      : ["GKE", "GCP", "GOOGLE_CLOUD"].includes(normalized)
-        ? "googlecloud"
-        : ["OKE", "OCI", "ORACLE_CLOUD"].includes(normalized)
-          ? "oracle"
-          : normalized.includes("SELF_MANAGED") ||
-              ["KUBERNETES", "K8S"].includes(normalized)
-            ? "kubernetes"
-            : null;
+        : ["OPENSHIFT", "RED_HAT_OPENSHIFT", "ROSA"].includes(normalized)
+          ? "redhatopenshift"
+          : ["ARGOCD", "ARGO_CD", "GITOPS"].includes(normalized)
+            ? "argo"
+            : ["AKS", "AZURE", "AZURE_AKS"].includes(normalized)
+              ? "microsoftazure"
+              : ["GKE", "GCP", "GOOGLE_CLOUD"].includes(normalized)
+                ? "googlecloud"
+                : ["OKE", "OCI", "ORACLE_CLOUD"].includes(normalized)
+                  ? "oracle"
+                  : normalized.includes("SELF_MANAGED") ||
+                      ["KUBERNETES", "K8S"].includes(normalized)
+                    ? "kubernetes"
+                    : null;
   if (asset) {
     return (
       <span

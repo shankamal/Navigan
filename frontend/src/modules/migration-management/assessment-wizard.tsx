@@ -194,12 +194,10 @@ export function AssessmentWizard() {
   function downloadSourceBootstrap() {
     if (!sourceEnrollment || !selectedSource) return;
 
-    const apiBaseUrl =
-      runtimeConfig().migrationConnectorApiBaseUrl ?? "";
+    const apiBaseUrl = runtimeConfig().migrationConnectorApiBaseUrl ?? "";
     const imageRepository =
       runtimeConfig().migrationConnectorImageRepository ?? "";
-    const imageDigest =
-      runtimeConfig().migrationConnectorImageDigest ?? "";
+    const imageDigest = runtimeConfig().migrationConnectorImageDigest ?? "";
     if (!apiBaseUrl || !imageRepository || !imageDigest) {
       setSourceError(
         "The source connector image and API endpoint are not configured.",
@@ -1138,9 +1136,10 @@ export function AssessmentWizard() {
                             <div role="status" aria-live="polite">
                               <strong>Connector enrollment accepted</strong>
                               <p>
-                                No source inventory has arrived. Enrollment alone
-                                does not confirm that the connector is running.
-                                Retry installation if the previous attempt failed.
+                                No source inventory has arrived. Enrollment
+                                alone does not confirm that the connector is
+                                running. Retry installation if the previous
+                                attempt failed.
                               </p>
                               <button
                                 type="button"

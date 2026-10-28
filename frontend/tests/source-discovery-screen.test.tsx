@@ -540,15 +540,22 @@ it("keeps discovery free of source connection setup and artifact work", async ()
 it("links an incomplete inventory-ready assessment to its source access setup", async () => {
   api.get.mockResolvedValue({ ...migration, status: "INVENTORY_READY" });
   vi.mocked(deploymentDiscovery.settings).mockResolvedValue({
-    version: 1, sourceClusterId: "SRC-db", readyForDiscovery: false,
-    configuration: { repositories: [], registries: [] }, githubOrganizations: [], registryAdapters: [],
+    version: 1,
+    sourceClusterId: "SRC-db",
+    readyForDiscovery: false,
+    configuration: { repositories: [], registries: [] },
+    githubOrganizations: [],
+    registryAdapters: [],
   });
   open();
-  expect(await screen.findByRole("link", { name: "Configure source access" })).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
-  expect(screen.getByRole("button", { name: "Run source assessment" })).toBeDisabled();
+  expect(
+    await screen.findByRole("link", { name: "Configure source access" }),
+  ).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
+  expect(
+    screen.getByRole("button", { name: "Run source assessment" }),
+  ).toBeDisabled();
   expect(api.assess).not.toHaveBeenCalled();
 });
-
 
 it("keeps source access visible when the completed progress panel is hidden", async () => {
   open();
@@ -556,14 +563,18 @@ it("keeps source access visible when the completed progress panel is hidden", as
   const access = screen.getByRole("link", { name: "Configure source access" });
   expect(access).toBeVisible();
   expect(access).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
-  expect(document.querySelector('section[aria-label="Discovery progress"]')).not.toBeVisible();
+  expect(
+    document.querySelector('section[aria-label="Discovery progress"]'),
+  ).not.toBeVisible();
   expect(api.assess).not.toHaveBeenCalled();
 });
 
 it("keeps source access visible when readiness is already satisfied", async () => {
   api.get.mockResolvedValue({ ...migration, status: "INVENTORY_READY" });
   open();
-  const access = await screen.findByRole("link", { name: "Configure source access" });
+  const access = await screen.findByRole("link", {
+    name: "Configure source access",
+  });
   expect(access).toBeVisible();
   expect(access).toHaveAttribute("href", "/migrations/MIG-demo/source-access");
 });

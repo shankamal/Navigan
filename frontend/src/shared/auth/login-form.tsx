@@ -233,7 +233,13 @@ export function LoginForm({
       }}
       aria-busy={pending}
     >
-      <h2 ref={heading} tabIndex={-1} className={compactNotice && mode === "login" ? "login-welcome-title" : undefined}>
+      <h2
+        ref={heading}
+        tabIndex={-1}
+        className={
+          compactNotice && mode === "login" ? "login-welcome-title" : undefined
+        }
+      >
         {compactNotice && mode === "login" && <NaviganMark reverse />}
         <span>{title}</span>
       </h2>

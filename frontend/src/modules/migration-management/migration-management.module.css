@@ -64,7 +64,7 @@
 
 .step small {
   margin-bottom: 2px;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
 }
 
 .step strong {
@@ -326,7 +326,7 @@
   border-radius: 999px;
   background: #f1f5f9;
   color: #54674a;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 700;
 }
 
@@ -1494,7 +1494,7 @@
   color: #475569;
 }
 .migrationWorkspace .step small {
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
 }
 .migrationWorkspace .step strong {
   font-size: 13px;
@@ -1861,7 +1861,7 @@
 }
 .summaryProgress li small {
   margin-left: auto;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
   font-weight: 400;
 }
 .summaryProgress li svg {
@@ -1919,7 +1919,7 @@
   display: grid;
   place-items: center;
   color: #fff;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   min-width: 0;
   overflow: hidden;
 }
@@ -2140,7 +2140,7 @@
   font-weight: 600;
 }
 .migrationWorkspace .portfolioTable td:first-child span {
-  font-size:var(--navigan-font-table);
+  font-size: var(--navigan-font-table);
 }
 .migrationWorkspace .platformPath {
   flex-wrap: wrap;
@@ -2229,7 +2229,7 @@
   display: block;
   margin: 8px 0;
   color: #64748b;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
 }
 .boardCard > a {
   display: flex;
@@ -2365,7 +2365,7 @@
   font-size: 12px;
 }
 .summaryPath {
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   gap: 5px;
   flex-wrap: nowrap;
 }
@@ -2555,136 +2555,222 @@
   box-shadow: none;
 }
 
-
-
 /* ADAPTIVE MIGRATION COMMON DENSITY */
-@container (max-width:1800px){
-  .migrationWorkspace{gap:8px;font-size:var(--navigan-font-body)}
-  .migrationWorkspace :is(.portfolioPanel,.attentionPanel,.connectionCard){border-radius:5px}
-  .migrationWorkspace :is(.metricCard,.boardCard,.attentionCard,.optionCard,.checkCard){border-radius:5px}
-  .migrationWorkspace .portfolioTable :is(th,td){padding-block:6px;font-size:var(--navigan-font-label)}
-  .migrationWorkspace .actions{gap:7px;padding-block:6px}
-  .reportDecisionBar{bottom:5px;gap:6px 9px;padding:6px 10px;border-radius:5px}
-  .reportPlanAction{gap:8px}
-  .reportPlanAction strong{font-size:var(--navigan-font-body)}
-  .reportPlanAction span{font-size:var(--navigan-font-body)}
-  .reportPlanAction>a{padding:6px 9px}
-  .assessmentHeadingActions{gap:6px}
+@container (max-width:1800px) {
+  .migrationWorkspace {
+    gap: 8px;
+    font-size: var(--navigan-font-body);
+  }
+  .migrationWorkspace :is(.portfolioPanel, .attentionPanel, .connectionCard) {
+    border-radius: 5px;
+  }
+  .migrationWorkspace
+    :is(.metricCard, .boardCard, .attentionCard, .optionCard, .checkCard) {
+    border-radius: 5px;
+  }
+  .migrationWorkspace .portfolioTable :is(th, td) {
+    padding-block: 6px;
+    font-size: var(--navigan-font-label);
+  }
+  .migrationWorkspace .actions {
+    gap: 7px;
+    padding-block: 6px;
+  }
+  .reportDecisionBar {
+    bottom: 5px;
+    gap: 6px 9px;
+    padding: 6px 10px;
+    border-radius: 5px;
+  }
+  .reportPlanAction {
+    gap: 8px;
+  }
+  .reportPlanAction strong {
+    font-size: var(--navigan-font-body);
+  }
+  .reportPlanAction span {
+    font-size: var(--navigan-font-body);
+  }
+  .reportPlanAction > a {
+    padding: 6px 9px;
+  }
+  .assessmentHeadingActions {
+    gap: 6px;
+  }
 }
-
 
 /* DEFINITIVE COMPACT MIGRATION OVERVIEW */
-@media (min-width:900px){
-  .migrationWorkspace{gap:8px!important}
-  .migrationWorkspace .portfolioMetrics{
-    gap:8px!important;
-    margin-bottom:8px!important
+@media (min-width: 900px) {
+  .migrationWorkspace {
+    gap: 8px !important;
   }
-  .migrationWorkspace .metricCard{
-    min-height:0!important;
-    padding:10px 12px!important;
-    border-radius:5px!important
+  .migrationWorkspace .portfolioMetrics {
+    gap: 8px !important;
+    margin-bottom: 8px !important;
   }
-  .migrationWorkspace .metricCard h2{
-    font-size:13px!important;
-    line-height:1.25!important
+  .migrationWorkspace .metricCard {
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    border-radius: 5px !important;
   }
-  .migrationWorkspace .metricCard p{
-    margin:2px 0 7px!important;
-    font-size:var(--navigan-font-body)!important;
-    line-height:1.3!important
+  .migrationWorkspace .metricCard h2 {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
   }
-  .migrationWorkspace .stackedLifecycle{
-    height:16px!important;
-    border-radius:4px!important
+  .migrationWorkspace .metricCard p {
+    margin: 2px 0 7px !important;
+    font-size: var(--navigan-font-body) !important;
+    line-height: 1.3 !important;
   }
-  .migrationWorkspace .stackedLifecycle>span{font-size:var(--navigan-font-body)!important}
-  .migrationWorkspace .metricLegend{
-    gap:3px 8px!important;
-    margin-top:6px!important
+  .migrationWorkspace .stackedLifecycle {
+    height: 16px !important;
+    border-radius: 4px !important;
   }
-  .migrationWorkspace .metricLegend li{font-size:9.75px!important}
-  .migrationWorkspace .coverageValue{
-    margin:8px 0 6px!important;
-    font-size:18px!important;
-    line-height:1.2!important
+  .migrationWorkspace .stackedLifecycle > span {
+    font-size: var(--navigan-font-body) !important;
   }
-  .migrationWorkspace .coverageValue small{font-size:var(--navigan-font-caption)!important}
-  .migrationWorkspace .metricCard progress{height:7px!important}
-  .migrationWorkspace .metricHint{
-    margin-top:4px!important;
-    font-size:var(--navigan-font-caption)!important
+  .migrationWorkspace .metricLegend {
+    gap: 3px 8px !important;
+    margin-top: 6px !important;
   }
-  .migrationWorkspace .pathMetrics{
-    gap:6px!important;
-    max-height:88px!important
+  .migrationWorkspace .metricLegend li {
+    font-size: 9.75px !important;
   }
-  .migrationWorkspace .pathMetricLabel{
-    gap:4px!important;
-    margin-bottom:2px!important;
-    font-size:9.75px!important
+  .migrationWorkspace .coverageValue {
+    margin: 8px 0 6px !important;
+    font-size: 18px !important;
+    line-height: 1.2 !important;
   }
-  .migrationWorkspace .attentionStrip{
-    gap:5px 12px!important;
-    padding:7px 10px!important;
-    margin-bottom:8px!important;
-    font-size:var(--navigan-font-body)!important
+  .migrationWorkspace .coverageValue small {
+    font-size: var(--navigan-font-caption) !important;
   }
-  .migrationWorkspace .portfolioLayout{gap:8px!important}
-  .migrationWorkspace .portfolioHeading{
-    gap:8px!important;
-    padding:9px 12px!important
+  .migrationWorkspace .metricCard progress {
+    height: 7px !important;
   }
-  .migrationWorkspace .portfolioHeading h2{font-size:13px!important}
-  .migrationWorkspace .portfolioHeading p{
-    margin-top:2px!important;
-    font-size:var(--navigan-font-body)!important;
-    line-height:1.25!important
+  .migrationWorkspace .metricHint {
+    margin-top: 4px !important;
+    font-size: var(--navigan-font-caption) !important;
   }
-  .migrationWorkspace .filters{
-    gap:7px!important;
-    padding:0 12px 9px!important
+  .migrationWorkspace .pathMetrics {
+    gap: 6px !important;
+    max-height: 88px !important;
   }
-  .migrationWorkspace .filters label>span{
-    margin-bottom:3px!important;
-    font-size:var(--navigan-font-label)!important
+  .migrationWorkspace .pathMetricLabel {
+    gap: 4px !important;
+    margin-bottom: 2px !important;
+    font-size: 9.75px !important;
+  }
+  .migrationWorkspace .attentionStrip {
+    gap: 5px 12px !important;
+    padding: 7px 10px !important;
+    margin-bottom: 8px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .migrationWorkspace .portfolioLayout {
+    gap: 8px !important;
+  }
+  .migrationWorkspace .portfolioHeading {
+    gap: 8px !important;
+    padding: 9px 12px !important;
+  }
+  .migrationWorkspace .portfolioHeading h2 {
+    font-size: 13px !important;
+  }
+  .migrationWorkspace .portfolioHeading p {
+    margin-top: 2px !important;
+    font-size: var(--navigan-font-body) !important;
+    line-height: 1.25 !important;
+  }
+  .migrationWorkspace .filters {
+    gap: 7px !important;
+    padding: 0 12px 9px !important;
+  }
+  .migrationWorkspace .filters label > span {
+    margin-bottom: 3px !important;
+    font-size: var(--navigan-font-label) !important;
   }
   .migrationWorkspace .filters select,
-  .migrationWorkspace .search>div{
-    min-height:30px!important;
-    border-radius:5px!important
+  .migrationWorkspace .search > div {
+    min-height: 30px !important;
+    border-radius: 5px !important;
   }
   .migrationWorkspace .filters select,
-  .migrationWorkspace .search input{
-    font-size:var(--navigan-font-control)!important
+  .migrationWorkspace .search input {
+    font-size: var(--navigan-font-control) !important;
   }
-  .migrationWorkspace .viewToggle button{
-    padding:5px 8px!important;
-    font-size:var(--navigan-font-control)!important
+  .migrationWorkspace .viewToggle button {
+    padding: 5px 8px !important;
+    font-size: var(--navigan-font-control) !important;
   }
-  .migrationWorkspace .portfolioTable th{
-    padding:6px 8px!important;
-    font-size:var(--navigan-font-label)!important
+  .migrationWorkspace .portfolioTable th {
+    padding: 6px 8px !important;
+    font-size: var(--navigan-font-label) !important;
   }
-  .migrationWorkspace .portfolioTable td{
-    padding:6px 8px!important;
-    font-size:var(--navigan-font-table)!important
+  .migrationWorkspace .portfolioTable td {
+    padding: 6px 8px !important;
+    font-size: var(--navigan-font-table) !important;
   }
 }
 
-
-
 /* FINAL MIGRATION TYPOGRAPHY CONTRACT */
-.migrationWorkspace{font-family:var(--navigan-font-family)!important;font-size:var(--navigan-font-body)!important;line-height:1.35!important}
-.migrationWorkspace :is(h2){font-size:13px!important;line-height:1.25!important;font-weight:600!important}
-.migrationWorkspace :is(h3,h4,h5,h6){font-size:var(--navigan-font-subsection-title)!important;line-height:1.25!important;font-weight:600!important}
-.migrationWorkspace :is(p,li,summary,dt,dd){font-size:var(--navigan-font-body)!important;line-height:1.35!important}
-.migrationWorkspace small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
-.migrationWorkspace :is(button,input,select,textarea,.button){font-size:var(--navigan-font-control)!important;line-height:1.25!important}
-.migrationWorkspace table{font-size:var(--navigan-font-table)!important;line-height:1.25!important}
-.migrationWorkspace table thead th{font-size:var(--navigan-font-label)!important;line-height:1.15!important;font-weight:700!important}
-.migrationWorkspace table tbody td{font-size:var(--navigan-font-table)!important;line-height:1.25!important}
-.migrationWorkspace table tbody :is(strong,a){font-size:var(--navigan-font-table)!important;line-height:1.2!important}
-.migrationWorkspace :is(.metricLegend,.pathMetricLabel,.metricHint,.attentionStrip,.filters,.portfolioHeading p){font-size:var(--navigan-font-caption)!important;line-height:1.25!important}
-.migrationWorkspace :is(.coverageValue,.metricCard>strong){font-size:18px!important;line-height:1.05!important;font-weight:600!important}
-
+.migrationWorkspace {
+  font-family: var(--navigan-font-family) !important;
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.35 !important;
+}
+.migrationWorkspace :is(h2) {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.migrationWorkspace :is(h3, h4, h5, h6) {
+  font-size: var(--navigan-font-subsection-title) !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.migrationWorkspace :is(p, li, summary, dt, dd) {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.35 !important;
+}
+.migrationWorkspace small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.migrationWorkspace :is(button, input, select, textarea, .button) {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+}
+.migrationWorkspace table tbody td {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace table tbody :is(strong, a) {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.2 !important;
+}
+.migrationWorkspace
+  :is(
+    .metricLegend,
+    .pathMetricLabel,
+    .metricHint,
+    .attentionStrip,
+    .filters,
+    .portfolioHeading p
+  ) {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace :is(.coverageValue, .metricCard > strong) {
+  font-size: 18px !important;
+  line-height: 1.05 !important;
+  font-weight: 600 !important;
+}

@@ -327,11 +327,23 @@
 }
 /* Short laptop viewports, including display scaling and browser chrome. */
 @media (max-height: 740px) and (min-width: 761px) {
-  .public-shell.login-public-shell { --login-header-height: 56px; }
-  .login-splash .login-panel { padding-block: 20px; }
-  .login-splash .login-fields { margin-top: 18px; gap: 14px; }
-  .login-splash .login-fields .field { gap: 7px; }
-  .login-splash .login-protection { margin-top: 14px; padding-top: 12px; }
+  .public-shell.login-public-shell {
+    --login-header-height: 56px;
+  }
+  .login-splash .login-panel {
+    padding-block: 20px;
+  }
+  .login-splash .login-fields {
+    margin-top: 18px;
+    gap: 14px;
+  }
+  .login-splash .login-fields .field {
+    gap: 7px;
+  }
+  .login-splash .login-protection {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
 }
 @media (max-width: 1050px) and (min-width: 761px) {
   .login-splash {

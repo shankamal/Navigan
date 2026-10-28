@@ -94,7 +94,7 @@ body {
 
 .app-shell[class] .sidebar .nav-section {
   color: #a7b3bf;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 650;
   letter-spacing: 0.06em;
 }
@@ -415,7 +415,6 @@ body {
   }
 }
 
-
 /* Platform-wide enterprise composition. These rules deliberately sit last so
    route-specific legacy styles cannot reintroduce inconsistent blue themes. */
 .app-shell main#main-content .page-heading {
@@ -427,7 +426,11 @@ body {
   padding: 14px 16px;
   border: 1px solid #3a4552;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--navigan-graphite-raised), var(--navigan-graphite-hover));
+  background: linear-gradient(
+    135deg,
+    var(--navigan-graphite-raised),
+    var(--navigan-graphite-hover)
+  );
   color: #fff;
   box-shadow: none;
 }
@@ -453,9 +456,9 @@ body {
 .app-shell main#main-content .page-heading .eyebrow {
   margin: 0 0 3px 44px;
   color: #a8cf61;
-  font-size:var(--navigan-font-caption);
+  font-size: var(--navigan-font-caption);
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 .app-shell main#main-content .page-heading h1 {
   display: inline;
@@ -471,12 +474,20 @@ body {
   align-items: center;
   flex-wrap: wrap;
 }
-.app-shell main#main-content .page-heading .heading-actions :is(.button-secondary,.button-ghost) {
+.app-shell
+  main#main-content
+  .page-heading
+  .heading-actions
+  :is(.button-secondary, .button-ghost) {
   background: #2d3743;
   border-color: #53606d;
   color: #f7f9fb;
 }
-.app-shell main#main-content .page-heading .heading-actions :is(.button-secondary,.button-ghost):hover:not(:disabled) {
+.app-shell
+  main#main-content
+  .page-heading
+  .heading-actions
+  :is(.button-secondary, .button-ghost):hover:not(:disabled) {
   background: #394552;
   border-color: #6a7784;
   color: #fff;
@@ -489,7 +500,16 @@ body {
 .app-shell main#main-content :is(.panel, .pd-card, .pd-overview-panel) {
   margin-bottom: 12px;
 }
-.app-shell main#main-content :is(.panel, .pd-card, .pd-overview-panel, .customer-workspace, .environment-workspace, .cluster-ui) {
+.app-shell
+  main#main-content
+  :is(
+    .panel,
+    .pd-card,
+    .pd-overview-panel,
+    .customer-workspace,
+    .environment-workspace,
+    .cluster-ui
+  ) {
   min-width: 0;
 }
 
@@ -511,12 +531,12 @@ body {
   background: #eef2f4;
   color: #44515e;
   border-bottom: 1px solid #d7e0e6;
-  font-size:var(--navigan-font-label);
+  font-size: var(--navigan-font-label);
   font-weight: 700;
-  letter-spacing: .035em;
+  letter-spacing: 0.035em;
   text-transform: uppercase;
 }
-.app-shell main#main-content :is(th,td) {
+.app-shell main#main-content :is(th, td) {
   padding-top: 9px;
   padding-bottom: 9px;
 }
@@ -540,21 +560,59 @@ body {
 .app-shell main#main-content :is(input[type="checkbox"], input[type="radio"]) {
   accent-color: var(--navigan-action);
 }
-.app-shell main#main-content :is(.badge, [class*="badge"], [class*="statusPill"], [class*="status-pill"]) {
+.app-shell
+  main#main-content
+  :is(.badge, [class*="badge"], [class*="statusPill"], [class*="status-pill"]) {
   font-weight: 650;
 }
 
 /* Operational icons and chart accents remain colorful while surfaces stay neutral. */
-.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric) svg {
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  )
+  svg {
   color: #477a38;
 }
-.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric):nth-child(4n + 2) svg {
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  ):nth-child(4n + 2)
+  svg {
   color: #367d93;
 }
-.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric):nth-child(4n + 3) svg {
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  ):nth-child(4n + 3)
+  svg {
   color: #7a62a8;
 }
-.app-shell main#main-content :is(.metric, .pd-kpi, .customer-board-card, .environment-board-card, .cluster-directory-metric):nth-child(4n + 4) svg {
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  ):nth-child(4n + 4)
+  svg {
   color: #a86f27;
 }
 
@@ -570,18 +628,20 @@ body {
 }
 
 /* The migration family inherits the same canvas and action system. */
-.app-shell main#main-content :is(
-  [class*="migrationWorkspace"],
-  [class*="workspace"],
-  .migration-report-workspace,
-  .migration-report-route
-) {
+.app-shell
+  main#main-content
+  :is(
+    [class*="migrationWorkspace"],
+    [class*="workspace"],
+    .migration-report-workspace,
+    .migration-report-route
+  ) {
   color: var(--navigan-text);
 }
-.app-shell main#main-content :is(
-  [class*="migrationWorkspace"],
-  [class*="workspace"]
-) :is(button, a)[class*="primary"] {
+.app-shell
+  main#main-content
+  :is([class*="migrationWorkspace"], [class*="workspace"])
+  :is(button, a)[class*="primary"] {
   box-shadow: none;
 }
 
@@ -599,4 +659,3 @@ body {
     flex: 1 1 auto;
   }
 }
-

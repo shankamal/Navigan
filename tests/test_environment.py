@@ -358,13 +358,20 @@ def test_unauthenticated_metadata():
 
 
 def test_gateway_routes_and_scopes():
-    import yaml
+    import importlib.util
 
-    template = yaml.safe_load(Path("infrastructure/modules/environment-management/template.yaml").read_text())
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("environment_sam_contract", root / "scripts/generate-sam-contract.py")
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    template = generator.load_template(root / "infrastructure/modules/environment-management/template.yaml")
     routes = [
         r["Properties"] for r in template["Resources"].values() if r["Type"] == "AWS::ApiGatewayV2::Route"
     ]
-    assert len(routes) == 32
+    for condition in ("IsDev", "IsProd"):
+        active = [r['Properties']['RouteKey'] for r in template['Resources'].values()
+                  if r['Type'] == 'AWS::ApiGatewayV2::Route' and r.get('Condition') in (None, condition)]
+        assert len(active) == len(set(active)) == 32
     assert all(
         r["AuthorizationType"] == "JWT" and r["AuthorizationScopes"] == [{"Ref": "JwtScope"}] for r in routes
     )

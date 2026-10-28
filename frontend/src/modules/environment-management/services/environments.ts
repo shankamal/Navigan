@@ -39,7 +39,18 @@ export const environments = {
       ["ACTIVE", "SUBMITTED", "UNDER_REVIEW", "DRAFT", "APPROVED", "REJECTED"],
       ["AWS", "AZURE", "GCP", "OCI"],
       async (status, cloudProvider, requestSignal) =>
-        (await environments.list({ page: 0, pageSize: 1, sort: "createdAt,desc", status, cloudProvider }, requestSignal)).pagination.totalElements,
+        (
+          await environments.list(
+            {
+              page: 0,
+              pageSize: 1,
+              sort: "createdAt,desc",
+              status,
+              cloudProvider,
+            },
+            requestSignal,
+          )
+        ).pagination.totalElements,
       signal,
     ),
   get: async (id: string) =>

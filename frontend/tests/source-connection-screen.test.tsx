@@ -46,7 +46,12 @@ const source = {
   version: 1,
   deliveryMethod: "AWS_SSM",
   connectorLastSeenAt: new Date().toISOString(),
-  installationCheck: { canRestore: true, code: "RESTORE_AVAILABLE", message: "Host available", conflicts: [] },
+  installationCheck: {
+    canRestore: true,
+    code: "RESTORE_AVAILABLE",
+    message: "Host available",
+    conflicts: [],
+  },
 };
 function open() {
   return render(
@@ -452,31 +457,61 @@ async function saveExistingRegistration() {
 
 it.each([
   ["INSTALLATION_IN_USE", "Another assessment is using this installation."],
-  ["OTHER_CUSTOMER_ACCESS_REQUIRED", "A platform administrator must resolve the association."],
+  [
+    "OTHER_CUSTOMER_ACCESS_REQUIRED",
+    "A platform administrator must resolve the association.",
+  ],
   ["INSTALLATION_IN_PROGRESS", "Another installation is in progress."],
   ["FORBIDDEN", "Recovery requires edit access to this customer."],
-])("blocks installation and explains %s for an existing registration", async (code, message) => {
-  const pending = { ...source, status: "PENDING_ENROLLMENT", connectorLastSeenAt: null,
-    installationCheck: { canRestore: false, code, message, conflicts: [] } };
-  api.list.mockResolvedValue({ items: [pending] });
-  api.get.mockResolvedValue(pending);
-  await saveExistingRegistration();
-  expect(await screen.findByText(message)).toBeVisible();
-  expect(screen.queryByRole("button", { name: /Install connector|Restore connector/ })).not.toBeInTheDocument();
-  expect(screen.getByText("Existing registration selected")).toBeVisible();
-  expect(screen.queryByText(/The existing connector will be reused/)).not.toBeInTheDocument();
-  expect(api.install).not.toHaveBeenCalled();
-  expect(api.get).toHaveBeenCalledWith(source.sourceClusterId, true);
-});
+])(
+  "blocks installation and explains %s for an existing registration",
+  async (code, message) => {
+    const pending = {
+      ...source,
+      status: "PENDING_ENROLLMENT",
+      connectorLastSeenAt: null,
+      installationCheck: { canRestore: false, code, message, conflicts: [] },
+    };
+    api.list.mockResolvedValue({ items: [pending] });
+    api.get.mockResolvedValue(pending);
+    await saveExistingRegistration();
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: /Install connector|Restore connector/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Existing registration selected")).toBeVisible();
+    expect(
+      screen.queryByText(/The existing connector will be reused/),
+    ).not.toBeInTheDocument();
+    expect(api.install).not.toHaveBeenCalled();
+    expect(api.get).toHaveBeenCalledWith(source.sourceClusterId, true);
+  },
+);
 
 it("does not treat recoverable conflicts as permission for a normal installation", async () => {
-  api.get.mockResolvedValue({ ...source, status: "PENDING_ENROLLMENT", installationCheck: {
-    canRestore: true, code: "RESTORE_AVAILABLE", message: "Recovery available",
-    conflicts: [{ sourceClusterId: "SRC-other", customerName: "Other customer" }],
-  } });
+  api.get.mockResolvedValue({
+    ...source,
+    status: "PENDING_ENROLLMENT",
+    installationCheck: {
+      canRestore: true,
+      code: "RESTORE_AVAILABLE",
+      message: "Recovery available",
+      conflicts: [
+        { sourceClusterId: "SRC-other", customerName: "Other customer" },
+      ],
+    },
+  });
   await saveExistingRegistration();
-  expect(await screen.findByText(/This host has another source registration/)).toBeVisible();
-  expect(screen.queryByRole("button", { name: /Install connector|Restore connector/ })).not.toBeInTheDocument();
+  expect(
+    await screen.findByText(/This host has another source registration/),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", {
+      name: /Install connector|Restore connector/,
+    }),
+  ).not.toBeInTheDocument();
   expect(api.install).not.toHaveBeenCalled();
 });
 
@@ -486,54 +521,93 @@ it("fails closed when the host check cannot be loaded and supports retry", async
     return { ...source, status: "PENDING_ENROLLMENT" };
   });
   await saveExistingRegistration();
-  expect(await screen.findByText(/Unable to check source host availability/)).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Install connector" })).not.toBeInTheDocument();
-  api.get.mockResolvedValue({ ...source, status: "PENDING_ENROLLMENT", installationCheck: undefined });
+  expect(
+    await screen.findByText(/Unable to check source host availability/),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Install connector" }),
+  ).not.toBeInTheDocument();
+  api.get.mockResolvedValue({
+    ...source,
+    status: "PENDING_ENROLLMENT",
+    installationCheck: undefined,
+  });
   fireEvent.click(screen.getByRole("button", { name: "Check host again" }));
   expect(await screen.findByText(/Unable to check this host/)).toBeVisible();
   expect(api.install).not.toHaveBeenCalled();
 });
 
 it("rechecks the host before installation and blocks a newly reported conflict", async () => {
-  const pending = { ...source, status: "PENDING_ENROLLMENT", connectorLastSeenAt: null };
+  const pending = {
+    ...source,
+    status: "PENDING_ENROLLMENT",
+    connectorLastSeenAt: null,
+  };
   api.list.mockResolvedValue({ items: [pending] });
   api.get.mockResolvedValue(pending);
   await saveExistingRegistration();
-  const install = await screen.findByRole("button", { name: "Install connector" });
-  api.get.mockResolvedValue({ ...pending, installationCheck: {
-    canRestore: false, code: "INSTALLATION_IN_USE", message: "Host became unavailable", conflicts: [],
-  } });
+  const install = await screen.findByRole("button", {
+    name: "Install connector",
+  });
+  api.get.mockResolvedValue({
+    ...pending,
+    installationCheck: {
+      canRestore: false,
+      code: "INSTALLATION_IN_USE",
+      message: "Host became unavailable",
+      conflicts: [],
+    },
+  });
   fireEvent.click(install);
-  expect(await screen.findByRole("alert")).toHaveTextContent("Host became unavailable");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Host became unavailable",
+  );
   expect(api.install).not.toHaveBeenCalled();
 });
 
 it("offers restore for a previously connected registration only after a clear host check", async () => {
-  api.get.mockResolvedValue({ ...source, connectorLastSeenAt: "2020-01-01T00:00:00Z" });
+  api.get.mockResolvedValue({
+    ...source,
+    connectorLastSeenAt: "2020-01-01T00:00:00Z",
+  });
   await saveExistingRegistration();
-  expect(await screen.findByRole("button", { name: "Restore connector" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Install connector" })).not.toBeInTheDocument();
+  expect(
+    await screen.findByRole("button", { name: "Restore connector" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Install connector" }),
+  ).not.toBeInTheDocument();
   expect(api.install).not.toHaveBeenCalled();
 });
 
 it("reuses the matching customer host when Connect source is clicked in registration mode", async () => {
-  const existing = { ...source, deliveryConfiguration: {
-    accountId: "123456789012", region: "ap-south-1",
-    managedInstanceId: "i-0123456789abcdef0", kubeconfigPath: "/etc/kubernetes/admin.conf",
-  } };
+  const existing = {
+    ...source,
+    deliveryConfiguration: {
+      accountId: "123456789012",
+      region: "ap-south-1",
+      managedInstanceId: "i-0123456789abcdef0",
+      kubeconfigPath: "/etc/kubernetes/admin.conf",
+    },
+  };
   api.list.mockResolvedValue({ items: [existing] });
   api.get.mockResolvedValue(existing);
   open();
   await identify();
   for (const [label, value] of [
-    [/Source cluster name/, "new-display-name"], [/AWS region/, "ap-south-1"],
-    [/AWS account ID/, "123456789012"], [/SSM managed instance ID/, "i-0123456789abcdef0"],
-  ] as const) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    [/Source cluster name/, "new-display-name"],
+    [/AWS region/, "ap-south-1"],
+    [/AWS account ID/, "123456789012"],
+    [/SSM managed instance ID/, "i-0123456789abcdef0"],
+  ] as const)
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
   await screen.findByRole("button", { name: /Reuse connection/ });
   fireEvent.click(screen.getByRole("button", { name: "Connect source" }));
   await screen.findByRole("button", { name: "Verify connection" });
   expect(api.createDraft).toHaveBeenCalledTimes(1);
-  expect(api.createDraft.mock.calls[0][0].source.sourceClusterId).toBe(source.sourceClusterId);
+  expect(api.createDraft.mock.calls[0][0].source.sourceClusterId).toBe(
+    source.sourceClusterId,
+  );
   expect(api.createSource).not.toHaveBeenCalled();
   expect(api.install).not.toHaveBeenCalled();
   expect(screen.getByRole("radio", { name: /Use a connected/ })).toBeChecked();
@@ -542,17 +616,33 @@ it("reuses the matching customer host when Connect source is clicked in registra
 it("does not reinstall a live registration returned by backend registration reuse", async () => {
   api.list.mockResolvedValue({ items: [] });
   api.createSource.mockResolvedValue(source);
-  api.get.mockResolvedValue({ ...source, connectorLastSeenAt: new Date().toISOString(),
-    installationCheck: { canRestore: false, code: "ALREADY_CONNECTED", message: "Already connected", conflicts: [] },
+  api.get.mockResolvedValue({
+    ...source,
+    connectorLastSeenAt: new Date().toISOString(),
+    installationCheck: {
+      canRestore: false,
+      code: "ALREADY_CONNECTED",
+      message: "Already connected",
+      conflicts: [],
+    },
   });
   open();
   await identify();
   for (const [label, value] of [
-    [/Source cluster name/, "new-display-name"], [/AWS region/, "ap-south-1"],
-    [/AWS account ID/, "123456789012"], [/SSM managed instance ID/, "i-0123456789abcdef0"],
-  ] as const) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    [/Source cluster name/, "new-display-name"],
+    [/AWS region/, "ap-south-1"],
+    [/AWS account ID/, "123456789012"],
+    [/SSM managed instance ID/, "i-0123456789abcdef0"],
+  ] as const)
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
   fireEvent.click(screen.getByRole("button", { name: "Connect source" }));
-  expect(await screen.findByText("Existing connector verified and reused. No installation was needed.")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Continue to discovery" })).toBeEnabled();
+  expect(
+    await screen.findByText(
+      "Existing connector verified and reused. No installation was needed.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Continue to discovery" }),
+  ).toBeEnabled();
   expect(api.install).not.toHaveBeenCalled();
 });

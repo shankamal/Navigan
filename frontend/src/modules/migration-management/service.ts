@@ -394,7 +394,11 @@ export const migrations = {
       (
         await apiClient.post(
           `${base}/${migrationId}/${action}`,
-          { version, reason, ...(deleteAssessment ? { deleteAssessment: true } : {}) },
+          {
+            version,
+            reason,
+            ...(deleteAssessment ? { deleteAssessment: true } : {}),
+          },
           {
             headers: writeHeaders({
               key: crypto.randomUUID(),
@@ -410,9 +414,14 @@ const sourceClustersBase = "/source-clusters";
 
 export const sourceClusters = {
   get: async (sourceClusterId: string, installationCheck = false) =>
-    parseResponse(sourceClusterSchema, (await apiClient.get(`${sourceClustersBase}/${sourceClusterId}`, {
-      params: installationCheck ? {installationCheck: "true"} : undefined,
-    })).data),
+    parseResponse(
+      sourceClusterSchema,
+      (
+        await apiClient.get(`${sourceClustersBase}/${sourceClusterId}`, {
+          params: installationCheck ? { installationCheck: "true" } : undefined,
+        })
+      ).data,
+    ),
   list: async (customerId: string, signal?: AbortSignal) =>
     parseResponse(
       sourceClusterListSchema,
@@ -469,7 +478,11 @@ export const sourceClusters = {
       ).data,
     ),
 
-  install: async (sourceClusterId: string, version: number, recoveryMigrationId?: string) =>
+  install: async (
+    sourceClusterId: string,
+    version: number,
+    recoveryMigrationId?: string,
+  ) =>
     parseResponse(
       sourceInstallationSchema,
       (
@@ -478,7 +491,7 @@ export const sourceClusters = {
           {
             version,
             reason: "Install read-only source assessment connector",
-            ...(recoveryMigrationId ? {recoveryMigrationId} : {}),
+            ...(recoveryMigrationId ? { recoveryMigrationId } : {}),
           },
           {
             headers: writeHeaders({
@@ -494,4 +507,3 @@ export const sourceClusters = {
       ).data,
     ),
 };
-

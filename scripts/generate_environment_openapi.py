@@ -215,6 +215,25 @@ for method, suffix, model in operations:
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + model}}},
         }
     paths.setdefault(path, {})[method] = op
+# Keep the implemented summary endpoint in generated contracts.
+paths["/api/v1/environments/summary"] = {'get': {'summary': 'Tenant-scoped environment metrics by lifecycle and cloud provider',
+         'operationId': 'GetEnvironmentSummary',
+         'security': [{'Cognito': ['navigan/api']}],
+         'responses': {'200': {'description': 'Metrics for environments visible to the caller',
+                               'content': {'application/json': {'schema': {'type': 'object',
+                                                                           'required': ['total',
+                                                                                        'byStatus',
+                                                                                        'byProvider'],
+                                                                           'properties': {'total': {'type': 'integer',
+                                                                                                    'minimum': 0},
+                                                                                          'byStatus': {'type': 'object',
+                                                                                                       'additionalProperties': {'type': 'integer',
+                                                                                                                                'minimum': 0}},
+                                                                                          'byProvider': {'type': 'object',
+                                                                                                         'additionalProperties': {'type': 'integer',
+                                                                                                                                  'minimum': 0}}}}}}},
+                       '401': {'description': 'Unauthenticated'},
+                       '403': {'description': 'Forbidden'}}}}
 out = {
     "openapi": "3.1.0",
     "info": {

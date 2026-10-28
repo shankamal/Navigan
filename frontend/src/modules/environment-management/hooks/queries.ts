@@ -19,7 +19,8 @@ export const useEnvironmentCount = (status?: string, enabled = true) => {
   return useQuery({
     queryKey: ["environment-count", "summary"],
     queryFn: ({ signal }) => environments.summary(signal),
-    select: (summary) => status ? (summary.byStatus[status] ?? 0) : summary.total,
+    select: (summary) =>
+      status ? (summary.byStatus[status] ?? 0) : summary.total,
     enabled,
   });
 };

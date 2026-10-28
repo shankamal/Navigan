@@ -4,8 +4,8 @@
     "infrastructure/template.yaml": "f00aee22e2b3c8191b1553b68ac589d4dcf28c42bd30317d25f65f281faa8859",
     "infrastructure/modules/customer-management/template.yaml": "84941ee3fc783f123f2bfabf163802bb7c0129949bd34a1c33bb49aa90c91cd1",
     "infrastructure/modules/environment-management/template.yaml": "b836162e08d8387d29659f6efaba4eb5087f964771530f00dfd2b65ae9a5517e",
-    "infrastructure/modules/cluster-management/template.yaml": "dafeedc108bb2e45c1c88377a3cdf6553f3eb88814e039d35fac9c411d65d5e0",
-    "infrastructure/modules/migration-management/template.yaml": "cbc5bbab40a4d997c6b7be7830ec0dbfcf2b17161508df9c3c7e9d5742fe23af",
+    "infrastructure/modules/cluster-management/template.yaml": "c933008312bcb290fa63a923b5b9033f11e88a8eaa8a0b9b0e835c0d54a3c799",
+    "infrastructure/modules/migration-management/template.yaml": "05849992f797535ffd766ddc23828cd9723fb9523d7b0bc1a64d3466d19c8a7a",
     "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa",
     "infrastructure/companion/dev-route-ownership.yaml": "b9a24be23c5c876542e8a8e44ccf0c66f003758bf7fd55450cba861d6f574825"
   },

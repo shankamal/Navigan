@@ -149,40 +149,38 @@ export function EnvironmentList({
       <PageHeading
         icon={<Layers3 />}
         title={
-            mode === "reviews"
-              ? "Environment Reviews"
-              : "Environment Management"
-          }
-          description={
-            mode === "reviews"
-              ? "Review submitted environment profiles and move approved requests through the governed lifecycle."
-              : "Track reusable infrastructure profiles and create container environments across your clouds."
-          }
-          action={
-            <>
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={refresh}
-                disabled={query.isFetching || providerSummary.isFetching}
-                aria-label="Refresh environment portfolio"
-              >
-                <RefreshCw size={15} />
-                Refresh
-              </Button>
-              {mode === "directory" &&
-                hasPermission(identity, "environment.create") && (
-                  <Link
-                    className="button button-primary"
-                    href="/environments/new"
-                  >
-                    <Plus size={16} />
-                    New environment
-                  </Link>
-                )}
-            </>
-          }
-        />
+          mode === "reviews" ? "Environment Reviews" : "Environment Management"
+        }
+        description={
+          mode === "reviews"
+            ? "Review submitted environment profiles and move approved requests through the governed lifecycle."
+            : "Track reusable infrastructure profiles and create container environments across your clouds."
+        }
+        action={
+          <>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={refresh}
+              disabled={query.isFetching || providerSummary.isFetching}
+              aria-label="Refresh environment portfolio"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </Button>
+            {mode === "directory" &&
+              hasPermission(identity, "environment.create") && (
+                <Link
+                  className="button button-primary"
+                  href="/environments/new"
+                >
+                  <Plus size={16} />
+                  New environment
+                </Link>
+              )}
+          </>
+        }
+      />
       {mode === "directory" ? (
         <div className="environment-portfolio-overview">
           <section
@@ -277,7 +275,8 @@ export function EnvironmentList({
                     {provider} / {["EKS", "AKS", "GKE", "OKE"][index]}
                   </span>
                   <strong>
-                    {providerSummary.data?.byProvider[provider] ?? (providerSummary.data ? 0 : "—")}
+                    {providerSummary.data?.byProvider[provider] ??
+                      (providerSummary.data ? 0 : "—")}
                   </strong>
                   <meter
                     min={0}
@@ -286,9 +285,7 @@ export function EnvironmentList({
                       total.data ?? 0,
                       providerSummary.data?.byProvider[provider] ?? 0,
                     )}
-                    value={
-                      providerSummary.data?.byProvider[provider] ?? 0
-                    }
+                    value={providerSummary.data?.byProvider[provider] ?? 0}
                     aria-label={`${provider} environment count`}
                   />
                 </div>

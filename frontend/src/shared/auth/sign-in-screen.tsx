@@ -39,7 +39,12 @@ export function SignInScreen({ configured }: { configured: boolean }) {
         >
           {platforms.map(([label, logo]) => (
             <li key={label}>
-              <img src={`/logos/${logo}.svg`} alt={label === "AWS" ? "AWS" : ""} width="20" height="18" />
+              <img
+                src={`/logos/${logo}.svg`}
+                alt={label === "AWS" ? "AWS" : ""}
+                width="20"
+                height="18"
+              />
               {label !== "AWS" && <span>{label}</span>}
             </li>
           ))}

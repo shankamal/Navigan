@@ -35,10 +35,19 @@ export const clusters = {
   summary: (signal?: AbortSignal) =>
     resourceSummary(
       "clusters",
-      ["ACTIVE", "DRAFT", "SUBMITTED", "UNDER_REVIEW", "PLAN_READY", "APPLYING", "FAILED"],
+      [
+        "ACTIVE",
+        "DRAFT",
+        "SUBMITTED",
+        "UNDER_REVIEW",
+        "PLAN_READY",
+        "APPLYING",
+        "FAILED",
+      ],
       [],
       async (status, _provider, requestSignal) =>
-        (await clusters.list({ page: 0, pageSize: 1, status }, requestSignal)).pagination.totalElements,
+        (await clusters.list({ page: 0, pageSize: 1, status }, requestSignal))
+          .pagination.totalElements,
       signal,
     ),
   get: async (id: string) =>

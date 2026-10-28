@@ -95,32 +95,35 @@ export function CustomerListView() {
       <PageHeading
         icon={<Building2 />}
         title="Customer Management"
-          description="Manage onboarding, approvals, and cloud provider associations."
-          action={
-            <>
-              <Button
-                variant="secondary"
-                aria-label="Refresh customer directory"
-                disabled={customers.isFetching}
-                onClick={() => {
-                  void customers.refetch();
-                  void queryClient.refetchQueries({ queryKey: ["customers", "summary"], type: "active" });
-                }}
-              >
-                <RefreshCw
-                  size={17}
-                  className={customers.isFetching ? "animate-spin" : ""}
-                />
-                Refresh
-              </Button>
-              {canCreate(identity) && (
-                <Link href="/customers/new" className="button button-primary">
-                  <Plus size={18} />
-                  Create customer
-                </Link>
-              )}
-            </>
-          }
+        description="Manage onboarding, approvals, and cloud provider associations."
+        action={
+          <>
+            <Button
+              variant="secondary"
+              aria-label="Refresh customer directory"
+              disabled={customers.isFetching}
+              onClick={() => {
+                void customers.refetch();
+                void queryClient.refetchQueries({
+                  queryKey: ["customers", "summary"],
+                  type: "active",
+                });
+              }}
+            >
+              <RefreshCw
+                size={17}
+                className={customers.isFetching ? "animate-spin" : ""}
+              />
+              Refresh
+            </Button>
+            {canCreate(identity) && (
+              <Link href="/customers/new" className="button button-primary">
+                <Plus size={18} />
+                Create customer
+              </Link>
+            )}
+          </>
+        }
       />
       <CustomerMetrics
         total={total.data}

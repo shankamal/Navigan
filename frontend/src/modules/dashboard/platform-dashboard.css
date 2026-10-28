@@ -1255,7 +1255,7 @@
   line-height: 1.1;
 }
 .pd-kpi-ring .pd-donut-center span {
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
 }
 .pd-kpi-with-ring .pd-kpi-note {
   grid-column: 2;
@@ -1377,7 +1377,7 @@
     font-size: 12px;
   }
   .signed-in-user span {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .pd-kpi {
     padding: 10px;
@@ -1694,7 +1694,8 @@
   min-width: 0;
 }
 
-.command-dashboard :is(.pd-heading, .pd-actions, .pd-overview-panel, .pd-attention-workspace) {
+.command-dashboard
+  :is(.pd-heading, .pd-actions, .pd-overview-panel, .pd-attention-workspace) {
   min-width: 0;
 }
 
@@ -1806,16 +1807,24 @@
 }
 
 /* Quiet, tactile dashboard surfaces with restrained motion. */
-.command-dashboard :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi) {
+.command-dashboard
+  :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi) {
   border: 1px solid #e1e7ed;
   border-radius: 13px;
   background-color: #fff;
-  box-shadow: 0 2px 9px rgb(20 38 55 / 4%), 0 13px 30px rgb(20 38 55 / 2%);
-  transition: box-shadow 180ms ease, border-color 180ms ease;
+  box-shadow:
+    0 2px 9px rgb(20 38 55 / 4%),
+    0 13px 30px rgb(20 38 55 / 2%);
+  transition:
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
-.command-dashboard :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi):hover {
+.command-dashboard
+  :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi):hover {
   border-color: #d2dce5;
-  box-shadow: 0 4px 14px rgb(20 38 55 / 6%), 0 16px 35px rgb(20 38 55 / 3%);
+  box-shadow:
+    0 4px 14px rgb(20 38 55 / 6%),
+    0 16px 35px rgb(20 38 55 / 3%);
 }
 .command-dashboard .pd-attention-row {
   border-radius: 8px;
@@ -1826,7 +1835,10 @@
   background: #5e8b1b;
   color: #fff;
   text-decoration: none;
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 .dashboard-shell .command-dashboard .pd-review-action svg {
   color: #fff;
@@ -1842,7 +1854,15 @@
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .command-dashboard :is(.pd-overview-panel, .pd-attention-workspace, .pd-card, .pd-kpi, .pd-attention-row, .pd-review-action) {
+  .command-dashboard
+    :is(
+      .pd-overview-panel,
+      .pd-attention-workspace,
+      .pd-card,
+      .pd-kpi,
+      .pd-attention-row,
+      .pd-review-action
+    ) {
     transition: none;
   }
 }
@@ -1855,7 +1875,11 @@
   padding: 14px 16px;
   border: 1px solid #3a4552;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--navigan-graphite-raised, #252e39), var(--navigan-graphite-hover, #303b49));
+  background: linear-gradient(
+    135deg,
+    var(--navigan-graphite-raised, #252e39),
+    var(--navigan-graphite-hover, #303b49)
+  );
   color: #fff;
 }
 .command-dashboard .pd-heading h1 {
@@ -1870,9 +1894,9 @@
 }
 .command-dashboard .pd-date {
   color: #a8cf61;
-  font-size:var(--navigan-font-body);
+  font-size: var(--navigan-font-body);
   font-weight: 700;
-  letter-spacing: .07em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .command-dashboard .pd-heading .pd-freshness {
@@ -1895,7 +1919,6 @@
   }
 }
 
-
 /* FINAL GRAPHITE DASHBOARD OVERRIDES */
 .dashboard-shell .sidebar {
   background: #1c222b !important;
@@ -1916,7 +1939,7 @@
 }
 .command-dashboard .pd-heading {
   border-radius: 6px;
-  background: linear-gradient(135deg,#202833,#303b49) !important;
+  background: linear-gradient(135deg, #202833, #303b49) !important;
   border-color: #3a4552;
   box-shadow: 0 2px 8px rgb(23 31 40 / 10%);
 }
@@ -1926,14 +1949,13 @@
   border-color: #d8e0e6;
 }
 
-
 /* 15-INCH LAPTOP COMPACT DASHBOARD
    Purposefully reduces vertical scrolling at 100% browser scaling. */
 @media (min-width: 1100px) and (max-height: 900px) {
   .dashboard-shell .command-dashboard {
     max-width: none;
     gap: 8px;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
 
   .dashboard-shell .command-dashboard .pd-heading {
@@ -1949,7 +1971,7 @@
   }
   .dashboard-shell .command-dashboard .pd-heading .muted {
     margin-top: 2px;
-    font-size:var(--navigan-font-caption);
+    font-size: var(--navigan-font-caption);
     line-height: 1.3;
   }
   .dashboard-shell .command-dashboard .pd-date {
@@ -1957,7 +1979,7 @@
     font-size: 8.5px;
   }
   .dashboard-shell .command-dashboard .pd-freshness {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-actions {
     gap: 6px;
@@ -1965,7 +1987,7 @@
   .dashboard-shell .command-dashboard .pd-actions .button {
     min-height: 30px;
     padding: 6px 10px;
-    font-size:var(--navigan-font-control);
+    font-size: var(--navigan-font-control);
   }
 
   .dashboard-shell .command-dashboard .pd-overview-groups {
@@ -1989,7 +2011,7 @@
   }
   .dashboard-shell .command-dashboard .pd-overview-heading p {
     margin-top: 1px;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
     line-height: 1.2;
   }
   .dashboard-shell .command-dashboard .pd-overview-columns {
@@ -2000,14 +2022,18 @@
     padding: 0 5px;
   }
   .dashboard-shell .command-dashboard .pd-overview-label {
-    font-size:var(--navigan-font-label);
+    font-size: var(--navigan-font-label);
     line-height: 1.2;
   }
   .dashboard-shell .command-dashboard .pd-overview-visual .pd-donut {
     width: 56px;
     height: 56px;
   }
-  .dashboard-shell .command-dashboard .pd-overview-visual .pd-donut-center strong {
+  .dashboard-shell
+    .command-dashboard
+    .pd-overview-visual
+    .pd-donut-center
+    strong {
     font-size: 14px;
   }
   .dashboard-shell .command-dashboard .pd-overview-visual > svg {
@@ -2056,11 +2082,11 @@
     height: 16px;
   }
   .dashboard-shell .command-dashboard .pd-card-link {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
 
   .dashboard-shell .command-dashboard .pd-attention-workspace {
-    grid-template-columns: minmax(245px, .9fr) minmax(0, 2.1fr);
+    grid-template-columns: minmax(245px, 0.9fr) minmax(0, 2.1fr);
     gap: 10px;
     padding: 7px 11px 8px;
   }
@@ -2069,11 +2095,11 @@
   }
   .dashboard-shell .command-dashboard .pd-pending-module h3 {
     margin-bottom: 4px;
-    font-size:var(--navigan-font-subsection-title);
+    font-size: var(--navigan-font-subsection-title);
     line-height: 16px;
   }
   .dashboard-shell .command-dashboard .pd-pending-table {
-    font-size:var(--navigan-font-table);
+    font-size: var(--navigan-font-table);
     line-height: 15px;
   }
   .dashboard-shell .command-dashboard .pd-pending-table th,
@@ -2081,11 +2107,11 @@
     padding: 3px 3px;
   }
   .dashboard-shell .command-dashboard .pd-pending-table thead th {
-    font-size:var(--navigan-font-label);
+    font-size: var(--navigan-font-label);
   }
   .dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count {
     margin-bottom: 4px;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
     line-height: 15px;
   }
   .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row {
@@ -2102,18 +2128,26 @@
     width: 15px;
     height: 15px;
   }
-  .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong {
-    font-size:var(--navigan-font-body);
+  .dashboard-shell
+    .command-dashboard
+    .pd-submitted-queue
+    .pd-attention-row
+    strong {
+    font-size: var(--navigan-font-body);
     line-height: 15px;
   }
-  .dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small {
-    font-size:var(--navigan-font-caption);
+  .dashboard-shell
+    .command-dashboard
+    .pd-submitted-queue
+    .pd-attention-row
+    small {
+    font-size: var(--navigan-font-caption);
     line-height: 14px;
   }
   .dashboard-shell .command-dashboard .pd-review-action {
     padding: 5px 8px;
     gap: 5px;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
     border-radius: 4px;
   }
 
@@ -2133,9 +2167,13 @@
     height: 19px;
   }
   .dashboard-shell .command-dashboard .pd-provider-legend strong,
-  .dashboard-shell .command-dashboard .pd-provider-legend > div > span:last-child,
+  .dashboard-shell
+    .command-dashboard
+    .pd-provider-legend
+    > div
+    > span:last-child,
   .dashboard-shell .command-dashboard .pd-provider {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-card-footer-link {
     margin: auto 10px 6px;
@@ -2159,14 +2197,14 @@
   }
   .dashboard-shell .command-dashboard .pd-posture-metrics span {
     gap: 5px;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-posture-metrics strong {
     font-size: 12px;
   }
   .dashboard-shell .command-dashboard .pd-posture-metrics small {
     padding-left: 12px;
-    font-size:var(--navigan-font-caption);
+    font-size: var(--navigan-font-caption);
   }
   .dashboard-shell .command-dashboard .pd-signal {
     margin: 0 9px 6px;
@@ -2180,7 +2218,7 @@
   }
   .dashboard-shell .command-dashboard .pd-provisioning-links {
     padding: 6px 10px 0;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-workflow-bar {
     height: 20px;
@@ -2188,33 +2226,33 @@
     border-radius: 4px;
   }
   .dashboard-shell .command-dashboard .pd-workflow-bar span {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-workflow-legend > div {
     padding: 2px 0;
   }
   .dashboard-shell .command-dashboard .pd-workflow-legend span,
   .dashboard-shell .command-dashboard .pd-workflow-legend small {
-    font-size:var(--navigan-font-caption);
+    font-size: var(--navigan-font-caption);
   }
 
   .dashboard-shell .command-dashboard .pd-activity-table {
-    font-size:var(--navigan-font-table);
+    font-size: var(--navigan-font-table);
   }
   .dashboard-shell .command-dashboard .pd-activity-table th {
     padding: 5px 10px;
-    font-size:var(--navigan-font-label);
+    font-size: var(--navigan-font-label);
   }
   .dashboard-shell .command-dashboard .pd-activity-table td {
     padding: 6px 10px;
-    font-size:var(--navigan-font-table);
+    font-size: var(--navigan-font-table);
   }
   .dashboard-shell .command-dashboard .pd-status {
     padding: 2px 5px;
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-row-action {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
 
   .dashboard-shell .command-dashboard .pd-tool-strip {
@@ -2225,7 +2263,7 @@
   }
   .dashboard-shell .command-dashboard .pd-tool-strip strong,
   .dashboard-shell .command-dashboard .pd-tools > span {
-    font-size:var(--navigan-font-body);
+    font-size: var(--navigan-font-body);
   }
   .dashboard-shell .command-dashboard .pd-tools {
     gap: 10px;
@@ -2240,53 +2278,107 @@
   }
 }
 
-
-
 /* EXACT DASHBOARD TYPOGRAPHY FIX */
-.dashboard-shell .command-dashboard :is(
-  .pd-pending-table,.pd-attention-row,.pd-provider-legend,.pd-posture-metrics,
-  .pd-workflow-legend,.pd-activity-table,.pd-resource,.pd-platform,.pd-row-action,
-  .pd-preview-count,.pd-review-action
-){font-family:var(--navigan-font-family)!important}
-.dashboard-shell .command-dashboard .pd-pending-table{font-size:var(--navigan-font-table)!important;line-height:1.25!important}
-.dashboard-shell .command-dashboard .pd-pending-table thead th{font-size:var(--navigan-font-label)!important;line-height:1.15!important;font-weight:700!important}
+.dashboard-shell
+  .command-dashboard
+  :is(
+    .pd-pending-table,
+    .pd-attention-row,
+    .pd-provider-legend,
+    .pd-posture-metrics,
+    .pd-workflow-legend,
+    .pd-activity-table,
+    .pd-resource,
+    .pd-platform,
+    .pd-row-action,
+    .pd-preview-count,
+    .pd-review-action
+  ) {
+  font-family: var(--navigan-font-family) !important;
+}
+.dashboard-shell .command-dashboard .pd-pending-table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.dashboard-shell .command-dashboard .pd-pending-table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+}
 .dashboard-shell .command-dashboard .pd-pending-table tbody th,
-.dashboard-shell .command-dashboard .pd-pending-table tbody td{font-size:var(--navigan-font-label)!important;line-height:1.25!important}
-.dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count{font-size:var(--navigan-font-body)!important;line-height:1.25!important}
-.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row strong{font-size:var(--navigan-font-body)!important;line-height:1.2!important;font-weight:600!important}
-.dashboard-shell .command-dashboard .pd-submitted-queue .pd-attention-row small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
-.dashboard-shell .command-dashboard .pd-review-action{font-size:var(--navigan-font-body)!important;line-height:1.2!important;font-weight:600!important}
+.dashboard-shell .command-dashboard .pd-pending-table tbody td {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.25 !important;
+}
+.dashboard-shell .command-dashboard .pd-submitted-queue .pd-preview-count {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.25 !important;
+}
+.dashboard-shell
+  .command-dashboard
+  .pd-submitted-queue
+  .pd-attention-row
+  strong {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+.dashboard-shell
+  .command-dashboard
+  .pd-submitted-queue
+  .pd-attention-row
+  small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.dashboard-shell .command-dashboard .pd-review-action {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
 .dashboard-shell .command-dashboard .pd-provider-legend strong,
 .dashboard-shell .command-dashboard .pd-posture-metrics strong,
-.dashboard-shell .command-dashboard .pd-workflow-legend strong{font-size:var(--navigan-font-body)!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-workflow-legend strong {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+}
 .dashboard-shell .command-dashboard .pd-provider,
-.dashboard-shell .command-dashboard .pd-provider-legend>div>span:last-child,
+.dashboard-shell .command-dashboard .pd-provider-legend > div > span:last-child,
 .dashboard-shell .command-dashboard .pd-posture-metrics span,
 .dashboard-shell .command-dashboard .pd-posture-metrics small,
 .dashboard-shell .command-dashboard .pd-workflow-legend span,
-.dashboard-shell .command-dashboard .pd-workflow-legend small{font-size:var(--navigan-font-caption)!important;line-height:1.2!important}
-.dashboard-shell .command-dashboard .pd-activity-table th{font-size:var(--navigan-font-label)!important;line-height:1.15!important}
-.dashboard-shell .command-dashboard .pd-activity-table td{font-size:var(--navigan-font-table)!important;line-height:1.2!important}
+.dashboard-shell .command-dashboard .pd-workflow-legend small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.dashboard-shell .command-dashboard .pd-activity-table th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+}
+.dashboard-shell .command-dashboard .pd-activity-table td {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.2 !important;
+}
 .dashboard-shell .command-dashboard .pd-resource strong,
 .dashboard-shell .command-dashboard .pd-platform strong,
-.dashboard-shell .command-dashboard .pd-row-action{font-size:var(--navigan-font-body)!important;line-height:1.2!important}
-
-
+.dashboard-shell .command-dashboard .pd-row-action {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+}
 
 /* SHARED PROVIDER LOGO STANDARD */
-.dashboard-shell .command-dashboard .pd-provider .pd-brand-logo{
-  width:auto!important;
-  height:var(--navigan-provider-logo-compact-height)!important;
-  max-width:var(--navigan-provider-logo-compact-max-width)!important;
-  object-fit:contain!important;
+.dashboard-shell .command-dashboard .pd-provider .pd-brand-logo {
+  width: auto !important;
+  height: var(--navigan-provider-logo-compact-height) !important;
+  max-width: var(--navigan-provider-logo-compact-max-width) !important;
+  object-fit: contain !important;
 }
-.dashboard-shell .command-dashboard .pd-provider-legend .pd-brand-logo{
-  height:var(--navigan-provider-logo-summary-height)!important;
-  max-width:var(--navigan-provider-logo-summary-max-width)!important;
+.dashboard-shell .command-dashboard .pd-provider-legend .pd-brand-logo {
+  height: var(--navigan-provider-logo-summary-height) !important;
+  max-width: var(--navigan-provider-logo-summary-max-width) !important;
 }
-.dashboard-shell .command-dashboard .pd-tools .pd-brand-logo{
-  width:auto!important;
-  height:19px!important;
-  max-width:24px!important;
+.dashboard-shell .command-dashboard .pd-tools .pd-brand-logo {
+  width: auto !important;
+  height: 19px !important;
+  max-width: 24px !important;
 }
-

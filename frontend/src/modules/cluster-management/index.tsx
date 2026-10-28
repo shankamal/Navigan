@@ -605,7 +605,9 @@ export function ClusterAdminPage({
           failed={failed.data}
           planReady={planReady.data}
           applying={applying.data}
-          provisioningError={[planReady, applying, failed].some((q) => q.isError)}
+          provisioningError={[planReady, applying, failed].some(
+            (q) => q.isError,
+          )}
           error={[total, active, draft, submitted, underReview, failed].some(
             (q) => q.isError,
           )}
@@ -1232,584 +1234,644 @@ export function NewClusterPage() {
       <Link className="back-link" href="/clusters">
         ← Back to clusters
       </Link>
-      <nav className="cluster-setup-section-nav" aria-label="Cluster setup sections">
-        <a href="#cluster-approved-baseline"><span>1</span>Approved baseline</a>
-        <a href="#cluster-configuration"><span>2</span>Cluster configuration</a>
-        <a href="#cluster-system-workers"><span>3</span>System workers</a>
-        <a href="#cluster-repository-access"><span>4</span>Repository &amp; access</a>
+      <nav
+        className="cluster-setup-section-nav"
+        aria-label="Cluster setup sections"
+      >
+        <a href="#cluster-approved-baseline">
+          <span>1</span>Approved baseline
+        </a>
+        <a href="#cluster-configuration">
+          <span>2</span>Cluster configuration
+        </a>
+        <a href="#cluster-system-workers">
+          <span>3</span>System workers
+        </a>
+        <a href="#cluster-repository-access">
+          <span>4</span>Repository &amp; access
+        </a>
       </nav>
       <div className="cluster-setup-layout">
-        <form
-          className="cluster-setup-form"
-          onSubmit={submit}
-        >
-          <section className="panel panel-padding cluster-creation-section" id="cluster-approved-baseline">
-          <div className="cluster-setup-heading">
-            <div>
-              <span className="eyebrow">APPROVED BASELINE</span>
-              <h2>Select the environment profile</h2>
-              <p className="muted">
-                Only profiles with an ACTIVE approved AWS/EKS baseline are
-                available. The approved version is pinned permanently to this
-                request.
-              </p>
-            </div>
-            <ProviderBadges codes={["AWS"]} compact />
-          </div>
-          <div className="cluster-setup-grid">
-            <label className="field cluster-field-span">
-              Find customer
-              <input
-                value={customerSearch}
-                onChange={(event) => setCustomerSearch(event.target.value)}
-                placeholder="Search active customers by name"
-              />
-            </label>
-            <label className="field">
-              Active customer *
-              <select
-                required
-                value={customerId}
-                onChange={(event) => {
-                  setCustomerId(event.target.value);
-                  setValue((current) => ({
-                    ...current,
-                    environmentId: "",
-                    environmentApprovedVersion: 0,
-                    blueprintName: "",
-                    kubernetesVersion: "",
-                    nodeGroups: [defaultNodeGroup()],
-                    provisioningRoleArn: "",
-                    externalIdSecretArn: "",
-                    githubOrganization: "",
-                  }));
-                }}
-              >
-                <option value="">Select ACTIVE customer</option>
-                {customers.data?.items.map((c) => (
-                  <option value={c.customerId} key={c.customerId}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Active environment *
-              <select
-                required
-                disabled={!customerId || envs.isFetching}
-                value={value.environmentId}
-                onChange={(event) => {
-                  const env = envs.data?.items.find(
-                    (item) => item.environmentId === event.target.value,
-                  );
-                  setValue((current) => ({
-                    ...current,
-                    environmentId: event.target.value,
-                    environmentApprovedVersion: env?.approvedVersion || 0,
-                    blueprintName: "",
-                    kubernetesVersion: "",
-                    nodeGroups: [defaultNodeGroup()],
-                    provisioningRoleArn: "",
-                    externalIdSecretArn: "",
-                  }));
-                }}
-              >
-                <option value="">
-                  {!customerId
-                    ? "Select a customer first"
-                    : envs.isFetching
-                      ? "Loading active environments…"
-                      : envs.isError
-                        ? "Environment loading failed"
-                        : "Select ACTIVE EKS environment"}
-                </option>
-                {envs.data?.items.map((env) => (
-                  <option value={env.environmentId} key={env.environmentId}>
-                    {env.environmentName} · approved v{env.approvedVersion}
-                    {env.status !== "ACTIVE"
-                      ? ` · revision ${env.status.toLowerCase()}`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-              {customerId && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={envs.isFetching}
-                  onClick={() => void envs.refetch()}
-                >
-                  <RefreshCw size={14} />
-                  Reload active environments
-                </Button>
-              )}
-              {customerId &&
-                !envs.error &&
-                !envs.isPending &&
-                envs.data?.items.length === 0 && (
-                  <small className="muted">
-                    This customer has no active approved AWS/EKS baselines yet.
-                  </small>
-                )}
-            </label>
-            {value.environmentId && (
-              <div className="cluster-baseline-card cluster-field-span">
-                {selectedEnvironment.isPending ? (
-                  <Loading label="Loading approved environment baseline…" />
-                ) : selectedEnvironment.error ? (
-                  <ErrorNotice
-                    error={selectedEnvironment.error}
-                    onRetry={() => selectedEnvironment.refetch()}
-                  />
-                ) : (
-                  <>
-                    <div className="cluster-baseline-title">
-                      <Check size={18} />
-                      <strong>
-                        {selectedEnvironment.data?.environmentName}
-                      </strong>
-                      <span>Approved v{value.environmentApprovedVersion}</span>
-                    </div>
-                    <dl className="cluster-baseline-grid">
-                      <div>
-                        <dt>AWS account</dt>
-                        <dd>{textValue(account.accountId)}</dd>
-                      </div>
-                      <div>
-                        <dt>Region</dt>
-                        <dd>{textValue(location.region)}</dd>
-                      </div>
-                      <div>
-                        <dt>VPC</dt>
-                        <dd>{textValue(vpc.vpcId)}</dd>
-                      </div>
-                      <div>
-                        <dt>Approved subnets</dt>
-                        <dd>
-                          {clusterSubnets.length} cluster · {nodeSubnets.length}{" "}
-                          node
-                        </dd>
-                      </div>
-                    </dl>
-                    <span className="security-chip">
-                      Reusable infrastructure baseline ready
-                    </span>
-                    <p className="metadata">
-                      Terraform uses this immutable approved snapshot—not the
-                      current editable environment record.
-                    </p>
-                  </>
-                )}
+        <form className="cluster-setup-form" onSubmit={submit}>
+          <section
+            className="panel panel-padding cluster-creation-section"
+            id="cluster-approved-baseline"
+          >
+            <div className="cluster-setup-heading">
+              <div>
+                <span className="eyebrow">APPROVED BASELINE</span>
+                <h2>Select the environment profile</h2>
+                <p className="muted">
+                  Only profiles with an ACTIVE approved AWS/EKS baseline are
+                  available. The approved version is pinned permanently to this
+                  request.
+                </p>
               </div>
-            )}
-          </div>
-          </section>
-          <section className="panel panel-padding cluster-creation-section" id="cluster-configuration">
-            <div className="cluster-creation-section-heading"><CloudCog size={22} aria-hidden="true" /><div><h2>Cluster configuration</h2><p>Define this cluster using the approved environment policy.</p></div></div>
+              <ProviderBadges codes={["AWS"]} compact />
+            </div>
             <div className="cluster-setup-grid">
-            <div className="cluster-baseline-card cluster-field-span">
-              <strong>Approved cluster configuration</strong>
-              <p className="metadata">
-                Navigan automatically applies system capacity, networking and
-                security policy from approved environment revision{" "}
-                {value.environmentApprovedVersion}.
-              </p>
-              <span className="security-chip">
-                {textValue(
-                  resolvedBlueprint.displayName,
-                  textValue(resolvedBlueprint.name),
+              <label className="field cluster-field-span">
+                Find customer
+                <input
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  placeholder="Search active customers by name"
+                />
+              </label>
+              <label className="field">
+                Active customer *
+                <select
+                  required
+                  value={customerId}
+                  onChange={(event) => {
+                    setCustomerId(event.target.value);
+                    setValue((current) => ({
+                      ...current,
+                      environmentId: "",
+                      environmentApprovedVersion: 0,
+                      blueprintName: "",
+                      kubernetesVersion: "",
+                      nodeGroups: [defaultNodeGroup()],
+                      provisioningRoleArn: "",
+                      externalIdSecretArn: "",
+                      githubOrganization: "",
+                    }));
+                  }}
+                >
+                  <option value="">Select ACTIVE customer</option>
+                  {customers.data?.items.map((c) => (
+                    <option value={c.customerId} key={c.customerId}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Active environment *
+                <select
+                  required
+                  disabled={!customerId || envs.isFetching}
+                  value={value.environmentId}
+                  onChange={(event) => {
+                    const env = envs.data?.items.find(
+                      (item) => item.environmentId === event.target.value,
+                    );
+                    setValue((current) => ({
+                      ...current,
+                      environmentId: event.target.value,
+                      environmentApprovedVersion: env?.approvedVersion || 0,
+                      blueprintName: "",
+                      kubernetesVersion: "",
+                      nodeGroups: [defaultNodeGroup()],
+                      provisioningRoleArn: "",
+                      externalIdSecretArn: "",
+                    }));
+                  }}
+                >
+                  <option value="">
+                    {!customerId
+                      ? "Select a customer first"
+                      : envs.isFetching
+                        ? "Loading active environments…"
+                        : envs.isError
+                          ? "Environment loading failed"
+                          : "Select ACTIVE EKS environment"}
+                  </option>
+                  {envs.data?.items.map((env) => (
+                    <option value={env.environmentId} key={env.environmentId}>
+                      {env.environmentName} · approved v{env.approvedVersion}
+                      {env.status !== "ACTIVE"
+                        ? ` · revision ${env.status.toLowerCase()}`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+                {customerId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={envs.isFetching}
+                    onClick={() => void envs.refetch()}
+                  >
+                    <RefreshCw size={14} />
+                    Reload active environments
+                  </Button>
                 )}
-              </span>
-              {approvedBlueprints.length > 1 && !approvedDefaultBlueprint && (
-                <small className="field-error">
-                  Multiple blueprints exist without an approved default. Update
-                  the environment before requesting a cluster.
-                </small>
+                {customerId &&
+                  !envs.error &&
+                  !envs.isPending &&
+                  envs.data?.items.length === 0 && (
+                    <small className="muted">
+                      This customer has no active approved AWS/EKS baselines
+                      yet.
+                    </small>
+                  )}
+              </label>
+              {value.environmentId && (
+                <div className="cluster-baseline-card cluster-field-span">
+                  {selectedEnvironment.isPending ? (
+                    <Loading label="Loading approved environment baseline…" />
+                  ) : selectedEnvironment.error ? (
+                    <ErrorNotice
+                      error={selectedEnvironment.error}
+                      onRetry={() => selectedEnvironment.refetch()}
+                    />
+                  ) : (
+                    <>
+                      <div className="cluster-baseline-title">
+                        <Check size={18} />
+                        <strong>
+                          {selectedEnvironment.data?.environmentName}
+                        </strong>
+                        <span>
+                          Approved v{value.environmentApprovedVersion}
+                        </span>
+                      </div>
+                      <dl className="cluster-baseline-grid">
+                        <div>
+                          <dt>AWS account</dt>
+                          <dd>{textValue(account.accountId)}</dd>
+                        </div>
+                        <div>
+                          <dt>Region</dt>
+                          <dd>{textValue(location.region)}</dd>
+                        </div>
+                        <div>
+                          <dt>VPC</dt>
+                          <dd>{textValue(vpc.vpcId)}</dd>
+                        </div>
+                        <div>
+                          <dt>Approved subnets</dt>
+                          <dd>
+                            {clusterSubnets.length} cluster ·{" "}
+                            {nodeSubnets.length} node
+                          </dd>
+                        </div>
+                      </dl>
+                      <span className="security-chip">
+                        Reusable infrastructure baseline ready
+                      </span>
+                      <p className="metadata">
+                        Terraform uses this immutable approved snapshot—not the
+                        current editable environment record.
+                      </p>
+                    </>
+                  )}
+                </div>
               )}
             </div>
-            <label className="field">
-              Cluster name *
-              <input
-                required
-                value={value.clusterName}
-                onChange={(event) => {
-                  const clusterName = event.target.value;
-                  setValue((current) => ({
-                    ...current,
-                    clusterName,
-                    nodeGroups: current.nodeGroups.map((group, index) => {
-                      const previousRecommendation = recommendedNodeGroupName(
-                        current.clusterName,
-                        index,
-                      );
-                      return group.name === previousRecommendation
-                        ? {
-                            ...group,
-                            name: recommendedNodeGroupName(clusterName, index),
-                          }
-                        : group;
-                    }),
-                  }));
-                }}
-              />
-            </label>
-            <label className="field">
-              Kubernetes version *
-              <select
-                required
-                disabled={
-                  selectedEnvironment.isFetching ||
-                  !value.blueprintName ||
-                  kubernetesVersions.length === 0
-                }
-                value={value.kubernetesVersion}
-                onChange={(event) =>
-                  setValue({ ...value, kubernetesVersion: event.target.value })
-                }
-              >
-                <option value="">
-                  {!value.environmentId
-                    ? "Select an active environment first"
-                    : selectedEnvironment.isFetching
-                      ? "Loading approved Kubernetes versions…"
-                      : selectedEnvironment.isError
-                        ? "Approved baseline loading failed"
-                        : "Select an available EKS version"}
-                </option>
-                {kubernetesVersions.map((version) => (
-                  <option value={version} key={version}>
-                    {version}
-                  </option>
-                ))}
-              </select>
-              {value.environmentId &&
-                !selectedEnvironment.isPending &&
-                !selectedEnvironment.error &&
-                kubernetesVersions.length === 0 && (
-                  <small className="field-error">
-                    Approved environment v{value.environmentApprovedVersion} has
-                    no supported Kubernetes versions in its provisioning
-                    contract. Update and approve the environment profile to make
-                    versions available.
-                  </small>
-                )}
-              {value.environmentId && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={selectedEnvironment.isFetching}
-                  onClick={() => void selectedEnvironment.refetch()}
-                >
-                  <RefreshCw size={14} />
-                  Reload approved baseline
-                </Button>
-              )}
-            </label>
-            <div className="field">
-              <span>API endpoint policy</span>
-              <div className="cluster-baseline-card">
-                <strong>
-                  {approvedEndpointAccess.includes("PUBLIC_AND_PRIVATE")
-                    ? "Public and private"
-                    : "Private only"}
-                </strong>
-                <small>
-                  Enforced by the approved environment security policy.
-                </small>
+          </section>
+          <section
+            className="panel panel-padding cluster-creation-section"
+            id="cluster-configuration"
+          >
+            <div className="cluster-creation-section-heading">
+              <CloudCog size={22} aria-hidden="true" />
+              <div>
+                <h2>Cluster configuration</h2>
+                <p>
+                  Define this cluster using the approved environment policy.
+                </p>
               </div>
             </div>
-            <label className="field">
-              Description
-              <textarea
-                rows={3}
-                maxLength={4000}
-                value={value.description}
-                placeholder="Why is this cluster needed? Add any context for the reviewing architect."
-                onChange={(event) =>
-                  setValue({ ...value, description: event.target.value })
-                }
-              />
-            </label>
-          </div>
+            <div className="cluster-setup-grid">
+              <div className="cluster-baseline-card cluster-field-span">
+                <strong>Approved cluster configuration</strong>
+                <p className="metadata">
+                  Navigan automatically applies system capacity, networking and
+                  security policy from approved environment revision{" "}
+                  {value.environmentApprovedVersion}.
+                </p>
+                <span className="security-chip">
+                  {textValue(
+                    resolvedBlueprint.displayName,
+                    textValue(resolvedBlueprint.name),
+                  )}
+                </span>
+                {approvedBlueprints.length > 1 && !approvedDefaultBlueprint && (
+                  <small className="field-error">
+                    Multiple blueprints exist without an approved default.
+                    Update the environment before requesting a cluster.
+                  </small>
+                )}
+              </div>
+              <label className="field">
+                Cluster name *
+                <input
+                  required
+                  value={value.clusterName}
+                  onChange={(event) => {
+                    const clusterName = event.target.value;
+                    setValue((current) => ({
+                      ...current,
+                      clusterName,
+                      nodeGroups: current.nodeGroups.map((group, index) => {
+                        const previousRecommendation = recommendedNodeGroupName(
+                          current.clusterName,
+                          index,
+                        );
+                        return group.name === previousRecommendation
+                          ? {
+                              ...group,
+                              name: recommendedNodeGroupName(
+                                clusterName,
+                                index,
+                              ),
+                            }
+                          : group;
+                      }),
+                    }));
+                  }}
+                />
+              </label>
+              <label className="field">
+                Kubernetes version *
+                <select
+                  required
+                  disabled={
+                    selectedEnvironment.isFetching ||
+                    !value.blueprintName ||
+                    kubernetesVersions.length === 0
+                  }
+                  value={value.kubernetesVersion}
+                  onChange={(event) =>
+                    setValue({
+                      ...value,
+                      kubernetesVersion: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">
+                    {!value.environmentId
+                      ? "Select an active environment first"
+                      : selectedEnvironment.isFetching
+                        ? "Loading approved Kubernetes versions…"
+                        : selectedEnvironment.isError
+                          ? "Approved baseline loading failed"
+                          : "Select an available EKS version"}
+                  </option>
+                  {kubernetesVersions.map((version) => (
+                    <option value={version} key={version}>
+                      {version}
+                    </option>
+                  ))}
+                </select>
+                {value.environmentId &&
+                  !selectedEnvironment.isPending &&
+                  !selectedEnvironment.error &&
+                  kubernetesVersions.length === 0 && (
+                    <small className="field-error">
+                      Approved environment v{value.environmentApprovedVersion}{" "}
+                      has no supported Kubernetes versions in its provisioning
+                      contract. Update and approve the environment profile to
+                      make versions available.
+                    </small>
+                  )}
+                {value.environmentId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={selectedEnvironment.isFetching}
+                    onClick={() => void selectedEnvironment.refetch()}
+                  >
+                    <RefreshCw size={14} />
+                    Reload approved baseline
+                  </Button>
+                )}
+              </label>
+              <div className="field">
+                <span>API endpoint policy</span>
+                <div className="cluster-baseline-card">
+                  <strong>
+                    {approvedEndpointAccess.includes("PUBLIC_AND_PRIVATE")
+                      ? "Public and private"
+                      : "Private only"}
+                  </strong>
+                  <small>
+                    Enforced by the approved environment security policy.
+                  </small>
+                </div>
+              </div>
+              <label className="field">
+                Description
+                <textarea
+                  rows={3}
+                  maxLength={4000}
+                  value={value.description}
+                  placeholder="Why is this cluster needed? Add any context for the reviewing architect."
+                  onChange={(event) =>
+                    setValue({ ...value, description: event.target.value })
+                  }
+                />
+              </label>
+            </div>
           </section>
 
-            <fieldset className="panel panel-padding cluster-creation-section blueprint-section" id="cluster-system-workers">
-              <legend>System node group</legend>
-              <p className="muted">
-                Every cluster starts with one protected, on-demand worker pool
-                for the connector and mandatory platform services. Application
-                node groups are requested after cluster onboarding.
-              </p>
-              {value.nodeGroups.map((group, index) => (
-                <div className="cluster-blueprint-card" key={index}>
-                  <div className="cluster-setup-grid">
-                    <div className="field">
-                      <span>Purpose</span>
-                      <div className="cluster-policy-value">
-                        <strong>System platform services</strong>
-                        <small>Defined by the approved platform baseline</small>
-                      </div>
+          <fieldset
+            className="panel panel-padding cluster-creation-section blueprint-section"
+            id="cluster-system-workers"
+          >
+            <legend>System node group</legend>
+            <p className="muted">
+              Every cluster starts with one protected, on-demand worker pool for
+              the connector and mandatory platform services. Application node
+              groups are requested after cluster onboarding.
+            </p>
+            {value.nodeGroups.map((group, index) => (
+              <div className="cluster-blueprint-card" key={index}>
+                <div className="cluster-setup-grid">
+                  <div className="field">
+                    <span>Purpose</span>
+                    <div className="cluster-policy-value">
+                      <strong>System platform services</strong>
+                      <small>Defined by the approved platform baseline</small>
                     </div>
-                    <label className="field">
-                      Node group name *
+                  </div>
+                  <label className="field">
+                    Node group name *
+                    <input
+                      required
+                      value={group.name}
+                      placeholder={recommendedNodeGroupName(
+                        value.clusterName,
+                        index,
+                      )}
+                      onChange={(event) =>
+                        setValue((current) => ({
+                          ...current,
+                          nodeGroups: current.nodeGroups.map(
+                            (item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, name: event.target.value }
+                                : item,
+                          ),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    EC2 instance type *
+                    <select
+                      required
+                      value={group.instanceTypes[0] || ""}
+                      onChange={(event) =>
+                        setValue((current) => ({
+                          ...current,
+                          nodeGroups: current.nodeGroups.map(
+                            (item, itemIndex) =>
+                              itemIndex === index
+                                ? {
+                                    ...item,
+                                    instanceTypes: event.target.value
+                                      ? [event.target.value]
+                                      : [],
+                                  }
+                                : item,
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="">Select a regional instance type</option>
+                      {instanceTypes.map((instanceType) => (
+                        <option value={instanceType} key={instanceType}>
+                          {instanceType}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    Capacity type *
+                    <select
+                      value={group.capacityType}
+                      disabled
+                      onChange={(event) =>
+                        setValue((current) => ({
+                          ...current,
+                          nodeGroups: current.nodeGroups.map(
+                            (item, itemIndex) =>
+                              itemIndex === index
+                                ? {
+                                    ...item,
+                                    capacityType: event.target.value as
+                                      "ON_DEMAND" | "SPOT",
+                                  }
+                                : item,
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="ON_DEMAND">On-demand</option>
+                      <option value="SPOT">Spot</option>
+                    </select>
+                  </label>
+                  {(
+                    [
+                      ["minSize", "Minimum nodes"],
+                      ["desiredSize", "Desired nodes"],
+                      ["maxSize", "Maximum nodes"],
+                      ["diskSizeGiB", "Disk size (GiB)"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label className="field" key={key}>
+                      {label} *
                       <input
                         required
-                        value={group.name}
-                        placeholder={recommendedNodeGroupName(
-                          value.clusterName,
-                          index,
-                        )}
+                        type="number"
+                        min={
+                          key === "diskSizeGiB" ? 20 : key === "maxSize" ? 1 : 0
+                        }
+                        max={key === "diskSizeGiB" ? 16384 : 1000}
+                        value={group[key]}
                         onChange={(event) =>
                           setValue((current) => ({
                             ...current,
                             nodeGroups: current.nodeGroups.map(
                               (item, itemIndex) =>
                                 itemIndex === index
-                                  ? { ...item, name: event.target.value }
+                                  ? {
+                                      ...item,
+                                      [key]: Number(event.target.value),
+                                    }
                                   : item,
                             ),
                           }))
                         }
                       />
                     </label>
-                    <label className="field">
-                      EC2 instance type *
-                      <select
-                        required
-                        value={group.instanceTypes[0] || ""}
-                        onChange={(event) =>
-                          setValue((current) => ({
-                            ...current,
-                            nodeGroups: current.nodeGroups.map(
-                              (item, itemIndex) =>
-                                itemIndex === index
-                                  ? {
-                                      ...item,
-                                      instanceTypes: event.target.value
-                                        ? [event.target.value]
-                                        : [],
-                                    }
-                                  : item,
-                            ),
-                          }))
-                        }
-                      >
-                        <option value="">
-                          Select a regional instance type
-                        </option>
-                        {instanceTypes.map((instanceType) => (
-                          <option value={instanceType} key={instanceType}>
-                            {instanceType}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      Capacity type *
-                      <select
-                        value={group.capacityType}
-                        disabled
-                        onChange={(event) =>
-                          setValue((current) => ({
-                            ...current,
-                            nodeGroups: current.nodeGroups.map(
-                              (item, itemIndex) =>
-                                itemIndex === index
-                                  ? {
-                                      ...item,
-                                      capacityType: event.target.value as
-                                        "ON_DEMAND" | "SPOT",
-                                    }
-                                  : item,
-                            ),
-                          }))
-                        }
-                      >
-                        <option value="ON_DEMAND">On-demand</option>
-                        <option value="SPOT">Spot</option>
-                      </select>
-                    </label>
-                    {(
-                      [
-                        ["minSize", "Minimum nodes"],
-                        ["desiredSize", "Desired nodes"],
-                        ["maxSize", "Maximum nodes"],
-                        ["diskSizeGiB", "Disk size (GiB)"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <label className="field" key={key}>
-                        {label} *
-                        <input
-                          required
-                          type="number"
-                          min={
-                            key === "diskSizeGiB"
-                              ? 20
-                              : key === "maxSize"
-                                ? 1
-                                : 0
-                          }
-                          max={key === "diskSizeGiB" ? 16384 : 1000}
-                          value={group[key]}
-                          onChange={(event) =>
-                            setValue((current) => ({
-                              ...current,
-                              nodeGroups: current.nodeGroups.map(
-                                (item, itemIndex) =>
-                                  itemIndex === index
-                                    ? {
-                                        ...item,
-                                        [key]: Number(event.target.value),
-                                      }
-                                    : item,
-                              ),
-                            }))
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  <div className="cluster-worker-capacity-view" aria-label={`Configured capacity for ${group.name || "system workers"}`}>
-                    <span>Configured scaling range</span>
-                    <progress max={Math.max(1, group.maxSize)} value={Math.max(0, Math.min(group.desiredSize, group.maxSize))} aria-label="Desired nodes within configured maximum" />
-                    <dl><div><dt>Minimum</dt><dd>{group.minSize}</dd></div><div><dt>Desired</dt><dd>{group.desiredSize}</dd></div><div><dt>Maximum</dt><dd>{group.maxSize}</dd></div></dl>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </fieldset>
-            <fieldset className="panel panel-padding cluster-creation-section blueprint-section" id="cluster-repository-access">
-              <legend><Github size={20} aria-hidden="true" />System repository</legend>
-              <p className="muted">
-                Navigan creates one private GitOps repository for this cluster’s
-                approved platform services. Organization authorization is
-                completed through the Navigan GitHub App after the request is
-                approved.
-              </p>
-              <div className="cluster-setup-grid">
-                <label className="field">
-                  GitHub organization *
-                  <input
-                    required
-                    maxLength={39}
-                    pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
-                    value={value.githubOrganization}
-                    placeholder="customer-github-org"
-                    onChange={(event) =>
-                      setValue({
-                        ...value,
-                        githubOrganization: event.target.value,
-                      })
-                    }
+                <div
+                  className="cluster-worker-capacity-view"
+                  aria-label={`Configured capacity for ${group.name || "system workers"}`}
+                >
+                  <span>Configured scaling range</span>
+                  <progress
+                    max={Math.max(1, group.maxSize)}
+                    value={Math.max(
+                      0,
+                      Math.min(group.desiredSize, group.maxSize),
+                    )}
+                    aria-label="Desired nodes within configured maximum"
                   />
-                  <small>
-                    Do not enter a token. An organization owner installs the
-                    GitHub App using GitHub’s authorization screen.
-                  </small>
-                </label>
-                <div className="cluster-baseline-card">
-                  <strong>Private repository</strong>
-                  <p className="metadata">
-                    The repository name is derived from the customer and
-                    cluster, ending in <code>-system</code>.
-                  </p>
-                  <span className="security-chip">
-                    Short-lived GitHub App credentials
-                  </span>
+                  <dl>
+                    <div>
+                      <dt>Minimum</dt>
+                      <dd>{group.minSize}</dd>
+                    </div>
+                    <div>
+                      <dt>Desired</dt>
+                      <dd>{group.desiredSize}</dd>
+                    </div>
+                    <div>
+                      <dt>Maximum</dt>
+                      <dd>{group.maxSize}</dd>
+                    </div>
+                  </dl>
                 </div>
               </div>
-            </fieldset>
-            <fieldset className="panel panel-padding cluster-creation-section blueprint-section">
-              <legend>Provisioning access</legend>
-              <div className="cluster-setup-grid">
-                <label className="field">
-                  Provisioning role ARN *
-                  <select
-                    required
-                    value={value.provisioningRoleArn}
-                    onChange={(event) =>
-                      setValue({
-                        ...value,
-                        provisioningRoleArn: event.target.value,
-                      })
-                    }
-                  >
-                    <option value="">Select an approved role</option>
-                    {provisioningRoles.map((role) => (
-                      <option
-                        value={String(role.roleArn)}
-                        key={String(role.roleArn)}
-                      >
-                        {String(role.roleName || role.roleArn)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  External ID secret ARN *
-                  <select
-                    required
-                    disabled={liveProvisioningOptions.isPending}
-                    value={value.externalIdSecretArn}
-                    onChange={(event) =>
-                      setValue({
-                        ...value,
-                        externalIdSecretArn: event.target.value,
-                      })
-                    }
-                  >
-                    <option value="">Select an approved secret</option>
-                    {provisioningSecrets.map((secret) => (
-                      <option
-                        value={String(secret.arn)}
-                        key={String(secret.arn)}
-                      >
-                        {String(secret.name || secret.arn)}
-                      </option>
-                    ))}
-                  </select>
-                  {liveProvisioningOptions.isPending && (
-                    <small className="muted">
-                      Loading registered provisioning secrets…
+            ))}
+          </fieldset>
+          <fieldset
+            className="panel panel-padding cluster-creation-section blueprint-section"
+            id="cluster-repository-access"
+          >
+            <legend>
+              <Github size={20} aria-hidden="true" />
+              System repository
+            </legend>
+            <p className="muted">
+              Navigan creates one private GitOps repository for this cluster’s
+              approved platform services. Organization authorization is
+              completed through the Navigan GitHub App after the request is
+              approved.
+            </p>
+            <div className="cluster-setup-grid">
+              <label className="field">
+                GitHub organization *
+                <input
+                  required
+                  maxLength={39}
+                  pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
+                  value={value.githubOrganization}
+                  placeholder="customer-github-org"
+                  onChange={(event) =>
+                    setValue({
+                      ...value,
+                      githubOrganization: event.target.value,
+                    })
+                  }
+                />
+                <small>
+                  Do not enter a token. An organization owner installs the
+                  GitHub App using GitHub’s authorization screen.
+                </small>
+              </label>
+              <div className="cluster-baseline-card">
+                <strong>Private repository</strong>
+                <p className="metadata">
+                  The repository name is derived from the customer and cluster,
+                  ending in <code>-system</code>.
+                </p>
+                <span className="security-chip">
+                  Short-lived GitHub App credentials
+                </span>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset className="panel panel-padding cluster-creation-section blueprint-section">
+            <legend>Provisioning access</legend>
+            <div className="cluster-setup-grid">
+              <label className="field">
+                Provisioning role ARN *
+                <select
+                  required
+                  value={value.provisioningRoleArn}
+                  onChange={(event) =>
+                    setValue({
+                      ...value,
+                      provisioningRoleArn: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Select an approved role</option>
+                  {provisioningRoles.map((role) => (
+                    <option
+                      value={String(role.roleArn)}
+                      key={String(role.roleArn)}
+                    >
+                      {String(role.roleName || role.roleArn)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                External ID secret ARN *
+                <select
+                  required
+                  disabled={liveProvisioningOptions.isPending}
+                  value={value.externalIdSecretArn}
+                  onChange={(event) =>
+                    setValue({
+                      ...value,
+                      externalIdSecretArn: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Select an approved secret</option>
+                  {provisioningSecrets.map((secret) => (
+                    <option value={String(secret.arn)} key={String(secret.arn)}>
+                      {String(secret.name || secret.arn)}
+                    </option>
+                  ))}
+                </select>
+                {liveProvisioningOptions.isPending && (
+                  <small className="muted">
+                    Loading registered provisioning secrets…
+                  </small>
+                )}
+                {!liveProvisioningOptions.isPending &&
+                  provisioningSecrets.length === 0 && (
+                    <small className="field-error">
+                      No External ID secret is registered for this customer.
+                      Complete or verify the environment bootstrap first.
                     </small>
                   )}
-                  {!liveProvisioningOptions.isPending &&
-                    provisioningSecrets.length === 0 && (
-                      <small className="field-error">
-                        No External ID secret is registered for this customer.
-                        Complete or verify the environment bootstrap first.
-                      </small>
-                    )}
-                </label>
-              </div>
-            </fieldset>
+              </label>
+            </div>
+          </fieldset>
           <div className="form-actions cluster-setup-actions">
-            <div className="cluster-setup-save-copy"><strong>Draft setup request</strong><small>Save your configuration for the existing review and approval workflow.</small></div>
+            <div className="cluster-setup-save-copy">
+              <strong>Draft setup request</strong>
+              <small>
+                Save your configuration for the existing review and approval
+                workflow.
+              </small>
+            </div>
             <div className="cluster-setup-save-buttons">
-            <Link className="button button-secondary" href="/clusters">
-              Cancel
-            </Link>
-            <button
-              className="button button-primary"
-              disabled={
-                saving ||
-                !value.environmentApprovedVersion ||
-                !value.kubernetesVersion ||
-                !value.provisioningRoleArn ||
-                !value.externalIdSecretArn ||
-                !value.githubOrganization ||
-                value.nodeGroups.some(
-                  (group) =>
-                    !group.name ||
-                    !group.instanceTypes.length ||
-                    group.minSize > group.desiredSize ||
-                    group.desiredSize > group.maxSize,
-                ) ||
-                selectedEnvironment.isPending
-              }
-            >
-              {saving ? "Saving…" : "Save setup request draft"}
-            </button>
+              <Link className="button button-secondary" href="/clusters">
+                Cancel
+              </Link>
+              <button
+                className="button button-primary"
+                disabled={
+                  saving ||
+                  !value.environmentApprovedVersion ||
+                  !value.kubernetesVersion ||
+                  !value.provisioningRoleArn ||
+                  !value.externalIdSecretArn ||
+                  !value.githubOrganization ||
+                  value.nodeGroups.some(
+                    (group) =>
+                      !group.name ||
+                      !group.instanceTypes.length ||
+                      group.minSize > group.desiredSize ||
+                      group.desiredSize > group.maxSize,
+                  ) ||
+                  selectedEnvironment.isPending
+                }
+              >
+                {saving ? "Saving…" : "Save setup request draft"}
+              </button>
             </div>
           </div>
         </form>
@@ -1818,7 +1880,13 @@ export function NewClusterPage() {
             <h2>Request summary</h2>
             <div className="cluster-cloud">
               <ProviderBadges codes={["AWS"]} compact />
-              <img src="/logos/kubernetes.svg" width="28" height="28" alt="Kubernetes" /><strong>Amazon EKS</strong>
+              <img
+                src="/logos/kubernetes.svg"
+                width="28"
+                height="28"
+                alt="Kubernetes"
+              />
+              <strong>Amazon EKS</strong>
             </div>
             <dl>
               {[
@@ -1844,8 +1912,14 @@ export function NewClusterPage() {
                 { label: "AWS account", value: textValue(account.accountId) },
                 { label: "Region", value: textValue(location.region) },
                 { label: "VPC", value: textValue(vpc.vpcId) },
-                { label: "Cluster name", value: value.clusterName || "Not named" },
-                { label: "Kubernetes", value: value.kubernetesVersion || "Not selected" },
+                {
+                  label: "Cluster name",
+                  value: value.clusterName || "Not named",
+                },
+                {
+                  label: "Kubernetes",
+                  value: value.kubernetesVersion || "Not selected",
+                },
               ].map((item) => (
                 <div key={item.label}>
                   <dt>{item.label}</dt>
