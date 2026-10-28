@@ -1,0 +1,495 @@
+/* Local presentation overrides; existing shell and other customer screens stay intact. */
+.customer-create-workspace {
+  --navigan-font-body: 14px;
+  --navigan-font-control: 14px;
+  --navigan-font-label: 14px;
+  --navigan-font-caption: 13px;
+  --navigan-font-section-title: 18px;
+  --navigan-font-subsection-title: 14px;
+  color: #202833;
+  min-width: 0;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-create-heading {
+  margin: 0 0 24px;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-create-heading
+  h1 {
+  font-size: 28px;
+  line-height: 1.25;
+  margin: 10px 0 6px;
+  color: #202833;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-create-heading
+  p {
+  color: #63717f;
+  font-size: 16px;
+  margin: 0;
+}
+.customer-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #63717f;
+}
+.customer-create-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-form-panel {
+  padding: 22px;
+  border: 1px solid #dfe5ea;
+  border-radius: 6px;
+  background: #fff;
+  min-width: 0;
+  box-shadow: none;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e1e5e9;
+}
+.customer-panel-heading > svg {
+  flex: 0 0 auto;
+  color: #202833;
+}
+.customer-panel-heading > div {
+  flex: 1;
+  min-width: 0;
+}
+.app-shell.app-shell main#main-content .customer-create-workspace h2 {
+  font-size: 18px;
+  color: #202833;
+  line-height: 1.35;
+  margin: 0 0 4px;
+  font-weight: 650;
+}
+.app-shell.app-shell main#main-content .customer-create-workspace h3 {
+  font-size: 14px;
+  color: #202833;
+  line-height: 1.5;
+  margin: 0 0 4px;
+  font-weight: 650;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-panel-heading
+  p,
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-cloud-section
+  > p {
+  color: #63717f;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+.app-shell.app-shell main#main-content .customer-create-workspace .field {
+  color: #202833;
+  font-size: 14px;
+  margin: 0 0 22px;
+}
+main#main-content
+  .customer-create-workspace
+  .field
+  > :is(input, select, textarea) {
+  color: #202833;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #cbd3de;
+  background: #fff;
+  border-radius: 5px;
+  box-shadow: none;
+}
+main#main-content
+  .customer-create-workspace
+  .field
+  > :is(input, textarea)[aria-invalid="true"] {
+  border-color: #a32430;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .field
+  > textarea {
+  min-height: 90px;
+}
+.customer-optional {
+  color: #63717f;
+  font-weight: 400;
+}
+.app-shell.app-shell main#main-content .customer-create-workspace .field-hint {
+  font-size: 12px;
+  margin-top: 6px;
+  color: #63717f;
+}
+.customer-cloud-section {
+  margin-top: 26px;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .provider-picker {
+  gap: 12px;
+  margin: 16px 0 0;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .provider-option {
+  color: #202833;
+  padding: 14px 12px;
+  min-height: 78px;
+  gap: 10px;
+  background: #fff;
+  border-color: #dfe5ea;
+  box-shadow: none;
+  border-radius: 5px;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .provider-option.checked {
+  background: #fff;
+  border-color: #202833;
+  box-shadow: inset 0 0 0 1px #202833;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .provider-option
+  strong {
+  font-size: 14px;
+  color: #202833;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .provider-option
+  small {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #63717f;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .checkbox-visual {
+  border-color: #aeb8c3;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .checked
+  .checkbox-visual {
+  background: #2f6b2d;
+  border-color: #2f6b2d;
+  color: white;
+}
+.customer-provider-mark {
+  object-fit: contain;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 36px;
+}
+.customer-contact-heading {
+  flex-wrap: wrap;
+}
+.app-shell.app-shell main#main-content .customer-create-workspace .button {
+  font-size: 13px;
+  min-height: 40px;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .button-secondary {
+  background: #fff;
+  color: #202833;
+  border-color: #cbd3de;
+  box-shadow: none;
+}
+.customer-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #dfe5ea;
+  border-radius: 5px;
+}
+.customer-contact-list li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 14px;
+}
+.customer-contact-list li + li {
+  border-top: 1px solid #e1e5e9;
+}
+.customer-contact-avatar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 50%;
+  color: #384455;
+  background: #e6e9ee;
+  font-size: 17px;
+}
+.customer-contact-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.customer-contact-copy > span {
+  color: #63717f;
+  font-size: 13px;
+}
+.customer-contact-copy strong {
+  color: #202833;
+  font-size: 15px;
+}
+.customer-contact-actions {
+  display: flex;
+  gap: 3px;
+}
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-contact-actions
+  .button {
+  background: transparent;
+  border: 0;
+  color: #46566b;
+  min-width: 36px;
+  padding: 8px;
+}
+.customer-contact-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  gap: 12px;
+  padding: 28px 22px;
+  border: 1px dashed #dfe5ea;
+  border-radius: 5px;
+  color: #63717f;
+}
+.customer-contact-empty strong {
+  color: #202833;
+}
+.customer-contact-empty p {
+  font-size: 13px;
+  margin: 0;
+  max-width: 38ch;
+}
+.customer-readiness {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #e1e5e9;
+}
+main#main-content
+  .customer-create-workspace
+  .customer-readiness
+  .customer-panel-heading {
+  padding-bottom: 0;
+  margin-bottom: 26px;
+  border: 0;
+}
+.customer-readiness-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 18px;
+}
+.customer-selected-providers {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.customer-selected-providers li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+}
+.customer-selected-providers li > div {
+  min-width: 0;
+}
+.customer-selected-providers strong {
+  display: block;
+  font-size: 14px;
+}
+.customer-selected-providers span {
+  display: block;
+  color: #63717f;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.customer-completion {
+  border-left: 1px solid #e1e5e9;
+  padding-left: 18px;
+}
+.customer-completion h3 {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.customer-completion ul {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+}
+.customer-completion li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 0;
+}
+.customer-completion li svg {
+  flex: 0 0 21px;
+}
+.customer-check-complete {
+  color: #2f6b2d;
+}
+.customer-check-pending {
+  color: #7b8795;
+}
+.customer-provider-note {
+  color: #63717f;
+  font-size: 13px;
+  margin-top: 16px;
+}
+.customer-review-note {
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid #e1e5e9;
+  font-size: 13px;
+  color: #63717f;
+}
+.customer-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+  padding: 18px 0;
+  background: #fff;
+  border-top: 1px solid #dfe5ea;
+  box-shadow: 0 -8px 16px -16px #63717f;
+}
+.customer-save-bar > span {
+  color: #63717f;
+  font-size: 13px;
+}
+.customer-save-bar > div {
+  display: flex;
+  gap: 12px;
+}
+.customer-contact-editor .field {
+  color: #202833;
+}
+.customer-contact-editor > p {
+  margin: 0 0 20px;
+}
+.customer-create-workspace :focus-visible {
+  outline: 2px solid #46566b;
+  outline-offset: 3px;
+}
+@container (max-width:900px) {
+  .customer-create-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width:500px) {
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .customer-form-panel {
+    padding: 18px 14px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .provider-option {
+    padding: 12px 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .customer-contact-list li {
+    gap: 10px;
+    padding: 14px 10px;
+    flex-wrap: wrap;
+  }
+  .customer-contact-actions {
+    margin-left: auto;
+  }
+  .customer-readiness-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-completion {
+    border-left: 0;
+    padding: 18px 0 0;
+    border-top: 1px solid #e1e5e9;
+  }
+  .app-shell.app-shell main#main-content .customer-create-workspace .button {
+    min-height: 44px;
+  }
+  .customer-save-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .customer-save-bar > div {
+    margin-left: auto;
+  }
+}
+@media (max-width: 700px) {
+  .customer-create-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-readiness-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-completion {
+    border-left: 0;
+    padding: 18px 0 0;
+    border-top: 1px solid #e1e5e9;
+  }
+}
+
+.app-shell.app-shell
+  main#main-content
+  .customer-create-workspace
+  .customer-review-note {
+  font-size: 13px;
+  line-height: 1.5;
+}

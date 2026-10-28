@@ -1,14 +1,17 @@
 "use client";
 import { Check, Cloud } from "lucide-react";
+import { ProviderMark } from "./provider-mark";
 import { cloudProviders } from "../model/policy";
 export function ProviderPicker({
   value,
   onChange,
   disabled = false,
+  appearance = "default",
 }: {
   value: string[];
   onChange: (codes: string[]) => void;
   disabled?: boolean;
+  appearance?: "default" | "customer-form";
 }) {
   const options = [
     ...cloudProviders,
@@ -26,6 +29,7 @@ export function ProviderPicker({
         >
           <input
             type="checkbox"
+            aria-label={`${provider.shortName} — ${provider.name}`}
             checked={value.includes(provider.code)}
             onChange={(event) =>
               onChange(
@@ -35,7 +39,11 @@ export function ProviderPicker({
               )
             }
           />
-          <Cloud size={23} aria-hidden="true" />
+          {appearance === "customer-form" ? (
+            <ProviderMark code={provider.code} />
+          ) : (
+            <Cloud size={23} aria-hidden="true" />
+          )}
           <span>
             <strong>{provider.shortName}</strong>
             <small>{provider.name}</small>
