@@ -301,6 +301,9 @@ def prepare(session, config_path, manifest_path):
         require(item.get("portable") is True and item.get("buildContract") == common.CONTRACT,
                 "An artifact is not portable or has no verified build contract.")
         builder.verify_artifact(session, name, item, account, region)
+        if name in common.planner.IMAGES and config.get("repositories") is not None:
+            expected = builder.repository_uri(name, config["repositories"], account, region)
+            require(item["uri"] == expected + "@sha256:" + item["sha256"], "Build artifact does not match the configured existing ECR repository.")
     root_needed = bool(selected & {"backend", "infrastructure", "cluster-connector", "migration-connector", "terraform-runner"})
     require(not root_needed or {"backend", "infrastructure", "database"} <= set(manifest["components"]),
             "An initial SAM adoption requires backend, template and database artifacts.")
@@ -747,9 +750,10 @@ def rollback(session, path):
             journal["rollbackRecordPublished"] = common.put_bytes(session.client("s3"), config["artifactBucket"], CURRENT,
                                                                    canonical(restored), config["account"], **condition)
         common.write(path.parent / "execution.json", journal)
-    journal["rollbackComplete"] = datetime.now(timezone.utc).isoformat()
-    common.write(path.parent / "execution.json", journal)
     unlock(session, plan, journal["lock"])
+    journal["rollbackComplete"] = datetime.now(timezone.utc).isoformat()
+    journal["lockReleased"] = True
+    common.write(path.parent / "execution.json", journal)
     print("DEV application rollback verified. Forward database migrations and the existing port-3000 frontend were retained.")
 
 

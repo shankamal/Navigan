@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build selected committed inputs once and publish an immutable release manifest.
 
-No application deployment or live SQL. Uses the dedicated DEV artifact registry.
+No application deployment or live SQL. Can reuse existing private artifact storage.
 An initial release requires an explicit component list; subsequent releases use
 the previous complete build manifest, never the previous Git push.
 """
@@ -205,14 +205,22 @@ def image_runtime_check(image, directory, env):
             "configurations": ["dev-fixture", "prod-fixture"]}
 
 
-def build_image(component, source, directory, session, account, region, recipe):
-    repository = common.REGISTRY_PREFIX + "/" + component
+def repository_uri(component, repositories, account, region):
+    prefix = f"{account}.dkr.ecr.{region}.amazonaws.com/"
+    if repositories is None:
+        return prefix + common.REGISTRY_PREFIX + "/" + component
+    value = repositories.get(component, "")
+    require(value.startswith(prefix) and re.fullmatch(r"[a-z0-9]+(?:[._/-][a-z0-9]+)*", value[len(prefix):]),
+            "Configure the existing ECR repository for selected component: " + component)
+    return value
+
+
+def build_image(component, source, directory, session, account, region, recipe, repositories=None):
+    expected = repository_uri(component, repositories, account, region)
+    repository = expected.split("/", 1)[1]
     ecr = session.client("ecr")
     metadata = ecr.describe_repositories(repositoryNames=[repository])["repositories"][0]
-    tags = {item["Key"]: item["Value"] for item in ecr.list_tags_for_resource(resourceArn=metadata["repositoryArn"])["tags"]}
-    require(metadata.get("imageTagMutability") == "IMMUTABLE" and tags.get("navigan:environment") == "dev",
-            "Expected an immutable dedicated DEV repository.")
-    expected = f"{account}.dkr.ecr.{region}.amazonaws.com/{repository}"
+    # Use an existing repository, leave its settings unchanged and deploy by digest.
     require(metadata["repositoryUri"] == expected, "Unexpected component repository.")
     image = expected + ":build-" + recipe[:20] + "-" + uuid.uuid4().hex[:8]
     dockerfile, context = IMAGES[component]
@@ -242,8 +250,13 @@ def verify_artifact(session, component, item, account, region):
         common.object_bytes(session.client("s3"), item, account)
 
 
-def build_manifest(session, source, revision, selected, previous, bucket, account, region, directory, validate):
+def build_manifest(session, source, revision, selected, previous, bucket, account, region, directory, validate, repositories=None):
     components = copy.deepcopy((previous or {}).get("components", {}))
+    for name in (set(selected) | set(components)) & common.planner.IMAGES:
+        expected = repository_uri(name, repositories, account, region)
+        if name in components and name not in selected:
+            require(components[name]["uri"] == expected + "@sha256:" + components[name]["sha256"],
+                    "Retained image repository differs from the configured repository.")
     s3 = session.client("s3")
     recipe_hash = sha(b"".join((common.ROOT / "scripts" / name).read_bytes()
                               for name in ("build-release.py", "release_common.py", "release_database.py", "plan-release.py")))
@@ -258,7 +271,8 @@ def build_manifest(session, source, revision, selected, previous, bucket, accoun
             continue
         inputs = common.planner.input_hash(component, revision)
         dependencies = {"backend": {key: components.get("backend", {}).get(key) for key in ("sha256", "uri", "versionId")}} if component == "infrastructure" else {}
-        recipe = sha(canonical({"inputHash": inputs, "recipeHash": recipe_hash, "dependencies": dependencies}))
+        output_repository = repository_uri(component, repositories, account, region) if component in common.planner.IMAGES else None
+        recipe = sha(canonical({"inputHash": inputs, "recipeHash": recipe_hash, "dependencies": dependencies, "repository": output_repository}))
         key = "registry/" + component + "/" + recipe + ".json"
         cached = common.get_optional(s3, bucket, key, account)
         if cached:
@@ -267,6 +281,8 @@ def build_manifest(session, source, revision, selected, previous, bucket, accoun
                     and item.get("dependencies", {}) == dependencies, "Cached build receipt differs.")
             common.planner.validate_manifest({"format": common.planner.FORMAT, "sourceRevision": revision, "components": {component: item}})
             verify_artifact(session, component, item, account, region)
+            if output_repository:
+                require(item["uri"] == output_repository + "@sha256:" + item["sha256"], "Cached image repository differs.")
             components[component] = item
             results.append({"component": component, "action": "reused-built-artifact"})
             continue
@@ -284,7 +300,7 @@ def build_manifest(session, source, revision, selected, previous, bucket, accoun
             elif component == "infrastructure":
                 content, extra = publish_templates(source, components.get("backend"), s3, bucket, account, region, prefix)
             else:
-                item = build_image(component, source, directory, session, account, region, recipe)
+                item = build_image(component, source, directory, session, account, region, recipe, repositories)
             if component not in common.planner.IMAGES:
                 item = {**common.put_content(s3, bucket, "objects/" + component + "/" + sha(content) + ".zip", content, account), **extra}
             item.update(inputHash=inputs, recipeHash=recipe_hash, dependencies=dependencies, portable=True,
@@ -334,11 +350,15 @@ def main(argv=None):
     parser.add_argument("--region", required=True)
     parser.add_argument("--expected-account", required=True)
     parser.add_argument("--artifact-bucket", required=True)
+    parser.add_argument("--repositories-file", type=Path, help="Explicit component-to-existing-ECR-repository URI map")
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--baseline-manifest", type=Path)
     parser.add_argument("--enroll", help="Explicit additional components absent from the baseline manifest")
     parser.add_argument("--initial", help="Explicit initial component list, for example frontend,backend,infrastructure,database")
     args = parser.parse_args(argv)
+    repositories = common.read(args.repositories_file) if args.repositories_file else None
+    require(repositories is None or isinstance(repositories, dict) and set(repositories) <= common.planner.IMAGES
+            and all(isinstance(value, str) for value in repositories.values()), "Invalid existing repository configuration.")
     require(bool(args.initial) != bool(args.baseline_manifest), "Choose an explicit initial component list or a previous manifest.")
     revision = common.planner.revision(args.revision)
     previous = common.planner.manifest(args.baseline_manifest) if args.baseline_manifest else None
@@ -376,7 +396,7 @@ def main(argv=None):
     for family in plan.get("validation", []):
         validate(family, source, directory)
     result, stages = build_manifest(session, source, revision, selected, previous, args.artifact_bucket,
-                                    args.expected_account, args.region, directory, validate)
+                                    args.expected_account, args.region, directory, validate, repositories)
     reference = common.put_bytes(session.client("s3"), args.artifact_bucket,
                                  "releases/" + revision + "/" + sha(canonical(result)) + ".json",
                                  canonical(result), args.expected_account, IfNoneMatch="*")

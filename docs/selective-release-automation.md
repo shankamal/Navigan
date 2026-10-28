@@ -6,6 +6,51 @@ and application rollback. PROD execution remains disabled. No live deployment wa
 performed while implementing these scripts. Docker/SAM builds and the first AWS DEV
 release must be accepted on the connected runner before calling this operational.
 
+
+## Normal use: two commands
+
+Use the existing ECR repositories and S3 artifact bucket. No new registry stack,
+bucket or repository is required. Configure the names once in a private local file:
+
+```bash
+mkdir -p .navigan-release
+cp scripts/release-config.example.json .navigan-release/dev.json
+```
+
+Edit `dev.json` with the existing account, profile, versioned private artifact bucket
+and component repository URIs. The example starts with the frontend-only DEV trial.
+For an initial complete core build, use `initialComponents` containing `frontend`,
+`backend`, `infrastructure`, `database`, `image-worker`, and provide the existing
+frontend/image-worker repository URIs. Subsequent builds select stages from changes.
+The local configuration/state directory is ignored by git. Do not add credentials.
+
+Then the routine commands are just:
+
+```bash
+bash scripts/build.sh dev
+bash scripts/deploy.sh dev
+```
+
+Build validates/tests the selected components, builds once, pushes only those
+artifacts into the existing storage, and saves its manifest. Deploy consumes that
+manifest, prepares/verifies the DEV target and change set, deploys, and performs
+authenticated checks. It does not rebuild. Existing resources are never created
+or reconfigured by the build wrapper. The bucket must already be private and
+versioned; no special release tags are required. ECR settings stay unchanged and
+images deploy by exact digest, including when an existing repository uses mutable tags.
+
+Python is used internally; the operator entry points are Bash. They select the
+existing sibling `navigan-deploy-venv` automatically; `NAVIGAN_PYTHON` can override it.
+For database/SAM stages provide the existing DEV migration connection through
+`MIGRATION_DATABASE_URL`. Deployment asks for a fresh DEV token in a hidden prompt.
+After an interrupted deployment, use `bash scripts/deploy.sh dev --verify` or
+`--rollback`. No new build is performed during recovery. An unfinished deployment
+is not silently replaced by another attempt. PROD execution remains disabled.
+
+The detailed commands below are implementation/reference material. The optional
+isolated-registry bootstrap is not part of the normal flow and should not be run
+when reusing existing resources.
+
 ## Build and deployment decisions
 
 Build compares the committed revision with the previous complete build manifest.
@@ -60,51 +105,12 @@ because their task templates do not supply its runtime identity settings. Saved
 legacy execution plans still work for their existing images. The new DEV executor
 does not modify the running PROD frontend or its CloudFormation drift.
 
-## Start on the connected DEV machine
+## Prerequisites
 
-Prerequisites: Python 3.12, the project Python dependencies, AWS SAM CLI, Docker
-Engine with buildx, git, and the existing authorized AWS profile. Linux/WSL Docker
-must be usable from the same shell. A SAM/database release also needs a private
-migration-owner connection to `navigan_dev` through `MIGRATION_DATABASE_URL`.
-The frontend-only pilot does not require that connection.
-
-```bash
-python scripts/deploy-release-dev.py --init --bootstrap-registry \
-  --profile navigan --region ap-south-1 --expected-account <account-id>
-```
-
-This verifies the existing DEV root/domain/database ownership and creates only an
-isolated versioned S3 artifact bucket and immutable ECR repositories. It prints a
-private `dev-config.json` and bucket name. Preserve that file locally; do not commit
-configuration captures, tokens, connection strings or deployment journals.
-
-First try the frontend alone, using the printed bucket/config path:
-
-```bash
-python scripts/build-release.py --profile navigan --region ap-south-1 \
-  --expected-account <account-id> --artifact-bucket <printed-bucket> --initial frontend
-python scripts/deploy-release-dev.py --profile navigan --prepare \
-  --config <private-dev-config.json> --manifest <printed-release-manifest.json>
-```
-
-Review the printed selected/skipped stages and private summary. Execute its exact
-saved plan, then open `http://localhost:3001` and sign in using DEV credentials:
-
-```bash
-python scripts/deploy-release-dev.py --profile navigan --execute <printed-release-plan.json>
-python scripts/deploy-release-dev.py --profile navigan --verify <same-release-plan.json>
-```
-
-Execution requests a fresh DEV access token through a hidden prompt (or protected
-`NAVIGAN_DEV_SMOKE_TOKEN`). Authenticated summary checks run before mutation and
-through the candidate frontend proxy after deployment. The current port-3000
-frontend is preserved. An unmanaged process on 3001 is never stopped. Later runs
-replace only the recorded managed preview after testing an ephemeral candidate.
-
-Use `--baseline-manifest <last-build-manifest.json>` for later builds. To adopt SAM
-and schema stages after the frontend trial, add
-`--enroll backend,infrastructure,database,image-worker`. Existing DEV collector
-ownership must verify; its desired count, including zero, is retained.
+Python 3.12 with the project dependencies, AWS SAM CLI, Docker Engine/buildx, git,
+and the existing authorized AWS profile are required. Use the same Linux/WSL shell
+for both commands. Actual AWS/Docker/SAM acceptance is still pending on the connected
+DEV machine; offline tests alone do not establish a live successful deployment.
 
 ## Failure handling
 
@@ -122,32 +128,23 @@ resource identities after execution. Unexpected or destructive infrastructure wo
 requires a separately reviewed change. The last-successful S3 pointer updates
 conditionally only after all selected stages and authenticated checks pass.
 
-## Persistent runner / GitHub Actions
+## GitHub Actions (optional after the local DEV trial)
 
-For repeated runs, create a mode-700 runner directory, copy the private
-`dev-config.json` into it, and use:
-
-```bash
-python scripts/run-dev-release.py --home <private-runner-home> --profile navigan --action build-prepare
-python scripts/run-dev-release.py --home <same-home> --profile navigan --action execute --plan-id <printed-id>
-```
-
-The runner retains the last complete build manifest and reviewed plans. Other
-actions are `verify` and `rollback`, using that same saved plan ID. A shared DEV
-frontend is not provisioned by this pilot. Remote runners expose the local preview
-only through an approved SSH tunnel.
-
-`.github/workflows/dev-release.yml` invokes these same commands manually on a
+The manual `.github/workflows/dev-release.yml` calls the same Bash commands on a
 persistent private runner labelled `navigan-dev-release`, in GitHub environment
-`dev`. Configure `DEV_RELEASE_HOME`, `DEV_RELEASE_ROLE_ARN`, a fresh protected
-`DEV_RELEASE_SMOKE_TOKEN`, and (for schema/SAM) `DEV_MIGRATION_DATABASE_URL` there.
-The OIDC role must trust only this repository/environment and access only verified
-DEV resources and the dedicated registry. No AWS keys belong in the workflow.
-Runner/environment/OIDC setup has not been performed by this implementation.
-Manual dispatch requires the workflow definition on the repository's default branch;
-the local CLI works from this feature branch immediately.
+`dev`. Configure `DEV_RELEASE_CONFIG` with the absolute private config path and
+`DEV_RELEASE_ROLE_ARN` with the existing DEV-scoped OIDC role. Set the config's
+`profile` to null there to use the assumed role, rather than a local named profile.
+Authenticated checks need a fresh protected `DEV_RELEASE_SMOKE_TOKEN`; SAM/schema
+stages need the protected `DEV_MIGRATION_DATABASE_URL`. Do not log either value.
+Build and deploy runs must use the same persistent private configuration/state.
 
-`.github/workflows/dev-release-plan.yml` remains a read-only PR impact review.
-Existing CI stays independent and credential-free. Source-agent rollout and PROD
-promotion are separate follow-ups after DEV acceptance; PROD must consume the
-accepted immutable manifest with its own runtime configuration, never rebuild it.
+No runner, OIDC role, bucket or repository is created by these commands/workflows.
+GitHub runner/environment setup has not been performed here. Manual dispatch needs
+the workflow definition on the default branch; the local Bash commands work from
+this feature branch. Remote preview access is through an approved SSH tunnel to
+localhost:3001; this pilot does not provision a hosted DEV frontend.
+
+The PR planner workflow remains read-only and runs offline release tests. Existing
+CI stays independent. Customer-agent rollout and PROD promotion remain separate
+follow-ups after DEV acceptance; future PROD promotion must reuse accepted artifacts.

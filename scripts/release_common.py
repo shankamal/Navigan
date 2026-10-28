@@ -209,9 +209,7 @@ def verify_registry(session, bucket, account, region):
     public = s3.get_public_access_block(Bucket=bucket, ExpectedBucketOwner=account)["PublicAccessBlockConfiguration"]
     require(all(public.get(key) for key in ("BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets")),
             "Artifact bucket must block all public access.")
-    tags = {row["Key"]: row["Value"] for row in s3.get_bucket_tagging(Bucket=bucket, ExpectedBucketOwner=account)["TagSet"]}
-    require(tags.get("navigan:environment") == "dev" and tags.get("navigan:purpose") == "release-artifacts",
-            "Expected the dedicated DEV release registry.")
+    # Existing private artifact buckets need no new stack or special release tags.
 
 
 def pages(client, operation, key, **arguments):
@@ -241,9 +239,11 @@ def get_optional(s3, bucket, key, account):
 
 
 def verify_image(session, component, item, account, region):
-    repository = REGISTRY_PREFIX + "/" + component
-    expected = f"{account}.dkr.ecr.{region}.amazonaws.com/{repository}@sha256:{item['sha256']}"
-    require(item["uri"] == expected, "Image is outside the dedicated DEV release repositories.")
+    prefix = f"{account}.dkr.ecr.{region}.amazonaws.com/"
+    uri = item["uri"]
+    require(uri.startswith(prefix) and uri.endswith("@sha256:" + item["sha256"]), "Image account/region/digest differs.")
+    repository = uri[len(prefix):].split("@", 1)[0]
+    require(re.fullmatch(r"[a-z0-9]+(?:[._/-][a-z0-9]+)*", repository), "Invalid existing ECR repository reference.")
     details = session.client("ecr").describe_images(repositoryName=repository,
                                                    imageIds=[{"imageDigest": "sha256:" + item["sha256"]}])["imageDetails"]
     require(len(details) == 1 and details[0]["imageDigest"] == "sha256:" + item["sha256"], "Image digest was not found.")

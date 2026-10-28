@@ -4,19 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Build/prepare first, review private summary, then execute its saved plan
+        description: Build once, then deploy the saved build to DEV
         type: choice
-        options: [build-prepare, execute, verify, rollback]
+        options: [build, deploy, verify, rollback]
         required: true
-      plan_id:
-        description: Saved plan ID on the same persistent private DEV runner
-        type: string
-      initial:
-        description: First run only; explicit managed component list
-        type: string
-        default: frontend
       enroll:
-        description: Optional additional components absent from the previous build manifest
+        description: Build only - optional additional unmanaged components
         type: string
 
 permissions:
@@ -39,10 +32,8 @@ jobs:
       AWS_EC2_METADATA_DISABLED: 'true'
       SAM_CLI_TELEMETRY: '0'
       PYTHONDONTWRITEBYTECODE: '1'
-      RELEASE_HOME: ${{ vars.DEV_RELEASE_HOME }}
+      RELEASE_CONFIG: ${{ vars.DEV_RELEASE_CONFIG }}
       ACTION: ${{ inputs.action }}
-      PLAN_ID: ${{ inputs.plan_id }}
-      INITIAL: ${{ inputs.initial }}
       ENROLL: ${{ inputs.enroll }}
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +52,7 @@ jobs:
       - name: Install release dependencies and test release contracts
         run: |
           python -m pip install boto3==1.40.30 PyYAML==6.0.2 'psycopg[binary]==3.2.10' pytest==8.4.2
-          python -m pytest -q tests/test_release_planner.py tests/test_release_execution.py
+          python -m pytest -q tests/test_release_planner.py tests/test_release_execution.py tests/test_simple_release.py
       - name: Run the selected DEV action
         env:
           # Fresh DEV token, refreshed for this manual acceptance run; never logged or persisted.
@@ -69,15 +60,21 @@ jobs:
           MIGRATION_DATABASE_URL: ${{ secrets.DEV_MIGRATION_DATABASE_URL }}
         run: |
           set -euo pipefail
-          test -n "$RELEASE_HOME"
-          args=(--home "$RELEASE_HOME" --action "$ACTION")
-          if [ -n "$PLAN_ID" ]; then args+=(--plan-id "$PLAN_ID"); fi
-          if [ -n "$INITIAL" ]; then args+=(--initial "$INITIAL"); fi
-          if [ -n "$ENROLL" ]; then args+=(--enroll "$ENROLL"); fi
-          python scripts/run-dev-release.py "${args[@]}"
+          test -n "$RELEASE_CONFIG"
+          case "$ACTION" in
+            build)
+              args=(dev --config "$RELEASE_CONFIG")
+              if [ -n "$ENROLL" ]; then args+=(--enroll "$ENROLL"); fi
+              bash scripts/build.sh "${args[@]}"
+              ;;
+            deploy) bash scripts/deploy.sh dev --config "$RELEASE_CONFIG" ;;
+            verify) bash scripts/deploy.sh dev --config "$RELEASE_CONFIG" --verify ;;
+            rollback) bash scripts/deploy.sh dev --config "$RELEASE_CONFIG" --rollback ;;
+            *) exit 2 ;;
+          esac
       - name: Record pilot scope
         if: always()
         run: |
-          echo 'DEV only. Build-prepare and execute are separate actions; no PROD deployment path.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Artifacts and private plans stay in the dedicated DEV registry/runner, not public workflow artifacts.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'DEV only. Build and deploy are separate commands; no PROD deployment path.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Artifacts use existing storage; private plans stay on the runner, not public workflow artifacts.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Frontend acceptance uses the same persistent runner at localhost:3001; use an approved SSH tunnel for remote access.' >> "$GITHUB_STEP_SUMMARY"
