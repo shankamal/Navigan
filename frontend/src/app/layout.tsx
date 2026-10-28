@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import "@fontsource/open-sans/400.css";
-import "@fontsource/open-sans/600.css";
-import "@fontsource/open-sans/700.css";
+import "@fontsource/geist-sans/400.css";
+import "@fontsource/geist-sans/500.css";
+import "@fontsource/geist-sans/600.css";
+import "@fontsource/geist-sans/700.css";
 import "./globals.css";
+import "./navigan-theme.css";
+import "./workspace-standards.css";
 import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: {

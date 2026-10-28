@@ -45,13 +45,24 @@ class PlatformComponentItem(BaseModel):
 
 class RuntimeResourceItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
-    kind: str = Field(pattern=r"^(Node|Deployment|StatefulSet|DaemonSet|Pod|Service)$")
+    kind: str = Field(pattern=r"^(Node|Deployment|StatefulSet|DaemonSet|Pod|Service|StorageClass|CSIDriver|Ingress|NetworkPolicy|ServiceAccount|Role|RoleBinding|ClusterRole|ClusterRoleBinding|CustomResourceDefinition)$")
     namespace: str | None = Field(default=None, max_length=253)
     name: str = Field(min_length=1, max_length=253)
     status: str = Field(min_length=1, max_length=40)
     ready: int = Field(ge=0, le=100000)
     desired: int = Field(ge=0, le=100000)
     restarts: int = Field(ge=0, le=1000000)
+    allocatableCpu: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?m?$")
+    allocatableMemory: str | None = Field(default=None, max_length=40, pattern=r"^[0-9]+(?:\.[0-9]+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$")
+    unschedulable: bool | None = None
+    taintCount: int | None = Field(default=None, ge=0, le=10000)
+    nodeLabels: dict[str, str] | None = Field(default=None, max_length=100)
+    nodeTaints: list[dict[str, str]] | None = Field(default=None, max_length=100)
+    apiVersion: str | None = Field(default=None, max_length=128)
+    provisioner: str | None = Field(default=None, max_length=253)
+    volumeBindingMode: str | None = Field(default=None, pattern=r"^(Immediate|WaitForFirstConsumer)$")
+    reclaimPolicy: str | None = Field(default=None, pattern=r"^(Delete|Retain|Recycle)$")
+
 
 
 class WarningEventItem(BaseModel):
@@ -188,7 +199,14 @@ def desired_access(db, connector, now):
             for row in rows
         ],
     }
-    desired_image = os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
+    # The per-cluster GitOps repository owns connector image rollout.
+    # Legacy global desired-image polling must not undo a targeted upgrade.
+    gitops = db.execute(
+        "SELECT 1 FROM cluster_management.cluster_system_repositories "
+        "WHERE cluster_id=%s AND status='ACTIVE' LIMIT 1",
+        [connector["cluster_id"]],
+    ).fetchone()
+    desired_image = "" if gitops else os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
     if desired_image:
         result["connector"] = {
             "desiredImage": desired_image,

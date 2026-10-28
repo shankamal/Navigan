@@ -1,6 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { IntentLink as Link } from "@/shared/components/intent-link";
+import { HelpTip } from "@/shared/components/help-tip";
+import layout from "./dashboard-layout.module.css";
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -28,7 +31,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
-import { ErrorNotice, Loading, formatDateTime } from "@/shared/components/ui";
+import {
+  Button,
+  ErrorNotice,
+  Loading,
+  PageHeading,
+  formatDateTime,
+} from "@/shared/components/ui";
 import {
   useCustomerCount,
   useCustomers,
@@ -125,25 +134,11 @@ function DonutChart({
 }
 
 export function PlatformDashboard() {
+  const queryClient = useQueryClient();
   const { identity } = useAuth();
-  const [currentDate, setCurrentDate] = useState("");
   const [refreshError, setRefreshError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
 
-  useEffect(() => {
-    const updateDate = () =>
-      setCurrentDate(
-        new Intl.DateTimeFormat("en-GB", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }).format(new Date()),
-      );
-    updateDate();
-    const interval = window.setInterval(updateDate, 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
   const totalCustomers = useCustomerCount();
   const activeCustomers = useCustomerCount("ACTIVE");
   const submittedCustomers = useCustomerCount("SUBMITTED");
@@ -227,7 +222,18 @@ export function PlatformDashboard() {
   async function refreshDashboard() {
     setRefreshError(false);
     const results = await Promise.allSettled(
-      dashboardQueries.map((query) => query.refetch({ throwOnError: true })),
+      [
+        "customers",
+        "environment-count",
+        "environments",
+        "cluster-count",
+        "clusters",
+      ].map((key) =>
+        queryClient.refetchQueries(
+          { queryKey: [key], type: "active" },
+          { throwOnError: true },
+        ),
+      ),
     );
     setRefreshError(results.some((result) => result.status === "rejected"));
   }
@@ -330,7 +336,7 @@ export function PlatformDashboard() {
     return (
       <ErrorNotice
         error={failedQuery.error}
-        onRetry={() => countQueries.forEach((query) => void query.refetch())}
+        onRetry={() => void refreshDashboard()}
       />
     );
   }
@@ -400,116 +406,342 @@ export function PlatformDashboard() {
 
   return (
     <div className="platform-dashboard command-dashboard">
-      <section className="pd-heading">
-        <div>
-          <p className="pd-date">{currentDate}</p>
-          <h1>Platform command center</h1>
-          <p className="muted">
-            Live governance, provisioning, and lifecycle status across the
-            Navigan-managed Kubernetes estate.
-          </p>
-        </div>
-        <div className="pd-actions">
-          <span className="pd-freshness" role="status" aria-live="polite">
-            {refreshing
-              ? "Refreshing…"
-              : refreshError || hasPartialError
-                ? "Some data could not be refreshed"
-                : lastUpdated
-                  ? `Updated ${lastUpdated}`
-                  : "Loading data…"}
-          </span>
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={() => void refreshDashboard()}
-            disabled={refreshing}
+      <PageHeading
+        icon={<LayoutGrid />}
+        title="Platform command center"
+        className={layout.frozenHeading}
+        description="Live governance, provisioning, and lifecycle status across the Navigan-managed Kubernetes estate."
+        action={
+          <>
+            <span
+              className="page-heading-meta"
+              role="status"
+              aria-live="polite"
+            >
+              {refreshing
+                ? "Refreshing…"
+                : refreshError || hasPartialError
+                  ? "Some data unavailable"
+                  : lastUpdated
+                    ? `Updated ${lastUpdated}`
+                    : "Loading data…"}
+            </span>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => void refreshDashboard()}
+              disabled={refreshing}
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </Button>
+            {canCreateEnvironment && (
+              <Link
+                className="button button-secondary"
+                href="/environments/new"
+              >
+                <Plus size={16} />
+                New environment
+              </Link>
+            )}
+            {canCreateCluster && (
+              <Link className="button button-primary" href="/clusters/new">
+                <Plus size={16} />
+                New cluster request
+              </Link>
+            )}
+            {canReview && !canCreateCluster && (
+              <Link className="button button-primary" href="/clusters/reviews">
+                Open review queue
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      <section className={layout.charts} aria-label="Platform overview charts">
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <Cloud size={19} />
+              </span>
+              <div>
+                <h2>
+                  Cloud footprint{" "}
+                  <HelpTip label="Cloud footprint">
+                    Environment profiles by cloud provider.
+                  </HelpTip>
+                </h2>
+              </div>
+            </div>
+          </header>
+          {environments.isPending ? (
+            <Loading label="Loading cloud footprint…" />
+          ) : environments.error ? (
+            <ErrorNotice
+              error={environments.error}
+              onRetry={() => environments.refetch()}
+            />
+          ) : providerTotal === 0 ? (
+            <p className="pd-empty">No environment profiles are available.</p>
+          ) : (
+            <div className="pd-footprint">
+              <DonutChart
+                title="Environment profiles by cloud provider"
+                value={providerTotal}
+                subtitle="environments"
+                segments={providerOrder.map((provider) => ({
+                  value:
+                    ((providerCounts[provider] ?? 0) / providerTotal) * 100,
+                  color: providerColors[provider],
+                }))}
+              />
+              <div className="pd-legend pd-provider-legend">
+                {providerOrder.map((provider) => (
+                  <div key={provider}>
+                    <ProviderLogo provider={provider} />
+                    <strong>{providerCounts[provider] ?? 0}</strong>
+                    <span>
+                      {percent(providerCounts[provider], providerTotal)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <Link
+            className="pd-card-link pd-card-footer-link"
+            href="/environments"
           >
-            <RefreshCw size={15} /> Refresh
-          </button>
-          {canCreateEnvironment && (
-            <Link className="button button-secondary" href="/environments/new">
-              <Plus size={17} /> New environment
+            View environment directory <ArrowRight size={15} />
+          </Link>
+        </article>
+
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <Gauge size={19} />
+              </span>
+              <div>
+                <h2>
+                  Active record coverage{" "}
+                  <HelpTip label="Active record coverage">
+                    Average active-record percentage across customers,
+                    environments and clusters. This is not runtime health.
+                  </HelpTip>
+                </h2>
+              </div>
+            </div>
+            <span className="pd-data-label">Current records</span>
+          </header>
+          <div className="pd-posture">
+            <div className="pd-gauge">
+              <svg
+                viewBox="0 0 180 180"
+                role="img"
+                aria-label={`Average active record coverage ${overallPosture}%`}
+              >
+                <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
+                <circle
+                  className="pd-gauge-value"
+                  cx="90"
+                  cy="90"
+                  r="70"
+                  pathLength="100"
+                  strokeDasharray={`${overallPosture} 100`}
+                />
+              </svg>
+              <div>
+                <strong>{overallPosture}%</strong>
+                <span>Active</span>
+              </div>
+            </div>
+            <div className="pd-posture-metrics">
+              <div>
+                <span>
+                  <i className="pd-dot-green" />
+                  Customers
+                </span>
+                <strong>{customerHealth}%</strong>
+                <small>Active onboarding records</small>
+              </div>
+              <div>
+                <span>
+                  <i className="pd-dot-blue" />
+                  Environments
+                </span>
+                <strong>{environmentHealth}%</strong>
+                <small>Active governed profiles</small>
+              </div>
+              <div>
+                <span>
+                  <i className="pd-dot-teal" />
+                  Clusters
+                </span>
+                <strong>{clusterHealth}%</strong>
+                <small>Active cluster records</small>
+              </div>
+            </div>
+          </div>
+          <div
+            className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
+          >
+            {(failedClusters.data ?? 0) > 0 ? (
+              <AlertTriangle size={17} />
+            ) : (
+              <CheckCircle2 size={17} />
+            )}
+            <span>
+              {(failedClusters.data ?? 0) > 0
+                ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
+                : "No failed cluster operations are active in your access scope."}
+            </span>
+          </div>
+        </article>
+
+        <article className="pd-card">
+          <header className="pd-card-heading">
+            <div>
+              <span className="pd-card-icon">
+                <Workflow size={19} />
+              </span>
+              <div>
+                <h2 id="dashboard-provisioning">
+                  Cluster workflow state{" "}
+                  <HelpTip label="Cluster workflow state">
+                    Current lifecycle position of Navigan cluster requests.
+                  </HelpTip>
+                </h2>
+              </div>
+            </div>
+          </header>
+          <div className="pd-provisioning-links">
+            <Link href="/clusters?status=PLAN_READY">
+              Plan ready {display(planReadyClusters.data)}
             </Link>
-          )}
-          {canCreateCluster && (
-            <Link className="button button-primary" href="/clusters/new">
-              <Plus size={17} /> New cluster request
+            <Link href="/clusters?status=APPLYING">
+              Applying {display(applyingClusters.data)}
             </Link>
+          </div>
+          {workflowTotal === 0 ? (
+            <p className="pd-empty">No cluster requests are available.</p>
+          ) : (
+            <div className="pd-workflow">
+              <div
+                className="pd-workflow-bar"
+                aria-label="Cluster lifecycle distribution"
+              >
+                {[
+                  {
+                    label: "Active",
+                    value: activeClusters.data ?? 0,
+                    color: "#65A449",
+                  },
+                  {
+                    label: "In delivery",
+                    value: workflowInProgress,
+                    color: "#237448",
+                  },
+                  {
+                    label: "Failed",
+                    value: failedClusters.data ?? 0,
+                    color: "#C84835",
+                  },
+                  { label: "Other", value: workflowOther, color: "#94A3B8" },
+                ]
+                  .filter((item) => item.value > 0)
+                  .map((item) => (
+                    <span
+                      key={item.label}
+                      title={`${item.label}: ${item.value}`}
+                      style={{ flex: item.value, background: item.color }}
+                    >
+                      {item.value}
+                    </span>
+                  ))}
+              </div>
+              <div className="pd-legend pd-workflow-legend">
+                <div>
+                  <span>
+                    <i className="pd-legend-active" />
+                    Active
+                  </span>
+                  <strong>{display(activeClusters.data)}</strong>
+                  <small>{percent(activeClusters.data, workflowTotal)}%</small>
+                </div>
+                <div>
+                  <span>
+                    <i className="pd-legend-progress" />
+                    In delivery
+                  </span>
+                  <strong>{workflowInProgress}</strong>
+                  <small>{percent(workflowInProgress, workflowTotal)}%</small>
+                </div>
+                <div>
+                  <span>
+                    <i className="pd-legend-failed" />
+                    Failed
+                  </span>
+                  <strong>{display(failedClusters.data)}</strong>
+                  <small>{percent(failedClusters.data, workflowTotal)}%</small>
+                </div>
+                <div>
+                  <span>
+                    <i className="pd-legend-other" />
+                    Other states
+                  </span>
+                  <strong>{workflowOther}</strong>
+                  <small>{percent(workflowOther, workflowTotal)}%</small>
+                </div>
+              </div>
+            </div>
           )}
-          {canReview && (
-            <Link className="button button-primary" href="/clusters/reviews">
-              Open review queue
-            </Link>
-          )}
-        </div>
+        </article>
       </section>
 
       <section
-        className="pd-overview-groups"
+        className={layout.coverageGroups}
         aria-label="Navigan platform KPIs"
       >
         {[
           {
             title: "Estate coverage",
             description:
-              "Customer, environment, and cluster coverage across your estate.",
+              "Active customer, environment and cluster records in your access scope.",
             icon: LayoutGrid,
             items: kpis.slice(0, 3),
             estate: true,
           },
           {
             title: "Operations",
-            description:
-              "Current activity and workflow status across governed environments.",
+            description: "Current activity and governed workflow status.",
             icon: Settings2,
             items: kpis.slice(3),
             estate: false,
           },
         ].map((group) => (
-          <article className="pd-overview-panel" key={group.title}>
-            <header className="pd-overview-heading">
-              <group.icon size={28} aria-hidden="true" />
-              <div>
-                <h2>{group.title}</h2>
-                <p>{group.description}</p>
-              </div>
+          <article className={layout.coveragePanel} key={group.title}>
+            <header className={layout.coverageHeading}>
+              <group.icon size={18} aria-hidden="true" />
+              <h2>{group.title}</h2>
+              <HelpTip label={group.title}>{group.description}</HelpTip>
             </header>
-            <div className="pd-overview-columns">
+            <div className={layout.metrics}>
               {group.items.map((kpi) => (
-                <Link
-                  className="pd-overview-metric"
-                  href={kpi.href}
-                  key={kpi.label}
-                >
-                  <span className="pd-overview-label">{kpi.label}</span>
-                  <span className="pd-overview-visual">
-                    {group.estate ? (
-                      <DonutChart
-                        title={`${kpi.label}: ${display(kpi.value)} of ${display(kpi.total)} (${percent(kpi.value, kpi.total)}%)`}
-                        value={
-                          kpi.total ? `${percent(kpi.value, kpi.total)}%` : "—"
-                        }
-                        subtitle=""
-                        segments={[
-                          {
-                            value: percent(kpi.value, kpi.total),
-                            color: "#568c3e",
-                          },
-                        ]}
-                      />
-                    ) : kpi.label === "Provisioning now" ? (
-                      <FileText size={36} aria-hidden="true" />
-                    ) : (
-                      <kpi.icon size={36} aria-hidden="true" />
+                <div className={layout.metric} key={kpi.label}>
+                  <Link className={layout.metricLink} href={kpi.href}>
+                    <span>{kpi.label}</span>
+                    <strong>{display(kpi.value)}</strong>
+                    {group.estate && (
+                      <small>of {display(kpi.total)} records</small>
                     )}
-                  </span>
-                  <strong className="pd-overview-value">
-                    {display(kpi.value)}
-                  </strong>
-                  <span className="pd-overview-detail">{kpi.detail}</span>
-                  <span className="pd-overview-detail">{kpi.note}</span>
-                </Link>
+                  </Link>
+                  <HelpTip className={layout.metricHelp} label={kpi.label}>
+                    {kpi.detail} {kpi.note}
+                  </HelpTip>
+                </div>
               ))}
             </div>
           </article>
@@ -526,11 +758,11 @@ export function PlatformDashboard() {
               <h2>
                 Needs your attention{" "}
                 <span className="pd-count">{awaitingAction}</span>
+                <HelpTip label="Needs your attention">
+                  Navigan approvals, provisioning exceptions and requests
+                  requiring action.
+                </HelpTip>
               </h2>
-              <p>
-                Navigan approvals, provisioning exceptions, and requests
-                requiring action.
-              </p>
             </div>
           </div>
           {canReview && (
@@ -641,238 +873,6 @@ export function PlatformDashboard() {
         </div>
       </section>
 
-      <section className="pd-primary-grid">
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <Cloud size={19} />
-              </span>
-              <div>
-                <h2>Cloud footprint</h2>
-                <p>Environment profiles by cloud provider.</p>
-              </div>
-            </div>
-          </header>
-          {environments.isPending ? (
-            <Loading label="Loading cloud footprint…" />
-          ) : environments.error ? (
-            <ErrorNotice
-              error={environments.error}
-              onRetry={() => environments.refetch()}
-            />
-          ) : providerTotal === 0 ? (
-            <p className="pd-empty">No environment profiles are available.</p>
-          ) : (
-            <div className="pd-footprint">
-              <DonutChart
-                title="Environment profiles by cloud provider"
-                value={providerTotal}
-                subtitle="environments"
-                segments={providerOrder.map((provider) => ({
-                  value:
-                    ((providerCounts[provider] ?? 0) / providerTotal) * 100,
-                  color: providerColors[provider],
-                }))}
-              />
-              <div className="pd-legend pd-provider-legend">
-                {providerOrder.map((provider) => (
-                  <div key={provider}>
-                    <ProviderLogo provider={provider} />
-                    <strong>{providerCounts[provider] ?? 0}</strong>
-                    <span>
-                      {percent(providerCounts[provider], providerTotal)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <Link
-            className="pd-card-link pd-card-footer-link"
-            href="/environments"
-          >
-            View environment directory <ArrowRight size={15} />
-          </Link>
-        </article>
-
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <Gauge size={19} />
-              </span>
-              <div>
-                <h2>Active record coverage</h2>
-                <p>
-                  Average active-record percentage across customers,
-                  environments, and clusters. This is not runtime health.
-                </p>
-              </div>
-            </div>
-            <span className="pd-data-label">Current records</span>
-          </header>
-          <div className="pd-posture">
-            <div className="pd-gauge">
-              <svg
-                viewBox="0 0 180 180"
-                role="img"
-                aria-label={`Average active record coverage ${overallPosture}%`}
-              >
-                <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
-                <circle
-                  className="pd-gauge-value"
-                  cx="90"
-                  cy="90"
-                  r="70"
-                  pathLength="100"
-                  strokeDasharray={`${overallPosture} 100`}
-                />
-              </svg>
-              <div>
-                <strong>{overallPosture}%</strong>
-                <span>Active</span>
-              </div>
-            </div>
-            <div className="pd-posture-metrics">
-              <div>
-                <span>
-                  <i className="pd-dot-green" />
-                  Customers
-                </span>
-                <strong>{customerHealth}%</strong>
-                <small>Active onboarding records</small>
-              </div>
-              <div>
-                <span>
-                  <i className="pd-dot-blue" />
-                  Environments
-                </span>
-                <strong>{environmentHealth}%</strong>
-                <small>Active governed profiles</small>
-              </div>
-              <div>
-                <span>
-                  <i className="pd-dot-teal" />
-                  Clusters
-                </span>
-                <strong>{clusterHealth}%</strong>
-                <small>Active cluster records</small>
-              </div>
-            </div>
-          </div>
-          <div
-            className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
-          >
-            {(failedClusters.data ?? 0) > 0 ? (
-              <AlertTriangle size={17} />
-            ) : (
-              <CheckCircle2 size={17} />
-            )}
-            <span>
-              {(failedClusters.data ?? 0) > 0
-                ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
-                : "No failed cluster operations are active in your access scope."}
-            </span>
-          </div>
-        </article>
-
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <Workflow size={19} />
-              </span>
-              <div>
-                <h2 id="dashboard-provisioning">Cluster workflow state</h2>
-                <p>Current lifecycle position of Navigan cluster requests.</p>
-              </div>
-            </div>
-          </header>
-          <div className="pd-provisioning-links">
-            <Link href="/clusters?status=PLAN_READY">
-              Plan ready {display(planReadyClusters.data)}
-            </Link>
-            <Link href="/clusters?status=APPLYING">
-              Applying {display(applyingClusters.data)}
-            </Link>
-          </div>
-          {workflowTotal === 0 ? (
-            <p className="pd-empty">No cluster requests are available.</p>
-          ) : (
-            <div className="pd-workflow">
-              <div
-                className="pd-workflow-bar"
-                aria-label="Cluster lifecycle distribution"
-              >
-                {[
-                  {
-                    label: "Active",
-                    value: activeClusters.data ?? 0,
-                    color: "#65A449",
-                  },
-                  {
-                    label: "In delivery",
-                    value: workflowInProgress,
-                    color: "#237448",
-                  },
-                  {
-                    label: "Failed",
-                    value: failedClusters.data ?? 0,
-                    color: "#C84835",
-                  },
-                  { label: "Other", value: workflowOther, color: "#94A3B8" },
-                ]
-                  .filter((item) => item.value > 0)
-                  .map((item) => (
-                    <span
-                      key={item.label}
-                      title={`${item.label}: ${item.value}`}
-                      style={{ flex: item.value, background: item.color }}
-                    >
-                      {item.value}
-                    </span>
-                  ))}
-              </div>
-              <div className="pd-legend pd-workflow-legend">
-                <div>
-                  <span>
-                    <i className="pd-legend-active" />
-                    Active
-                  </span>
-                  <strong>{display(activeClusters.data)}</strong>
-                  <small>{percent(activeClusters.data, workflowTotal)}%</small>
-                </div>
-                <div>
-                  <span>
-                    <i className="pd-legend-progress" />
-                    In delivery
-                  </span>
-                  <strong>{workflowInProgress}</strong>
-                  <small>{percent(workflowInProgress, workflowTotal)}%</small>
-                </div>
-                <div>
-                  <span>
-                    <i className="pd-legend-failed" />
-                    Failed
-                  </span>
-                  <strong>{display(failedClusters.data)}</strong>
-                  <small>{percent(failedClusters.data, workflowTotal)}%</small>
-                </div>
-                <div>
-                  <span>
-                    <i className="pd-legend-other" />
-                    Other states
-                  </span>
-                  <strong>{workflowOther}</strong>
-                  <small>{percent(workflowOther, workflowTotal)}%</small>
-                </div>
-              </div>
-            </div>
-          )}
-        </article>
-      </section>
-
       <section className="pd-card">
         <header className="pd-card-heading">
           <div>
@@ -880,8 +880,12 @@ export function PlatformDashboard() {
               <Clock3 size={19} />
             </span>
             <div>
-              <h2>Recent cluster activity</h2>
-              <p>Latest Kubernetes cluster requests in your access scope.</p>
+              <h2>
+                Recent cluster activity{" "}
+                <HelpTip label="Recent cluster activity">
+                  Latest Kubernetes cluster requests in your access scope.
+                </HelpTip>
+              </h2>
             </div>
           </div>
           <Link className="pd-card-link" href="/clusters">

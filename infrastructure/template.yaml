@@ -3,6 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Navigan parent stack: shared platform and separate module CloudFormation
   stacks'
 Parameters:
+  DeploymentEnvironment:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Selects the established environment-specific CloudFormation route ownership.
   JwtIssuer:
     Type: String
   JwtAudience:
@@ -57,8 +61,28 @@ Parameters:
     Description: Immutable digest of the migration source connector image
   SourceConnectorDeliveryRoleArn:
     Type: String
-    Default: arn:aws:iam::000000000000:role/NaviganSourceConnectorDeliveryRole
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z-]+:iam::(?!000000000000)[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$'
     Description: Explicitly approved customer AWS connector delivery role
+  MigrationSourceFirstEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  MigrationWorkspaceBucketName:
+    Type: String
+    Default: ''
+    Description: Existing companion workspace stack bucket; never create a replacement here
+  MigrationWorkspaceKmsKeyArn:
+    Type: String
+    Default: ''
+  MigrationWorkspaceBucketOwner:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[0-9]{12}$'
+  SourceRegistryAllowedRoleArns:
+    Type: CommaDelimitedList
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z-]+:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$'
   GitHubAppId:
     Type: String
     Default: ''
@@ -69,6 +93,10 @@ Parameters:
     Type: String
     Default: ''
     Description: Secret containing the PEM private key for the Navigan GitHub App
+  GitHubAppPrivateKeyKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: Optional customer-managed KMS key for the GitHub App secret
   BlueprintAdvisorModelId:
     Type: String
     Default: ''
@@ -88,6 +116,15 @@ Parameters:
     AllowedValues:
     - 'true'
     - 'false'
+Rules:
+  MigrationWorkspaceRequired:
+    RuleCondition: !Equals [!Ref MigrationSourceFirstEnabled, 'true']
+    Assertions:
+      - Assert: !And
+          - !Not [!Equals [!Ref MigrationWorkspaceBucketName, '']]
+          - !Not [!Equals [!Ref MigrationWorkspaceKmsKeyArn, '']]
+          - !Not [!Equals [!Ref MigrationWorkspaceBucketOwner, '']]
+        AssertDescription: Source-first migration requires the existing workspace bucket, KMS key and owner.
 Resources:
   SharedPlatform:
     Type: AWS::Serverless::Application
@@ -103,6 +140,8 @@ Resources:
     Properties:
       Location: modules/customer-management/template.yaml
       Parameters:
+        DeploymentEnvironment:
+          Ref: DeploymentEnvironment
         JwtScope: &id001
           Ref: JwtScope
         DatabaseName: &id002
@@ -148,6 +187,8 @@ Resources:
     Properties:
       Location: modules/environment-management/template.yaml
       Parameters:
+        DeploymentEnvironment:
+          Ref: DeploymentEnvironment
         JwtScope: *id001
         DatabaseName: *id002
         DatabaseProxyHost: *id003
@@ -165,6 +206,8 @@ Resources:
     Properties:
       Location: modules/cluster-management/template.yaml
       Parameters:
+        DeploymentEnvironment:
+          Ref: DeploymentEnvironment
         JwtScope: *id001
         DatabaseName: *id002
         DatabaseProxyHost: *id003
@@ -198,6 +241,15 @@ Resources:
     Properties:
       Location: modules/migration-management/template.yaml
       Parameters:
+        DeploymentEnvironment: !Ref DeploymentEnvironment
+        MigrationSourceFirstEnabled: !Ref MigrationSourceFirstEnabled
+        WorkspaceBucketName: !Ref MigrationWorkspaceBucketName
+        WorkspaceKmsKeyArn: !Ref MigrationWorkspaceKmsKeyArn
+        WorkspaceBucketOwner: !Ref MigrationWorkspaceBucketOwner
+        SourceRegistryAllowedRoleArns: !Join [',', !Ref SourceRegistryAllowedRoleArns]
+        GitHubAppId: !Ref GitHubAppId
+        GitHubAppPrivateKeySecretArn: !Ref GitHubAppPrivateKeySecretArn
+        GitHubAppPrivateKeyKmsKeyArn: !Ref GitHubAppPrivateKeyKmsKeyArn
         JwtScope: *id001
         DatabaseName: *id002
         DatabaseProxyHost: *id003

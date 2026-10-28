@@ -1,5 +1,7 @@
 "use client";
 
+import { runtimeConfig } from "@/shared/config/runtime-config";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -34,6 +36,7 @@ import type {
   Migration,
   SourceClusterRegistration,
   SourceEnrollment,
+  SourceInstallation,
 } from "./model";
 import { migrations, sourceClusters } from "./service";
 import styles from "./migration-management.module.css";
@@ -65,7 +68,7 @@ export function AssessmentWizard() {
   const [sourceDistribution, setSourceDistribution] = useState("");
   const [sourceLocationType, setSourceLocationType] = useState<
     "CLOUD" | "ON_PREMISES" | "OTHER"
-  >("ON_PREMISES");
+  >("CLOUD");
   const [sourceCloudProvider, setSourceCloudProvider] = useState<
     "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER"
   >("AWS");
@@ -83,6 +86,8 @@ export function AssessmentWizard() {
     useState<SourceClusterRegistration | null>(null);
   const [sourceEnrollment, setSourceEnrollment] =
     useState<SourceEnrollment | null>(null);
+  const [sourceInstallation, setSourceInstallation] =
+    useState<SourceInstallation | null>(null);
   const [sourceBusy, setSourceBusy] = useState(false);
   const [sourceError, setSourceError] = useState("");
   const [scopeSaved, setScopeSaved] = useState(false);
@@ -189,12 +194,10 @@ export function AssessmentWizard() {
   function downloadSourceBootstrap() {
     if (!sourceEnrollment || !selectedSource) return;
 
-    const apiBaseUrl =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
+    const apiBaseUrl = runtimeConfig().migrationConnectorApiBaseUrl ?? "";
     const imageRepository =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ?? "";
-    const imageDigest =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST ?? "";
+      runtimeConfig().migrationConnectorImageRepository ?? "";
+    const imageDigest = runtimeConfig().migrationConnectorImageDigest ?? "";
     if (!apiBaseUrl || !imageRepository || !imageDigest) {
       setSourceError(
         "The source connector image and API endpoint are not configured.",
@@ -258,9 +261,21 @@ export function AssessmentWizard() {
 
     setSourceBusy(true);
     setSourceError("");
+    setSourceEnrollment(null);
+    setSourceInstallation(null);
 
     try {
-      setMigration(await createMigrationDraft(sourceClusterId));
+      const created = await createMigrationDraft(sourceClusterId);
+      setMigration(created);
+      const existing = availableSourceClusters.find(
+        (item) => item.sourceClusterId === sourceClusterId,
+      );
+      if (
+        existing?.deliveryMethod === "AWS_SSM" &&
+        existing.status !== "CONNECTED"
+      ) {
+        await startSourceInstallation(existing);
+      }
     } catch (error) {
       setSourceError(normalizeApiError(error).message);
     } finally {
@@ -273,6 +288,7 @@ export function AssessmentWizard() {
 
     setSourceBusy(true);
     setSourceError("");
+    setSourceInstallation(null);
 
     try {
       const registered = await sourceClusters.create({
@@ -305,16 +321,97 @@ export function AssessmentWizard() {
               : undefined,
         },
       });
-      const enrollment = await sourceClusters.enroll(
-        registered.sourceClusterId,
-        registered.version,
-      );
+      // SSM installation issues its own short-lived enrollment credential on
+      // the server. Never issue a separate browser-held token for this path.
+      const enrollment =
+        registered.deliveryMethod === "AWS_SSM"
+          ? null
+          : await sourceClusters.enroll(
+              registered.sourceClusterId,
+              registered.version,
+            );
       const created = await createMigrationDraft(registered.sourceClusterId);
 
       setRegisteredSource(registered);
       setSourceClusterId(registered.sourceClusterId);
       setSourceEnrollment(enrollment);
       setMigration(created);
+      if (registered.deliveryMethod === "AWS_SSM") {
+        await startSourceInstallation(registered);
+      }
+    } catch (error) {
+      setSourceError(normalizeApiError(error).message);
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function startSourceInstallation(source: SourceClusterRegistration) {
+    try {
+      setSourceInstallation(
+        await sourceClusters.install(source.sourceClusterId, source.version),
+      );
+    } catch (error) {
+      const failure = normalizeApiError(error);
+      setSourceError(
+        failure.code === "SOURCE_CONNECTOR_ARTIFACT_UNAVAILABLE"
+          ? "The platform administrator must configure the server-side source connector image and API endpoint before automatic installation can start."
+          : failure.code === "SOURCE_DELIVERY_ROLE_NOT_APPROVED"
+            ? "The AWS SSM delivery role is not approved for this source cluster. Contact the platform administrator."
+            : failure.message,
+      );
+    }
+  }
+
+  async function installSourceConnector() {
+    if (
+      !selectedSource ||
+      selectedSource.deliveryMethod !== "AWS_SSM" ||
+      sourceCatalogue ||
+      sourceBusy ||
+      sourceInstallation
+    ) {
+      return;
+    }
+
+    setSourceBusy(true);
+    setSourceError("");
+    try {
+      // Enrollment changes the version; never retry an old SSM command key.
+      const latest = (await sourceClusters.list(customer)).items.find(
+        (item) => item.sourceClusterId === selectedSource.sourceClusterId,
+      );
+      if (!latest || latest.status === "REVOKED") {
+        setSourceError("The registered source cluster is unavailable.");
+        return;
+      }
+      await startSourceInstallation(latest);
+    } catch (error) {
+      setSourceError(normalizeApiError(error).message);
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function prepareSourceEnrollment() {
+    if (
+      !selectedSource ||
+      selectedSource.deliveryMethod === "AWS_SSM" ||
+      sourceCatalogue ||
+      sourceBusy
+    ) {
+      return;
+    }
+
+    setSourceBusy(true);
+    setSourceError("");
+    try {
+      setSourceEnrollment(
+        await sourceClusters.enroll(
+          selectedSource.sourceClusterId,
+          selectedSource.version,
+        ),
+      );
     } catch (error) {
       setSourceError(normalizeApiError(error).message);
     } finally {
@@ -752,12 +849,18 @@ export function AssessmentWizard() {
                             <span>Cluster location</span>
                             <select
                               value={sourceLocationType}
-                              onChange={(event) =>
-                                setSourceLocationType(
-                                  event.target.value as
-                                    "CLOUD" | "ON_PREMISES" | "OTHER",
-                                )
-                              }
+                              onChange={(event) => {
+                                const location = event.target.value as
+                                  "CLOUD" | "ON_PREMISES" | "OTHER";
+                                setSourceLocationType(location);
+                                if (location !== "CLOUD") {
+                                  setSourceDeliveryMethod((method) =>
+                                    method === "AWS_SSM"
+                                      ? "MANUAL_HELM"
+                                      : method,
+                                  );
+                                }
+                              }}
                             >
                               <option value="ON_PREMISES">On-premises</option>
                               <option value="CLOUD">Cloud account</option>
@@ -769,12 +872,18 @@ export function AssessmentWizard() {
                               <span>Cloud provider</span>
                               <select
                                 value={sourceCloudProvider}
-                                onChange={(event) =>
-                                  setSourceCloudProvider(
-                                    event.target.value as
-                                      "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER",
-                                  )
-                                }
+                                onChange={(event) => {
+                                  const provider = event.target.value as
+                                    "AWS" | "AZURE" | "GCP" | "OCI" | "OTHER";
+                                  setSourceCloudProvider(provider);
+                                  if (provider !== "AWS") {
+                                    setSourceDeliveryMethod((method) =>
+                                      method === "AWS_SSM"
+                                        ? "MANUAL_HELM"
+                                        : method,
+                                    );
+                                  }
+                                }}
                               >
                                 <option value="AWS">AWS</option>
                                 <option value="AZURE">Microsoft Azure</option>
@@ -797,7 +906,18 @@ export function AssessmentWizard() {
                             />
                           </label>
                           <label className="field">
-                            <span>Connector delivery</span>
+                            <span className={styles.platformFieldTitle}>
+                              <PlatformIcon
+                                platform={
+                                  sourceDeliveryMethod === "GITOPS"
+                                    ? "GITOPS"
+                                    : sourceDeliveryMethod === "AWS_SSM"
+                                      ? "AWS"
+                                      : "KUBERNETES"
+                                }
+                              />
+                              Connector delivery
+                            </span>
                             <select
                               value={sourceDeliveryMethod}
                               onChange={(event) =>
@@ -807,7 +927,13 @@ export function AssessmentWizard() {
                                 )
                               }
                             >
-                              <option value="AWS_SSM">
+                              <option
+                                value="AWS_SSM"
+                                disabled={
+                                  sourceLocationType !== "CLOUD" ||
+                                  sourceCloudProvider !== "AWS"
+                                }
+                              >
                                 AWS Systems Manager — no SSH
                               </option>
                               <option value="MANUAL_HELM">
@@ -818,6 +944,21 @@ export function AssessmentWizard() {
                             <small>
                               Navigan never uploads or stores your kubeconfig.
                             </small>
+                            <small>
+                              {sourceDeliveryMethod === "AWS_SSM"
+                                ? "AWS SSM installs the read-only connector through an authorized managed instance; it is not a generic Kubernetes login."
+                                : sourceDeliveryMethod === "GITOPS"
+                                  ? "GitOps distributes the connector manifest through your approved repository and reconciler; cluster credentials stay outside Navigan."
+                                  : "Helm setup is provided for installation by an authorized cluster administrator. Navigan does not upload or store kubeconfig."}
+                            </small>
+                            {(sourceLocationType !== "CLOUD" ||
+                              sourceCloudProvider !== "AWS") && (
+                              <small>
+                                AWS SSM delivery is available only for a source
+                                managed instance in an AWS cloud account. Use
+                                manual or GitOps delivery for this location.
+                              </small>
+                            )}
                           </label>
                           {sourceDeliveryMethod === "AWS_SSM" && (
                             <>
@@ -917,7 +1058,14 @@ export function AssessmentWizard() {
                         <dd>
                           {sourceCatalogue
                             ? "Inventory ready"
-                            : "Waiting for local connector setup"}
+                            : sourceInstallation
+                              ? "Connector installation requested"
+                              : sourceBusy &&
+                                  selectedSource.deliveryMethod === "AWS_SSM"
+                                ? "Starting secure connector installation"
+                                : selectedSource.deliveryMethod === "AWS_SSM"
+                                  ? "Waiting for source connection"
+                                  : "Waiting for connector setup"}
                         </dd>
                       </div>
                       <div>
@@ -926,24 +1074,137 @@ export function AssessmentWizard() {
                       </div>
                     </dl>
 
-                    {sourceEnrollment && !sourceCatalogue && (
-                      <div className={styles.bootstrapNotice}>
-                        <strong>Secure enrollment prepared</strong>
-                        <p>
-                          Download the short-lived setup file and open it with
-                          the approved Navigan bootstrap helper. The helper uses
-                          your selected kubeconfig locally and deletes the setup
-                          file after installation.
-                        </p>
-                        <button
-                          type="button"
-                          className="button button-primary"
-                          onClick={downloadSourceBootstrap}
+                    {selectedSource.deliveryMethod === "AWS_SSM" &&
+                      !sourceCatalogue && (
+                        <ol
+                          className={styles.sourceConnectionProgress}
+                          aria-label="Source connection progress"
                         >
-                          Download local connector setup
-                        </button>
-                      </div>
-                    )}
+                          <li>
+                            <CheckCircle2 size={16} aria-hidden="true" />
+                            <span>1. Source registered</span>
+                          </li>
+                          <li>
+                            <span aria-hidden="true">
+                              {sourceInstallation ? "✓" : "2"}
+                            </span>
+                            <span>
+                              {sourceInstallation
+                                ? "2. Installation submitted"
+                                : sourceError
+                                  ? "2. Installation needs attention"
+                                  : selectedSource.status === "CONNECTED"
+                                    ? "2. Installation not verified"
+                                    : "2. Starting installation"}
+                            </span>
+                          </li>
+                          <li>
+                            <span aria-hidden="true">3</span>
+                            <span>3. Inventory pending</span>
+                          </li>
+                        </ol>
+                      )}
+
+                    {!sourceCatalogue &&
+                      selectedSource.deliveryMethod === "AWS_SSM" && (
+                        <div className={styles.bootstrapNotice}>
+                          {sourceInstallation ? (
+                            <div role="status" aria-live="polite">
+                              <strong>
+                                Connecting source cluster automatically
+                              </strong>
+                              <p>
+                                AWS Systems Manager command{" "}
+                                {sourceInstallation.commandId} was submitted for{" "}
+                                {sourceInstallation.managedInstanceId}. Navigan
+                                is checking for the first source inventory
+                                automatically. Continue will become available
+                                when inventory is received.
+                              </p>
+                            </div>
+                          ) : sourceBusy ? (
+                            <div role="status" aria-live="polite">
+                              <strong>
+                                Starting secure source connection…
+                              </strong>
+                              <p>
+                                Registering the source and submitting the AWS
+                                Systems Manager installation command.
+                              </p>
+                            </div>
+                          ) : selectedSource.status === "CONNECTED" ? (
+                            <div role="status" aria-live="polite">
+                              <strong>Connector enrollment accepted</strong>
+                              <p>
+                                No source inventory has arrived. Enrollment
+                                alone does not confirm that the connector is
+                                running. Retry installation if the previous
+                                attempt failed.
+                              </p>
+                              <button
+                                type="button"
+                                className="button button-secondary"
+                                disabled={sourceBusy}
+                                onClick={() => void installSourceConnector()}
+                              >
+                                Retry connector installation
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <strong>Automatic source connection</strong>
+                              <p>
+                                Navigan starts AWS Systems Manager installation
+                                as part of source registration. If installation
+                                did not start, you can retry the same command
+                                without creating another source cluster.
+                              </p>
+                              {sourceError && (
+                                <button
+                                  type="button"
+                                  className="button button-secondary"
+                                  onClick={() => void installSourceConnector()}
+                                >
+                                  Retry source connection
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                    {!sourceCatalogue &&
+                      selectedSource.deliveryMethod !== "AWS_SSM" && (
+                        <div className={styles.bootstrapNotice}>
+                          <strong>Secure connector setup</strong>
+                          <p>
+                            {selectedSource.deliveryMethod === "GITOPS"
+                              ? "Download the short-lived connector setup for deployment through your approved GitOps process."
+                              : "Download the short-lived setup file and use it with the approved Navigan bootstrap helper on the source cluster."}{" "}
+                            The cluster credentials remain outside Navigan.
+                          </p>
+                          {sourceEnrollment ? (
+                            <button
+                              type="button"
+                              className="button button-primary"
+                              onClick={downloadSourceBootstrap}
+                            >
+                              Download connector setup
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button button-primary"
+                              disabled={sourceBusy}
+                              onClick={() => void prepareSourceEnrollment()}
+                            >
+                              {sourceBusy
+                                ? "Preparing connector setup…"
+                                : "Prepare connector setup"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -979,7 +1240,10 @@ export function AssessmentWizard() {
                 )}
 
                 {catalogueQuery.isError && (
-                  <p role="alert">Unable to retrieve the source catalogue.</p>
+                  <p role="alert">
+                    Unable to retrieve the source catalogue. Navigan will retry
+                    automatically while this assessment is open.
+                  </p>
                 )}
 
                 {sourceError && <p role="alert">{sourceError}</p>}

@@ -41,6 +41,14 @@ const listQuery = vi.fn(() => ({
 }));
 vi.mock("@/modules/environment-management/hooks/queries", () => ({
   useEnvironments: (...args: unknown[]) => listQuery(...(args as [])),
+  useEnvironmentSummary: () => ({
+    data: {
+      total: 2,
+      byStatus: { ACTIVE: 1 },
+      byProvider: { AWS: 1, AZURE: 1 },
+    },
+    refetch: vi.fn(),
+  }),
   useEnvironmentCount: (status?: string) => ({
     data: status === "ACTIVE" ? 1 : status ? 0 : 2,
   }),

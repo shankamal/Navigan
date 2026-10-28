@@ -276,6 +276,25 @@ def build():
         ("reviews", "Reviews"),
     ]:
         endpoint(base + "/{customerId}/" + action, "get", "Get " + schema, output=schema)
+    # Keep the implemented summary endpoint in generated contracts.
+    paths[base + "/summary"] = {'get': {'summary': 'Tenant-scoped customer metrics grouped by lifecycle and provider',
+             'operationId': 'GetCustomerSummary',
+             'tags': ['Customer Management'],
+             'responses': {'200': {'description': 'Metrics for customers visible to the caller',
+                                   'content': {'application/json': {'schema': {'type': 'object',
+                                                                               'required': ['total',
+                                                                                            'byStatus',
+                                                                                            'byProvider'],
+                                                                               'properties': {'total': {'type': 'integer',
+                                                                                                        'minimum': 0},
+                                                                                              'byStatus': {'type': 'object',
+                                                                                                           'additionalProperties': {'type': 'integer',
+                                                                                                                                    'minimum': 0}},
+                                                                                              'byProvider': {'type': 'object',
+                                                                                                             'additionalProperties': {'type': 'integer',
+                                                                                                                                      'minimum': 0}}}}}}},
+                           '401': {'description': 'Unauthenticated'},
+                           '403': {'description': 'Forbidden'}}}}
     return {
         "openapi": "3.1.0",
         "info": {

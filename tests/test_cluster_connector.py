@@ -110,6 +110,7 @@ def test_connector_returns_desired_access_rules_and_generic_runtime_policy(monke
             "status": "ACTIVE",
         },
         {"revision": 1234},
+        None,  # No active cluster system repository; legacy image policy applies.
     ]
     db.execute.return_value.fetchall.return_value = [
         {
@@ -339,3 +340,137 @@ def test_bootstrap_remains_pending_until_namespace_inventory_is_ready():
 
     statements = [call.args[0] for call in db.execute.call_args_list]
     assert not any("SET status='ACTIVE'" in sql for sql in statements)
+
+
+
+def test_runtime_resource_accepts_observed_node_allocatable_values():
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    node = RuntimeResourceItem.model_validate({
+        "kind": "Node", "name": "worker-1", "status": "HEALTHY",
+        "ready": 1, "desired": 1, "restarts": 0,
+        "allocatableCpu": "1930m", "allocatableMemory": "7350Mi",
+    })
+    assert node.allocatableCpu == "1930m"
+    assert node.allocatableMemory == "7350Mi"
+
+
+def test_runtime_resource_rejects_malformed_allocatable_quantity():
+    from pydantic import ValidationError
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    with pytest.raises(ValidationError):
+        RuntimeResourceItem.model_validate({
+            "kind": "Node", "name": "worker-1", "status": "HEALTHY",
+            "ready": 1, "desired": 1, "restarts": 0,
+            "allocatableCpu": "invalid", "allocatableMemory": "7350Mi",
+        })
+
+
+def test_runtime_resource_validates_node_scheduling_observations():
+    from pydantic import ValidationError
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    fields = {
+        "kind": "Node", "name": "worker-2", "status": "HEALTHY",
+        "ready": 1, "desired": 1, "restarts": 0,
+        "unschedulable": True, "taintCount": 2,
+    }
+    node = RuntimeResourceItem.model_validate(fields)
+    assert node.unschedulable is True
+    assert node.taintCount == 2
+    with pytest.raises(ValidationError):
+        RuntimeResourceItem.model_validate({**fields, "taintCount": -1})
+    with pytest.raises(ValidationError):
+        RuntimeResourceItem.model_validate({**fields, "unschedulable": "true"})
+
+
+def test_connector_runtime_accepts_storageclass_and_csidriver():
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+
+    for kind, name in [("StorageClass", "gp3"), ("CSIDriver", "ebs.csi.aws.com")]:
+        result = RuntimeResourceItem.model_validate({
+            "kind": kind, "name": name, "namespace": None,
+            "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
+        })
+        assert result.kind == kind
+
+
+def test_connector_runtime_accepts_storage_class_provisioning_observations():
+    from navigan.modules.cluster_management.connector_handler import RuntimeResourceItem
+    result = RuntimeResourceItem.model_validate({
+        "kind": "StorageClass", "name": "gp3", "status": "OBSERVED",
+        "ready": 0, "desired": 0, "restarts": 0,
+        "provisioner": "ebs.csi.aws.com", "volumeBindingMode": "WaitForFirstConsumer",
+        "reclaimPolicy": "Delete",
+    })
+    assert result.provisioner == "ebs.csi.aws.com"
+    assert result.volumeBindingMode == "WaitForFirstConsumer"
+
+
+def test_cluster_scoped_connector_gitops_upgrade_only_commits_target_files(monkeypatch):
+    from navigan.modules.cluster_management.repository import Repository
+
+    monkeypatch.setenv(
+        "CONNECTOR_IMAGE_URI",
+        "905418045935.dkr.ecr.ap-south-1.amazonaws.com/approved-connector@sha256:" + "a" * 64,
+    )
+    monkeypatch.setenv("CONNECTOR_API_BASE_URL", "https://api.example.test")
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = {
+        "connector_id": "KCC-0123456789abcdef0123456789abcdef",
+        "installation_status": "SUCCEEDED",
+    }
+    repo = Repository(db, MagicMock())
+    repo.get = MagicMock(return_value={"version": 5})
+    repo.system_repository_access = MagicMock(return_value={
+        "installation_id": 101,
+        "organization_login": "example-org",
+        "repository_name": "target-cluster-system",
+        "default_branch": "main",
+    })
+    app = MagicMock()
+    existing_values = (
+        "image:\n"
+        "  repository: 905418045935.dkr.ecr.ap-south-1.amazonaws.com/approved-connector\n"
+        "  tag: \"\"\n"
+        "  digest: sha256:" + "a" * 64 + "\n"
+        "  pullPolicy: IfNotPresent\n"
+        "navigan:\n"
+        "  connectorId: KCC-0123456789abcdef0123456789abcdef\n"
+        "  syncIntervalSeconds: 79\n"
+        "  toolsTunnelUrl: wss://custom.example.test/tunnel\n"
+    )
+    app.read_repository_file.return_value = existing_values
+    app.commit_files.return_value = {"revision": "commit-1", "branch": "main"}
+    response = repo.upgrade_connector_gitops(
+        "CLU-target",
+        {"version": 5, "imageDigest": "sha256:" + "b" * 64, "reason": "Migration capability discovery"},
+        github_app=app,
+    )
+    assert response["status"] == "GITOPS_CHANGE_COMMITTED"
+    args, kwargs = app.commit_files.call_args
+    assert args[:3] == (101, "example-org", "target-cluster-system")
+    assert set(args[3]) == {
+        "values/connector.yaml",
+        "charts/navigan-cluster-connector/templates/rbac.yaml",
+    }
+    assert 'digest: sha256:' + "b" * 64 in args[3]["values/connector.yaml"]
+    assert "\\n" not in args[3]["values/connector.yaml"]
+    assert "syncIntervalSeconds: 79" in args[3]["values/connector.yaml"]
+    assert "toolsTunnelUrl: wss://custom.example.test/tunnel" in args[3]["values/connector.yaml"]
+    assert app.read_repository_file.call_args.args[:3] == (101, "example-org", "target-cluster-system")
+    assert "customresourcedefinitions" in args[3]["charts/navigan-cluster-connector/templates/rbac.yaml"]
+    assert kwargs["branch"] == "main"
+
+
+def test_cluster_scoped_connector_gitops_upgrade_rejects_stale_version():
+    from navigan.modules.cluster_management.repository import Repository
+
+    repo = Repository(MagicMock(), MagicMock())
+    repo.get = MagicMock(return_value={"version": 6})
+    with pytest.raises(ApiError):
+        repo.upgrade_connector_gitops(
+            "CLU-target",
+            {"version": 5, "imageDigest": "sha256:" + "b" * 64, "reason": "Migration discovery"},
+        )

@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/shared/components/app-shell";
 import { PublicShell } from "@/shared/components/public-shell";
 import { architect, engineer } from "./fixtures";
+import {
+  installRuntimeConfig,
+  runtimeConfig,
+} from "@/shared/config/runtime-config";
 
 const signOut = vi.fn();
 let identity = engineer;
@@ -23,7 +27,7 @@ describe("Application shell permissions", () => {
     identity = engineer;
     pathname = "/customers";
     signOut.mockReset();
-    delete process.env.NEXT_PUBLIC_MIGRATION_UI_PREVIEW;
+    installRuntimeConfig({ ...runtimeConfig(), migrationUiPreview: false });
   });
 
   it("shows one top-level management entry per domain to a Cloud Engineer", () => {
@@ -114,7 +118,7 @@ describe("Application shell permissions", () => {
   });
 
   it("supports an explicit non-production migration preview", () => {
-    process.env.NEXT_PUBLIC_MIGRATION_UI_PREVIEW = "true";
+    installRuntimeConfig({ ...runtimeConfig(), migrationUiPreview: true });
     identity = {
       ...engineer,
       roles: [],

@@ -152,6 +152,12 @@ def execute(event, principal, correlation, tx=transaction):
     if suffix is None:
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     parts = suffix.strip("/").split("/") if suffix else []
+    if parts == ["summary"]:
+        if method != "GET":
+            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")
+        with tx() as db:
+            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            return response(200, Repository(db, principal).summary(), correlation)
     if method == "GET" and len(parts) == 3 and parts[0] == "configuration-schemas":
         return response(200, schema(parts[1], parts[2]), correlation)
     if method == "GET" and parts == ["metadata"]:

@@ -3,6 +3,21 @@ Transform: AWS::Serverless-2016-10-31
 Description: Navigan assessment-only Migration Management API
 
 Parameters:
+  DeploymentEnvironment: {Type: String, AllowedValues: [dev, prod]}
+  MigrationSourceFirstEnabled: {Type: String, Default: 'false', AllowedValues: ['true','false']}
+  GitHubAppId: {Type: String, Default: ''}
+  GitHubAppPrivateKeySecretArn: {Type: String, Default: ''}
+  GitHubAppPrivateKeyKmsKeyArn: {Type: String, Default: ''}
+  SourceRegistryAllowedRoleArns:
+    Type: CommaDelimitedList
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z-]+:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$'
+  EnableWorkspaceCollector: {Type: String, Default: 'false', AllowedValues: ['true','false']}
+  WorkspaceGithubAppId: {Type: String, Default: ''}
+  WorkspaceGithubKeySecretArn: {Type: String, Default: ''}
+  WorkspaceBucketName: {Type: String, Default: ''}
+  WorkspaceKmsKeyArn: {Type: String, Default: ''}
+  WorkspaceBucketOwner: {Type: String, Default: ''}
   JwtScope: {Type: String, Default: navigan/api}
   DatabaseName: {Type: String}
   DatabaseProxyHost: {Type: String}
@@ -17,7 +32,18 @@ Parameters:
   MigrationConnectorImageDigest: {Type: String, Default: ''}
   SourceConnectorDeliveryRoleArn:
     Type: String
-    Default: arn:aws:iam::000000000000:role/NaviganSourceConnectorDeliveryRole
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z-]+:iam::(?!000000000000)[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$'
+
+Rules:
+  MigrationWorkspaceRequired:
+    RuleCondition: !Equals [!Ref MigrationSourceFirstEnabled, 'true']
+    Assertions:
+      - Assert: !And
+          - !Not [!Equals [!Ref WorkspaceBucketName, '']]
+          - !Not [!Equals [!Ref WorkspaceKmsKeyArn, '']]
+          - !Not [!Equals [!Ref WorkspaceBucketOwner, '']]
+        AssertDescription: Source-first migration requires existing workspace storage configuration.
 
 Globals:
   Function:
@@ -37,7 +63,97 @@ Globals:
         DB_CA_BUNDLE: /opt/certs/global-bundle.pem
         DB_SECRET_ARN: {Ref: ApiDatabaseSecretArn}
 
+Conditions:
+  IsProd: !Equals [!Ref DeploymentEnvironment, prod]
+  MigrationGithubConfigured: !And [!Not [!Equals [!Ref GitHubAppId, '']], !Not [!Equals [!Ref GitHubAppPrivateKeySecretArn, '']]]
+  MigrationGithubKeyConfigured: !Not [!Equals [!Ref GitHubAppPrivateKeyKmsKeyArn, '']]
+  MigrationDeliveryRoleConfigured: !Not [!Equals [!Ref SourceConnectorDeliveryRoleArn, '']]
+  AdditionalRegistryRolesConfigured: !Not [!Equals [!Join ['', !Ref SourceRegistryAllowedRoleArns], '']]
+  WorkspaceCollectorEnabled: !Equals [!Ref EnableWorkspaceCollector, 'true']
+  WorkspaceAppKeyConfigured: !And [!Equals [!Ref EnableWorkspaceCollector, 'true'], !Not [!Equals [!Ref WorkspaceGithubKeySecretArn, '']]]
 Resources:
+  MigrationGithubReadPolicy:
+    Type: AWS::IAM::Policy
+    Condition: MigrationGithubConfigured
+    Properties:
+      PolicyName: NaviganMigrationGithubRead
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref GitHubAppPrivateKeySecretArn
+  MigrationGithubDecryptPolicy:
+    Type: AWS::IAM::Policy
+    Condition: MigrationGithubKeyConfigured
+    Properties:
+      PolicyName: NaviganMigrationGithubDecrypt
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Ref GitHubAppPrivateKeyKmsKeyArn
+  MigrationDeliveryRolePolicy:
+    Type: AWS::IAM::Policy
+    Condition: MigrationDeliveryRoleConfigured
+    Properties:
+      PolicyName: NaviganMigrationDeliveryRole
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Ref SourceConnectorDeliveryRoleArn
+  MigrationRegistryRolesPolicy:
+    Type: AWS::IAM::Policy
+    Condition: AdditionalRegistryRolesConfigured
+    Properties:
+      PolicyName: NaviganMigrationConfiguredRegistryRoles
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Ref SourceRegistryAllowedRoleArns
+  WorkspaceAppKeyReadPolicy:
+    Type: AWS::IAM::Policy
+    Condition: WorkspaceAppKeyConfigured
+    Properties:
+      PolicyName: NaviganWorkspaceGithubKeyRead
+      Roles: [!Ref MigrationFunctionRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref WorkspaceGithubKeySecretArn
+  WorkspaceCollectorFunction:
+    Type: AWS::Serverless::Function
+    Condition: WorkspaceCollectorEnabled
+    Properties:
+      Handler: navigan.modules.migration_management.workspace_worker.lambda_handler
+      Role: !GetAtt MigrationFunctionRole.Arn
+      Timeout: 240
+      MemorySize: 512
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          MIGRATION_WORKSPACE_BUCKET: !Ref WorkspaceBucketName
+          MIGRATION_WORKSPACE_KMS_KEY: !Ref WorkspaceKmsKeyArn
+          MIGRATION_WORKSPACE_BUCKET_OWNER: !Ref WorkspaceBucketOwner
+          GITHUB_APP_ID: !Ref WorkspaceGithubAppId
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref WorkspaceGithubKeySecretArn
+      Events:
+        QueuePoll:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Enabled: true
   MigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -45,6 +161,18 @@ Resources:
       ReservedConcurrentExecutions: 10
       Environment:
         Variables:
+          MIGRATION_SOURCE_FIRST_ENABLED: !Ref MigrationSourceFirstEnabled
+          GITHUB_APP_ID: !Ref GitHubAppId
+          GITHUB_APP_PRIVATE_KEY_SECRET_ARN: !Ref GitHubAppPrivateKeySecretArn
+          SOURCE_REGISTRY_ALLOWED_ROLE_ARNS: !If
+            - AdditionalRegistryRolesConfigured
+            - !Sub
+              - '["${Roles}"]'
+              - Roles: !Join ['","', !Ref SourceRegistryAllowedRoleArns]
+            - '[]'
+          MIGRATION_WORKSPACE_BUCKET: {Ref: WorkspaceBucketName}
+          MIGRATION_WORKSPACE_KMS_KEY: {Ref: WorkspaceKmsKeyArn}
+          MIGRATION_WORKSPACE_BUCKET_OWNER: {Ref: WorkspaceBucketOwner}
           MIGRATION_CONNECTOR_API_BASE_URL:
             Fn::Sub: >-
               https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/api/v1
@@ -52,6 +180,8 @@ Resources:
             Ref: MigrationConnectorImageRepository
           MIGRATION_CONNECTOR_IMAGE_DIGEST:
             Ref: MigrationConnectorImageDigest
+          SOURCE_REGISTRY_PRINCIPAL_ARN:
+            Fn::GetAtt: [MigrationFunctionRole, Arn]
           SOURCE_CONNECTOR_DELIVERY_ROLE_ARN:
             Ref: SourceConnectorDeliveryRoleArn
       Policies:
@@ -64,8 +194,14 @@ Resources:
               Action: kms:Decrypt
               Resource: {Ref: SecretsKmsKeyArn}
             - Effect: Allow
+              Action:
+                - secretsmanager:CreateSecret
+                - secretsmanager:PutSecretValue
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/source-connections/*
+            - Effect: Allow
               Action: sts:AssumeRole
-              Resource: {Ref: SourceConnectorDeliveryRoleArn}
+              Resource: arn:aws:iam::*:role/navigan-source-discovery/*
 
   MigrationConnectorFunction:
     Type: AWS::Serverless::Function
@@ -111,6 +247,102 @@ Resources:
       SourceArn:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-clusters*
+
+  NaviganProdArtifactRoute0:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute1:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: SourceClusterInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute2:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/deployment-evidence
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute3:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/deployment-evidence
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute4:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute5:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute6:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  NaviganProdArtifactRoute7:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   MigrationConnectorIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -166,6 +398,21 @@ Resources:
       SourceArn:
         Fn::Sub: >-
           arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/v1/*/api/v1/source-connectors*
+
+  NaviganProdArtifactRoute8:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports
+      Target:
+        Fn::Join:
+          - /
+          - - integrations
+            - {Ref: MigrationIntegration}
 
   MigrationConnectorAssignmentRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -259,6 +506,39 @@ Resources:
           - - integrations
             - {Ref: MigrationConnectorIntegration}
 
+  GetMigrationTargetAssessmentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/target-assessment
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  RunMigrationTargetAssessmentRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: POST /api/v1/migrations/{migrationId}/target-assessment
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
+  GetMigrationTargetCompatibilityRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: MigrationInvokePermission
+    Properties:
+      ApiId: {Ref: ApiId}
+      AuthorizationType: JWT
+      AuthorizerId: {Ref: AuthorizerId}
+      AuthorizationScopes: [{Ref: JwtScope}]
+      RouteKey: GET /api/v1/migrations/{migrationId}/target-compatibility
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
+
   CreateMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: MigrationInvokePermission
@@ -339,14 +619,14 @@ Resources:
 
   InstallSourceClusterConnectorRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: SourceClusterInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
       AuthorizationType: JWT
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
-      RouteKey: >-
-        POST /api/v1/source-clusters/{sourceClusterId}/install
+      RouteKey: POST /api/v1/source-clusters/{sourceClusterId}/install
       Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   GetMigrationRoute:
@@ -377,6 +657,7 @@ Resources:
 
   GetMigrationSourceInventoryRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}
@@ -384,11 +665,7 @@ Resources:
       AuthorizerId: {Ref: AuthorizerId}
       AuthorizationScopes: [{Ref: JwtScope}]
       RouteKey: GET /api/v1/migrations/{migrationId}/source-inventory
-      Target:
-        Fn::Join:
-          - /
-          - - integrations
-            - {Ref: MigrationIntegration}
+      Target: {Fn::Join: ['/', [integrations, {Ref: MigrationIntegration}]]}
 
   GetMigrationAssessmentRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -429,6 +706,7 @@ Resources:
 
   AssessMigrationRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: IsProd
     DependsOn: MigrationInvokePermission
     Properties:
       ApiId: {Ref: ApiId}

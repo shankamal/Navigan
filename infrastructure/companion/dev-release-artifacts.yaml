@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Isolated DEV build-once artifact registry; no application runtime changes
+Parameters:
+  ImageWorkerExecutionRoleArn:
+    Type: String
+    Default: ''
+Conditions:
+  HasImageWorkerRole: !Not [!Equals [!Ref ImageWorkerExecutionRoleArn, '']]
+Resources:
+  Artifacts:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      VersioningConfiguration: {Status: Enabled}
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      Tags:
+        - {Key: 'navigan:environment', Value: dev}
+        - {Key: 'navigan:purpose', Value: release-artifacts}
+  ArtifactsPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Artifacts
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt Artifacts.Arn, !Sub '${Artifacts.Arn}/*']
+            Condition: {Bool: {'aws:SecureTransport': 'false'}}
+  Frontend:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: navigan/dev-release/frontend
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      Tags: [{Key: 'navigan:environment', Value: dev}]
+  ImageWorker:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: navigan/dev-release/image-worker
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      Tags: [{Key: 'navigan:environment', Value: dev}]
+      RepositoryPolicyText: !If
+        - HasImageWorkerRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: {AWS: !Ref ImageWorkerExecutionRoleArn}
+              Action: ['ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer', 'ecr:BatchCheckLayerAvailability']
+        - !Ref AWS::NoValue
+  ClusterConnector:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: navigan/dev-release/cluster-connector
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      Tags: [{Key: 'navigan:environment', Value: dev}]
+  MigrationConnector:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: navigan/dev-release/migration-connector
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      Tags: [{Key: 'navigan:environment', Value: dev}]
+  TerraformRunner:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: navigan/dev-release/terraform-runner
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      Tags: [{Key: 'navigan:environment', Value: dev}]
+  ToolsGateway:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: navigan/dev-release/tools-gateway
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+      Tags: [{Key: 'navigan:environment', Value: dev}]
+Outputs:
+  ArtifactBucket: {Value: !Ref Artifacts}
+  FrontendRepository: {Value: !GetAtt Frontend.RepositoryUri}

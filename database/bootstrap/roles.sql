@@ -68,6 +68,7 @@ GRANT SELECT,INSERT ON
  migration_management.migration_source_catalogues,
  migration_management.migration_source_inventories,
  migration_management.migration_assessments,
+ migration_management.migration_target_assessments,
  migration_management.migration_status_history,
  migration_management.migration_audit_log,
  migration_management.source_cluster_audit_log TO navigan_api;
@@ -90,3 +91,12 @@ GRANT INSERT,UPDATE ON access_management.users,access_management.roles,
 GRANT INSERT,UPDATE ON access_management.kubernetes_access_assignments TO navigan_api;
 GRANT INSERT,SELECT ON access_management.access_audit_log TO navigan_api;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA access_management TO navigan_api;
+
+-- Migration artifact workspace foundation (migration 027).
+GRANT SELECT,INSERT ON migration_management.artifact_workspaces,
+  migration_management.workspace_artifacts TO navigan_api;
+
+-- Phase 2 collection API and worker. Runtime login is inherited from the API function.
+GRANT SELECT,INSERT,UPDATE ON migration_management.workspace_collection_jobs TO navigan_api;
+GRANT UPDATE ON migration_management.artifact_workspaces,
+ migration_management.workspace_artifacts TO navigan_api;

@@ -2,6 +2,10 @@
 # stdout is the immutable image URI; progress goes to stderr for IMAGE_URI=$(...) usage.
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+if [[ -f "$NAVIGAN_ROOT/frontend/src/shared/config/public-config.ts" ]]; then
+  printf 'Portable frontend source requires scripts/build-release.py and the DEV manifest deployment path. Legacy build/deploy is disabled before AWS writes.\n' >&2
+  exit 1
+fi
 require_command docker
 validate_public_config
 docker info >/dev/null

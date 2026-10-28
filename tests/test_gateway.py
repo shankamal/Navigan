@@ -3,13 +3,16 @@
 import json
 from pathlib import Path
 import tomllib
-import yaml
+import importlib.util
 
 ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location("gateway_sam_contract", ROOT / "scripts/generate-sam-contract.py")
+generator = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(generator)
 
 
 def templates():
-    return tuple(yaml.safe_load((ROOT / path).read_text()) for path in (
+    return tuple(generator.load_template(ROOT / path) for path in (
         'infrastructure/template.yaml',
         'infrastructure/shared/template.yaml',
         'infrastructure/modules/customer-management/template.yaml',
@@ -23,7 +26,12 @@ def test_gateway_exposes_every_documented_operation_with_authentication():
     expected = {f'{method.upper()} {path}' for path, methods in contract['paths'].items() for method in methods}
     routes = [r['Properties'] for r in module['Resources'].values() if r['Type'] == 'AWS::ApiGatewayV2::Route']
     assert {p['RouteKey'] for p in routes} == expected
-    assert len(routes) == len(expected) == 18
+    assert len(expected) == 19
+    for environment, condition in (("dev", "IsDev"), ("prod", "IsProd")):
+        active = [r['Properties']['RouteKey'] for r in module['Resources'].values()
+                  if r['Type'] == 'AWS::ApiGatewayV2::Route' and r.get('Condition') in (None, condition)]
+        assert len(active) == len(set(active)) == 19, environment
+        assert set(active) == expected
     for props in routes:
         assert props['ApiId'] == {'Ref': 'ApiId'}
         assert props['AuthorizationType'] == 'JWT'
@@ -64,7 +72,8 @@ def test_parent_passes_all_required_child_parameters_and_outputs():
         assert app['Type'] == 'AWS::Serverless::Application'
         assert (ROOT / 'infrastructure' / app['Properties']['Location']).is_file()
         supplied = app['Properties']['Parameters']
-        assert set(supplied) == set(child['Parameters'])
+        assert set(supplied) <= set(child['Parameters'])
+        assert {key for key, value in child['Parameters'].items() if 'Default' not in value} <= set(supplied)
         for value in supplied.values():
             if 'Ref' in value:
                 assert value['Ref'] in parent['Parameters']
@@ -96,7 +105,7 @@ def test_sam_config_builds_parent_and_deploys_built_nested_templates():
     assert env['build']['parameters']['use_container'] is True
     deploy = env['deploy']['parameters']
     assert deploy['template_file'] == '.aws-sam/build/template.yaml'
-    assert {'CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND'} <= set(deploy['capabilities'].split())
+    assert {'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'} <= set(deploy['capabilities'].split())
     assert deploy['confirm_changeset'] is True
 
 
@@ -123,7 +132,17 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         "GET /api/v1/migrations/{migrationId}/source-catalogue",
         "GET /api/v1/migrations/{migrationId}/source-inventory",
         "GET /api/v1/migrations/{migrationId}/assessment",
+        "GET /api/v1/migrations/{migrationId}/target-assessment",
+        "POST /api/v1/migrations/{migrationId}/target-assessment",
+        "GET /api/v1/migrations/{migrationId}/target-compatibility",
         "PUT /api/v1/migrations/{migrationId}",
+        "GET /api/v1/migrations/{migrationId}/deployment-evidence",
+        "POST /api/v1/migrations/{migrationId}/deployment-evidence",
+        "GET /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces",
+        "GET /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/collection-jobs",
+        "POST /api/v1/migrations/{migrationId}/artifact-workspaces/{workspaceId}/exports",
         *{
             f"POST /api/v1/migrations/{{migrationId}}/{action}"
             for action in (
@@ -152,6 +171,8 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         "GET /api/v1/source-clusters",
         "GET /api/v1/source-clusters/{sourceClusterId}",
         "PUT /api/v1/source-clusters/{sourceClusterId}",
+        "GET /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
+        "PUT /api/v1/source-clusters/{sourceClusterId}/deployment-sources",
         (
             "POST /api/v1/source-clusters/"
             "{sourceClusterId}/enrollments"
@@ -207,20 +228,27 @@ def test_migration_routes_require_jwt_scope_and_least_privilege():
         assert policies[0] == "AWSLambdaVPCAccessExecutionRole"
 
         statements = policies[1]["Statement"]
-        actions = {statement["Action"] for statement in statements}
+        actions = {action for statement in statements for action in (
+            statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
+        )}
         expected_actions = {
             "secretsmanager:GetSecretValue",
             "kms:Decrypt",
         }
         if function_name == "MigrationFunction":
             expected_actions.add("sts:AssumeRole")
+            expected_actions.update({"secretsmanager:CreateSecret", "secretsmanager:PutSecretValue"})
             assume_role = next(
                 statement
                 for statement in statements
                 if statement["Action"] == "sts:AssumeRole"
             )
-            assert assume_role["Resource"] == {
-                "Ref": "SourceConnectorDeliveryRoleArn"
-            }
+            assert assume_role["Resource"] == "arn:aws:iam::*:role/navigan-source-discovery/*"
+            connection_secrets = next(s for s in statements if isinstance(s['Action'], list))
+            assert connection_secrets['Resource'] == {'Fn::Sub':
+                'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/source-connections/*'}
 
         assert actions == expected_actions
+    delivery = migration['Resources']['MigrationDeliveryRolePolicy']
+    assert delivery['Condition'] == 'MigrationDeliveryRoleConfigured'
+    assert delivery['Properties']['PolicyDocument']['Statement'][0]['Resource'] == {'Ref': 'SourceConnectorDeliveryRoleArn'}

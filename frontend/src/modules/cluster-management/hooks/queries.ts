@@ -5,16 +5,16 @@ import type { ClusterFilters } from "../model";
 export const useClusters = (filters: ClusterFilters) =>
   useQuery({
     queryKey: ["clusters", filters],
-    queryFn: () => clusters.list(filters),
+    queryFn: ({ signal }) => clusters.list(filters, signal),
     retry: false,
   });
 
 export const useClusterCount = (status?: string, enabled = true) =>
   useQuery({
-    queryKey: ["cluster-count", status || "ALL"],
-    queryFn: async () =>
-      (await clusters.list({ page: 0, pageSize: 1, status })).pagination
-        .totalElements,
+    queryKey: ["cluster-count", "summary"],
+    queryFn: ({ signal }) => clusters.summary(signal),
+    select: (summary) =>
+      status ? (summary.byStatus[status] ?? 0) : summary.total,
     retry: false,
     enabled,
   });

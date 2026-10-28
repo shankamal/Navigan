@@ -135,8 +135,10 @@ def test_workload_inventory_removes_secret_values_and_commands():
     encoded = json.dumps(result)
 
     assert "super-secret-value" not in encoded
-    assert "database-secret" not in encoded
-    assert "application-secret" not in encoded
+    # Secret resource names are safe dependency metadata, not secret values.
+    # Keep exact references for migration planning while excluding credentials.
+    assert {"kind": "Secret", "name": "database-secret"} in result["dependencyReferences"]
+    assert {"kind": "Secret", "name": "application-secret"} in result["dependencyReferences"]
     assert "/private/customer/path" not in encoded
     assert "arn:aws:acm:secret-certificate" not in encoded
     assert "print-secret" not in encoded

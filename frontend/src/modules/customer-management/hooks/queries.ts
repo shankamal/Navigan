@@ -29,20 +29,14 @@ export const useCustomerCount = (
   cloudProvider?: string,
 ) =>
   useQuery({
-    queryKey: ["customers", "count", status, cloudProvider],
-    queryFn: async ({ signal }) =>
-      (
-        await customersService.list(
-          {
-            page: 0,
-            pageSize: 1,
-            sort: "createdAt,desc",
-            status,
-            cloudProvider,
-          },
-          signal,
-        )
-      ).pagination.totalElements,
+    queryKey: ["customers", "summary"],
+    queryFn: ({ signal }) => customersService.summary(signal),
+    select: (summary) =>
+      cloudProvider
+        ? (summary.byProvider[cloudProvider] ?? 0)
+        : status
+          ? (summary.byStatus[status] ?? 0)
+          : summary.total,
   });
 // A failed/ambiguous request keeps its key for an identical manual retry. A changed body/version gets a new key.
 export function useCustomerWrite<T>(

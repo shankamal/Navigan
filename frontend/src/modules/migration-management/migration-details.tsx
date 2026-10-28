@@ -1,5 +1,7 @@
 "use client";
 
+import { runtimeConfig } from "@/shared/config/runtime-config";
+
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -9,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useClusters } from "@/modules/cluster-management/hooks/queries";
 import { normalizeApiError } from "@/shared/api/client";
@@ -53,6 +55,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
     "/etc/kubernetes/admin.conf",
   );
   const [sourceError, setSourceError] = useState("");
+  const automaticInstallAttempt = useRef("");
   const [assessmentNamespaces, setAssessmentNamespaces] = useState<string[]>(
     [],
   );
@@ -67,6 +70,8 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const migration = migrationQuery.data;
   const assessmentQuery = useMigrationAssessment(migrationId, true);
   const assessment = assessmentQuery.data?.assessment ?? null;
+  const assessmentLoading =
+    !assessment && (assessmentQuery.isPending || assessmentQuery.isFetching);
   const criticalFindingCount =
     assessment?.findings.filter((finding) => finding.severity === "BLOCKER")
       .length ?? 0;
@@ -164,10 +169,14 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         },
         changeReason: "Attach registered source cluster",
       });
-      const issuedEnrollment = await sourceClusters.enroll(
-        registered.sourceClusterId,
-        registered.version,
-      );
+      // AWS SSM starts its own server-side enrollment during installation.
+      const issuedEnrollment =
+        registered.deliveryMethod === "AWS_SSM"
+          ? null
+          : await sourceClusters.enroll(
+              registered.sourceClusterId,
+              registered.version,
+            );
       return { registered, issuedEnrollment };
     },
     onSuccess: async ({ registered, issuedEnrollment }) => {
@@ -236,17 +245,29 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
 
   const automaticInstallation = useMutation({
     mutationFn: async () => {
-      if (!effectiveSourceCluster) {
+      if (!effectiveSourceCluster || !migration) {
         throw new Error("The registered source cluster is unavailable.");
       }
-      return sourceClusters.install(
-        effectiveSourceCluster.sourceClusterId,
-        effectiveSourceCluster.version,
+      // Enrollment increments the source version after SSM submission.
+      // Fetch it fresh so retry uses a new installation idempotency key.
+      const latest = (
+        await sourceClusters.list(migration.customerId)
+      ).items.find(
+        (item) =>
+          item.sourceClusterId === effectiveSourceCluster.sourceClusterId,
       );
+      if (!latest || latest.status === "REVOKED") {
+        throw new Error("The registered source cluster is unavailable.");
+      }
+      return sourceClusters.install(latest.sourceClusterId, latest.version);
     },
-    onSuccess: (installation) => {
+    onSuccess: async (installation) => {
       setSourceInstallation(installation);
       setSourceError("");
+      setRegisteredSource(null);
+      await cache.invalidateQueries({
+        queryKey: ["source-clusters", migration?.customerId],
+      });
     },
     onError: (error) => {
       setSourceError(normalizeApiError(error).message);
@@ -368,14 +389,48 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   const canDecide =
     migration?.status === "UNDER_REVIEW" &&
     hasPermission(identity, "migration.approve");
+  const hasGovernanceAction = canSubmit || canReview || canDecide;
   const canPrepareSource =
-    migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
+    ["DRAFT", "SOURCE_ENROLLMENT_PENDING"].includes(migration?.status ?? "") &&
     hasPermission(identity, "migration.edit");
   const canEditAssessment = hasPermission(identity, "migration.edit");
   const sourceRegistrationMissing =
-    migration?.status === "SOURCE_ENROLLMENT_PENDING" &&
+    ["DRAFT", "SOURCE_ENROLLMENT_PENDING"].includes(migration?.status ?? "") &&
     !sourceClustersQuery.isPending &&
     (!sourceClusterId || !sourceCluster);
+  const sourceSetupRequired =
+    migration?.status === "SOURCE_ENROLLMENT_PENDING" ||
+    (migration?.status === "DRAFT" && !sourceCatalogue);
+
+  useEffect(() => {
+    const source = effectiveSourceCluster;
+    if (
+      !sourceSetupRequired ||
+      !canPrepareSource ||
+      sourceRegistrationMissing ||
+      !source ||
+      source.deliveryMethod !== "AWS_SSM" ||
+      source.status === "CONNECTED" ||
+      sourceCatalogue ||
+      sourceInstallation ||
+      automaticInstallation.isPending ||
+      automaticInstallation.isError
+    ) {
+      return;
+    }
+    const attempt = `${source.sourceClusterId}:${source.version}`;
+    if (automaticInstallAttempt.current === attempt) return;
+    automaticInstallAttempt.current = attempt;
+    automaticInstallation.mutate();
+  }, [
+    automaticInstallation,
+    canPrepareSource,
+    effectiveSourceCluster,
+    sourceCatalogue,
+    sourceInstallation,
+    sourceRegistrationMissing,
+    sourceSetupRequired,
+  ]);
 
   useEffect(() => {
     if (assessmentNamespaces.length === 0) {
@@ -401,12 +456,10 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
   function downloadSourceBootstrap() {
     if (!sourceEnrollment || !effectiveSourceCluster) return;
 
-    const apiBaseUrl =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_API_BASE_URL ?? "";
+    const apiBaseUrl = runtimeConfig().migrationConnectorApiBaseUrl ?? "";
     const imageRepository =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_REPOSITORY ?? "";
-    const imageDigest =
-      process.env.NEXT_PUBLIC_MIGRATION_CONNECTOR_IMAGE_DIGEST ?? "";
+      runtimeConfig().migrationConnectorImageRepository ?? "";
+    const imageDigest = runtimeConfig().migrationConnectorImageDigest ?? "";
     if (!apiBaseUrl || !imageRepository || !imageDigest) return;
 
     const bootstrap = JSON.stringify(
@@ -497,11 +550,6 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           </button>
         </>
       )}
-      {!canSubmit && !canReview && !canDecide && (
-        <span className={styles.approvalUnavailable}>
-          No approval action is available for your role at this stage.
-        </span>
-      )}
     </>
   );
 
@@ -516,14 +564,28 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                 assessment.inventorySummary.target.clusterName ??
                 "target cluster"
               }) · ${migration?.status.replaceAll("_", " ").toLowerCase()}`
-            : "Review the trusted feasibility report and govern approval independently from the request creator."
+            : assessmentLoading
+              ? "Loading the migration feasibility report and assessment evidence…"
+              : sourceSetupRequired
+                ? "Resume this draft by connecting the source cluster and collecting its read-only inventory."
+                : "Review migration assessment evidence and the next available action."
         }
         className={migration ? styles.assessmentHeading : undefined}
         action={
-          <Link href="/migrations" className="button button-secondary">
-            <ArrowLeft size={17} />
-            Back to migrations
-          </Link>
+          <div className={styles.assessmentHeadingActions}>
+            <Link href="/migrations" className="button button-secondary">
+              <ArrowLeft size={17} />
+              Back to migrations
+            </Link>
+            {assessment && (
+              <Link
+                href={`/migrations/${migrationId}/plan`}
+                className="button button-primary"
+              >
+                Open migration workspace <ArrowRight size={17} />
+              </Link>
+            )}
+          </div>
         }
       />
 
@@ -532,6 +594,33 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
         <div className="panel" role="alert">
           Unable to load this migration assessment.
         </div>
+      )}
+
+      {migration && assessmentLoading && (
+        <section className="panel" role="status" aria-live="polite">
+          <strong>Loading migration assessment</strong>
+          <p className="muted">
+            Retrieving the feasibility report and source inventory. No action is
+            needed while this loads.
+          </p>
+        </section>
+      )}
+
+      {migration && !assessment && assessmentQuery.isError && (
+        <section className="panel" role="alert">
+          <strong>Unable to load the feasibility report</strong>
+          <p className="muted">
+            The migration record is available, but its assessment could not be
+            retrieved. Try loading the report again.
+          </p>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => void assessmentQuery.refetch()}
+          >
+            Retry loading report
+          </button>
+        </section>
       )}
 
       {assessment && (
@@ -579,7 +668,9 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           </div>
 
           <div className={styles.migrationContextMeta}>
-            <span className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}>
+            <span
+              className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}
+            >
               {migration?.status.replaceAll("_", " ")}
             </span>
             <small>Report generated</small>
@@ -590,43 +681,44 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
 
       {migration && (
         <>
-          {!assessment && (
-            <section className={`panel ${styles.approvalPanel}`}>
-              <div className={styles.approvalSummary}>
-                <div className={styles.approvalIcon} aria-hidden="true">
-                  <ShieldCheck size={24} />
-                </div>
-                <div>
-                  <div className={styles.approvalStatusLine}>
-                    <span className={`status-badge ${migration?.status === "APPROVED" ? styles.approvedStatus : ""}`}>
-                      {migration.status.replaceAll("_", " ")}
-                    </span>
-                    <span>Independent governance checkpoint</span>
+          {!assessment &&
+            !assessmentLoading &&
+            !assessmentQuery.isError &&
+            hasGovernanceAction && (
+              <section className={`panel ${styles.approvalPanel}`}>
+                <div className={styles.approvalSummary}>
+                  <div className={styles.approvalIcon} aria-hidden="true">
+                    <ShieldCheck size={24} />
                   </div>
-                  <h2>
-                    {canDecide
-                      ? "Management decision required"
-                      : canReview
-                        ? "Assessment ready for independent review"
-                        : canSubmit
-                          ? "Assessment ready to submit"
-                          : "Approval gate"}
-                  </h2>
-                  <p className="muted">
-                    Review feasibility, blockers, and remediation evidence
-                    before authorizing migration planning. Approval does not
-                    change either cluster.
-                  </p>
+                  <div>
+                    <div className={styles.approvalStatusLine}>
+                      <span className="status-badge">
+                        {migration.status.replaceAll("_", " ")}
+                      </span>
+                      <span>Independent governance checkpoint</span>
+                    </div>
+                    <h2>
+                      {canDecide
+                        ? "Management decision required"
+                        : canReview
+                          ? "Assessment ready for independent review"
+                          : "Assessment ready to submit"}
+                    </h2>
+                    <p className="muted">
+                      Review feasibility, blockers, and remediation evidence
+                      before authorizing migration planning. Approval does not
+                      change either cluster.
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className={styles.approvalActions}>{approvalControls}</div>
+                <div className={styles.approvalActions}>{approvalControls}</div>
 
-              {action.isError && (
-                <p role="alert">{normalizeApiError(action.error).message}</p>
-              )}
-            </section>
-          )}
+                {action.isError && (
+                  <p role="alert">{normalizeApiError(action.error).message}</p>
+                )}
+              </section>
+            )}
 
           {migration.status === "REJECTED" && canEditAssessment && (
             <section className={`panel ${styles.connectionCard}`}>
@@ -660,7 +752,7 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
             </section>
           )}
 
-          {migration.status === "SOURCE_ENROLLMENT_PENDING" && (
+          {sourceSetupRequired && (
             <section
               className={`panel ${styles.bootstrapNotice} ${
                 sourceRegistrationMissing
@@ -875,34 +967,71 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
               ) : (
                 <>
                   <div>
-                    <strong>Source connector setup required</strong>
+                    <strong>Establishing source connection</strong>
                     <p className="muted">
                       {effectiveSourceCluster?.deliveryMethod === "AWS_SSM"
-                        ? "Install the read-only connector through the approved AWS Systems Manager delivery role."
+                        ? "Navigan automatically installs the read-only connector through AWS Systems Manager, then checks for the source inventory."
                         : "Reissue a short-lived setup file for the existing registered source cluster. This does not create another source cluster or migration request."}
                     </p>
                   </div>
+                  {effectiveSourceCluster?.deliveryMethod === "AWS_SSM" && (
+                    <ol
+                      className={styles.sourceConnectionProgress}
+                      aria-label="Source connection progress"
+                    >
+                      <li>
+                        <CheckCircle2 size={16} aria-hidden="true" />
+                        <span>1. Source registered</span>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">
+                          {sourceInstallation ? "✓" : "2"}
+                        </span>
+                        <span>
+                          {sourceInstallation
+                            ? "2. Installation submitted"
+                            : automaticInstallation.isError
+                              ? "2. Installation needs attention"
+                              : effectiveSourceCluster?.status === "CONNECTED"
+                                ? "2. Installation not verified"
+                                : "2. Starting installation"}
+                        </span>
+                      </li>
+                      <li>
+                        <span aria-hidden="true">3</span>
+                        <span>3. Inventory pending</span>
+                      </li>
+                    </ol>
+                  )}
                   {sourceInstallation ? (
                     <div role="status">
-                      <strong>Connector installation started</strong>
+                      <strong>Source connector installation requested</strong>
                       <p className="muted">
                         Systems Manager command {sourceInstallation.commandId}{" "}
-                        is running on {sourceInstallation.managedInstanceId}.
+                        was submitted for {sourceInstallation.managedInstanceId}
+                        . Navigan is checking for the first inventory snapshot
+                        automatically. This command ID can also be used to
+                        inspect execution details in AWS Systems Manager.
                       </p>
                     </div>
                   ) : effectiveSourceCluster?.deliveryMethod === "AWS_SSM" ? (
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      disabled={
-                        !canPrepareSource || automaticInstallation.isPending
-                      }
-                      onClick={() => automaticInstallation.mutate()}
-                    >
-                      {automaticInstallation.isPending
-                        ? "Starting secure installation…"
-                        : "Install source connector"}
-                    </button>
+                    effectiveSourceCluster.status === "CONNECTED" ? (
+                      <p role="status" className="muted">
+                        Connector enrollment was accepted, but no source
+                        inventory has arrived. Installation is not yet verified.
+                      </p>
+                    ) : automaticInstallation.isError ? (
+                      <p role="alert" className="muted">
+                        Automatic installation could not start. You can retry
+                        without registering the source again.
+                      </p>
+                    ) : (
+                      <p role="status" className="muted">
+                        {automaticInstallation.isPending
+                          ? "Starting secure connector installation through AWS Systems Manager…"
+                          : "Preparing automatic source connection…"}
+                      </p>
+                    )
                   ) : sourceEnrollment ? (
                     <button
                       type="button"
@@ -927,6 +1056,28 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
                         : "Prepare new connector setup"}
                     </button>
                   )}
+                  {effectiveSourceCluster?.deliveryMethod === "AWS_SSM" &&
+                    !sourceCatalogue &&
+                    !sourceInstallation &&
+                    (effectiveSourceCluster.status === "CONNECTED" ||
+                      automaticInstallation.isError) && (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        disabled={
+                          !canPrepareSource || automaticInstallation.isPending
+                        }
+                        onClick={() => {
+                          setSourceError("");
+                          automaticInstallation.reset();
+                          automaticInstallation.mutate();
+                        }}
+                      >
+                        {automaticInstallation.isPending
+                          ? "Retrying connector installation…"
+                          : "Retry connector installation"}
+                      </button>
+                    )}
                   {enrollment.isError && (
                     <p role="alert">
                       {normalizeApiError(enrollment.error).message}
@@ -940,6 +1091,19 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
 
           {migration.status === "INVENTORY_READY" && (
             <section className={`panel ${styles.connectionCard}`}>
+              {sourceCatalogue && (
+                <div role="status" className={styles.sourceConnectedNotice}>
+                  <CheckCircle2 size={20} aria-hidden="true" />
+                  <div>
+                    <strong>Source connection established</strong>
+                    <p className="muted">
+                      Kubernetes {sourceCatalogue.sourceKubernetesVersion} ·{" "}
+                      {sourceCatalogue.namespaces.length} namespaces discovered.
+                      You can now review the workloads for migration.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div>
                 <h2>Continue migration assessment</h2>
                 <p className="muted">
@@ -1076,36 +1240,38 @@ export function MigrationDetails({ migrationId }: { migrationId: string }) {
           }}
         />
       )}
-      {assessment && (
-        <section className={styles.reportDecisionBar}>
-          <div>
-            <strong>
-              {criticalFindingCount > 0
-                ? "Approval requires remediation"
-                : "Management decision required"}
-            </strong>
-            <span>
-              {criticalFindingCount > 0
-                ? `Resolve ${criticalFindingCount} critical finding${
-                    criticalFindingCount === 1 ? "" : "s"
-                  } before approval.`
-                : "Review the findings, evidence, target mappings, and approval conditions."}
-            </span>
-          </div>
-          <div className={styles.reportDecisionActions}>{approvalControls}</div>
-          {action.isError && (
-            <p role="alert">{normalizeApiError(action.error).message}</p>
-          )}
-        </section>
-      )}
-      {migration && !assessment && !assessmentQuery.isPending && (
-        <section className="panel">
-          <p className="muted">
-            The feasibility report will appear after source inventory assessment
-            completes.
-          </p>
-        </section>
-      )}
+      {assessment &&
+        (hasGovernanceAction || criticalFindingCount > 0 || action.isError) && (
+          <section className={styles.reportDecisionBar}>
+            {criticalFindingCount > 0 && (
+              <p className={styles.reportApprovalNote}>
+                Approval blocked: {criticalFindingCount} critical finding
+                {criticalFindingCount === 1 ? "" : "s"} require remediation.
+              </p>
+            )}
+            {hasGovernanceAction && (
+              <div className={styles.reportDecisionActions}>
+                {approvalControls}
+              </div>
+            )}
+            {action.isError && (
+              <p role="alert">{normalizeApiError(action.error).message}</p>
+            )}
+          </section>
+        )}
+      {migration &&
+        !assessment &&
+        !assessmentLoading &&
+        !assessmentQuery.isError &&
+        !hasGovernanceAction &&
+        !sourceSetupRequired && (
+          <section className="panel">
+            <p className="muted">
+              No feasibility report is available for this migration yet. Check
+              the source assessment status before continuing.
+            </p>
+          </section>
+        )}
     </>
   );
 }

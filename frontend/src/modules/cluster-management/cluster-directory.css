@@ -1,6 +1,6 @@
 .shell-body:has(.cluster-directory-page),
 .content-column:has(.cluster-directory-page) {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
 }
 
 .cluster-directory-page {
@@ -168,7 +168,7 @@
   gap: 10px;
   padding: 14px 20px;
   border-bottom: 1px solid #e6ebe6;
-  background: #f9fbf8;
+  background: #f8fafc;
 }
 
 .cluster-directory-filterbar .search-field,
@@ -196,7 +196,7 @@
 
 .cluster-directory-table th {
   padding: 11px 14px;
-  background: #f2f5f1;
+  background: #f8fafc;
   color: #59665c;
   font-size: 0.65rem;
   letter-spacing: 0.055em;
@@ -217,7 +217,7 @@
 }
 
 .cluster-directory-table tbody tr:hover {
-  background: #fafcf8;
+  background: #f8fafc;
   box-shadow: inset 3px 0 #86bc25;
 }
 
@@ -236,7 +236,7 @@
   flex: none;
   border: 1px solid #d9e6d0;
   border-radius: 8px;
-  background: #f1f7ea;
+  background: #f1f5f9;
   color: #5c872c;
 }
 
@@ -310,7 +310,7 @@
   place-items: center;
   flex: none;
   color: #25303a;
-  font-family: Arial, sans-serif;
+  font-family: var(--navigan-font-family);
   font-size: 0.75rem;
   font-weight: 700;
 }
@@ -354,7 +354,7 @@
 
 .cluster-directory-panel .list-footer {
   padding: 7px 20px;
-  background: #fbfcfa;
+  background: #f8fafc;
 }
 
 .cluster-directory-panel .pagination {
@@ -396,4 +396,123 @@
   .cluster-directory-metric {
     min-height: 104px;
   }
+}
+
+/* ADAPTIVE CLUSTER DIRECTORY DENSITY */
+@container (max-width:1800px) {
+  .cluster-directory-page {
+    gap: 8px;
+  }
+  .cluster-directory-metrics {
+    gap: 8px;
+  }
+  .cluster-directory-metric {
+    min-height: 76px;
+    padding: 9px 10px;
+    gap: 7px;
+  }
+  .cluster-directory-metric strong {
+    font-size: 1.3rem;
+  }
+  .cluster-directory-metric small {
+    font-size: var(--navigan-font-caption);
+  }
+  .cluster-directory-panel .list-heading {
+    min-height: 46px;
+    padding: 8px 11px;
+  }
+  .cluster-directory-filterbar {
+    gap: 6px;
+    padding: 7px 10px;
+  }
+  .cluster-directory-primary-cell {
+    min-width: 175px;
+    gap: 7px;
+  }
+  .cluster-directory-cluster-icon {
+    width: 29px;
+    height: 29px;
+    border-radius: 5px;
+  }
+  .cluster-directory-primary-cell strong,
+  .cluster-directory-related-cell strong,
+  .cluster-platform-badge strong {
+    font-size: var(--navigan-font-body);
+  }
+  .cluster-directory-primary-cell small,
+  .cluster-directory-related-cell small,
+  .cluster-platform-badge small,
+  .cluster-directory-status-cell > small {
+    font-size: var(--navigan-font-caption);
+  }
+  .cluster-directory-related-cell {
+    min-width: 135px;
+    gap: 5px;
+  }
+  .cluster-platform-badge {
+    min-width: 105px;
+    gap: 6px;
+  }
+  .cluster-directory-status-cell {
+    min-width: 145px;
+    gap: 3px;
+  }
+  .cluster-directory-updated {
+    min-width: 95px;
+    gap: 4px;
+    font-size: var(--navigan-font-body);
+  }
+  .cluster-directory-panel :is(th, td) {
+    padding: 6px 9px;
+  }
+  .cluster-directory-panel .list-footer {
+    padding: 4px 10px;
+  }
+}
+
+/* EXACT CLUSTER TYPOGRAPHY FIX */
+.cluster-directory-page .cluster-directory-table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.cluster-directory-page .cluster-directory-table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+}
+.cluster-directory-page .cluster-directory-table tbody td {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.cluster-directory-page .cluster-directory-primary-cell strong,
+.cluster-directory-page .cluster-directory-related-cell strong,
+.cluster-directory-page .cluster-platform-badge strong {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+.cluster-directory-page .cluster-directory-primary-cell small,
+.cluster-directory-page .cluster-directory-related-cell small,
+.cluster-directory-page .cluster-platform-badge small,
+.cluster-directory-page .cluster-directory-status-cell > small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.cluster-directory-page .cluster-directory-updated {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+}
+.cluster-directory-page .status-badge {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+}
+.cluster-directory-page .cluster-attention strong {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+.cluster-directory-page .cluster-attention small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
 }

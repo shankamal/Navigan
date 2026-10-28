@@ -303,12 +303,11 @@ def test_accepts_sanitized_source_catalogue():
     assert report.namespaces[0].resourceCounts["Deployment"] == 3
 
 
-def test_rejects_system_namespace_in_source_catalogue():
+def test_allows_read_only_system_namespace_discovery_in_source_catalogue():
     payload = source_catalogue_payload()
     payload["namespaces"][0]["name"] = "kube-system"
 
-    with pytest.raises(ValidationError, match="System namespaces"):
-        SourceCatalogueReport.model_validate(payload)
+    assert SourceCatalogueReport.model_validate(payload).namespaces[0].name == "kube-system"
 
 
 def test_rejects_sensitive_source_catalogue():
@@ -317,3 +316,28 @@ def test_rejects_sensitive_source_catalogue():
 
     with pytest.raises(ValidationError):
         SourceCatalogueReport.model_validate(payload)
+
+
+def test_planning_draft_persists_unique_storage_mappings():
+    from navigan.modules.migration_management.models import MigrationPlanningDraft
+
+    base = {
+        "schemaVersion": 1,
+        "mode": "SELECTED_WORKLOADS",
+        "assessmentVersion": 2,
+        "inventoryDigest": "a" * 64,
+        "resources": [],
+        "remediations": [],
+    }
+    entry = {
+        "namespace": "retailflow",
+        "sourceClaim": "data-postgres-0",
+        "targetStorageClass": "gp3",
+        "targetCapacity": "8Gi",
+        "targetAccessMode": "ReadWriteOnce",
+        "status": "PROPOSED",
+    }
+    draft = MigrationPlanningDraft.model_validate({**base, "storageMappings": [entry]})
+    assert draft.model_dump()["storageMappings"] == [entry]
+    with pytest.raises(ValidationError, match="unique"):
+        MigrationPlanningDraft.model_validate({**base, "storageMappings": [entry, entry]})

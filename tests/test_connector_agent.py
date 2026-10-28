@@ -198,6 +198,26 @@ def test_runtime_upgrade_failure_does_not_block_access_acknowledgement(
     assert event["event"] == "connector_runtime_upgrade_failed"
 
 
+def test_argocd_stream_is_not_forwarded_over_bounded_tunnel(monkeypatch):
+    def forbidden_open(*_args, **_kwargs):
+        raise AssertionError("A long-lived stream must not consume a proxy worker")
+
+    monkeypatch.setattr(agent, "open_tool_request", forbidden_open)
+    response = agent.tool_request(
+        "argocd",
+        "/tools/clusters/CLU-test/argocd/api/v1/stream/applications",
+        "",
+        "GET",
+        {},
+        "",
+    )
+    assert response == {
+        "status": 204,
+        "headers": {"cache-control": "no-store"},
+        "body": "",
+    }
+
+
 def test_argocd_proxy_removes_public_prefix(monkeypatch):
     observed = {}
 
@@ -429,6 +449,73 @@ def test_tool_tunnel_keeps_receiving_heartbeats_while_proxy_request_runs(
     assert any(item.get("type") == "response" for item in sent)
 
 
+def test_tool_tunnel_normal_requests_continue_while_one_request_blocks(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    release = threading.Event()
+    started = threading.Event()
+    results = []
+
+    def fake_request(tool, *_args):
+        if tool == "headlamp":
+            started.set()
+            assert release.wait(2)
+        return {"status": 200, "headers": {}, "body": ""}
+
+    class Client:
+        def send(self, payload):
+            results.append(payload)
+
+    monkeypatch.setattr(agent, "tool_request", fake_request)
+    client = Client()
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        blocked = workers.submit(agent.handle_tool_request, client, {
+            "type": "request", "id": "slow", "tool": "headlamp",
+        })
+        assert started.wait(2)
+        quick = workers.submit(agent.handle_tool_request, client, {
+            "type": "request", "id": "fast", "tool": "argocd",
+        })
+        quick.result(timeout=2)
+        assert any(item.get("id") == "fast" and item["status"] == 200 for item in results)
+        release.set()
+        blocked.result(timeout=2)
+    assert {item["id"] for item in results} == {"slow", "fast"}
+
+
+def test_tool_tunnel_reconnects_after_connection_failure(monkeypatch):
+    attempts = []
+    sent = []
+
+    class Client:
+        def __init__(self, *_args):
+            attempts.append(len(attempts) + 1)
+
+        def send(self, payload):
+            sent.append(payload)
+
+        def receive(self):
+            if len(attempts) == 1:
+                raise RuntimeError("first connection lost")
+            raise RuntimeError("second connection lost")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(agent, "WebSocketClient", Client)
+    monkeypatch.setenv("NAVIGAN_TOOLS_TUNNEL_URL", "wss://tools.example.test/tunnel")
+
+    def sleep(_seconds):
+        if len(attempts) >= 2:
+            raise StopIteration()
+
+    monkeypatch.setattr(agent.time, "sleep", sleep)
+    with pytest.raises(StopIteration):
+        agent.tools_tunnel("KCC-" + "a" * 32, "x" * 40)
+    assert len(attempts) == 2
+    assert sum(item.get("type") == "heartbeat" for item in sent) == 2
+
+
 def test_argocd_readiness_accepts_stateful_application_controller(monkeypatch):
     responses = [
         {
@@ -551,7 +638,7 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
 
     def request(path):
         paths.append(path)
-        return responses.pop(0)
+        return responses.pop(0) if responses else {}
 
     monkeypatch.setattr(agent, "kubernetes_request", request)
 
@@ -568,6 +655,18 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
     assert service["status"] == "HEALTHY"
     assert service["ready"] == 1
     assert inventory["metrics"] == {
+        "apiDiscoveryCoreV1": 0,
+        "apiDiscoveryAppsV1": 0,
+        "storageClassDiscoveryStatus": 3,
+        "csiDriverDiscoveryStatus": 3,
+        "discoveryStatus_Ingress": 3,
+        "discoveryStatus_NetworkPolicy": 3,
+        "discoveryStatus_ServiceAccount": 3,
+        "discoveryStatus_Role": 3,
+        "discoveryStatus_RoleBinding": 3,
+        "discoveryStatus_ClusterRole": 3,
+        "discoveryStatus_ClusterRoleBinding": 3,
+        "discoveryStatus_CustomResourceDefinition": 3,
         "nodeCount": 1,
         "readyNodeCount": 1,
         "podCount": 1,
@@ -576,4 +675,115 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
         "warningEventCount": 1,
     }
     assert inventory["warningEvents"][0]["reason"] == "BackOff"
-    assert "fieldSelector=type%3DWarning" in paths[-1]
+    assert any("fieldSelector=type%3DWarning" in path for path in paths)
+
+
+def test_runtime_inventory_reports_node_allocatable_capacity(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/api/v1/nodes":
+            return {"items": [{"metadata": {"name": "worker-1"},
+                "status": {"allocatable": {"cpu": "1930m", "memory": "7350Mi"},
+                           "conditions": [{"type": "Ready", "status": "True"}]}}]}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    report = agent.runtime_inventory()
+    node = next(item for item in report["resources"] if item["kind"] == "Node")
+    assert node["allocatableCpu"] == "1930m"
+    assert node["allocatableMemory"] == "7350Mi"
+    assert report["metrics"]["readyNodeCount"] == 1
+
+
+def test_runtime_inventory_omits_missing_node_capacity(monkeypatch):
+    monkeypatch.setattr(agent, "kubernetes_request",
+        lambda path, *_args, **_kwargs:
+            {"items": [{"metadata": {"name": "worker-1"}, "status": {}}]}
+            if path == "/api/v1/nodes" else {"items": []})
+    node = agent.runtime_inventory()["resources"][0]
+    assert "allocatableCpu" not in node
+    assert "allocatableMemory" not in node
+
+
+def test_runtime_inventory_reports_node_scheduling_observations(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/api/v1/nodes":
+            return {"items": [{
+                "metadata": {"name": "worker-2"},
+                "spec": {"unschedulable": True, "taints": [
+                    {"key": "dedicated", "value": "system", "effect": "NoSchedule"}
+                ]},
+                "status": {"allocatable": {"cpu": "2", "memory": "4Gi"}},
+            }]}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    node = agent.runtime_inventory()["resources"][0]
+    assert node["unschedulable"] is True
+    assert node["taintCount"] == 1
+    assert node["allocatableCpu"] == "2"
+    assert node["allocatableMemory"] == "4Gi"
+
+
+def test_runtime_inventory_reports_only_verified_api_discovery(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/api/v1":
+            return {"groupVersion": "v1", "resources": []}
+        if path == "/apis/apps/v1":
+            return {"groupVersion": "not-apps/v1", "resources": []}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    metrics = agent.runtime_inventory()["metrics"]
+    assert metrics["apiDiscoveryCoreV1"] == 1
+    assert metrics["apiDiscoveryAppsV1"] == 0
+
+
+def test_runtime_inventory_discovers_storage_resources_without_claiming_readiness(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/apis/storage.k8s.io/v1/storageclasses":
+            return {"items": [{"metadata": {"name": "gp3"}}]}
+        if path == "/apis/storage.k8s.io/v1/csidrivers":
+            return {"items": [{"metadata": {"name": "ebs.csi.aws.com"}}]}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    resources = agent.runtime_inventory()["resources"]
+    assert any(r["kind"] == "StorageClass" and r["name"] == "gp3" for r in resources)
+    assert any(r["kind"] == "CSIDriver" and r["name"] == "ebs.csi.aws.com" for r in resources)
+    assert all(r["status"] == "OBSERVED" for r in resources)
+
+
+def test_storage_discovery_error_does_not_interrupt_inventory(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path.startswith("/apis/storage.k8s.io"):
+            raise RuntimeError("forbidden")
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    assert agent.runtime_inventory()["resources"] == []
+
+
+def test_storage_class_metadata_is_observed_not_assumed(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/apis/storage.k8s.io/v1/storageclasses":
+            return {"items": [{"metadata": {"name": "gp3"}, "provisioner": "ebs.csi.aws.com",
+                               "volumeBindingMode": "WaitForFirstConsumer", "reclaimPolicy": "Delete"}]}
+        return {"items": []}
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    storage = next(r for r in agent.runtime_inventory()["resources"] if r["kind"] == "StorageClass")
+    assert storage["provisioner"] == "ebs.csi.aws.com"
+    assert storage["volumeBindingMode"] == "WaitForFirstConsumer"
+    assert storage["reclaimPolicy"] == "Delete"
+
+
+def test_storage_discovery_distinguishes_rbac_denial_from_empty_inventory(monkeypatch):
+    def request(path, *_args, **_kwargs):
+        if path == "/apis/storage.k8s.io/v1/storageclasses":
+            raise RuntimeError("kubernetes API returned HTTP 403: Forbidden")
+        if path == "/apis/storage.k8s.io/v1/csidrivers":
+            return {"items": []}
+        return {"items": []}
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    metrics = agent.runtime_inventory()["metrics"]
+    assert metrics["storageClassDiscoveryStatus"] == 2
+    assert metrics["csiDriverDiscoveryStatus"] == 1

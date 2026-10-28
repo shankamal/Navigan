@@ -5,6 +5,7 @@ import uuid
 
 from navigan.modules.customer_management.repository import scope_clause
 from navigan.shared.errors import ApiError
+from .assessment_engine import source_findings
 
 
 def camel(key):
@@ -14,7 +15,7 @@ def camel(key):
 
 def serialize(row):
     return {
-        camel(key): value.isoformat() if hasattr(value, "isoformat") else value
+        camel(key): ({k: v for k, v in value.items() if k != "deploymentAuthentication"} if key == "delivery_configuration" and isinstance(value, dict) else value.isoformat() if hasattr(value, "isoformat") else value)
         for key, value in row.items()
     }
 
@@ -23,10 +24,48 @@ def json_text(value):
     return json.dumps(value, default=str, separators=(",", ":"))
 
 
+NOT_DELETED = (
+    "NOT EXISTS(SELECT 1 FROM migration_management.migration_audit_log deleted "
+    "WHERE deleted.migration_id=m.migration_id AND deleted.action='MIGRATION_DELETED')"
+)
+
+
 class Repository:
     def __init__(self, db, principal):
         self.db = db
         self.principal = principal
+
+    def create_artifact_workspace(self, manifest, bucket, key, version, sha):
+        self.db.execute(
+            "INSERT INTO migration_management.artifact_workspaces "
+            "(workspace_id,migration_id,customer_id,inventory_digest,inventory_version,source_cluster_id,"
+            "migration_version,status,namespaces,manifest,bucket_name,manifest_key,manifest_version,manifest_sha256,created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s,%s,%s)",
+            [manifest["workspaceId"], manifest["migrationId"], manifest["customerId"], manifest["inventoryDigest"],
+             manifest["inventoryVersion"], manifest["sourceClusterId"], manifest["migrationVersion"], manifest["status"],
+             json_text(manifest["namespaces"]), json_text(manifest), bucket, key, version, sha, self.principal.user_id],
+        )
+        for artifact in manifest["artifacts"]:
+            self.db.execute(
+                "INSERT INTO migration_management.workspace_artifacts "
+                "(workspace_id,artifact_id,kind,status,provenance,workload_links) VALUES (%s,%s,%s,%s,%s::jsonb,%s::jsonb)",
+                [manifest["workspaceId"], artifact["artifactId"], artifact["kind"], artifact["status"],
+                 json_text(artifact["source"]), json_text(artifact["workloads"])],
+            )
+
+    def list_artifact_workspaces(self, identifier, customer_id, workspace_id=None):
+        self.get(identifier)
+        return self.db.execute(
+            "SELECT workspace_id,manifest,status,inventory_digest,source_cluster_id,bucket_name FROM migration_management.artifact_workspaces "
+            "WHERE migration_id=%s AND customer_id=%s" + (" AND workspace_id=%s" if workspace_id else "") +
+            " ORDER BY created_at DESC LIMIT 50",
+            [identifier, customer_id] + ([workspace_id] if workspace_id else []),
+        ).fetchall()
+
+    def workspace_collection_state(self, workspace_id):
+        artifacts = self.db.execute("SELECT artifact_id,status,validation FROM migration_management.workspace_artifacts WHERE workspace_id=%s", [workspace_id]).fetchall()
+        jobs = self.db.execute("SELECT job_id,artifact_id,status,attempts,error_code,updated_at FROM migration_management.workspace_collection_jobs WHERE workspace_id=%s ORDER BY created_at", [workspace_id]).fetchall()
+        return artifacts, jobs
 
     def require_customer_visible(self, customer_id):
         scope, params = scope_clause(self.principal)
@@ -46,7 +85,10 @@ class Repository:
     def get_source_cluster(self, identifier, lock=False):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(
-            "SELECT s.*,c.name AS customer_name "
+            "SELECT s.*,c.name AS customer_name,"
+            "(SELECT max(sc.last_seen_at) FROM migration_management.source_cluster_connectors sc "
+            "WHERE sc.source_cluster_id=s.source_cluster_id AND sc.status='ACTIVE' "
+            "AND sc.expires_at>now()) AS connector_last_seen_at "
             "FROM migration_management.source_clusters s "
             "JOIN customer_management.customers c USING(customer_id) "
             "WHERE s.source_cluster_id=%s AND "
@@ -88,6 +130,77 @@ class Repository:
             params,
         ).fetchall()
         return {"items": [serialize(row) for row in rows]}
+
+    def find_source_registration(self, source):
+        config = source.get("delivery_configuration") or {}
+        row = self.db.execute(
+            "SELECT source_cluster_id FROM migration_management.source_clusters "
+            "WHERE customer_id=%s AND status<>'REVOKED' AND delivery_method='AWS_SSM' "
+            "AND delivery_configuration->>'accountId'=%s "
+            "AND delivery_configuration->>'region'=%s "
+            "AND delivery_configuration->>'managedInstanceId'=%s "
+            "AND COALESCE(delivery_configuration->>'kubeconfigPath','/etc/kubernetes/admin.conf')=%s "
+            "ORDER BY EXISTS(SELECT 1 FROM migration_management.source_cluster_connectors sc "
+            "WHERE sc.source_cluster_id=source_clusters.source_cluster_id AND sc.status='ACTIVE' "
+            "AND sc.expires_at>now() AND sc.last_seen_at>now()-interval '2 minutes') DESC, "
+            "updated_at DESC,source_cluster_id LIMIT 1",
+            [source["customer_id"], config.get("accountId"), config.get("region"),
+             config.get("managedInstanceId"), config.get("kubeconfigPath") or "/etc/kubernetes/admin.conf"],
+        ).fetchone()
+        return self.get_source_cluster(row["source_cluster_id"], lock=True) if row else None
+
+    def source_installation_conflicts(self, source):
+        # Physical installation identity, never a display-name match. This is an
+        # internal conflict check; Service redacts rows outside actor access.
+        config = source.get("delivery_configuration") or {}
+        return self.db.execute(
+            "SELECT s.source_cluster_id,s.customer_id,s.created_by,c.name AS customer_name,"
+            "EXISTS(SELECT 1 FROM migration_management.migrations m "
+            "WHERE m.source_configuration->>'sourceClusterId'=s.source_cluster_id "
+            "AND (m.status IN ('SOURCE_ENROLLMENT_PENDING','INVENTORY_DISCOVERING',"
+            "'DISCOVERY_PENDING','DISCOVERING','ASSESSING') OR "
+            "(m.status='DRAFT' AND COALESCE(m.source_configuration->>'discoveryMode','')<>'MANUAL'))) "
+            "AS has_active_assignment, "
+            "EXISTS(SELECT 1 FROM migration_management.source_cluster_audit_log a "
+            "WHERE a.source_cluster_id=s.source_cluster_id "
+            "AND a.action='SOURCE_CONNECTOR_INSTALLATION_STARTED' "
+            "AND a.occurred_at>now()-interval '10 minutes') AS installation_in_progress "
+            "FROM migration_management.source_clusters s "
+            "JOIN customer_management.customers c USING(customer_id) "
+            "WHERE s.source_cluster_id<>%s AND s.status<>'REVOKED' "
+            "AND s.delivery_method='AWS_SSM' "
+            "AND s.delivery_configuration->>'accountId'=%s "
+            "AND s.delivery_configuration->>'region'=%s "
+            "AND s.delivery_configuration->>'managedInstanceId'=%s "
+            "AND COALESCE(s.delivery_configuration->>'kubeconfigPath','/etc/kubernetes/admin.conf')=%s "
+            "AND (EXISTS(SELECT 1 FROM migration_management.source_cluster_connectors sc "
+            "WHERE sc.source_cluster_id=s.source_cluster_id AND sc.status='ACTIVE' "
+            "AND sc.expires_at>now() AND sc.last_seen_at>now()-interval '2 minutes') "
+            "OR EXISTS(SELECT 1 FROM migration_management.source_cluster_audit_log a "
+            "WHERE a.source_cluster_id=s.source_cluster_id "
+            "AND a.action='SOURCE_CONNECTOR_INSTALLATION_STARTED' "
+            "AND a.occurred_at>now()-interval '10 minutes') "
+            "OR EXISTS(SELECT 1 FROM migration_management.migrations m "
+            "WHERE m.source_configuration->>'sourceClusterId'=s.source_cluster_id "
+            "AND (m.status IN ('SOURCE_ENROLLMENT_PENDING','INVENTORY_DISCOVERING',"
+            "'DISCOVERY_PENDING','DISCOVERING','ASSESSING') OR "
+            "(m.status='DRAFT' AND COALESCE(m.source_configuration->>'discoveryMode','')<>'MANUAL'))))",
+            [
+                source["source_cluster_id"],
+                config.get("accountId"),
+                config.get("region"),
+                config.get("managedInstanceId"),
+                config.get("kubeconfigPath") or "/etc/kubernetes/admin.conf",
+            ],
+        ).fetchall()
+
+    def lock_source_installation(self, source):
+        config = source.get("delivery_configuration") or {}
+        identity = json_text(
+            [config.get(key) for key in ("accountId", "region", "managedInstanceId")]
+            + [config.get("kubeconfigPath") or "/etc/kubernetes/admin.conf"]
+        )
+        self.db.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", [identity])
 
     def create_source_cluster(self, row, correlation):
         created = self.db.execute(
@@ -142,7 +255,7 @@ class Repository:
             "RETURNING *",
             [
                 delivery["method"],
-                json_text(delivery.get("awsSsm") or {}),
+                json_text({**{k: v for k, v in (source_cluster.get("delivery_configuration") or {}).items() if k in {"deploymentDiscovery", "deploymentAnalysis", "deploymentAuthentication"}}, **(delivery.get("awsSsm") or {})}),
                 self.principal.user_id,
                 source_cluster["source_cluster_id"],
             ],
@@ -157,6 +270,31 @@ class Repository:
             },
         )
         return updated
+
+    def save_deployment_configuration(self, source, key, value, correlation):
+        # Source-scoped JSON survives assessment creation, deletion and delivery changes.
+        if key not in {"deploymentDiscovery", "deploymentAnalysis", "deploymentAuthentication", "artifactRecovery"}:
+            raise ValueError("Invalid deployment configuration key.")
+        row = self.db.execute(
+            "UPDATE migration_management.source_clusters SET "
+            "delivery_configuration=jsonb_set(delivery_configuration,%s,%s::jsonb),"
+            "version=version+1,updated_at=now(),updated_by=%s "
+            "WHERE source_cluster_id=%s AND version=%s RETURNING *",
+            [[key], json_text(value), self.principal.user_id, source["source_cluster_id"], source["version"]],
+        ).fetchone()
+        if not row:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the source connection before saving deployment sources.")
+        self.audit_source_cluster(source["source_cluster_id"], "SOURCE_DEPLOYMENT_" + key.upper(), correlation,
+                                  {"repositoryCount": len(value.get("repositories", []))})
+        return row
+
+    def deployment_connections(self, customer_id):
+        self.require_customer_visible(customer_id)
+        return [row["organization_login"] for row in self.db.execute(
+            "SELECT organization_login FROM cluster_management.github_app_connections "
+            "WHERE customer_id=%s AND status='ACTIVE' AND installation_id IS NOT NULL ORDER BY organization_login",
+            [customer_id],
+        ).fetchall()]
 
     def create_source_enrollment(
         self,
@@ -216,7 +354,7 @@ class Repository:
             ],
         )
 
-    def get(self, identifier, lock=False):
+    def get(self, identifier, lock=False, include_deleted=False):
         scope, params = scope_clause(self.principal)
         row = self.db.execute(
             "SELECT m.*,c.name AS customer_name "
@@ -224,6 +362,7 @@ class Repository:
             "JOIN customer_management.customers c USING(customer_id) "
             "WHERE m.migration_id=%s AND "
             + scope
+            + ("" if include_deleted else " AND " + NOT_DELETED)
             + (" FOR UPDATE OF m" if lock else ""),
             [identifier, *params],
         ).fetchone()
@@ -234,6 +373,61 @@ class Repository:
                 "Migration request not found.",
             )
         return row
+
+    def require_registered_target(self, migration, cluster_id):
+        config = migration.get("target_configuration") or {}
+        row = self.db.execute(
+            "SELECT cluster_id, cluster_name, status, customer_id "
+            "FROM cluster_management.clusters "
+            "WHERE cluster_id=%s AND customer_id=%s",
+            [cluster_id, migration["customer_id"]],
+        ).fetchone()
+        if not row or row["cluster_name"] != config.get("clusterName"):
+            raise ApiError(409, "TARGET_IDENTITY_MISMATCH",
+                           "Selected target identity does not match the registered Navigan cluster.")
+        if row["status"] != "ACTIVE":
+            raise ApiError(409, "TARGET_NOT_ACTIVE",
+                           "Target cluster must be ACTIVE before read-only analysis.")
+        return row
+
+    def get_target_assessment(self, identifier):
+        migration = self.get(identifier)
+        row = self.db.execute(
+            "SELECT target_cluster_id, assessment_version, target_snapshot, "
+            "evidence_level, created_at "
+            "FROM migration_management.migration_target_assessments "
+            "WHERE migration_id=%s ORDER BY created_at DESC, id DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+        target_id = (migration.get("target_configuration") or {}).get("clusterId")
+        # Evidence from an old target must never be presented for the new one.
+        latest_source = self.get_assessment(identifier).get("assessment")
+        if (not row or row["target_cluster_id"] != target_id or not latest_source or
+                row["assessment_version"] != latest_source["assessmentVersion"]):
+            return {"migrationId": identifier, "assessment": None}
+        return {"migrationId": identifier, "assessment": {
+            "targetClusterId": row["target_cluster_id"],
+            "assessmentVersion": row["assessment_version"],
+            "snapshot": row["target_snapshot"],
+            "evidenceLevel": row["evidence_level"],
+            "createdAt": row["created_at"].isoformat(),
+        }}
+
+    def save_target_assessment(self, identifier, cluster_id, snapshot):
+        migration = self.get(identifier, lock=True)
+        if (migration.get("target_configuration") or {}).get("clusterId") != cluster_id:
+            raise ApiError(409, "TARGET_CHANGED", "Migration target changed; reassess.")
+        assessment = self.get_assessment(identifier)["assessment"]
+        if not assessment:
+            raise ApiError(409, "ASSESSMENT_REQUIRED", "Source assessment is required.")
+        self.db.execute(
+            "INSERT INTO migration_management.migration_target_assessments "
+            "(migration_id,target_cluster_id,assessment_version,target_snapshot,evidence_level,created_by) "
+            "VALUES (%s,%s,%s,%s::jsonb,%s,%s)",
+            [identifier, cluster_id, assessment["assessmentVersion"], json_text(snapshot),
+             snapshot["evidenceLevel"], self.principal.user_id],
+        )
+        return self.get_target_assessment(identifier)
 
     def get_source_catalogue(self, identifier):
         migration = self.get(identifier)
@@ -303,20 +497,35 @@ class Repository:
             [identifier],
         ).fetchone()
 
+        report = serialize(assessment) if assessment else None
+        if report and (report.get("inventorySummary") or {}).get("assessmentMode") == "SOURCE_ONLY":
+            report["findings"] = source_findings(report["findings"])
         return {
             "migrationId": identifier,
             "version": migration["version"],
             "status": migration["status"],
-            "assessment": (
-                serialize(assessment)
-                if assessment
-                else None
-            ),
+            "assessment": report,
         }
+
+    def require_planning_configuration(self, identifier, assessment_version, current, source_only=False):
+        snapshot = self.db.execute(
+            "SELECT snapshot FROM migration_management.migration_versions "
+            "WHERE migration_id=%s AND version=%s",
+            [identifier, assessment_version],
+        ).fetchone()
+        if not snapshot or any(
+            snapshot["snapshot"].get(camel(column)) != current[column]
+            for column in (("source_configuration", "migration_scope") if source_only else ("source_configuration", "target_configuration", "migration_scope"))
+        ):
+            raise ApiError(
+                409,
+                "PLANNING_REASSESSMENT_REQUIRED",
+                "Source, target, or assessment scope changed. Run a fresh assessment before planning.",
+            )
 
     def list(self, query):
         scope, params = scope_clause(self.principal)
-        conditions = [scope]
+        conditions = [scope, NOT_DELETED]
 
         for key, column in {
             "status": "m.status",
@@ -375,7 +584,7 @@ class Repository:
 
     def save(self, row, old, action, correlation, create=False):
         if create:
-            self.db.execute(
+            inserted = self.db.execute(
                 "INSERT INTO migration_management.migrations("
                 "migration_id,customer_id,name,description,"
                 "source_platform,target_platform,source_configuration,"
@@ -383,7 +592,8 @@ class Repository:
                 "status,version,created_by,updated_by"
                 ") VALUES("
                 "%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,"
-                "%s,%s,%s,%s,%s)",
+                "%s,%s,%s,%s,%s) "
+                "ON CONFLICT(customer_id,name) DO NOTHING RETURNING migration_id",
                 [
                     row["migration_id"],
                     row["customer_id"],
@@ -400,14 +610,17 @@ class Repository:
                     row["created_by"],
                     row["updated_by"],
                 ],
-            )
+            ).fetchone()
+            if not inserted:
+                raise ApiError(409, "ASSESSMENT_NAME_EXISTS",
+                               "An assessment with this name already exists for this customer, including cancelled assessments. Choose a different name.")
         else:
             self.db.execute(
                 "UPDATE migration_management.migrations SET "
                 "name=%s,description=%s,source_platform=%s,"
                 "target_platform=%s,source_configuration=%s::jsonb,"
                 "target_configuration=%s::jsonb,"
-                "migration_scope=%s::jsonb,status=%s,version=%s,"
+                "migration_scope=%s::jsonb,planning_draft=%s::jsonb,status=%s,version=%s,"
                 "updated_by=%s,updated_at=now() "
                 "WHERE migration_id=%s",
                 [
@@ -418,6 +631,7 @@ class Repository:
                     json_text(row["source_configuration"]),
                     json_text(row["target_configuration"]),
                     json_text(row["migration_scope"]),
+                    json_text(row.get("planning_draft", {})),
                     row["status"],
                     row["version"],
                     row["updated_by"],

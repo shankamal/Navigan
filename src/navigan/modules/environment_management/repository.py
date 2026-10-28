@@ -204,6 +204,22 @@ class Repository:
         ).fetchall()
         return page_result([serialize(r) for r in rows], count, query["page"], query["pageSize"])
 
+    def summary(self):
+        scope, params = scope_clause(self.principal)
+        rows = self.db.execute(
+            "SELECT e.status,e.provider_code,count(*) AS n "
+            "FROM environment_management.environments e "
+            "JOIN customer_management.customers c USING(customer_id) "
+            f"WHERE {scope} GROUP BY e.status,e.provider_code", params
+        ).fetchall()
+        statuses, providers, total = {}, {}, 0
+        for row in rows:
+            count = int(row["n"])
+            total += count
+            statuses[row["status"]] = statuses.get(row["status"], 0) + count
+            providers[row["provider_code"]] = providers.get(row["provider_code"], 0) + count
+        return {"total": total, "byStatus": statuses, "byProvider": providers}
+
     def records(self, identifier, kind, page, size, version=None):
         self.get(identifier)
         if version is not None:

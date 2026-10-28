@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import re
 import secrets
 import uuid
@@ -242,6 +243,8 @@ def source_migration(db, source_cluster_id, statuses, lock=False):
         "FROM migration_management.migrations "
         "WHERE source_configuration->>'sourceClusterId'=%s "
         "AND status=ANY(%s) "
+        "AND NOT (status='DRAFT' AND "
+        "COALESCE(source_configuration->>'discoveryMode','')='MANUAL') "
         "ORDER BY updated_at,migration_id LIMIT 1"
         + (" FOR UPDATE" if lock else ""),
         [source_cluster_id, list(statuses)],
@@ -342,6 +345,7 @@ def source_assignment(db, connector, now, correlation):
         "source": current["source_configuration"],
         "target": current["target_configuration"],
         "scope": current["migration_scope"],
+        "discoveryMode": "ALL_NAMESPACES",
         "status": current["status"],
     }
 
@@ -442,6 +446,7 @@ def assignment(db, connector, now, correlation):
         "source": current["source_configuration"],
         "target": current["target_configuration"],
         "scope": current["migration_scope"],
+        "discoveryMode": "ALL_NAMESPACES" if os.environ.get("MIGRATION_SOURCE_FIRST_ENABLED") == "true" else "SCOPED",
         "status": current["status"],
     }
 
@@ -712,10 +717,13 @@ def submit_source_inventory(
             "The migration configuration changed during discovery.",
         )
 
-    target_runtime = resolve_target_runtime(
-        db,
-        migration,
-        now,
+    source_only = (
+        migration["source_configuration"].get("discoveryMode") == "MANUAL"
+        and not migration["target_configuration"].get("clusterId")
+    )
+    target_runtime = (
+        {"status": "NOT_ASSESSED", "metrics": {}}
+        if source_only else resolve_target_runtime(db, migration, now)
     )
 
     next_inventory = db.execute(
@@ -786,7 +794,10 @@ def submit_source_inventory(
         source_inventory,
         target_runtime,
         migration["target_configuration"],
+        source_only=source_only,
     )
+
+    generated["inventorySummary"]["sourceClusterId"] = migration["source_configuration"].get("sourceClusterId")
 
     next_assessment = db.execute(
         "SELECT coalesce(max(assessment_version),0) + 1 "

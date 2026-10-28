@@ -154,7 +154,8 @@ def test_collects_only_selected_namespaces_and_safe_resources():
     requested_paths = " ".join(observed).lower()
     for forbidden in (
         "events",
-        "/pods",
+        "/pods/log",
+        "/pods/exec",
     ):
         assert forbidden not in requested_paths
     assert "/roles" in requested_paths
@@ -175,6 +176,32 @@ def test_collects_only_selected_namespaces_and_safe_resources():
         "config-private-value", "binary-private-value", "annotation-private-value",
     ):
         assert sensitive_value not in encoded
+
+
+def test_statefulset_claim_templates_are_sanitized_names_only():
+    def request(path):
+        if path == "/api/v1/nodes":
+            return {"items": [node()]}
+        if path == "/api/v1/namespaces":
+            return {"items": [{"metadata": {"name": "retailflow"}}]}
+        if path.endswith("/statefulsets"):
+            return {"items": [{
+                "metadata": {"name": "postgres", "namespace": "retailflow"},
+                "spec": {
+                    "volumeClaimTemplates": [{
+                        "metadata": {"name": "data"},
+                        "spec": {"storageClassName": "internal-only", "resources": {
+                            "requests": {"storage": "10Gi"}
+                        }},
+                    }]
+                },
+            }]}
+        return {"items": []}
+
+    result = collect_inventory(assignment(), request)
+    statefulset = next(r for r in result["resources"] if r["kind"] == "StatefulSet")
+    assert statefulset["volumeClaimTemplateNames"] == ["data"]
+    assert "internal-only" not in json.dumps(statefulset)
 
 
 def test_restores_type_metadata_omitted_by_kubernetes_list_responses():
@@ -432,3 +459,40 @@ def test_persistent_connector_polls_repeatedly():
         )
 
     assert calls == ["run", 5, "run", 5, "run"]
+
+
+def test_live_collection_resolves_service_selectors_without_exporting_labels():
+    def request(path):
+        if path == "/api/v1/nodes":
+            return {"items": [node()]}
+        if path == "/api/v1/namespaces":
+            return {"items": [{"metadata": {"name": "retailflow"}}]}
+        if path.endswith("/deployments"):
+            workload = deployment()
+            workload["spec"]["template"]["metadata"] = {
+                "labels": {"app": "retailflow", "internal-token": "sensitive-label-value"}
+            }
+            return {"items": [workload]}
+        if path.endswith("/services"):
+            return {"items": [
+                {"metadata": {"name": "retailflow-service", "namespace": "retailflow"},
+                 "spec": {"selector": {"app": "retailflow"}}},
+                {"metadata": {"name": "empty-selector", "namespace": "retailflow"},
+                 "spec": {"selector": {}}},
+            ]}
+        return {"items": []}
+
+    result = collect_inventory(assignment(), request)
+    workload = next(r for r in result["resources"] if r["kind"] == "Deployment")
+    assert {"kind": "Service", "name": "retailflow-service"} in workload["dependencyReferences"]
+    assert {"kind": "Service", "name": "empty-selector"} not in workload["dependencyReferences"]
+    assert "sensitive-label-value" not in json.dumps(result)
+
+
+def test_all_namespace_discovery_ignores_later_migration_selection():
+    task = assignment()
+    task["discoveryMode"] = "ALL_NAMESPACES"
+    request = lambda path: {"items": [{"metadata": {"name": name}} for name in ("retailflow", "kube-system", "another-app")]}
+    assert agent.selected_namespaces(task, request) == ["another-app", "kube-system", "retailflow"]
+    task["discoveryMode"] = "SCOPED"
+    assert agent.selected_namespaces(task, request) == ["retailflow"]

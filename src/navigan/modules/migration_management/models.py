@@ -47,6 +47,7 @@ class Model(BaseModel):
 
 class SourceCluster(Model):
     platform: Platform
+    discoveryMode: Literal["MANUAL"] | None = None
     sourceClusterId: str | None = Field(
         default=None,
         pattern=r"^SRC-[a-f0-9]{32}$",
@@ -182,6 +183,7 @@ class CreateSourceEnrollment(Model):
 class InstallSourceConnector(Model):
     version: int = Field(gt=0)
     reason: str = Field(min_length=3, max_length=2000)
+    recoveryMigrationId: str | None = Field(default=None, pattern=r"^MIG-[a-f0-9]{32}$")
 
 
 class EnrollSourceConnector(Model):
@@ -347,12 +349,6 @@ class SourceCatalogueReport(Model):
                 "Each namespace may appear only once."
             )
 
-        protected = set(names) & SYSTEM_NAMESPACES
-        if protected:
-            raise ValueError(
-                "System namespaces cannot be included in source catalogue."
-            )
-
         return self
 
 
@@ -364,7 +360,7 @@ class CreateMigration(Model):
     name: str = Field(min_length=8, max_length=100)
     description: str | None = Field(default=None, max_length=4000)
     source: SourceCluster
-    target: EksTarget
+    target: EksTarget | None = None
     scope: MigrationScope = Field(default_factory=MigrationScope)
 
     @model_validator(mode="after")
@@ -377,6 +373,79 @@ class CreateMigration(Model):
         return self
 
 
+class PlannedResource(Model):
+    apiVersion: str = Field(min_length=1, max_length=100)
+    kind: str = Field(min_length=1, max_length=100)
+    namespace: Namespace | None = None
+    name: str = Field(min_length=1, max_length=253)
+    treatment: Literal["MIGRATE", "RECREATE", "REPLACE", "RETIRE", "REVIEW"] = "REVIEW"
+    dependency: bool = False
+
+
+class RemediationDraft(Model):
+    findingIndex: int = Field(ge=0, le=4999)
+    treatment: Literal["RECONFIGURE", "RECREATE", "REPLACE", "RETIRE", "REVIEW"] = "REVIEW"
+    owner: str = Field(default="", max_length=150)
+    targetMapping: str = Field(default="", max_length=1000)
+    evidenceReference: str = Field(default="", max_length=1000)
+    status: Literal["PLANNED", "IN_PROGRESS", "EVIDENCE_ATTACHED"] = "PLANNED"
+
+    @model_validator(mode="after")
+    def evidence_required(self):
+        if self.status == "EVIDENCE_ATTACHED" and not self.evidenceReference.strip():
+            raise ValueError("An evidence reference is required.")
+        return self
+
+
+class MigrationStorageMapping(Model):
+    namespace: Namespace
+    sourceClaim: str = Field(min_length=1, max_length=253)
+    targetStorageClass: str = Field(default="", max_length=253)
+    targetCapacity: str = Field(default="", max_length=50)
+    targetAccessMode: str = Field(default="", max_length=60)
+    status: Literal["PROPOSED", "REVIEWED"] = "PROPOSED"
+
+
+class MigrationDeploymentSource(Model):
+    workload: PlannedResource
+    method: Literal["UNKNOWN", "HELM", "MANIFESTS", "SCRIPT", "REPOSITORY", "OTHER"] = "UNKNOWN"
+    bundleName: str = Field(default="", max_length=200)
+    reference: str = Field(default="", max_length=1000)
+    releaseName: str = Field(default="", max_length=100)
+
+
+class MigrationPlanningDraft(Model):
+    workflow: Literal["SOURCE_FIRST"] | None = None
+    deploymentSources: list[MigrationDeploymentSource] = Field(default_factory=list, max_length=2000)
+    schemaVersion: Literal[1] = 1
+    mode: Literal["SELECTED_WORKLOADS", "FULL_CLUSTER"]
+    assessmentVersion: int = Field(gt=0)
+    inventoryDigest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    selectedNamespaces: list[Namespace] | None = Field(default=None, max_length=200)
+    resources: list[PlannedResource] = Field(default_factory=list, max_length=2000)
+    remediations: list[RemediationDraft] = Field(default_factory=list, max_length=500)
+    storageMappings: list[MigrationStorageMapping] = Field(default_factory=list, max_length=2000)
+    dataStrategy: Literal["UNDECIDED", "BACKUP_RESTORE", "REPLICATION", "NO_PERSISTENT_DATA"] = "UNDECIDED"
+    notes: str = Field(default="", max_length=2000)
+
+    @model_validator(mode="after")
+    def unique_entries(self):
+        if self.selectedNamespaces is not None and len(set(self.selectedNamespaces)) != len(self.selectedNamespaces):
+            raise ValueError("Selected namespaces must be unique.")
+        keys = [(r.apiVersion, r.kind, r.namespace, r.name) for r in self.resources]
+        findings = [r.findingIndex for r in self.remediations]
+        storage_keys = [(m.namespace, m.sourceClaim) for m in self.storageMappings]
+        if len(keys) != len(set(keys)) or len(findings) != len(set(findings)) or len(storage_keys) != len(set(storage_keys)):
+            raise ValueError("Resource and finding entries must be unique.")
+        if self.workflow == "SOURCE_FIRST" and self.mode != "SELECTED_WORKLOADS":
+            raise ValueError("Source-first planning selects application workloads, not a full cluster.")
+        selected_workloads = {(r.apiVersion, r.kind, r.namespace, r.name) for r in self.resources if not r.dependency and r.kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod", "DeploymentConfig"}}
+        source_keys = [(s.workload.apiVersion, s.workload.kind, s.workload.namespace, s.workload.name) for s in self.deploymentSources]
+        if len(source_keys) != len(set(source_keys)) or not set(source_keys).issubset(selected_workloads):
+            raise ValueError("Deployment sources must refer to unique selected workloads.")
+        return self
+
+
 class UpdateMigration(Model):
     version: int = Field(gt=0)
     name: str | None = Field(default=None, min_length=8, max_length=100)
@@ -384,6 +453,7 @@ class UpdateMigration(Model):
     source: SourceCluster | None = None
     target: EksTarget | None = None
     scope: MigrationScope | None = None
+    planningDraft: MigrationPlanningDraft | None = None
     changeReason: str = Field(min_length=3, max_length=2000)
 
 
@@ -391,6 +461,10 @@ class MigrationAction(Model):
     version: int = Field(gt=0)
     reason: str = Field(min_length=3, max_length=2000)
     comments: str | None = Field(default=None, max_length=4000)
+
+
+class CancelMigration(MigrationAction):
+    deleteAssessment: bool = Field(default=False, strict=True)
 
 
 class DiscoveryAction(MigrationAction):
@@ -459,11 +533,11 @@ SOURCE_INVENTORY_KEYS = {
         "automountServiceAccountToken",
         "imagePullSecretCount",
     },
-    "Deployment": {"replicas", "strategyType", "pod"},
-    "StatefulSet": {"replicas", "strategyType", "pod"},
-    "DaemonSet": {"replicas", "strategyType", "pod"},
-    "Job": {"replicas", "strategyType", "pod"},
-    "CronJob": {"replicas", "strategyType", "pod"},
+    "Deployment": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
+    "StatefulSet": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence", "volumeClaimTemplateNames"},
+    "DaemonSet": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
+    "Job": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
+    "CronJob": {"replicas", "strategyType", "pod", "dependencyReferences", "deploymentMetadata", "runtimeEvidence"},
     "Service": {
         "type",
         "externalTrafficPolicy",
@@ -476,6 +550,7 @@ SOURCE_INVENTORY_KEYS = {
         "ruleCount",
         "tlsEntryCount",
         "paths",
+        "backendServiceReferences",
     },
     "PersistentVolumeClaim": {
         "accessModes",
@@ -635,6 +710,52 @@ class SourceInventoryReport(Model):
                     + ", ".join(sorted(unexpected))
                 )
 
+            if kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}:
+                references = resource.get("dependencyReferences", [])
+                if not isinstance(references, list) or len(references) > 500:
+                    raise ValueError("Invalid inventory dependency references.")
+                seen_references = set()
+                for reference in references:
+                    if not isinstance(reference, dict) or set(reference) != {"kind", "name"}:
+                        raise ValueError("Invalid inventory dependency reference.")
+                    reference_kind = reference["kind"]
+                    reference_name = reference["name"]
+                    if reference_kind not in {"ConfigMap", "Secret", "ServiceAccount", "PersistentVolumeClaim", "Service"}:
+                        raise ValueError("Unsupported inventory dependency kind.")
+                    if not isinstance(reference_name, str) or not 0 < len(reference_name) <= 253:
+                        raise ValueError("Invalid inventory dependency name.")
+                    pair = (reference_kind, reference_name)
+                    if pair in seen_references:
+                        raise ValueError("Duplicate inventory dependency reference.")
+                    seen_references.add(pair)
+
+            if kind == "StatefulSet":
+                templates = resource.get("volumeClaimTemplateNames", [])
+                if (
+                    not isinstance(templates, list)
+                    or len(templates) > 100
+                    or any(not isinstance(name, str) or not 0 < len(name) <= 253 for name in templates)
+                ):
+                    raise ValueError("Invalid StatefulSet volume claim template names.")
+                if len(set(templates)) != len(templates):
+                    raise ValueError("Duplicate StatefulSet volume claim template name.")
+
+            if kind == "Ingress":
+                backends = resource.get("backendServiceReferences", [])
+                if not isinstance(backends, list) or len(backends) > 500:
+                    raise ValueError("Invalid ingress backend references.")
+                seen_backends = set()
+                for backend in backends:
+                    if not isinstance(backend, dict) or set(backend) != {"kind", "name"} or backend.get("kind") != "Service" or not isinstance(backend.get("name"), str) or not 0 < len(backend["name"]) <= 253:
+                        raise ValueError("Invalid ingress backend reference.")
+                    if backend["name"] in seen_backends:
+                        raise ValueError("Duplicate ingress backend reference.")
+                    seen_backends.add(backend["name"])
+
+            if "deploymentMetadata" in resource or "runtimeEvidence" in resource:
+                from .deployment_sources import validate_deployment_inventory
+                validate_deployment_inventory(resource)
+
             api_version = resource.get("apiVersion")
             if (
                 not isinstance(api_version, str)
@@ -648,16 +769,9 @@ class SourceInventoryReport(Model):
             namespace = resource.get("namespace")
             name = resource.get("name")
 
-            if namespace in SYSTEM_NAMESPACES:
-                raise ValueError(
-                    "System namespaces cannot be assessed."
-                )
-
+            # Read-only discovery may include platform namespaces. Migration
+            # scope selection retains its separate protected-namespace checks.
             if kind == "Namespace":
-                if name in SYSTEM_NAMESPACES:
-                    raise ValueError(
-                        "System namespaces cannot be assessed."
-                    )
                 if not isinstance(name, str) or not name:
                     raise ValueError(
                         "Namespace inventory requires a name."
@@ -810,3 +924,4 @@ class AssessmentReport(Model):
                 "An assessment with blockers cannot score 100."
             )
         return self
+

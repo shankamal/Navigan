@@ -3,6 +3,10 @@ import { describe, it, expect, vi } from "vitest";
 import { CustomerListView } from "@/modules/customer-management/components/customer-list";
 import { CustomerMetrics } from "@/modules/customer-management/components/customer-metrics";
 import { customer, architect } from "./fixtures";
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ refetchQueries: vi.fn() }),
+}));
 vi.mock("@/shared/auth/auth-provider", () => ({
   useAuth: () => ({ identity: architect }),
 }));

@@ -321,9 +321,46 @@ def workload_pod_spec(resource):
     return mapping(mapping(spec.get("template")).get("spec"))
 
 
+def dependency_references(resource):
+    """Only names and exact references, never configuration values or tokens."""
+    spec = workload_pod_spec(resource)
+    references = set()
+    sa = limited_text(spec.get("serviceAccountName"), 253)
+    if sa and sa != "default":
+        references.add(("ServiceAccount", sa))
+    for entry in sequence(spec.get("imagePullSecrets"))[:100]:
+        name = limited_text(mapping(entry).get("name"), 253)
+        if name:
+            references.add(("Secret", name))
+    for volume in sequence(spec.get("volumes"))[:500]:
+        item = mapping(volume)
+        for field, kind in (("configMap", "ConfigMap"), ("secret", "Secret"), ("persistentVolumeClaim", "PersistentVolumeClaim")):
+            value = mapping(item.get(field))
+            name = limited_text(value.get("claimName" if field == "persistentVolumeClaim" else "name" if field == "configMap" else "secretName"), 253)
+            if name:
+                references.add((kind, name))
+    for container in sequence(spec.get("containers"))[:200] + sequence(spec.get("initContainers"))[:100]:
+        item = mapping(container)
+        for entry in sequence(item.get("env"))[:500]:
+            source = mapping(mapping(entry).get("valueFrom"))
+            for field, kind in (("configMapKeyRef", "ConfigMap"), ("secretKeyRef", "Secret")):
+                name = limited_text(mapping(source.get(field)).get("name"), 253)
+                if name:
+                    references.add((kind, name))
+        for entry in sequence(item.get("envFrom"))[:200]:
+            source = mapping(entry)
+            for field, kind in (("configMapRef", "ConfigMap"), ("secretRef", "Secret")):
+                name = limited_text(mapping(source.get(field)).get("name"), 253)
+                if name:
+                    references.add((kind, name))
+    return [{"kind": kind, "name": name} for kind, name in sorted(references)[:500]]
+
+
 def sanitize_workload(resource):
     spec = mapping(resource.get("spec"))
     result = common(resource)
+    from .deployment_evidence import deployment_metadata
+    result["deploymentMetadata"] = deployment_metadata(resource)
     result["replicas"] = spec.get("replicas")
     result["strategyType"] = limited_text(
         mapping(spec.get("strategy")).get("type")
@@ -331,6 +368,12 @@ def sanitize_workload(resource):
         100,
     )
     result["pod"] = pod_inventory(workload_pod_spec(resource))
+    result["dependencyReferences"] = dependency_references(resource)
+    if resource.get("kind") == "StatefulSet":
+        result["volumeClaimTemplateNames"] = sorted({
+            name for entry in sequence(spec.get("volumeClaimTemplates"))[:100]
+            if (name := limited_text(mapping(mapping(entry).get("metadata")).get("name"), 253))
+        })
     return result
 
 
@@ -438,6 +481,17 @@ def sanitize_resource(resource):
         }
 
     if kind == "Ingress":
+        backends = set()
+        default_service = mapping(mapping(spec.get("defaultBackend")).get("service"))
+        default_name = limited_text(default_service.get("name"), 253)
+        if default_name:
+            backends.add(default_name)
+        for rule in sequence(spec.get("rules"))[:500]:
+            for route in sequence(mapping(mapping(rule).get("http")).get("paths"))[:500]:
+                service = mapping(mapping(mapping(route).get("backend")).get("service"))
+                name = limited_text(service.get("name"), 253)
+                if name:
+                    backends.add(name)
         paths = []
         for rule in sequence(spec.get("rules"))[:500]:
             http = mapping(mapping(rule).get("http"))
@@ -457,6 +511,7 @@ def sanitize_resource(resource):
                 spec.get("ingressClassName"),
                 253,
             ),
+            "backendServiceReferences": [{"kind": "Service", "name": name} for name in sorted(backends)[:500]],
             "ruleCount": len(sequence(spec.get("rules"))),
             "tlsEntryCount": len(sequence(spec.get("tls"))),
             "paths": paths,
@@ -683,6 +738,38 @@ def build_inventory(resources):
     if len(resources) > MAX_RESOURCES:
         raise UnsafeInventory("Inventory resource limit exceeded.")
 
-    return finalize_inventory(
-        [sanitize_resource(item) for item in resources]
-    )
+    sanitized = [sanitize_resource(item) for item in resources]
+    # Service selectors are evaluated locally, without exporting label values.
+    # Empty selectors must never match every workload.
+    service_matches = {}
+    for service in resources:
+        if service.get("kind") != "Service":
+            continue
+        selector = mapping(mapping(service.get("spec")).get("selector"))
+        if not selector or len(selector) > 200:
+            continue
+        namespace = mapping(service.get("metadata")).get("namespace")
+        name = limited_text(mapping(service.get("metadata")).get("name"), 253)
+        if not name:
+            continue
+        service_matches[(namespace, name)] = selector
+
+    for original, item in zip(resources, sanitized):
+        if original.get("kind") not in WORKLOAD_KINDS:
+            continue
+        spec = mapping(original.get("spec"))
+        template = mapping(spec.get("template"))
+        pod_labels = mapping(mapping(template.get("metadata")).get("labels"))
+        namespace = item.get("namespace")
+        matched = [
+            name for (ns, name), selector in service_matches.items()
+            if ns == namespace and pod_labels
+            and all(pod_labels.get(key) == value for key, value in selector.items())
+        ]
+        refs = {(ref["kind"], ref["name"]) for ref in item["dependencyReferences"]}
+        refs.update(("Service", name) for name in matched)
+        item["dependencyReferences"] = [
+            {"kind": kind, "name": name} for kind, name in sorted(refs)[:500]
+        ]
+
+    return finalize_inventory(sanitized)

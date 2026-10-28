@@ -22,6 +22,7 @@ from .models import (
     KubernetesAccessAssignment,
     RevokeKubernetesAccess,
     ConnectorInstallationRequest,
+    ConnectorUpgradeRequest,
     CreateNodeGroupRequest,
     NodeGroupRequestAction,
     SystemNodeGroupMigration,
@@ -32,6 +33,7 @@ from .models import (
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
 from .connector_installation import ConnectorInstaller
+from .bootstrap_status import refresh_installer_status
 from .tool_access import resolve_tool_access
 
 BASE = "/api/v1/clusters"
@@ -278,6 +280,12 @@ def execute(event, principal, correlation):
     if path != BASE and not path.startswith(BASE + "/"):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     parts = path[len(BASE):].strip("/").split("/") if path != BASE else []
+    if parts == ["summary"]:
+        if method != "GET":
+            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")
+        with transaction() as db:
+            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            return response(200, Repository(db, principal).summary(), correlation)
     identifier = parts[0] if parts else None
     if identifier and not re.fullmatch(r"CLU-[A-Za-z0-9-]{1,46}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
@@ -303,6 +311,10 @@ def execute(event, principal, correlation):
     install_connector = (
         method == "POST" and len(parts) == 3
         and parts[1:] == ["connector", "install"]
+    )
+    upgrade_connector = (
+        method == "POST" and len(parts) == 3
+        and parts[1:] == ["connector", "upgrade"]
     )
     create_tool_session = (
         method == "POST"
@@ -373,6 +385,7 @@ def execute(event, principal, correlation):
         or create_access
         or revoke_access
         or install_connector
+        or upgrade_connector
         or create_tool_session
         or create_node_group_request
         or migrate_system_node_group
@@ -400,6 +413,8 @@ def execute(event, principal, correlation):
             if revoke_access
             else ConnectorInstallationRequest
             if install_connector
+            else ConnectorUpgradeRequest
+            if upgrade_connector
             else ToolSessionRequest
             if create_tool_session
             else CreateNodeGroupRequest
@@ -430,6 +445,8 @@ def execute(event, principal, correlation):
                 value = repo.list(query_of(event), access)
             else:
                 row = repo.get(identifier)
+                if action in {None, "", "platform-components", "tools"}:
+                    row = refresh_installer_status(repo, row, correlation)
                 if action == "execution-logs":
                     value = execution_logs(row)
                 elif action == "identity":
@@ -489,6 +506,19 @@ def execute(event, principal, correlation):
                 else:
                     value = serialize(row, access)
             return response(200, value, correlation)
+        if upgrade_connector:
+            access.require("cluster.access.manage")
+            operation = method + " " + path
+            fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            customer_repo = CustomerRepository(db, principal)
+            replay = customer_repo.idempotency_get(operation, key, fingerprint)
+            if replay:
+                result = response(replay["status"], replay["body"], correlation)
+                result["headers"]["Idempotency-Replayed"] = "true"
+                return result
+            value = repo.upgrade_connector_gitops(identifier, body)
+            customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})
+            return response(202, value, correlation)
         if install_connector:
             access.require("cluster.access.manage")
             row = repo.get(identifier)
@@ -676,3 +706,4 @@ def lambda_handler(event, context):
         }))
         error = ApiError(500, "INTERNAL_ERROR", "An unexpected error occurred.")
         return response(error.status, error.payload(correlation), correlation)
+

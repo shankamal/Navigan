@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   PageHeading,
+  Button,
   Loading,
   ErrorNotice,
   EmptyState,
@@ -26,6 +27,7 @@ import { hasPermission } from "@/shared/auth/permissions";
 import { statuses } from "@/modules/customer-management/model/types";
 import {
   useEnvironmentCount,
+  useEnvironmentSummary,
   useEnvironments,
   useMetadata,
 } from "../hooks/queries";
@@ -63,36 +65,10 @@ export function EnvironmentList({
   const [view, setView] = useState<"list" | "board">("list");
   const query = useEnvironments(filters);
   const metadata = useMetadata();
-  const awsCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "AWS",
-  });
-  const azureCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "AZURE",
-  });
-  const gcpCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "GCP",
-  });
-  const ociCount = useEnvironments({
-    page: 0,
-    pageSize: 1,
-    sort: "createdAt,desc",
-    cloudProvider: "OCI",
-  });
-  const cloudCounts = [awsCount, azureCount, gcpCount, ociCount];
+  const providerSummary = useEnvironmentSummary(mode === "directory");
   const refresh = () => {
     void query.refetch();
-    [total, active, submitted, review, draft, ...cloudCounts].forEach(
-      (item) => void item.refetch(),
-    );
+    void providerSummary.refetch();
   };
   const total = useEnvironmentCount(undefined, mode === "directory");
   const active = useEnvironmentCount("ACTIVE", mode === "directory");
@@ -170,43 +146,41 @@ export function EnvironmentList({
     setFilters((f) => ({ ...f, page: 0, [key]: value || undefined }));
   return (
     <div className="environment-workspace environment-list-workspace">
-      <div className="environment-portfolio-heading">
-        <Layers3 size={32} aria-hidden="true" />
-        <PageHeading
-          title={
-            mode === "reviews"
-              ? "Environment Reviews"
-              : "Environment Management"
-          }
-          description={
-            mode === "reviews"
-              ? "Review submitted environment profiles and move approved requests through the governed lifecycle."
-              : "Track reusable infrastructure profiles and create container environments across your clouds."
-          }
-          action={
-            mode === "directory" &&
-            hasPermission(identity, "environment.create") && (
-              <div className="environment-heading-actions">
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={refresh}
-                  aria-label="Refresh environment portfolio"
-                >
-                  <RefreshCw size={18} />
-                </button>
+      <PageHeading
+        icon={<Layers3 />}
+        title={
+          mode === "reviews" ? "Environment Reviews" : "Environment Management"
+        }
+        description={
+          mode === "reviews"
+            ? "Review submitted environment profiles and move approved requests through the governed lifecycle."
+            : "Track reusable infrastructure profiles and create container environments across your clouds."
+        }
+        action={
+          <>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={refresh}
+              disabled={query.isFetching || providerSummary.isFetching}
+              aria-label="Refresh environment portfolio"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </Button>
+            {mode === "directory" &&
+              hasPermission(identity, "environment.create") && (
                 <Link
                   className="button button-primary"
                   href="/environments/new"
                 >
-                  <Plus size={18} />
-                  New Environment
+                  <Plus size={16} />
+                  New environment
                 </Link>
-              </div>
-            )
-          }
-        />
-      </div>
+              )}
+          </>
+        }
+      />
       {mode === "directory" ? (
         <div className="environment-portfolio-overview">
           <section
@@ -301,18 +275,17 @@ export function EnvironmentList({
                     {provider} / {["EKS", "AKS", "GKE", "OKE"][index]}
                   </span>
                   <strong>
-                    {cloudCounts[index].data?.pagination.totalElements ?? "—"}
+                    {providerSummary.data?.byProvider[provider] ??
+                      (providerSummary.data ? 0 : "—")}
                   </strong>
                   <meter
                     min={0}
                     max={Math.max(
                       1,
                       total.data ?? 0,
-                      cloudCounts[index].data?.pagination.totalElements ?? 0,
+                      providerSummary.data?.byProvider[provider] ?? 0,
                     )}
-                    value={
-                      cloudCounts[index].data?.pagination.totalElements ?? 0
-                    }
+                    value={providerSummary.data?.byProvider[provider] ?? 0}
                     aria-label={`${provider} environment count`}
                   />
                 </div>

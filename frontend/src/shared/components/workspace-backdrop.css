@@ -1,7 +1,7 @@
 /* Shared workspace canvas; white panels retain their existing contrast. */
 /* Higher specificity keeps module styles from changing the shared header. */
 .app-shell[class] > header.topbar {
-  background-color: #1e252f;
+  background-color: var(--navigan-graphite-raised, #252e39);
   background-image: url("/graphics/header-cloud-network.svg");
   background-position: right center;
   background-size: 55% 100%;
@@ -18,8 +18,8 @@
   color: #e2e8f0;
 }
 .app-shell[class] > header.topbar .corporate-wordmark {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 23px;
+  font-family: var(--navigan-font-family);
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -1px;
   white-space: nowrap;
@@ -71,8 +71,8 @@
   }
 }
 .app-shell[class] .shell-body > .content-column {
-  background-color: #f3f5f8;
-  background-image: linear-gradient(180deg, #e9eef4 0, #f3f5f8 340px);
+  background-color: #f5f7fa;
+  background-image: linear-gradient(180deg, #f0f3f7 0, #f5f7fa 340px);
   background-repeat: no-repeat;
 }
 .app-shell[class] main#main-content {
@@ -104,58 +104,113 @@
 .app-shell[class] main#main-content > .customer-workspace {
   background: transparent;
 }
-/* Shared quiet heading surfaces and controls, without changing their layout. */
+/* Navigan Neutral Graphite title system.
+   This intentionally replaces the old transparent-heading override. */
 .app-shell[class] main#main-content .page-heading,
-.app-shell[class] main#main-content .customer-page-header,
-.app-shell[class] main#main-content .environment-portfolio-heading,
 .app-shell[class] main#main-content .pd-heading {
-  background: linear-gradient(110deg, #dfe5ec, #edf1f6);
-  border: 1px solid #e0e6ee;
-  border-radius: 10px;
-  padding: 14px 18px;
-  box-shadow: none;
-  min-height: 120px;
-  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  position: sticky;
-  top: calc(var(--workspace-topbar-height, 72px) + 8px);
-  z-index: 20;
-  align-self: start;
-}
-.app-shell[class] main#main-content .customer-page-header .page-heading {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  min-height: 0;
-  position: static;
+  gap: 18px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  min-height: 72px;
+  box-sizing: border-box;
+  border: 1px solid #3a4552;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #202833 0%, #303b49 100%) !important;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(23 31 40 / 10%);
+  position: relative;
+  top: auto;
   z-index: auto;
 }
+.app-shell[class] main#main-content .customer-page-header,
+.app-shell[class] main#main-content .environment-portfolio-heading {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  min-height: 72px;
+  box-sizing: border-box;
+  border: 1px solid #3a4552;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #202833 0%, #303b49 100%) !important;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(23 31 40 / 10%);
+}
+.app-shell[class] main#main-content .customer-page-header .page-heading,
 .app-shell[class]
   main#main-content
   .environment-portfolio-heading
   .page-heading {
-  background: transparent;
-  border: 0;
+  margin: 0;
   padding: 0;
   min-height: 0;
-  position: static;
-  z-index: auto;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+.app-shell[class] main#main-content :is(.page-heading, .pd-heading) h1,
+.app-shell[class]
+  main#main-content
+  :is(.customer-page-header, .environment-portfolio-heading)
+  h1 {
+  color: #fff !important;
+  font-size: clamp(21px, 1.45vw, 24px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.app-shell[class] main#main-content :is(.page-heading, .pd-heading) .muted,
+.app-shell[class]
+  main#main-content
+  :is(.customer-page-header, .environment-portfolio-heading)
+  .muted {
+  color: #c8d1da !important;
+}
+.app-shell[class] main#main-content :is(.page-heading, .pd-heading) .eyebrow,
+.app-shell[class]
+  main#main-content
+  :is(.customer-page-header, .environment-portfolio-heading)
+  .eyebrow {
+  color: #a9d65e !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(.page-heading, .pd-heading)
+  .page-heading-symbol {
+  color: #86bc25 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(.page-heading, .pd-heading)
+  .heading-actions
+  :is(.button-secondary, .button-ghost),
+.app-shell[class]
+  main#main-content
+  :is(.customer-page-header, .environment-portfolio-heading)
+  :is(.button-secondary, .button-ghost) {
+  background: #313c48;
+  border-color: #596672;
+  color: #fff;
 }
 @media (max-width: 767px), (max-height: 600px) {
   .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
   .app-shell[class] main#main-content .customer-page-header,
-  .app-shell[class] main#main-content .environment-portfolio-heading,
-  .app-shell[class] main#main-content .pd-heading {
+  .app-shell[class] main#main-content .environment-portfolio-heading {
     min-height: 0;
     position: static;
   }
 }
 @media print {
   .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
   .app-shell[class] main#main-content .customer-page-header,
-  .app-shell[class] main#main-content .environment-portfolio-heading,
-  .app-shell[class] main#main-content .pd-heading {
+  .app-shell[class] main#main-content .environment-portfolio-heading {
     position: static;
+    background: #fff !important;
+    color: #111 !important;
   }
 }
 .page-heading-copy {
@@ -206,8 +261,8 @@
 .app-shell[class] main#main-content .page-heading h1,
 .app-shell[class] main#main-content .pd-heading h1 {
   color: #263447;
-  font-family: "Open Sans", Arial, sans-serif;
-  font-size: 26px;
+  font-family: inherit;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.02em;
@@ -216,16 +271,16 @@
 /* Keep the icon, title and description aligned across every heading variant. */
 .app-shell[class] main#main-content .page-heading-copy,
 .app-shell[class] main#main-content .pd-heading > div:first-child {
-  min-height: 78px;
-  padding-top: 18px;
+  min-height: 64px;
+  padding-top: 16px;
   flex: 1;
   min-width: 0;
   max-width: none;
 }
 .app-shell[class] main#main-content .page-heading .muted,
 .app-shell[class] main#main-content .pd-heading .muted {
-  font-family: "Open Sans", Arial, sans-serif;
-  font-size: 14px;
+  font-family: inherit;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
   color: #64748b;
@@ -238,7 +293,7 @@
   top: 0;
   left: 48px;
   margin: 0;
-  font-family: "Open Sans", Arial, sans-serif;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -293,10 +348,10 @@
   background: #f1f5f9;
   border-color: #94a3b8;
 }
-/* Slate sidebar paired with the midnight-grey title bar. */
+/* Shared graphite navigation, consistent across every module. */
 .app-shell[class] .sidebar {
-  background: #293647;
-  border-color: #3b4a5e;
+  background: var(--navigan-graphite, #1c222b);
+  border-color: #343f4c;
   color: #cbd5e1;
 }
 .app-shell[class] .sidebar .nav-item,
@@ -305,17 +360,17 @@
 }
 .app-shell[class] .sidebar .nav-item svg,
 .app-shell[class] .sidebar .nav-subitem svg {
-  color: #a9b8ca;
+  color: #acbbc9;
 }
 .app-shell[class] .sidebar .nav-section {
-  color: #c0ccdb;
+  color: #a7b3bf;
 }
 .app-shell[class] .sidebar .nav-item.selected,
 .app-shell[class] .sidebar .nav-subitem.selected {
-  background: #1e252f;
+  background: var(--navigan-graphite-raised, #252e39);
   color: #fff;
   border-color: transparent;
-  box-shadow: inset 3px 0 #aebed0;
+  box-shadow: inset 3px 0 var(--navigan-brand, #86bc25);
   font-weight: 600;
 }
 .app-shell[class] .sidebar .nav-item.selected svg,
@@ -324,7 +379,7 @@
 }
 .app-shell[class] .sidebar .nav-item:hover:not(.selected),
 .app-shell[class] .sidebar .nav-subitem:hover:not(.selected) {
-  background: #35465b;
+  background: var(--navigan-graphite-hover, #303b49);
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .nav-item:focus-visible,
@@ -335,8 +390,8 @@
   border-color: #475569;
 }
 .app-shell[class] .sidebar .workspace-card {
-  background: #263140;
-  border-color: #3b495d;
+  background: var(--navigan-graphite-raised, #252e39);
+  border-color: #404a57;
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .workspace-card strong {
@@ -346,22 +401,22 @@
   color: #b3c0d0;
 }
 .app-shell[class] .sidebar .workspace-symbol {
-  background: #3b495d;
+  background: #404a57;
   color: #f1f5f9;
 }
 .app-shell[class] .sidebar .sidebar-collapse {
-  background: #263140;
+  background: var(--navigan-graphite-raised, #252e39);
   color: #cbd5e1;
-  border-color: #3b495d;
+  border-color: #404a57;
 }
 .app-shell[class] .sidebar .nav-submenu {
-  border-color: #3b495d;
+  border-color: #404a57;
 }
 
 /* Portal identity and sticky navigation branding. */
 .app-shell[class] > header.topbar .platform-title {
-  font-family: "Open Sans", Arial, sans-serif;
-  font-size: 22px;
+  font-family: inherit;
+  font-size: 17px;
   line-height: 1.35;
   font-weight: 600;
   letter-spacing: 0;
@@ -380,9 +435,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 76px;
-  margin-bottom: 16px;
-  background: #293647;
+  min-height: 60px;
+  margin-bottom: 10px;
+  background: var(--navigan-graphite, #1c222b);
   border-bottom: 1px solid #475569;
 }
 .app-shell[class] .sidebar-brand {
@@ -390,7 +445,7 @@
   align-items: center;
   gap: 10px;
   color: #fff;
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1.35;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -462,5 +517,801 @@
 @media (max-width: 1000px), (forced-colors: active) {
   .app-shell[class] > header.topbar::after {
     display: none;
+  }
+}
+
+/* FINAL 2026 NEUTRAL GRAPHITE SHELL
+   Keep this last: globals contains historical visual experiments. */
+.app-shell[class] > header.topbar {
+  min-height: 60px;
+  padding: 9px 22px;
+  gap: 16px;
+  background-color: #1c222b !important;
+  border-bottom: 2px solid #4e652f;
+  box-shadow: 0 2px 10px rgb(14 20 27 / 22%);
+}
+.app-shell[class] > header.topbar::after {
+  opacity: 0.22;
+  filter: saturate(0.55);
+}
+.app-shell[class] > header.topbar .platform-title {
+  color: #d9e0e6;
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell[class] .shell-body {
+  background: #eef1f4;
+}
+.app-shell[class] .sidebar {
+  width: 232px;
+  flex: 0 0 232px;
+  background: #1c222b !important;
+  border-right: 1px solid #343f4c;
+  box-shadow: 3px 0 12px rgb(23 31 40 / 10%);
+}
+.app-shell[class] .sidebar .sidebar-brand-panel {
+  min-height: 54px;
+  border-bottom-color: #394552;
+}
+.app-shell[class] .sidebar .clustered-nav-group {
+  gap: 2px;
+  margin: 0;
+  padding: 11px 10px 12px;
+  border-bottom: 1px solid #303a45;
+}
+.app-shell[class] .sidebar .nav-section {
+  padding: 0 8px 5px;
+  color: #8f9dab;
+  font-size: var(--navigan-font-body);
+  font-weight: 700;
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+}
+.app-shell[class] .sidebar .nav-item {
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 4px;
+  color: #c8d1da;
+  font-size: 12px;
+}
+.app-shell[class] .sidebar .nav-item svg {
+  width: 17px;
+  height: 17px;
+}
+.app-shell[class] .sidebar .nav-item.selected {
+  background: #2a3440 !important;
+  box-shadow: inset 3px 0 #86bc25;
+  color: #fff;
+}
+.app-shell[class] .sidebar .nav-item.selected svg {
+  color: #9fd055;
+}
+.app-shell[class] .sidebar .nav-item:hover:not(.selected) {
+  background: #252e39;
+}
+.app-shell[class] .shell-body > .content-column {
+  background: #eef1f4 !important;
+  background-image: linear-gradient(
+    180deg,
+    #e9edf1 0,
+    #f4f6f8 240px
+  ) !important;
+}
+.app-shell[class] .content-column > .breadcrumb {
+  min-height: 38px;
+  padding-top: 10px;
+  padding-bottom: 7px;
+  color: #667481;
+  font-size: var(--navigan-font-body);
+}
+.app-shell[class] .content-column main#main-content {
+  padding-top: 8px;
+  padding-bottom: 24px;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .panel,
+    .pd-card,
+    .pd-overview-panel,
+    .customer-metrics,
+    .environment-metrics,
+    .cluster-directory-panel
+  ) {
+  border-color: #d8e0e6;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgb(23 31 40 / 4%);
+}
+.app-shell[class] main#main-content table thead th {
+  background: #e8edf1;
+  color: #414d59;
+  border-top: 1px solid #d8e0e6;
+  border-bottom: 1px solid #ccd6de;
+}
+.app-shell[class] main#main-content table tbody tr:nth-child(even) {
+  background: #fbfcfd;
+}
+.app-shell[class]
+  main#main-content
+  :is(.button-primary, button[class*="primary"]) {
+  background-color: #2f6b2d;
+  border-color: #2f6b2d;
+}
+.app-shell[class]
+  main#main-content
+  :is(.button-primary, button[class*="primary"]):hover:not(:disabled) {
+  background-color: #255624;
+  border-color: #255624;
+}
+.app-shell[class] .app-footer {
+  min-height: 40px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top-color: #dce3e8;
+  color: #77838d;
+  font-size: var(--navigan-font-body);
+}
+@media (min-width: 901px) {
+  .app-shell[class].navigation-collapsed .sidebar {
+    width: 68px;
+    flex-basis: 68px;
+  }
+}
+@media (max-width: 900px) {
+  .app-shell[class] .sidebar.expanded {
+    background: #1c222b !important;
+  }
+}
+
+/* LAPTOP DENSITY MODE 2026
+   Optimized for 14–15 inch laptops at browser zoom 100%.
+   Keeps readable type while reducing vertical waste substantially. */
+@media (min-width: 1100px) and (max-height: 900px) {
+  .app-shell[class] > header.topbar {
+    min-height: 54px;
+    padding: 7px 18px;
+    gap: 13px;
+  }
+  .app-shell[class] > header.topbar .corporate-wordmark {
+    font-size: 18px;
+    padding-right: 10px;
+  }
+  .app-shell[class] > header.topbar .platform-title {
+    font-size: 12px;
+  }
+  .app-shell[class] > header.topbar .signed-in-user strong {
+    font-size: 12px;
+  }
+  .app-shell[class] > header.topbar .signed-in-user span {
+    font-size: var(--navigan-font-body);
+  }
+  .app-shell[class] > header.topbar .workspace-environment {
+    min-height: 26px;
+    padding: 4px 8px;
+    font-size: var(--navigan-font-body);
+  }
+  .app-shell[class] > header.topbar .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: var(--navigan-font-body);
+  }
+
+  .app-shell[class] .sidebar {
+    width: 210px;
+    flex-basis: 210px;
+  }
+  .app-shell[class] .sidebar .sidebar-brand-panel {
+    min-height: 48px;
+    margin-bottom: 4px;
+  }
+  .app-shell[class] .sidebar .sidebar-brand-name {
+    font-size: 15px;
+  }
+  .app-shell[class] .sidebar .clustered-nav-group {
+    padding: 8px 8px 9px;
+  }
+  .app-shell[class] .sidebar .nav-section {
+    padding: 0 7px 4px;
+    font-size: 8.5px;
+  }
+  .app-shell[class] .sidebar .nav-item {
+    min-height: 31px;
+    padding: 5px 8px;
+    font-size: var(--navigan-font-body);
+    gap: 9px;
+  }
+  .app-shell[class] .sidebar .nav-item svg {
+    width: 15px;
+    height: 15px;
+  }
+  .app-shell[class] .sidebar .workspace-card {
+    padding: 8px;
+    font-size: var(--navigan-font-body);
+  }
+
+  .app-shell[class] .content-column > .breadcrumb {
+    min-height: 30px;
+    padding-top: 6px;
+    padding-bottom: 5px;
+    font-size: var(--navigan-font-body);
+  }
+  .app-shell[class] .content-column main#main-content {
+    padding-top: 6px;
+    padding-bottom: 14px;
+  }
+
+  .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
+  .app-shell[class] main#main-content .customer-page-header,
+  .app-shell[class] main#main-content .environment-portfolio-heading {
+    min-height: 58px;
+    margin-bottom: 8px;
+    padding: 9px 12px;
+    gap: 12px;
+  }
+  .app-shell[class] main#main-content :is(.page-heading, .pd-heading) h1,
+  .app-shell[class]
+    main#main-content
+    :is(.customer-page-header, .environment-portfolio-heading)
+    h1 {
+    font-size: 19px;
+    line-height: 1.2;
+  }
+  .app-shell[class] main#main-content :is(.page-heading, .pd-heading) .muted,
+  .app-shell[class]
+    main#main-content
+    :is(.customer-page-header, .environment-portfolio-heading)
+    .muted {
+    margin-top: 2px;
+    font-size: var(--navigan-font-caption);
+    line-height: 1.35;
+  }
+  .app-shell[class] main#main-content :is(.page-heading, .pd-heading) .eyebrow,
+  .app-shell[class]
+    main#main-content
+    :is(.customer-page-header, .environment-portfolio-heading)
+    .eyebrow {
+    margin-bottom: 2px;
+    font-size: var(--navigan-font-caption);
+  }
+  .app-shell[class] main#main-content .page-heading .page-heading-symbol {
+    width: 28px;
+    height: 28px;
+    margin-right: 7px;
+  }
+  .app-shell[class] main#main-content .page-heading .page-heading-symbol svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .app-shell[class] main#main-content .button {
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: var(--navigan-font-control);
+  }
+  .app-shell[class] main#main-content :is(input, select, textarea) {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .app-shell[class] main#main-content :is(th, td) {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .app-shell[class] main#main-content thead th {
+    font-size: var(--navigan-font-label);
+  }
+
+  .app-shell[class] .app-footer {
+    min-height: 30px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: var(--navigan-font-body);
+  }
+}
+
+/* ADAPTIVE DESKTOP DENSITY 2026 */
+@media (min-width: 900px) {
+  .app-shell[class] > header.topbar {
+    min-height: 54px;
+    padding-block: 7px;
+  }
+  .app-shell[class] .sidebar {
+    width: clamp(205px, 13vw, 226px);
+    flex-basis: clamp(205px, 13vw, 226px);
+  }
+  .app-shell[class] .sidebar .sidebar-brand-panel {
+    min-height: 48px;
+  }
+  .app-shell[class] .sidebar .clustered-nav-group {
+    padding: 8px 8px 9px;
+  }
+  .app-shell[class] .sidebar .nav-item {
+    min-height: 31px;
+    padding: 5px 8px;
+    font-size: var(--navigan-font-body);
+    gap: 8px;
+  }
+  .app-shell[class] .sidebar .nav-item svg {
+    width: 15px;
+    height: 15px;
+  }
+  .app-shell[class] .content-column > .breadcrumb {
+    min-height: 30px;
+    padding-top: 6px;
+    padding-bottom: 5px;
+    font-size: var(--navigan-font-body);
+  }
+  .app-shell[class] .content-column main#main-content {
+    padding-top: 6px;
+    padding-bottom: 14px;
+  }
+  .app-shell[class] main#main-content .page-heading,
+  .app-shell[class] main#main-content .pd-heading,
+  .app-shell[class] main#main-content .customer-page-header,
+  .app-shell[class] main#main-content .environment-portfolio-heading {
+    min-height: 56px;
+    margin-bottom: 8px;
+    padding: 9px 12px;
+    gap: 12px;
+  }
+  .app-shell[class] main#main-content :is(.page-heading, .pd-heading) h1,
+  .app-shell[class]
+    main#main-content
+    :is(.customer-page-header, .environment-portfolio-heading)
+    h1 {
+    font-size: clamp(18px, 1.25vw, 21px);
+  }
+  .app-shell[class] main#main-content :is(.page-heading, .pd-heading) .muted,
+  .app-shell[class]
+    main#main-content
+    :is(.customer-page-header, .environment-portfolio-heading)
+    .muted {
+    margin-top: 2px;
+    font-size: var(--navigan-font-caption);
+    line-height: 1.3;
+  }
+  .app-shell[class] main#main-content .button {
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: var(--navigan-font-control);
+  }
+  .app-shell[class] main#main-content :is(input, select, textarea) {
+    font-size: var(--navigan-font-control);
+  }
+  .app-shell[class] main#main-content table {
+    font-size: var(--navigan-font-table);
+  }
+  .app-shell[class] main#main-content :is(th, td) {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .app-shell[class] main#main-content thead th {
+    font-size: var(--navigan-font-label);
+  }
+}
+@container (max-width:1800px) {
+  .content-column main,
+  .content-column .breadcrumb,
+  .content-column .app-footer {
+    padding-inline: clamp(12px, 1.6vw, 26px);
+  }
+}
+@container (max-width:1280px) {
+  .content-column main,
+  .content-column .breadcrumb,
+  .content-column .app-footer {
+    padding-inline: 12px;
+  }
+}
+
+/* UNIFIED TYPOGRAPHY CONTRACT 2026 */
+.app-shell[class],
+.app-shell[class]
+  :is(
+    button,
+    input,
+    select,
+    textarea,
+    table,
+    th,
+    td,
+    label,
+    a,
+    p,
+    span,
+    small,
+    strong,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    summary,
+    legend,
+    dt,
+    dd
+  ) {
+  font-family: var(--navigan-font-family) !important;
+}
+.app-shell[class] main#main-content {
+  font-size: var(--navigan-font-body) !important;
+  line-height: var(--navigan-line-body) !important;
+}
+.app-shell[class] main#main-content :is(p, li, dd, dt, span, label, summary) {
+  line-height: var(--navigan-line-body);
+}
+.app-shell[class] main#main-content :is(.page-heading, .pd-heading) h1,
+.app-shell[class]
+  main#main-content
+  :is(.customer-page-header, .environment-portfolio-heading)
+  h1 {
+  font-size: var(--navigan-font-page-title) !important;
+  line-height: var(--navigan-line-tight) !important;
+  font-weight: 600 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .panel,
+    .pd-card,
+    .pd-overview-panel,
+    .customer-workspace,
+    .environment-workspace,
+    .cluster-ui,
+    [class*="migrationWorkspace"],
+    [class*="workspace"],
+    .migration-report-workspace,
+    .migration-report-route
+  )
+  :is(h2, h3) {
+  font-size: var(--navigan-font-section-title) !important;
+  line-height: var(--navigan-line-tight) !important;
+  font-weight: 600 !important;
+}
+.app-shell[class] main#main-content :is(h4, h5, h6, legend) {
+  font-size: var(--navigan-font-subsection-title) !important;
+  line-height: var(--navigan-line-tight) !important;
+  font-weight: 600 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .muted,
+    .metadata,
+    .caption,
+    [class*="caption"],
+    [class*="helper"],
+    [class*="description"]
+  ) {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.35 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(.eyebrow, [class*="eyebrow"], [class*="Eyebrow"], .nav-section) {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(button, .button, input, select, textarea) {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.25 !important;
+}
+.app-shell[class] main#main-content table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.3 !important;
+}
+.app-shell[class] main#main-content table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .status-badge,
+    [class*="badge"],
+    [class*="Badge"],
+    [class*="status"],
+    [class*="Status"]
+  ) {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.2 !important;
+}
+.app-shell[class] .sidebar :is(.nav-item, .nav-subitem) {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.3 !important;
+}
+.app-shell[class] .sidebar .nav-section {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.2 !important;
+}
+.app-shell[class] .breadcrumb,
+.app-shell[class] .breadcrumb a {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.25 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .metric > strong,
+    .pd-kpi strong,
+    .cluster-directory-metric strong,
+    .customer-board-card strong,
+    .environment-board-card strong,
+    [class*="metricValue"],
+    [class*="MetricValue"],
+    [class*="coverageValue"]
+  ) {
+  font-size: var(--navigan-font-metric) !important;
+  line-height: 1.1 !important;
+  font-weight: 600 !important;
+}
+
+/* FINAL OPERATIONAL TYPOGRAPHY NORMALIZATION 2026 */
+/* This block is intentionally last and high-specificity. It neutralizes legacy
+   per-module font-size drift while preserving larger KPI/metric values. */
+.app-shell[class] main#main-content :is(p, li, dt, dd, summary) {
+  font-size: var(--navigan-font-body) !important;
+  line-height: var(--navigan-line-body) !important;
+}
+.app-shell[class] main#main-content small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(label, .field, .filter-field, .search-field) {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.3 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(input, select, textarea, button, .button) {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+.app-shell[class] main#main-content :is(h2) {
+  font-size: var(--navigan-font-section-title) !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.app-shell[class] main#main-content :is(h3, h4, h5, h6, legend) {
+  font-size: var(--navigan-font-subsection-title) !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.app-shell[class] main#main-content table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.app-shell[class] main#main-content table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+}
+.app-shell[class] main#main-content table tbody td,
+.app-shell[class] main#main-content table tbody th {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
+}
+.app-shell[class] main#main-content table tbody :is(strong, a) {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.app-shell[class] main#main-content table tbody small,
+.app-shell[class] main#main-content table tbody .metadata {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .metadata,
+    [class*="metadata"],
+    [class*="Metadata"],
+    [class*="caption"],
+    [class*="Caption"],
+    [class*="detail"],
+    [class*="Detail"],
+    [class*="note"],
+    [class*="Note"],
+    [class*="helper"],
+    [class*="Helper"]
+  ) {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .status-badge,
+    [class*="status-badge"],
+    [class*="statusBadge"],
+    [class*="StatusBadge"],
+    [class*="statusPill"],
+    [class*="StatusPill"],
+    [class*="chip"],
+    [class*="Chip"]
+  ) {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    [class*="row"] strong,
+    [class*="Row"] strong,
+    [class*="cell"] strong,
+    [class*="Cell"] strong,
+    [class*="item"] strong,
+    [class*="Item"] strong
+  ) {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    [class*="row"] small,
+    [class*="Row"] small,
+    [class*="cell"] small,
+    [class*="Cell"] small,
+    [class*="item"] small,
+    [class*="Item"] small
+  ) {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.app-shell[class]
+  main#main-content
+  :is(
+    .metric > strong,
+    .pd-kpi strong,
+    .cluster-directory-metric strong,
+    .customer-board-card > strong,
+    .environment-board-card > strong,
+    [class*="metricValue"],
+    [class*="MetricValue"],
+    [class*="coverageValue"],
+    [class*="CoverageValue"],
+    [class*="Stats"] > div > strong
+  ) {
+  font-size: var(--navigan-font-metric) !important;
+  line-height: 1.05 !important;
+  font-weight: 600 !important;
+}
+
+/* FINAL SHARED PAGE HEADER CONTRACT */
+.app-shell[class] main#main-content .page-heading {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  column-gap: 16px !important;
+  min-height: 56px !important;
+  margin: 0 0 8px !important;
+  padding: 9px 12px !important;
+  border: 1px solid #3a4552 !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #202833 0%, #303b49 100%) !important;
+  color: #fff !important;
+}
+.app-shell[class] main#main-content .page-heading-copy {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 10px !important;
+  align-items: center !important;
+  position: static !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.app-shell[class] main#main-content .page-heading-symbol {
+  grid-column: 1 !important;
+  grid-row: 1 / span 2 !important;
+  position: static !important;
+  inset: auto !important;
+  left: auto !important;
+  top: auto !important;
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  align-self: center !important;
+  border: 1px solid #4b5865 !important;
+  border-radius: 6px !important;
+  background: #252e39 !important;
+  color: #86bc25 !important;
+}
+.app-shell[class] main#main-content .page-heading-symbol svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 1.8 !important;
+}
+.app-shell[class] main#main-content .page-heading h1 {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: block !important;
+  margin: 0 !important;
+  font-size: 18px !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+}
+.app-shell[class] main#main-content .page-heading .muted {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  margin: 2px 0 0 !important;
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.25 !important;
+  color: #c8d1da !important;
+}
+.app-shell[class] main#main-content .page-heading .eyebrow {
+  display: none !important;
+}
+.app-shell[class] main#main-content .heading-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  min-width: max-content !important;
+}
+.app-shell[class] main#main-content .heading-actions .button {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 6px 10px !important;
+  gap: 6px !important;
+  border-radius: 6px !important;
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+}
+.app-shell[class] main#main-content .heading-actions .button svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 auto !important;
+}
+.app-shell[class] main#main-content .heading-actions .button-secondary {
+  background: #2d3743 !important;
+  border-color: #596672 !important;
+  color: #fff !important;
+}
+.app-shell[class] main#main-content .heading-actions .button-primary {
+  background: #2f6b2d !important;
+  border-color: #2f6b2d !important;
+  color: #fff !important;
+}
+.app-shell[class] main#main-content .page-heading-meta {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+  color: #c8d1da !important;
+  white-space: nowrap !important;
+}
+@container (max-width:720px) {
+  .app-shell[class] main#main-content .page-heading {
+    grid-template-columns: 1fr !important;
+    row-gap: 8px !important;
+  }
+  .app-shell[class] main#main-content .heading-actions {
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
   }
 }

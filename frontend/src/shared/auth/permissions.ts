@@ -1,4 +1,5 @@
 import type { Identity, PlatformRole } from "./claims";
+import { runtimeConfig } from "@/shared/config/runtime-config";
 
 export type PlatformPermission =
   | "dashboard.platform.view"
@@ -187,8 +188,7 @@ export function permissionsFor(
 
 export function isMigrationPreviewEnabled(): boolean {
   return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_MIGRATION_UI_PREVIEW === "true"
+    process.env.NODE_ENV !== "production" && runtimeConfig().migrationUiPreview
   );
 }
 

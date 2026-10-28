@@ -195,6 +195,24 @@ class Repository:
         ).fetchall()
         return rows, count
 
+    def summary(self):
+        scope, params = scope_clause(self.principal)
+        statuses = self.db.execute(
+            "SELECT c.status, count(*) AS n FROM customer_management.customers c "
+            f"WHERE {scope} GROUP BY c.status", params
+        ).fetchall()
+        providers = self.db.execute(
+            "SELECT p.provider_code, count(DISTINCT c.customer_id) AS n "
+            "FROM customer_management.customers c "
+            "JOIN customer_management.customer_cloud_providers p USING(customer_id) "
+            f"WHERE {scope} GROUP BY p.provider_code", params
+        ).fetchall()
+        return {
+            "total": sum(int(row["n"]) for row in statuses),
+            "byStatus": {row["status"]: int(row["n"]) for row in statuses},
+            "byProvider": {row["provider_code"]: int(row["n"]) for row in providers},
+        }
+
     def records(self, customer_id, kind, page, page_size):
         table, key = {
             "status-history": ("customer_status_history", "history_id"),

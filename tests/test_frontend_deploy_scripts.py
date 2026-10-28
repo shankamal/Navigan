@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 
@@ -36,13 +37,19 @@ elif 'get-caller-identity' in args: print('123456789012')
 
 
 class ReleaseScripts(unittest.TestCase):
-    def run_script(self, script, **overrides):
+    def run_script(self, script, *, portable=False, **overrides):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             for command in ('aws', 'docker'):
                 path = folder / command
                 path.write_text(STUB)
                 path.chmod(0o755)
+            checkout = folder / 'legacy-checkout'
+            shutil.copytree(ROOT / 'scripts/frontend', checkout / 'scripts/frontend')
+            if portable:
+                marker = checkout / 'frontend/src/shared/config/public-config.ts'
+                marker.parent.mkdir(parents=True)
+                marker.write_text('export {};\n')
             log = folder / 'calls.jsonl'
             env = {**os.environ, 'PATH': f'{folder}:{os.environ["PATH"]}',
                    'AWS_REGION': 'ap-south-1', 'AWS_PROFILE': 'test-profile',
@@ -50,15 +57,24 @@ class ReleaseScripts(unittest.TestCase):
                    'NEXT_PUBLIC_OIDC_CLIENT_ID': 'public-client',
                    'NEXT_PUBLIC_APP_URL': 'https://navigan.test',
                    'NEXT_PUBLIC_COGNITO_DOMAIN': '', 'IMAGE_TAG': 'test-tag',
+                   'NAVIGAN_API_ORIGIN': 'https://api.navigan.test',
+                   'MIGRATION_SOURCE_FIRST_ENABLED': 'true',
                    'VPC_ID': 'vpc-123', 'PUBLIC_SUBNET_IDS': 'subnet-1,subnet-2',
                    'PRIVATE_SUBNET_IDS': 'subnet-3,subnet-4',
                    'CERTIFICATE_ARN': 'arn:aws:acm:ap-south-1:123456789012:certificate/test',
                    'CALL_LOG': str(log), 'REPO': REPO, 'DIGEST': DIGEST,
                    'IMAGE_URI': f'{REPO}@{DIGEST}', **overrides}
-            result = subprocess.run(['bash', str(ROOT / 'scripts/frontend' / script)],
+            result = subprocess.run(['bash', str(checkout / 'scripts/frontend' / script)],
                                     env=env, capture_output=True, text=True, check=False)
             calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
             return result, calls
+
+    def test_portable_source_rejects_legacy_release_before_any_cloud_or_docker_call(self):
+        for script in ('build-and-push.sh', 'deploy.sh'):
+            result, calls = self.run_script(script, portable=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Legacy build/deploy is disabled before AWS writes', result.stderr)
+            self.assertEqual(calls, [])
 
     def test_build_returns_only_digest_and_uses_profile_and_amd64(self):
         result, calls = self.run_script('build-and-push.sh')

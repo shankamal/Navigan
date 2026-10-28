@@ -95,6 +95,8 @@ export const assessmentSchema = z.object({
   compatibilityScore: z.number().int().min(0).max(100),
   containsBlockers: z.boolean(),
   inventorySummary: z.object({
+    sourceClusterId: z.string().nullable().optional(),
+    assessmentMode: z.enum(["SOURCE_ONLY", "TARGET_COMPATIBILITY"]).optional(),
     resourceCount: z.number().int().nonnegative(),
     resourceKinds: z
       .record(z.string(), z.number().int().nonnegative())
@@ -163,6 +165,16 @@ export const discoveryConnectorSchema = z
 
 export const sourceClusterSchema = z
   .object({
+    installationCheck: z
+      .object({
+        canRestore: z.boolean(),
+        code: z.string(),
+        message: z.string(),
+        conflicts: z.array(
+          z.object({ sourceClusterId: z.string(), customerName: z.string() }),
+        ),
+      })
+      .optional(),
     sourceClusterId: z.string().regex(/^SRC-[a-f0-9]{32}$/),
     customerId: z.string(),
     customerName: z.string().optional(),
@@ -216,6 +228,7 @@ export const migrationSchema = z
     sourceConfiguration: z.record(z.string(), z.unknown()),
     targetConfiguration: z.record(z.string(), z.unknown()),
     migrationScope: z.record(z.string(), z.unknown()),
+    planningDraft: z.record(z.string(), z.unknown()).optional(),
     discoveryConnector: discoveryConnectorSchema.optional(),
     assessmentConnector: discoveryConnectorSchema.optional(),
   })
@@ -268,10 +281,11 @@ export interface CreateMigrationInput {
   name: string;
   source: {
     platform: "SELF_MANAGED_KUBERNETES";
+    discoveryMode?: "MANUAL";
     sourceClusterId?: string;
     accessMode: "READ_ONLY_CONNECTOR";
   };
-  target: {
+  target?: {
     platform: "EKS";
     targetType: "EXISTING_CLUSTER";
     environmentId: string;
@@ -318,7 +332,10 @@ export interface UpdateSourceClusterDeliveryInput {
 
 export interface UpdateMigrationInput {
   version: number;
+  name?: string;
+  planningDraft?: MigrationPlanningDraft;
   source?: {
+    discoveryMode?: "MANUAL";
     platform: "SELF_MANAGED_KUBERNETES";
     sourceClusterId?: string;
     clusterName?: string;
@@ -340,4 +357,53 @@ export interface UpdateMigrationInput {
     includePersistentData: false;
   };
   changeReason: string;
+}
+
+export interface PlannedResource {
+  apiVersion: string;
+  kind: string;
+  namespace: string | null;
+  name: string;
+  treatment: "MIGRATE" | "RECREATE" | "REPLACE" | "RETIRE" | "REVIEW";
+  dependency: boolean;
+}
+
+export interface RemediationDraft {
+  findingIndex: number;
+  treatment: "RECONFIGURE" | "RECREATE" | "REPLACE" | "RETIRE" | "REVIEW";
+  owner: string;
+  targetMapping: string;
+  evidenceReference: string;
+  status: "PLANNED" | "IN_PROGRESS" | "EVIDENCE_ATTACHED";
+}
+
+export interface MigrationStorageMapping {
+  namespace: string;
+  sourceClaim: string;
+  targetStorageClass: string;
+  targetCapacity: string;
+  targetAccessMode: string;
+  status: "PROPOSED" | "REVIEWED";
+}
+export interface MigrationDeploymentSource {
+  workload: Pick<PlannedResource, "apiVersion" | "kind" | "namespace" | "name">;
+  method: "UNKNOWN" | "HELM" | "MANIFESTS" | "SCRIPT" | "REPOSITORY" | "OTHER";
+  bundleName: string;
+  reference: string;
+  releaseName: string;
+}
+export interface MigrationPlanningDraft {
+  workflow?: "SOURCE_FIRST";
+  deploymentSources?: MigrationDeploymentSource[];
+  schemaVersion: 1;
+  mode: "SELECTED_WORKLOADS" | "FULL_CLUSTER";
+  assessmentVersion: number;
+  inventoryDigest: string;
+  selectedNamespaces?: string[] | null;
+  resources: PlannedResource[];
+  remediations: RemediationDraft[];
+  storageMappings?: MigrationStorageMapping[];
+  dataStrategy:
+    "UNDECIDED" | "BACKUP_RESTORE" | "REPLICATION" | "NO_PERSISTENT_DATA";
+  notes: string;
 }

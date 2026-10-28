@@ -16,6 +16,7 @@ from .inventory import (
     UnsafeInventory,
     finalize_inventory,
     sanitize_resource,
+    mapping,
 )
 
 
@@ -363,6 +364,8 @@ def selected_namespaces(assignment, request):
         and item["metadata"].get("name")
     }
 
+    if assignment.get("discoveryMode") == "ALL_NAMESPACES":
+        return sorted(available)
     selected = available - excluded
     if requested:
         missing = requested - available
@@ -396,6 +399,10 @@ def collect_inventory(assignment, request=kubernetes_request):
         raise RuntimeError("Migration scope is missing.")
 
     sanitized = []
+    # Store only transient selector/label metadata for cross-resource matching.
+    # Do not retain raw Secret, ConfigMap or manifest bodies.
+    service_selectors = {}
+    workload_labels = {}
 
     for raw in resource_items(request("/api/v1/nodes")):
         sanitized.append(
@@ -426,21 +433,32 @@ def collect_inventory(assignment, request=kubernetes_request):
             )
             api_version, kind = RESOURCE_TYPE_BY_PATH[template]
             for raw in resource_items(request(path)):
-                sanitized.append(
-                    sanitize_resource(
-                        resource_from_endpoint(
-                            raw,
-                            api_version,
-                            kind,
-                        )
-                    )
-                )
+                normalized = resource_from_endpoint(raw, api_version, kind)
+                item = sanitize_resource(normalized)
+                metadata = mapping(normalized.get("metadata"))
+                item_name = metadata.get("name")
+                if kind == "Service":
+                    selector = mapping(mapping(normalized.get("spec")).get("selector"))
+                    if selector and len(selector) <= 200:
+                        service_selectors[(namespace, item_name)] = dict(selector)
+                if kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}:
+                    spec = mapping(normalized.get("spec"))
+                    if kind == "CronJob":
+                        spec = mapping(mapping(spec.get("jobTemplate")).get("spec"))
+                    template = mapping(spec.get("template"))
+                    labels = mapping(mapping(template.get("metadata")).get("labels"))
+                    workload_labels[(namespace, kind, item_name)] = dict(labels)
+                sanitized.append(item)
                 if len(sanitized) > MAX_RESOURCES:
                     raise UnsafeInventory(
                         "Inventory resource limit exceeded."
                     )
 
-    if scope.get("includeClusterScopedResources") is True:
+    from .deployment_evidence import collect_runtime
+    for namespace in namespaces:
+        collect_runtime(urllib.parse.quote(namespace, safe=""), request, sanitized)
+
+    if scope.get("includeClusterScopedResources") is True or assignment.get("discoveryMode") == "ALL_NAMESPACES":
         for path in CLUSTER_RESOURCE_PATHS:
             api_version, kind = RESOURCE_TYPE_BY_PATH[path]
             for raw in resource_items(request(path)):
@@ -458,6 +476,25 @@ def collect_inventory(assignment, request=kubernetes_request):
                         "Inventory resource limit exceeded."
                     )
 
+    for item in sanitized:
+        kind = item.get("kind")
+        if kind not in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}:
+            continue
+        namespace, name = item.get("namespace"), item.get("name")
+        labels = workload_labels.get((namespace, kind, name), {})
+        if not labels:
+            continue
+        matches = [
+            service_name for (service_ns, service_name), selector in service_selectors.items()
+            if service_ns == namespace
+            and all(labels.get(key) == value for key, value in selector.items())
+        ]
+        refs = {(r["kind"], r["name"]) for r in item.get("dependencyReferences", [])}
+        refs.update(("Service", service_name) for service_name in matches)
+        item["dependencyReferences"] = [
+            {"kind": ref_kind, "name": ref_name}
+            for ref_kind, ref_name in sorted(refs)[:500]
+        ]
     return finalize_inventory(sanitized)
 
 

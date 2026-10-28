@@ -1,0 +1,767 @@
+/* One shared heading and workflow row across discovery and migration scope. */
+.screen[class] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px !important;
+  align-items: start;
+}
+.workflow {
+  min-width: 0;
+}
+.screen[class] > section[aria-label="Migration context"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 0 !important;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.screen[class] > section[aria-label="Migration context"] > div {
+  border: 0;
+  padding: 0;
+  min-height: 0;
+}
+.screen[class] > section[aria-label="Migration context"] svg {
+  display: none;
+}
+.screen[class] > section[aria-label="Migration context"] small {
+  display: none;
+}
+.screen[class] > section[aria-label="Migration context"] strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+.screen[class] > section[aria-label="Migration context"] span {
+  font-size: 10px;
+}
+.connections {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid #e2e7ec;
+  padding: 5px 0;
+}
+.connections > summary {
+  cursor: pointer;
+  color: #344452;
+  font-size: 11px;
+  font-weight: 600;
+}
+.connections > summary span {
+  margin-left: 10px;
+  font-weight: 400;
+  color: #677482;
+}
+.workspace[class] {
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+}
+.workspace[class] > nav {
+  display: flex;
+  gap: 24px;
+  margin: 0 0 14px;
+  padding: 0;
+  border-bottom: 1px solid #dce2e8;
+}
+.workspace[class] > nav button {
+  display: block;
+  min-height: 34px;
+  padding: 6px 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #4b5b68 !important;
+  font-weight: 500;
+  font-size: 12px;
+}
+.workspace[class] > nav button[aria-pressed="true"] {
+  color: #275d32 !important;
+  box-shadow: inset 0 -2px #326c3c !important;
+  font-weight: 600;
+}
+.workspace[class] > div:has(> div > h2) {
+  padding: 0 !important;
+  margin: 0 0 12px !important;
+}
+.workspace[class] h2 {
+  font-size: 17px !important;
+}
+.review {
+  background: transparent;
+}
+.freshness {
+  margin: 0 0 10px;
+  color: #6b5a34;
+  font-size: 11px;
+}
+.totals {
+  display: grid;
+  grid-template-columns: 0.7fr 0.7fr 1fr 1fr;
+  gap: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #dfe5eb;
+  border-radius: 4px;
+}
+.totals > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  min-width: 0;
+}
+.totals > div + div {
+  border-left: 1px solid #e3e7eb;
+}
+.totals > div > svg {
+  color: #326c3c;
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+}
+.totals > div:nth-child(3) > svg {
+  color: #303842;
+}
+.totals > div:nth-child(4) > svg {
+  color: #2685b4;
+}
+.totals > div > span {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.totals strong {
+  font-size: 19px;
+  line-height: 1.1;
+}
+.totals small {
+  color: #637080;
+}
+.coverage {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+  min-width: 0;
+}
+.coverage > span {
+  font-size: 11px;
+  min-width: 32px;
+}
+.coverage progress {
+  width: 100%;
+  max-width: 130px;
+  height: 5px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  appearance: none;
+  background: #e6ebef;
+}
+.coverage progress::-webkit-progress-bar {
+  background: #e6ebef;
+}
+.repository progress::-webkit-progress-value {
+  background: #dc8b38;
+}
+.image progress::-webkit-progress-value {
+  background: #328dc5;
+}
+.repository progress::-moz-progress-bar {
+  background: #dc8b38;
+}
+.image progress::-moz-progress-bar {
+  background: #328dc5;
+}
+.totals .coverage > span {
+  display: none;
+}
+.sectionTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin: 14px 0 7px;
+}
+.sectionTitle h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.sectionTitle > span {
+  color: #6b7785;
+  font-size: 10.5px;
+}
+.checklist {
+  border: 1px solid #dfe5eb;
+  border-radius: 4px;
+  background: white;
+}
+.checklist > div {
+  display: grid;
+  grid-template-columns:
+    24px minmax(130px, 1fr) minmax(135px, 1fr) minmax(180px, 1.45fr)
+    135px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+}
+.checklist > div + div {
+  border-top: 1px solid #e6ebef;
+}
+.checklist svg {
+  width: 20px;
+  height: 20px;
+  color: #344252;
+}
+.checklist strong,
+.checklist small {
+  display: block;
+}
+.checklist small {
+  color: #6b7785;
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+.checklist p {
+  color: #697586;
+  margin: 0;
+}
+.workspace .checklist button {
+  color: #2d6539;
+  background: white;
+  border: 1px solid #cfd7df;
+  padding: 5px 10px;
+  min-height: 30px;
+  white-space: normal;
+}
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.namespaceTable {
+  border-collapse: collapse;
+  width: 100%;
+  background: white;
+  border: 1px solid #dfe5eb;
+}
+.namespaceTable th {
+  background: #e9edf1;
+  color: #4d5c6a;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 8px 10px;
+}
+.namespaceTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5eaf0;
+  font-size: 12px;
+}
+.workspace .namespaceTable button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  min-height: 24px;
+  color: #344b5e;
+  text-align: left;
+}
+.namespaceTable td:first-child button {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sourceTools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  color: #6b7785;
+  font-size: 10.5px;
+}
+.pageActions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0 0;
+  margin-top: 12px;
+  border-top: 1px solid #dfe5eb;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* Child workload: source and image evidence share one aligned row. */
+.workloadLayout[data-detail="true"] {
+  grid-template-columns: 1fr !important;
+}
+.workloadLayout[data-detail="true"] > aside {
+  display: none;
+}
+.workloadLayout[data-detail="true"] article button:has(+ header) {
+  display: inline-flex !important;
+}
+.workloadColumns {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(360px, 1.4fr);
+  gap: 16px;
+}
+.workloadColumns > div {
+  min-width: 0;
+}
+.workloadColumns > section {
+  margin: 0 !important;
+}
+.workloadColumns > div > section {
+  margin: 0 !important;
+}
+.workloadColumns > div > div:first-child {
+  margin: 0 0 10px;
+}
+.workloadColumns > div > div:first-child p,
+.compactImages > div:first-child p {
+  display: none;
+}
+.workloadColumns > div > section > div {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 10px;
+  gap: 10px;
+}
+.workloadColumns > div > section > div > div {
+  flex: 1 1 130px;
+}
+.compactImages table {
+  min-width: 360px !important;
+  table-layout: auto !important;
+}
+.compactImages colgroup {
+  display: none;
+}
+.compactImages thead th:nth-child(3),
+.compactImages tbody tr > td:nth-child(3) {
+  display: none;
+}
+.compactImages table td,
+.compactImages table th {
+  padding: 8px !important;
+}
+.compactImages table tbody tr > td:nth-child(2) small {
+  display: none;
+}
+.collection[class] {
+  border: 0 !important;
+  background: transparent !important;
+}
+.collection[class] > div {
+  padding: 0 !important;
+}
+.collectionPipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  gap: 10px;
+}
+.collectionPipeline li {
+  color: #6d7a88;
+  font-weight: 600;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #dfe5eb;
+}
+.collectionPipeline li[data-state="done"] {
+  color: #326c3c;
+  border-color: #326c3c;
+}
+.collectionPipeline li[data-state="attention"] {
+  color: #a76716;
+  border-color: #d99335;
+}
+.collectionPipeline li[data-state="active"] {
+  color: #2d6539;
+  border-color: #86bc25;
+}
+.collectionPipeline small {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+}
+.collectionProgress {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.collectionProgress > span {
+  font-size: 11px;
+  font-weight: 600;
+}
+.collectionProgress progress {
+  appearance: none;
+  width: 100%;
+  height: 7px;
+  border: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #e5eaee;
+}
+.collectionProgress progress::-webkit-progress-bar {
+  background: #e5eaee;
+}
+.collectionProgress progress::-webkit-progress-value {
+  background: #327247;
+}
+.collectionProgress progress::-moz-progress-bar {
+  background: #327247;
+}
+.collection[class] div[aria-label="Artifact collection progress"] {
+  display: none;
+}
+.artifactFilters {
+  display: flex;
+  gap: 12px;
+  margin: 10px 0;
+}
+.collection .artifactFilters button {
+  color: #546372;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  border-radius: 0;
+}
+.collection .artifactFilters button[aria-pressed="true"] {
+  color: #2e6539;
+  border-bottom-color: #326c3c;
+}
+.artifactList {
+  margin-top: 12px;
+}
+@container (max-width:1000px) {
+  .screen[class] {
+    grid-template-columns: 1fr;
+  }
+  .screen[class] > header,
+  .screen[class] > section[aria-label="Migration context"],
+  .workflow {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .workflow {
+    order: 0;
+  }
+  .workflow ol button {
+    flex-direction: row;
+    text-align: left !important;
+  }
+  .checklist > div {
+    grid-template-columns: 20px 1fr 1fr 120px;
+  }
+  .checklist p {
+    display: none;
+  }
+  .sectionTitle > span {
+    max-width: 45%;
+  }
+  .workloadColumns {
+    grid-template-columns: 1fr;
+  }
+}
+@container (max-width:650px) {
+  .workspace[class] > nav {
+    gap: 18px;
+  }
+  .workspace[class] > nav button {
+    font-size: 11px;
+  }
+  .totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 0;
+    padding: 10px;
+  }
+  .totals > div {
+    padding: 0 10px;
+  }
+  .totals > div:nth-child(3) {
+    border: 0;
+  }
+  .checklist > div {
+    grid-template-columns: 20px 1fr auto;
+    gap: 8px;
+  }
+  .checklist > div > span:nth-of-type(2) {
+    grid-column: 2;
+    font-size: 11px;
+  }
+  .checklist button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+  .sectionTitle {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .sectionTitle > span {
+    max-width: 100%;
+  }
+  .sourceTools {
+    flex-wrap: wrap;
+  }
+  .namespaceTable {
+    min-width: 520px;
+  }
+  .collectionPipeline {
+    gap: 6px;
+  }
+  .collectionPipeline li {
+    font-size: 10px;
+  }
+  .connections > summary span {
+    display: block;
+    margin: 3px 0 0 12px;
+  }
+  .screen[class] > header h1 {
+    font-size: 18px !important;
+  }
+}
+
+.screen.screen[class] .workspace h2 {
+  font-size: 17px !important;
+  line-height: 1.3 !important;
+}
+
+.screen[class] > header > div > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.complete {
+  color: #326c3c;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.screen[class] > section[hidden] {
+  display: none !important;
+}
+:global(.app-shell.app-shell[class])
+  :global(main#main-content)
+  .screen[class]
+  .workspace
+  h2 {
+  font-size: 17px !important;
+  line-height: 1.3 !important;
+}
+
+.collectionWorkspace {
+  display: flex;
+  flex-direction: column;
+}
+.collectionExport {
+  order: 0;
+  background: #f0f3f6;
+  padding: 10px 12px;
+  border: 1px solid #dfe5eb;
+  margin-top: 12px;
+}
+.workloadColumns [class*="filePath"] strong {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  text-overflow: clip !important;
+}
+.workloadLayout details > summary {
+  cursor: pointer;
+}
+.workloadLayout article > details {
+  padding: 12px 0;
+  border-top: 1px solid #e0e6eb;
+}
+
+.workspace[class] > div:has(> div > h2) {
+  min-height: 0 !important;
+  align-items: center;
+  gap: 10px;
+}
+.workspace[class] > div:has(> div > h2) > div:first-child {
+  flex: 1;
+  max-width: none;
+}
+.workspace[class] > div:has(> div > h2) p {
+  max-width: none !important;
+  margin: 2px 0 0 !important;
+  line-height: 1.3 !important;
+}
+.totals {
+  padding: 10px;
+}
+.totals > div > span {
+  gap: 3px;
+}
+.totals small {
+  line-height: 1.15;
+}
+.totals .coverage {
+  height: 5px;
+  line-height: 0;
+}
+.checklist > div {
+  min-height: 42px;
+  padding: 7px 10px;
+}
+.checklist strong {
+  line-height: 1.2;
+}
+.checklist small {
+  margin-top: 2px;
+  line-height: 1.2;
+}
+.checklist p {
+  line-height: 1.3;
+}
+.workspace[class] > p:has([title]) {
+  padding: 0 !important;
+  margin: 8px 0 0 !important;
+  font-size: 10px;
+}
+.pageActions {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.pageActions a {
+  background: #28613a !important;
+  border-color: #28613a !important;
+  color: #fff !important;
+}
+.workflow ol button > span:has(svg) {
+  background: #326c3c !important;
+  border-color: #326c3c !important;
+  color: #fff !important;
+}
+
+.workloadLayout[data-detail="true"] article > button {
+  border: 0 !important;
+  background: transparent !important;
+  min-height: 24px !important;
+  padding: 2px 10px !important;
+  margin: 0 !important;
+  color: #486474;
+}
+.workloadLayout article > header {
+  padding: 10px 12px !important;
+  min-height: 0 !important;
+}
+.workloadChecks {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 4px 10px !important;
+  margin: 0 0 8px !important;
+}
+.workloadLayout article > section[aria-label] {
+  padding: 8px 0 !important;
+  margin: 10px 0 !important;
+}
+.workloadLayout article > details {
+  padding: 8px 0;
+}
+
+.collection .workspaceChooser {
+  padding: 6px 10px !important;
+  margin: 4px 0 !important;
+  min-height: 0 !important;
+}
+.collection .workspaceChooser > summary {
+  padding: 2px 0 !important;
+  margin: 0 !important;
+  min-height: 22px;
+}
+.collectionHeading {
+  margin: 6px 0 !important;
+}
+.collectionHeading h3 {
+  margin: 0 !important;
+}
+.collectionWorkspace {
+  gap: 0 !important;
+  padding: 8px 0 !important;
+  margin: 6px 0 !important;
+}
+.collectionWorkspace > h3 {
+  display: none;
+}
+.collectionPipeline {
+  margin: 8px 0 !important;
+}
+.collectionProgress {
+  margin: 6px 0 !important;
+  gap: 4px;
+}
+.collectionWorkspace > div:has(> button) {
+  margin: 6px 0 !important;
+}
+.collectionWorkspace > small {
+  margin: 4px 0 !important;
+}
+.collectionExport {
+  margin: 8px 0 0 !important;
+  padding: 8px 10px !important;
+}
+.collectionExport p {
+  margin: 4px 0 !important;
+}
+.artifactList {
+  margin-top: 8px !important;
+}
+
+.screen {
+  scroll-margin-top: 66px;
+}
+.workloadLayout article > section[aria-label] {
+  padding: 0 !important;
+  margin: 8px 0 !important;
+  min-height: 0 !important;
+}
+.workloadLayout article > section[aria-label] > details > summary {
+  padding: 8px 10px !important;
+  min-height: 0 !important;
+}
+
+.localNavigation {
+  min-width: 0;
+}
+.viewContent {
+  min-width: 0;
+}
+.viewContent[hidden] {
+  display: none !important;
+}
+.screen[class] > *,
+.workspace[class] {
+  min-width: 0;
+}
+@container (max-width:1000px) {
+  .screen[class] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.collectionWorkspace {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.collectionWorkspace > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.collection[class] :is(details, div) {
+  min-width: 0;
+}
+.collectionWorkspace > div:first-child {
+  flex-wrap: wrap;
+}

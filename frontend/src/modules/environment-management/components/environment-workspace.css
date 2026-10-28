@@ -1,10 +1,10 @@
 .app-shell:has(.environment-workspace),
 .app-shell:has(.environment-workspace) .shell-body,
 .app-shell:has(.environment-workspace) .content-column {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
 }
 .app-shell:has(.environment-workspace) .topbar {
-  background: #334155;
+  background-color: var(--navigan-graphite, #1c222b);
 }
 .environment-workspace {
   color: #172033;
@@ -18,7 +18,7 @@
   box-shadow: none;
 }
 .environment-workspace .page-heading h1 {
-  font-size: 26px;
+  font-size: clamp(21px, 1.5vw, 24px);
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -26,12 +26,13 @@
   font-size: 17px;
 }
 .environment-workspace .button-primary {
-  background: #65a449;
-  border-color: #65a449;
-  color: #143322;
+  background: var(--navigan-action, #2f6b2d);
+  border-color: var(--navigan-action, #2f6b2d);
+  color: #fff;
 }
-.environment-workspace .button-primary:hover {
-  background: #568c3e;
+.environment-workspace .button-primary:hover:not(:disabled) {
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .environment-workspace .metrics-grid {
   gap: 14px;
@@ -88,7 +89,7 @@
   color: #475569;
 }
 .environment-view-switch button.selected {
-  background: #eef5e9;
+  background: #f1f5f9;
   border-color: #65a449;
   color: #315522;
 }
@@ -167,8 +168,8 @@
   margin-bottom: 18px;
 }
 .environment-workspace .environment-stepper .active span {
-  background: #65a449;
-  color: #143322;
+  background: #315a76;
+  color: #fff;
 }
 .environment-workspace .environment-fieldset {
   padding: 20px;
@@ -594,7 +595,7 @@
   gap: 10px;
 }
 .environment-workspace .environment-filter-grid .field {
-  font-size: 11px;
+  font-size: var(--navigan-font-body);
   gap: 4px;
 }
 .environment-workspace .environment-filter-grid input,
@@ -613,13 +614,13 @@
   justify-content: center;
   min-width: 80px;
   padding: 8px 14px;
-  background: #edf5e5;
+  background: #f1f5f9;
   border-radius: 6px;
   color: #315522;
   font-weight: 600;
 }
 .environment-row-open:hover {
-  background: #e1edda;
+  background: #e9eff5;
 }
 .environment-workspace .environment-stepper {
   display: grid;
@@ -1219,4 +1220,302 @@
 .environment-creation-layout .field > select,
 .environment-creation-layout .field > textarea {
   font-size: 14px;
+}
+
+@container (max-width: 900px) {
+  .environment-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .environment-metrics,
+  .environment-portfolio-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 560px) {
+  .environment-board,
+  .environment-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .environment-view-switch,
+  .environment-heading-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* ADAPTIVE ENVIRONMENT DENSITY */
+@container (max-width:1800px) {
+  .environment-workspace {
+    gap: 8px;
+    font-size: var(--navigan-font-body);
+  }
+  .environment-board,
+  .environment-metrics,
+  .environment-portfolio-charts {
+    gap: 8px;
+  }
+  .environment-metrics > * {
+    min-height: 66px;
+    padding: 9px 11px;
+  }
+  .environment-section-heading {
+    gap: 8px;
+    padding-block: 7px;
+  }
+  .environment-section-heading h2,
+  .environment-section-heading h3 {
+    font-size: 13px;
+  }
+  .environment-section-heading p {
+    font-size: var(--navigan-font-body);
+    line-height: 1.3;
+  }
+  .environment-portfolio-lifecycle {
+    padding: 9px 11px;
+  }
+  .environment-form-workspace .environment-stepper {
+    padding: 8px 11px;
+  }
+  .environment-form-workspace .environment-fieldset {
+    padding: 11px 12px;
+  }
+  .environment-creation-layout {
+    gap: 10px;
+  }
+  .environment-creation-layout .environment-form-context {
+    padding: 11px;
+  }
+  .environment-creation-layout .environment-form-context h2 {
+    gap: 6px;
+    font-size: 13px;
+  }
+  .environment-creation-layout .environment-form-context small,
+  .environment-creation-layout .field,
+  .environment-creation-layout .field > input,
+  .environment-creation-layout .field > select,
+  .environment-creation-layout .field > textarea {
+    font-size: var(--navigan-font-control);
+  }
+  .environment-creation-layout .environment-save-bar {
+    gap: 10px;
+    padding-block: 7px;
+  }
+  .environment-creation-layout .environment-save-bar p {
+    margin-top: 2px;
+    font-size: var(--navigan-font-body);
+    line-height: 1.3;
+  }
+}
+@container (max-width:1180px) {
+  .environment-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .environment-portfolio-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* DEFINITIVE COMPACT ENVIRONMENT DIRECTORY */
+@media (min-width: 900px) {
+  .environment-list-workspace {
+    gap: 8px !important;
+  }
+  .environment-list-workspace .environment-portfolio-overview {
+    gap: 8px !important;
+  }
+  .environment-list-workspace .environment-portfolio-charts {
+    grid-template-columns: 1.05fr 1.15fr 0.9fr !important;
+    gap: 8px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+  .environment-list-workspace .environment-portfolio-charts > div {
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    border-radius: 5px !important;
+  }
+  .environment-list-workspace .environment-portfolio-charts h2 {
+    margin: 0 0 7px !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+  .environment-list-workspace .environment-chart-content {
+    gap: 8px !important;
+  }
+  .environment-list-workspace .environment-portfolio-lifecycle {
+    padding: 0 !important;
+    border: 0 !important;
+  }
+  .environment-list-workspace
+    .environment-portfolio-lifecycle
+    .environment-ring {
+    width: 82px !important;
+    height: 82px !important;
+  }
+  .environment-list-workspace .environment-chart-legend {
+    gap: 4px !important;
+  }
+  .environment-list-workspace .environment-chart-legend li {
+    gap: 6px !important;
+    font-size: var(--navigan-font-body) !important;
+    line-height: 1.25 !important;
+  }
+  .environment-list-workspace .environment-provider-row {
+    grid-template-columns: 22px 72px 20px minmax(45px, 1fr) !important;
+    gap: 6px !important;
+    margin: 7px 0 !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .environment-list-workspace .environment-provider-row meter {
+    height: 8px !important;
+  }
+  .environment-list-workspace .environment-coverage-value {
+    gap: 5px !important;
+    margin: 10px 0 8px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .environment-list-workspace .environment-coverage-value strong {
+    font-size: 19px !important;
+    line-height: 1.15 !important;
+  }
+  .environment-list-workspace .environment-coverage-bar {
+    height: 8px !important;
+  }
+  .environment-list-workspace .environment-coverage-scale {
+    margin-top: 4px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .environment-list-workspace .environment-active-coverage p {
+    margin-top: 8px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .environment-list-workspace .environment-attention {
+    gap: 0 10px !important;
+    padding: 8px 12px !important;
+    border-radius: 5px !important;
+  }
+  .environment-list-workspace .environment-attention h2 {
+    margin-bottom: 5px !important;
+    font-size: 12.5px !important;
+  }
+  .environment-list-workspace .environment-attention header a {
+    font-size: var(--navigan-font-body) !important;
+  }
+  .environment-list-workspace .environment-attention button {
+    gap: 8px !important;
+    padding: 7px 0 !important;
+  }
+  .environment-list-workspace .environment-attention button strong {
+    font-size: var(--navigan-font-control) !important;
+  }
+  .environment-list-workspace .environment-attention button small {
+    font-size: var(--navigan-font-control) !important;
+  }
+  .environment-list-workspace .environment-list-filters {
+    gap: 7px !important;
+    padding: 10px 12px !important;
+  }
+  .environment-list-workspace .environment-section-heading {
+    padding: 0 !important;
+  }
+  .environment-list-workspace .environment-filter-grid {
+    gap: 7px !important;
+  }
+  .environment-list-workspace .environment-filter-grid .field {
+    font-size: var(--navigan-font-body) !important;
+  }
+  .environment-list-workspace .environment-filter-grid :is(input, select) {
+    min-height: 30px !important;
+    padding: 5px 8px !important;
+  }
+}
+
+/* EXACT ENVIRONMENT TYPOGRAPHY FIX */
+.environment-list-workspace .environment-attention h2 {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+.environment-list-workspace .environment-attention button strong {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+.environment-list-workspace .environment-attention button small {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.2 !important;
+}
+.environment-list-workspace .customer-table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.environment-list-workspace .customer-table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+}
+.environment-list-workspace .customer-table tbody td {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.environment-list-workspace .customer-table tbody td:first-child {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+.environment-list-workspace .customer-table .metadata {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.environment-list-workspace .environment-row-open {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+}
+.environment-list-workspace .status-badge {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+}
+
+/* ENVIRONMENT TABLE PROVIDER LOGO SCALE */
+.environment-list-workspace .customer-table .provider-badge.provider-logo img {
+  width: 22px !important;
+  height: 18px !important;
+  object-fit: contain !important;
+}
+.environment-list-workspace
+  .customer-table
+  .provider-badge.provider-logo
+  img[src*="amazonwebservices"] {
+  width: 28px !important;
+  height: 18px !important;
+  max-width: 28px !important;
+}
+.environment-list-workspace .customer-table .provider-badges {
+  gap: 4px !important;
+  align-items: center !important;
+}
+
+/* SHARED PROVIDER LOGO STANDARD */
+.environment-list-workspace .customer-table .provider-logo img {
+  width: auto !important;
+  height: var(--navigan-provider-logo-compact-height) !important;
+  max-width: var(--navigan-provider-logo-compact-max-width) !important;
+  object-fit: contain !important;
+}
+.environment-workspace .environment-provider-row .provider-logo img {
+  width: auto !important;
+  height: var(--navigan-provider-logo-summary-height) !important;
+  max-width: var(--navigan-provider-logo-summary-max-width) !important;
+  object-fit: contain !important;
+}
+.environment-workspace .environment-provider-row {
+  grid-template-columns: 32px 100px 24px minmax(55px, 1fr) !important;
+}
+.environment-creation-layout
+  .aws-discovery-panel
+  > .environment-section-heading {
+  padding-left: 48px !important;
+  background-size: var(--navigan-provider-logo-hero-max-width)
+    var(--navigan-provider-logo-hero-height) !important;
 }

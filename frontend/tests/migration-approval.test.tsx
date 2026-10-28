@@ -7,12 +7,16 @@ import { MigrationDetails } from "@/modules/migration-management/migration-detai
 const state = vi.hoisted(() => ({
   role: "CLOUD_ENGINEER",
   status: "ASSESSMENT_READY",
+  assessmentPending: false,
+  assessmentError: false,
+  catalogueReady: true,
   deliveryMethod: "MANUAL_HELM",
   action: vi.fn(),
   update: vi.fn(),
   assess: vi.fn(),
   enroll: vi.fn(),
   install: vi.fn(),
+  list: vi.fn(),
 }));
 
 vi.mock("@/shared/auth/auth-provider", () => ({
@@ -72,8 +76,10 @@ vi.mock("@/modules/migration-management/hooks", () => ({
   }),
   useMigrationAssessment: () => ({
     data: { assessment: null },
-    isPending: false,
-    isError: false,
+    isPending: state.assessmentPending,
+    isFetching: state.assessmentPending,
+    isError: state.assessmentError,
+    refetch: vi.fn(),
   }),
   useSourceInventory: () => ({
     data: { inventory: null },
@@ -85,23 +91,25 @@ vi.mock("@/modules/migration-management/hooks", () => ({
       migrationId: "MIG-" + "a".repeat(32),
       version: 7,
       status: state.status,
-      catalogue: {
-        catalogueVersion: 1,
-        migrationVersion: 6,
-        schemaVersion: 1,
-        observedAt: "2026-10-06T19:29:02Z",
-        sourceKubernetesVersion: "v1.31.0",
-        inventoryDigest: "a".repeat(64),
-        nodeCount: 3,
-        architectures: ["amd64"],
-        namespaces: [
-          {
-            name: "retailflow",
-            resourceCounts: { Deployment: 2, Service: 1 },
-          },
-        ],
-        createdAt: "2026-10-06T19:29:02Z",
-      },
+      catalogue: state.catalogueReady
+        ? {
+            catalogueVersion: 1,
+            migrationVersion: 6,
+            schemaVersion: 1,
+            observedAt: "2026-10-06T19:29:02Z",
+            sourceKubernetesVersion: "v1.31.0",
+            inventoryDigest: "a".repeat(64),
+            nodeCount: 3,
+            architectures: ["amd64"],
+            namespaces: [
+              {
+                name: "retailflow",
+                resourceCounts: { Deployment: 2, Service: 1 },
+              },
+            ],
+            createdAt: "2026-10-06T19:29:02Z",
+          }
+        : null,
     },
     isPending: false,
     isError: false,
@@ -138,6 +146,7 @@ vi.mock("@/modules/migration-management/service", () => ({
     enroll: state.enroll,
     updateDelivery: vi.fn(),
     install: state.install,
+    list: state.list,
   },
 }));
 
@@ -156,6 +165,19 @@ describe("Migration approval gate", () => {
   beforeEach(() => {
     state.role = "CLOUD_ENGINEER";
     state.status = "ASSESSMENT_READY";
+    state.assessmentPending = false;
+    state.assessmentError = false;
+    state.catalogueReady = true;
+    state.list.mockReset();
+    state.list.mockResolvedValue({
+      items: [
+        {
+          sourceClusterId: "SRC-" + "b".repeat(32),
+          status: "PENDING_ENROLLMENT",
+          version: 2,
+        },
+      ],
+    });
     state.deliveryMethod = "MANUAL_HELM";
     state.action.mockReset();
     state.action.mockResolvedValue({});
@@ -221,18 +243,36 @@ describe("Migration approval gate", () => {
   it("starts automatic installation for an AWS SSM source", async () => {
     state.status = "SOURCE_ENROLLMENT_PENDING";
     state.deliveryMethod = "AWS_SSM";
+    state.catalogueReady = false;
     renderDetails();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Install source connector" }),
-    );
-
     await waitFor(() =>
-      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 1),
+      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 2),
     );
     expect(
-      await screen.findByText("Connector installation started"),
+      await screen.findByText("Source connector installation requested"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Install source connector" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("resumes a saved draft at source installation instead of showing an empty report", async () => {
+    state.status = "DRAFT";
+    state.deliveryMethod = "AWS_SSM";
+    state.catalogueReady = false;
+    renderDetails();
+
+    expect(
+      screen.queryByText(/No feasibility report is available/i),
+    ).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(state.install).toHaveBeenCalledWith("SRC-" + "b".repeat(32), 2);
+      expect(
+        screen.getByText("Source connector installation requested"),
+      ).toBeInTheDocument();
+    });
   });
 
   it("resumes an inventory-ready migration and starts assessment", async () => {
@@ -284,6 +324,47 @@ describe("Migration approval gate", () => {
     expect(
       screen.queryByRole("button", { name: "Approve assessment" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not flash the approval gate while an approved assessment loads", () => {
+    state.status = "APPROVED";
+    state.assessmentPending = true;
+    renderDetails();
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading migration assessment",
+    );
+    expect(screen.queryByText("Approval gate")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Independent governance checkpoint"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No feasibility report is available"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not display an approval gate for an approved migration with no report", () => {
+    state.status = "APPROVED";
+    renderDetails();
+
+    expect(screen.queryByText("Approval gate")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/No feasibility report is available/),
+    ).toBeInTheDocument();
+  });
+
+  it("waits for assessment evidence before presenting governance actions", () => {
+    state.role = "PLATFORM_ARCHITECT";
+    state.status = "UNDER_REVIEW";
+    state.assessmentPending = true;
+    renderDetails();
+
+    expect(
+      screen.queryByRole("button", { name: "Approve assessment" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading migration assessment",
+    );
   });
 
   it("allows the Cloud Engineer to refresh a rejected assessment", async () => {

@@ -1,0 +1,382 @@
+## Latest checkpoint — 25 October 2026
+
+Read [NAVIGAN_SESSION_HANDOFF_2026-10-25_LATEST.md](./NAVIGAN_SESSION_HANDOFF_2026-10-25_LATEST.md) first. It supersedes conflicting status in older entries below.
+
+- Accepted login: one logo beside Welcome to Navigan; approved new slogan; Deloitte-green button; smaller provider logos; latest compact controls and 36% dark panel in `6916e11`.
+- PROD frontend revision 22 confirmed COMPLETED. Revision 23 prepared; execution not confirmed. Exact image/plan and validation limits are in the latest handoff.
+- Identical duplicate ECR response fix `d148e62` tested (33 tests); already pushed.
+- Disabled cluster-tool incident resolved after worker capacity returned: `dbs-sims-clus2-system-ng` had desired size 0. User confirmed healthy tools and enabled buttons. No reinstall or code fix for this incident.
+- Stale health reporting and broader UI consistency remain deferred. No new auth/backend/gateway changes requested.
+
+---
+
+## Current requirement and PROD delivery trust — 23 October 2026
+
+User clarified: an authorized customer should register an association with the same existing healthy physical source connector in the SAME Navigan instance, without another agent installation per customer. The prior source-scoped installation change prevents resource collisions but is NOT the required shared-connector association implementation. Do not present it as the final lifecycle solution or require retirement/reassignment of JPMC records. Keep customer-scoped permissions, explicit authorization of additional customer bindings, assessment/artifact isolation and association revocation. Source agent tokens must not be copied between customer records. DEV connectivity alone does not prove PROD connectivity; the agent's actual API endpoint/connector ID must be checked first.
+
+User successfully executed the scoped API plan /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-api-_efn9ga1/release-plan.json for code 064a72a058aa4a1d01006340ec69863505f188f1. MigrationFunction updated; MigrationIntegration unchanged dependency verified. Frontend remains :9; later UI changes are not deployed. Subsequent Install connector failed before SSM submission: CloudWatch correlation 052c7188-be32-45bd-a9d2-aed2ec8341f0 and e803245c-f2e1-4f56-947f-1fb06e161997 reported AccessDenied at source_connector_installation.py:309 (STS AssumeRole). This is not a database failure despite transaction-wrapper logging.
+
+Live user diagnostic established identity-policy sts:AssumeRole evaluation allowed for PROD MigrationFunctionRole-kPeJA6r1VbOE with no missing context. NaviganSourceConnectorDeliveryRole trusted only DEV MigrationFunctionRole-zfZY0tTybea6. User then added exact PROD principal via Sid NaviganProductionSourceDelivery, preserving existing DEV statement and requiring sts:ExternalId matching SRC-*. Output confirmed update and verification. Private original trust backup: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-delivery-trust-v54qebuc/original-trust.json. No connector installation, customer reassignment or assessment cancellation was performed by that IAM update.
+
+Next: read-only SSM inspection of source host i-08e28d9b2242cbd53 using /etc/kubernetes/admin.conf, namespace navigan-migration. Print only deployment identity/readiness and public NAVIGAN_API_BASE_URL/NAVIGAN_SOURCE_CONNECTOR_ID; never connector tokens, secrets or complete environment data. Compare with configured PROD connector API endpoint. Then implement the explicit shared-connector customer binding flow through APIs/connector assignment/report authorization. Generic AWS access failures also need clear client-safe errors. Do not blindly repeat Install connector simply to associate another customer. Original goal remains testing the DEV-validated migration/discovery/scope/artifact collection/export workflow end to end in PROD. Live functionality remains unverified.
+
+---
+
+## Source connector lifecycle fix (pending PROD rollout) — 23 October 2026
+
+User explicitly clarified the goal: existing/new source connections must work for every authorized customer and existing/new assessments, so the DEV migration workflow can be tested in PROD. Db Schenker is the current test customer and owns the intended target. Do NOT treat this as authorization to retire/reassign the JPMC source or cancel corebanking. Earlier ownership-transfer suggestions were an incorrect direction.
+
+Root cause found in source_connector_installation.py: every registration installed the same Deployment, credentials Secret, image pull Secret, ServiceAccount, ClusterRole/Binding and pod selector in navigan-migration. The host-wide conflict guard therefore blocked Db Schenker because of another customer's legacy draft, despite both registrations lacking current heartbeats.
+
+Fix: AWS SSM installations now use deterministic navigan-source-<full registration UUID> resource names for deployment/secrets/service account/RBAC/selectors/rollout. The shared namespace is retained; legacy/shared deployments and other registrations are never replaced or deleted. Enrollment revocation remains scoped to that source_cluster_id. Backend preflight checks edit/customer access, revocation, delivery configuration and fresh heartbeat; other registrations no longer block isolated resources or leak their metadata. A healthy current connector is reused, not rotated. Recovery accepts a DRAFT linked to the same customer/source as well as existing pending states; association/version checks remain enforced.
+
+Registration requests for the same customer/account/region/SSM host/kubeconfig reuse the existing non-revoked source under the installation advisory lock, preferring an active fresh connector. Other customers get distinct registrations/credentials. UI automatically reuses same-customer matches, refreshes the registry after creation, and handles a live registration returned by backend reuse without reinstalling. The previously pushed host-check UI remains compatible. Duplicate assessment creation now returns 409 ASSESSMENT_NAME_EXISTS via the existing customer/name constraint, including cancelled names, before writing history.
+
+Validation: 78 focused backend tests and 44 frontend connection/discovery tests passed; frontend TypeScript and local production build passed. Installer tests execute its embedded Python with mocked Kubernetes/AWS/network calls, parse generated YAML for two different source IDs and a retry, and verify disjoint resource identities, correct references/selectors/read-only RBAC and stable same-registration reuse. No live AWS/source changes were performed by this fix. PROD remains frontend task :9 and prior API code until user deploys it.
+
+Next: follow docs/migration/source-connection-prod-fix-20261023.md. Deploy the scoped PROD migration API code using existing deploy-migration-api-prod.py --prepare then --execute of its NEW printed release plan. Current PROD frontend can test installation after the backend fix; deploy the frontend candidate separately for the improved reuse/error UI. No database migration, registry/image collector rebuild, source connector image build or manual customer reassignment is required. Real PROD heartbeat/discovery/collection/export evidence remains pending. Broader UI redesign stays on hold.
+
+---
+
+## Source connection installation guard — 23 October 2026 (Asia/Kolkata)
+
+Production frontend task :9 remains the last deployed revision. Authenticated testing found: the saved Db Schenker source SRC-9e51fbb33ad94ea482a24fa0b8a1c91c is PENDING_ENROLLMENT without an active heartbeat. A read-only PROD query also found JPMC India registration SRC-885c7419b2734265a70d91553d6c33d8 on the same physical SSM host/kubeconfig, status CONNECTED but no active connector heartbeat, with legacy corebanking DRAFT (discoveryMode absent). The existing backend treats that draft as an active assignment and blocks a competing installation. Customer-scoped listing correctly excludes the other customer's registration. Do not bypass the conflict or transfer ownership without an explicit customer decision.
+
+The initial Db Schenker assessment DBS_Migration_Assessment_Prod was CANCELLED. Reusing its name produced a generic error; after choosing DBS_Migration_Assessment_Prod_02, the user screenshot confirmed a saved/linked draft and missing heartbeat. Duplicate name is consistent with the existing customer/name unique constraint, but no exception log was collected. Friendly duplicate-name handling remains a separate follow-up.
+
+Frontend-only correction now uses the existing installationCheck API after saving a source and immediately before an AWS SSM installation. Missing/failed checks, denied access, active installation/assessment and any returned conflict prevent the install action; the API's explanation and Check host again appear beside verification. Even recoverable conflicts require the existing explicit recovery flow and cannot trigger an ordinary install. Previously connected registrations show Restore connector only when the host check is clear. Text distinguishes registration selection from a verified running connector. No backend/auth/database/ownership/source agent changes were made.
+
+Validation: 25 focused source connection/validation tests passed, including eight new conflict/unavailable/retry/stale registration checks; TypeScript and a local production build passed. This UI fix is committed for review/deployment, not yet live in PROD. Next: decide whether this lab stays with JPMC or is intended for Db Schenker; resolve the association through an authorized recovery/retirement flow or use a separate host, then verify a recent heartbeat. UI correction alone cannot establish the connector. Broader UI redesign remains on hold.
+
+---
+
+## PROD frontend deployed — 23 October 2026 (Asia/Kolkata)
+
+User terminal output confirms successful preparation and execution of /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-frontend-necjkwes/release-plan.json. Current deployed frontend: arn:aws:ecs:ap-south-1:905418045935:task-definition/navigan-frontend-TaskDefinition-j9W80aX9PBkf:9. Rollback task remains the same family :8. Built from branch commit b461886889d7c35d0b4aaf47fa9d5d0ef40420c9; immutable running image verified as 905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:cfe98cb5d0627237424cd925a43939eb6d6d4a445750dd4c1c1370929e5f980e.
+
+Release helper reported frontend deployment success, verified running image and passing public health/login HTTP checks. Backend/schema/workspace storage, scheduled repository collector and image polling service were already deployed and preflight verified. This supersedes historical frontend-pending/task-:8-live statements below. Do not rerun preparation or deployment merely to resume the session.
+
+Remaining validation: fresh authenticated sign-in at https://navigan.click; Dashboard/Customer/Environment/Cluster navigation; Migration Overview and new assessment/discovery/scope/Collect & export workflow with PROD-specific source access. Real PROD collection/export and source-agent compatibility still need workflow evidence. DEV data was not copied into PROD. Deployment completion does not establish target readiness, workload migration or traffic cutover. Broader migration UI redesign remains on hold. Source agents and the unused extra recovery bucket were not changed.
+
+---
+
+## Frontend preparation timestamp fix — 23 October 2026 (Asia/Kolkata)
+
+User ran frontend --prepare: live PROD backend/collectors, stable frontend and public Cognito preflight passed. Preparation then failed while serializing ECS taskDefinition.registeredAt (Python datetime) into original-task.json. It stopped before image build/push, task registration or service update. Last observed live/rollback task remains navigan-frontend-TaskDefinition-j9W80aX9PBkf:8. Failed private record directory: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-frontend-n6886z5g; do not execute it as a release plan.
+
+Fixed archival AWS response serialization to preserve datetime as ISO 8601. Candidate task JSON and baseline hashing remain strict; registration still excludes AWS response metadata. All 28 frontend release tests passed, including a full mocked --prepare with a real UTC registeredAt timestamp, saved rollback/candidate/plan verification and no service update. This is local regression evidence, not a live deployment.
+
+Next: pull the branch and retry scripts/deploy-frontend-prod.py --profile navigan --prepare using the existing deployment venv and TMPDIR. After successful preparation, use only its newly printed release-plan.json with --execute. Production frontend rollout and authenticated smoke tests remain pending; broader UI redesign stays on hold. Existing backend/collectors remain deployed as recorded below.
+
+---
+
+## PROD collectors running / frontend release helper — 23 October 2026 (Asia/Kolkata)
+
+User output confirmed the repository collector deployed as navigan-custmanagement-cfnstk-workspace-repositories with schedule ENABLED after starting the previously stopped shared Aurora cluster. The earlier InvalidResourceStateException stopped the repository deployment before writes; database availability is restored according to the successful retry. Do not repeat that investigation or restart databases without a current symptom.
+
+Production image worker was built/pushed and deployed, then DesiredCount was explicitly changed from 0 to 1 using immutable image 905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/prod-workspace-image-collector@sha256:cd025dfbba9aac18cf6e03431182ba87640fbd9d16fa11ec63325601c471573c. Task definition navigan-custmanagement-cfnstk-workspace-images-WorkerTask-NBdI3iULKHyk:1; role arn:aws:iam::905418045935:role/navigan-custmanagement-cfnstk-workspace--WorkerRole-ZTaZfknnEn2s; service navigan-custmanagement-cfnstk-workspace-images-WorkerService-yB0lavZw7aRs. Logs showed repeated processed:false without reported error codes (user supplied 23 Oct 13:56–13:57 UTC lines). This is successful startup/polling evidence, NOT a completed image-copy test. PROD registry-role metadata query returned []; no source-role trust changes were made. Private registries need authorization when configured later.
+
+New scripts/deploy-frontend-prod.py follows the existing immutable-image/copy-current-task release method. Default readiness is read-only. --prepare verifies PROD API/schema/storage, repository schedule, image worker, stable frontend and actual public Cognito settings; exports committed frontend via git archive into private TMPDIR (no new worktree, no local reset/cleanup); builds/pushes an immutable ECR image; registers a candidate copied from the current task. Only frontend image and runtime MIGRATION_SOURCE_FIRST_ENABLED=true differ. User-modified next-env.d.ts and local env files are preserved/excluded; no .env/config file is sourced. Roles, API origin/path, task sizing/network/health/logging/sidecars and production NODE_ENV are preserved. Reserved AWS registration metadata/tags are excluded.
+
+Preparation prints the actual candidate/image/release-plan path without updating the service. --execute re-verifies backend, baseline, exact candidate diff and digest, then updates only the known Navigan frontend service. It checks final service revision and all running image digests, plus public /healthz and /login HTTP 200. Circuit-breaker rollback cannot count as success. The saved prior task remains the rollback reference; no blind automatic rollback is added.
+
+Validation: 143 focused Python release tests passed (26 frontend helper checks plus existing 117); earlier 28 frontend switch/proxy tests, TypeScript and production build passed. No frontend source changed in this helper addition. Immediate next action: user pulls and runs scripts/deploy-frontend-prod.py --profile navigan --prepare with deployment venv/TMPDIR. Frontend live remains last observed task :8 until actual execution output confirms a change. Authenticated platform/migration workflow, real PROD collection/export and target readiness are still pending. Broader UI redesign stays on hold; source agents and extra recovery bucket remain untouched. See docs/migration/production-release-20261023.md.
+
+---
+
+## PROD API deployed / collectors and frontend switch prepared — 23 October 2026 (Asia/Kolkata)
+
+User output explicitly confirmed successful scoped production API execution using /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-api-uyvrnt7c/release-plan.json. Root change set navigan-prod-migration-api-9b194225c17642db/1096740c-2e2f-424d-9897-ad349214fdba completed; script verified the deployed package checksum and PROD workspace/source-first settings. Nine protected artifact routes, discovery policy and source invoke permission were added. MigrationIntegration was verified unchanged. This supersedes API-preparation-only status. Authenticated workflow smoke testing is still pending.
+
+New scripts/deploy-workspace-workers-prod.py binds the tested reusable collector deployment to PROD database navigan, parent navigan-custmanagement-cfnstk and ECR navigan/prod-workspace-image-collector. It verifies actual API identity/role/revision, source-first flag, table/grant state and actual workspace bucket/KMS settings before delegation. Existing DEV script defaults remain DEV through explicit DATABASE/LABEL constants; no DEV target is changed by the production entry point. The wrapper rejects local source/collector edits and leaves unrelated frontend local files alone. Reusable deploy code now validates the exact ECR repository and bounds Docker pushes at ten minutes with the local image retained for recovery.
+
+Immediate next actions: user pulls and runs production wrapper --repository --enable-schedule --apply, then --image --apply. Repository deploys a dedicated scheduled Lambda; image mode builds/pushes a PROD image and stages a separate private image service at zero tasks. No API, source connector, source role trust or frontend is updated. Capture actual outputs before claiming collector deployment. Exact registry-role authorization/trust/private networking must be checked before starting images. Do not reuse a DEV image/repository or turn on tasks blindly.
+
+Frontend source changes are prepared only: shared isSourceFirstEnabled server switch accepts explicit MIGRATION_SOURCE_FIRST_ENABLED=true in PROD and retains existing DEV defaults. Four migration server routes await Next.js connection() so the flag is read at request time. NODE_ENV remains production; authorization and preview access are unchanged. A future ECS task must explicitly enable the flag after backend readiness. No frontend image/service deployment occurred; last observed rollback baseline remains task :8.
+
+Validation passed: 117 focused Python tests, 28 frontend switch/proxy tests, TypeScript and production Next.js build. All four migration routes are dynamic in the build output. These are code/mocked checks, not live collector or authenticated UI acceptance. See docs/migration/production-release-20261023.md for concrete commands and the confirmed storage/API resource details. The extra recovery bucket remains untouched. Broader UI redesign stays on hold; agent still has no AWS credentials/CLI/Docker.
+
+---
+
+## API preparation guard correction — 23 October 2026 (Asia/Kolkata)
+
+User ran API preparation at 800f157. PROD database/storage/API identity/JWT checks passed; GitHub App configuration is present. Private rollback/release record: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-api-hs_2r1sy. Root change set arn:aws:cloudformation:ap-south-1:905418045935:changeSet/navigan-prod-migration-api-9638b77362554e10/773fa6c8-e14d-43e3-87a4-db62e8d64343 was created but NOT EXECUTED. Inspection printed Modify MigrationFunction then stopped at Unexpected nested resource change: MigrationIntegration. The release-plan.json was not written because the scope guard failed. API/frontend remain unchanged; do not execute that earlier change set manually.
+
+The initial guard was too narrow for potential CloudFormation dependency re-evaluation. The correction does NOT blindly allow integration changes: it fetches current and proposed processed child templates from AWS and requires complete equality of every dependent resource definition. Only unchanged MigrationIntegration AWS_PROXY, JWT routes referencing MigrationIntegration, and API Gateway invoke permissions referencing MigrationFunction may be non-replacing Modify dependencies. Changed properties/security/targets, other integrations, connector/role-trust changes, additions through this exception, deletions and replacements remain blocked.
+
+Ninety-two focused release tests pass, including full-template equality checks, changed integration/JWT/invoke-permission rejection, replacement rejection, protected target constraints and use of both actual AWS template reads. These are mocked tests; the actual dependency equivalence remains to be verified by the next live preparation.
+
+Immediate next action: user pulls the correction and reruns the same --prepare command. It prepares a fresh scoped plan; the earlier backup/change set are preserved. Do not recreate storage, delete the extra recovery bucket, rebuild frontend, or claim API deployment succeeded. After successful preparation review output and use its actual new release-plan path for execution. Remaining collectors, connector/workflow compatibility, frontend production feature switch, image build/rollout and smoke checks are still pending.
+
+---
+
+## PROD storage verified / API preparation — 23 October 2026 (Asia/Kolkata)
+
+User supplied successful storage deployment output and describe-stacks evidence: both navigan-custmanagement-cfnstk-artifact-workspace and navigan-custmanagement-cfnstk-source-recovery are CREATE_COMPLETE. The older script was run before the single-bucket correction. Workspace bucket: navigan-custmanagement-cfnstk-arti-workspacebucket-xc7zf8yedqxl; owner 905418045935; KMS key arn:aws:kms:ap-south-1:905418045935:key/61119b9e-0d25-4459-9a2d-7e13dbb93568. Extra legacy recovery bucket: navigan-custmanagement-cfnstk-sourc-recoverybucket-y0q8hr09sgsl. Leave it untouched; use only the workspace bucket for this workflow. Private storage record: /mnt/b/Langchain_Ai/navigan-deploy-tmp/navigan-prod-migration-storage-2icl083o. Workspace table/runtime-grant verification passed in that output. This supersedes earlier storage/schema-pending status.
+
+New scripts/deploy-migration-api-prod.py prepares a scoped API release without execution (--prepare), or executes an exact saved private plan (--execute PLAN). Default invocation is read-only. It saves original API ZIP/config and live processed parent/child templates, preserves existing dependencies and parent parameters, bundles current migration modules plus the shared GitHub App helper and pinned Lambda-compatible PyYAML. It binds the workspace bucket/KMS key, enables the backend source-first flag, adds only protected migration/source-setup/artifact routes using existing JWT settings, and attaches a scoped discovery policy to the actual PROD API role. Existing PROD GitHub App references may be copied from ClusterFunction; missing references are reported. It never updates connector Lambda, source agents, role trust, collectors or frontend.
+
+The root change set must include nested details and change only MigrationManagement; the child may change only MigrationFunction, the dedicated policy, source invoke permission and explicitly listed JWT routes. Any connector/role-trust/unrelated stack/destructive/replacement changes stop preparation/execution. Execution also rejects stale stack/Lambda revision/checksum. Non-auto-deployed API stages or unprocessed/non-JSON templates stop readiness rather than guessing. These are guards, not evidence the live preparation has succeeded.
+
+Validation: 76 focused mocked release tests pass (35 API, 26 storage, 15 migrations). No AWS API preparation/execution has been run by the agent, which still lacks AWS credentials/CLI/Docker. Immediate next action: user pulls and runs --prepare with deployment venv/profile navigan/existing TMPDIR; inspect the actual proposed changes and printed release-plan path before running --execute. API live execution, collector provisioning/registry access, connector compatibility/workflow smoke checks and frontend feature-switch/immutable image rollout remain pending. Known frontend rollback baseline remains :8. Broader UI redesign stays on hold.
+
+See docs/migration/production-release-20261023.md for the concrete command sequence. Do not rerun storage provisioning or delete the extra bucket as part of API preparation.
+
+---
+
+## Single workspace bucket correction — 23 October 2026 (Asia/Kolkata)
+
+User terminal output explicitly confirmed migrations 027/028 and runtime grants committed successfully to PROD database navigan. This supersedes the earlier ambiguous “done” and missing-table preflight. Production frontend/API promotion remains pending.
+
+The user clarified DEV has one workspace bucket. Inspection of current artifact_recovery.py confirms workspace-bound LIVE_DEFINITION/HELM_RELEASE recovery uses artifact_workspace.storage_configuration(), the same workspace bucket and KMS key. MIGRATION_RECOVERY_BUCKET is only the older recovery path without workspace binding. The assistant incorrectly described two buckets as the established DEV requirement and unnecessarily included the legacy recovery stack in the initial PROD storage script.
+
+The corrected scripts/deploy-migration-storage-prod.py provisions only navigan-custmanagement-cfnstk-artifact-workspace. It retains identity/schema/grant checks, checked change sets, ownership/KMS/versioning/privacy verification, and no changes to API code/config, frontend or source agents. It neither deletes nor repurposes existing buckets. Forty-one focused tests pass, including exact one-stack execution and rejection of legacy recovery scope.
+
+IMPORTANT: after the correction was being prepared, the user stated they ALREADY RAN the previously provided storage script. Do not assume the earlier missing-table preflight is their only storage invocation. Both workspace and separate legacy recovery stacks MAY now exist. No successful post-migration storage output has been supplied yet. Next obtain read-only describe-stacks output for the two exact PROD storage stack names, preserve all resources, and use the existing workspace bucket if verified ready. Do not ask the user to rerun provisioning blindly or delete the extra bucket. Any later cleanup requires checking objects/references and a concrete separately authorized action. Continue toward scoped API/collector/frontend release after verifying storage.
+
+This section supersedes earlier two-bucket deployment instructions and earlier schema-pending status. The broader UI redesign remains on hold; task :8 stays the recorded production frontend rollback baseline. See docs/migration/production-release-20261023.md.
+
+---
+
+## Storage release preparation — 23 October 2026 (Asia/Kolkata)
+
+Current task remains the user-authorized PROD frontend/backend deployment. After the runner guard fix `cb7c538`, the user replied “done” to rerunning the workspace migration. Treat this as user-reported completion, not independently observed commit output. The next script verifies PROD identity, all three tables and all runtime grants before making changes.
+
+New release utility: `scripts/deploy-migration-storage-prod.py`; runbook: `docs/migration/production-release-20261023.md`. Default invocation is read-only. With --apply it prepares both dedicated PROD storage change sets, validates resource allowlists and rejects removals/imports/replacements, rechecks the actual production API revision/role, then executes. It binds storage policies only to the actual PROD MigrationFunction role. It verifies ownership, encryption, versioning and public-access blocking after deployment. Existing matching stacks/no-op updates are supported; unexecuted CREATE preparations can be resumed. Records are private under TMPDIR. No parent stack, Lambda code/config, API routes, ECS, source host, authentication or database writes are part of this utility.
+
+Validation: 39 focused tests passed (24 production-storage boundary tests plus 15 scoped migration tests). These are mocked AWS tests, not a live cloud deployment. New script/tests/runbook and this checkpoint are prepared/published together; use the actual remote branch HEAD rather than sandbox master.
+
+Immediate next action: user pulls and runs the PROD storage utility using the deployment venv, profile navigan and existing TMPDIR, with --apply. Expected completion: “PROD migration storage deployed and verified. API configuration/code and frontend are unchanged.” Record the actual output before declaring storage ready. API promotion, collectors, explicit production frontend feature switch, immutable frontend build/service rollout and smoke tests remain pending. PROD frontend rollback baseline stays task :8. The agent still has no AWS credentials/CLI/Docker. Broader UI redesign stays on hold.
+
+---
+
+## Production release override — 23 October 2026 (Asia/Kolkata)
+
+The user explicitly requested deployment of both frontend and backend to PROD. This supersedes earlier frontend-only/no-PROD scope for this release; the broader workflow redesign remains on hold. Follow the existing controlled release standard in MASTER_CONTEXT section 10: immutable frontend image, copy the current production task definition changing only the image, scoped migration backend change set, preserve unrelated stacks/connector/authentication, smoke tests and rollback. Do not use DEV deployment scripts against PROD or deploy the full parent stack blindly.
+
+User WSL output verified branch `new_migration_approach_18oct26` at `bd44e25`, AWS account `905418045935`, region `ap-south-1`, production frontend task `navigan-frontend-TaskDefinition-j9W80aX9PBkf:8` with desired/running 1/1 and rollout COMPLETED. Preserve this rollback target. Existing user changes: modified `frontend/next-env.d.ts` and untracked local registry/result files; do not reset, clean, delete or create another worktree.
+
+Production nested migration stack: `navigan-custmanagement-cfnstk-MigrationManagement-15LMVISK00HR5`, UPDATE_COMPLETE. MigrationFunction `navigan-custmanagement-cfnstk-Mi-MigrationFunction-nYtXL48n5mkD` is Active on python3.12, DB_NAME `navigan`. Its inspected environment has no source-first/workspace configuration. Read-only SQL confirmed source_clusters exists, but artifact_workspaces, workspace_artifacts and workspace_collection_jobs are absent.
+
+The attempted workspace-only migration stopped before AWS/DDL with “--workspace-only requires --database navigan_dev”. The assistant had missed the separate DEV-only guard when giving the command. The runner is now corrected to accept only navigan_dev or navigan in scoped mode; navigan additionally requires the exact existing --confirm-production-database navigan confirmation. Only migrations 027/028 and their scoped grants are selected. Fifteen focused mocked Data API tests pass, covering confirmation before AWS calls, no-AWS dry run, scoped PROD commit, rollback/identity mismatch, unrelated database rejection and existing DEV behavior. SQL files are unchanged.
+
+Immediate next action: user pulls the runner correction and reruns the workspace-only dry run and migration with --database navigan --confirm-production-database navigan. Do not record success until their output confirms the commit. Then prepare PROD-only workspace storage, scoped API/routes/recovery and collectors as required. Current new migration frontend routes are development-only; prepare an explicit production feature switch without enabling development mode or preview permission bypasses before building the frontend. No production code, schema, storage, workers or frontend deployment has succeeded in this release yet.
+
+The agent sandbox lacks AWS credentials/CLI/Docker and cannot execute the cloud release directly. User runs concrete reviewed commands from the existing WSL checkout. Continue using the actual remote branch tree for selective GitHub publishing; never push the sandbox master tree.
+
+---
+
+## Export feedback fix — 23 October 2026
+
+Latest published feature: **`ba88ea15ac73aea34657ed8316685d2012c1e28e`** — `fix(ui): show export feedback and download beside workspace actions`. User reported the export click appeared to do nothing. The toolbar action previously rendered feedback farther down the page. Progress, errors and export metadata now appear directly in the workspace controls, and successful export adds a green Download export manifest link to the same action toolbar. An incomplete successful response is explicitly reported rather than silently dropping the result. This fixes feedback placement; it does not establish whether the user's live API request succeeded.
+
+Validation: 38 focused artifact-workspace tests, TypeScript and production build passed; actual React preview verified success and download within the toolbar using fixture data. New tests cover pending response, success, API failure and incomplete response in the fixed-scope controls. Backend unchanged. User should pull/restart frontend, create export, then click Download export manifest; live API errors will appear beside the action. User acceptance pending. Broader workflow redesign remains on hold.
+
+# Current collection follow-up — 23 October 2026
+
+## Latest follow-up — merged collection and export (23 October 2026)
+
+Published feature commit: **`bc87adf74c6eaf394db22db43cb17ce258adcce7`** — `fix(ui): combine artifact collection and export with named copy progress`. This narrowly scoped Files & images request supersedes the earlier three-stage preparation UI; it does not resume the broader migration workflow redesign, which remains on hold. User acceptance of this follow-up is pending; Migration Overview remains the accepted visual reference.
+
+- Saved-scope Files & images now has **Check sources → Collect & export**. Review/export is no longer a third navigation destination.
+- Create workspace, Refresh workspaces, repository collection, image collection and export are grouped in one toolbar. Existing scope/stale/permission/readiness guards and explicit POST actions are unchanged; a current matching workspace still disables creation.
+- The anonymous “succeeded · Attempt 1” job list is removed. The shared artifact table identifies actual files/images, GitHub repository / container registry / source-cluster live-export or Helm origins, and progress/status matched through the existing API's artifactId.
+- Saved rows show 100%; active copies use an indeterminate animation because the API does not report bytes transferred. Queued, failed/retry, verifying and source-action states are explicit. Overall percent is based on required artifacts saved to S3, excluding historical runs; incomplete work never rounds up to 100%.
+- All / Remaining / Saved-excluded filters use the same table. Export remains available in this view and exact S3 metadata retains the existing export-response limitation.
+- Read-only progress polling runs every five seconds only for active visible pending work, without reloading the page or automatically starting collection/export. It stops on completion, leaving the stage, unmount or read failure. Manual refresh remains available.
+- Validation: **73 focused tests**, TypeScript and production build passed. Tests cover job-to-artifact identity mapping, honest indeterminate progress, one toolbar, polling completion/inactive cleanup and merged navigation. Browser fixture checks covered queued/running/failed/saved rows, creation disabled/export enabled after completion, and no page-wide overflow at 390/768/1024/1280/1440/1920px. This is not live AWS validation or a whole-suite pass.
+- No backend/API payload, Lambda, database, infrastructure, authentication or migration scope/business-rule changes. Pull/restart the frontend for user review; no AWS redeployment is needed for this UI release.
+
+---
+
+# Earlier 23 October override — superseded where the collection follow-up differs
+
+Read `docs/NAVIGAN_SESSION_HANDOFF_2026-10-23_LATEST.md` first. This override supersedes older current-state labels, blockers, branch references and next-task instructions below.
+
+Active user branch: `new_migration_approach_18oct26`; verified published feature HEAD: **`8236e58505d148f72c349640ccde3f1cf30d4cfd`**. Latest accepted UI baseline is Migration Overview (user: “much better”): Graphite/charcoal, shared Geist typography, compact spacing, colored donut charts/provider icons, green actions and one attention queue. Preserve accepted shared PageHeading offset fix `cfbfbaae7`.
+
+Since the 20 October checkpoint, DEV S3 artifact workspaces, collection workers, recovery and final export progressed to user-reported success: all 12 shown jobs succeeded and an export with 14 collected artifacts / 2 historical exclusions downloaded. This does not establish target deployment readiness. Source discovery and scope/artifact preparation are now separated; source connection setup remains in new migration creation. Files & images uses Check sources → Collect artifacts → Review & export at `125cecb4`, with duplicate creation protection for the current saved scope. Exact S3 object paths are in the export manifest; the UI can show the shared folder after export because current workspace read responses omit persistent storage metadata.
+
+**Explicitly deferred:** the user wants major further improvement to the full migration workflow but has put it on hold. Do not resume that redesign without a new instruction. Current task is this kit refresh, then follow the user's chosen task. Recent work is frontend-only: do not alter backend APIs/Lambda/database/infrastructure/authentication or migration business rules under this authorization. No PROD deployment, target workload migration or traffic cutover was done. Do not repeat historical source-ID, HOME or writable-temp diagnostics without current evidence.
+
+Use the user's existing WSL checkout `/mnt/b/Langchain_Ai/Navigan-migration-test`. Preserve local files; no reset/clean/deletion/new worktree. The agent sandbox's local master history differs from published remote history; never push its full tree as the user branch. See the latest handoff for release IDs, tests, runtime evidence, constraints and safe startup commands.
+
+---
+
+## Historical master context — retained for reference, superseded where it differs
+
+# Current recovery override — 20 October 2026, 01:15 IST
+
+Read `docs/NAVIGAN_SESSION_HANDOFF_2026-10-20_0115_IST.md` first. This override supersedes earlier current-state labels below. Active DEV branch: `new_migration_approach_18oct26`; latest published UI commit: **`2cfb422`**. User-reported source discovery/assessment completed; registry images became Available. Earlier source-ID mismatch and HTTP 400 volumeClaimTemplateNames incidents are historical/resolved at the user's acceptance checkpoint, not today's first task. Retailflow source ECR mirroring and source rollouts passed; target unchanged. Last user-confirmed backend/connector upgrade: **`69a61b4`**. Latest approved table/drawer redesign is implemented/pushed and requires frontend pull/refresh only, with 53 focused tests/TypeScript/build passed. Live user confirmation of the final UI commit is still pending. No PROD deployment or target migration was performed.
+
+**Next-session priority:** explain and improve the presentation of the user's latest totals—8 namespaces, 35 workload controllers, 479 resources, 438 source findings—using a current readonly inventory/finding breakdown. Do not equate findings with failures or controllers with applications. Do not silently exclude platform namespaces or narrow discovery to Retailflow; group evidence for viewing and preserve raw detail. No grouping/label change has yet been implemented. Use the latest handoff for boundaries, exact release evidence, known limitations and history. Avoid repeated diagnostic steps and speculative connector reinstalls.
+
+---
+
+## Preserved historical master context (older overrides below are historical)
+
+# Navigan — Master Context & Daily Recovery Prompt
+
+> **CURRENT OVERRIDE — updated 19 October 2026, last runtime evidence 18 October:** Read `docs/NAVIGAN_SESSION_HANDOFF_2026-10-18_EOD.md` first. Active DEV branch is `new_migration_approach_18oct26`, last pushed/user-pulled and DEV-deployed commit `428cd3b`. Source connection Option 4, draft editing, stable progress, source-first discovery and source-only assessment support are implemented. Real DB Schenker discovery is **blocked by a source-registration mismatch**, not completed. The healthy live connector serves `SRC-ae85e62d759d47fabf8eb87610ea39b9`; assessment `MIG-9beaa527a0754613aa1d8e7a7ee6a8af` waits for `SRC-2f0e434335e04ef0bdccd74cb3322f2c`. First verify ownership/associations; no speculative reinstall/reassignment. DB Schenker and JPMC are real approved customers; others are demo. Cross-customer shared-cluster access is still unimplemented. No PROD deployment in this increment. Older connector-change exclusions below describe earlier release scopes; the two DEV migration Lambdas were explicitly updated on 18 October, without blanket authority for further infrastructure changes.
+
+## Historical baseline and prior overrides (superseded where the current handoff differs)
+
+> **Latest state override (2026-10-17 EOD IST):** Read `docs/NAVIGAN_SESSION_HANDOFF_2026-10-17_EOD.md` before acting. Today we reviewed the architect's application-centric migration ideation and delivered a detailed 67-row code gap tracker. The Source UI working branch is `codex/migration-source-ui-compact-topology` (remote HEAD to be freshly checked). **Last user-confirmed** production frontend was ECS task `:8` from commit `84ea9ee`, with completed deployment and HTTP 200 on `/login`; this was not rechecked live tonight. Previous `:6`, `:5`, `0179edb` as latest, and `codex/migration-intelligent-planning` as active are historical. This master file retains earlier baseline snapshots below.
+**Baseline:** 16 October 2026 | **Version:** 1.0 | **Status:** Working reference; verify live state before changing infrastructure
+
+> Copy the complete section below into a fresh ChatGPT session at the start of each day. Treat it as the project baseline, not as evidence that every feature is implemented or every deployment is current.
+
+## ROLE AND OPERATING CONTRACT
+You are my principal solution architect, senior full-stack engineer, DevSecOps lead, and controlled-release advisor for **Navigan**, a Deloitte-styled, API-driven, multi-cloud Container Management Platform. Maintain continuity. Do not change development architecture, worktree, deployment strategy, feature scope, or code paths without explaining the reason and obtaining approval. Work in small, verifiable changes; favor one consolidated command and a clear pass/fail result over long sequences of exploratory commands. Avoid repetitive investigation and unnecessary rebuilds. Separate facts into **VERIFIED**, **INTENDED/DESIGNED**, **IN PROGRESS**, **UNKNOWN**, and **OUT OF SCOPE**. Never represent an intended feature as deployed.
+
+At the beginning of each session: (1) acknowledge this baseline; (2) ask what task to continue only if not provided; (3) read the most recent session checkpoint; (4) perform only the minimum read-only checks relevant to that task; (5) state the exact repo/branch, DEV or PROD target, affected components, acceptance criteria, rollback, and exclusions before any mutation. Do not perform or recommend infrastructure changes in production on assumptions alone. Do not invent results of commands you cannot execute.
+
+## 1. PRODUCT OBJECTIVE AND BOUNDARIES
+Navigan is a multi-tenant, role-controlled, API-first Container Management Platform/command center. Its product pillars are Customer Management, Environment Management, Cluster Management, Migration Intelligence / Planning, platform setup/onboarding, dashboards, and governance. Its intended provider coverage includes AWS, Azure, GCP, OCI, OTHER, Kubernetes/OpenShift; capabilities differ by module and must be confirmed in code. It follows Deloitte-inspired branding, restrained green highlights, elegant typography, high information density, actionable status, uncluttered professional UI. Avoid unnecessary rounded cards, UI redesigns, and decorative architecture at the expense of working functions.
+
+Core flow: Customer Onboarding → Platform Setup / New Cluster Setup → Review & Submit; governance as applicable: Business Owner → Security → CloudOps → Final Approver. “Platform Setup Request” was to become “New Cluster Setup”; Environment navigation should include “Create Environment.” Capture cluster counts, worker node groups, worker node quantities and sizing in the **cluster setup** workflow, not a premature generic platform form. Existing behavior takes precedence over draft nomenclature; verify before UI modifications.
+
+Scope is control-plane management and planning, not automatic deployment of workload migration or unauthorized external-cluster manipulation.
+
+## 2. VERIFIED/KNOWN DEV AND PROD ENVIRONMENTS
+| Dimension | Development (DEV) | Production (PROD) | Confidence/Notes |
+|---|---|---|---|
+| User-facing frontend | Local WSL/Windows laptop, Next.js at `http://localhost:3000` | `https://navigan.click` on AWS ECS/Fargate | Verified |
+| Main local repository | `/mnt/b/Langchain_Ai/Navigan-migration-test` | Release prepared in `/mnt/b/Langchain_Ai/Navigan-prod-release`; frontend runs on ECS | Verified paths at last session |
+| GitHub | `https://github.com/shankamal/Navigan` | Same source repository, separately controlled release | Verified |
+| DEV feature branch | `codex/migration-intelligent-planning` used for current Migration Planning workspace | PROD image built from isolated migration staging worktree; DO NOT assume `release/migration-review-export-20261016` includes feature | Verified from branch/file comparison |
+| Branch pitfall | `release/migration-review-export-20261016` at `fc3ab46` lacked `planning-workspace.tsx` and `/plan` route, so local DEV button disappeared | Do not change production to fix a local checkout | Verified |
+| Staging worktree | Separate `release/migration-review-export-staging` checkout | Isolated source used for release | Verified; validate actual branch/commit before new release |
+| AWS profile / region / account | `navigan` / `ap-south-1` / `905418045935` for known AWS resources; DEV backend utilizes AWS | Same named account/profile/region for documented resources | Verify permissions and target on each operation |
+| DEV stack | `navigan-ashok-dev` was recorded as `UPDATE_COMPLETE` on 14 Oct | N/A | Historical snapshot only |
+| Frontend ECS cluster | Local frontend, not production ECS | `navigan-frontend-Cluster-bw32Pkwxn8Cs` | Verified |
+| Frontend ECS service | Local Next.js | `navigan-frontend-Service-vMtHq9h7A9mz` | Verified |
+| Frontend task family | Local process | `navigan-frontend-TaskDefinition-j9W80aX9PBkf` | Verified |
+| Current production task revision | N/A | `:5`, ECS rollout `COMPLETED`, 1/1 running on 16 Oct 2026 | Verified at that time; check before subsequent changes |
+| Production ECR | N/A unless explicitly used for DEV images | `905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend` | Verified |
+| Production frontend image | N/A | Immutable digest `sha256:6bc86cc7a37a933a4d144ccdc64d5f24281e1c2b4c5a2ee620242be82542baa8`, tag `migration-review-export-20261016-authfix` | Verified |
+| Previous frontend | N/A | Previous task `:3`, previous ECR image digest `sha256:d770c588d845430c0803469948a29087657c5623b6ccde84bdb0467e879c9994` | Historical fallback; does not guarantee working authentication |
+| Production migration SAM stack | DEV backend-specific stack subject to verification | `navigan-custmanagement-cfnstk`; migration-only nested stack updated | Verified release snapshot |
+| Migration API Lambda | DEV function name must be discovered read-only | `navigan-custmanagement-cfnstk-Mi-MigrationFunction-nYtXL48n5mkD` | Verified release snapshot |
+| Production DB | DEV DB specifics not sufficiently verified | Aurora/RDS Data API cluster `aws-infra-platform-db`, logical DB `navigan` | Verified release context |
+| Cognito issuer | Development frontend `.env.local` contained prod issuer during auth fix; do not assume that is suitable for all future DEV testing | `https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_PD9mv4fkd` | Verified PROD issuer |
+| Cognito app client | Read-only compare with actual DEV config | `aa7v5laqu1mkqamt7ao51u7ms` | Verified production client |
+| PROD DB migrations | Avoid applying to wrong DB | `025_migration_planning_drafts.sql`, `026_migration_target_assessments.sql` applied and committed on 16 Oct | Verified |
+| DEV containers and DB | Frontend local; backend via AWS API Gateway/Lambda + RDS as previously used | Frontend Fargate + API Gateway/Lambda + Aurora | Frontend/prod known; DEV endpoint identifiers must be confirmed |
+
+**Never expose secrets, auth codes, tokens, cookies, or private credentials in logs or chat.** AWS resource names here are reference identifiers, not blanket permission to modify them.
+
+## 3. CUSTOMER MANAGEMENT
+Functional specification: customer CRUD/onboarding, provider association, lifecycle `DRAFT → ACTIVE / DEACTIVATED`, multi-tenant separation, customer metadata/ownership, request visibility, review/submit, status tracking, audit trail and role-aware operations. Provider enumeration in recorded Customer Management spec: `AWS`, `AZURE`, `GCP`, `OCI`, `OTHER`. Prior specification included user stories `US-CM-001` through `US-CM-014`; **retrieve the actual approved user-story document before claiming exact acceptance criteria**. Do not infer completed features solely from this scope. Customer isolation, tenant authorization, and consistent API/database contracts are mandatory.
+
+## 4. ENVIRONMENT MANAGEMENT
+Manage environments owned by customers, including create/list/details/update, environment-to-customer relationships, cloud-provider/account/subscription context, region, classification, lifecycle, ownership, approvals, dependencies and linked clusters. Sidebar should provide **Environment Management → Create Environment**. Scope should account for DEV/IST, UAT, hotfix, performance, CAT, production where applicable; these are examples of lifecycle/deployment environments and should not be hard-coded as universal provider types. Distinguish Navigan's own **DEV/PROD application deployments** from **customer environments managed within Navigan**. Confirm actual attributes, approval workflow, edit restrictions and deployed functionality against code/schema.
+
+## 5. CLUSTER MANAGEMENT / NEW CLUSTER SETUP
+Manage Kubernetes, AWS EKS/ECS, Azure AKS, OpenShift and other supported cluster integrations; inventory, cluster metadata, node/node group inventory, health, namespaces, workloads, dependency visualization, status, topology, cluster-to-environment mapping and permissions. For new cluster requests capture number of clusters, target environment, cloud account, VPC/network/subnets as relevant, Kubernetes version, node groups, worker-node count, instance type and capacity, access model, regions/zones, addons/storage/observability/security, review/approval, Terraform/IaC handoff. Separate existing cluster discovery/registration from provisioning. Provider support and actual provisioning capability must be confirmed individually. No automatic changes to customer clusters without an approved implementation path.
+
+## 6. MIGRATION INTELLIGENCE — CURRENT PRIORITY
+**Only assessment and planning; no migration execution.** Intended end-to-end steps: **Source → Target → Compatibility → Remediation → Plan → Review & Export**. API-driven like other Navigan capabilities, with frontend rendering backend results. Source examples: self-managed Kubernetes `navigan-migration-lab` (3 Ready nodes, Kubernetes v1.37.1, 8 namespaces recorded in assessment screenshot), target EKS `DEV2-CLUS2-DEMO`. Screenshot migration `MIG-37e3fb60b40244fba74f6e8b86289ab9` was APPROVED, 163 resources assessed, 76% compatibility, 64 remediation, 7 automated, 0 critical, 163 mapped; snapshot only, not universal truth.
+
+Capabilities planned/built across active branch: source inventory discovery; namespace/workload/resource/dependency selection; Kubernetes mapping and topology; readiness/capacity checks; target EKS assessment; StorageClass/CSI and PVC considerations; compatibility scoring and findings; remediation recommendations and handoff; draft selection/save/reopen; plan preview; review/export. Verify individual capabilities and the live API/DB paths with tests before declaring end-to-end success. Historical source inventory had **163 resources but zero dependencyReferences** in one result; preserve captured evidence and fix mapping at the responsible layer rather than guessing dependencies. Source/target inventories must remain separate and clearly labeled.
+
+Confirmed release API additions in migration-management scope:
+- `GET /api/v1/migrations/{migrationId}/target-assessment`
+- `POST /api/v1/migrations/{migrationId}/target-assessment`
+- `GET /api/v1/migrations/{migrationId}/target-compatibility`
+Other migration endpoints exist but are **not enumerated here**: discover actual API Gateway/SAM/backend route registrations and OpenAPI/handlers before generating a definitive endpoint inventory. Avoid inventing endpoints or assuming the frontend is the source of truth. `planning_draft` backend validation must remain aligned with Pydantic v2 schema, handler model validation/dump, service and database column.
+
+The entry route found on the intelligent-planning branch is `frontend/src/app/(workspace)/migrations/[migrationId]/plan/page.tsx`; UI file `frontend/src/modules/migration-management/planning-workspace.tsx`. On 16 Oct local DEV temporarily ran `release/migration-review-export-20261016` lacking both; switching back to `codex/migration-intelligent-planning` restored Open Migration Workspace. When a feature disappears, **check current Git branch and file/route existence first**, not permissions or unrelated AWS resources.
+
+## 7. ROLES, PRIVILEGES, WORKFLOW
+Recorded roles: **Admin, PM, DevOps Lead, Cloud Engineer, Security Officer, Viewer**. Separate role-based navigation visibility, read access, create/update actions, approval authority, and environment/tenant scope. Multi-tenant authorization must be enforced server-side, not simply by hiding buttons. Recorded approval chain: **Business Owner → Security → CloudOps → Final Approver** where applicable. Role names and workflow actors are **not necessarily 1:1**; check configured role-to-approval mapping. In a DEV screenshot user `syr@deloitte.com` had Cloud Engineer role and the panel “No approval action is available for your role at this stage”; this is not evidence that the role cannot open Migration Planning. Do not bypass governance by changing a role to Admin merely to reveal a link.
+
+Proposed RBAC verification matrix (DESIGN CHECKLIST, NOT VERIFIED RULES):
+| Operation | Admin | PM | DevOps Lead | Cloud Engineer | Security Officer | Viewer |
+|---|---|---|---|---|---|---|
+| Read authorized tenant/customer/environment/cluster data | verify | verify | verify | verify | verify | verify |
+| Manage customer records | verify | verify | verify | verify | verify | no mutation expected |
+| Create/edit environments or cluster requests | verify | verify | verify | verify | verify | no mutation expected |
+| Create/update migration planning drafts | verify | verify | verify | verify | verify | no mutation expected |
+| Submit/approve each workflow stage | stage-specific | stage-specific | stage-specific | stage-specific | stage-specific | no approval expected |
+| Manage users, roles, and tenant access | verify | verify | verify | verify | verify | no mutation expected |
+
+Retrieve policy definitions and tests; replace every `verify` only with evidence. Approval authority must not be inferred from job title.
+
+## 8. TECHNICAL STACK AND PRINCIPLES
+- Frontend: Next.js (release build reported 16.3.4), React/TypeScript, modular components and CSS modules, Cognito OIDC; development `npm run dev -- --port 3000` in local frontend directory.
+- Backend: Python 3.12 serverless AWS API Gateway → Lambda; Pydantic v2 validation; data/access services; SAM/CloudFormation. Other stack components exist but must be discovered per module rather than generalized.
+- Persistence: PostgreSQL-compatible Aurora/RDS Data API in PROD; multi-tenant schema established previously (initial backend baseline reported 21 tables, but schema count is historical); SQL migrations checked into repository; avoid speculative schema updates.
+- Infrastructure/deploy: SAM/CloudFormation for selected backend; ECR immutable Docker image and ECS/Fargate for frontend; Cognito for identity; CloudWatch for logs; AWS CLI profile `navigan` as documented. Network, ALB, DNS, secrets, IAM and DB service topology must be read before changing.
+- Security: least privilege, tenant-safe database queries, authenticated API routes, secure secrets handling, no tokens in logs, auditable approvals, read-only-first verification, targeted tests, no forceful changes to active/remote resources.
+- API-first rule: UI must call backend APIs; avoid hidden direct infrastructure calls from browser and hardcoded discovery results. Verify API contracts and enforce backend authorization.
+
+## 9. DEV BUILD, RUN, TEST AND DEPLOY STANDARD
+1. Use `/mnt/b/Langchain_Ai/Navigan-migration-test`, confirmed working on `codex/migration-intelligent-planning` as of last session. Run `git status --short`, `git branch --show-current`, `git log -1 --oneline`; do NOT discard uncommitted changes.
+2. Build and run frontend LOCALLY: `cd frontend`, `npm ci` when lockfile/dependencies change; use `npm run dev -- --port 3000` for ordinary UI development; use `npx tsc --noEmit` and relevant tests before commit. Do not Docker-build for every frontend iteration.
+3. Use existing DEV API Gateway/Lambda/RDS backend; actual endpoint/environment variables are to be checked, not guessed. When backend work changes, run targeted pytest and contract checks; deploy only the DEV Lambda/stack with a reviewed change set. Do not apply PROD migration scripts to DEV blindly or vice versa.
+4. For DEV changes, follow: scope → minimal code edits → TS/backend tests → local browser/API acceptance → commit to proper working branch → reviewed PR/merge. Keep `.env.local` private/untracked and never copy build settings between DEV/PROD without verifying issuer, client, app URL, callback URLs, target API origin.
+5. Avoid new git worktrees without a clear need; existing migration worktree is preferred. Build/test effort should be proportionate to changes.
+
+## 10. PROD BUILD, DEPLOY, ROLLBACK STANDARD
+**Current manual controlled release method, pending standard GitHub Actions pipeline.** Production already received migrations 025/026 and migration-only backend routes on 16 Oct; NEVER rerun as a standard deployment ritual.
+
+1. Identify exact release commit and diff, including generated files, shared imports and excluded components. Stage in isolated release checkout; never assume a branch name guarantees identical code.
+2. Run targeted backend tests, TypeScript, frontend tests, production `next build`/Docker build, security checks, and check API/DB migration compatibility. On last release 70 selected backend tests passed while 3 connector-related tests failed due excluded connector scope — record this as **unresolved test gap**, not “all tests passed.”
+3. Build frontend image from exact controlled release source with verified **production** OIDC public environment: `NEXT_PUBLIC_OIDC_CLIENT_ID`, `NEXT_PUBLIC_OIDC_AUTHORITY`, `NEXT_PUBLIC_APP_URL`; inspect files for CRLF (`\r`), malformed shell values, and environment leakage. Next.js `NEXT_PUBLIC_*` values are build-time embedded. The 16 Oct login failure was traced to client ID containing a trailing `\r`; fixed locally by CRLF normalization and corrected image build. Never use naive `source .env.local` when its formatting is unknown, and do not print credentials. Verify OIDC issuer/client/callback by read-only inspection before build.
+4. Push to ECR with unique immutable version tag, inspect ECR SHA256 digest, pin digest in new ECS task definition copied from the stable production task definition (only change the frontend container image). Do not rely on mutable `latest` tags.
+5. Deploy only `navigan-frontend-Service-vMtHq9h7A9mz` in its dedicated ECS cluster, then `aws ecs wait services-stable`, and confirm EXACT task revision, 1/1 running, `COMPLETED`, and correct image digest. ECS health alone does NOT establish login success.
+6. Smoke test fresh incognito login, Cognito callback, dashboard, customer/environment/cluster read-only navigation, Migration Workspace, approved migration and Source → Target → Compatibility → Remediation → Plan → Review & Export; verify saved draft and export with non-destructive data. Check CloudWatch/API errors and browser network request path/status without transmitting sensitive token/callback parameters.
+7. For serverless API release use reviewed SAM/CloudFormation change set focused on **MigrationFunction and explicitly authorized migration routes**. Prior broadly generated SAM change set attempted to modify six nested stacks and was intentionally avoided. Compare change set before execution and block any connector/other-stack modifications.
+8. Database changes are sequential, backward compatible, separately approved and validated. PROD migrations `025` and `026` committed on 16 Oct. Preflight schema status before running any further migration.
+9. Rollback plan: prior ECS task definition/image if verified viable; retain image digest and previous task ARN; no automatic rollback of database or APIs without impact analysis. On 16 Oct task `:3` rollback did not restore login, demonstrating that UI rollback alone does not always solve authentication.
+10. Freeze unrelated services while addressing a regression; diagnose error and origin before redeploying again. Document cause and close acceptance checklist.
+
+## 11. ABSOLUTE INFRASTRUCTURE EXCLUSIONS
+**Never inspect, change, restart, deploy or alter `nimbusops-frontend-cluster` (unrelated application).** Never modify existing source/cluster connector, `MigrationConnectorFunction` Lambda or its RBAC, private EKS cluster, GitOps, production/development tools-gateway services, or unrelated Aurora datasets without a separately approved, explicit scope. During the October production release only isolated Migration Management API Lambda/routes and Navigan frontend ECS were authorized, with database schema changes separately approved/applied. `kmf-p9-smk-s` unrelated target should not be touched. Avoid speculative IAM/Cognito changes. No executing actual migrations on customer workloads without an entirely new approved scope.
+
+## 12. ACTIVE PRODUCT QUALITY/RELEASE CHECKLIST
+- Customer Management: tenancy, lifecycle, roles, API consistency, audit, provider mapping.
+- Environment Management: customer associations, creation/edit controls, state, approvals, region/provider mappings.
+- Cluster Management: discovery fidelity, nodes, namespaces, workloads, topology, dependencies, role scope, approved provisioning inputs.
+- Migration: source/target counts and freshness; namespace selection; graph edges and legends; scope summary includes Headlamp-selected objects/dependencies; compatibility evidence; remediation classification; draft save/resume; API-driven contracts; Review & Export; no execution actions.
+- Security: Cognito/OIDC callback and public env, API authentication/authorization/tenant isolation, scoped secret access, secure logs, least privilege.
+- Engineering: branch hygiene, automated unit/integration/type/API tests, scoped build artifacts, release traceability, rollback, observability, UI smoke/E2E.
+- Documentation: user stories/specification, ADRs/decisions, API catalog, architecture diagram, environment inventory, RBAC matrix, schema migrations, acceptance criteria and known gaps.
+
+## 13. STANDARD CI/CD GOAL (NOT YET IMPLEMENTED)
+Design GitHub Actions with AWS OIDC short-lived credentials, PR lint/tests/type checks, API/DB migration review, Docker vulnerability scanning, isolated backend SAM change-set review, immutable ECR digest, protected DEV/PROD environments and human PROD approval, one controlled deploy button, post-deploy authentication/API/UI smoke tests, audit record and rollback. DEV frontend is currently local; define explicitly if/when an AWS-hosted DEV frontend is introduced. Do not present proposed automation as an existing pipeline.
+
+## 14. DAILY START PROCEDURE
+When given this prompt and today's objective:
+1. Summarize task and relevant scope in 3–5 lines; say what remains UNKNOWN.
+2. Identify authoritative working checkout, branch, current commit and `git status` **only if needed**. Verify AWS profile/account/region/current deployment only if task involves cloud resources.
+3. State exact intended files/APIs/data/infra touched and explicit untouched resources.
+4. Give a short implementation plan and definition of done before risky edits.
+5. Prefer one cohesive command block or precise patch; avoid churning through approaches.
+6. Validate with the minimum appropriate unit, contract, TypeScript and smoke tests.
+7. Record changes, commit/PR, deployment, known issues, next steps in the Daily Session Checkpoint; never label untested functionality “complete.”
+
+## 15. DAILY SESSION CHECKPOINT TEMPLATE
+Date / timezone: ________ (Asia/Kolkata)
+Objective for today: ________
+Current branch / commit / working tree status: ________
+DEV URL / backend endpoint actually checked: ________
+PROD task revision / backend stack actually checked (if applicable): ________
+Work completed since last checkpoint: ________
+Build/test outcomes and failures: ________
+Deployed changes (environment/resource/version): ________
+Known blockers/risks: ________
+Scope explicitly excluded: ________
+Next action (one prioritized task): ________
+Decision / approval needed: ________
+Rollback / recovery pointer: ________
+
+## 16. CURRENT SNAPSHOT AT BASELINE DATE (16 OCT 2026)
+- PROD login **working per user confirmation** after auth-fixed image, ECS frontend task definition `:5` complete, one task running.
+- PROD migration backend and schema 025/026 deployed; end-to-end Review & Export regression coverage still needs recorded acceptance evidence.
+- DEV `localhost:3000` had no Open Migration Workspace while on branch `release/migration-review-export-20261016`; source comparison confirmed missing `/plan` route and planning workspace module. Switching back to `codex/migration-intelligent-planning` restored the workspace; user confirmed DEV working.
+- Next recommended milestone: stabilize feature acceptance and create consistent gated DEV/PROD CI/CD process; avoid more ad hoc production releases.
+
+## 17. REQUIRED FUTURE RESPONSES
+Do not ask me to repeat established project architecture. If you lack a fact, mark it UNKNOWN and perform a read-only verification when needed. Never conflate intended feature scope with verified implementation; never conflate local DEV with PROD. Before changing approach, provide: current method, suggested change, reason, risk, impact, and need for approval. Never change branches, delete untracked files, force-push, run broad SAM/CloudFormation deploys, rebuild connector, or touch unrelated clusters without explicit authorization. Once a fix works, record the proven root cause and do not reopen the same investigation without new evidence.

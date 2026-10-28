@@ -163,6 +163,19 @@ def tool_request(tool, path, query, method, headers, body):
             "headers": {"cache-control": "no-store"},
             "body": "",
         }
+    # Argo CD's /api/v1/stream/* endpoints use long-lived event streams.
+    # The tools tunnel is bounded request/response: forwarding streams blocks
+    # proxy workers until timeout and can starve every other utility.
+    if (
+        tool == "argocd"
+        and safe_path.startswith("/api/v1/stream/")
+        and method == "GET"
+    ):
+        return {
+            "status": 204,
+            "headers": {"cache-control": "no-store"},
+            "body": "",
+        }
     url = target.rstrip("/") + safe_path
     if query:
         url += "?" + query
@@ -581,8 +594,7 @@ def runtime_inventory():
             elif kind == "Service":
                 ready = 1
                 desired = 1
-            resources.append(
-                {
+            resource = {
                     "kind": kind,
                     "namespace": metadata.get("namespace"),
                     "name": metadata.get("name"),
@@ -597,7 +609,36 @@ def runtime_inventory():
                         for value in status.get("containerStatuses", [])
                     ),
                 }
-            )
+            if kind == "Node":
+                # Read-only scheduling observations; do not infer schedulability.
+                resource["unschedulable"] = spec.get("unschedulable") is True
+                resource["taintCount"] = len(spec.get("taints") or [])
+                # Bound and sanitize placement evidence before transport.
+                labels = metadata.get("labels")
+                if isinstance(labels, dict) and len(labels) <= 100 and all(
+                    isinstance(k, str) and isinstance(v, str)
+                    and 0 < len(k) <= 253 and len(v) <= 253
+                    for k, v in labels.items()
+                ):
+                    resource["nodeLabels"] = labels
+                taints = spec.get("taints")
+                if isinstance(taints, list) and len(taints) <= 100 and all(
+                    isinstance(t, dict) and isinstance(t.get("key"), str)
+                    and t.get("effect") in {"NoSchedule", "NoExecute", "PreferNoSchedule"}
+                    and isinstance(t.get("value", ""), str)
+                    and len(t["key"]) <= 253 and len(t.get("value", "")) <= 253
+                    for t in taints
+                ):
+                    resource["nodeTaints"] = [
+                        {"key": t["key"], "value": t.get("value", ""), "effect": t["effect"]}
+                        for t in taints
+                    ]
+                allocatable = status.get("allocatable") or {}
+                for field, key in (("allocatableCpu", "cpu"), ("allocatableMemory", "memory")):
+                    value = allocatable.get(key)
+                    if isinstance(value, str) and 0 < len(value) <= 40:
+                        resource[field] = value
+            resources.append(resource)
 
     collect("/api/v1/nodes", "Node")
     collect("/apis/apps/v1/deployments", "Deployment", "replicas", "availableReplicas")
@@ -633,12 +674,133 @@ def runtime_inventory():
                 ),
             }
         )
+    # Kubernetes discovery endpoints are read-only. Report positive evidence
+    # only when the API server explicitly advertises the expected version.
+    api_discovery = {"apiDiscoveryCoreV1": 0, "apiDiscoveryAppsV1": 0}
+    for path, expected, metric in (
+        ("/api/v1", "v1", "apiDiscoveryCoreV1"),
+        ("/apis/apps/v1", "apps/v1", "apiDiscoveryAppsV1"),
+    ):
+        try:
+            response = kubernetes_request(path)
+            if isinstance(response, dict) and response.get("groupVersion") == expected:
+                api_discovery[metric] = 1
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError):
+            # Discovery restrictions must not stop established inventory.
+            pass
+
+    # The discovery endpoint explicitly advertises served resource kinds.
+    # Keep this bounded to the core/apps kinds used in migration assessment.
+    api_kinds = {}
+    for path, expected, group in (
+        ("/api/v1", "v1", "coreV1"),
+        ("/apis/apps/v1", "apps/v1", "appsV1"),
+    ):
+        try:
+            response = kubernetes_request(path)
+            if not isinstance(response, dict) or response.get("groupVersion") != expected:
+                continue
+            advertised = response.get("resources")
+            if not isinstance(advertised, list):
+                continue
+            names = {item.get("kind") for item in advertised
+                     if isinstance(item, dict) and isinstance(item.get("name"), str)
+                     and "/" not in item["name"] and isinstance(item.get("kind"), str)}
+            expected_kinds = (
+                ("Pod", "Service", "PersistentVolumeClaim", "ConfigMap", "Secret", "ServiceAccount")
+                if group == "coreV1" else ("Deployment", "StatefulSet", "DaemonSet")
+            )
+            for kind in expected_kinds:
+                api_kinds[f"apiKind_{group}_{kind}"] = int(kind in names)
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError):
+            pass
+
+    # Report status separately from item count: empty lists can be valid.
+    # 1=success, 2=permission denied, 3=unavailable/invalid response.
+    storage_discovery = {}
+    for endpoint, kind in (
+        ("/apis/storage.k8s.io/v1/storageclasses", "StorageClass"),
+        ("/apis/storage.k8s.io/v1/csidrivers", "CSIDriver"),
+    ):
+        metric = "storageClassDiscoveryStatus" if kind == "StorageClass" else "csiDriverDiscoveryStatus"
+        storage_discovery[metric] = 3
+        try:
+            payload = kubernetes_request(endpoint)
+            if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+                continue
+            storage_discovery[metric] = 1
+            for item in payload["items"][:MAX_RUNTIME_RESOURCES_PER_KIND]:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("metadata", {}).get("name")
+                if not isinstance(name, str) or not name:
+                    continue
+                spec = item.get("spec") or {}
+                entry = {
+                    "kind": kind, "namespace": None, "name": name,
+                    "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
+                }
+                if kind == "StorageClass":
+                    for field, key in (
+                        ("provisioner", "provisioner"),
+                        ("volumeBindingMode", "volumeBindingMode"),
+                        ("reclaimPolicy", "reclaimPolicy"),
+                    ):
+                        value = item.get(key)
+                        if isinstance(value, str) and 0 < len(value) <= 253:
+                            entry[field] = value
+                resources.append(entry)
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError) as error:
+            if "HTTP 403" in str(error) or "HTTP 401" in str(error):
+                storage_discovery[metric] = 2
+
+    # Non-sensitive presence-only inventory; never collect secret values or RBAC subjects.
+    supplementary_discovery = {}
+    for endpoint, kind in (
+        ("/apis/networking.k8s.io/v1/ingresses", "Ingress"),
+        ("/apis/networking.k8s.io/v1/networkpolicies", "NetworkPolicy"),
+        ("/api/v1/serviceaccounts", "ServiceAccount"),
+        ("/apis/rbac.authorization.k8s.io/v1/roles", "Role"),
+        ("/apis/rbac.authorization.k8s.io/v1/rolebindings", "RoleBinding"),
+        ("/apis/rbac.authorization.k8s.io/v1/clusterroles", "ClusterRole"),
+        ("/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", "ClusterRoleBinding"),
+        ("/apis/apiextensions.k8s.io/v1/customresourcedefinitions", "CustomResourceDefinition"),
+    ):
+        key = f"discoveryStatus_{kind}"
+        supplementary_discovery[key] = 3
+        try:
+            payload = kubernetes_request(endpoint)
+            if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+                continue
+            supplementary_discovery[key] = 1
+            for item in payload["items"][:MAX_RUNTIME_RESOURCES_PER_KIND]:
+                if not isinstance(item, dict):
+                    continue
+                metadata = item.get("metadata") or {}
+                name = metadata.get("name")
+                namespace = metadata.get("namespace")
+                if not isinstance(name, str) or not name or len(name) > 253:
+                    continue
+                if namespace is not None and (not isinstance(namespace, str) or len(namespace) > 253):
+                    continue
+                resources.append({
+                    "kind": kind, "namespace": namespace, "name": name,
+                    "status": "OBSERVED", "ready": 0, "desired": 0, "restarts": 0,
+                })
+        except (RuntimeError, ValueError, OSError, urllib.error.URLError) as error:
+            if "HTTP 403" in str(error) or "HTTP 401" in str(error):
+                supplementary_discovery[key] = 2
+
     nodes = [item for item in resources if item["kind"] == "Node"]
     pods = [item for item in resources if item["kind"] == "Pod"]
     return {
         "resources": resources,
         "warningEvents": warning_events,
         "metrics": {
+            **api_discovery,
+            **api_kinds,
+            **storage_discovery,
+            **supplementary_discovery,
             "nodeCount": len(nodes),
             "readyNodeCount": sum(item["ready"] for item in nodes),
             "podCount": len(pods),

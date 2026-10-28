@@ -14,17 +14,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install cfn-lint
+      - run: pip install cfn-lint boto3==1.40.30 PyYAML==6.0.2
       - run: cfn-lint infrastructure/frontend/ecr.yaml infrastructure/frontend/service.yaml infrastructure/auth/template.yaml
       - run: for script in scripts/frontend/*.sh; do bash -n "$script"; done
       - uses: docker/setup-buildx-action@v3
       - name: Build frontend image
         run: |
-          docker buildx build --load --platform linux/amd64 --tag navigan-frontend:ci \
-            --build-arg NEXT_PUBLIC_OIDC_AUTHORITY=https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_GtWAW9Owz \
-            --build-arg NEXT_PUBLIC_OIDC_CLIENT_ID=ci-public-client \
-            --build-arg NEXT_PUBLIC_APP_URL=https://navigan-ci.example.com \
-            frontend
+          docker buildx build --load --platform linux/amd64 --tag navigan-frontend:ci frontend
+      - name: Verify identical image with DEV and PROD fixture settings
+        run: python scripts/verify-frontend-artifact.py --image navigan-frontend:ci
       - name: Test container startup, health and page routing
         run: |
           docker run --detach --name frontend-ci --publish 127.0.0.1:3000:3000 navigan-frontend:ci

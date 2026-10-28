@@ -15,6 +15,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     return method === "GET";
   if (path[0] === "clusters") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (path.length === 2 && path[1] === "summary") return method === "GET";
     if (!/^CLU-[A-Za-z0-9-]+$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
     if (path.length === 3 && path[2] === "execution-logs")
@@ -91,7 +92,23 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^MIG-[a-f0-9]{32}$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path[2] === "artifact-workspaces") {
+      if (path.length === 3) return method === "GET" || method === "POST";
+      if (!/^AWS-[a-f0-9]{32}$/.test(path[3] ?? "")) return false;
+      if (path.length === 4) return method === "GET";
+      return (
+        path.length === 5 &&
+        ["collection-jobs", "exports"].includes(path[4]) &&
+        method === "POST"
+      );
+    }
     if (path.length !== 3) return false;
+
+    if (path[2] === "deployment-evidence")
+      return method === "GET" || method === "POST";
+    if (path[2] === "target-assessment")
+      return method === "GET" || method === "POST";
+    if (path[2] === "target-compatibility") return method === "GET";
 
     if (
       ["source-catalogue", "source-inventory", "assessment"].includes(path[2])
@@ -116,6 +133,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 1) return ["GET", "POST"].includes(method);
     if (!/^SRC-[a-f0-9]{32}$/.test(path[1])) return false;
     if (path.length === 2) return ["GET", "PUT"].includes(method);
+    if (path.length === 3 && path[2] === "deployment-sources")
+      return method === "GET" || method === "PUT";
     return (
       path.length === 3 &&
       ["enrollments", "install"].includes(path[2]) &&
@@ -125,6 +144,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
 
   if (path[0] === "environments") {
     if (path.length === 1) return ["GET", "POST"].includes(method);
+    if (path.length === 2 && path[1] === "summary") return method === "GET";
     if (path.length === 2 && path[1] === "metadata") return method === "GET";
     if (path.length === 2 && path[1] === "bootstrap-remediations")
       return ["GET", "POST"].includes(method);
@@ -167,6 +187,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   }
   if (path[0] !== "customers") return false;
   if (path.length === 1) return ["GET", "POST"].includes(method);
+  if (path.length === 2 && path[1] === "summary") return method === "GET";
   if (!/^CUS-[A-Za-z0-9-]+$/.test(path[1])) return false;
   if (path.length === 2) return ["GET", "PUT"].includes(method);
   const suffix = path.slice(2).join("/");
@@ -176,10 +197,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
   return method === "POST" && actions.includes(suffix);
 }
 export function upstreamUrl(path: string[], query: string): URL {
-  const origin = new URL(
-    process.env.NAVIGAN_API_ORIGIN ||
-      "https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com",
-  );
+  const origin = new URL(process.env.NAVIGAN_API_ORIGIN || "");
   if (
     origin.protocol !== "https:" ||
     origin.username ||
@@ -189,7 +207,7 @@ export function upstreamUrl(path: string[], query: string): URL {
     origin.hash
   )
     throw new Error("Invalid API origin configuration");
-  const base = process.env.NAVIGAN_API_BASE_PATH || "/v1/api/v1";
+  const base = process.env.NAVIGAN_API_BASE_PATH || "";
   if (!/^\/[A-Za-z0-9/_-]+$/.test(base))
     throw new Error("Invalid API base path");
   const url = new URL(

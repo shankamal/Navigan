@@ -1,0 +1,661 @@
+/*
+ * Navigan visual foundation — Graphite & Deloitte Green.
+ *
+ * One shared palette for every capability. Bright brand green is an accent,
+ * darker green is reserved for actions, and ordinary panels remain neutral.
+ * Keep selection treatments on controls/cards, never individual table rows.
+ */
+:root {
+  --navigan-graphite: #1c222b;
+  --navigan-graphite-raised: #252e39;
+  --navigan-graphite-hover: #303b49;
+  --navigan-canvas: #f5f7fa;
+  --navigan-surface: #ffffff;
+  --navigan-text: #202833;
+  --navigan-secondary-text: #63717f;
+  --navigan-panel-border: #dfe5ea;
+  --navigan-card-border: #ceddc4;
+  --navigan-brand: #86bc25;
+  --navigan-action: #2f6b2d;
+  --navigan-action-hover: #255624;
+  --navigan-focus: #6c9e32;
+  --navigan-radius: 10px;
+
+  /* Unified product typography */
+  --navigan-font-family: "Geist Sans", Arial, sans-serif;
+  --navigan-font-page-title: 18px;
+  --navigan-font-section-title: 13px;
+  --navigan-font-subsection-title: 12px;
+  --navigan-font-body: 12px;
+  --navigan-font-control: 12px;
+  --navigan-font-table: 12px;
+  --navigan-font-label: 11px;
+  --navigan-font-caption: 10.5px;
+  --navigan-font-metric: 18px;
+  --navigan-line-body: 1.45;
+  --navigan-line-tight: 1.25;
+
+  /* Shared provider/platform logo sizing */
+  --navigan-provider-logo-compact-height: 18px;
+  --navigan-provider-logo-compact-max-width: 28px;
+  --navigan-provider-logo-summary-height: 20px;
+  --navigan-provider-logo-summary-max-width: 32px;
+  --navigan-provider-logo-hero-height: 28px;
+  --navigan-provider-logo-hero-max-width: 42px;
+}
+
+body {
+  color: var(--navigan-text);
+  background: var(--navigan-canvas);
+  font-family: "Geist Sans", Arial, sans-serif;
+  font-optical-sizing: auto;
+  font-size: var(--navigan-font-body);
+  line-height: var(--navigan-line-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-shell,
+.app-shell.dashboard-shell {
+  --green-deep: var(--navigan-action);
+  --action-green: var(--navigan-action);
+  --action-green-hover: var(--navigan-action-hover);
+  --text: var(--navigan-text);
+  --muted: var(--navigan-secondary-text);
+  --border: var(--navigan-panel-border);
+  --surface: var(--navigan-canvas);
+  font-family: "Geist Sans", Arial, sans-serif;
+  color: var(--navigan-text);
+  background: var(--navigan-canvas);
+}
+
+/* The existing maritime illustration and Deloitte identity stay intact. */
+.app-shell[class] > header.topbar {
+  background-color: var(--navigan-graphite);
+  border-bottom-color: #343f4c;
+}
+
+.app-shell[class] > header.topbar .platform-title {
+  font-size: clamp(14px, 1.15vw, 16px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.app-shell[class] .sidebar {
+  background: var(--navigan-graphite);
+  border-color: #343f4c;
+  color: #cbd5df;
+  box-shadow: none;
+}
+
+.app-shell[class] .sidebar-brand-panel {
+  background: var(--navigan-graphite);
+  border-bottom-color: #3a4552;
+}
+
+.app-shell[class] .sidebar .nav-section {
+  color: #a7b3bf;
+  font-size: var(--navigan-font-body);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.app-shell[class] .sidebar :is(.nav-item, .nav-subitem) {
+  color: #cbd5df;
+  font-size: 12.5px;
+  font-weight: 450;
+  line-height: 1.45;
+  border-radius: 7px;
+}
+
+.app-shell[class] .sidebar :is(.nav-item, .nav-subitem) svg {
+  color: #acbbc9;
+}
+
+.app-shell[class] .sidebar .nav-item.selected,
+.app-shell[class] .sidebar .nav-subitem.selected {
+  background: var(--navigan-graphite-raised);
+  border-left: 3px solid var(--navigan-brand);
+  box-shadow: none;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.app-shell[class] .sidebar :is(.nav-item, .nav-subitem).selected svg {
+  color: #ffffff;
+}
+
+.app-shell[class] .sidebar :is(.nav-item, .nav-subitem):hover:not(.selected) {
+  color: #ffffff;
+  background: var(--navigan-graphite-hover);
+}
+
+.app-shell[class] .sidebar .nav-submenu,
+.app-shell[class] .sidebar .sidebar-footer {
+  border-color: #3b4653;
+}
+
+.app-shell[class] .sidebar .sidebar-collapse,
+.app-shell[class] .sidebar .workspace-card {
+  background: var(--navigan-graphite-raised);
+  border-color: #404a57;
+  color: #e2e8ef;
+}
+
+.app-shell[class] .sidebar :is(.workspace-card p, .workspace-card strong) {
+  color: #d1d9e2;
+}
+
+.app-shell[class] .shell-body,
+.app-shell[class] .shell-body > .content-column,
+.app-shell.dashboard-shell .shell-body,
+.app-shell:has(.environment-workspace) .shell-body > .content-column {
+  background-color: var(--navigan-canvas);
+  background-image: linear-gradient(180deg, #f0f3f7 0, #f5f7fa 300px);
+  background-repeat: no-repeat;
+}
+
+.app-shell[class] main#main-content {
+  color: var(--navigan-text);
+  background: transparent;
+}
+
+.app-shell[class] .breadcrumb,
+.app-shell[class] .breadcrumb a,
+.app-shell[class] .breadcrumb > span:last-child {
+  color: #4f5e6d;
+  font-size: 12.5px;
+}
+
+.app-shell[class] .breadcrumb a {
+  font-weight: 550;
+  text-decoration-color: #aab6c2;
+}
+
+.app-shell main#main-content :is(.page-heading, .pd-heading) h1,
+.app-shell main#main-content .environment-workspace .page-heading h1 {
+  color: var(--navigan-text);
+  font-size: clamp(21px, 1.5vw, 24px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.035em;
+}
+
+.app-shell main#main-content :is(.page-heading, .pd-heading) .muted {
+  color: var(--navigan-secondary-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.app-shell .content-column :is(.panel, .metric, .pd-card, .pd-kpi) h2 {
+  color: var(--navigan-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Compact shared buttons. Primary buttons use a readable deep green. */
+.button {
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.button-primary,
+.app-shell .content-column .button-primary,
+.app-shell .content-column .customer-workspace .button-primary,
+.app-shell .content-column .environment-workspace .button-primary {
+  background: var(--navigan-action);
+  border-color: var(--navigan-action);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.button-primary:hover:not(:disabled),
+.app-shell .content-column .button-primary:hover:not(:disabled) {
+  background: var(--navigan-action-hover);
+  border-color: var(--navigan-action-hover);
+  box-shadow: 0 2px 6px rgb(30 67 31 / 12%);
+}
+
+.app-shell .content-column :is(.button-secondary, .button-ghost),
+.button-secondary {
+  background: #ffffff;
+  color: #354456;
+  border-color: #d5dfe7;
+  box-shadow: none;
+}
+
+.app-shell
+  .content-column
+  :is(.button-secondary, .button-ghost):hover:not(:disabled),
+.button-secondary:hover:not(:disabled) {
+  color: #273743;
+  background: #f1f4f7;
+  border-color: #b7c6d0;
+}
+
+.app-shell :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--navigan-focus);
+  outline-offset: 2px;
+}
+
+/* Functional panels group work. No decorative green side stripes. */
+.app-shell
+  .content-column
+  :is(
+    .panel,
+    .pd-card,
+    .pd-overview-panel,
+    .customer-metrics,
+    .environment-metrics,
+    .environment-baseline-panel,
+    .cluster-lifecycle-chart,
+    .cluster-setup-sidebar,
+    .cluster-directory-panel,
+    .migration-report-route,
+    .migration-inventory-panel,
+    .migration-governance-card,
+    .migration-kpi-strip
+  ) {
+  background-color: var(--navigan-surface);
+  border: 1px solid var(--navigan-panel-border);
+  border-radius: var(--navigan-radius);
+  box-shadow: none;
+}
+
+/* Summary cards receive an unobtrusive, full muted-green outline. */
+.app-shell
+  .content-column
+  :is(
+    .metric,
+    .pd-kpi,
+    .cluster-directory-metric,
+    .customer-board-card,
+    .environment-board-card,
+    .environment-metric,
+    .cluster-board-card
+  ) {
+  background: var(--navigan-surface);
+  border: 1px solid var(--navigan-card-border);
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.app-shell
+  .content-column
+  :is(.metric, .pd-kpi, .cluster-directory-metric)::before {
+  content: none;
+}
+
+.app-shell
+  .content-column
+  :is(a.pd-kpi, a.customer-board-card, a.environment-board-card):hover {
+  border-color: #a9c991;
+  box-shadow: 0 2px 8px rgb(21 45 31 / 5%);
+  transform: none;
+}
+
+.app-shell
+  .content-column
+  :is(.metric, .pd-kpi, .cluster-directory-metric)
+  strong {
+  color: var(--navigan-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .content-column .metric {
+  padding: 14px 16px;
+}
+
+.app-shell .content-column .metric > strong {
+  margin-top: 8px;
+  font-size: clamp(24px, 2vw, 30px);
+}
+
+.app-shell .content-column :is(.pd-kpi, .cluster-directory-metric) {
+  padding: 13px 15px;
+}
+
+.app-shell .content-column .pd-overview-panel {
+  padding: 16px;
+}
+
+.app-shell .content-column .pd-overview-heading {
+  margin-bottom: 16px;
+}
+
+.app-shell .content-column .pd-overview-heading h2,
+.app-shell .content-column .pd-card-heading h2 {
+  color: var(--navigan-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.app-shell .content-column .pd-overview-heading p,
+.app-shell .content-column .pd-card-heading p {
+  color: var(--navigan-secondary-text);
+  font-size: 12.5px;
+}
+
+.app-shell .content-column .panel-padding {
+  padding: clamp(14px, 1.4vw, 20px);
+}
+
+/* Form controls stay white; selection/focus uses green outlines, never fills. */
+.app-shell
+  main#main-content
+  :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: #cbd5df;
+  border-radius: 7px;
+  color: var(--navigan-text);
+}
+
+.app-shell
+  main#main-content
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea
+  ):focus {
+  border-color: var(--navigan-focus);
+}
+
+/* Selected card = complete green outline; table rows remain neutral. */
+.app-shell
+  .content-column
+  :is(
+    .metric,
+    .pd-kpi,
+    .cluster-directory-metric,
+    .customer-board-card,
+    .environment-board-card,
+    .environment-metric
+  )[aria-selected="true"] {
+  border-color: var(--navigan-brand);
+}
+
+/* Responsive composition uses actual panel width, not browser zoom. */
+@container (max-width: 1080px) {
+  .app-shell .content-column .pd-overview-groups,
+  .app-shell .content-column .pd-primary-grid,
+  .app-shell .content-column .pd-insights-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .content-column :is(.pd-kpis, .cluster-directory-metrics) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 560px) {
+  .app-shell .content-column :is(.pd-kpis, .cluster-directory-metrics) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .content-column .pd-overview-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .content-column .pd-overview-metric {
+    border-left: 0;
+    border-bottom: 1px solid var(--navigan-panel-border);
+  }
+
+  .app-shell .content-column .pd-overview-metric:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .content-column :is(.pd-kpi, .metric, .button) {
+    transition: none;
+  }
+}
+
+/* Platform-wide enterprise composition. These rules deliberately sit last so
+   route-specific legacy styles cannot reintroduce inconsistent blue themes. */
+.app-shell main#main-content .page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid #3a4552;
+  border-radius: 10px;
+  background: linear-gradient(
+    135deg,
+    var(--navigan-graphite-raised),
+    var(--navigan-graphite-hover)
+  );
+  color: #fff;
+  box-shadow: none;
+}
+.app-shell main#main-content .page-heading-copy {
+  min-width: 0;
+}
+.app-shell main#main-content .page-heading .page-heading-symbol {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-right: 10px;
+  border: 1px solid #465361;
+  border-radius: 8px;
+  background: #202833;
+  color: var(--navigan-brand);
+  vertical-align: middle;
+}
+.app-shell main#main-content .page-heading .page-heading-symbol svg {
+  width: 18px;
+  height: 18px;
+}
+.app-shell main#main-content .page-heading .eyebrow {
+  margin: 0 0 3px 44px;
+  color: #a8cf61;
+  font-size: var(--navigan-font-caption);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.app-shell main#main-content .page-heading h1 {
+  display: inline;
+  color: #fff;
+}
+.app-shell main#main-content .page-heading .muted {
+  margin: 4px 0 0 44px;
+  color: #c8d1da;
+}
+.app-shell main#main-content .page-heading .heading-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.app-shell
+  main#main-content
+  .page-heading
+  .heading-actions
+  :is(.button-secondary, .button-ghost) {
+  background: #2d3743;
+  border-color: #53606d;
+  color: #f7f9fb;
+}
+.app-shell
+  main#main-content
+  .page-heading
+  .heading-actions
+  :is(.button-secondary, .button-ghost):hover:not(:disabled) {
+  background: #394552;
+  border-color: #6a7784;
+  color: #fff;
+}
+
+/* Dense content rhythm: enough breathing room without wasting desktop space. */
+.app-shell main#main-content {
+  padding-top: 12px;
+}
+.app-shell main#main-content :is(.panel, .pd-card, .pd-overview-panel) {
+  margin-bottom: 12px;
+}
+.app-shell
+  main#main-content
+  :is(
+    .panel,
+    .pd-card,
+    .pd-overview-panel,
+    .customer-workspace,
+    .environment-workspace,
+    .cluster-ui
+  ) {
+  min-width: 0;
+}
+
+/* Tables share one neutral enterprise language. */
+.app-shell main#main-content .tableScroll,
+.app-shell main#main-content .table-scroll,
+.app-shell main#main-content [class*="tableScroll"],
+.app-shell main#main-content [class*="table-scroll"] {
+  border-radius: 8px;
+}
+.app-shell main#main-content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--navigan-text);
+  font-size: 12.5px;
+}
+.app-shell main#main-content thead th {
+  background: #eef2f4;
+  color: #44515e;
+  border-bottom: 1px solid #d7e0e6;
+  font-size: var(--navigan-font-label);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+.app-shell main#main-content :is(th, td) {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.app-shell main#main-content tbody tr:hover {
+  background: #f8fafb;
+}
+.app-shell main#main-content tbody td {
+  border-bottom-color: #e7ecef;
+}
+
+/* Workflow, filters and active controls use green as state, not blue fills. */
+.app-shell main#main-content button[aria-current="step"],
+.app-shell main#main-content button[aria-current="page"],
+.app-shell main#main-content a[aria-current="page"] {
+  color: #234c25;
+  border-color: #a8ca8d;
+}
+.app-shell main#main-content button[aria-current="step"] {
+  box-shadow: inset 0 -2px var(--navigan-brand);
+}
+.app-shell main#main-content :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--navigan-action);
+}
+.app-shell
+  main#main-content
+  :is(.badge, [class*="badge"], [class*="statusPill"], [class*="status-pill"]) {
+  font-weight: 650;
+}
+
+/* Operational icons and chart accents remain colorful while surfaces stay neutral. */
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  )
+  svg {
+  color: #477a38;
+}
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  ):nth-child(4n + 2)
+  svg {
+  color: #367d93;
+}
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  ):nth-child(4n + 3)
+  svg {
+  color: #7a62a8;
+}
+.app-shell
+  main#main-content
+  :is(
+    .metric,
+    .pd-kpi,
+    .customer-board-card,
+    .environment-board-card,
+    .cluster-directory-metric
+  ):nth-child(4n + 4)
+  svg {
+  color: #a86f27;
+}
+
+/* Consistent compact notices and empty/loading states. */
+.app-shell main#main-content :is(.notice, .loading-panel, .empty-state) {
+  border-radius: 8px;
+}
+.app-shell main#main-content .loading-panel {
+  color: var(--navigan-secondary-text);
+}
+.app-shell main#main-content .empty-state {
+  padding: 24px;
+}
+
+/* The migration family inherits the same canvas and action system. */
+.app-shell
+  main#main-content
+  :is(
+    [class*="migrationWorkspace"],
+    [class*="workspace"],
+    .migration-report-workspace,
+    .migration-report-route
+  ) {
+  color: var(--navigan-text);
+}
+.app-shell
+  main#main-content
+  :is([class*="migrationWorkspace"], [class*="workspace"])
+  :is(button, a)[class*="primary"] {
+  box-shadow: none;
+}
+
+/* Mobile/tablet: title bands stack without hiding actions. */
+@media (max-width: 760px) {
+  .app-shell main#main-content .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 13px 14px;
+  }
+  .app-shell main#main-content .page-heading .heading-actions {
+    width: 100%;
+  }
+  .app-shell main#main-content .page-heading .heading-actions > * {
+    flex: 1 1 auto;
+  }
+}

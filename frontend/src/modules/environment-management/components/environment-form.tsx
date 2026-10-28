@@ -272,6 +272,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     },
     onSuccess: async (value) => {
       await cache.invalidateQueries({ queryKey: ["environments"] });
+      await cache.invalidateQueries({ queryKey: ["environment-count"] });
       await cache.invalidateQueries({
         queryKey: ["environment", value.environmentId],
       });

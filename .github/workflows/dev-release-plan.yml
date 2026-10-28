@@ -1,0 +1,56 @@
+name: DEV selective release plan (no deployment)
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Explicit baseline commit for this planning trial
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-release-plan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Explain selected and skipped stages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install offline release test dependencies
+        run: python -m pip install pytest==8.4.2 PyYAML==6.0.2 boto3==1.40.30 'psycopg[binary]==3.2.10'
+      - name: Verify change and promotion rules
+        run: python -m pytest -q tests/test_release_planner.py tests/test_release_execution.py tests/test_simple_release.py
+      - name: Create read-only impact plan
+        env:
+          BASELINE: ${{ github.event.pull_request.base.sha || inputs.baseline }}
+          CANDIDATE: ${{ github.sha }}
+        run: |
+          python scripts/plan-release.py \
+            --base "$BASELINE" --head "$CANDIDATE" \
+            --output release-plan.json
+      - name: Explain pilot boundary
+        if: always()
+        run: |
+          echo 'DEV pilot: impact planning and planner tests only.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'A PR base is for impact review; it is not proof of the last deployed DEV revision.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No build, artifact upload to AWS, database migration or deployment is performed.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Promotion must use an immutable release manifest and the target deployment record.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-release-impact-plan
+          path: release-plan.json
+          if-no-files-found: ignore
+          retention-days: 7

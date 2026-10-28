@@ -101,6 +101,12 @@ def execute(event, principal, correlation, tx=transaction):
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
     path = resource_path(event)
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+    if path == BASE + "/summary":
+        if method != "GET":
+            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")
+        with tx() as connection:
+            connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            return response(200, Repository(connection, principal).summary(), correlation)
     match = re.fullmatch(
         re.escape(BASE)
         + r"(?:/(CUS-[A-Za-z0-9-]+)(?:/(cloud-providers|submit|resubmit|review/start|approve|reject|activate|suspend|reactivate|deactivate|status-history|audit-log|reviews))?)?",

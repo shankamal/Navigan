@@ -1,6 +1,7 @@
 """Server-side orchestration for private-cluster connector installation."""
 import json
 import os
+import re
 
 import boto3
 from botocore.config import Config
@@ -18,9 +19,62 @@ class ConnectorInstaller:
     """
 
     def __init__(self, sts=None, secrets=None, client_factory=None):
-        self.sts = sts or boto3.client("sts")
-        self.secrets = secrets or boto3.client("secretsmanager")
+        status_config = Config(connect_timeout=3, read_timeout=4,
+                               retries={"mode": "standard", "total_max_attempts": 1})
+        self.sts = sts or boto3.client("sts", config=status_config)
+        self.secrets = secrets or boto3.client("secretsmanager", config=status_config)
         self.client_factory = client_factory or boto3.client
+
+    def inspect_status(self, cluster, environment_snapshot, execution_id):
+        """Read one registered installer in its customer account; never start it."""
+        configuration = environment_snapshot.get("configuration") or {}
+        project = (configuration.get("connectorInstaller") or {}).get(
+            "projectName"
+        ) or "NaviganClusterInstaller"
+        if not re.fullmatch(
+            re.escape(project) + r":[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}",
+            execution_id,
+        ):
+            raise ValueError("Registered installer execution does not match its project.")
+        region = configuration["location"]["region"]
+        role_parts = cluster["provisioning_role_arn"].split(":")
+        partition, account = role_parts[1], role_parts[4]
+        external_id = self.secrets.get_secret_value(
+            SecretId=cluster["external_id_secret_arn"]
+        )["SecretString"]
+        credentials = self.sts.assume_role(
+            RoleArn=cluster["provisioning_role_arn"],
+            RoleSessionName=f"NaviganStatus-{cluster['cluster_id'][-20:]}",
+            ExternalId=external_id,
+            DurationSeconds=900,
+        )["Credentials"]
+        codebuild = self.client_factory(
+            "codebuild",
+            region_name=region,
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+            config=Config(
+                connect_timeout=3, read_timeout=4,
+                retries={"mode": "standard", "total_max_attempts": 1},
+            ),
+        )
+        result = codebuild.batch_get_builds(ids=[execution_id])
+        builds = result.get("builds", [])
+        if result.get("buildsNotFound") or len(builds) != 1:
+            raise ValueError("Registered installer execution could not be verified.")
+        build = builds[0]
+        if (
+            build.get("id") != execution_id
+            or build.get("projectName") != project
+            or build.get("arn") != f"arn:{partition}:codebuild:{region}:{account}:build/{execution_id}"
+            or build.get("buildStatus") not in {
+                "IN_PROGRESS", "SUCCEEDED", "FAILED", "FAULT", "STOPPED", "TIMED_OUT"
+            }
+        ):
+            raise ValueError("Installer execution identity or state could not be verified.")
+        # Deliberately exclude environment variables, credentials and command output.
+        return {"executionId": execution_id, "status": build["buildStatus"]}
 
     def start(
         self,
@@ -258,3 +312,4 @@ class ConnectorInstaller:
                 policyArn=policy_arn,
                 accessScope={"type": "cluster"},
             )
+

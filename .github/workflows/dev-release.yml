@@ -1,0 +1,80 @@
+name: DEV selective build and deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Build once, then deploy the saved build to DEV
+        type: choice
+        options: [build, deploy, verify, rollback]
+        required: true
+      enroll:
+        description: Build only - optional additional unmanaged components
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: navigan-dev-manifest-release
+  cancel-in-progress: false
+
+jobs:
+  dev-release:
+    environment: dev
+    # Dedicated persistent runner: Docker, SAM, DEV DB connectivity, private plan storage.
+    # No PR trigger; do not attach this runner to untrusted pull-request workflows.
+    runs-on: [self-hosted, linux, x64, navigan-dev-release]
+    timeout-minutes: 120
+    env:
+      AWS_DEFAULT_REGION: ap-south-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      SAM_CLI_TELEMETRY: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+      RELEASE_CONFIG: ${{ vars.DEV_RELEASE_CONFIG }}
+      ACTION: ${{ inputs.action }}
+      ENROLL: ${{ inputs.enroll }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: aws-actions/setup-sam@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.DEV_RELEASE_ROLE_ARN }}
+          aws-region: ap-south-1
+          role-session-name: navigan-dev-release
+      - name: Install release dependencies and test release contracts
+        run: |
+          python -m pip install boto3==1.40.30 PyYAML==6.0.2 'psycopg[binary]==3.2.10' pytest==8.4.2
+          python -m pytest -q tests/test_release_planner.py tests/test_release_execution.py tests/test_simple_release.py
+      - name: Run the selected DEV action
+        env:
+          # Optional API smoke-test credential; leave unset for ordinary build/deploy.
+          NAVIGAN_DEV_SMOKE_TOKEN: ${{ secrets.DEV_RELEASE_SMOKE_TOKEN }}
+          MIGRATION_DATABASE_URL: ${{ secrets.DEV_MIGRATION_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_CONFIG"
+          case "$ACTION" in
+            build)
+              args=(dev --config "$RELEASE_CONFIG")
+              if [ -n "$ENROLL" ]; then args+=(--enroll "$ENROLL"); fi
+              bash scripts/build.sh "${args[@]}"
+              ;;
+            deploy) bash scripts/deploy.sh dev --config "$RELEASE_CONFIG" ;;
+            verify) bash scripts/deploy.sh dev --config "$RELEASE_CONFIG" --verify ;;
+            rollback) bash scripts/deploy.sh dev --config "$RELEASE_CONFIG" --rollback ;;
+            *) exit 2 ;;
+          esac
+      - name: Record pilot scope
+        if: always()
+        run: |
+          echo 'DEV only. Build and deploy are separate commands; no PROD deployment path.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Artifacts use existing storage; private plans stay on the runner, not public workflow artifacts.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Frontend acceptance uses the same persistent runner at localhost:3001; use an approved SSH tunnel for remote access.' >> "$GITHUB_STEP_SUMMARY"

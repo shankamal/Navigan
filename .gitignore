@@ -21,3 +21,6 @@ frontend/.next-stale-*/
 frontend/.standalone-runtime*/
 frontend/.npm-cache/
 .promotion-backups/
+
+# Local build/deployment configuration and records
+.navigan-release/

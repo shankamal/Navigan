@@ -39,8 +39,11 @@ Parameters:
     MaxValue: 20
   ApiOrigin:
     Type: String
-    Default: https://q0i8bcekw1.execute-api.ap-south-1.amazonaws.com
     AllowedPattern: 'https://[a-zA-Z0-9.-]+'
+  MigrationSourceFirstEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
   ApiBasePath:
     Type: String
     Default: /v1/api/v1
@@ -230,6 +233,8 @@ Resources:
               Value: !Ref ApiOrigin
             - Name: NAVIGAN_API_BASE_PATH
               Value: !Ref ApiBasePath
+            - Name: MIGRATION_SOURCE_FIRST_ENABLED
+              Value: !Ref MigrationSourceFirstEnabled
           HealthCheck:
             Command:
               - CMD

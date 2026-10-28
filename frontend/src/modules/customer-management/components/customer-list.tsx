@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -36,6 +37,7 @@ import "./customer-workspace.css";
 import { CustomerMetrics } from "./customer-metrics";
 import { ProviderBadges, StatusBadge } from "./customer-badges";
 export function CustomerListView() {
+  const queryClient = useQueryClient();
   const { identity } = useAuth();
   const [filters, setFilters] = useState<CustomerFilters>({
     page: 0,
@@ -77,14 +79,6 @@ export function CustomerListView() {
   const ociCount = useCustomerCount(undefined, "OCI");
   const providerQueries = [awsCount, azureCount, gcpCount, ociCount];
   const [view, setView] = useState<"list" | "board">("list");
-  const metricQueries = [
-    total,
-    active,
-    submitted,
-    review,
-    draft,
-    ...providerQueries,
-  ];
   const boardStatuses = statuses.filter(
     (status) =>
       ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "ACTIVE"].includes(status) ||
@@ -98,40 +92,39 @@ export function CustomerListView() {
     setFilters((old) => ({ ...old, ...values, page: 0 }));
   return (
     <div className="customer-workspace">
-      <div className="customer-page-header">
-        <span className="customer-heading-icon" aria-hidden="true">
-          <Building2 size={25} />
-        </span>
-        <PageHeading
-          title="Customer Management"
-          description="Manage onboarding, approvals, and cloud provider associations."
-          action={
-            <>
-              <Button
-                variant="secondary"
-                aria-label="Refresh customer directory"
-                disabled={customers.isFetching}
-                onClick={() => {
-                  void customers.refetch();
-                  metricQueries.forEach((query) => void query.refetch());
-                }}
-              >
-                <RefreshCw
-                  size={17}
-                  className={customers.isFetching ? "animate-spin" : ""}
-                />
-                Refresh
-              </Button>
-              {canCreate(identity) && (
-                <Link href="/customers/new" className="button button-primary">
-                  <Plus size={18} />
-                  Create customer
-                </Link>
-              )}
-            </>
-          }
-        />
-      </div>
+      <PageHeading
+        icon={<Building2 />}
+        title="Customer Management"
+        description="Manage onboarding, approvals, and cloud provider associations."
+        action={
+          <>
+            <Button
+              variant="secondary"
+              aria-label="Refresh customer directory"
+              disabled={customers.isFetching}
+              onClick={() => {
+                void customers.refetch();
+                void queryClient.refetchQueries({
+                  queryKey: ["customers", "summary"],
+                  type: "active",
+                });
+              }}
+            >
+              <RefreshCw
+                size={17}
+                className={customers.isFetching ? "animate-spin" : ""}
+              />
+              Refresh
+            </Button>
+            {canCreate(identity) && (
+              <Link href="/customers/new" className="button button-primary">
+                <Plus size={18} />
+                Create customer
+              </Link>
+            )}
+          </>
+        }
+      />
       <CustomerMetrics
         total={total.data}
         active={active.data}
@@ -448,7 +441,7 @@ export function CustomerListView() {
                               className="customer-avatar"
                               aria-hidden="true"
                             >
-                              {customer.name.substring(0, 2).toUpperCase()}
+                              <Building2 size={15} />
                             </span>
                             <div>
                               <Link

@@ -23,6 +23,17 @@
   font-size: 0.65rem;
 }
 
+.compact {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+.summary {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
 .logo svg {
   width: 58%;
   height: 58%;
@@ -32,7 +43,7 @@
   padding-top: 1px;
   background: #232f3e;
   color: #fff;
-  font-family: Arial, sans-serif;
+  font-family: var(--navigan-font-family);
   letter-spacing: -0.06em;
   text-transform: lowercase;
 }
@@ -78,7 +89,7 @@
     #4285f4 84%
   );
   color: #fff;
-  font-family: Arial, sans-serif;
+  font-family: var(--navigan-font-family);
   font-size: 0;
 }
 

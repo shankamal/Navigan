@@ -19,6 +19,7 @@ from navigan.shared.database import transaction
 from navigan.shared.errors import ApiError
 
 from .models import (
+    CancelMigration,
     CreateMigration,
     CreateSourceCluster,
     CreateSourceEnrollment,
@@ -28,6 +29,10 @@ from .models import (
     UpdateSourceClusterDelivery,
     UpdateMigration,
 )
+from .deployment_sources import SaveDeploymentSources, AnalyzeDeploymentSources
+from .workspace_collection import StartCollection
+from .artifact_workspace import CreateArtifactWorkspace
+from .workspace_export import CreateWorkspaceExport
 from .repository import Repository
 from .service import Service, TRANSITIONS
 from .source_connector_installation import SourceConnectorInstaller
@@ -131,6 +136,8 @@ def route_of(method, path):
         identifier = parts[0]
         if not re.fullmatch(r"SRC-[a-f0-9]{32}", identifier):
             raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+        if len(parts) == 2 and parts[1] == "deployment-sources" and method in {"GET", "PUT"}:
+            return ("deployment_sources_get" if method == "GET" else "deployment_sources_save"), identifier, None
         if len(parts) == 1 and method == "GET":
             return "source_cluster_get", identifier, None
         if len(parts) == 1 and method == "PUT":
@@ -165,8 +172,30 @@ def route_of(method, path):
     if not re.fullmatch(r"MIG-[a-f0-9]{32}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
 
+    if (len(parts) == 4 and parts[1] == "artifact-workspaces" and parts[3] == "exports" and method == "POST"
+            and re.fullmatch(r"AWS-[a-f0-9]{32}", parts[2])):
+        return "workspace_export_create", identifier, parts[2]
+    if (len(parts) == 4 and parts[1] == "artifact-workspaces" and parts[3] == "collection-jobs" and method == "POST"
+            and re.fullmatch(r"AWS-[a-f0-9]{32}", parts[2])):
+        return "workspace_collection_start", identifier, parts[2]
+    if len(parts) == 2 and parts[1] == "artifact-workspaces" and method in {"GET", "POST"}:
+        return ("artifact_workspace_list" if method == "GET" else "artifact_workspace_create"), identifier, None
+    if (len(parts) == 3 and parts[1] == "artifact-workspaces" and method == "GET"
+            and re.fullmatch(r"AWS-[a-f0-9]{32}", parts[2])):
+        return "artifact_workspace_get", identifier, parts[2]
+
     if len(parts) == 1 and method == "GET":
         return "get", identifier, None
+    if len(parts) == 2 and parts[1] == "deployment-evidence" and method in {"GET", "POST"}:
+        return ("deployment_evidence_get" if method == "GET" else "deployment_evidence_run"), identifier, None
+    if len(parts) == 2 and parts[1] == "target-assessment" and method in {"GET", "POST"}:
+        return ("target_assessment_get" if method == "GET" else "target_assessment_run"), identifier, None
+
+    if len(parts) == 2 and parts[1] == "target-compatibility" and method == "GET":
+        return "target_compatibility_get", identifier, None
+
+    if len(parts) == 3 and parts[1:] == ["artifacts", "upload-intent"] and method == "POST":
+        return "artifact_upload_intent", identifier, None
 
     if (
         len(parts) == 2
@@ -214,6 +243,13 @@ def execute(event, principal, correlation):
         "source_cluster_update",
         "source_cluster_enrollment",
         "source_cluster_install",
+        "target_assessment_run",
+        "artifact_upload_intent",
+        "artifact_workspace_create",
+        "workspace_collection_start",
+        "workspace_export_create",
+        "deployment_sources_save",
+        "deployment_evidence_run",
     }
     idempotent = mutating and route != "source_cluster_enrollment"
 
@@ -255,7 +291,17 @@ def execute(event, principal, correlation):
                     "Use an integer version.",
                 ) from None
 
-        if route == "create":
+        if route == "workspace_export_create":
+            model = CreateWorkspaceExport
+        elif route == "workspace_collection_start":
+            model = StartCollection
+        elif route == "artifact_workspace_create":
+            model = CreateArtifactWorkspace
+        elif route == "deployment_sources_save":
+            model = SaveDeploymentSources
+        elif route == "deployment_evidence_run":
+            model = AnalyzeDeploymentSources
+        elif route == "create":
             model = CreateMigration
         elif route == "update":
             model = UpdateMigration
@@ -267,14 +313,21 @@ def execute(event, principal, correlation):
             model = CreateSourceEnrollment
         elif route == "source_cluster_install":
             model = InstallSourceConnector
+        elif action == "cancel":
+            model = CancelMigration
         elif action in {"discover", "assess"}:
             model = DiscoveryAction
+        elif route in {"target_assessment_run", "artifact_upload_intent"}:
+            model = None
         else:
             model = MigrationAction
-        body = model.model_validate(body).model_dump(
-            mode="json",
-            exclude_none=True,
-        )
+        if model is not None:
+            body = model.model_validate(body).model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+        elif body and route != "artifact_upload_intent":
+            raise ApiError(400, "INVALID_REQUEST", "Target discovery accepts an empty JSON body only.")
 
         if idempotent:
             key = headers.get("idempotency-key")
@@ -310,15 +363,29 @@ def execute(event, principal, correlation):
             elif route == "source_cluster_get":
                 from .repository import serialize
 
-                value = serialize(repo.get_source_cluster(identifier))
+                source = repo.get_source_cluster(identifier)
+                value = serialize(source)
+                if (event.get("queryStringParameters") or {}).get("installationCheck") == "true":
+                    value["installationCheck"] = Service(repo, access, correlation).source_installation_check(source)
             elif route == "list":
                 value = repo.list(query_of(event))
+            elif route == "deployment_sources_get":
+                value = Service(repo, access, correlation).deployment_source_configuration(identifier)
+            elif route in {"artifact_workspace_list", "artifact_workspace_get"}:
+                from .artifact_workspace import read
+                value = read(Service(repo, access, correlation), identifier, action)
+            elif route == "deployment_evidence_get":
+                value = Service(repo, access, correlation).deployment_evidence(identifier)
             elif route == "source_catalogue":
                 value = repo.get_source_catalogue(identifier)
             elif route == "source_inventory":
                 value = repo.get_source_inventory(identifier)
             elif route == "assessment":
                 value = repo.get_assessment(identifier)
+            elif route == "target_assessment_get":
+                value = repo.get_target_assessment(identifier)
+            elif route == "target_compatibility_get":
+                value = Service(repo, access, correlation).target_compatibility(identifier)
             else:
                 from .repository import serialize
 
@@ -336,6 +403,10 @@ def execute(event, principal, correlation):
             else None
         )
         if replay:
+            if route in {"artifact_workspace_create", "workspace_collection_start", "workspace_export_create", "deployment_evidence_run"}:
+                access.require("migration.edit")
+                replay_migration = repo.get(identifier)
+                access.require_customer(replay_migration["customer_id"], replay_migration["created_by"])
             replay_identifier = (
                 replay["body"].get("migrationId")
                 or replay["body"].get("sourceClusterId")
@@ -343,6 +414,10 @@ def execute(event, principal, correlation):
             if replay_identifier:
                 if replay_identifier.startswith("SRC-"):
                     repo.get_source_cluster(replay_identifier)
+                elif route == "action" and action == "cancel" and body.get("deleteAssessment"):
+                    access.require("migration.edit")
+                    deleted = repo.get(replay_identifier, include_deleted=True)
+                    access.require_customer(deleted["customer_id"], deleted["created_by"])
                 else:
                     repo.get(replay_identifier)
             result = response(
@@ -355,7 +430,31 @@ def execute(event, principal, correlation):
 
         service = Service(repo, access, correlation)
 
-        if route == "source_cluster_create":
+        if route == "workspace_export_create":
+            from .workspace_export import create as create_export
+            value = create_export(service, identifier, action, body)
+            status = 201
+        elif route == "workspace_collection_start":
+            from .workspace_collection import enqueue
+            value = enqueue(service, identifier, action, body)
+            status = 202
+        elif route == "artifact_workspace_create":
+            from .artifact_workspace import create
+            value = create(service, identifier, body)
+            status = 201
+        elif route == "deployment_sources_save":
+            value = service.save_deployment_sources(identifier, body)
+            status = 200
+        elif route == "deployment_evidence_run":
+            value = service.analyze_deployment_sources(identifier, body)
+            status = 200
+        elif route == "target_assessment_run":
+            value = service.analyze_target(identifier)
+            status = 200
+        elif route == "artifact_upload_intent":
+            value = service.prepare_artifact_upload(identifier, body)
+            status = 200
+        elif route == "source_cluster_create":
             value = service.create_source_cluster(body)
             status = 201
         elif route == "source_cluster_update":
@@ -475,3 +574,4 @@ def lambda_handler(event, context):
             internal.payload(correlation),
             correlation,
         )
+

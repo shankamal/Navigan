@@ -1,0 +1,10 @@
+{
+  "profile": "navigan",
+  "region": "ap-south-1",
+  "account": "123456789012",
+  "artifactBucket": "YOUR_EXISTING_ARTIFACT_BUCKET",
+  "repositories": {
+    "frontend": "123456789012.dkr.ecr.ap-south-1.amazonaws.com/YOUR_EXISTING_FRONTEND_REPOSITORY"
+  },
+  "initialComponents": ["frontend"]
+}

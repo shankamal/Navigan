@@ -4,6 +4,7 @@ import {
   writeHeaders,
   type WriteOptions,
 } from "@/shared/api/client";
+import { resourceSummary } from "@/shared/api/summary";
 import {
   customerSchema,
   listSchema,
@@ -25,6 +26,26 @@ export const customersService = {
       (await apiClient.get("/customers", { params: filters, signal })).data,
     );
   },
+  summary: (signal?: AbortSignal) =>
+    resourceSummary(
+      "customers",
+      ["ACTIVE", "SUBMITTED", "UNDER_REVIEW", "DRAFT"],
+      ["AWS", "AZURE", "GCP", "OCI"],
+      async (status, cloudProvider, requestSignal) =>
+        (
+          await customersService.list(
+            {
+              page: 0,
+              pageSize: 1,
+              sort: "createdAt,desc",
+              status: status as CustomerFilters["status"],
+              cloudProvider,
+            },
+            requestSignal,
+          )
+        ).pagination.totalElements,
+      signal,
+    ),
   async detail(id: string, signal?: AbortSignal) {
     return parseResponse(
       customerSchema,

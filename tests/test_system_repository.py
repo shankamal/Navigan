@@ -63,3 +63,30 @@ def test_system_repository_renders_gitops_baseline_without_secrets():
     project = rendered["applications/00-project.yaml"]
     assert "namespace: argocd" in project
     assert "namespace: kube-system" in project
+
+
+def test_generated_falco_baseline_pins_verified_kernel_compatible_artifacts():
+    import yaml
+    from pathlib import Path
+
+    rendered = render_system_repository(
+        repository_url="https://github.com/customer/new-system",
+        connector_id="KCC-test", cluster_id="CLU-test",
+        connector_image="registry.example/connector@sha256:" + "a" * 64,
+        api_base_url="https://api.example.test/api/v1",
+    )
+    roots = [rendered, {
+        path: (Path(__file__).parents[1] / "platform/system-repo-template" / path).read_text()
+        for path in ("applications/20-falco.yaml", "values/falco.yaml")
+    }]
+    for baseline in roots:
+        application = yaml.safe_load(baseline["applications/20-falco.yaml"])
+        values = yaml.safe_load(baseline["values/falco.yaml"])
+        assert application["spec"]["sources"][0]["targetRevision"] == "9.2.0"
+        assert values["image"]["tag"] == "0.45.1"
+        assert values["collectors"]["containerEngine"]["pluginRef"].endswith("/container:0.7.5")
+        assert values["driver"]["kind"] == "modern_ebpf"
+        assert values["nodeSelector"]["navigan.io/platform-services"] == "true"
+        assert {"key": "navigan.io/system-only", "operator": "Equal",
+                "value": "true", "effect": "NoSchedule"} in values["tolerations"]
+

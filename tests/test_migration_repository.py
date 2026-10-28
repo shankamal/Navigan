@@ -107,3 +107,21 @@ def test_latest_assessment_is_customer_scoped():
     assert result["status"] == "ASSESSMENT_READY"
     assert result["assessment"]["compatibilityScore"] == 84
     assert result["assessment"]["containsBlockers"] is False
+
+
+def test_duplicate_assessment_name_returns_a_conflict_before_history_writes():
+    import pytest
+    from navigan.shared.errors import ApiError
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = None
+    row = dict(migration_id='MIG-new', customer_id='CUS-demo', name='Existing name',
+        source_platform='SELF_MANAGED_KUBERNETES', target_platform='EKS',
+        source_configuration={}, target_configuration={}, migration_scope={},
+        execution_mode='ASSESSMENT_ONLY', status='DRAFT', version=1,
+        created_by='engineer', updated_by='engineer')
+    with pytest.raises(ApiError) as error:
+        Repository(db, MagicMock()).save(row, None, 'MIGRATION_CREATED', 'duplicate', create=True)
+    assert error.value.status == 409 and error.value.code == 'ASSESSMENT_NAME_EXISTS'
+    assert 'cancelled' in error.value.message
+    db.execute.assert_called_once()
+    assert 'ON CONFLICT(customer_id,name) DO NOTHING' in db.execute.call_args.args[0]

@@ -2,10 +2,10 @@
 .app-shell:has(.cluster-ui) .shell-body,
 .app-shell:has(.cluster-ui) .content-column,
 .app-shell:has(.cluster-ui) #main-content {
-  background: #fff;
+  background: var(--navigan-canvas, #f5f7fa);
 }
 .app-shell:has(.cluster-ui) .topbar {
-  background: #334155;
+  background-color: var(--navigan-graphite, #1c222b);
 }
 .cluster-ui {
   color: #172033;
@@ -17,7 +17,7 @@
   margin-bottom: 0;
 }
 .cluster-ui .page-heading h1 {
-  font-size: 26px;
+  font-size: clamp(21px, 1.5vw, 24px);
   font-weight: 600;
   color: #1e293b;
   letter-spacing: -0.02em;
@@ -32,13 +32,13 @@
   font-size: 16px;
 }
 .cluster-ui .button-primary {
-  background: #65a449;
-  border-color: #65a449;
-  color: #143322;
+  background: var(--navigan-action, #2f6b2d);
+  border-color: var(--navigan-action, #2f6b2d);
+  color: #fff;
 }
 .cluster-ui .button-primary:hover:not(:disabled) {
-  background: #568c3e;
-  border-color: #568c3e;
+  background: var(--navigan-action-hover, #255624);
+  border-color: var(--navigan-action-hover, #255624);
 }
 .cluster-ui :is(a, button, input, select, summary):focus-visible {
   outline: 2px solid #568c3e;
@@ -233,7 +233,7 @@
 }
 .cluster-view-toggle button.selected {
   color: #315522;
-  background: #eef5e9;
+  background: #f1f5f9;
   border-color: #65a449;
 }
 .cluster-board {
@@ -914,4 +914,189 @@
   .cluster-setup-workspace #cluster-system-workers .cluster-setup-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* Respond to the content panel, not the full laptop viewport. */
+@container (max-width: 1000px) {
+  .cluster-portfolio,
+  .cluster-setup-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cluster-setup-sidebar {
+    position: static;
+    max-height: none;
+  }
+  .cluster-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 600px) {
+  .cluster-board,
+  .cluster-setup-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cluster-heading-actions,
+  .cluster-setup-save-buttons {
+    flex-wrap: wrap;
+  }
+}
+
+/* ADAPTIVE CLUSTER WORKSPACE DENSITY */
+@container (max-width:1800px) {
+  .cluster-ui {
+    gap: 8px;
+    font-size: var(--navigan-font-body);
+  }
+  .cluster-board {
+    gap: 8px;
+  }
+  .cluster-board > * {
+    min-height: 66px;
+    padding: 9px 11px;
+  }
+  .cluster-portfolio,
+  .cluster-setup-layout {
+    gap: 10px;
+  }
+  .cluster-setup-workspace .cluster-setup-sidebar {
+    padding: 10px;
+  }
+  .cluster-setup-workspace .cluster-creation-section,
+  .cluster-setup-workspace .cluster-blueprint-card,
+  .cluster-worker-capacity-view {
+    padding: 10px 11px;
+    border-radius: 5px;
+  }
+  .cluster-setup-workspace .cluster-creation-section > legend,
+  .cluster-worker-capacity-view > span {
+    font-size: 12px;
+  }
+  .cluster-setup-workspace .cluster-creation-section > .muted {
+    margin-bottom: 8px;
+    font-size: var(--navigan-font-caption);
+    line-height: 1.3;
+  }
+  .cluster-setup-workspace .cluster-setup-grid {
+    gap: 9px 11px;
+  }
+  .cluster-worker-capacity-view {
+    margin-top: 8px;
+  }
+  .cluster-worker-capacity-view progress {
+    height: 7px;
+    margin: 7px 0;
+  }
+  .cluster-worker-capacity-view dt {
+    font-size: var(--navigan-font-body);
+  }
+  .cluster-worker-capacity-view dd {
+    margin-top: 2px;
+    font-size: 12px;
+  }
+  .cluster-setup-workspace .cluster-setup-actions {
+    gap: 8px;
+    padding-block: 7px;
+  }
+  .cluster-setup-save-copy small {
+    font-size: var(--navigan-font-caption);
+    line-height: 1.3;
+  }
+  .cluster-setup-save-buttons {
+    gap: 7px;
+  }
+}
+
+/* DEFINITIVE COMPACT CLUSTER DIRECTORY */
+@media (min-width: 900px) {
+  .cluster-directory-page {
+    gap: 8px !important;
+  }
+  .cluster-directory-page .cluster-portfolio {
+    grid-template-columns: 1.05fr 0.95fr 0.95fr !important;
+    gap: 8px !important;
+  }
+  .cluster-directory-page .cluster-portfolio > .panel {
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    border-radius: 5px !important;
+  }
+  .cluster-directory-page .cluster-portfolio h2 {
+    margin: 0 0 7px !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+  .cluster-directory-page .cluster-chart-content {
+    gap: 8px !important;
+  }
+  .cluster-directory-page .cluster-chart-content .environment-ring {
+    width: 82px !important;
+    height: 82px !important;
+  }
+  .cluster-directory-page .cluster-chart-content ul {
+    gap: 4px !important;
+  }
+  .cluster-directory-page .cluster-chart-content li {
+    font-size: var(--navigan-font-body) !important;
+    line-height: 1.25 !important;
+  }
+  .cluster-directory-page .cluster-coverage-value {
+    gap: 6px !important;
+    margin: 10px 0 8px !important;
+    font-size: 19px !important;
+    line-height: 1.15 !important;
+  }
+  .cluster-directory-page .cluster-active-chart progress {
+    height: 8px !important;
+  }
+  .cluster-directory-page .cluster-coverage-scale {
+    margin-top: 4px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .cluster-directory-page .cluster-active-chart p,
+  .cluster-directory-page .cluster-provisioning-chart p {
+    margin-top: 8px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .cluster-directory-page .cluster-provisioning-row {
+    grid-template-columns: 72px minmax(0, 1fr) 20px !important;
+    gap: 6px !important;
+    padding: 6px 0 !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .cluster-directory-page .cluster-provisioning-row meter {
+    height: 8px !important;
+  }
+  .cluster-directory-page .cluster-attention {
+    gap: 0 10px !important;
+    padding: 8px 12px !important;
+  }
+  .cluster-directory-page .cluster-attention > header {
+    margin-bottom: 2px !important;
+  }
+  .cluster-directory-page .cluster-attention h2 {
+    font-size: 12.5px !important;
+  }
+  .cluster-directory-page .cluster-attention button {
+    padding: 7px 0 !important;
+    gap: 8px !important;
+  }
+}
+
+/* SHARED PROVIDER LOGO STANDARD */
+.cluster-ui .provider-logo img {
+  width: auto !important;
+  height: var(--navigan-provider-logo-compact-height) !important;
+  max-width: var(--navigan-provider-logo-compact-max-width) !important;
+  object-fit: contain !important;
+}
+.cluster-portfolio .provider-logo img,
+.cluster-cloud .provider-logo img {
+  height: var(--navigan-provider-logo-summary-height) !important;
+  max-width: var(--navigan-provider-logo-summary-max-width) !important;
+}
+.cluster-setup-workspace .cluster-setup-heading .provider-logo img {
+  width: auto !important;
+  height: var(--navigan-provider-logo-hero-height) !important;
+  max-width: var(--navigan-provider-logo-hero-max-width) !important;
 }

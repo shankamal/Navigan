@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Dedicated long-running private image collector; no target publication
+Parameters:
+  ClusterArn: {Type: String}
+  WorkerImage:
+    Type: String
+    AllowedPattern: '[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9_./-]+@sha256:[a-f0-9]{64}'
+  ExecutionRoleArn: {Type: String}
+  SubnetIds: {Type: List<AWS::EC2::Subnet::Id>}
+  SecurityGroupIds: {Type: List<AWS::EC2::SecurityGroup::Id>}
+  DatabaseProxyHost: {Type: String}
+  DatabaseName: {Type: String}
+  DatabaseSecretArn: {Type: String}
+  SecretsKmsKeyArn: {Type: String}
+  DatabaseCaPath: {Type: String, Default: /app/certs/global-bundle.pem}
+  WorkspaceBucketName: {Type: String}
+  WorkspaceBucketOwner: {Type: String, AllowedPattern: '[0-9]{12}'}
+  WorkspaceKmsKeyArn: {Type: String}
+  AllowedRegistryRoleArns: {Type: String, Default: ''}
+  DesiredCount: {Type: Number, Default: 0, AllowedValues: [0,1,2]}
+Conditions:
+  HasRegistryRoles: !Not [!Equals [!Ref AllowedRegistryRoleArns, '']]
+Resources:
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WorkspaceImageCollection
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion, s3:AbortMultipartUpload]
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${WorkspaceBucketName}/customers/*/migrations/*/workspaces/*'
+              - Effect: Allow
+                Action: [kms:GenerateDataKey,kms:Decrypt]
+                Resource: !Ref WorkspaceKmsKeyArn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: [!Ref DatabaseSecretArn, !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:navigan/source-connections/*']
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Ref SecretsKmsKeyArn
+  SourceRegistryRolePolicy:
+    Type: AWS::IAM::Policy
+    Condition: HasRegistryRoles
+    Properties:
+      PolicyName: WorkspaceImageSourceRegistryRoles
+      Roles: [!Ref WorkerRole]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Split [',', !Ref AllowedRegistryRoleArns]
+  WorkerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+  WorkerTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: '1024'
+      Memory: '2048'
+      NetworkMode: awsvpc
+      RuntimePlatform: {CpuArchitecture: X86_64, OperatingSystemFamily: LINUX}
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !GetAtt WorkerRole.Arn
+      EphemeralStorage: {SizeInGiB: 30}
+      Volumes: [{Name: scratch}]
+      ContainerDefinitions:
+        - Name: collector
+          Image: !Ref WorkerImage
+          Essential: true
+          User: '0:0' # Entrypoint initializes /tmp, then drops to UID/GID 10001.
+          ReadonlyRootFilesystem: true
+          StopTimeout: 120
+          # Skopeo's OCI archive transport also creates staging directories in /var/tmp.
+          # Both paths share the volume whose permissions the entrypoint initializes.
+          MountPoints:
+            - {SourceVolume: scratch, ContainerPath: /tmp}
+            - {SourceVolume: scratch, ContainerPath: /var/tmp}
+          Environment:
+            # UID drops to 10001; libpq must not look for client certificates under /root.
+            - {Name: HOME, Value: /tmp}
+            - {Name: DB_PROXY_HOST, Value: !Ref DatabaseProxyHost}
+            - {Name: DB_NAME, Value: !Ref DatabaseName}
+            - {Name: DB_SECRET_ARN, Value: !Ref DatabaseSecretArn}
+            - {Name: DB_CA_BUNDLE, Value: !Ref DatabaseCaPath}
+            - {Name: MIGRATION_WORKSPACE_BUCKET, Value: !Ref WorkspaceBucketName}
+            - {Name: MIGRATION_WORKSPACE_KMS_KEY, Value: !Ref WorkspaceKmsKeyArn}
+            - {Name: MIGRATION_WORKSPACE_BUCKET_OWNER, Value: !Ref WorkspaceBucketOwner}
+            - {Name: IMAGE_COLLECTION_ROLE_ARNS, Value: !Ref AllowedRegistryRoleArns}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: collector
+  WorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ClusterArn
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      PlatformVersion: '1.4.0'
+      TaskDefinition: !Ref WorkerTask
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups: !Ref SecurityGroupIds
+Outputs:
+  WorkerTaskRoleArn: {Value: !GetAtt WorkerRole.Arn}
+  WorkerServiceName: {Value: !GetAtt WorkerService.Name}
+  WorkerTaskDefinitionArn: {Value: !Ref WorkerTask}

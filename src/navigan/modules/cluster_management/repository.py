@@ -132,6 +132,85 @@ class Repository:
             )
         return row
 
+    def upgrade_connector_gitops(self, identifier, body, github_app=None):
+        """Update only the selected cluster's connector GitOps manifests.
+
+        No Kubernetes credentials or global connector image configuration are changed.
+        """
+        import os
+        from importlib.resources import files as package_files
+
+        cluster = self.get(identifier, lock=True)
+        if cluster["version"] != body["version"]:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
+        repository = self.system_repository_access(identifier)
+        connector = self.db.execute(
+            "SELECT connector_id,installation_status FROM cluster_management.cluster_connectors "
+            "WHERE cluster_id=%s AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",
+            [identifier],
+        ).fetchone()
+        if not connector:
+            raise ApiError(409, "CONNECTOR_NOT_ACTIVE", "Install and activate the connector before upgrading it.")
+
+        baseline = os.environ.get("CONNECTOR_IMAGE_URI", "").strip()
+        if "@sha256:" not in baseline:
+            raise ApiError(409, "CONNECTOR_IMAGE_NOT_CONFIGURED", "Approved connector ECR repository is not configured.")
+        image_repo, _ = baseline.rsplit("@", 1)
+        if ".dkr.ecr." not in image_repo or ".amazonaws.com/" not in image_repo:
+            raise ApiError(409, "CONNECTOR_REGISTRY_INVALID", "Connector must come from the approved ECR repository.")
+        import re
+
+        digest = body["imageDigest"]
+        app = github_app or GitHubApp()
+        values = app.read_repository_file(
+            repository["installation_id"],
+            repository["organization_login"],
+            repository["repository_name"],
+            "values/connector.yaml",
+            branch=repository["default_branch"],
+        )
+        # Fail closed if this file does not belong to the selected connector or
+        # does not use the same approved ECR repository.
+        if not re.search(
+            r"(?m)^  connectorId:\s*" + re.escape(connector["connector_id"]) + r"\s*$",
+            values,
+        ):
+            raise ApiError(409, "GITOPS_CONNECTOR_MISMATCH", "Cluster connector values do not match the registered connector.")
+        if not re.search(
+            r"(?m)^  repository:\s*" + re.escape(image_repo) + r"\s*$",
+            values,
+        ):
+            raise ApiError(409, "GITOPS_IMAGE_REPOSITORY_MISMATCH", "Cluster connector image repository is not approved.")
+        values, updated = re.subn(
+            r"(?m)^(  digest:\s*)[^\r\n]*$",
+            lambda match: match.group(1) + digest,
+            values,
+        )
+        if updated != 1:
+            raise ApiError(409, "GITOPS_VALUES_INVALID", "Expected exactly one image digest in connector values.")
+        rbac = package_files(__package__).joinpath(
+            "system_repo_template/charts/navigan-cluster-connector/templates/rbac.yaml"
+        ).read_text(encoding="utf-8")
+        commit = app.commit_files(
+            repository["installation_id"],
+            repository["organization_login"],
+            repository["repository_name"],
+            {
+                "values/connector.yaml": values,
+                "charts/navigan-cluster-connector/templates/rbac.yaml": rbac,
+            },
+            branch=repository["default_branch"],
+            message=f"Upgrade Navigan connector for {identifier} ({body['reason']})",
+        )
+        return {
+            "clusterId": identifier,
+            "connectorId": connector["connector_id"],
+            "imageDigest": digest,
+            "repositoryCommit": commit["revision"],
+            "status": "GITOPS_CHANGE_COMMITTED",
+            "message": "Argo CD sync and new connector inventory must be verified separately.",
+        }
+
     def mark_system_repository_active(self, cluster_id, repository):
         self.db.execute(
             "UPDATE cluster_management.cluster_system_repositories "
@@ -1015,3 +1094,14 @@ class Repository:
                 "totalPages": math.ceil(count / int(query["pageSize"])),
             },
         }
+
+    def summary(self):
+        scope, params = scope_clause(self.principal)
+        rows = self.db.execute(
+            "SELECT k.status,count(*) AS n FROM cluster_management.clusters k "
+            "JOIN customer_management.customers c USING(customer_id) "
+            "JOIN environment_management.environments e USING(environment_id) "
+            f"WHERE {VISIBLE_CLUSTER_CONDITION} AND {scope} GROUP BY k.status", params
+        ).fetchall()
+        statuses = {row["status"]: int(row["n"]) for row in rows}
+        return {"total": sum(statuses.values()), "byStatus": statuses, "byProvider": {}}

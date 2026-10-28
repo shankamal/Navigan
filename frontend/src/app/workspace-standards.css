@@ -1,0 +1,154 @@
+/* Shared layout standards. Responsive changes use usable space, not device names.
+   These rules govern presentation only; no records, permissions or actions change. */
+:root {
+  --navigan-space-xs: 4px;
+  --navigan-space-sm: 8px;
+  --navigan-space-md: 12px;
+  --navigan-space-lg: 16px;
+  --navigan-space-xl: 24px;
+  --navigan-control-height: 34px;
+  --navigan-touch-height: 44px;
+}
+.app-shell.app-shell[class] .content-column {
+  min-width: 0;
+  flex: 1 1 0;
+  container-type: inline-size;
+}
+.app-shell.app-shell[class]
+  .content-column
+  > :is(main, .breadcrumb, .app-footer) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.app-shell.app-shell[class] main#main-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app-shell.app-shell main#main-content :is(section, article, fieldset, form) {
+  min-width: 0;
+}
+.app-shell.app-shell main#main-content :is(input, select, textarea) {
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: var(--navigan-font-family);
+}
+.app-shell.app-shell
+  main#main-content
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select
+  ) {
+  min-height: var(--navigan-control-height);
+}
+.app-shell.app-shell main#main-content .button {
+  min-height: var(--navigan-control-height);
+}
+.app-shell.app-shell main#main-content :is(pre, code) {
+  max-width: 100%;
+}
+.app-shell.app-shell main#main-content pre {
+  overflow-x: auto;
+  white-space: pre;
+}
+/* Wide data remains available via local scrolling; never clip whole pages. */
+.app-shell.app-shell
+  main#main-content
+  :is(
+    .table-scroll,
+    [class*="tableScroll"],
+    [class*="TableScroll"],
+    [class*="tableWrap"],
+    [class*="tableContainer"]
+  ) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.app-shell.app-shell main#main-content table {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell.app-shell main#main-content table :is(th, td) {
+  overflow-wrap: anywhere;
+}
+.app-shell.app-shell main#main-content :is(.panel, .pd-card, .metric, .pd-kpi) {
+  min-width: 0;
+}
+/* Retain the accepted header grid and its explicit legacy-offset resets. */
+@container (max-width: 720px) {
+  .app-shell.app-shell[class] main#main-content .page-heading {
+    grid-template-columns: minmax(0, 1fr) !important;
+    row-gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+  .app-shell.app-shell[class] main#main-content .heading-actions {
+    min-width: 0 !important;
+    max-width: 100%;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+  .app-shell.app-shell[class] main#main-content .heading-actions .button {
+    white-space: normal !important;
+    height: auto !important;
+  }
+  .app-shell.app-shell
+    main#main-content
+    :is(
+      .pd-kpis,
+      .customer-metrics,
+      .environment-metrics,
+      .cluster-directory-metrics
+    ) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 8px;
+  }
+}
+@container (max-width: 480px) {
+  .app-shell.app-shell[class] main#main-content .page-heading-copy {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+    column-gap: 8px !important;
+  }
+  .app-shell.app-shell[class] main#main-content .page-heading-symbol {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .app-shell.app-shell main#main-content :is(.page-heading, .pd-heading) h1 {
+    overflow-wrap: anywhere;
+  }
+}
+@media (pointer: coarse) {
+  .app-shell.app-shell
+    main#main-content
+    :is(.button, input:not([type="checkbox"]):not([type="radio"]), select),
+  .app-shell.app-shell[class] main#main-content .heading-actions .button {
+    min-height: var(--navigan-touch-height) !important;
+  }
+}
+@media (max-width: 640px) {
+  /* Prevent automatic input zoom on mobile without reducing surrounding text. */
+  .app-shell.app-shell
+    main#main-content
+    :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    font-size: 16px !important;
+  }
+  .app-shell.app-shell[class] .topbar {
+    gap: 8px;
+  }
+  .app-shell.app-shell[class] .topbar .platform-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .app-shell.app-shell
+    main#main-content
+    :is(.form-actions, .heading-actions, .toolbar) {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.app-shell * {
+    scroll-behavior: auto;
+  }
+}

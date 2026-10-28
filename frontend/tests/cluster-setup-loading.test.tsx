@@ -67,6 +67,13 @@ function mount() {
   );
 }
 async function selectCustomer() {
+  // Customer options are loaded after the active-customer search is entered.
+  fireEvent.change(
+    screen.getByPlaceholderText("Search active customers by name"),
+    {
+      target: { value: "Active" },
+    },
+  );
   await screen.findByRole("option", { name: "Active customer" });
   fireEvent.change(screen.getByRole("combobox", { name: /Customer/i }), {
     target: { value: "CUS-active" },

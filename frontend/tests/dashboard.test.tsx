@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlatformDashboard } from "@/modules/dashboard/platform-dashboard";
 import { architect } from "./fixtures";
 const mocks = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ refetchQueries: mocks.refresh }),
+}));
 const query = (data: unknown) => ({
   data,
   isPending: false,
@@ -30,6 +34,29 @@ describe("Dashboard navigation and freshness", () => {
   beforeEach(() => {
     mocks.refresh.mockReset().mockResolvedValue({ data: {} });
   });
+  it("places overview charts before compact estate and operation summaries", () => {
+    render(<PlatformDashboard />);
+    const charts = screen.getByRole("region", {
+      name: "Platform overview charts",
+    });
+    const summaries = screen.getByRole("region", {
+      name: "Navigan platform KPIs",
+    });
+    expect(
+      charts.compareDocumentPosition(summaries) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    for (const name of [
+      "Cloud footprint",
+      "Active record coverage",
+      "Cluster workflow state",
+    ]) {
+      expect(
+        screen.getByRole("button", { name: `About ${name}` }),
+      ).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
   it("opens exact filters for active records and failed operations", () => {
     render(<PlatformDashboard />);
     expect(
@@ -52,7 +79,7 @@ describe("Dashboard navigation and freshness", () => {
   it("refreshes counts and supporting sections together", async () => {
     render(<PlatformDashboard />);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(20));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(5));
     expect(screen.getByRole("status")).toHaveTextContent("Updated");
   });
   it("announces failed refreshes instead of implying all data is current", async () => {
@@ -61,7 +88,7 @@ describe("Dashboard navigation and freshness", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Some data could not be refreshed",
+        "Some data unavailable",
       ),
     );
   });

@@ -79,3 +79,59 @@ def test_aws_delivery_uses_approved_role_and_hides_token_from_command(
     assert "get-parameter --with-decryption" in commands
     assert "delete-parameter" in commands
     assert result["status"] == "INSTALLATION_STARTED"
+
+
+def test_generated_installations_have_disjoint_deployments_credentials_selectors_and_rbac(tmp_path, monkeypatch):
+    import io
+    import subprocess
+    import sys
+    import urllib.request
+    import yaml
+    from navigan.modules.migration_management.source_connector_installation import INSTALLER
+
+    applied = []
+    rollouts = []
+    def run(command, **kwargs):
+        if command[-3:] == ['apply', '-f', '-']:
+            applied.append(list(yaml.safe_load_all(kwargs['input'])))
+        else:
+            rollouts.append(command)
+    monkeypatch.setattr(subprocess, 'run', run)
+    monkeypatch.setattr(subprocess, 'check_output', lambda *args, **kwargs: 'test-ecr-password')
+    monkeypatch.setattr(urllib.request, 'urlopen', lambda *args, **kwargs: io.BytesIO(json.dumps({
+        'connectorId': 'SCC-' + 'c' * 32, 'connectorToken': 't' * 43,
+    }).encode()))
+    for suffix in ['a' * 32, 'b' * 32, 'a' * 32]:
+        bootstrap = tmp_path / 'bootstrap.json'
+        bootstrap.write_text(json.dumps({
+            'sourceClusterId': 'SRC-' + suffix, 'enrollmentToken': 'e' * 43,
+            'apiBaseUrl': 'https://api.example.test/v1/api/v1',
+            'imageRepository': '905418045935.dkr.ecr.ap-south-1.amazonaws.com/connector',
+            'imageDigest': 'sha256:' + 'd' * 64, 'kubeconfigPath': '/etc/kubernetes/admin.conf',
+        }))
+        monkeypatch.setattr(sys, 'argv', ['installer.py', str(bootstrap)])
+        exec(compile(INSTALLER, 'installer.py', 'exec'), {})
+        assert bootstrap.read_text() == ''
+
+    def keys(documents):
+        return {(d['kind'], d['metadata'].get('namespace'), d['metadata']['name'])
+                for d in documents if d['kind'] != 'Namespace'}
+    assert not keys(applied[0]) & keys(applied[1])
+    assert keys(applied[0]) == keys(applied[2])  # Retry the same registration, no duplicate agent.
+    for documents, rollout in zip(applied, rollouts):
+        docs = {d['kind']: d for d in documents if d['kind'] != 'Secret'}
+        name = docs['Deployment']['metadata']['name']
+        pod = docs['Deployment']['spec']['template']
+        assert name.startswith('navigan-source-') and name != 'navigan-source-connector'
+        assert docs['Deployment']['spec']['selector']['matchLabels'] == pod['metadata']['labels']
+        assert pod['spec']['serviceAccountName'] == docs['ServiceAccount']['metadata']['name'] == name
+        assert docs['ClusterRoleBinding']['metadata']['name'] == name
+        assert docs['ClusterRoleBinding']['roleRef']['name'] == docs['ClusterRole']['metadata']['name'] == name
+        assert docs['ClusterRoleBinding']['subjects'][0]['name'] == name
+        secrets = {d['metadata']['name'] for d in documents if d['kind'] == 'Secret'}
+        assert secrets == {name + '-credentials', name + '-image-pull'}
+        assert pod['spec']['imagePullSecrets'] == [{'name': name + '-image-pull'}]
+        token_env = next(e for e in pod['spec']['containers'][0]['env'] if e['name'] == 'NAVIGAN_SOURCE_CONNECTOR_TOKEN')
+        assert token_env['valueFrom']['secretKeyRef']['name'] == name + '-credentials'
+        assert 'deployment/' + name in rollout
+        assert all(verb in {'get', 'list'} for rule in docs['ClusterRole']['rules'] for verb in rule['verbs'])

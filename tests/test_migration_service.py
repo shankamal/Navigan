@@ -560,3 +560,49 @@ def test_rejected_assessment_refresh_requires_source_cluster():
     assert repo.rows[identifier]["status"] == "REJECTED"
     assert repo.rows[identifier]["version"] == 1
     assert len(repo.saved) == saved_count
+
+
+def test_source_first_draft_requires_explicit_instance_flag(monkeypatch):
+    monkeypatch.delenv("MIGRATION_SOURCE_FIRST_ENABLED", raising=False)
+    body = create_body()
+    body.pop("target")
+    body["source"]["sourceClusterId"] = "SRC-" + "a" * 32
+    with pytest.raises(ApiError) as error:
+        Service(Repository(), Access("creator", {"migration.create"}), "source-first").create(body)
+    assert error.value.code == "TARGET_REQUIRED"
+
+
+def test_source_first_draft_defers_target_and_discovery(monkeypatch):
+    monkeypatch.setenv("MIGRATION_SOURCE_FIRST_ENABLED", "true")
+    body = create_body()
+    body.pop("target")
+    body["source"]["sourceClusterId"] = "SRC-" + "a" * 32
+    result = Service(Repository(), Access("creator", {"migration.create"}), "source-first").create(body)
+    assert result["status"] == "DRAFT"
+    assert result["targetConfiguration"] == {}
+    assert result["sourceConfiguration"]["discoveryMode"] == "MANUAL"
+
+
+def test_source_first_rejects_a_source_from_another_customer(monkeypatch):
+    monkeypatch.setenv("MIGRATION_SOURCE_FIRST_ENABLED", "true")
+    body = create_body()
+    body.pop("target")
+    body["source"]["sourceClusterId"] = "SRC-" + "a" * 32
+    repo = Repository()
+    repo.get_source_cluster = lambda identifier: {"customer_id": "CUS-other", "status": "CONNECTED"}
+    with pytest.raises(ApiError) as error:
+        Service(repo, Access("creator", {"migration.create"}), "source-first").create(body)
+    assert error.value.code == "SOURCE_CLUSTER_UNAVAILABLE"
+
+
+def test_source_only_assessment_cannot_skip_target_selection_and_submit():
+    repo = Repository()
+    access = Access("creator", {"migration.create", "migration.submit"})
+    created = Service(repo, access, "corr-1").create(create_body())
+    identifier = created["migrationId"]
+    repo.rows[identifier]["status"] = "ASSESSMENT_READY"
+    repo.rows[identifier]["source_configuration"]["discoveryMode"] = "MANUAL"
+    repo.rows[identifier]["target_configuration"] = {}
+    with pytest.raises(ApiError) as error:
+        Service(repo, access, "corr-2").change(identifier, "submit", {"version":1,"reason":"Skip target selection"})
+    assert error.value.code == "TARGET_SELECTION_REQUIRED"

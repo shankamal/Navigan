@@ -145,19 +145,39 @@ describe("Custom Cognito login", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveValue("");
   });
-  it.each(["/login", "/customers/new"])("lands on Dashboard after sign-in from %s", async (pathname) => {
-    const replace = vi.fn();
-    const browserWindow = Object.create(window);
-    Object.defineProperty(browserWindow, "location", { value: { pathname, replace } });
-    vi.mocked(signIn).mockResolvedValue({ isSignedIn: true, nextStep: { signInStep: "DONE" } });
-    render(<LoginForm />);
-    vi.stubGlobal("window", browserWindow);
-    try {
-      login();
-      await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
+  it.each(["/login", "/customers/new"])(
+    "lands on Dashboard after sign-in from %s",
+    async (pathname) => {
+      const replace = vi.fn();
+      const browserWindow = Object.create(window);
+      Object.defineProperty(browserWindow, "location", {
+        value: { pathname, replace },
+      });
+      vi.mocked(signIn).mockResolvedValue({
+        isSignedIn: true,
+        nextStep: { signInStep: "DONE" },
+      });
+      render(<LoginForm />);
+      vi.stubGlobal("window", browserWindow);
+      try {
+        login();
+        await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+});
 
+it("shows and hides a password without submitting or changing its value", () => {
+  render(<LoginForm compactNotice />);
+  const password = screen.getByLabelText("Password");
+  fireEvent.change(password, { target: { value: "preview-value" } });
+  expect(password).toHaveAttribute("type", "password");
+  fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+  expect(password).toHaveAttribute("type", "text");
+  expect(password).toHaveValue("preview-value");
+  fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
+  expect(password).toHaveAttribute("type", "password");
+  expect(signIn).not.toHaveBeenCalled();
 });

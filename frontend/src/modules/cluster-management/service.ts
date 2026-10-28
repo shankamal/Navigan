@@ -1,4 +1,5 @@
 import { apiClient, parseResponse, writeHeaders } from "@/shared/api/client";
+import { resourceSummary } from "@/shared/api/summary";
 import {
   clusterListSchema,
   clusterSchema,
@@ -21,14 +22,33 @@ import {
 
 const base = "/clusters";
 export const clusters = {
-  list: async (filters: ClusterFilters = {}) =>
+  list: async (filters: ClusterFilters = {}, signal?: AbortSignal) =>
     parseResponse(
       clusterListSchema,
       (
         await apiClient.get(base, {
           params: { page: 0, pageSize: 20, ...filters },
+          signal,
         })
       ).data,
+    ),
+  summary: (signal?: AbortSignal) =>
+    resourceSummary(
+      "clusters",
+      [
+        "ACTIVE",
+        "DRAFT",
+        "SUBMITTED",
+        "UNDER_REVIEW",
+        "PLAN_READY",
+        "APPLYING",
+        "FAILED",
+      ],
+      [],
+      async (status, _provider, requestSignal) =>
+        (await clusters.list({ page: 0, pageSize: 1, status }, requestSignal))
+          .pagination.totalElements,
+      signal,
     ),
   get: async (id: string) =>
     parseResponse(clusterSchema, (await apiClient.get(base + "/" + id)).data),

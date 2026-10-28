@@ -5,23 +5,25 @@ import type { BootstrapRemediationFilters, Filters } from "../model/types";
 export const useEnvironments = (filters: Filters) =>
   useQuery({
     queryKey: ["environments", filters],
-    queryFn: () => environments.list(filters),
+    queryFn: ({ signal }) => environments.list(filters, signal),
   });
 
-export const useEnvironmentCount = (status?: string, enabled = true) =>
+export const useEnvironmentSummary = (enabled = true) =>
   useQuery({
-    queryKey: ["environment-count", status || "ALL"],
-    queryFn: async () =>
-      (
-        await environments.list({
-          page: 0,
-          pageSize: 1,
-          sort: "createdAt,desc",
-          status,
-        })
-      ).pagination.totalElements,
+    queryKey: ["environment-count", "summary"],
+    queryFn: ({ signal }) => environments.summary(signal),
     enabled,
   });
+
+export const useEnvironmentCount = (status?: string, enabled = true) => {
+  return useQuery({
+    queryKey: ["environment-count", "summary"],
+    queryFn: ({ signal }) => environments.summary(signal),
+    select: (summary) =>
+      status ? (summary.byStatus[status] ?? 0) : summary.total,
+    enabled,
+  });
+};
 
 export const useEnvironment = (id: string) =>
   useQuery({

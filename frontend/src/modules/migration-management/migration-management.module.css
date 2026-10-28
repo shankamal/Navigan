@@ -6,7 +6,7 @@
   padding: 16px 18px;
   border: 1px solid #cfe0bb;
   border-radius: 12px;
-  background: #f6faef;
+  background: #f8fafc;
   color: #29430f;
 }
 
@@ -24,7 +24,7 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   border-bottom: 1px solid #dfe5d9;
-  background: #f7f9f5;
+  background: #f8fafc;
 }
 
 .step {
@@ -54,7 +54,7 @@
   flex: 0 0 32px;
   place-items: center;
   border-radius: 50%;
-  background: #e7ece2;
+  background: #f1f5f9;
 }
 
 .step small,
@@ -64,7 +64,7 @@
 
 .step small {
   margin-bottom: 2px;
-  font-size: 11px;
+  font-size: var(--navigan-font-caption);
 }
 
 .step strong {
@@ -79,7 +79,7 @@
 
 .activeStep .stepIcon,
 .completeStep .stepIcon {
-  background: #dff0c6;
+  background: #e9eff5;
   color: #4c8100;
 }
 
@@ -146,7 +146,7 @@
   margin-top: 24px;
   padding: 16px 18px;
   border-radius: 10px;
-  background: #f3f6ef;
+  background: #f8fafc;
 }
 
 .scopeCallout {
@@ -164,7 +164,7 @@
   padding: 20px;
   border: 1px solid #cae1ac;
   border-radius: 12px;
-  background: #f8fbf4;
+  background: #f8fafc;
 }
 
 .sourceRegistration {
@@ -187,6 +187,56 @@
 .bootstrapNotice p {
   margin: 5px 0 0;
   color: #66765a;
+}
+
+.sourceConnectionProgress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sourceConnectionProgress li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid #dce3ec;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sourceConnectionProgress li:first-child {
+  border-color: #a9cc87;
+  color: #285c24;
+}
+
+.sourceConnectedNotice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border: 1px solid #a9cc87;
+  border-radius: 7px;
+  color: #285c24;
+  background: #f8fbf6;
+}
+
+.sourceConnectedNotice p {
+  margin: 3px 0 0;
+}
+
+@media (max-width: 740px) {
+  .sourceConnectionProgress {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sourceRegistrationWarning {
@@ -274,9 +324,9 @@
   right: 17px;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #e7eedf;
+  background: #f1f5f9;
   color: #54674a;
-  font-size: 11px;
+  font-size: var(--navigan-font-body);
   font-weight: 700;
 }
 
@@ -350,7 +400,7 @@
 
 .disabledOption {
   opacity: 0.58;
-  background: #f5f6f4;
+  background: #f8fafc;
 }
 
 .checkGrid,
@@ -368,7 +418,7 @@
   padding: 16px;
   border: 1px solid #e0e5dc;
   border-radius: 10px;
-  background: #fafbf9;
+  background: #f8fafc;
 }
 
 .reviewGrid span,
@@ -384,7 +434,7 @@
 
 .finalNotice {
   align-items: flex-start;
-  background: #f6faef;
+  background: #f8fafc;
   color: #34520e;
 }
 
@@ -400,7 +450,7 @@
   min-height: 82px;
   padding: 16px 28px;
   border-top: 1px solid #dfe5d9;
-  background: #fafbf9;
+  background: #f8fafc;
 }
 
 .actions > div:last-child {
@@ -466,18 +516,6 @@
   box-shadow: 0 12px 32px rgb(31 55 25 / 10%);
 }
 
-.approvalPanelBlocked {
-  border-color: #f0c8c8;
-  border-left-color: #df4040;
-  background: #fffafa;
-}
-
-.approvalPanelBlocked .approvalIcon {
-  border-color: #f0c4c4;
-  color: #fff;
-  background: #df4040;
-}
-
 .approvalPanel h2 {
   margin: 6px 0 4px;
   font-size: 0.98rem;
@@ -509,7 +547,7 @@
   border: 1px solid #d3e8bc;
   border-radius: 13px;
   color: #4f8211;
-  background: linear-gradient(145deg, #eff9e3, #e2f2cd);
+  background: linear-gradient(145deg, #f1f5f9, #e9eff5);
 }
 
 .approvalStatusLine {
@@ -755,11 +793,11 @@
   right: 8px;
   left: 42px;
   height: 2px;
-  background: #dce3da;
+  background: #e9eff5;
 }
 
 .draft {
-  background: #edf0ed;
+  background: #f1f5f9;
   color: #66716a;
 }
 
@@ -779,7 +817,7 @@
 }
 
 .approved {
-  background: #ddf2d1;
+  background: #e9eff5;
   color: #4e941d;
 }
 
@@ -846,7 +884,7 @@
   min-height: 38px;
   border: 1px solid #ccd5ca;
   border-radius: 7px;
-  background: #fcfdfc;
+  background: #f8fafc;
 }
 
 .filters select {
@@ -886,7 +924,7 @@
 .portfolioTable th {
   padding: 10px 13px;
   border-bottom: 1px solid #dde3db;
-  background: #f4f6f3;
+  background: #f8fafc;
   color: #5a665e;
   font-size: 0.65rem;
   font-weight: 700;
@@ -910,7 +948,7 @@
 }
 
 .portfolioTable tbody tr:hover {
-  background: #f8fbf5;
+  background: #f8fafc;
   box-shadow: inset 3px 0 #80b928;
 }
 
@@ -985,7 +1023,7 @@
 }
 
 .stageDraft {
-  background: #edf0ed;
+  background: #f1f5f9;
   color: #59655d;
 }
 
@@ -1005,7 +1043,7 @@
 }
 
 .stageApproved {
-  background: #ddf2d1;
+  background: #e9eff5;
   color: #3f8015;
 }
 
@@ -1050,7 +1088,7 @@
 .rowMenu > summary:hover,
 .rowMenu[open] > summary {
   border-color: #89b94a;
-  background: #eff7e8;
+  background: #f1f5f9;
   color: #52792f;
 }
 
@@ -1092,7 +1130,7 @@
 
 .rowMenu > div > a:hover,
 .rowMenu > div > button:hover {
-  background: #f5f8f3;
+  background: #f8fafc;
 }
 
 .rowMenu > div > button:disabled {
@@ -1193,7 +1231,7 @@
 }
 
 .attentionCard > a:hover {
-  background: #f8faf7;
+  background: #f8fafc;
 }
 
 .attentionCard > a strong,
@@ -1456,7 +1494,7 @@
   color: #475569;
 }
 .migrationWorkspace .step small {
-  font-size: 11px;
+  font-size: var(--navigan-font-caption);
 }
 .migrationWorkspace .step strong {
   font-size: 13px;
@@ -1823,7 +1861,7 @@
 }
 .summaryProgress li small {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--navigan-font-caption);
   font-weight: 400;
 }
 .summaryProgress li svg {
@@ -1881,7 +1919,7 @@
   display: grid;
   place-items: center;
   color: #fff;
-  font-size: 11px;
+  font-size: var(--navigan-font-body);
   min-width: 0;
   overflow: hidden;
 }
@@ -2102,7 +2140,7 @@
   font-weight: 600;
 }
 .migrationWorkspace .portfolioTable td:first-child span {
-  font-size: 11px;
+  font-size: var(--navigan-font-table);
 }
 .migrationWorkspace .platformPath {
   flex-wrap: wrap;
@@ -2191,7 +2229,7 @@
   display: block;
   margin: 8px 0;
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--navigan-font-caption);
 }
 .boardCard > a {
   display: flex;
@@ -2327,7 +2365,7 @@
   font-size: 12px;
 }
 .summaryPath {
-  font-size: 11px;
+  font-size: var(--navigan-font-body);
   gap: 5px;
   flex-wrap: nowrap;
 }
@@ -2363,12 +2401,376 @@
   background: #eef2f7;
 }
 
-.approvedStatus, .migrationWorkspace .approved {background:#a8d86e; border-color:#96c65c; color:#17351d; font-weight:600;}
-.migrationWorkspace .stageApproved,
-.migrationContextMeta .approvedStatus,
-.approvalStatusLine .approvedStatus {
+.approvedStatus,
+.migrationWorkspace .approved {
   background: #a8d86e;
   border-color: #96c65c;
   color: #17351d;
   font-weight: 600;
+}
+.migrationWorkspace .stageApproved,
+.migrationContextMeta .approvedStatus {
+  background: #a8d86e;
+  border-color: #96c65c;
+  color: #17351d;
+  font-weight: 600;
+}
+
+/* Assessment actions share one sticky footer: planning and governance never overlap */
+.reportDecisionBar {
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  bottom: 10px;
+}
+.reportPlanAction {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 1 1 100%;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5eae4;
+}
+.reportPlanAction > div {
+  display: grid;
+  gap: 4px;
+}
+.reportPlanAction strong {
+  font-size: 0.84rem;
+  color: #23352b;
+}
+.reportPlanAction span {
+  font-size: 0.73rem;
+  color: #5c6e65;
+}
+.reportPlanAction > a {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .reportPlanAction {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .reportPlanAction > a {
+    justify-content: center;
+  }
+  .reportDecisionBar {
+    bottom: 0;
+    border-radius: 9px 9px 0 0;
+  }
+}
+
+.reportApprovalNote {
+  margin: 0;
+  color: #a64e18;
+  background: #fff7ed;
+  border: 1px solid #f2dcc6;
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.reportDecisionBar > .reportDecisionActions {
+  margin-left: auto;
+}
+
+/* Compact assessment sticky bar: content-sized single row without unused governance space */
+.reportDecisionBar {
+  gap: 8px 12px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  min-height: 0;
+}
+.reportPlanAction {
+  flex: 1 1 auto;
+  padding: 0;
+  border-bottom: 0;
+  gap: 12px;
+}
+.reportPlanAction > div {
+  gap: 2px;
+}
+.reportPlanAction span {
+  font-size: 0.71rem;
+  line-height: 1.35;
+}
+.reportPlanAction > a {
+  padding: 9px 13px;
+}
+.reportDecisionBar > .reportDecisionActions {
+  flex: 0 0 auto;
+}
+@media (max-width: 720px) {
+  .reportDecisionBar {
+    padding: 9px 12px;
+  }
+  .reportPlanAction {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .reportPlanAction > a {
+    margin-left: auto;
+  }
+}
+
+.assessmentHeadingActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.assessmentHeadingActions > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .assessmentHeadingActions {
+    justify-content: flex-start;
+  }
+  .assessmentHeadingActions > a {
+    white-space: normal;
+  }
+}
+.connectionCard,
+.portfolioPanel,
+.attentionPanel {
+  border-color: var(--navigan-panel-border, #dfe5ea);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.optionCard,
+.checkCard,
+.attentionCard,
+.metricCard,
+.boardCard {
+  border-color: var(--navigan-card-border, #ceddc4);
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+/* ADAPTIVE MIGRATION COMMON DENSITY */
+@container (max-width:1800px) {
+  .migrationWorkspace {
+    gap: 8px;
+    font-size: var(--navigan-font-body);
+  }
+  .migrationWorkspace :is(.portfolioPanel, .attentionPanel, .connectionCard) {
+    border-radius: 5px;
+  }
+  .migrationWorkspace
+    :is(.metricCard, .boardCard, .attentionCard, .optionCard, .checkCard) {
+    border-radius: 5px;
+  }
+  .migrationWorkspace .portfolioTable :is(th, td) {
+    padding-block: 6px;
+    font-size: var(--navigan-font-label);
+  }
+  .migrationWorkspace .actions {
+    gap: 7px;
+    padding-block: 6px;
+  }
+  .reportDecisionBar {
+    bottom: 5px;
+    gap: 6px 9px;
+    padding: 6px 10px;
+    border-radius: 5px;
+  }
+  .reportPlanAction {
+    gap: 8px;
+  }
+  .reportPlanAction strong {
+    font-size: var(--navigan-font-body);
+  }
+  .reportPlanAction span {
+    font-size: var(--navigan-font-body);
+  }
+  .reportPlanAction > a {
+    padding: 6px 9px;
+  }
+  .assessmentHeadingActions {
+    gap: 6px;
+  }
+}
+
+/* DEFINITIVE COMPACT MIGRATION OVERVIEW */
+@media (min-width: 900px) {
+  .migrationWorkspace {
+    gap: 8px !important;
+  }
+  .migrationWorkspace .portfolioMetrics {
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+  }
+  .migrationWorkspace .metricCard {
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    border-radius: 5px !important;
+  }
+  .migrationWorkspace .metricCard h2 {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+  .migrationWorkspace .metricCard p {
+    margin: 2px 0 7px !important;
+    font-size: var(--navigan-font-body) !important;
+    line-height: 1.3 !important;
+  }
+  .migrationWorkspace .stackedLifecycle {
+    height: 16px !important;
+    border-radius: 4px !important;
+  }
+  .migrationWorkspace .stackedLifecycle > span {
+    font-size: var(--navigan-font-body) !important;
+  }
+  .migrationWorkspace .metricLegend {
+    gap: 3px 8px !important;
+    margin-top: 6px !important;
+  }
+  .migrationWorkspace .metricLegend li {
+    font-size: 9.75px !important;
+  }
+  .migrationWorkspace .coverageValue {
+    margin: 8px 0 6px !important;
+    font-size: 18px !important;
+    line-height: 1.2 !important;
+  }
+  .migrationWorkspace .coverageValue small {
+    font-size: var(--navigan-font-caption) !important;
+  }
+  .migrationWorkspace .metricCard progress {
+    height: 7px !important;
+  }
+  .migrationWorkspace .metricHint {
+    margin-top: 4px !important;
+    font-size: var(--navigan-font-caption) !important;
+  }
+  .migrationWorkspace .pathMetrics {
+    gap: 6px !important;
+    max-height: 88px !important;
+  }
+  .migrationWorkspace .pathMetricLabel {
+    gap: 4px !important;
+    margin-bottom: 2px !important;
+    font-size: 9.75px !important;
+  }
+  .migrationWorkspace .attentionStrip {
+    gap: 5px 12px !important;
+    padding: 7px 10px !important;
+    margin-bottom: 8px !important;
+    font-size: var(--navigan-font-body) !important;
+  }
+  .migrationWorkspace .portfolioLayout {
+    gap: 8px !important;
+  }
+  .migrationWorkspace .portfolioHeading {
+    gap: 8px !important;
+    padding: 9px 12px !important;
+  }
+  .migrationWorkspace .portfolioHeading h2 {
+    font-size: 13px !important;
+  }
+  .migrationWorkspace .portfolioHeading p {
+    margin-top: 2px !important;
+    font-size: var(--navigan-font-body) !important;
+    line-height: 1.25 !important;
+  }
+  .migrationWorkspace .filters {
+    gap: 7px !important;
+    padding: 0 12px 9px !important;
+  }
+  .migrationWorkspace .filters label > span {
+    margin-bottom: 3px !important;
+    font-size: var(--navigan-font-label) !important;
+  }
+  .migrationWorkspace .filters select,
+  .migrationWorkspace .search > div {
+    min-height: 30px !important;
+    border-radius: 5px !important;
+  }
+  .migrationWorkspace .filters select,
+  .migrationWorkspace .search input {
+    font-size: var(--navigan-font-control) !important;
+  }
+  .migrationWorkspace .viewToggle button {
+    padding: 5px 8px !important;
+    font-size: var(--navigan-font-control) !important;
+  }
+  .migrationWorkspace .portfolioTable th {
+    padding: 6px 8px !important;
+    font-size: var(--navigan-font-label) !important;
+  }
+  .migrationWorkspace .portfolioTable td {
+    padding: 6px 8px !important;
+    font-size: var(--navigan-font-table) !important;
+  }
+}
+
+/* FINAL MIGRATION TYPOGRAPHY CONTRACT */
+.migrationWorkspace {
+  font-family: var(--navigan-font-family) !important;
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.35 !important;
+}
+.migrationWorkspace :is(h2) {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.migrationWorkspace :is(h3, h4, h5, h6) {
+  font-size: var(--navigan-font-subsection-title) !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+.migrationWorkspace :is(p, li, summary, dt, dd) {
+  font-size: var(--navigan-font-body) !important;
+  line-height: 1.35 !important;
+}
+.migrationWorkspace small {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.2 !important;
+}
+.migrationWorkspace :is(button, input, select, textarea, .button) {
+  font-size: var(--navigan-font-control) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace table {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace table thead th {
+  font-size: var(--navigan-font-label) !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+}
+.migrationWorkspace table tbody td {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace table tbody :is(strong, a) {
+  font-size: var(--navigan-font-table) !important;
+  line-height: 1.2 !important;
+}
+.migrationWorkspace
+  :is(
+    .metricLegend,
+    .pathMetricLabel,
+    .metricHint,
+    .attentionStrip,
+    .filters,
+    .portfolioHeading p
+  ) {
+  font-size: var(--navigan-font-caption) !important;
+  line-height: 1.25 !important;
+}
+.migrationWorkspace :is(.coverageValue, .metricCard > strong) {
+  font-size: 18px !important;
+  line-height: 1.05 !important;
+  font-weight: 600 !important;
 }

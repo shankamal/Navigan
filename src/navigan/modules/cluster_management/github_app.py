@@ -3,7 +3,7 @@ import os
 import time
 import urllib.error
 import urllib.request
-from base64 import b64encode
+from base64 import b64encode, b64decode
 
 import boto3
 import jwt
@@ -164,6 +164,24 @@ class GitHubApp:
                     "The existing system repository must be private.",
                 )
             return repository
+
+    def read_repository_file(self, installation_id, organization, repository_name, path, *, branch="main"):
+        """Read an existing file with a token restricted to the selected system repo."""
+        from urllib.parse import quote
+
+        token = self.repository_token(installation_id, repository_name)["token"]
+        safe_path = "/".join(quote(part, safe="") for part in path.split("/"))
+        result = self._request(
+            "GET",
+            f"/repos/{quote(organization, safe='')}/{quote(repository_name, safe='')}/contents/{safe_path}?ref={quote(branch, safe='')}",
+            token,
+        )
+        if result.get("type") != "file" or result.get("encoding") != "base64":
+            raise ApiError(409, "GITOPS_VALUES_INVALID", "Existing connector values must be a readable file.")
+        try:
+            return b64decode(result["content"]).decode("utf-8")
+        except (KeyError, ValueError, UnicodeDecodeError):
+            raise ApiError(409, "GITOPS_VALUES_INVALID", "Existing connector values are not valid UTF-8.") from None
 
     def commit_files(
         self,

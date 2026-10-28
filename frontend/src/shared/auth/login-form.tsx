@@ -1,4 +1,5 @@
 "use client";
+import { NaviganMark } from "@/shared/components/navigan-mark";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   signIn,
@@ -8,6 +9,7 @@ import {
   type SignInOutput,
 } from "aws-amplify/auth";
 import { configureAuth } from "./session";
+import { Eye, EyeOff } from "lucide-react";
 import { Button, ErrorNotice } from "@/shared/components/ui";
 
 type Step = SignInOutput["nextStep"];
@@ -48,7 +50,12 @@ export function loginError(error: unknown): Error {
       `Sign-in could not be completed. Try again, or contact your administrator.${diagnostic}`,
   );
 }
-export function LoginForm() {
+export function LoginForm({
+  compactNotice = false,
+}: {
+  compactNotice?: boolean;
+}) {
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<Step>();
   const [username, setUsername] = useState("");
@@ -103,6 +110,7 @@ export function LoginForm() {
     setMode("login");
     setStep(undefined);
     setPassword("");
+    setShowPassword(false);
     setConfirmation("");
     setAnswer("");
     setAttributes({});
@@ -151,6 +159,7 @@ export function LoginForm() {
     setMode("challenge");
     setAnswer("");
     setPassword("");
+    setShowPassword(false);
     setConfirmation("");
     setNotice("");
   }
@@ -210,6 +219,7 @@ export function LoginForm() {
       setError(loginError(e));
     } finally {
       setPassword("");
+      setShowPassword(false);
       setConfirmation("");
       setPending(false);
       lock.current = false;
@@ -223,12 +233,19 @@ export function LoginForm() {
       }}
       aria-busy={pending}
     >
-      <h2 ref={heading} tabIndex={-1}>
-        {title}
+      <h2
+        ref={heading}
+        tabIndex={-1}
+        className={
+          compactNotice && mode === "login" ? "login-welcome-title" : undefined
+        }
+      >
+        {compactNotice && mode === "login" && <NaviganMark reverse />}
+        <span>{title}</span>
       </h2>
       <p className="muted">
         {mode === "login"
-          ? "Sign in to your cloud and container workspace."
+          ? "Sign in to your workspace."
           : mode === "forgot"
             ? "Enter your account email or username to request a reset code."
             : delivery
@@ -266,17 +283,35 @@ export function LoginForm() {
           </div>
         )}
         {(mode === "login" || newPassword) && (
-          <label className="field">
-            {newPassword ? "New password" : "Password"}
-            <input
-              name="password"
-              type="password"
-              autoComplete={newPassword ? "new-password" : "current-password"}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
+          <div className="field">
+            <label htmlFor="navigan-password">
+              {newPassword ? "New password" : "Password"}
+            </label>
+            <span className="login-password-control">
+              <input
+                id="navigan-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete={newPassword ? "new-password" : "current-password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="login-password-toggle"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} aria-hidden="true" />
+                ) : (
+                  <Eye size={20} aria-hidden="true" />
+                )}
+              </button>
+            </span>
+          </div>
         )}
         {newPassword && (
           <label className="field">
@@ -370,7 +405,7 @@ export function LoginForm() {
           </Button>
         )}
       </fieldset>
-      <p className="metadata">
+      <p className={compactNotice ? "login-access-note" : "metadata"}>
         Access is based on your assigned role and customer permissions. Contact
         your administrator for an account.
       </p>

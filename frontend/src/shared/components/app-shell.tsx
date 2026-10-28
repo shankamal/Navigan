@@ -2,8 +2,13 @@
 import "./workspace-navigation.css";
 import "./workspace-backdrop.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { IntentLink as Link } from "@/shared/components/intent-link";
+import {
+  WorkspacePageProvider,
+  useWorkspacePage,
+} from "./workspace-page-context";
 import { usePathname } from "next/navigation";
+import { NaviganMark } from "./navigan-mark";
 import {
   ArrowRightLeft,
   Building2,
@@ -29,6 +34,7 @@ import {
   type PlatformPermission,
 } from "@/shared/auth/permissions";
 import { signOut } from "@/shared/auth/session";
+import { runtimeConfig } from "@/shared/config/runtime-config";
 import { Button } from "./ui";
 
 interface NavigationItem {
@@ -245,6 +251,14 @@ function AccountMenu() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <WorkspacePageProvider>
+      <AppShellContent>{children}</AppShellContent>
+    </WorkspacePageProvider>
+  );
+}
+function AppShellContent({ children }: { children: ReactNode }) {
+  const { label: pageLabel } = useWorkspacePage();
   const pathname = usePathname();
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
@@ -267,7 +281,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       ["localhost", "127.0.0.1"].includes(window.location.hostname),
     );
   }, []);
-  const logo = process.env.NEXT_PUBLIC_CORPORATE_LOGO_URL;
+  const logo = runtimeConfig().corporateLogoUrl;
   useEffect(() => {
     const header = document.querySelector<HTMLElement>(
       ".app-shell > header.topbar",
@@ -356,7 +370,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-label="Navigan home"
                 title="Navigan home"
               >
-                <Network size={24} aria-hidden="true" />
+                <NaviganMark compact />
                 <span className="sidebar-brand-name">Navigan</span>
               </Link>
               <button
@@ -423,6 +437,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               {current?.label ?? "Access"}
             </Link>
+            {pathname.endsWith("/plan") && pageLabel && (
+              <>
+                <ChevronRight size={14} />
+                <span aria-current="page">{pageLabel}</span>
+              </>
+            )}
             {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
               <>
                 <ChevronRight size={14} />

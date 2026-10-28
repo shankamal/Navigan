@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { IntentLink as Link } from "@/shared/components/intent-link";
 import { useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -16,9 +16,11 @@ import {
   Columns3,
   MoreVertical,
   Plus,
+  RefreshCw,
   Search,
   Users,
   XCircle,
+  Trash2,
 } from "lucide-react";
 
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -26,11 +28,17 @@ import {
   hasPermission,
   isMigrationPreviewEnabled,
 } from "@/shared/auth/permissions";
-import { PageHeading } from "@/shared/components/ui";
-import { AssessmentWizard } from "./assessment-wizard";
-import { useCancelMigration, useMigrations } from "./hooks";
+import { normalizeApiError } from "@/shared/api/client";
+import { Button, PageHeading } from "@/shared/components/ui";
+import {
+  useCancelMigration,
+  useDeleteMigrationAssessment,
+  useMigrations,
+} from "./hooks";
 import styles from "./migration-management.module.css";
 import { PlatformIcon } from "./platform-icon";
+import { MigrationPortfolioSummary } from "./migration-portfolio-summary";
+import overview from "./migration-overview.module.css";
 
 const lifecycle = [
   {
@@ -116,6 +124,7 @@ export function MigrationManagementPage() {
   const canEdit =
     hasPermission(identity, "migration.edit") || isMigrationPreviewEnabled();
   const cancelMigration = useCancelMigration();
+  const deleteAssessment = useDeleteMigrationAssessment();
   const sourcePlatforms = [
     ...new Set(migrationItems.map((item) => item.sourcePlatform)),
   ];
@@ -184,133 +193,129 @@ export function MigrationManagementPage() {
     .sort((a, b) => b.count - a.count);
 
   return (
-    <div className={styles.migrationWorkspace}>
+    <div className={`${styles.migrationWorkspace} ${overview.overview}`}>
       <PageHeading
-        eyebrow="MIGRATION"
         title="Migration Overview"
         description={
           "Discover workloads, assess compatibility, and govern migration " +
           "approval across Kubernetes and cloud platforms."
         }
         action={
-          canCreate && (
-            <Link href="/migrations/new" className="button button-primary">
-              <Plus size={18} />
-              New migration assessment
-            </Link>
-          )
+          <>
+            <Button
+              variant="secondary"
+              type="button"
+              disabled={migrationsQuery.isFetching}
+              onClick={() => void migrationsQuery.refetch()}
+              aria-label="Refresh migration assessments"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </Button>
+            {canCreate && (
+              <Link href="/migrations/new" className="button button-primary">
+                <Plus size={16} />
+                New migration assessment
+              </Link>
+            )}
+          </>
         }
       />
 
-      <section
-        className={styles.portfolioMetrics}
-        aria-label="Migration portfolio metrics"
-      >
-        <article className={styles.metricCard}>
-          <h2>Assessment lifecycle</h2>
-          <p>
-            {migrationsQuery.isPending
-              ? "Loading assessments…"
-              : migrationsQuery.isError
-                ? "Metrics unavailable"
-                : `${migrationItems.length} assessments in this portfolio`}
-          </p>
-          <div
-            className={styles.stackedLifecycle}
-            role="img"
-            aria-label={lifecycleCounts
-              .map((item) => `${item.label}: ${item.count}`)
-              .join(", ")}
-          >
-            {lifecycleCounts
-              .filter((item) => item.count > 0)
-              .map((item) => (
-                <span
-                  key={item.label}
-                  className={styles[`segment${item.tone}`]}
-                  style={{ flex: item.count }}
-                  title={`${item.label}: ${item.count}`}
-                >
-                  {item.count}
-                </span>
-              ))}
-          </div>
-          <ul className={styles.metricLegend}>
-            {lifecycleCounts.map((item) => (
-              <li key={item.label}>
-                <span className={styles[`segment${item.tone}`]} />
-                {item.label}
-                <strong>{item.count}</strong>
-              </li>
-            ))}
-          </ul>
-        </article>
-        <article className={styles.metricCard}>
-          <h2>Approved assessments</h2>
-          <p>Approval coverage of the portfolio</p>
-          <strong className={styles.coverageValue}>
-            {approvedCount}
-            <small> of {migrationItems.length}</small>
-          </strong>
-          <progress
-            className={styles.coverageProgress}
-            max={Math.max(1, migrationItems.length)}
-            value={approvedCount}
-            aria-label="Approved assessments within portfolio"
-          />
-          <span className={styles.metricHint}>
-            {migrationItems.length
-              ? Math.round((approvedCount / migrationItems.length) * 100)
-              : 0}
-            % approved
-          </span>
-        </article>
-        <article className={styles.metricCard}>
-          <h2>Migration paths</h2>
-          <p>Source and destination footprint</p>
-          <div className={styles.pathMetrics}>
-            {pathCounts.length ? (
-              pathCounts.map((item) => (
-                <div key={item.path}>
-                  <div className={styles.pathMetricLabel}>
-                    <PlatformIcon platform={item.sourcePlatform} />
-                    <span>{platformLabel(item.sourcePlatform)}</span>
-                    <ArrowRight size={14} aria-hidden="true" />
-                    <PlatformIcon platform={item.targetPlatform} />
-                    <span>{platformLabel(item.targetPlatform)}</span>
-                    <strong>{item.count}</strong>
-                  </div>
-                  <progress
-                    max={Math.max(1, migrationItems.length)}
-                    value={item.count}
-                    aria-label={`${platformLabel(item.sourcePlatform)} to ${platformLabel(item.targetPlatform)} assessments`}
-                  />
+      {deleteAssessment.isError && (
+        <p role="alert">
+          Unable to delete assessment:{" "}
+          {normalizeApiError(deleteAssessment.error).message}
+        </p>
+      )}
+      {deleteAssessment.isSuccess && (
+        <p role="status">
+          Assessment deleted. Audit history and source connectors were retained.
+        </p>
+      )}
+      <MigrationPortfolioSummary
+        total={migrationItems.length}
+        lifecycle={lifecycleCounts}
+        approved={approvedCount}
+        paths={pathCounts}
+        pending={migrationsQuery.isPending}
+        error={migrationsQuery.isError}
+      />
+
+      {!migrationsQuery.isPending && !migrationsQuery.isError && (
+        <details
+          id="migration-attention"
+          className={overview.attentionDisclosure}
+        >
+          <summary>
+            <CircleAlert size={16} aria-hidden="true" />
+            <strong>Attention required</strong>
+            <span>
+              {awaitingReview.length} awaiting review · {blocked.length}{" "}
+              rejected
+            </span>
+          </summary>
+          <div className={`${styles.attentionPanel} ${overview.attention}`}>
+            <section
+              className={`${styles.attentionCard} ${overview.attentionItem}`}
+            >
+              <header className={styles.attentionReview}>
+                <Users size={18} aria-hidden="true" />
+                <div>
+                  <strong>Reports awaiting review</strong>
+                  <span>{awaitingReview.length}</span>
                 </div>
-              ))
-            ) : (
-              <span className={styles.metricHint}>
-                No migration paths to display.
-              </span>
-            )}
+              </header>
+              {awaitingReview.length === 0 ? (
+                <p className={styles.attentionEmpty}>No reports waiting.</p>
+              ) : (
+                awaitingReview.slice(0, 4).map((migration) => (
+                  <Link
+                    href={`/migrations/${migration.migrationId}`}
+                    key={migration.migrationId}
+                  >
+                    <strong>{migration.name}</strong>
+                    <span>{statusLabel(migration.status)}</span>
+                  </Link>
+                ))
+              )}
+            </section>
+
+            <section
+              className={`${styles.attentionCard} ${overview.attentionItem}`}
+            >
+              <header className={styles.attentionBlocked}>
+                <CircleAlert size={18} aria-hidden="true" />
+                <div>
+                  <strong>Rejected assessments</strong>
+                  <span>{blocked.length}</span>
+                </div>
+              </header>
+              {blocked.length === 0 ? (
+                <p className={styles.attentionEmpty}>
+                  No rejected assessments.
+                </p>
+              ) : (
+                blocked.slice(0, 4).map((migration) => (
+                  <Link
+                    href={`/migrations/${migration.migrationId}`}
+                    key={migration.migrationId}
+                  >
+                    <strong>{migration.name}</strong>
+                    <span>Needs remediation</span>
+                  </Link>
+                ))
+              )}
+            </section>
           </div>
-        </article>
-      </section>
-      <div
-        className={styles.attentionStrip}
-        aria-label="Assessment attention queue"
-      >
-        <CircleAlert size={18} aria-hidden="true" />
-        <strong>Attention required</strong>
-        <span>{awaitingReview.length} reports awaiting review</span>
-        <span>{blocked.length} rejected assessments</span>
-        <a href="#migration-attention">
-          View queue <ArrowRight size={14} />
-        </a>
-      </div>
+        </details>
+      )}
 
       <div className={styles.portfolioLayout}>
         <section className={`panel ${styles.portfolioPanel}`}>
-          <div className={styles.portfolioHeading}>
+          <div
+            className={`${styles.portfolioHeading} ${overview.assessmentHeading}`}
+          >
             <div>
               <h2>Migration assessments</h2>
               <p>
@@ -318,6 +323,11 @@ export function MigrationManagementPage() {
               </p>
             </div>
             <span className={styles.assessmentOnly}>Assessment only</span>
+            {!migrationsQuery.isPending && !migrationsQuery.isError && (
+              <span className={overview.resultCount}>
+                {filteredMigrations.length} of {migrationItems.length} shown
+              </span>
+            )}
             <div
               className={styles.viewToggle}
               role="group"
@@ -454,12 +464,18 @@ export function MigrationManagementPage() {
                       <td>
                         <div className={styles.platformPath}>
                           <span className={styles.sourcePlatform}>
-                            <PlatformIcon platform={migration.sourcePlatform} />
+                            <PlatformIcon
+                              size="compact"
+                              platform={migration.sourcePlatform}
+                            />
                             {platformLabel(migration.sourcePlatform)}
                           </span>
                           <ArrowRight size={14} aria-hidden="true" />
                           <span className={styles.targetPlatform}>
-                            <PlatformIcon platform={migration.targetPlatform} />
+                            <PlatformIcon
+                              size="compact"
+                              platform={migration.targetPlatform}
+                            />
                             {platformLabel(migration.targetPlatform)}
                           </span>
                         </div>
@@ -524,6 +540,30 @@ export function MigrationManagementPage() {
                               <Copy size={15} />
                               Copy migration ID
                             </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className={styles.cancelAction}
+                                disabled={
+                                  deleteAssessment.isPending ||
+                                  cancelMigration.isPending
+                                }
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Delete assessment "${migration.name}" for ${migration.customerName}? It will be removed from the assessment list. Audit history and source connectors will be retained.`,
+                                    )
+                                  ) {
+                                    deleteAssessment.mutate({
+                                      migrationId: migration.migrationId,
+                                      version: migration.version,
+                                    });
+                                  }
+                                }}
+                              >
+                                <Trash2 size={15} /> Delete assessment
+                              </button>
+                            )}
                             {canEdit &&
                               [
                                 "DRAFT",
@@ -536,7 +576,10 @@ export function MigrationManagementPage() {
                                 <button
                                   type="button"
                                   className={styles.cancelAction}
-                                  disabled={cancelMigration.isPending}
+                                  disabled={
+                                    cancelMigration.isPending ||
+                                    deleteAssessment.isPending
+                                  }
                                   onClick={() => {
                                     if (
                                       window.confirm(
@@ -591,12 +634,18 @@ export function MigrationManagementPage() {
                           <h3>{migration.name}</h3>
                           <p>{migration.customerName}</p>
                           <div className={styles.platformPath}>
-                            <PlatformIcon platform={migration.sourcePlatform} />
+                            <PlatformIcon
+                              size="compact"
+                              platform={migration.sourcePlatform}
+                            />
                             <span>
                               {platformLabel(migration.sourcePlatform)}
                             </span>
                             <ArrowRight size={14} />
-                            <PlatformIcon platform={migration.targetPlatform} />
+                            <PlatformIcon
+                              size="compact"
+                              platform={migration.targetPlatform}
+                            />
                             <span>
                               {platformLabel(migration.targetPlatform)}
                             </span>
@@ -621,69 +670,7 @@ export function MigrationManagementPage() {
             </div>
           )}
         </section>
-
-        <aside id="migration-attention" className={styles.attentionPanel}>
-          <div className={styles.attentionHeading}>
-            <CircleAlert size={20} aria-hidden="true" />
-            <div>
-              <h2>Attention required</h2>
-              <p>Items waiting for action</p>
-            </div>
-          </div>
-
-          <section className={styles.attentionCard}>
-            <header className={styles.attentionReview}>
-              <Users size={18} aria-hidden="true" />
-              <div>
-                <strong>Reports awaiting review</strong>
-                <span>{awaitingReview.length}</span>
-              </div>
-            </header>
-            {awaitingReview.length === 0 ? (
-              <p className={styles.attentionEmpty}>No reports waiting.</p>
-            ) : (
-              awaitingReview.slice(0, 4).map((migration) => (
-                <Link
-                  href={`/migrations/${migration.migrationId}`}
-                  key={migration.migrationId}
-                >
-                  <strong>{migration.name}</strong>
-                  <span>{statusLabel(migration.status)}</span>
-                </Link>
-              ))
-            )}
-          </section>
-
-          <section className={styles.attentionCard}>
-            <header className={styles.attentionBlocked}>
-              <CircleAlert size={18} aria-hidden="true" />
-              <div>
-                <strong>Blocked assessments</strong>
-                <span>{blocked.length}</span>
-              </div>
-            </header>
-            {blocked.length === 0 ? (
-              <p className={styles.attentionEmpty}>No blocked assessments.</p>
-            ) : (
-              blocked.slice(0, 4).map((migration) => (
-                <Link
-                  href={`/migrations/${migration.migrationId}`}
-                  key={migration.migrationId}
-                >
-                  <strong>{migration.name}</strong>
-                  <span>Needs remediation</span>
-                </Link>
-              ))
-            )}
-          </section>
-        </aside>
       </div>
     </div>
   );
 }
-
-export function MigrationCreatePage() {
-  return <AssessmentWizard />;
-}
-
-export { AssessmentReportCard } from "./assessment-report";

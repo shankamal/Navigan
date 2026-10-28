@@ -1,0 +1,2 @@
+# Boto3 is already provided by the existing deployment virtual environment.
+PyYAML==6.0.3
