@@ -3,6 +3,7 @@ import ast
 import importlib.util
 import json
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -10,6 +11,7 @@ import pytest
 from botocore.handlers import json_decode_template_body
 
 ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 spec = importlib.util.spec_from_file_location("dev_runtime_sync", ROOT / "scripts/sync-dev-runtime.py")
 h = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(h)
