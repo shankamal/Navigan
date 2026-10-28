@@ -11,7 +11,6 @@ import argparse
 import base64
 import copy
 from datetime import datetime, timezone
-import getpass
 import json
 import os
 from pathlib import Path
@@ -403,10 +402,11 @@ def wait_stack(cfn, name, identifier):
 
 
 def token_value():
+    # Optional application acceptance credential, separate from AWS deployment authentication.
+    # Ordinary deploy/verify/rollback commands never prompt for a browser token.
     token = os.environ.get("NAVIGAN_DEV_SMOKE_TOKEN")
-    if not token:
-        require(os.isatty(0), "Supply a DEV smoke token through the runner environment or interactive hidden prompt.")
-        token = getpass.getpass("DEV access token for read-only acceptance (hidden): ")
+    if not token or not token.strip():
+        return None
     token = token.strip()
     if token.lower().startswith("bearer "):
         token = token.split(None, 1)[1]
@@ -415,6 +415,8 @@ def token_value():
 
 
 def smoke(config, token, frontend=False, port=3001):
+    if not token:
+        return []  # Protected APIs require login; health/artifact checks still run separately.
     require(isinstance(port, int) and 1 <= port <= 65535, "Invalid local verification port.")
     base = (("http://127.0.0.1:" + str(port) + "/api/platform") if frontend else config["apiOrigin"] + config["apiBasePath"])
     statuses = []
@@ -490,8 +492,10 @@ def start_frontend(session, plan, directory, token, journal):
 
     probe = name + "-probe"
     try:
+        print("Frontend: pulling the saved image digest...", flush=True)
         env = builder.docker_auth(session, directory, config["account"], config["region"])
         common.run(["docker", "pull", item["uri"]], directory, directory / "frontend.log", env=env)
+        print("Frontend: checking candidate startup and runtime configuration...", flush=True)
         common.run(["docker", "run", "--detach", "--name", probe, "--label", "navigan.release=" + plan["id"],
                     "--publish", "127.0.0.1::3000", "--env-file", str(env_file), item["uri"]], directory, directory / "frontend.log", env=env)
         port = subprocess.check_output(["docker", "port", probe, "3000/tcp"], env=env).decode().strip()
@@ -512,6 +516,7 @@ def start_frontend(session, plan, directory, token, journal):
             if old:
                 common.run(["docker", "start", old["container"]], directory, directory / "frontend.log", env=env)
             raise
+        print("Frontend: running at http://localhost:3001", flush=True)
         return preview
     finally:
         subprocess.run(["docker", "rm", "--force", probe], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -555,7 +560,7 @@ def execute(session, path):
     if "image-worker" in plan["selected"]:
         require(worker_stamp(target.image_worker(session, state)) == plan["workerStamp"], "DEV collector changed after preparation.")
     token = token_value()
-    smoke(config, token)  # A known-good DEV credential and API are required before mutation.
+    smoke(config, token)  # Run authenticated preflight only when explicitly supplied.
     if "frontend" in plan["selected"]:
         frontend_before(common.read(path.parent / "previous-record.json"))
     if plan["databaseRequired"]:
@@ -621,11 +626,13 @@ def verify(session, path, token=None):
         require(actual["State"]["Running"] and actual["Config"]["Image"] == frontend["image"], "Frontend candidate image/state differs.")
         runtime = json.loads(builder.http("http://127.0.0.1:3001/api/runtime-config"))
         verify_frontend_runtime(config, runtime)
+        builder.http("http://127.0.0.1:3001/healthz")
         builder.http("http://127.0.0.1:3001/login")
     results = smoke(config, token or token_value(), frontend="frontend" in plan["manifest"]["components"])
     completed = {"environment": "dev", "status": "SUCCEEDED", "planId": plan["id"], "rootStackId": config["rootStackId"],
                  "configurationHash": plan["configurationHash"], "configuration": config, "manifest": plan["manifest"], "frontend": frontend,
                  "verifiedAt": datetime.now(timezone.utc).isoformat(), "authenticatedChecks": results,
+                 "authenticatedAcceptance": "PASSED" if results else "NOT_REQUESTED",
                  "rootTemplate": plan.get("rootTemplate"), "snapshotStamp": target.stamp(state)}
     if not journal.get("recordPublished"):
         current = common.get_optional(session.client("s3"), config["artifactBucket"], CURRENT, config["account"])
@@ -644,7 +651,8 @@ def verify(session, path, token=None):
         journal["lockReleased"] = True
         common.write(path.parent / "execution.json", journal)
     common.write(path.parent / "verification.json", completed)
-    print("DEV release verified; immutable artifacts retained, authenticated reads passed, last-successful record saved.")
+    print("DEV deployment verified; artifact/runtime checks passed and deployment record saved.")
+    print("Authenticated API checks: " + ("passed." if results else "not requested; verify sign-in in the browser."))
     if frontend:
         print("DEV candidate frontend: http://localhost:3001 (existing port 3000 and PROD unchanged)")
 
@@ -731,13 +739,15 @@ def rollback(session, path):
     previous = common.read(path.parent / "previous-record.json")
     if previous:
         restored = copy.deepcopy(previous)
-        restored.update(planId="rollback-" + plan["id"], rollbackOf=plan["id"], verifiedAt=datetime.now(timezone.utc).isoformat(), authenticatedChecks=results)
+        restored.update(planId="rollback-" + plan["id"], rollbackOf=plan["id"], verifiedAt=datetime.now(timezone.utc).isoformat(),
+                        authenticatedChecks=results, authenticatedAcceptance="PASSED" if results else "NOT_REQUESTED")
         if "database" in journal["completedStages"]:
             restored["manifest"]["components"]["database"] = plan["manifest"]["components"]["database"]
     else:
         restored = {"status": "BASELINE_RESTORED", "environment": "dev", "rootStackId": config["rootStackId"],
                     "planId": "rollback-" + plan["id"], "verifiedAt": datetime.now(timezone.utc).isoformat(),
-                    "forwardDatabaseArtifact": plan["manifest"]["components"].get("database"), "authenticatedChecks": results}
+                    "forwardDatabaseArtifact": plan["manifest"]["components"].get("database"), "authenticatedChecks": results,
+                    "authenticatedAcceptance": "PASSED" if results else "NOT_REQUESTED"}
     condition = {"IfMatch": journal["rollbackPreviousEtag"]} if journal["rollbackPreviousEtag"] else {"IfNoneMatch": "*"}
     if not journal.get("rollbackRecordPublished"):
         latest = common.get_optional(session.client("s3"), config["artifactBucket"], CURRENT, config["account"])
