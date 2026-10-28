@@ -17,11 +17,22 @@ trap cleanup EXIT
 docker network create "$task_network" >/dev/null
 docker run --detach --name "$task_id" --network "$task_network" \
   --env "POSTGRES_PASSWORD=$task_password" --env POSTGRES_DB=navigan_test postgres:16 >/dev/null
-for attempt in $(seq 1 60); do
-  if docker exec "$task_id" pg_isready -U postgres -d navigan_test >/dev/null 2>&1; then break; fi
+# The image's temporary initialization server accepts Unix sockets only.
+# Wait for TCP so migrations cannot race that server's shutdown/restart.
+task_ready=false
+for attempt in $(seq 1 120); do
+  if docker exec "$task_id" pg_isready -h 127.0.0.1 -p 5432 -U postgres -d navigan_test >/dev/null 2>&1; then
+    task_ready=true
+    break
+  fi
   sleep 1
 done
-docker exec "$task_id" pg_isready -U postgres -d navigan_test
+if [[ "$task_ready" != true ]]; then
+  echo "Temporary PostgreSQL did not become TCP-ready within 120 seconds." >&2
+  docker logs --tail 80 "$task_id" >&2 || true
+  exit 1
+fi
+echo "Temporary PostgreSQL is TCP-ready; starting backend checks."
 docker run --rm --network "$task_network" \
   --mount "type=bind,src=$PWD,dst=/input,readonly" \
   --env "DATABASE_URL=postgresql://postgres:$task_password@$task_id:5432/navigan_test" \

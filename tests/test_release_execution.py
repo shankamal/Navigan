@@ -684,3 +684,66 @@ def test_backend_validation_passes_the_running_build_interpreter(tmp_path, monke
     assert calls[0][0][0] == ["bash", str(tmp_path / "scripts/ci/verify-backend-container.sh")]
     assert calls[0][1]["env"]["NAVIGAN_PYTHON"] == sys.executable
     assert calls[0][1]["env"]["PATH"] == os.environ["PATH"]
+
+
+@pytest.mark.parametrize("becomes_ready", [True, False])
+def test_backend_waits_for_final_postgres_tcp_listener(tmp_path, becomes_ready):
+    tools = tmp_path / "probe-tools"
+    tools.mkdir()
+    calls = tmp_path / "calls"
+    ready = tmp_path / "ready"
+    docker = tools / "docker"
+    docker.write_text('''#!/bin/sh
+printf '%s\\n' "$1" >> "$DOCKER_CALLS"
+case "$1" in
+  exec)
+    case " $* " in
+      *" pg_isready -h 127.0.0.1 -p 5432 "*)
+        count=0
+        if [ -f "$PROBE_COUNT" ]; then read -r count < "$PROBE_COUNT"; fi
+        count=$((count + 1))
+        printf '%s\\n' "$count" > "$PROBE_COUNT"
+        if [ "$BECOMES_READY" = yes ] && [ "$count" -ge 2 ]; then
+          : > "$PROBE_READY"
+          exit 0
+        fi
+        exit 1
+        ;;
+      *) exit 0 ;; # Bootstrap server is already accepting Unix-socket probes.
+    esac
+    ;;
+  run)
+    case " $* " in
+      *" python:3.12-slim "*)
+        if [ ! -f "$PROBE_READY" ]; then
+          echo 'SQL checks started before the final TCP listener' >&2
+          exit 42
+        fi
+        ;;
+    esac
+    ;;
+  logs) echo 'fixture PostgreSQL startup diagnostics' >&2 ;;
+esac
+exit 0
+''')
+    docker.chmod(0o755)
+    sleep = tools / "sleep"
+    sleep.write_text("#!/bin/sh\nexit 0\n")
+    sleep.chmod(0o755)
+    (tools / "seq").symlink_to(shutil.which("seq"))
+    result = subprocess.run([shutil.which("bash"), str(common.ROOT / "scripts/ci/verify-backend-container.sh")], cwd=tmp_path,
+                            env={**os.environ, "PATH": str(tools), "NAVIGAN_PYTHON": sys.executable,
+                                 "DOCKER_CALLS": str(calls), "PROBE_COUNT": str(tmp_path / "count"),
+                                 "PROBE_READY": str(ready), "BECOMES_READY": "yes" if becomes_ready else "no"},
+                            text=True, capture_output=True)
+    recorded = calls.read_text().splitlines()
+    if becomes_ready:
+        assert result.returncode == 0, result.stderr
+        assert (tmp_path / "count").read_text().strip() == "2"
+        assert recorded.count("run") == 2
+    else:
+        assert result.returncode != 0
+        assert "did not become TCP-ready" in result.stderr
+        assert "fixture PostgreSQL startup diagnostics" in result.stderr
+        assert recorded.count("run") == 1  # Never start migrations/tests against an unready server.
+    assert recorded[-2:] == ["rm", "network"]
