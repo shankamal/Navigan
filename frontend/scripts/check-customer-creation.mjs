@@ -170,7 +170,7 @@ try {
     .getByRole("button", { name: "Edit contact Alex Morgan", exact: true })
     .click();
   await page
-    .getByLabel("Contact type", { exact: true })
+    .getByRole("combobox", { name: /^Contact type/ })
     .selectOption("TECHNICAL");
   await page
     .getByRole("button", { name: "Update contact", exact: true })
@@ -183,7 +183,7 @@ try {
     .getByRole("button", { name: "Edit contact Alex Morgan", exact: true })
     .click();
   await page
-    .getByLabel("Contact type", { exact: true })
+    .getByRole("combobox", { name: /^Contact type/ })
     .selectOption("PRIMARY");
   await page
     .getByRole("button", { name: "Update contact", exact: true })
