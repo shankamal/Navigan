@@ -130,7 +130,7 @@ def registry(session, state, bootstrap=False):
     return bucket
 
 
-def configuration(session, state, bucket):
+def configuration(session, state, bucket, *, components=None):
     params = {item["ParameterKey"]: item["ParameterValue"] for item in state["stacks"]["root"]["stack"]["Parameters"]}
     issuer, audience = params["JwtIssuer"], params["JwtAudience"]
     require(re.fullmatch(r"https://cognito-idp\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9-]+_[A-Za-z0-9]+", issuer)
@@ -143,7 +143,9 @@ def configuration(session, state, bucket):
               "NAVIGAN_PUBLIC_APP_URL": "http://localhost:3001", "NAVIGAN_PUBLIC_CORPORATE_LOGO_URL": ""}
     for key in ("MIGRATION_CONNECTOR_API_BASE_URL", "MIGRATION_CONNECTOR_IMAGE_REPOSITORY", "MIGRATION_CONNECTOR_IMAGE_DIGEST"):
         public["NAVIGAN_PUBLIC_" + key] = env.get(key, "")
-    worker = image_worker(session, state, optional=True)
+    # Inspect the collector only when this manifest manages that component.
+    # The legacy initializer has no manifest and retains its discovery behavior.
+    worker = image_worker(session, state, optional=True) if components is None or "image-worker" in components else None
     return {"format": "navigan-dev-release-config-v1", "environment": "dev", "account": state["account"],
             "region": state["region"], "stack": common.DEV_STACK, "rootStackId": state["stacks"]["root"]["stack"]["StackId"],
             "database": common.DEV_DATABASE, "artifactBucket": bucket, "apiOrigin": common.DEV_API, "apiBasePath": "/api/v1",

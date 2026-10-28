@@ -77,7 +77,9 @@ def test_deploy_consumes_manifest_without_build_or_registry_creation(monkeypatch
     state = tmp_path / "state"
     state.mkdir()
     manifest_path = state / "last-build-manifest.json"
-    common.write(manifest_path, {"fixture": "already built"})
+    common.write(manifest_path, {"format": common.planner.FORMAT, "sourceRevision": "a" * 40, "components": {"frontend": {
+        "inputHash": "b" * 64, "sha256": "c" * 64, "portable": True,
+        "uri": PREFIX + "navigan/frontend@sha256:" + "c" * 64}}})
     prepared = tmp_path / "prepared"
     prepared.mkdir()
     common.write(prepared / "release-plan.json", {"id": "saved-plan"})
@@ -96,7 +98,10 @@ def test_deploy_consumes_manifest_without_build_or_registry_creation(monkeypatch
     monkeypatch.setattr(common, "verify_registry", lambda *args: calls.append("verify-existing-bucket"))
     monkeypatch.setattr(simple.boto3, "Session", lambda **kw: object())
     monkeypatch.setattr(simple.target, "snapshot", lambda *args: {})
-    monkeypatch.setattr(simple.target, "configuration", lambda *args: {"existingDev": True})
+    def configuration(*args, components):
+        assert components == {"frontend"}
+        return {"existingDev": True}
+    monkeypatch.setattr(simple.target, "configuration", configuration)
     monkeypatch.setattr(simple.target, "registry", lambda *args: pytest.fail("Never bootstrap a registry"))
     simple.main(["deploy", "--config", str(path)])
     assert calls == ["verify-existing-bucket", "prepare", ("execute", prepared / "release-plan.json")]
@@ -157,3 +162,28 @@ def test_existing_shared_repository_is_verified_by_digest():
     common.verify_image(session, "frontend", {"uri": PREFIX + "navigan/frontend@sha256:" + digest, "sha256": digest,
         "runtimeConfigProof": {"contract": common.CONTRACT, "passed": True, "configurations": ["dev-fixture", "prod-fixture"]}}, ACCOUNT, "ap-south-1")
     assert calls == [{"repositoryName": "navigan/frontend", "imageIds": [{"imageDigest": "sha256:" + digest}]}]
+
+
+def dev_state():
+    return {"account": ACCOUNT, "region": "ap-south-1", "functions": {}, "stacks": {"root": {"stack": {
+        "StackId": "dev-root", "Parameters": [
+            {"ParameterKey": "JwtIssuer", "ParameterValue": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_Fixture"},
+            {"ParameterKey": "JwtAudience", "ParameterValue": "devclient"}]}}}}
+
+
+@pytest.mark.parametrize("components", [{"frontend"}, {"backend", "infrastructure", "database"}])
+def test_unmanaged_collector_does_not_block_other_components(monkeypatch, components):
+    monkeypatch.setattr(simple.target, "image_worker", lambda *args, **kwargs: pytest.fail("Unmanaged collector must not be inspected"))
+    session = SimpleNamespace(client=lambda name: SimpleNamespace(describe_user_pool_client=lambda **kw: {"UserPoolClient": {"ClientId": "devclient"}}))
+    result = simple.target.configuration(session, dev_state(), "existing-sam-artifacts", components=components)
+    assert result["imageWorkerEnabled"] is False
+    assert result["frontend"]["publicEnvironment"]["NAVIGAN_PUBLIC_OIDC_CLIENT_ID"] == "devclient"
+
+
+def test_selected_collector_still_checks_drift_before_deployment(monkeypatch):
+    def drift(*args, **kw):
+        raise common.ReleaseError("Collector has drift")
+    monkeypatch.setattr(simple.target, "image_worker", drift)
+    session = SimpleNamespace(client=lambda name: SimpleNamespace(describe_user_pool_client=lambda **kw: {"UserPoolClient": {"ClientId": "devclient"}}))
+    with pytest.raises(common.ReleaseError, match="Collector has drift"):
+        simple.target.configuration(session, dev_state(), "existing-sam-artifacts", components={"image-worker"})

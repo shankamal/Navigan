@@ -89,9 +89,10 @@ def main(argv=None):
                            "Previous deployment is unfinished. Use deploy.sh dev --verify or --rollback; it will not be repeated.")
     manifest = args.manifest or baseline
     common.require(manifest.is_file(), "Run bash scripts/build.sh dev first, or provide --manifest with an existing build.")
+    candidate = common.planner.manifest(manifest)
     common.verify_registry(session, cfg["artifactBucket"], cfg["account"], cfg["region"])
     live = target.snapshot(session, cfg["account"], cfg["region"])
-    deployment = target.configuration(session, live, cfg["artifactBucket"])
+    deployment = target.configuration(session, live, cfg["artifactBucket"], components=set(candidate["components"]))
     deployment["repositories"] = cfg["repositories"]
     config_path = state_dir / "dev-target.json"
     common.write(config_path, deployment)
