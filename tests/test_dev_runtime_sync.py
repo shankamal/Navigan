@@ -1,6 +1,9 @@
 from copy import deepcopy
+import ast
 import importlib.util
+import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -453,3 +456,73 @@ def test_capture_cannot_substitute_another_environment(tmp_path):
     )
     with pytest.raises(ValueError, match="another target"):
         h.captured(tmp_path, "dev")
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        '[{**group, "purpose": group.get("purpose", "SYSTEM" if index == 0 else "APPLICATION")} '
+        'for index, group in enumerate(request["configuration"]["nodeGroups"])]',
+        '[{**group, "purpose": group["purpose"], "customSetting": "keep"} '
+        'for group in request["configuration"]["nodeGroups"] if group.get("managementMode") != "ADOPTED"]',
+        'normalize_node_groups(request["configuration"]["nodeGroups"])',
+    ],
+)
+def test_existing_node_group_transforms_are_preserved_and_plan_guard_is_added(expression):
+    raw = (ROOT / "tests/fixtures/bootstrap-runtime/runner.py.txt").read_text()
+    original = raw.replace(
+        '"node_groups": request["configuration"]["nodeGroups"],', '"node_groups": ' + expression + ",", 1
+    )
+    assert original != raw
+    updated = h.patch.patch_runner(original)
+
+    def groups(source):
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Dict):
+                for key, value in zip(node.keys, node.values):
+                    if isinstance(key, ast.Constant) and key.value == "node_groups":
+                        return value
+        raise AssertionError("node_groups missing")
+
+    assert h.patch.same(groups(original), groups(updated))
+    assert '"node_groups": ' + expression + "," in updated
+    namespace = {"json": json}
+    functions = ast.Module(
+        body=[n for n in ast.parse(updated).body if isinstance(n, ast.FunctionDef)], type_ignores=[]
+    )
+    exec(compile(functions, "runner.py", "exec"), namespace)
+    request = {
+        "configuration": {
+            "endpointAccess": "PRIVATE",
+            "nodeGroups": [{"name": "system", "purpose": "SYSTEM"}],
+        }
+    }
+    # Keeping a normalization expression does not bypass the actual plan check.
+    assert namespace["security_scan"]({"resource_changes": []}, request)["status"] == "FAILED"
+    assert "if system_node_findings(shown, request):" in updated
+
+
+def test_local_runner_preflight_failure_stops_before_cloud_access_or_staging(tmp_path, monkeypatch):
+    session = MagicMock()
+    args = SimpleNamespace(dev_capture=tmp_path / "dev", prod_capture=tmp_path / "prod")
+    monkeypatch.setattr(h, "captured", lambda *a: {})
+    monkeypatch.setattr(h, "runner_sources", MagicMock(side_effect=h.common.ReleaseError("runner contract")))
+    workspace = MagicMock()
+    monkeypatch.setattr(h.common, "workspace", workspace)
+    with pytest.raises(ValueError, match="runner contract"):
+        h.prepare(session, args)
+    session.client.assert_not_called()
+    workspace.assert_not_called()
+
+
+def test_known_validation_messages_are_visible_but_private_errors_stay_redacted():
+    for check in (h.patch.require, h.audit.require):
+        try:
+            check(False, "Known static contract check failed.")
+        except ValueError as error:
+            assert h.failure_reason(error) == "Known static contract check failed."
+    assert h.failure_reason(ValueError("private runtime value")) == "ValueError"
+    assert (
+        h.failure_reason(h.common.ReleaseError("Reviewed release check failed."))
+        == "Reviewed release check failed."
+    )

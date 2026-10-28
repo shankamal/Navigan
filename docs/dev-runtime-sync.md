@@ -16,6 +16,10 @@ The reconciliation:
 - Adds the protected-system-node guard from the captured PROD runner to the
   captured DEV runner. The overlay retains DEV's base dependencies and every
   Terraform module file; it does not replace DEV's module with PROD's older one.
+  Existing DEV node-group transformations are retained verbatim. Purpose defaults
+  are added only when the old runner passes raw node groups. Protection is checked
+  against the actual Terraform plan in both cases. Local patch validation runs
+  before artifact staging, and known contract failures print their specific reason.
 - Stages exact processed SAM templates with only scoped Lambda code/environment
   changes and the runner parameter change. Independent child previews and
   unchanged-sibling previews are never executed. The parent update is the only

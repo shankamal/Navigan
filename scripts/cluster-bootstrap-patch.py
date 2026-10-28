@@ -194,8 +194,7 @@ def patch_runner(original, *, desired=None):
     variables = dictionaries[0]
     index = next(i for i, k in enumerate(variables.keys) if isinstance(k, ast.Constant) and k.value == "node_groups")
     previous = variables.values[index]
-    require(same(previous, tree('request["configuration"]["nodeGroups"]').body[0].value),
-            "Unexpected existing node-group normalization.")
+    raw_groups = same(previous, tree('request["configuration"]["nodeGroups"]').body[0].value)
     source_tree = tree(desired)
     helper = next(n for n in source_tree.body if isinstance(n, ast.FunctionDef) and n.name == "system_node_findings")
     normalization = next(n for n in ast.walk(source_tree) if isinstance(n, ast.Dict) and
@@ -210,12 +209,17 @@ def patch_runner(original, *, desired=None):
     guard = 'shown = run_json("terraform", "show", "-json", "terraform.tfplan")\nif system_node_findings(shown, request):\n    raise ValueError("Approved plan does not provision a protected system node group.")\n'
     target = apply_calls[0]
     lines = original.splitlines(keepends=True)
-    # Replace the dictionary value by offsets so adjacent keys remain untouched.
-    start = sum(len(line) for line in lines[:previous.lineno - 1]) + previous.col_offset
-    end = sum(len(line) for line in lines[:previous.end_lineno - 1]) + previous.end_col_offset
-    value = ast.unparse(normalized)
-    result = original[:start] + value + original[end:]
-    # The normalized expression is one line; refresh all positions before line edits.
+    # Older runners pass raw groups and need purpose defaults. Newer DEV runners
+    # already transform them: retain that expression verbatim, including adopted
+    # group handling and custom fields. The added guard checks the actual plan;
+    # it does not assume the existing normalization provides protection.
+    result = original
+    if raw_groups:
+        start = sum(len(line) for line in lines[:previous.lineno - 1]) + previous.col_offset
+        end = sum(len(line) for line in lines[:previous.end_lineno - 1]) + previous.end_col_offset
+        result = original[:start] + ast.unparse(normalized) + original[end:]
+    # Refresh all positions before line edits, whether the expression was kept
+    # multiline or replaced. The AST restoration below proves unrelated behavior.
     parsed = tree(result)
     scan_now = next(n for n in parsed.body if isinstance(n, ast.FunctionDef) and n.name == scan.name)
     apply_now = next(n for n in ast.walk(parsed) if isinstance(n, ast.Expr) and same(n, target))
