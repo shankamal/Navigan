@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -107,7 +108,7 @@ def task_request(task, tags, accepted):
     return normalize(request)
 
 
-def candidate_request(original, image):
+def candidate_request(original, image, public=None):
     require(bool(re.fullmatch(re.escape(IMAGE_PREFIX) + r"@sha256:[a-f0-9]{64}", image)), "Use an immutable image from the PROD frontend repository")
     result = copy.deepcopy(original)
     frontend = container(result)
@@ -115,6 +116,21 @@ def candidate_request(original, image):
     require(current.get("NODE_ENV", "production") == "production", "Do not run a development server in production")
     frontend["image"] = image
     values = frontend.setdefault("environment", [])
+    if public is not None:
+        desired = runtime_public_config(public)
+        aliases = set(desired) | {key.replace("NAVIGAN_PUBLIC_", "NEXT_PUBLIC_", 1) for key in desired}
+        require(not any(item.get("name") in aliases for item in frontend.get("secrets", [])),
+                "Public login/app settings are supplied as ECS secrets; inspect before changing their binding")
+        for key, value in desired.items():
+            aliases = (key, key.replace("NAVIGAN_PUBLIC_", "NEXT_PUBLIC_", 1))
+            require(all(current.get(alias, value) == value for alias in aliases),
+                    "Existing frontend public identity/app setting conflicts with verified PROD configuration")
+            existing = next((item for item in values if item["name"] == key), None)
+            if existing:
+                existing["value"] = value
+            else:
+                values.append({"name": key, "value": value})
+        return result
     existing = next((p for p in values if p["name"] == FLAG), None)
     if existing:
         existing["value"] = "true"
@@ -133,12 +149,32 @@ def public_config(parameters, hostname):
     return {"NEXT_PUBLIC_OIDC_AUTHORITY": issuer, "NEXT_PUBLIC_OIDC_CLIENT_ID": client, "NEXT_PUBLIC_APP_URL": APP_URL}
 
 
+def runtime_public_config(public):
+    require(set(public) == {"NEXT_PUBLIC_OIDC_AUTHORITY", "NEXT_PUBLIC_OIDC_CLIENT_ID", "NEXT_PUBLIC_APP_URL"},
+            "Unexpected public runtime configuration keys")
+    require(public["NEXT_PUBLIC_APP_URL"] == APP_URL, "Unexpected production application URL")
+    expected = public_config({"JwtIssuer": public["NEXT_PUBLIC_OIDC_AUTHORITY"],
+                              "JwtAudience": public["NEXT_PUBLIC_OIDC_CLIENT_ID"]}, "navigan.click")
+    return {key.replace("NEXT_PUBLIC_", "NAVIGAN_PUBLIC_", 1): value for key, value in expected.items()}
+
+
+def portable_source():
+    return (ROOT / "frontend/src/shared/config/public-config.ts").exists()
+
+
 def check_checkout():
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-    require(branch == storage.BRANCH, "Use the existing approved branch/checkout")
+    require(branch == ("main" if portable_source() else storage.BRANCH),
+            "Promote portable frontend source from main after validation and merge")
+    if portable_source():
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        remote = subprocess.check_output(["git", "rev-parse", "refs/remotes/origin/main"], cwd=ROOT, text=True).strip()
+        require(head == remote, "Fetch/push main first; local main must match origin/main")
     # Build git archive, never the working tree: preserve generated next-env.d.ts and local files.
     paths = ["frontend/src", "frontend/public", "frontend/package.json", "frontend/package-lock.json", "frontend/Dockerfile",
-             "frontend/.dockerignore", "frontend/next.config.ts", "frontend/tsconfig.json", "scripts/deploy-frontend-prod.py"]
+             "frontend/.dockerignore", "frontend/next.config.ts", "frontend/tsconfig.json", "scripts/deploy-frontend-prod.py",
+             "scripts/verify-frontend-artifact.py", "scripts/build-release.py", "scripts/release_common.py",
+             "scripts/release_database.py", "scripts/plan-release.py", "scripts/deploy-migration-storage-prod.py"]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
     require(not dirty.strip(), "Review/commit local frontend release-source edits first; no files were discarded")
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -187,9 +223,10 @@ def backend_readiness(session):
     require(stable(service["services"][0]), "Image collector must be running/stable before frontend promotion")
 
 
-def readiness(session):
+def readiness(session, *, check_dependencies=True):
     require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Unexpected AWS account")
-    backend_readiness(session)
+    if check_dependencies:
+        backend_readiness(session)
     cfn, ecs = session.client("cloudformation"), session.client("ecs")
     service = read_service(ecs)
     require(stable(service), "Current frontend must be stable before release preparation")
@@ -262,10 +299,17 @@ def build_image(session, directory, revision, public):
     try:
         command = ["docker", "buildx", "build", "--platform", "linux/amd64", "--provenance=false", "--sbom=false", "--load", "--pull",
             "--label", "org.opencontainers.image.revision=" + revision, "--tag", image, "--file", str(context / "frontend/Dockerfile")]
-        for key, value in public.items():
-            command.extend(["--build-arg", key + "=" + value])
+        portable = (context / "frontend/src/shared/config/public-config.ts").exists()
+        if not portable:
+            for key, value in public.items():
+                command.extend(["--build-arg", key + "=" + value])
         command.append(str(context / "frontend"))
+        print("Building committed frontend image (Docker progress follows)...", flush=True)
         subprocess.check_call(command, env=docker_env)
+        if portable:
+            print("Checking the same image with DEV and PROD fixture settings...", flush=True)
+            subprocess.check_call([sys.executable, str(ROOT / "scripts/verify-frontend-artifact.py"), "--image", image],
+                                  cwd=ROOT, env=docker_env)
         (directory / "built-image.json").write_text(json.dumps({"imageTag": image, "revision": revision, "publicConfig": public}, indent=2))
         print("Built image: " + image, flush=True)
         try:
@@ -281,16 +325,21 @@ def build_image(session, directory, revision, public):
     return IMAGE_PREFIX + "@" + digest, runtime_digests(ecr, digest)
 
 
-def validate_candidate(original, candidate, image):
-    expected = candidate_request(original, image)
+def validate_candidate(original, candidate, image, public=None):
+    expected = candidate_request(original, image, public)
     require(normalize(candidate) == normalize(expected), "Candidate task changes more than frontend image/migration flag; stopped")
 
 
 def execute(session, path):
     plan = json.loads(path.read_text())
-    require(plan.get("format") == 1 and plan.get("account") == ACCOUNT and plan.get("region") == REGION, "Invalid PROD frontend plan")
+    require(plan.get("format") in {1, 2} and plan.get("account") == ACCOUNT and plan.get("region") == REGION, "Invalid PROD frontend plan")
     require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Unexpected AWS account")
-    backend_readiness(session)
+    public = None
+    if plan["format"] == 2:
+        _, _, _, public = readiness(session, check_dependencies=False)
+        require(plan.get("runtimePublicConfig") == runtime_public_config(public), "Verified PROD public settings changed after preparation")
+    else:
+        backend_readiness(session)
     ecs = session.client("ecs")
     service = read_service(ecs)
     require(stable(service) and service["taskDefinition"] == plan["previousTask"] and service["desiredCount"] == plan["desiredCount"],
@@ -302,7 +351,7 @@ def execute(session, path):
     before = task_request(original["taskDefinition"], original.get("tags", []), accepted)
     after = task_request(candidate["taskDefinition"], candidate.get("tags", []), accepted)
     require(hashlib.sha256(canonical(before)).hexdigest() == plan["baselineSha256"], "Original task configuration does not match the release record")
-    validate_candidate(before, after, plan["image"])
+    validate_candidate(before, after, plan["image"], public)
     digests = runtime_digests(session.client("ecr"), plan["image"].split("@", 1)[1])
     require(digests == plan["runtimeDigests"], "Published frontend manifest changed")
     ecs.update_service(cluster=CLUSTER, service=SERVICE, taskDefinition=plan["nextTask"])
@@ -321,6 +370,14 @@ def execute(session, path):
     for endpoint in ("/healthz", "/login"):
         with urllib.request.urlopen(APP_URL + endpoint, timeout=30) as response:
             require(response.status == 200, "Frontend public smoke check failed: " + endpoint)
+    if public is not None:
+        with urllib.request.urlopen(APP_URL + "/api/runtime-config", timeout=30) as response:
+            config = json.load(response)
+        expected = runtime_public_config(public)
+        require(config.get("oidcAuthority") == expected["NAVIGAN_PUBLIC_OIDC_AUTHORITY"]
+                and config.get("oidcClientId") == expected["NAVIGAN_PUBLIC_OIDC_CLIENT_ID"]
+                and config.get("appUrl") == APP_URL and config.get("migrationUiPreview") is False,
+                "Deployed frontend public runtime settings differ; inspect the saved rollback task")
     print("PROD frontend deployed: " + plan["nextTask"])
     print("Running image verified: " + plan["image"])
     print("Health/login HTTP checks passed. Fresh authenticated UI/workflow checks are still required.")
@@ -338,29 +395,33 @@ def main():
         execute(session, args.execute)
         return 0
     revision = check_checkout()
-    service, described, original, public = readiness(session)
-    print("PROD backend/collectors, current frontend and public Cognito configuration verified")
+    portable = portable_source()
+    service, described, original, public = readiness(session, check_dependencies=False) if portable else readiness(session)
+    print("PROD frontend, API target and public Cognito configuration verified")
     print("Current frontend / rollback task: " + service["taskDefinition"])
     if not args.prepare:
         print("Read-only check passed. Use --prepare to build/push and register a candidate; the service will remain unchanged.")
         return 0
-    require(not (ROOT / "frontend/src/shared/config/public-config.ts").exists(),
-            "Portable frontend source requires the manifest deployment path. The legacy PROD build is disabled; no image or task was created.")
+    if portable:
+        # Validate before Docker/ECR or task-registration writes.
+        candidate_request(original, IMAGE_PREFIX + "@sha256:" + "0" * 64, public)
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-frontend-"))
     directory.chmod(0o700)
     print("Private frontend release record: " + str(directory), flush=True)
     (directory / "original-task.json").write_text(json.dumps(described, indent=2, default=aws_record_default))
     (directory / "public-build-config.json").write_text(json.dumps(public, indent=2))
     image, digests = build_image(session, directory, revision, public)
-    candidate = candidate_request(original, image)
+    candidate = candidate_request(original, image, public if portable else None)
     (directory / "candidate-task-request.json").write_text(json.dumps(candidate, indent=2))
     ecs = session.client("ecs")
     now = read_service(ecs)
     require(stable(now) and now["taskDefinition"] == service["taskDefinition"] and now["desiredCount"] == service["desiredCount"], "Frontend changed while the image was building")
     registered = ecs.register_task_definition(**candidate)["taskDefinition"]["taskDefinitionArn"]
-    plan = {"format": 1, "account": ACCOUNT, "region": REGION, "revision": revision,
+    plan = {"format": 2 if portable else 1, "account": ACCOUNT, "region": REGION, "revision": revision,
         "previousTask": service["taskDefinition"], "nextTask": registered, "desiredCount": service["desiredCount"],
         "baselineSha256": hashlib.sha256(canonical(original)).hexdigest(), "image": image, "runtimeDigests": digests}
+    if portable:
+        plan["runtimePublicConfig"] = runtime_public_config(public)
     path = directory / "release-plan.json"
     path.write_text(json.dumps(plan, indent=2))
     print("Candidate registered: " + registered)

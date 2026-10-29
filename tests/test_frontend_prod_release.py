@@ -264,17 +264,17 @@ def test_prepare_archives_aws_timestamp_without_changing_service(monkeypatch, tm
     assert ecs.live == OLD and not ecs.calls
 
 
-def test_portable_source_blocks_legacy_prod_build_before_writes(monkeypatch, tmp_path):
+def test_portable_source_rejects_missing_public_settings_before_writes(monkeypatch, tmp_path):
     marker = tmp_path / "frontend/src/shared/config/public-config.ts"
     marker.parent.mkdir(parents=True)
     marker.write_text("fixture")
     monkeypatch.setattr(release, "ROOT", tmp_path)
     monkeypatch.setattr(release.boto3, "Session", lambda **kw: None)
     monkeypatch.setattr(release, "check_checkout", lambda: "committed-revision")
-    monkeypatch.setattr(release, "readiness", lambda session: (service(), {}, {}, {}))
+    monkeypatch.setattr(release, "readiness", lambda session, **kw: (service(), {}, task(), {}))
     monkeypatch.setattr(release, "build_image", lambda *args: pytest.fail("Legacy build must not run"))
     monkeypatch.setattr("sys.argv", ["deploy-frontend-prod.py", "--profile", "navigan", "--prepare"])
-    with pytest.raises(RuntimeError, match="legacy PROD build is disabled"):
+    with pytest.raises(RuntimeError, match="public runtime configuration keys"):
         release.main()
 
 
@@ -315,3 +315,152 @@ def test_duplicate_ecr_index_still_selects_linux_amd64():
             {"digest": amd64, "platform": {"os": "linux", "architecture": "amd64"}}]})}
     ecr = SimpleNamespace(batch_get_image=lambda **kw: {"images": [image, copy.deepcopy(image)]})
     assert release.runtime_digests(ecr, DIGEST) == [DIGEST, amd64]
+
+
+def prod_public():
+    return release.public_config(parameters(), "navigan.click")
+
+
+def test_portable_candidate_preserves_api_sidecars_flags_and_original():
+    before = task()
+    before["containerDefinitions"][0]["environment"].append({"name": release.FLAG, "value": "false"})
+    snapshot = copy.deepcopy(before)
+    after = release.candidate_request(before, IMAGE, prod_public())
+    expected = copy.deepcopy(before)
+    expected["containerDefinitions"][0]["image"] = IMAGE
+    expected["containerDefinitions"][0]["environment"] += [
+        {"name": key, "value": value} for key, value in release.runtime_public_config(prod_public()).items()]
+    assert before == snapshot and after == expected
+    assert release.environment(release.container(after))[release.FLAG] == "false"
+    release.validate_candidate(before, after, IMAGE, prod_public())
+    after["containerDefinitions"][0]["environment"][1]["value"] = "https://api-dev.example.invalid"
+    with pytest.raises(RuntimeError, match="changes more"):
+        release.validate_candidate(before, after, IMAGE, prod_public())
+
+
+@pytest.mark.parametrize("name", ["NAVIGAN_PUBLIC_OIDC_CLIENT_ID", "NEXT_PUBLIC_OIDC_CLIENT_ID", "NAVIGAN_PUBLIC_APP_URL"])
+def test_portable_candidate_refuses_conflicting_existing_identity(name):
+    before = task()
+    before["containerDefinitions"][0]["environment"].append({"name": name, "value": "wrong"})
+    with pytest.raises(RuntimeError, match="conflicts"):
+        release.candidate_request(before, IMAGE, prod_public())
+
+
+def test_portable_prepare_registers_only_a_candidate_and_saves_format_two(monkeypatch, tmp_path):
+    marker = tmp_path / "frontend/src/shared/config/public-config.ts"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("fixture")
+    monkeypatch.setattr(release, "ROOT", tmp_path)
+    ecs = ECS()
+    requests = []
+    ecs.register_task_definition = lambda **kw: (requests.append(kw) or {"taskDefinition": {"taskDefinitionArn": NEW}})
+    session = SimpleNamespace(client=lambda name: ecs)
+    monkeypatch.setattr(release.boto3, "Session", lambda **kw: session)
+    monkeypatch.setattr(release, "check_checkout", lambda: "merged-main-sha")
+    checks = []
+    monkeypatch.setattr(release, "readiness", lambda session, **kw: (checks.append(kw) or (service(), {}, task(), prod_public())))
+    monkeypatch.setattr(release.tempfile, "mkdtemp", lambda **kw: str(tmp_path))
+    monkeypatch.setattr(release, "build_image", lambda *args: (IMAGE, [DIGEST]))
+    monkeypatch.setattr("sys.argv", ["deploy-frontend-prod.py", "--prepare"])
+    assert release.main() == 0
+    plan = json.loads((tmp_path / "release-plan.json").read_text())
+    assert plan["format"] == 2 and plan["revision"] == "merged-main-sha"
+    assert plan["runtimePublicConfig"] == release.runtime_public_config(prod_public())
+    assert requests == [release.candidate_request(task(), IMAGE, prod_public())]
+    assert checks == [{"check_dependencies": False}]
+    assert not ecs.calls and ecs.live == OLD
+
+
+def portable_execute(monkeypatch, tmp_path):
+    ecs = ECS()
+    session, path = setup_execute(monkeypatch, tmp_path, ecs)
+    plan = json.loads(path.read_text())
+    plan.update(format=2, runtimePublicConfig=release.runtime_public_config(prod_public()))
+    path.write_text(json.dumps(plan))
+    ecs.describe_task_definition = lambda taskDefinition, **kw: {"taskDefinition": task() if taskDefinition == OLD else release.candidate_request(task(), IMAGE, prod_public())}
+    monkeypatch.setattr(release, "readiness", lambda session, **kw: (service(), {}, task(), prod_public()))
+    import io
+    config = {"oidcAuthority": parameters()["JwtIssuer"], "oidcClientId": parameters()["JwtAudience"],
+              "appUrl": release.APP_URL, "migrationUiPreview": False}
+    class Response(io.BytesIO):
+        status = 200
+    monkeypatch.setattr(release.urllib.request, "urlopen", lambda *args, **kw: Response(json.dumps(config).encode()))
+    return ecs, session, path
+
+
+def test_portable_execute_verifies_prod_runtime_and_updates_only_frontend(monkeypatch, tmp_path):
+    ecs, session, path = portable_execute(monkeypatch, tmp_path)
+    release.execute(session, path)
+    assert ecs.calls == [{"cluster": release.CLUSTER, "service": release.SERVICE, "taskDefinition": NEW}]
+
+
+def test_portable_execute_refuses_stale_public_config_before_service_update(monkeypatch, tmp_path):
+    ecs, session, path = portable_execute(monkeypatch, tmp_path)
+    plan = json.loads(path.read_text())
+    plan["runtimePublicConfig"]["NAVIGAN_PUBLIC_OIDC_CLIENT_ID"] = "other"
+    path.write_text(json.dumps(plan))
+    with pytest.raises(RuntimeError, match="settings changed"):
+        release.execute(session, path)
+    assert not ecs.calls
+
+
+@pytest.mark.parametrize("verification_failure", [False, True])
+def test_portable_build_tests_one_image_before_publishing(monkeypatch, tmp_path, verification_failure):
+    import tarfile
+    import io
+    calls = []
+    def call(command, **kw):
+        calls.append(command)
+        if verification_failure and "--image" in command:
+            raise RuntimeError("Portability check failed")
+        if command[:2] == ["git", "archive"]:
+            with tarfile.open(command[command.index("--output") + 1], "w") as archive:
+                data = b"export const portable=true;"
+                info = tarfile.TarInfo("frontend/src/shared/config/public-config.ts")
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+    monkeypatch.setattr(release.subprocess, "check_call", call)
+    monkeypatch.setattr(release.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=0))
+    auth = release.base64.b64encode(b"AWS:fixture-password").decode()
+    ecr = SimpleNamespace(get_authorization_token=lambda **kw: {"authorizationData": [{"proxyEndpoint": "https://" + release.REGISTRY, "authorizationToken": auth}]},
+        describe_images=lambda **kw: {"imageDetails": [{"imageDigest": DIGEST}]})
+    monkeypatch.setattr(release, "runtime_digests", lambda *a: [DIGEST])
+    if verification_failure:
+        with pytest.raises(RuntimeError, match="Portability check failed"):
+            release.build_image(SimpleNamespace(client=lambda name: ecr), tmp_path, "a" * 40, prod_public())
+        assert not any(command[:2] == ["docker", "push"] for command in calls)
+        return
+    image, _ = release.build_image(SimpleNamespace(client=lambda name: ecr), tmp_path, "a" * 40, prod_public())
+    build = next(command for command in calls if command[:3] == ["docker", "buildx", "build"])
+    assert "--build-arg" not in build
+    verification = next(i for i, command in enumerate(calls) if "--image" in command)
+    push = next(i for i, command in enumerate(calls) if command[:2] == ["docker", "push"])
+    assert verification < push and image == IMAGE
+
+
+def test_portable_checkout_requires_published_main(monkeypatch):
+    monkeypatch.setattr(release, "portable_source", lambda: True)
+    def output(command, **kw):
+        if command[1] == "branch": return "feature/ui-migration-enhancements\n"
+        return "a" * 40
+    monkeypatch.setattr(release.subprocess, "check_output", output)
+    with pytest.raises(RuntimeError, match="from main"):
+        release.check_checkout()
+
+
+def test_portable_rejects_public_setting_secret_binding_changes():
+    before = task()
+    before["containerDefinitions"][0]["secrets"] = [{"name": "NAVIGAN_PUBLIC_OIDC_CLIENT_ID", "valueFrom": "arn:retained-secret"}]
+    with pytest.raises(RuntimeError, match="ECS secrets"):
+        release.candidate_request(before, IMAGE, prod_public())
+
+
+def test_portable_execute_reports_incorrect_deployed_runtime(monkeypatch, tmp_path):
+    ecs, session, path = portable_execute(monkeypatch, tmp_path)
+    import io
+    class Response(io.BytesIO):
+        status = 200
+    monkeypatch.setattr(release.urllib.request, "urlopen", lambda *a, **kw: Response(b'{"oidcClientId":"dev-client"}'))
+    with pytest.raises(RuntimeError, match="runtime settings differ"):
+        release.execute(session, path)
+    assert ecs.live == NEW  # A post-rollout failure is never reported as successful.
