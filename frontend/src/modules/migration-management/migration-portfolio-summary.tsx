@@ -1,6 +1,7 @@
 import { ArrowRight, CheckCircle2, Route, ChartPie } from "lucide-react";
 
 import { PlatformIcon } from "./platform-icon";
+import { SummaryDonut } from "@/shared/components/summary-donut";
 import styles from "./migration-overview.module.css";
 
 type Segment = { label: string; count: number; color: string };
@@ -33,54 +34,15 @@ function Donut({
   caption: string;
   segments: Segment[];
 }) {
-  let offset = 0;
   return (
-    <div className={styles.donut}>
-      <svg
-        viewBox="0 0 120 120"
-        role="img"
-        aria-label={`${label}. ${segments.map((s) => `${s.label}: ${s.count}`).join(", ")}. Total: ${total}`}
-      >
-        <circle
-          cx="60"
-          cy="60"
-          r="47"
-          fill="none"
-          stroke="#e7eaed"
-          strokeWidth="12"
-        />
-        {segments
-          .filter((s) => s.count > 0)
-          .map((segment) => {
-            const length = total ? (segment.count / total) * 100 : 0;
-            const start = offset;
-            offset += length;
-            return (
-              <circle
-                key={segment.label}
-                cx="60"
-                cy="60"
-                r="47"
-                pathLength="100"
-                fill="none"
-                stroke={segment.color}
-                strokeWidth="12"
-                strokeDasharray={`${length} ${100 - length}`}
-                strokeDashoffset={-start}
-                transform="rotate(-90 60 60)"
-              >
-                <title>
-                  {segment.label}: {segment.count}
-                </title>
-              </circle>
-            );
-          })}
-      </svg>
-      <div className={styles.donutValue} aria-hidden="true">
-        <strong>{value}</strong>
-        <span>{caption}</span>
-      </div>
-    </div>
+    <SummaryDonut
+      values={segments.map((segment) => segment.count)}
+      total={total}
+      center={String(value)}
+      caption={caption}
+      label={`${label}. ${segments.map((s) => `${s.label}: ${s.count}`).join(", ")}. Total: ${total}`}
+      colors={segments.map((segment) => segment.color)}
+    />
   );
 }
 
@@ -112,6 +74,20 @@ export function MigrationPortfolioSummary({
       count: other,
       color: "#48535e",
     });
+  const pathColors = [
+    "#218b95",
+    "#1689d4",
+    "#8562b2",
+    "#c18a27",
+    "#bf5555",
+    "#267245",
+  ];
+  const pathTotal = paths.reduce((sum, item) => sum + item.count, 0);
+  const pathSegments = paths.map((item, index) => ({
+    label: `${item.sourcePlatform} to ${item.targetPlatform}`,
+    count: item.count,
+    color: pathColors[index % pathColors.length],
+  }));
   const approvedPercent = total ? Math.round((approved / total) * 100) : 0;
   const unavailable = pending || error;
   const message = pending
@@ -203,28 +179,43 @@ export function MigrationPortfolioSummary({
         {unavailable ? (
           <p className={styles.metricState}>{message}</p>
         ) : paths.length ? (
-          <div className={styles.paths}>
-            {paths.map((item) => (
-              <div key={item.path} className={styles.path}>
-                <div className={styles.pathLabel}>
-                  <PlatformIcon size="summary" platform={item.sourcePlatform} />
-                  <span>
-                    {item.sourcePlatform.replaceAll("_", " ").toLowerCase()}
-                  </span>
-                  <ArrowRight size={12} aria-hidden="true" />
-                  <PlatformIcon size="summary" platform={item.targetPlatform} />
-                  <span>
-                    {item.targetPlatform.replaceAll("_", " ").toLowerCase()}
-                  </span>
+          <div className={styles.chartBody}>
+            <Donut
+              label="Migration paths"
+              total={pathTotal}
+              value={pathTotal}
+              caption="assessments"
+              segments={pathSegments}
+            />
+            <ul className={styles.paths} aria-label="Migration path counts">
+              {paths.map((item, index) => (
+                <li key={item.path} className={styles.path}>
+                  <span
+                    className={styles.swatch}
+                    style={{ background: pathSegments[index].color }}
+                    aria-hidden="true"
+                  />
+                  <div className={styles.pathLabel}>
+                    <PlatformIcon
+                      size="summary"
+                      platform={item.sourcePlatform}
+                    />
+                    <span>
+                      {item.sourcePlatform.replaceAll("_", " ").toLowerCase()}
+                    </span>
+                    <ArrowRight size={12} aria-hidden="true" />
+                    <PlatformIcon
+                      size="summary"
+                      platform={item.targetPlatform}
+                    />
+                    <span>
+                      {item.targetPlatform.replaceAll("_", " ").toLowerCase()}
+                    </span>
+                  </div>
                   <strong>{item.count}</strong>
-                </div>
-                <progress
-                  max={Math.max(1, total)}
-                  value={item.count}
-                  aria-label={`${item.sourcePlatform} to ${item.targetPlatform}: ${item.count} assessments`}
-                />
-              </div>
-            ))}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <p className={styles.metricState}>No migration paths yet.</p>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MigrationPortfolioSummary } from "@/modules/migration-management/migration-portfolio-summary";
@@ -37,10 +37,15 @@ describe("Migration portfolio summary", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
     expect(
-      screen.getByRole("progressbar", {
-        name: "KUBERNETES to EKS: 4 assessments",
+      screen.getByRole("img", {
+        name: "Migration paths. KUBERNETES to EKS: 4. Total: 4",
       }),
-    ).toHaveAttribute("value", "4");
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("list", { name: "Migration path counts" }),
+      ).getByText("4"),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -68,5 +73,33 @@ describe("Migration portfolio summary", () => {
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("No assessments yet")).toBeInTheDocument();
     expect(screen.getByText("No migration paths yet.")).toBeInTheDocument();
+  });
+  it("keeps each source-to-target route and its count in the donut legend", () => {
+    render(
+      <MigrationPortfolioSummary
+        {...props}
+        paths={[
+          { ...props.paths[0], count: 3 },
+          {
+            path: "AWS_EKS|EKS",
+            sourcePlatform: "AWS_EKS",
+            targetPlatform: "EKS",
+            count: 1,
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "Migration paths. KUBERNETES to EKS: 3, AWS_EKS to EKS: 1. Total: 4",
+      }),
+    ).toBeInTheDocument();
+    const legend = within(
+      screen.getByRole("list", { name: "Migration path counts" }),
+    );
+    expect(legend.getAllByRole("listitem")).toHaveLength(2);
+    expect(legend.getByText("3")).toBeInTheDocument();
+    expect(legend.getByText("1")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 });

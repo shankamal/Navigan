@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { IntentLink as Link } from "@/shared/components/intent-link";
 import { HelpTip } from "@/shared/components/help-tip";
+import { SummaryDonut } from "@/shared/components/summary-donut";
 import layout from "./dashboard-layout.module.css";
 import { useEffect, useState } from "react";
 import {
@@ -628,40 +629,20 @@ export function PlatformDashboard() {
           {workflowTotal === 0 ? (
             <p className="pd-empty">No cluster requests are available.</p>
           ) : (
-            <div className="pd-workflow">
-              <div
-                className="pd-workflow-bar"
-                aria-label="Cluster lifecycle distribution"
-              >
-                {[
-                  {
-                    label: "Active",
-                    value: activeClusters.data ?? 0,
-                    color: "#65A449",
-                  },
-                  {
-                    label: "In delivery",
-                    value: workflowInProgress,
-                    color: "#237448",
-                  },
-                  {
-                    label: "Failed",
-                    value: failedClusters.data ?? 0,
-                    color: "#C84835",
-                  },
-                  { label: "Other", value: workflowOther, color: "#94A3B8" },
-                ]
-                  .filter((item) => item.value > 0)
-                  .map((item) => (
-                    <span
-                      key={item.label}
-                      title={`${item.label}: ${item.value}`}
-                      style={{ flex: item.value, background: item.color }}
-                    >
-                      {item.value}
-                    </span>
-                  ))}
-              </div>
+            <div className="pd-workflow pd-workflow-donut">
+              <SummaryDonut
+                values={[
+                  activeClusters.data ?? 0,
+                  workflowInProgress,
+                  failedClusters.data ?? 0,
+                  workflowOther,
+                ]}
+                total={workflowTotal}
+                center={String(workflowTotal)}
+                caption="Requests"
+                label={`Cluster workflow state: ${workflowTotal} total requests`}
+                colors={["#65a449", "#237448", "#c84835", "#94a3b8"]}
+              />
               <div className="pd-legend pd-workflow-legend">
                 <div>
                   <span>

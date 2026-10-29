@@ -92,4 +92,20 @@ describe("Dashboard navigation and freshness", () => {
       ),
     );
   });
+  it("renders the cluster workflow donut and preserves the workflow shortcuts", () => {
+    render(<PlatformDashboard />);
+    expect(
+      screen.getByRole("img", {
+        name: "Cluster workflow state: 4 total requests",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Plan ready/ })).toHaveAttribute(
+      "href",
+      "/clusters?status=PLAN_READY",
+    );
+    expect(screen.getByRole("link", { name: /^Applying/ })).toHaveAttribute(
+      "href",
+      "/clusters?status=APPLYING",
+    );
+  });
 });

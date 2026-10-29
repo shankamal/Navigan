@@ -35,39 +35,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 112px;
-}
-.donut {
-  position: relative;
-  width: 112px;
-  height: 112px;
-  flex: 0 0 112px;
-}
-.donut svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.donutValue {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 3px;
-  pointer-events: none;
-}
-.donutValue strong {
-  color: #303638;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.donutValue span {
-  color: #657078;
-  font-size: var(--navigan-font-caption);
+  min-height: 96px;
 }
 .legend {
   display: grid;
@@ -111,16 +79,30 @@
 .paths {
   display: grid;
   align-content: start;
+  flex: 1;
+  min-width: 0;
   gap: 8px;
   max-height: 148px;
   overflow-y: auto;
-  padding-right: 3px;
+  list-style: none;
+  margin: 0;
+  padding: 0 3px 0 0;
+}
+.path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.path > strong {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 .pathLabel {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 5px;
+  flex-wrap: wrap;
+  min-width: 0;
   text-transform: capitalize;
 }
 .pathLabel span {
@@ -131,33 +113,8 @@
   flex-shrink: 0;
   color: #77818b;
 }
-.pathLabel strong {
-  margin-left: auto;
-  padding-left: 5px;
-  font-variant-numeric: tabular-nums;
-}
-.path progress {
-  display: block;
-  width: 100%;
-  height: 5px;
-  border: 0;
-  border-radius: 3px;
-  overflow: hidden;
-  background: #e7eaed;
-  accent-color: #218b95;
-}
-.path progress::-webkit-progress-bar {
-  background: #e7eaed;
-}
-.path progress::-webkit-progress-value {
-  background: #218b95;
-  border-radius: 3px;
-}
-.path progress::-moz-progress-bar {
-  background: #218b95;
-}
 .summaryCard .metricState {
-  min-height: 112px;
+  min-height: 96px;
   display: flex;
   align-items: center;
   margin: 0;
@@ -250,8 +207,7 @@
     grid-column: 1/-1;
   }
   .paths {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: 100px;
+    max-height: 148px;
     gap: 10px 20px;
   }
 }
@@ -271,5 +227,16 @@
   .overview .attentionItem > a {
     align-items: flex-start;
     flex-wrap: wrap;
+  }
+}
+
+@container (max-width: 600px) {
+  .chartBody {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .legend,
+  .paths {
+    flex-basis: 180px;
   }
 }

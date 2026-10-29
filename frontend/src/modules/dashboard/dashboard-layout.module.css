@@ -145,3 +145,18 @@
     position: static !important;
   }
 }
+
+.charts :global(.pd-workflow.pd-workflow-donut) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.charts :global(.pd-workflow-donut .pd-workflow-legend) {
+  flex: 1;
+  min-width: 0;
+}
+@container (max-width: 400px) {
+  .charts :global(.pd-workflow.pd-workflow-donut) {
+    flex-wrap: wrap;
+  }
+}
