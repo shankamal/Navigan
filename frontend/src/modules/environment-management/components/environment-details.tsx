@@ -1,5 +1,12 @@
 "use client";
 import "./environment-workspace.css";
+import styles from "./environment-details-studio.module.css";
+import {
+  EnvironmentContext,
+  EnvironmentExplorer,
+  EnvironmentRecordPanel,
+  EnvironmentVersionView,
+} from "./environment-detail-views";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,12 +19,6 @@ import {
   Pencil,
   ShieldCheck,
   XCircle,
-  Network,
-  KeyRound,
-  Cloud,
-  ArrowUpRight,
-  Code2,
-  Tags,
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { ApiError } from "@/shared/api/client";
@@ -27,13 +28,11 @@ import {
   Loading,
   Modal,
   PageHeading,
-  Pagination,
   formatDateTime,
 } from "@/shared/components/ui";
 import { useEnvironment } from "../hooks/queries";
 import { allowedActions, labels } from "../model/policy";
 import { environments } from "../services/environments";
-import { ProviderBadges } from "@/modules/customer-management/components/customer-badges";
 import type { Action, HistoryKind } from "../model/types";
 
 const lifecycle = [
@@ -60,6 +59,7 @@ export function EnvironmentDetails({ id }: { id: string }) {
   const query = useEnvironment(id);
   const { identity } = useAuth();
   const cache = useQueryClient();
+  const governance = useRef<HTMLDetailsElement>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [reason, setReason] = useState("");
   const [comments, setComments] = useState("");
@@ -123,8 +123,10 @@ export function EnvironmentDetails({ id }: { id: string }) {
     (step) => step.status === lifecycleStatus,
   );
   return (
-    <div className="environment-workspace environment-details-workspace">
-      <Link className="back-link" href="/environments">
+    <div
+      className={`environment-workspace environment-details-workspace ${styles.workspace}`}
+    >
+      <Link className={`back-link ${styles.backLink}`} href="/environments">
         ← All environments
       </Link>
       <PageHeading
@@ -134,53 +136,60 @@ export function EnvironmentDetails({ id }: { id: string }) {
           env.description || "Reusable cloud infrastructure baseline"
         }
         action={
-          (editable || submissionAction) && (
-            <>
-              {editable && (
-                <Link
-                  className="button button-secondary"
-                  href={`/environments/${id}/edit`}
-                >
-                  <Pencil size={16} aria-hidden="true" />
-                  Edit draft revision
-                </Link>
-              )}
-              {submissionAction && (
-                <Button
-                  variant="primary"
-                  aria-pressed={action === submissionAction}
-                  onClick={() => {
-                    setAction(
-                      action === submissionAction ? null : submissionAction,
-                    );
-                    setReason("");
-                    setComments("");
-                    mutation.reset();
-                  }}
-                >
-                  {labels[submissionAction]}
-                </Button>
-              )}
-            </>
-          )
+          <>
+            <span className={`status-badge status-${env.status.toLowerCase()}`}>
+              {env.status.replaceAll("_", " ")}
+            </span>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const element = governance.current;
+                if (element) {
+                  element.open = !element.open;
+                  if (element.open)
+                    element.scrollIntoView({ block: "nearest" });
+                }
+              }}
+            >
+              Lifecycle actions
+            </Button>
+            {(editable || submissionAction) && (
+              <>
+                {editable && (
+                  <Link
+                    className="button button-secondary"
+                    href={`/environments/${id}/edit`}
+                  >
+                    <Pencil size={16} aria-hidden="true" />
+                    Edit draft revision
+                  </Link>
+                )}
+                {submissionAction && (
+                  <Button
+                    variant="primary"
+                    aria-pressed={action === submissionAction}
+                    onClick={() => {
+                      setAction(
+                        action === submissionAction ? null : submissionAction,
+                      );
+                      setReason("");
+                      setComments("");
+                      mutation.reset();
+                    }}
+                  >
+                    {labels[submissionAction]}
+                  </Button>
+                )}
+              </>
+            )}
+          </>
         }
       />
-      <div className="environment-detail-context">
-        <span className={`status-badge status-${env.status.toLowerCase()}`}>
-          {env.status.replaceAll("_", " ")}
-        </span>
-        <Link href={`/customers/${env.customerId}`}>{env.customerName}</Link>
-        <ProviderBadges codes={[env.cloudProvider]} compact />
-        <span>
-          {env.kubernetesDistribution} · {env.environmentType}
-        </span>
-        <span>
-          {env.approvedVersion
-            ? `Approved baseline v${env.approvedVersion}`
-            : "Awaiting approval"}
-        </span>
-      </div>
-      <nav className="environment-tabs" aria-label="Environment records">
+      <EnvironmentContext env={env} />
+      <nav
+        className={`environment-tabs ${styles.tabs}`}
+        aria-label="Environment records"
+      >
         {(
           [
             "configuration",
@@ -202,11 +211,23 @@ export function EnvironmentDetails({ id }: { id: string }) {
               setPage(0);
             }}
           >
-            {t.replaceAll("-", " ")}
+            {
+              {
+                configuration: "Configuration",
+                "status-history": "Status History",
+                versions: "Versions",
+                reviews: "Reviews",
+                "audit-log": "Audit Log",
+              }[t]
+            }
           </Button>
         ))}
       </nav>
-      <details className="environment-governance-controls" open={!!action}>
+      <details
+        ref={governance}
+        className="environment-governance-controls"
+        open={!!action}
+      >
         <summary>Lifecycle and governance actions</summary>{" "}
         <section className="panel environment-command-center">
           <header className="environment-command-header">
@@ -424,183 +445,28 @@ export function EnvironmentDetails({ id }: { id: string }) {
         </section>
       </details>
       {tab === "configuration" ? (
-        <div className="environment-details-layout">
-          <section className="panel environment-baseline-panel">
-            <header>
-              <h2>Infrastructure baseline</h2>
-              <p className="muted">
-                Saved environment configuration · Version {env.version}
-                {env.approvedVersion && env.approvedVersion !== env.version
-                  ? ` · Approved baseline v${env.approvedVersion}`
-                  : ""}
-              </p>
-            </header>
-            {Object.entries(env.configuration).map(([key, value]) => {
-              const icons: Record<string, typeof Cloud> = {
-                account: Cloud,
-                location: Cloud,
-                network: Network,
-                security: ShieldCheck,
-                iam: KeyRound,
-                encryption: KeyRound,
-                connectivity: ArrowUpRight,
-                tags: Tags,
-                extensions: Code2,
-              };
-              const Icon = icons[key] ?? Code2;
-              const names: Record<string, string> = {
-                account: "Cloud account",
-                location: "Region",
-                network: "VPC and subnets",
-                security: "Security groups",
-                iam: "IAM roles",
-                encryption: "KMS encryption",
-                connectivity: "Outbound access",
-                tags: "Governance tags",
-                extensions: "Discovery and provisioning",
-              };
-              return (
-                <div className="environment-baseline-row" key={key}>
-                  <div className="environment-baseline-label">
-                    <Icon size={22} />
-                    <h3>{names[key] ?? key}</h3>
-                  </div>
-                  <ConfigurationSummary value={value} />
-                </div>
-              );
-            })}
-            {!Object.keys(env.configuration).length && (
-              <p>Configuration has not been entered yet.</p>
-            )}
-          </section>
-          <aside className="environment-details-sidebar">
-            <section className="panel panel-padding">
-              <h2>Environment status</h2>
-              <dl className="environment-status-details">
-                {[
-                  { label: "Status", value: env.status.replaceAll("_", " ") },
-                  { label: "Environment type", value: env.environmentType },
-                  { label: "Customer", value: env.customerName },
-                  {
-                    label: "Cloud provider",
-                    value: `${env.cloudProvider} / ${env.kubernetesDistribution}`,
-                  },
-                  {
-                    label: "Approved baseline",
-                    value: env.approvedVersion
-                      ? `Version ${env.approvedVersion}`
-                      : "Not yet approved",
-                  },
-                  { label: "Created", value: formatDateTime(env.createdAt) },
-                  {
-                    label: "Last updated",
-                    value: formatDateTime(env.updatedAt || env.createdAt),
-                  },
-                ].map((item) => (
-                  <div key={item.label}>
-                    <dt>{item.label}</dt>
-                    <dd>{item.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-            <section className="panel panel-padding">
-              <h2>Approval and workflow</h2>
-              <ul className="environment-approval-lineage">
-                {Object.entries(env.workflow).map(([key, value]) => (
-                  <li key={key}>
-                    <CheckCircle2 size={19} />
-                    <div>
-                      <strong>{key.replaceAll("_", " ")}</strong>
-                      <p>{formatDateTime(value.at)}</p>
-                      <small>{value.by}</small>
-                      {value.reason && <p>{value.reason}</p>}
-                      {value.comments && <p>{value.comments}</p>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {!Object.keys(env.workflow).length && (
-                <p className="muted">No workflow events recorded.</p>
-              )}
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setTab("reviews");
-                  setPage(0);
-                }}
-              >
-                View review history →
-              </Button>
-            </section>
-            <section className="panel panel-padding">
-              <h2>Baseline availability</h2>
-              <p>
-                {env.approvedStatus === "ACTIVE"
-                  ? `Approved baseline v${env.approvedVersion} is active for cluster requests.`
-                  : "An active approved baseline is required for new cluster requests."}
-              </p>
-              {env.approvedVersion && (
-                <Button
-                  variant="ghost"
-                  onClick={() => setVersion(env.approvedVersion!)}
-                >
-                  View approved version →
-                </Button>
-              )}
-            </section>
-          </aside>
-        </div>
+        <EnvironmentExplorer
+          env={env}
+          onVersion={setVersion}
+          onReviews={() => {
+            setTab("reviews");
+            setPage(0);
+          }}
+        />
       ) : records.isPending ? (
         <Loading label="Loading history…" />
       ) : records.error ? (
         <ErrorNotice error={records.error} />
       ) : (
         records.data && (
-          <section className="panel panel-padding">
-            {records.data.items.map((r, i) => (
-              <article className="environment-history" key={i}>
-                <strong>
-                  {r.newStatus ||
-                    r.reviewStatus ||
-                    r.action ||
-                    `Version ${r.version}`}
-                </strong>
-                <p className="metadata">
-                  {formatDateTime(
-                    r.changedAt || r.reviewedAt || r.performedAt || r.createdAt,
-                  )}{" "}
-                  ·{" "}
-                  {r.changedBy || r.reviewerId || r.performedBy || r.createdBy}
-                </p>
-                {r.reason && <p>{r.reason}</p>}
-                {r.comments && <p>{r.comments}</p>}
-                {r.changeReason && <p>{r.changeReason}</p>}
-                {r.version && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setVersion(r.version!)}
-                  >
-                    View version {r.version}
-                  </Button>
-                )}
-                {tab === "audit-log" && (
-                  <details>
-                    <summary>Change snapshots</summary>
-                    <pre className="environment-json">
-                      {JSON.stringify(
-                        { before: r.oldValue, after: r.newValue },
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  </details>
-                )}
-              </article>
-            ))}
-            {!records.data.items.length && <p>No records yet.</p>}
-            <Pagination {...records.data.pagination} onChange={setPage} />
-          </section>
+          <EnvironmentRecordPanel
+            key={`${tab}-${page}`}
+            kind={tab}
+            records={records.data}
+            env={env}
+            onVersion={setVersion}
+            onPage={setPage}
+          />
         )
       )}
       {version !== null && (
@@ -613,48 +479,10 @@ export function EnvironmentDetails({ id }: { id: string }) {
           ) : historical.error ? (
             <ErrorNotice error={historical.error} />
           ) : (
-            <pre className="environment-json">
-              {JSON.stringify(historical.data, null, 2)}
-            </pre>
+            historical.data && <EnvironmentVersionView env={historical.data} />
           )}
         </Modal>
       )}
     </div>
-  );
-}
-
-function ConfigurationSummary({ value }: { value: unknown }) {
-  if (value === null || typeof value !== "object") {
-    return (
-      <p className="environment-config-value">
-        {value === null ? "Not set" : String(value)}
-      </p>
-    );
-  }
-  if (Array.isArray(value)) {
-    if (!value.length) return <p className="muted">No entries</p>;
-    return (
-      <ul className="environment-config-items">
-        {value.map((item, index) => (
-          <li key={index}>
-            <ConfigurationSummary value={item} />
-          </li>
-        ))}
-      </ul>
-    );
-  }
-  return (
-    <dl className="environment-config-values">
-      {Object.entries(value).map(([key, item]) => (
-        <div key={key}>
-          <dt>
-            {key.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2")}
-          </dt>
-          <dd>
-            <ConfigurationSummary value={item} />
-          </dd>
-        </div>
-      ))}
-    </dl>
   );
 }
