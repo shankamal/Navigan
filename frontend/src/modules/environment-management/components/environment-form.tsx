@@ -1,5 +1,6 @@
 "use client";
 import "./environment-workspace.css";
+import "./environment-form-studio.css";
 import Link from "next/link";
 import { ProviderBadges } from "@/modules/customer-management/components/customer-badges";
 import { useRef, useState } from "react";
@@ -7,7 +8,11 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  CloudCog,
+  Building2,
+  CheckCircle2,
+  Circle,
+  ChevronDown,
+  Tag,
   ClipboardList,
   Eye,
   GitBranch,
@@ -279,6 +284,22 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
       router.push(`/environments/${value.environmentId}`);
     },
   });
+  const identityComplete = Boolean(
+    input.customerId &&
+    input.environmentName.trim() &&
+    input.environmentType &&
+    costCenter.trim() &&
+    isEks,
+  );
+  const currentStep = reviewing
+    ? 4
+    : hasDiscovery
+      ? 3
+      : discovery
+        ? 2
+        : identityComplete
+          ? 1
+          : 0;
   const canEdit = identity?.roles.some((r) => r === "CLOUD_ENGINEER");
   if (!canEdit)
     return (
@@ -322,7 +343,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
     });
   };
   return (
-    <div className="environment-workspace environment-form-workspace">
+    <div className="environment-workspace environment-form-workspace environment-studio">
       <Link className="back-link" href="/environments">
         <ArrowLeft size={16} />
         Back to environments
@@ -380,16 +401,8 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         ].map((label, index) => (
           <li
             key={label}
-            className={
-              index <= (reviewing ? 4 : hasDiscovery ? 3 : discovery ? 2 : 0)
-                ? "active"
-                : ""
-            }
-            aria-current={
-              index === (reviewing ? 4 : hasDiscovery ? 3 : discovery ? 2 : 0)
-                ? "step"
-                : undefined
-            }
+            className={index <= currentStep ? "active" : ""}
+            aria-current={index === currentStep ? "step" : undefined}
           >
             <span>{index + 1}</span>
             <strong>{label}</strong>
@@ -408,44 +421,6 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         ))}
       </ol>
       <div className="environment-creation-layout">
-        <section
-          className="panel environment-form-context"
-          aria-label="Environment context"
-        >
-          <h2>
-            <ClipboardList size={20} aria-hidden="true" />
-            Environment summary
-          </h2>
-          <div>
-            <small>Customer</small>
-            <strong>
-              {environment?.customerName ||
-                customers.data?.items.find(
-                  (c) => c.customerId === input.customerId,
-                )?.name ||
-                "Select customer"}
-            </strong>
-          </div>
-          <div>
-            <small>Cloud / Distribution</small>
-            <strong>
-              <ProviderBadges codes={[input.cloudProvider]} compact /> /{" "}
-              {input.kubernetesDistribution}
-            </strong>
-          </div>
-          <div>
-            <small>AWS account</small>
-            <strong>{discovery?.account.accountId || "Not connected"}</strong>
-          </div>
-          <div>
-            <small>Region</small>
-            <strong>{discovery?.regions[0]?.region || "Not discovered"}</strong>
-          </div>
-          <div>
-            <small>Environment version</small>
-            <strong>v{environment?.version || 1} · Draft</strong>
-          </div>
-        </section>
         <form
           ref={form}
           className="environment-form"
@@ -456,18 +431,18 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
         >
           <fieldset
             disabled={mutation.isPending}
-            className="panel panel-padding environment-fieldset"
+            className="panel environment-fieldset"
           >
             <legend className="sr-only">Environment identity</legend>
             <div className="section-heading environment-form-heading">
               <span className="section-number">
-                <CloudCog size={17} aria-hidden="true" />
+                <Building2 size={19} aria-hidden="true" />
               </span>
               <div>
                 <h2>Environment identity</h2>
                 <p className="muted">
-                  Choose the customer, platform, ownership and billing context
-                  before discovering cloud resources.
+                  Set the customer, platform and basic details for this
+                  environment.
                 </p>
               </div>
             </div>
@@ -586,8 +561,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                   ))}
                 </select>
                 <small>
-                  AWS EKS is currently available for discovery and provisioning.
-                  Other container platforms are shown as the product roadmap.
+                  AWS EKS is available. Other platforms are on the roadmap.
                 </small>
               </label>
               <label className="field">
@@ -623,8 +597,8 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
                 />
                 <small>Required governance tag for provisioning.</small>
               </label>
-              <label className="field">
-                Description
+              <label className="field environment-description-field">
+                Description <span className="muted">(optional)</span>
                 <textarea
                   rows={3}
                   maxLength={4000}
@@ -648,6 +622,7 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               owner={identity.displayName}
               costCenter={costCenter}
               disabled={mutation.isPending}
+              baselineApplied={hasDiscovery}
               onApply={(configuration) => {
                 setHasDiscovery(true);
                 setInput((current) => ({
@@ -663,23 +638,46 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
           )}
           {isEks ? (
             <>
-              <section className="panel panel-padding environment-config-summary">
-                <h2>EKS environment profile baseline</h2>
-                <p className="muted">
-                  {hasDiscovery
-                    ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
-                    : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
-                </p>
-                <span
-                  className={
-                    hasDiscovery
-                      ? "security-chip"
-                      : "security-chip needs-review"
-                  }
-                >
-                  {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
-                </span>
-              </section>
+              <details className="panel environment-studio-configuration">
+                <summary className="environment-studio-section-toggle">
+                  <Tag size={19} aria-hidden="true" />
+                  <strong>Configuration</strong>
+                  <span className="muted">
+                    Baseline settings and tags for this environment.
+                  </span>
+                  <small className="environment-section-status">
+                    {hasDiscovery ? "Attached to draft" : "Not started"}
+                  </small>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </summary>
+                <div className="environment-studio-section-body environment-config-summary">
+                  <h3>EKS environment profile baseline</h3>
+                  <p className="muted">
+                    {hasDiscovery
+                      ? "The validated AWS baseline above is attached to this draft. Save the draft to continue its review and approval workflow."
+                      : "Connect the AWS account, review eligible resources and apply the selected baseline. Raw schema fields are intentionally hidden from this guided flow."}
+                  </p>
+                  <span
+                    className={
+                      hasDiscovery
+                        ? "security-chip"
+                        : "security-chip needs-review"
+                    }
+                  >
+                    {hasDiscovery ? "Baseline applied" : "Baseline not applied"}
+                  </span>
+                  <dl className="details-grid">
+                    <div>
+                      <dt>Environment type</dt>
+                      <dd>{input.environmentType || "Not selected"}</dd>
+                    </div>
+                    <div>
+                      <dt>Cost center</dt>
+                      <dd>{costCenter || "Not provided"}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </details>
             </>
           ) : (
             <section className="panel panel-padding environment-config">
@@ -767,6 +765,79 @@ function EnvironmentForm({ environment }: { environment?: Environment }) {
               </dl>
             </section>
           )}
+          <section
+            className="panel environment-form-context environment-studio-summary"
+            aria-label="Environment context"
+          >
+            <div className="environment-summary-heading">
+              <ClipboardList size={20} aria-hidden="true" />
+              <div>
+                <h2>Environment summary</h2>
+                <p className="muted">
+                  Review the key details and completion status.
+                </p>
+              </div>
+            </div>
+            <div>
+              <small>Customer</small>
+              <strong>
+                {environment?.customerName ||
+                  customers.data?.items.find(
+                    (c) => c.customerId === input.customerId,
+                  )?.name ||
+                  "Select customer"}
+              </strong>
+            </div>
+            <div>
+              <small>Cloud / Distribution</small>
+              <strong>
+                <ProviderBadges codes={[input.cloudProvider]} compact /> /{" "}
+                {isEks && (
+                  <img
+                    src="/logos/amazoneks.svg"
+                    width={20}
+                    height={20}
+                    alt=""
+                  />
+                )}
+                {input.kubernetesDistribution}
+              </strong>
+            </div>
+            <div>
+              <small>AWS account</small>
+              <strong>{discovery?.account.accountId || "Not connected"}</strong>
+            </div>
+            <div>
+              <small>Region</small>
+              <strong>
+                {discovery?.regions[0]?.region || "Not discovered"}
+              </strong>
+            </div>
+            <div>
+              <small>Environment version</small>
+              <strong>v{environment?.version || 1} · Draft</strong>
+            </div>
+            <div className="environment-completion">
+              <h3>Completion status</h3>
+              <ul aria-label="Environment completion status">
+                {[
+                  { label: "Identity", complete: identityComplete },
+                  { label: "Cloud connection", complete: Boolean(discovery) },
+                  { label: "Infrastructure", complete: hasDiscovery },
+                ].map(({ label, complete }) => (
+                  <li key={label}>
+                    {complete ? (
+                      <CheckCircle2 size={14} aria-hidden="true" />
+                    ) : (
+                      <Circle size={14} aria-hidden="true" />
+                    )}
+                    <span>{label}</span>
+                    <small>{complete ? "Complete" : "Pending"}</small>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
           <div className="environment-actions environment-save-bar">
             <div>
               <strong>
