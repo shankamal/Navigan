@@ -1,5 +1,6 @@
 /* Local presentation overrides; existing shell and other customer screens stay intact. */
 .customer-create-workspace {
+  font-size: var(--navigan-font-body);
   color: #202833;
   min-width: 0;
 }
@@ -649,5 +650,108 @@ main#main-content
   .customer-save-bar {
     margin-top: 4px;
     padding: 4px 0;
+  }
+}
+
+/* Use the available desktop height, instead of leaving space below the actions. */
+@media (min-width: 1200px) {
+  .app-shell.app-shell main#main-content:has(.customer-create-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  .customer-create-workspace,
+  .customer-create-workspace > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  .customer-create-columns {
+    flex: 1;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .customer-form-panel {
+    display: flex;
+    flex-direction: column;
+  }
+  .customer-cloud-section,
+  .customer-readiness {
+    margin-top: auto;
+  }
+  .customer-cloud-section {
+    padding-top: 10px;
+  }
+}
+
+/* A readable middle scale on normal-height desktops; short laptops stay compact. */
+@media (min-width: 1200px) and (min-height: 761px) {
+  .customer-create-workspace {
+    --navigan-font-page-title: 21px;
+    --navigan-font-section-title: 15px;
+    --navigan-font-subsection-title: 13px;
+    --navigan-font-body: 13px;
+    --navigan-font-control: 13px;
+    --navigan-font-label: 12px;
+    --navigan-font-caption: 11.5px;
+    --navigan-control-height: 36px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .customer-form-panel {
+    padding: 14px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .field
+    > textarea {
+    min-height: 64px;
+    height: 64px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .provider-option {
+    min-height: 54px;
+    padding: 8px 10px;
+  }
+  .customer-provider-mark {
+    width: 34px;
+    height: 28px;
+    flex-basis: 34px;
+  }
+}
+@media (min-width: 1200px) and (min-height: 850px) {
+  .customer-create-workspace {
+    --navigan-font-page-title: 22px;
+    --navigan-font-section-title: 16px;
+    --navigan-font-control: 14px;
+    --navigan-font-body: 14px;
+    --navigan-font-label: 12.5px;
+    --navigan-font-caption: 12px;
+    --navigan-control-height: 38px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .customer-form-panel {
+    padding: 16px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .field
+    > textarea {
+    min-height: 80px;
+    height: 80px;
+  }
+  .app-shell.app-shell
+    main#main-content
+    .customer-create-workspace
+    .provider-option {
+    min-height: 60px;
+    padding-block: 10px;
   }
 }

@@ -11,6 +11,8 @@ let created;
 const writes = [];
 async function assertLaptopFit(state) {
   for (const viewport of [
+    { width: 1536, height: 875 },
+    { width: 1536, height: 780 },
     { width: 1536, height: 700 },
     { width: 1366, height: 650 },
     { width: 1280, height: 650 },
@@ -29,6 +31,8 @@ async function assertLaptopFit(state) {
         actionTop: actions.top,
         actionBottom: actions.bottom,
         panelBottom: Math.max(...panels),
+        footerTop: document.querySelector(".app-footer").getBoundingClientRect()
+          .top,
       };
     });
     const label = `${state} at ${viewport.width}x${viewport.height}`;
@@ -43,6 +47,10 @@ async function assertLaptopFit(state) {
     assert.ok(
       layout.actionBottom <= viewport.height,
       `${label}: save actions must be visible`,
+    );
+    assert.ok(
+      layout.footerTop - layout.actionBottom <= 24,
+      `${label}: actions must sit near the footer`,
     );
     assert.ok(
       layout.panelBottom <= layout.actionTop,
