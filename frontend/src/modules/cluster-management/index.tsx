@@ -1463,7 +1463,9 @@ export function NewClusterPage() {
                     onClick={() => void envs.refetch()}
                   >
                     <RefreshCw size={14} />
-                    Reload active environments
+                    <span className={setupStyles.srOnly}>
+                      Reload active environments
+                    </span>
                   </Button>
                 )}
                 {customerId &&
@@ -1648,7 +1650,9 @@ export function NewClusterPage() {
                         onClick={() => void selectedEnvironment.refetch()}
                       >
                         <RefreshCw size={14} />
-                        Reload approved baseline
+                        <span className={setupStyles.srOnly}>
+                          Reload approved baseline
+                        </span>
                       </Button>
                     )}
                   </label>
