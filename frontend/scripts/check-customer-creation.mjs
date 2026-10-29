@@ -9,6 +9,48 @@ page.on("pageerror", (error) => errors.push(error.message));
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3101";
 let created;
 const writes = [];
+async function assertLaptopFit(state) {
+  for (const viewport of [
+    { width: 1536, height: 700 },
+    { width: 1366, height: 650 },
+    { width: 1280, height: 650 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const layout = await page.evaluate(() => {
+      const actions = document
+        .querySelector(".customer-save-bar")
+        .getBoundingClientRect();
+      const panels = [...document.querySelectorAll(".customer-form-panel")].map(
+        (panel) => panel.getBoundingClientRect().bottom,
+      );
+      return {
+        pageHeight: document.documentElement.scrollHeight,
+        pageWidth: document.documentElement.scrollWidth,
+        actionTop: actions.top,
+        actionBottom: actions.bottom,
+        panelBottom: Math.max(...panels),
+      };
+    });
+    const label = `${state} at ${viewport.width}x${viewport.height}`;
+    assert.ok(
+      layout.pageHeight <= viewport.height + 1,
+      `${label}: page must fit vertically`,
+    );
+    assert.ok(
+      layout.pageWidth <= viewport.width,
+      `${label}: page must fit horizontally`,
+    );
+    assert.ok(
+      layout.actionBottom <= viewport.height,
+      `${label}: save actions must be visible`,
+    );
+    assert.ok(
+      layout.panelBottom <= layout.actionTop,
+      `${label}: save bar must not cover form content`,
+    );
+  }
+  await page.setViewportSize({ width: 1440, height: 1024 });
+}
 try {
   const config = await page.request.get(base + "/api/runtime-config");
   assert.equal(config.status(), 200);
@@ -128,6 +170,7 @@ try {
   await page
     .getByRole("heading", { name: "New customer", exact: true })
     .waitFor();
+  await assertLaptopFit("Empty customer form");
   await page
     .getByRole("button", { name: "Save as draft", exact: true })
     .click();
@@ -156,9 +199,7 @@ try {
       .count(),
     0,
   );
-  await page
-    .getByLabel(/^Email \(optional\)/)
-    .fill("alex.morgan@example.com");
+  await page.getByLabel(/^Email \(optional\)/).fill("alex.morgan@example.com");
   await page
     .getByRole("button", { name: "Add to customer", exact: true })
     .click();
@@ -188,6 +229,7 @@ try {
   await page
     .getByRole("button", { name: "Update contact", exact: true })
     .click();
+  await assertLaptopFit("Populated customer form");
   await page.screenshot({
     path: "test-results/customer-creation-desktop.png",
     fullPage: true,
