@@ -93,47 +93,6 @@ function ProviderLogo({
   );
 }
 
-function DonutChart({
-  title,
-  value,
-  subtitle,
-  segments,
-}: {
-  title: string;
-  value: string | number;
-  subtitle: string;
-  segments: Array<{ value: number; color: string }>;
-}) {
-  let offset = 0;
-  return (
-    <div className="pd-donut">
-      <svg viewBox="0 0 42 42" role="img" aria-label={title}>
-        <circle className="pd-donut-track" cx="21" cy="21" r="15.9155" />
-        {segments.map((segment, index) => {
-          const dashOffset = 25 - offset;
-          offset += segment.value;
-          return (
-            <circle
-              key={`${segment.color}-${index}`}
-              className="pd-donut-segment"
-              cx="21"
-              cy="21"
-              r="15.9155"
-              stroke={segment.color}
-              strokeDasharray={`${segment.value} ${100 - segment.value}`}
-              strokeDashoffset={dashOffset}
-            />
-          );
-        })}
-      </svg>
-      <div className="pd-donut-center">
-        <strong>{value}</strong>
-        <span>{subtitle}</span>
-      </div>
-    </div>
-  );
-}
-
 export function PlatformDashboard() {
   const queryClient = useQueryClient();
   const { identity } = useAuth();
@@ -488,15 +447,17 @@ export function PlatformDashboard() {
             <p className="pd-empty">No environment profiles are available.</p>
           ) : (
             <div className="pd-footprint">
-              <DonutChart
-                title="Environment profiles by cloud provider"
-                value={providerTotal}
-                subtitle="environments"
-                segments={providerOrder.map((provider) => ({
-                  value:
-                    ((providerCounts[provider] ?? 0) / providerTotal) * 100,
-                  color: providerColors[provider],
-                }))}
+              <SummaryDonut
+                label="Environment profiles by cloud provider"
+                total={providerTotal}
+                center={String(providerTotal)}
+                caption="environments"
+                values={providerOrder.map(
+                  (provider) => providerCounts[provider] ?? 0,
+                )}
+                colors={providerOrder.map(
+                  (provider) => providerColors[provider],
+                )}
               />
               <div className="pd-legend pd-provider-legend">
                 {providerOrder.map((provider) => (
@@ -538,27 +499,14 @@ export function PlatformDashboard() {
             <span className="pd-data-label">Current records</span>
           </header>
           <div className="pd-posture">
-            <div className="pd-gauge">
-              <svg
-                viewBox="0 0 180 180"
-                role="img"
-                aria-label={`Average active record coverage ${overallPosture}%`}
-              >
-                <circle className="pd-gauge-track" cx="90" cy="90" r="70" />
-                <circle
-                  className="pd-gauge-value"
-                  cx="90"
-                  cy="90"
-                  r="70"
-                  pathLength="100"
-                  strokeDasharray={`${overallPosture} 100`}
-                />
-              </svg>
-              <div>
-                <strong>{overallPosture}%</strong>
-                <span>Active</span>
-              </div>
-            </div>
+            <SummaryDonut
+              label={`Average active record coverage ${overallPosture}%`}
+              total={100}
+              center={`${overallPosture}%`}
+              caption="Active"
+              values={[overallPosture, Math.max(0, 100 - overallPosture)]}
+              colors={["#79aa27", "#e9eee7"]}
+            />
             <div className="pd-posture-metrics">
               <div>
                 <span>
