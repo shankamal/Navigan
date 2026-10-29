@@ -1324,8 +1324,8 @@
     gap: 8px !important;
   }
   .environment-list-workspace .environment-portfolio-charts {
-    grid-template-columns: 1.05fr 1.15fr 0.9fr !important;
-    gap: 8px !important;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr) minmax(0, 0.9fr) !important;
+    gap: 12px !important;
     min-height: 0 !important;
     padding: 0 !important;
   }
@@ -1341,10 +1341,6 @@
   }
   .environment-list-workspace .environment-chart-content {
     gap: 8px !important;
-  }
-  .environment-list-workspace .environment-portfolio-lifecycle {
-    padding: 0 !important;
-    border: 0 !important;
   }
   .environment-list-workspace
     .environment-portfolio-lifecycle
@@ -1518,4 +1514,16 @@
   padding-left: 48px !important;
   background-size: var(--navigan-provider-logo-hero-max-width)
     var(--navigan-provider-logo-hero-height) !important;
+}
+
+/* Keep overview cards separate when the content area narrows. */
+@container (max-width: 1000px) {
+  .environment-list-workspace .environment-portfolio-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+@container (max-width: 680px) {
+  .environment-list-workspace .environment-portfolio-charts {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }

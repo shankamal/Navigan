@@ -185,7 +185,7 @@ export function EnvironmentList({
       {mode === "directory" ? (
         <div className="environment-portfolio-overview">
           <section
-            className="panel environment-portfolio-charts"
+            className="environment-portfolio-charts"
             aria-label="Environment portfolio metrics"
           >
             <div className="environment-portfolio-lifecycle">
