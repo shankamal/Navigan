@@ -1,8 +1,8 @@
 .summary-donut {
   position: relative;
-  flex: 0 0 96px;
-  width: 96px;
-  height: 96px;
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
 }
 .summary-donut svg {
   width: 100%;
@@ -20,7 +20,8 @@
   text-align: center;
   font-family: var(--navigan-font-family, "Geist Sans", Arial, sans-serif);
 }
-.summary-donut .summary-donut-center strong {
+.summary-donut .summary-donut-center strong,
+.app-shell[class] main#main-content .summary-donut-center > strong {
   font-size: 22px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -28,7 +29,8 @@
   line-height: 1.2;
   color: var(--navigan-text, #202833);
 }
-.summary-donut .summary-donut-center span {
+.summary-donut .summary-donut-center span,
+.app-shell[class] main#main-content .summary-donut-center > span {
   font-size: 10.5px;
   font-weight: 400;
   letter-spacing: normal;
