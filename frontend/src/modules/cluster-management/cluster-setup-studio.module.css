@@ -1,0 +1,557 @@
+:global(main#main-content) .workspace {
+  container-type: inline-size;
+  gap: 8px !important;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-section-nav) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-section-nav a) {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 5px;
+  border-bottom: 2px solid #dfe5ec;
+  color: #566579;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+:global(main#main-content)
+  .workspace
+  :global(.cluster-setup-section-nav a[aria-current]) {
+  color: #205f2b;
+  border-bottom-color: #6ba62e;
+}
+:global(main#main-content)
+  .workspace
+  :global(.cluster-setup-section-nav a > span) {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #cbd5df;
+  border-radius: 50%;
+  background: #fff;
+  color: inherit;
+  font-size: 12px;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-form) {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  max-width: none !important;
+  margin: 0;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-layout) {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(280px, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+:global(main#main-content) .workspace :global(#cluster-approved-baseline) {
+  grid-column: 1/-1;
+  position: relative;
+  margin: 0;
+  padding: 12px;
+}
+:global(main#main-content)
+  .workspace
+  :global(#cluster-approved-baseline > .cluster-setup-grid) {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px 12px;
+  align-items: start;
+}
+:global(main#main-content)
+  .workspace
+  :global(#cluster-approved-baseline > .cluster-setup-grid > .field) {
+  grid-column: span 3;
+  position: relative;
+}
+:global(main#main-content)
+  .workspace
+  :global(
+    #cluster-approved-baseline > .cluster-setup-grid > .field:nth-child(3)
+  ) {
+  grid-column: span 4;
+  padding-right: 22px;
+}
+:global(main#main-content) .workspace .pinned {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  grid-column: span 2;
+  min-height: 53px;
+  border-left: 1px solid #e0e6ec;
+  padding-left: 12px;
+}
+:global(main#main-content) .workspace .pinned strong {
+  font-size: 11px;
+  line-height: 1.4;
+}
+:global(main#main-content) .workspace .pinned small {
+  display: block;
+  margin-top: 3px;
+  color: #657487;
+  font-size: 10px;
+}
+:global(main#main-content)
+  .workspace
+  :global(#cluster-approved-baseline .cluster-baseline-card) {
+  grid-column: 1/-1;
+  border: 0;
+  border-top: 1px solid #e4e9ef;
+  border-radius: 0;
+  background: transparent;
+  margin: 0;
+  padding: 9px 0 0;
+  box-shadow: none;
+}
+:global(main#main-content) .workspace :global(.cluster-baseline-grid) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  gap: 12px;
+}
+:global(main#main-content) .workspace :global(.cluster-baseline-grid > div) {
+  min-width: 0;
+  border-left: 1px solid #e1e7ee;
+  padding-left: 12px;
+}
+:global(main#main-content)
+  .workspace
+  :global(.cluster-baseline-grid > div:first-child) {
+  border-left: 0;
+  padding-left: 0;
+}
+:global(main#main-content) .workspace :global(.cluster-baseline-grid dt) {
+  font-size: 10px;
+  color: #657487;
+}
+:global(main#main-content) .workspace :global(.cluster-baseline-grid dd) {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 600;
+}
+:global(main#main-content) .workspace .sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+:global(main#main-content) .workspace .section {
+  position: relative;
+  min-width: 0;
+  border: 1px solid #dae2eb;
+  border-radius: 5px;
+  background: #fff;
+  scroll-margin-top: 70px;
+}
+:global(main#main-content) .workspace .section > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 55px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+:global(main#main-content)
+  .workspace
+  .section
+  > summary::-webkit-details-marker {
+  display: none;
+}
+:global(main#main-content) .workspace .section > summary:focus-visible {
+  outline: 2px solid #2c6b38;
+  outline-offset: 2px;
+}
+:global(main#main-content) .workspace .sectionIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #273441;
+}
+:global(main#main-content) .workspace .sectionHeading {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+:global(main#main-content) .workspace .sectionHeading strong {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1d2937;
+}
+:global(main#main-content) .workspace .sectionHeading small {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+:global(main#main-content) .workspace .protected {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 12px;
+  background: #f0f3f6;
+  font-size: 10px;
+  white-space: nowrap;
+}
+:global(main#main-content) .workspace .chevron {
+  flex-shrink: 0;
+}
+:global(main#main-content) .workspace .section[open] > summary .chevron {
+  transform: rotate(180deg);
+}
+:global(main#main-content) .workspace .section:not([open]) > .sectionBody {
+  display: none;
+}
+:global(main#main-content) .workspace .sectionBody {
+  padding: 0 14px 13px;
+}
+:global(main#main-content)
+  .workspace
+  .sectionBody
+  > :global(.cluster-creation-section) {
+  position: relative;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-width: 0;
+}
+:global(main#main-content)
+  .workspace
+  .sectionBody
+  :global(.cluster-creation-section-heading),
+:global(main#main-content) .workspace .sectionBody :global(legend) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+:global(main#main-content)
+  .workspace
+  .sectionBody
+  :global(.cluster-setup-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+:global(main#main-content)
+  .workspace
+  .sectionBody
+  :global(.cluster-field-span) {
+  grid-column: 1/-1;
+}
+:global(main#main-content) .workspace :global(.field) {
+  margin: 0;
+  min-width: 0;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+:global(main#main-content) .workspace :global(input),
+:global(main#main-content) .workspace :global(select) {
+  height: 32px;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 5px 9px;
+  min-width: 0;
+}
+:global(main#main-content) .workspace :global(textarea) {
+  min-height: 62px;
+  height: 62px;
+  font-size: 12px;
+  padding: 7px 9px;
+}
+:global(main#main-content) .workspace :global(.field small),
+:global(main#main-content) .workspace :global(.metadata),
+:global(main#main-content) .workspace :global(.muted) {
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+:global(main#main-content) .workspace :global(.cluster-blueprint-card) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+:global(main#main-content)
+  .workspace
+  :global(#cluster-system-workers .cluster-blueprint-card .cluster-setup-grid) {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+:global(main#main-content)
+  .workspace
+  :global(#cluster-system-workers .cluster-blueprint-card .field:first-child) {
+  display: none;
+}
+:global(main#main-content)
+  .workspace
+  :global(#cluster-system-workers .cluster-blueprint-card .field) {
+  grid-column: span 4;
+}
+:global(main#main-content)
+  .workspace
+  :global(
+    #cluster-system-workers .cluster-blueprint-card .field:nth-child(n + 5)
+  ) {
+  grid-column: span 3;
+}
+:global(main#main-content) .workspace :global(.cluster-worker-capacity-view) {
+  display: none;
+}
+:global(main#main-content) .workspace :global(.cluster-baseline-card) {
+  border: 1px solid #e4e9ef;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+:global(main#main-content) .workspace :global(.cluster-baseline-card strong) {
+  font-size: 11px;
+}
+:global(main#main-content) .workspace :global(.security-chip) {
+  background: #edf1f5;
+  color: #415165;
+  font-size: 10px;
+  margin-top: 4px;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar) {
+  display: block;
+  position: static;
+  max-height: none;
+  overflow: visible;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dae2eb;
+  border-radius: 5px;
+  background: white;
+}
+:global(main#main-content)
+  .workspace
+  :global(.cluster-setup-sidebar > section) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  margin: 0;
+  padding: 0 0 10px;
+}
+:global(main#main-content)
+  .workspace
+  :global(.cluster-setup-sidebar > section + section) {
+  border-top: 1px solid #e0e6ed;
+  padding-top: 10px;
+}
+:global(main#main-content)
+  .workspace
+  :global(.cluster-setup-sidebar > section:last-child) {
+  padding-bottom: 0;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar h2) {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar dl) {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 4px;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar dl > div) {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar dt),
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar dd) {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-sidebar dt) {
+  color: #64748b;
+}
+:global(main#main-content) .workspace :global(.cluster-cloud) {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  margin: 0;
+}
+:global(main#main-content) .workspace :global(.cluster-cloud strong) {
+  font-size: 12px;
+}
+:global(main#main-content) .workspace :global(.cluster-cloud img) {
+  max-width: 30px;
+  max-height: 24px;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-checklist) {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  margin: 8px 0 0;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-checklist li) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-checklist li svg) {
+  width: 14px;
+  height: 14px;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-actions) {
+  grid-column: 1/-1;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 10px 12px;
+  border: 1px solid #dae2eb;
+  border-radius: 5px;
+  background: white;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-save-copy) {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  font-size: 11px;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-save-copy span) {
+  border-left: 1px solid #dce3eb;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+:global(main#main-content) .workspace :global(.cluster-setup-save-buttons) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+:global(main#main-content) .workspace :global(.button) {
+  min-height: 30px;
+  font-size: 11px;
+}
+:global(main#main-content) .workspace :global(.field > button) {
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 22px;
+  width: 20px;
+  min-height: 25px;
+  font-size: 0 !important;
+  overflow: hidden;
+  min-width: 20px;
+  white-space: nowrap;
+}
+:global(main#main-content) .workspace :global(.field > button svg) {
+  width: 13px;
+  height: 13px;
+}
+:global(main#main-content) .workspace .srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@container (max-width:1000px) {
+  :global(main#main-content) .workspace :global(.cluster-setup-layout) {
+    grid-template-columns: minmax(0, 2fr) minmax(255px, 1fr);
+  }
+  :global(main#main-content)
+    .workspace
+    :global(.cluster-setup-sidebar dl > div) {
+    grid-template-columns: 95px minmax(0, 1fr);
+  }
+  :global(main#main-content) .workspace .protected {
+    display: none;
+  }
+}
+@container (max-width:760px) {
+  :global(main#main-content) .workspace :global(.cluster-setup-layout) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :global(main#main-content) .workspace :global(.cluster-setup-section-nav) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 10px;
+  }
+  :global(main#main-content)
+    .workspace
+    :global(#cluster-approved-baseline > .cluster-setup-grid > .field),
+  :global(main#main-content)
+    .workspace
+    :global(
+      #cluster-approved-baseline > .cluster-setup-grid > .field:nth-child(3)
+    ),
+  :global(main#main-content) .workspace .pinned {
+    grid-column: span 6;
+  }
+  :global(main#main-content) .workspace :global(.cluster-baseline-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :global(main#main-content) .workspace :global(.cluster-setup-save-copy) {
+    flex-basis: 100%;
+  }
+}
+@container (max-width:480px) {
+  :global(main#main-content)
+    .workspace
+    :global(#cluster-approved-baseline > .cluster-setup-grid > .field),
+  :global(main#main-content)
+    .workspace
+    :global(
+      #cluster-approved-baseline > .cluster-setup-grid > .field:nth-child(3)
+    ),
+  :global(main#main-content) .workspace .pinned {
+    grid-column: 1/-1;
+  }
+  :global(main#main-content)
+    .workspace
+    .sectionBody
+    :global(.cluster-setup-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :global(main#main-content)
+    .workspace
+    :global(#cluster-system-workers .cluster-blueprint-card .field) {
+    grid-column: span 6;
+  }
+  :global(main#main-content) .workspace :global(.cluster-setup-save-buttons) {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

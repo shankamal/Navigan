@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NewClusterPage } from "@/modules/cluster-management";
+import { clusters } from "@/modules/cluster-management/service";
 import { environments } from "@/modules/environment-management/services/environments";
 const fixture = vi.hoisted(() => ({
   environment: {
@@ -34,8 +35,12 @@ const fixture = vi.hoisted(() => ({
     },
   },
 }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("@/modules/cluster-management/service", () => ({
+  clusters: { create: vi.fn() },
+}));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => navigation,
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/shared/auth/auth-provider", () => ({
@@ -80,6 +85,10 @@ async function selectCustomer() {
   });
 }
 beforeEach(() => {
+  vi.mocked(clusters.create)
+    .mockReset()
+    .mockResolvedValue({ clusterId: "CLU-created" } as never);
+  navigation.push.mockClear();
   vi.mocked(environments.list)
     .mockReset()
     .mockResolvedValue({ items: [fixture.environment] } as never);
@@ -154,5 +163,138 @@ describe("New cluster setup dependent loading", () => {
     expect(
       screen.getByRole("combobox", { name: /^Kubernetes version/ }),
     ).toBeDisabled();
+  });
+});
+
+async function completeSetup(withName = true) {
+  vi.mocked(environments.version).mockResolvedValue({
+    ...fixture.environment,
+    configuration: {
+      ...fixture.environment.configuration,
+      extensions: {
+        provisioningContract: {
+          ...fixture.environment.configuration.extensions.provisioningContract,
+          provisioningRoles: [
+            { roleName: "Provisioner", roleArn: "arn:approved-role" },
+          ],
+          provisioningSecrets: [
+            { name: "Registered External ID", arn: "arn:registered-secret" },
+          ],
+        },
+      },
+    },
+  } as never);
+  mount();
+  await selectCustomer();
+  await screen.findByRole("option", { name: /Dev environment.*approved v9/ });
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /^Active environment/ }),
+    { target: { value: "ENV-approved" } },
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("combobox", { name: /^Kubernetes version/ }),
+    ).toHaveValue("1.33"),
+  );
+  if (withName)
+    fireEvent.change(screen.getByRole("textbox", { name: "Cluster name *" }), {
+      target: { value: "platform-dev" },
+    });
+  fireEvent.click(screen.getByRole("link", { name: /System workers/ }));
+  fireEvent.change(screen.getByRole("textbox", { name: /^Node group name/ }), {
+    target: { value: "custom-system" },
+  });
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /^EC2 instance type/ }),
+    { target: { value: "t3.medium" } },
+  );
+  expect(
+    screen.getByRole("combobox", { name: /^Capacity type/ }),
+  ).toBeDisabled();
+  fireEvent.click(screen.getByRole("link", { name: /Repository & access/ }));
+  fireEvent.change(
+    screen.getByRole("textbox", { name: /^GitHub organization/ }),
+    { target: { value: "Example-Org" } },
+  );
+  fireEvent.click(
+    document.querySelector("#cluster-provisioning-access > summary")!,
+  );
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /^Provisioning role ARN/ }),
+    { target: { value: "arn:approved-role" } },
+  );
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /^External ID secret ARN/ }),
+    { target: { value: "arn:registered-secret" } },
+  );
+}
+describe("Cluster setup studio", () => {
+  it("retains worker edits when switching sections and blocks inconsistent scaling", async () => {
+    await completeSetup();
+    fireEvent.click(screen.getByRole("link", { name: /System workers/ }));
+    expect(
+      screen.getByRole("textbox", { name: /^Node group name/ }),
+    ).toHaveValue("custom-system");
+    expect(
+      screen.getByRole("combobox", { name: /^EC2 instance type/ }),
+    ).toHaveValue("t3.medium");
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: /^Desired nodes/ }),
+      { target: { value: "5" } },
+    );
+    expect(
+      screen.getByRole("button", { name: "Save setup request draft" }),
+    ).toBeDisabled();
+    expect(clusters.create).not.toHaveBeenCalled();
+  });
+  it("saves the original pinned approved-version request and protected system pool", async () => {
+    await completeSetup();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save setup request draft" }),
+    );
+    await waitFor(() => expect(clusters.create).toHaveBeenCalledTimes(1));
+    expect(clusters.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        environmentId: "ENV-approved",
+        environmentApprovedVersion: 9,
+        clusterName: "platform-dev",
+        kubernetesVersion: "1.33",
+        endpointAccess: "PRIVATE",
+        githubOrganization: "Example-Org",
+        provisioningRoleArn: "arn:approved-role",
+        externalIdSecretArn: "arn:registered-secret",
+        nodeGroups: [
+          expect.objectContaining({
+            name: "custom-system",
+            purpose: "SYSTEM",
+            capacityType: "ON_DEMAND",
+            instanceTypes: ["t3.medium"],
+            minSize: 2,
+            desiredSize: 2,
+            maxSize: 4,
+            diskSizeGiB: 50,
+          }),
+        ],
+      }),
+    );
+    await waitFor(() =>
+      expect(navigation.push).toHaveBeenCalledWith("/clusters/CLU-created"),
+    );
+  });
+  it("reveals a required field inside a collapsed section before native validation", async () => {
+    await completeSetup(false);
+    expect(
+      document.querySelector("#cluster-configuration"),
+    ).not.toHaveAttribute("open");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save setup request draft" }),
+    );
+    expect(document.querySelector("#cluster-configuration")).toHaveAttribute(
+      "open",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Cluster name *" }),
+    ).toBeInvalid();
+    expect(clusters.create).not.toHaveBeenCalled();
   });
 });
