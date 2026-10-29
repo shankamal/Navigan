@@ -109,4 +109,16 @@ describe("Environment UI preserves existing interactions", () => {
     fireEvent.change(status, { target: { value: "UNDER_REVIEW" } });
     expect(status).toHaveValue("UNDER_REVIEW");
   });
+  it("uses the shared cloud and active-coverage donut charts", () => {
+    render(<EnvironmentList />);
+    expect(
+      screen.getByRole("img", { name: "Environments by cloud provider" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Environment cloud provider counts" }),
+    ).toHaveTextContent("AWS / EKS1 (50%)");
+    expect(
+      screen.getByRole("img", { name: "Active environment coverage: 1 of 2" }),
+    ).toBeInTheDocument();
+  });
 });

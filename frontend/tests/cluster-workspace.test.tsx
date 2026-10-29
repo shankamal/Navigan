@@ -127,4 +127,31 @@ describe("Cluster workspace presentation", () => {
     );
     expect(screen.getByText("Other stages")).toBeInTheDocument();
   });
+  it("shows active and provisioning donuts and keeps status filtering interactive", () => {
+    const onFilter = vi.fn();
+    render(
+      <ClusterMetrics
+        total={5}
+        active={1}
+        draft={0}
+        submitted={0}
+        review={0}
+        failed={1}
+        planReady={2}
+        applying={1}
+        error={false}
+        onFilter={onFilter}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Active cluster coverage: 1 of 5" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Provisioning status: 4 requests" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Plan ready/ }));
+    expect(onFilter).toHaveBeenCalledWith("PLAN_READY");
+    fireEvent.click(screen.getByRole("button", { name: /Applying/ }));
+    expect(onFilter).toHaveBeenCalledWith("APPLYING");
+  });
 });

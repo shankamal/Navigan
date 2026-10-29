@@ -753,29 +753,6 @@
   color: #64748b;
   margin: -8px 0 16px;
 }
-.customer-metrics .customer-cloud-bars {
-  display: grid;
-  gap: 12px;
-}
-.customer-metrics .customer-cloud-bars li {
-  display: grid;
-  grid-template-columns: 24px 92px minmax(0, 1fr) 26px;
-  gap: 8px;
-}
-.customer-cloud-bars img {
-  object-fit: contain;
-}
-.customer-cloud-bar {
-  height: 10px;
-  background: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-.customer-cloud-bar span {
-  display: block;
-  height: 100%;
-  background: #65a449;
-}
 .customer-cloud-footprint small {
   display: block;
   font-size: 12px;
@@ -876,16 +853,6 @@
   .customer-cloud-caption {
     margin: -2px 0 7px;
     font-size: var(--navigan-font-caption);
-  }
-  .customer-metrics .customer-cloud-bars {
-    gap: 5px;
-  }
-  .customer-metrics .customer-cloud-bars li {
-    grid-template-columns: 20px 75px minmax(0, 1fr) 22px;
-    gap: 5px;
-  }
-  .customer-cloud-bar {
-    height: 7px;
   }
   .customer-directory-toolbar {
     gap: 6px;

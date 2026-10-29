@@ -1,0 +1,74 @@
+.summary-donut {
+  position: relative;
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+}
+.summary-donut svg {
+  width: 100%;
+  height: 100%;
+}
+.summary-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.summary-donut .summary-donut-center strong {
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--navigan-text, #202833);
+}
+.summary-donut .summary-donut-center span {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--navigan-secondary-text, #63717f);
+}
+.cloud-provider-chart {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.cloud-provider-chart .cloud-provider-legend {
+  flex: 1;
+  min-width: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+.cloud-provider-chart .cloud-provider-legend li {
+  display: grid;
+  grid-template-columns: 8px 20px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--navigan-font-body, 12px);
+  line-height: 1.3;
+}
+.cloud-provider-legend img {
+  object-fit: contain;
+}
+.cloud-provider-chart .cloud-provider-legend strong {
+  font-size: inherit;
+  white-space: nowrap;
+  margin-left: 0;
+}
+.summary-chart-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+@container (max-width: 500px) {
+  .cloud-provider-chart {
+    flex-wrap: wrap;
+  }
+  .cloud-provider-chart .cloud-provider-legend {
+    flex-basis: 200px;
+  }
+}

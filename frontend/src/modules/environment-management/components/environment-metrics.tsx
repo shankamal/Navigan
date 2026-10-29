@@ -1,3 +1,4 @@
+import { SummaryDonut } from "@/shared/components/summary-donut";
 const colors = ["#65a449", "#94a3b8", "#b68c45", "#64748b", "#cbd5e1"];
 export function EnvironmentRing({
   values,
@@ -5,53 +6,26 @@ export function EnvironmentRing({
   center,
   label,
   caption,
+  palette,
 }: {
   values: number[];
   total: number;
   center: string;
   label: string;
   caption?: string;
+  palette?: string[];
 }) {
-  let offset = 0;
   return (
-    <div className="environment-ring">
-      <svg viewBox="0 0 120 120" role="img" aria-label={label}>
-        <circle
-          cx="60"
-          cy="60"
-          r="48"
-          fill="none"
-          stroke="#e8ece8"
-          strokeWidth="13"
-        />
-        {values.map((value, index) => {
-          const length = total > 0 ? (value / total) * 100 : 0;
-          const start = offset;
-          offset += length;
-          return (
-            <circle
-              key={index}
-              cx="60"
-              cy="60"
-              r="48"
-              fill="none"
-              stroke={colors[index]}
-              strokeWidth="13"
-              pathLength="100"
-              strokeDasharray={`${length} ${100 - length}`}
-              strokeDashoffset={-start}
-              transform="rotate(-90 60 60)"
-            />
-          );
-        })}
-      </svg>
-      <div>
-        <strong>{center}</strong>
-        <span>
-          {caption ?? (label.startsWith("Active") ? "of " + total : "Total")}
-        </span>
-      </div>
-    </div>
+    <SummaryDonut
+      values={values}
+      total={total}
+      center={center}
+      label={label}
+      caption={
+        caption ?? (label.startsWith("Active") ? "of " + total : "Total")
+      }
+      colors={palette ?? colors}
+    />
   );
 }
 export function EnvironmentMetrics({

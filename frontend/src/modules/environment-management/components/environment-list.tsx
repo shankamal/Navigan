@@ -1,6 +1,7 @@
 "use client";
 import "./environment-workspace.css";
 import { EnvironmentRing } from "./environment-metrics";
+import { CloudProviderChart } from "@/shared/components/summary-donut";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -268,28 +269,29 @@ export function EnvironmentList({
             </div>
             <div className="environment-provider-distribution">
               <h2>Environments by cloud provider</h2>
-              {["AWS", "AZURE", "GCP", "OCI"].map((provider, index) => (
-                <div className="environment-provider-row" key={provider}>
-                  <ProviderBadges codes={[provider]} compact />
-                  <span>
-                    {provider} / {["EKS", "AKS", "GKE", "OKE"][index]}
-                  </span>
-                  <strong>
-                    {providerSummary.data?.byProvider[provider] ??
-                      (providerSummary.data ? 0 : "—")}
-                  </strong>
-                  <meter
-                    min={0}
-                    max={Math.max(
-                      1,
-                      total.data ?? 0,
+              {providerSummary.isError ? (
+                <p role="status">
+                  Cloud metrics unavailable. Refresh to retry.
+                </p>
+              ) : !providerSummary.data ? (
+                <p role="status">Loading cloud footprint…</p>
+              ) : (
+                <CloudProviderChart
+                  counts={["AWS", "AZURE", "GCP", "OCI"].map(
+                    (provider) =>
                       providerSummary.data?.byProvider[provider] ?? 0,
-                    )}
-                    value={providerSummary.data?.byProvider[provider] ?? 0}
-                    aria-label={`${provider} environment count`}
-                  />
-                </div>
-              ))}
+                  )}
+                  label="Environments by cloud provider"
+                  caption="Environments"
+                  legendLabel="Environment cloud provider counts"
+                  labels={[
+                    "AWS / EKS",
+                    "Azure / AKS",
+                    "Google Cloud / GKE",
+                    "OCI / OKE",
+                  ]}
+                />
+              )}
             </div>
             <div className="environment-active-coverage">
               <h2>Active environments</h2>
@@ -299,38 +301,39 @@ export function EnvironmentList({
                 <p role="status">Loading active coverage…</p>
               ) : (
                 <>
-                  <div className="environment-coverage-value">
-                    <strong>{active.data}</strong>
-                    <span>of {total.data}</span>
-                    <strong>
-                      {total.data
-                        ? Math.round((active.data / total.data) * 100)
-                        : 0}
-                      %
-                    </strong>
-                  </div>
-                  <div
-                    className="environment-coverage-bar"
-                    role="progressbar"
-                    aria-label="Active environment profile coverage"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={
-                      total.data
-                        ? Math.round((active.data / total.data) * 100)
-                        : 0
-                    }
-                  >
-                    <span
-                      style={{
-                        width: `${total.data ? Math.min(100, (active.data / total.data) * 100) : 0}%`,
-                      }}
+                  <div className="environment-chart-content">
+                    <EnvironmentRing
+                      values={[
+                        active.data,
+                        Math.max(0, total.data - active.data),
+                      ]}
+                      total={total.data}
+                      center={`${total.data ? Math.round((active.data / total.data) * 100) : 0}%`}
+                      caption="Active"
+                      label={`Active environment coverage: ${active.data} of ${total.data}`}
+                      palette={["#65a449", "#cbd5e1"]}
                     />
-                  </div>
-                  <div className="environment-coverage-scale">
-                    <span>0%</span>
-                    <span>50%</span>
-                    <span>100%</span>
+                    <ul
+                      className="environment-chart-legend"
+                      aria-label="Active environment coverage"
+                    >
+                      <li>
+                        <span
+                          className="environment-chart-dot"
+                          style={{ backgroundColor: "#65a449" }}
+                        />
+                        <span>Active</span>
+                        <strong>{active.data}</strong>
+                      </li>
+                      <li>
+                        <span
+                          className="environment-chart-dot"
+                          style={{ backgroundColor: "#cbd5e1" }}
+                        />
+                        <span>Not active</span>
+                        <strong>{Math.max(0, total.data - active.data)}</strong>
+                      </li>
+                    </ul>
                   </div>
                   <p>Active profile status</p>
                 </>

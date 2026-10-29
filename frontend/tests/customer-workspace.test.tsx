@@ -108,4 +108,88 @@ describe("Customer workspace", () => {
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
   });
+  it("shows a cloud donut using association totals for multi-cloud customers", () => {
+    render(
+      <CustomerMetrics
+        total={3}
+        active={2}
+        draft={1}
+        submitted={0}
+        review={0}
+        failed={false}
+        providerCounts={[3, 2, 1, 0]}
+      />,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "Cloud provider footprint: 6 customer-cloud associations",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Associations")).toBeInTheDocument();
+    const legend = within(
+      screen.getByRole("list", { name: "Cloud provider associations" }),
+    );
+    for (const text of [
+      "AWS",
+      "Azure",
+      "Google Cloud",
+      "OCI",
+      "3 (50%)",
+      "2 (33%)",
+      "1 (17%)",
+      "0 (0%)",
+    ])
+      expect(legend.getByText(text)).toBeInTheDocument();
+  });
+  it("keeps an empty cloud donut valid and shows zero counts for every provider", () => {
+    const { container } = render(
+      <CustomerMetrics
+        total={0}
+        active={0}
+        draft={0}
+        submitted={0}
+        review={0}
+        failed={false}
+        providerCounts={[0, 0, 0, 0]}
+      />,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "Cloud provider footprint: 0 customer-cloud associations",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("list", { name: "Cloud provider associations" }),
+      ).getAllByText("0 (0%)"),
+    ).toHaveLength(4);
+    expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
+  });
+  it.each([false, true])(
+    "keeps unavailable cloud data out of the donut (failed=%s)",
+    (providerFailed) => {
+      render(
+        <CustomerMetrics
+          total={3}
+          active={2}
+          draft={1}
+          submitted={0}
+          review={0}
+          failed={false}
+          providerCounts={[3, undefined, 0, 0]}
+          providerFailed={providerFailed}
+        />,
+      );
+      expect(
+        screen.getByText(
+          providerFailed
+            ? "Cloud metrics unavailable. Refresh to retry."
+            : "Loading cloud footprint…",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("img", { name: /Cloud provider footprint:/ }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

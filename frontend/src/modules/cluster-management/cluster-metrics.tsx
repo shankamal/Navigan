@@ -38,6 +38,25 @@ export function ClusterMetrics({
     { label: "Under review", value: review, color: "#64748b" },
     { label: "Other stages", value: other, color: "#cbd5e1" },
   ];
+  const provisioning = [
+    {
+      label: "Plan ready",
+      status: "PLAN_READY",
+      value: planReady ?? 0,
+      color: "#8298ae",
+    },
+    {
+      label: "Applying",
+      status: "APPLYING",
+      value: applying ?? 0,
+      color: "#65a449",
+    },
+    { label: "Failed", status: "FAILED", value: failed ?? 0, color: "#bf6666" },
+  ];
+  const provisioningTotal = provisioning.reduce(
+    (sum, item) => sum + item.value,
+    0,
+  );
   return (
     <div className="cluster-portfolio">
       <section className="panel cluster-lifecycle-chart">
@@ -81,21 +100,33 @@ export function ClusterMetrics({
           <p role="status">Loading active metrics…</p>
         ) : (
           <>
-            <div className="cluster-coverage-value">
-              <strong>
-                {active} of {total}
-              </strong>
-              <strong>{total ? Math.round((active / total) * 100) : 0}%</strong>
-            </div>
-            <progress
-              max={100}
-              value={total ? Math.min(100, (active / total) * 100) : 0}
-              aria-label="Active cluster lifecycle coverage"
-            />
-            <div className="cluster-coverage-scale">
-              <span>0%</span>
-              <span>50%</span>
-              <span>100%</span>
+            <div className="cluster-chart-content">
+              <EnvironmentRing
+                values={[active, Math.max(0, total - active)]}
+                total={total}
+                center={`${total ? Math.round((active / total) * 100) : 0}%`}
+                caption="Active"
+                label={`Active cluster coverage: ${active} of ${total}`}
+                palette={["#65a449", "#cbd5e1"]}
+              />
+              <ul aria-label="Active cluster coverage">
+                <li>
+                  <span
+                    className="cluster-chart-dot"
+                    style={{ backgroundColor: "#65a449" }}
+                  />
+                  <span>Active</span>
+                  <strong>{active}</strong>
+                </li>
+                <li>
+                  <span
+                    className="cluster-chart-dot"
+                    style={{ backgroundColor: "#cbd5e1" }}
+                  />
+                  <span>Not active</span>
+                  <strong>{Math.max(0, total - active)}</strong>
+                </li>
+              </ul>
             </div>
             <p>Active lifecycle status</p>
           </>
@@ -111,47 +142,37 @@ export function ClusterMetrics({
           <p role="status">Loading provisioning metrics…</p>
         ) : (
           <>
-            {[
-              {
-                label: "Plan ready",
-                status: "PLAN_READY",
-                value: planReady!,
-                color: "#8298ae",
-              },
-              {
-                label: "Applying",
-                status: "APPLYING",
-                value: applying!,
-                color: "#65a449",
-              },
-              {
-                label: "Failed",
-                status: "FAILED",
-                value: failed!,
-                color: "#bf6666",
-              },
-            ].map((item) => (
-              <button
-                type="button"
-                className="cluster-provisioning-row"
-                key={item.status}
-                onClick={() => onFilter(item.status)}
+            <div className="cluster-chart-content">
+              <EnvironmentRing
+                values={provisioning.map((item) => item.value)}
+                total={provisioningTotal}
+                center={String(provisioningTotal)}
+                caption="Requests"
+                label={`Provisioning status: ${provisioningTotal} requests`}
+                palette={provisioning.map((item) => item.color)}
+              />
+              <ul
+                className="cluster-provisioning-legend"
+                aria-label="Provisioning request states"
               >
-                <span>{item.label}</span>
-                <meter
-                  min={0}
-                  max={Math.max(1, planReady!, applying!, failed!)}
-                  value={item.value}
-                  aria-label={`${item.label} requests`}
-                  style={
-                    {
-                      "--cluster-bar-color": item.color,
-                    } as import("react").CSSProperties
-                  }
-                />
-                <strong>{item.value}</strong>
-              </button>
-            ))}
+                {provisioning.map((item) => (
+                  <li key={item.status}>
+                    <button
+                      type="button"
+                      className="cluster-provisioning-row"
+                      onClick={() => onFilter(item.status)}
+                    >
+                      <span
+                        className="cluster-chart-dot"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
             <p>Current request states</p>
           </>
         )}

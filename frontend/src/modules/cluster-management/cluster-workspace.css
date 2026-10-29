@@ -1100,3 +1100,12 @@
   height: var(--navigan-provider-logo-hero-height) !important;
   max-width: var(--navigan-provider-logo-hero-max-width) !important;
 }
+
+/* Donut legends retain the existing provisioning status shortcuts. */
+.cluster-ui .cluster-provisioning-legend .cluster-provisioning-row {
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 0;
+}
