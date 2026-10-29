@@ -42,8 +42,9 @@ docker run --rm --network "$task_network" \
     set -eu
     cp -a /input /tmp/source
     cd /tmp/source
-    apt-get update -qq && apt-get install --yes --no-install-recommends postgresql-client >/dev/null
+    apt-get update -qq && apt-get install --yes --no-install-recommends git postgresql-client >/dev/null
     python -m pip install --disable-pip-version-check -e ".[dev]"
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v database_name=navigan_bootstrap_test -f database/bootstrap/create_database.sql
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v database_name=navigan_bootstrap_test -f database/bootstrap/create_database.sql
     python scripts/migrate.py
     python scripts/migrate.py
