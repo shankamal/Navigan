@@ -76,3 +76,8 @@ Wait for steady state, check the running task/image and sign in again. No automa
 ## Verification in development
 
 127 focused promotion/domain regression tests passed without live AWS/Docker calls. Coverage includes portable candidate deltas and configuration conflicts, immutable image verification, failed portability checks preventing publication, format2 preparation without a service update, stale runtime configuration preventing execution, incorrect deployed runtime failure, task drift, rollback detection and legacy domain-release compatibility. Actual AWS preparation/deployment and authenticated PROD acceptance are pending user execution.
+
+
+## Rollout timing fix after successful revision25 promotion
+
+The user confirmed revision25 COMPLETED, public health/login/runtime-config checks passed and the new UI is visible in PROD. The previous helper returned from its services_stable waiter before the strict rollout-state check passed. It now polls the requested revision for COMPLETED for up to ten additional minutes, without issuing another service update. FAILED rollouts and changed task references still stop, and a timeout is reported as pending completion rather than an assumed rollback. Runtime guard failures print a concise stopped message instead of a Python traceback.130 targeted production/domain regression tests passed, including delayed completion, timeout without writes and failed-rollout rejection. This changes future deployment tooling only. Do not rebuild or rerun the already-completed revision25 deployment.

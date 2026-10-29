@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import uuid
 
@@ -330,6 +331,24 @@ def validate_candidate(original, candidate, image, public=None):
     require(normalize(candidate) == normalize(expected), "Candidate task changes more than frontend image/migration flag; stopped")
 
 
+def wait_for_completed_rollout(ecs, expected_task, *, attempts=120, delay=5):
+    """Wait beyond capacity stability for the requested rollout's final state."""
+    for attempt in range(attempts):
+        current = read_service(ecs)
+        require(current["taskDefinition"] == expected_task,
+                "Service did not retain the requested revision; inspect rollout/rollback events")
+        target = [item for item in current.get("deployments", []) if item.get("taskDefinition") == expected_task]
+        require(not any(item.get("rolloutState") == "FAILED" for item in target),
+                "Frontend rollout failed; inspect ECS events and the saved rollback task")
+        if stable(current):
+            return current
+        if attempt == 0:
+            print("Waiting for the requested frontend rollout to reach COMPLETED...", flush=True)
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    raise RuntimeError("Frontend rollout is not COMPLETED yet; inspect ECS events before retrying. No additional service update was made.")
+
+
 def execute(session, path):
     plan = json.loads(path.read_text())
     require(plan.get("format") in {1, 2} and plan.get("account") == ACCOUNT and plan.get("region") == REGION, "Invalid PROD frontend plan")
@@ -357,8 +376,7 @@ def execute(session, path):
     ecs.update_service(cluster=CLUSTER, service=SERVICE, taskDefinition=plan["nextTask"])
     print("Updating only Navigan frontend service; rollback task: " + plan["previousTask"], flush=True)
     ecs.get_waiter("services_stable").wait(cluster=CLUSTER, services=[SERVICE], WaiterConfig={"Delay": 15, "MaxAttempts": 80})
-    current = read_service(ecs)
-    require(stable(current) and current["taskDefinition"] == plan["nextTask"], "Service did not retain the requested revision; inspect rollout/rollback events")
+    current = wait_for_completed_rollout(ecs, plan["nextTask"])
     arns = ecs.list_tasks(cluster=CLUSTER, serviceName=SERVICE, desiredStatus="RUNNING")["taskArns"]
     require(bool(arns), "Frontend has no running tasks")
     tasks = ecs.describe_tasks(cluster=CLUSTER, tasks=arns)
@@ -431,4 +449,7 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except RuntimeError as error:
+        raise SystemExit("Frontend release stopped: " + str(error)) from None

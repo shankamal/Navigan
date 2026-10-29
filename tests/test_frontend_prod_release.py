@@ -464,3 +464,47 @@ def test_portable_execute_reports_incorrect_deployed_runtime(monkeypatch, tmp_pa
     with pytest.raises(RuntimeError, match="runtime settings differ"):
         release.execute(session, path)
     assert ecs.live == NEW  # A post-rollout failure is never reported as successful.
+
+
+def test_execute_waits_for_rollout_completion_without_redeploying(monkeypatch, tmp_path):
+    class DelayedECS(ECS):
+        pending_reads = 2
+
+        def describe_services(self, **kw):
+            result = super().describe_services(**kw)
+            if self.live == NEW and self.pending_reads:
+                result["services"][0]["deployments"][0]["rolloutState"] = "IN_PROGRESS"
+                self.pending_reads -= 1
+            return result
+
+    ecs = DelayedECS()
+    session, path = setup_execute(monkeypatch, tmp_path, ecs)
+    sleeps = []
+    monkeypatch.setattr(release.time, "sleep", sleeps.append)
+    release.execute(session, path)
+    assert sleeps == [5, 5]
+    assert ecs.calls == [{"cluster": release.CLUSTER, "service": release.SERVICE, "taskDefinition": NEW}]
+
+
+def test_uncompleted_rollout_times_out_without_any_service_write(monkeypatch):
+    current = service(NEW)
+    current["deployments"][0]["taskDefinition"] = NEW
+    current["deployments"][0]["rolloutState"] = "IN_PROGRESS"
+    ecs = ECS()
+    monkeypatch.setattr(release, "read_service", lambda client: current)
+    sleeps = []
+    monkeypatch.setattr(release.time, "sleep", sleeps.append)
+    with pytest.raises(RuntimeError, match="not COMPLETED yet"):
+        release.wait_for_completed_rollout(ecs, NEW, attempts=2, delay=5)
+    assert sleeps == [5] and not ecs.calls
+
+
+def test_failed_rollout_stops_without_waiting_or_redeploying(monkeypatch):
+    current = service(NEW)
+    current["deployments"][0].update(taskDefinition=NEW, rolloutState="FAILED")
+    monkeypatch.setattr(release, "read_service", lambda client: current)
+    monkeypatch.setattr(release.time, "sleep", lambda delay: pytest.fail("Failed rollouts must stop immediately"))
+    ecs = ECS()
+    with pytest.raises(RuntimeError, match="rollout failed"):
+        release.wait_for_completed_rollout(ecs, NEW)
+    assert not ecs.calls
