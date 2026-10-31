@@ -66,7 +66,7 @@ def test_read_only_scoped_audit_reports_workers_objects_without_secret_contents(
     assert result["readOnly"] is True and result["environment"] == "prod"
     assert result["repositoryCollector"]["targetMatchesWorker"] is True
     assert result["imageCollector"]["running"] == 1
-    assert result["workspaceStorage"]["workspaces"] == [{"workspaceId": WID, "objects": 2, "bytes": 110,
+    assert result["workspaceStorage"]["workspaces"] == [{"workspaceId": WID, "s3Uri":f"s3://prod-bucket/customers/CUS-one/migrations/{MID}/workspaces/{WID}/", "objects": 2, "bytes": 110,
                                                         "folders": {"workspace-manifest.json": 1, "images": 1}}]
     rendered = json.dumps(result)
     assert "do-not-print" not in rendered and "unrelated" not in rendered
@@ -86,3 +86,17 @@ def test_one_failed_check_keeps_other_evidence_and_redacts_exception_body():
     assert result["repositoryCollector"] == {"errorCode": "RuntimeError"}
     assert result["workspaceStorage"]["workspaces"][0]["objects"] == 2
     assert "private diagnostic text" not in json.dumps(result)
+
+
+def test_log_scan_continues_empty_page_and_redacts_exception_message():
+    from unittest.mock import Mock
+    logs=Mock()
+    logs.filter_log_events.side_effect=[{"events":[],"nextToken":"page-two"}, {"events":[
+        {"timestamp":1,"message":'[ERROR] UndefinedTable: private table or SQL'},
+        {"timestamp":2,"message":json.dumps(dict(status="failed",stage="db.transaction",errorType="UndefinedTable",sqlState="42P01",message="private sql",parameters="secret"))}]}]
+    sdk=SimpleNamespace(client=lambda _:logs)
+    result=audit.log_failures(sdk,"worker-group")
+    assert logs.filter_log_events.call_args_list[1].kwargs["nextToken"] == "page-two"
+    assert result["matchedEvents"] == 2 and result["truncated"] is False
+    assert result["failures"][1]["failure"]["sqlState"] == "42P01"
+    assert "private" not in json.dumps(result) and "secret" not in json.dumps(result)

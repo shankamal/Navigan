@@ -181,7 +181,18 @@ def read(service,identifier,workspace_id=None):
         artifacts = [{**a, 'status':by_id.get(a['artifactId'],{}).get('status',a['status']),
                       'validation':by_id.get(a['artifactId'],{}).get('validation',{})}
                      for a in row['manifest']['artifacts']]
+        for artifact in artifacts:
+            record = by_id.get(artifact['artifactId'], {})
+            if artifact['status'] not in {'COLLECTED', 'EXCLUDED_FROM_REPLAY'}:
+                artifact.pop('storage', None)
+            elif record.get('object_key') and record.get('object_version'):
+                # The saved object may belong to an older workspace reused by this
+                # snapshot. Never reconstruct or relocate its immutable location.
+                artifact['storage'] = {'bucket': row['bucket_name'], 'key': record['object_key'],
+                                       'versionId': record['object_version'], 'sha256': record.get('sha256'),
+                                       'sizeBytes': record.get('size_bytes')}
         results.append({**row['manifest'], 'status':row['status'], 'artifacts':artifacts,
+                        'inventoryDigest':row['inventory_digest'], 'sourceClusterId':row['source_cluster_id'],
                         'collectedArtifactCount':sum(a['status']=='COLLECTED' for a in artifacts),
                         'excludedArtifactCount':sum(a['status']=='EXCLUDED_FROM_REPLAY' for a in artifacts),
                         'requiredArtifactCount':sum(a['status']!='EXCLUDED_FROM_REPLAY' for a in artifacts),

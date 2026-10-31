@@ -17,7 +17,47 @@ def safe_error(error):
     return getattr(error, "response", {}).get("Error", {}).get("Code", type(error).__name__)
 
 
-def collect(session, migration):
+def log_failures(session, group):
+    """Paginated, bounded evidence; never print exception messages or command output."""
+    logs = session.client("logs")
+    start = int((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp() * 1000)
+    token = None
+    counts = Counter()
+    examples = []
+    for _ in range(20):
+        page = logs.filter_log_events(logGroupName=group, startTime=start, limit=50,
+            filterPattern='?failed ?FAILED ?ERROR ?Exception ?"Task timed out"',
+            **({"nextToken": token} if token else {}))
+        for event in page.get("events", []):
+            message = event.get("message", "")
+            try:
+                data, _ = json.JSONDecoder().raw_decode(message[message.index("{"):])
+            except (ValueError, TypeError):
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            if data.get("status") in {"failed", "FAILED"}:
+                summary = {k: data[k] for k in ("stage", "status", "errorType", "sqlState", "awsErrorCode", "code")
+                           if isinstance(data.get(k), str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,120}", data[k])}
+                summary["locations"] = [{k: f[k] for k in ("file", "line", "function") if k in f}
+                    for f in data.get("locations", []) if isinstance(f, dict)][-3:]
+            else:
+                error = re.search(r"\[ERROR\]\s+([A-Za-z][A-Za-z0-9_.]*)", message)
+                if not error and "Task timed out" not in message:
+                    continue
+                summary = {"errorType": error.group(1) if error else "TaskTimedOut"}
+            identity = json.dumps(summary, sort_keys=True)
+            counts[identity] += 1
+            if len(examples) < 5 and not any(v["failure"] == summary for v in examples):
+                examples.append({"timestamp":event.get("timestamp"), "failure":summary})
+        next_token = page.get("nextToken")
+        if not next_token or next_token == token:
+            return {"group":group,"failures":examples,"matchedEvents":sum(counts.values()),"truncated":False}
+        token = next_token
+    return {"group":group,"failures":examples,"matchedEvents":sum(counts.values()),"truncated":True}
+
+
+def collect(session, migration, include_logs=False):
     if session.client("sts").get_caller_identity()["Account"] != ACCOUNT:
         raise RuntimeError("Expected PROD account " + ACCOUNT)
     cfn = session.client("cloudformation")
@@ -51,10 +91,17 @@ def collect(session, migration):
                 StartTime=now - timedelta(hours=2), EndTime=now,
                 Period=3600, Statistics=["Sum"])
             metrics[metric] = sum(v["Sum"] for v in data.get("Datapoints", []))
-        return {"schedule": rule["State"], "targetMatchesWorker": any(
+        result = {"schedule": rule["State"], "targetMatchesWorker": any(
             v.get("Arn") == function["FunctionArn"] for v in target),
             "workerState": function.get("State"), "lastUpdate": function.get("LastUpdateStatus"),
             "lastTwoHours": metrics}
+        if include_logs:
+            group = function.get("LoggingConfig", {}).get("LogGroup") or "/aws/lambda/" + name
+            try:
+                result["recentFailures"] = log_failures(session, group)
+            except Exception as error:
+                result["recentFailures"] = {"errorCode":safe_error(error)}
+        return result
 
     def images():
         outputs, parameters = stack("workspace-images")
@@ -63,11 +110,20 @@ def collect(session, migration):
         if response.get("failures") or len(response.get("services", [])) != 1:
             return {"errorCode": "IMAGE_SERVICE_NOT_FOUND"}
         service = response["services"][0]
-        return {"desired": service["desiredCount"], "running": service["runningCount"],
+        result = {"desired": service["desiredCount"], "running": service["runningCount"],
                 "pending": service["pendingCount"], "deployments": [
                     {key: v.get(key) for key in ("status", "rolloutState", "failedTasks")}
                     for v in service.get("deployments", [])],
                 "events": [v["message"][:300] for v in service.get("events", [])[:3]]}
+        if include_logs:
+            try:
+                task = ecs.describe_task_definition(taskDefinition=service["taskDefinition"])["taskDefinition"]
+                groups = {c.get("logConfiguration", {}).get("options", {}).get("awslogs-group")
+                          for c in task["containerDefinitions"]}
+                result["recentFailures"] = [log_failures(session, group) for group in sorted(groups - {None})]
+            except Exception as error:
+                result["recentFailures"] = {"errorCode":safe_error(error)}
+        return result
 
     def source():
         commands = session.client("ssm").list_commands(MaxResults=50)
@@ -101,7 +157,7 @@ def collect(session, migration):
                 group["bytes"] += item["Size"]
                 group["folders"][parts[1].split("/", 1)[0]] += 1
             for workspace, counts in grouped.items():
-                rows.append({"workspaceId": workspace, **counts})
+                rows.append({"workspaceId": workspace, "s3Uri": "s3://" + bucket + "/" + prefix + workspace + "/", **counts})
         return {"bucket": bucket, "workspaces": rows, "listingTruncated": truncated,
                 "note": "S3 objects only; queue/database states are separate. No objects or object versions changed."}
 
@@ -115,11 +171,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--migration", required=True)
+    parser.add_argument("--logs", action="store_true", help="Include paginated, redacted worker error summaries")
     args = parser.parse_args()
     if not re.fullmatch(r"MIG-[a-f0-9]{32}", args.migration):
         parser.error("Use the exact migration ID from its page URL")
     session = boto3.Session(profile_name=args.profile, region_name=REGION)
-    print(json.dumps(collect(session, args.migration), indent=2, default=str))
+    print(json.dumps(collect(session, args.migration, include_logs=args.logs), indent=2, default=str))
 
 
 if __name__ == "__main__":

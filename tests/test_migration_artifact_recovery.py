@@ -398,6 +398,57 @@ def workspace_setup(monkeypatch, kind="LIVE_DEFINITION"):
     return service, source, request, dispatch, ssm, s3, report
 
 
+def test_existing_recovery_can_finish_original_snapshot_after_new_inventory(monkeypatch):
+    service, source, request, dispatch, ssm, s3, report = workspace_setup(monkeypatch)
+    started = recover(service, "MIG-test", {"version": 2, "recovery": request}, factory=lambda _: s3)
+    job = source["delivery_configuration"]["artifactRecovery"]["MIG-test"][0]
+    service.repo.get_source_inventory.return_value["inventory"]["inventoryDigest"] = "new-inventory"
+    output = dict(status="EXPORT_READY", artifactStatus="PARTIAL_RECOVERY", format="KUBERNETES_JSON",
+                  resource=report["workloads"][0]["workload"], sha256="a"*64, sizeBytes=10)
+    ssm.get_command_invocation.return_value = {"Status":"Success", "StandardOutputContent":json.dumps(output)}
+    request.update(operation="POLL", jobId=started["job"]["jobId"])
+    response = recover(service, "MIG-test", {"version":2,"recovery":request}, factory=lambda _: s3)
+    assert response["job"]["phase"] == "UPLOAD" and dispatch.call_count == 2
+    assert job["inventoryDigest"] == "inventory-one"
+    original_key = job["objectKey"]
+    ssm.get_command_invocation.return_value = {"Status":"Success", "StandardOutputContent":json.dumps({**output,"status":"PARTIAL_RECOVERY"})}
+    s3.head_object.return_value = dict(ChecksumSHA256=base64.b64encode(bytes.fromhex("a"*64)).decode(), ContentLength=10,
+        ServerSideEncryption="aws:kms", SSEKMSKeyId="arn:aws:kms:test:key/one", VersionId="saved-original")
+    response = recover(service, "MIG-test", {"version":2,"recovery":request}, factory=lambda _: s3)
+    assert response["job"]["status"] == "PARTIAL_RECOVERY"
+    params = service.repo.db.execute.call_args.args[1]
+    assert params[0] == "COLLECTED" and params[2] == original_key
+    assert params[-2:] == [request["workspaceId"], request["artifactId"]]
+
+
+def test_old_snapshot_poll_still_rejects_changed_source(monkeypatch):
+    service, _, request, dispatch, _, s3, _ = workspace_setup(monkeypatch)
+    response = recover(service, "MIG-test", {"version":2,"recovery":request}, factory=lambda _: s3)
+    service.repo.list_artifact_workspaces.return_value[0]["source_cluster_id"] = "SRC-other"
+    request.update(operation="POLL",jobId=response["job"]["jobId"])
+    with pytest.raises(ApiError) as error:
+        recover(service,"MIG-test",{"version":2,"recovery":request},factory=lambda _: s3)
+    assert error.value.code == "STALE_WORKSPACE" and dispatch.call_count == 1
+
+
+@pytest.mark.parametrize('missing', [False, True])
+def test_expired_ssm_command_becomes_retryable_instead_of_pending_forever(monkeypatch, missing):
+    from botocore.exceptions import ClientError
+    service, source, request, dispatch, ssm, s3, _ = workspace_setup(monkeypatch)
+    response = recover(service,"MIG-test",{"version":2,"recovery":request},factory=lambda _: s3)
+    job=source["delivery_configuration"]["artifactRecovery"]["MIG-test"][0]
+    job.update(createdAt="2020-01-01T00:00:00+00:00",phaseStartedAt="2020-01-01T00:00:00+00:00")
+    ssm.get_command_invocation.return_value={"Status":"InProgress"}
+    if missing:
+        ssm.get_command_invocation.side_effect=ClientError({"Error":{"Code":"InvocationDoesNotExist"}},"GetCommandInvocation")
+    request.update(operation="POLL",jobId=response["job"]["jobId"])
+    result=recover(service,"MIG-test",{"version":2,"recovery":request},factory=lambda _: s3)
+    assert result["job"]["status"] == "CUSTOMER_INPUT_REQUIRED"
+    assert result["job"]["code"] == "RECOVERY_TIMED_OUT"
+    assert service.repo.db.execute.call_args.args[1][0] == "RECOVERY_REQUIRED"
+    assert dispatch.call_count == 1
+
+
 @pytest.mark.parametrize("kind", ["LIVE_DEFINITION", "HELM_RELEASE"])
 def test_workspace_recovery_binds_identity_and_verifies_versioned_kms_upload(monkeypatch, kind):
     service, source, request, dispatch, ssm, s3, report = workspace_setup(monkeypatch, kind)

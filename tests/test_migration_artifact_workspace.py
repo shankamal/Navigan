@@ -85,6 +85,31 @@ def test_stale_workspace():
  assert w.read(api,MID,WID)['stale'] is True
 
 
+@pytest.mark.parametrize('status', ['COLLECTED', 'EXCLUDED_FROM_REPLAY'])
+def test_saved_locations_use_exact_database_object_even_for_old_inventory(status):
+ api=service()
+ artifact=dict(artifactId='ART-one',kind='LIVE_DEFINITION',status='EXPORT_REQUIRED')
+ api.repo.list_artifact_workspaces.return_value=[dict(workspace_id=WID,bucket_name='private-bucket',
+  manifest={'artifacts':[artifact]},status='PARTIAL',inventory_digest='old',source_cluster_id='SRC-one')]
+ api.repo.workspace_collection_state.return_value=([dict(artifact_id='ART-one',status=status,validation={},
+  object_key='customers/CUS-one/migrations/'+MID+'/workspaces/older/retained-object',
+  object_version='immutable-version',sha256='a'*64,size_bytes=123)],[])
+ result=w.read(api,MID,WID)
+ stored=result['artifacts'][0]['storage']
+ assert stored==dict(bucket='private-bucket',key='customers/CUS-one/migrations/'+MID+'/workspaces/older/retained-object',
+  versionId='immutable-version',sha256='a'*64,sizeBytes=123)
+ assert result['stale'] is True and result['inventoryDigest']=='old'
+
+
+def test_uncollected_artifact_does_not_retain_old_manifest_storage():
+ api=service()
+ api.repo.list_artifact_workspaces.return_value=[dict(workspace_id=WID,bucket_name='private-bucket',
+  manifest={'artifacts':[dict(artifactId='ART-one',status='COLLECTED',storage={'key':'old'})]},
+  status='PARTIAL',inventory_digest='current',source_cluster_id='SRC-one')]
+ api.repo.workspace_collection_state.return_value=([dict(artifact_id='ART-one',status='RECOVERY_REQUIRED',validation={})],[])
+ assert 'storage' not in w.read(api,MID,WID)['artifacts'][0]
+
+
 def historical_context(monkeypatch):
  import json
  from unittest.mock import Mock

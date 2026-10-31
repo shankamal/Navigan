@@ -1481,6 +1481,263 @@ it("refreshes active transfers and stops polling when they have been saved", asy
   }
 });
 
+it("retries a failed progress refresh and reaches completion without a manual refresh", async () => {
+  vi.useFakeTimers();
+  const running = {
+    workspaceId: "AWS-retry",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [
+      { artifactId: "image", kind: "IMAGE", status: "PENDING_COLLECTION" },
+    ],
+    jobs: [
+      { jobId: "copy", artifactId: "image", status: "RUNNING", attempts: 1 },
+    ],
+  };
+  api.get
+    .mockResolvedValueOnce({ data: { workspaces: [running] } })
+    .mockRejectedValueOnce(new Error("temporary network failure"))
+    .mockResolvedValue({
+      data: {
+        workspaces: [
+          {
+            ...running,
+            artifacts: [{ ...running.artifacts[0], status: "COLLECTED" }],
+            jobs: [{ ...running.jobs[0], status: "SUCCEEDED" }],
+          },
+        ],
+      },
+    });
+  const view = render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  try {
+    await act(async () => {});
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(
+      screen.getByText(/Progress check unavailable. Retrying in 10 seconds/),
+    ).toBeVisible();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(3);
+    expect(
+      screen.queryByText(/Progress check unavailable/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create workspace export" }),
+    ).toBeEnabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(3);
+    expect(api.post).not.toHaveBeenCalled();
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("automatically advances an already started source recovery in an older workspace", async () => {
+  vi.useFakeTimers();
+  const old = {
+    workspaceId: "AWS-original",
+    namespaces: ["shop"],
+    stale: true,
+    artifacts: [
+      {
+        artifactId: "definition",
+        kind: "LIVE_DEFINITION",
+        status: "RECOVERING",
+        validation: {
+          recovery: { jobId: "REC-original", status: "RECOVERING" },
+        },
+      },
+    ],
+  };
+  const current = {
+    workspaceId: "AWS-current",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [],
+  };
+  api.get
+    .mockResolvedValueOnce({ data: { workspaces: [current, old] } })
+    .mockResolvedValue({
+      data: {
+        workspaces: [
+          current,
+          {
+            ...old,
+            artifacts: [
+              {
+                ...old.artifacts[0],
+                status: "COLLECTED",
+                validation: {
+                  recovery: {
+                    jobId: "REC-original",
+                    status: "PARTIAL_RECOVERY",
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  api.post.mockResolvedValue({
+    data: { job: { jobId: "REC-original", status: "PARTIAL_RECOVERY" } },
+  });
+  const view = render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  try {
+    await act(async () => {});
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/deployment-evidence",
+      {
+        version: 2,
+        recovery: {
+          operation: "POLL",
+          workspaceId: "AWS-original",
+          artifactId: "definition",
+          jobId: "REC-original",
+        },
+      },
+      expect.anything(),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    expect(api.post).toHaveBeenCalledTimes(1);
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("keeps image progress updating when source polling fails and never starts a new recovery", async () => {
+  vi.useFakeTimers();
+  const workspace = {
+    workspaceId: "AWS-independent-checks",
+    namespaces: ["shop"],
+    stale: false,
+    artifacts: [
+      {
+        artifactId: "definition",
+        kind: "LIVE_DEFINITION",
+        status: "RECOVERING",
+        validation: {
+          recovery: { jobId: "REC-original", status: "RECOVERING" },
+        },
+      },
+    ],
+  };
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  api.post.mockRejectedValue(new Error("source temporarily unavailable"));
+  const view = render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  try {
+    await act(async () => {});
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText(
+        /Source recovery check unavailable. Retrying in 10 seconds/,
+      ),
+    ).toBeVisible();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(3);
+    expect(screen.getByText(/Retrying in 20 seconds/)).toBeVisible();
+    expect(
+      api.post.mock.calls.every(
+        (call) => call[1].recovery.operation === "POLL",
+      ),
+    ).toBe(true);
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("does not advance recovery for a read-only user", async () => {
+  vi.useFakeTimers();
+  api.get.mockResolvedValue({
+    data: {
+      workspaces: [
+        {
+          workspaceId: "AWS-view",
+          namespaces: ["shop"],
+          stale: false,
+          artifacts: [
+            {
+              artifactId: "definition",
+              kind: "LIVE_DEFINITION",
+              status: "RECOVERING",
+              validation: {
+                recovery: { jobId: "REC-view", status: "RECOVERING" },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const view = render(
+    <ArtifactWorkspacePanel
+      {...props}
+      canEdit={false}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  try {
+    await act(async () => {});
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(api.post).not.toHaveBeenCalled();
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
 it("stops automatic polling when leaving collection and preserves the current artifact view", async () => {
   vi.useFakeTimers();
   api.get.mockResolvedValue({

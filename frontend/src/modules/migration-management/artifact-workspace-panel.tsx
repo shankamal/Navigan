@@ -141,6 +141,7 @@ export function ArtifactWorkspacePanel({
     message: string;
   } | null>(null);
   const loadAttempt = useRef("");
+  const progressFailures = useRef(0);
   const previousStage = useRef(stage);
   useEffect(() => {
     if (stage === "review" && previousStage.current !== "review") {
@@ -674,15 +675,61 @@ export function ArtifactWorkspacePanel({
     ns.toLowerCase().includes(query.toLowerCase()),
   );
   useEffect(() => {
-    if (
-      !active ||
-      busy ||
-      !(fixedScope ? visibleWorkspaces : workspaces).some(collectionInProgress)
-    )
-      return;
+    if (!active || busy || !workspaces.some(collectionInProgress)) return;
     const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
+    let timer: number;
+    const retryDelay = () =>
+      Math.min(5000 * 2 ** progressFailures.current, 30000);
+    async function checkProgress() {
+      let accepted:
+        { workspaceId: string; artifactId: string; job: Recovery } | undefined;
+      let recoveryFailed = false;
       try {
+        // POLL continues an explicitly started recovery; it never starts a new
+        // collection. Include other snapshots so switching inventories cannot
+        // strand the assessment's single active source-recovery job.
+        const pending = canEdit
+          ? workspaces
+              .flatMap((workspace) =>
+                workspace.artifacts.map((artifact) => ({
+                  workspace,
+                  artifact,
+                })),
+              )
+              .find(
+                ({ artifact }) =>
+                  artifact.validation?.recovery?.status === "RECOVERING",
+              )
+          : undefined;
+        if (pending) {
+          const { workspace, artifact } = pending;
+          try {
+            const { data } = await apiClient.post<{ job: Recovery }>(
+              `/migrations/${migrationId}/deployment-evidence`,
+              {
+                version,
+                recovery: {
+                  operation: "POLL",
+                  workspaceId: workspace.workspaceId,
+                  artifactId: artifact.artifactId,
+                  jobId: artifact.validation!.recovery!.jobId,
+                },
+              },
+              {
+                signal: controller.signal,
+                headers: writeHeaders({ key: crypto.randomUUID(), version }),
+              },
+            );
+            accepted = {
+              workspaceId: workspace.workspaceId,
+              artifactId: artifact.artifactId,
+              job: data.job,
+            };
+          } catch {
+            if (controller.signal.aborted) return;
+            recoveryFailed = true;
+          }
+        }
         const { data } = await apiClient.get(
           `/migrations/${migrationId}/artifact-workspaces`,
           { signal: controller.signal },
@@ -690,28 +737,64 @@ export function ArtifactWorkspacePanel({
         if (controller.signal.aborted) return;
         if (!Array.isArray(data.workspaces))
           throw new Error("Invalid workspace response");
-        setRefreshWarning("");
-        setWorkspaces(data.workspaces);
-      } catch {
-        if (!controller.signal.aborted)
+        if (recoveryFailed) {
+          progressFailures.current += 1;
           setRefreshWarning(
-            "Automatic progress updates paused. Refresh workspaces to check the latest status.",
+            `Source recovery check unavailable. Retrying in ${retryDelay() / 1000} seconds. Image and repository progress is still updating.`,
           );
+        } else {
+          progressFailures.current = 0;
+          setRefreshWarning("");
+        }
+        setWorkspaces(data.workspaces);
+        if (data.workspaces.some(collectionInProgress))
+          timer = window.setTimeout(checkProgress, retryDelay());
+      } catch {
+        if (controller.signal.aborted) return;
+        if (accepted) {
+          const { workspaceId, artifactId, job } = accepted;
+          setWorkspaces((items) =>
+            items.map((workspace) =>
+              workspace.workspaceId !== workspaceId
+                ? workspace
+                : {
+                    ...workspace,
+                    artifacts: workspace.artifacts.map((artifact) =>
+                      artifact.artifactId !== artifactId
+                        ? artifact
+                        : {
+                            ...artifact,
+                            status: ["RECOVERED", "PARTIAL_RECOVERY"].includes(
+                              job.status,
+                            )
+                              ? "COLLECTED"
+                              : job.status === "RECOVERING"
+                                ? "RECOVERING"
+                                : "RECOVERY_REQUIRED",
+                            validation: {
+                              ...artifact.validation,
+                              recovery: job,
+                            },
+                          },
+                    ),
+                  },
+            ),
+          );
+        }
+        progressFailures.current += 1;
+        const delay = retryDelay();
+        setRefreshWarning(
+          `Progress check unavailable. Retrying in ${delay / 1000} seconds. You can also refresh workspaces.`,
+        );
+        timer = window.setTimeout(checkProgress, delay);
       }
-    }, 5000);
+    }
+    timer = window.setTimeout(checkProgress, retryDelay());
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [
-    active,
-    busy,
-    migrationId,
-    workspaces,
-    fixedScope,
-    activeWorkspaceId,
-    namespaces,
-  ]);
+  }, [active, busy, migrationId, version, workspaces, canEdit]);
   return (
     <details
       className={`${styles.panel} ${guided ? `${styles.guided} ${journey.collection}` : ""}`}
@@ -1332,7 +1415,13 @@ export function ArtifactWorkspacePanel({
                                 ) && (
                                   <button
                                     type="button"
-                                    disabled={busy || !canEdit || w.stale}
+                                    disabled={
+                                      busy ||
+                                      !canEdit ||
+                                      (w.stale &&
+                                        a.validation?.recovery?.status !==
+                                          "RECOVERING")
+                                    }
                                     onClick={() =>
                                       recover(
                                         w.workspaceId,

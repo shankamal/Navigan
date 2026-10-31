@@ -22,6 +22,16 @@ def public_job(job):
     }
 
 
+def phase_expired(job):
+    # SSM allows at most 15 minutes for delivery plus 20 for execution.
+    # Leave a margin, but never leave a missing command pending indefinitely.
+    try:
+        started = datetime.fromisoformat(job.get("phaseStartedAt") or job["createdAt"])
+        return (datetime.now(timezone.utc) - started).total_seconds() > 2400
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
 def storage_key(migration, job_id):
     values = [migration["customer_id"], migration["migration_id"], job_id]
     if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", v) for v in values):
@@ -133,7 +143,7 @@ def validate_result(job, result):
     return sha
 
 
-def workspace_context(service, identifier, request):
+def workspace_context(service, identifier, request, source_id=None):
     """Resolve identities from the authorized snapshot, never client workload fields."""
     from .artifact_workspace import read, storage_configuration
     workspace_id, artifact_id = request.get("workspaceId"), request.get("artifactId")
@@ -144,7 +154,11 @@ def workspace_context(service, identifier, request):
     if not workspace_id or not artifact_id:
         raise ApiError(400, "WORKSPACE_ARTIFACT_REQUIRED", "Choose a workspace and its artifact.")
     workspace = read(service, identifier, workspace_id)
-    if workspace["stale"]:
+    # An already authorized recovery must remain pollable after a new inventory
+    # arrives. It can only finish into its original snapshot, on the same source.
+    if workspace["stale"] and not (
+        request["operation"] == "POLL" and workspace.get("sourceClusterId") == source_id
+    ):
         raise ApiError(409, "STALE_WORKSPACE", "Inventory changed. Create a workspace from current discovery.")
     artifact = next((a for a in workspace["artifacts"] if a["artifactId"] == artifact_id), None)
     if not artifact or artifact["kind"] not in {"LIVE_DEFINITION", "HELM_RELEASE"}:
@@ -193,7 +207,7 @@ def recover(service, identifier, body, factory=None):
         raise ApiError(409, "SOURCE_INVENTORY_REQUIRED", "Complete source discovery first.")
     report = build_report(migration, inventory, source)
     request = body["recovery"]
-    binding = workspace_context(service, identifier, request)
+    binding = workspace_context(service, identifier, request, source["source_cluster_id"])
     if binding:
         workspace, artifact, bucket, key_id, owner = binding
         storage_options = {"ExpectedBucketOwner": owner}
@@ -232,7 +246,8 @@ def recover(service, identifier, body, factory=None):
         if (job.get("workspaceId") != request.get("workspaceId")
                 or job.get("artifactId") != request.get("artifactId")):
             raise ApiError(404, "RECOVERY_NOT_FOUND", "Recovery was not found for this workspace artifact.")
-        if job["inventoryDigest"] != inventory.get("inventoryDigest"):
+        expected_digest = workspace["inventoryDigest"] if binding else inventory.get("inventoryDigest")
+        if job["inventoryDigest"] != expected_digest:
             raise ApiError(
                 409,
                 "RECOVERY_EVIDENCE_CHANGED",
@@ -279,10 +294,16 @@ def recover(service, identifier, body, factory=None):
                 )
             except Exception as error:
                 if getattr(error, "response", {}).get("Error", {}).get("Code") == "InvocationDoesNotExist":
-                    return {"job": public_job(job)}
-                raise ApiError(
-                    503, "RECOVERY_STATUS_UNAVAILABLE", "Unable to check source recovery status."
-                ) from None
+                    if not phase_expired(job):
+                        return {"job": public_job(job)}
+                    invocation = {"Status": "NotFound"}
+                else:
+                    raise ApiError(
+                        503, "RECOVERY_STATUS_UNAVAILABLE", "Unable to check source recovery status."
+                    ) from None
+            if invocation["Status"] in {"Pending", "InProgress", "Delayed", "NotFound"} and phase_expired(job):
+                job.update(status="CUSTOMER_INPUT_REQUIRED", code="RECOVERY_TIMED_OUT",
+                           message="Source recovery exceeded its command time limit. Check source host access, then retry this artifact.")
             if invocation["Status"] == "Success":
                 try:
                     result = json.loads(invocation.get("StandardOutputContent", ""))
@@ -319,6 +340,7 @@ def recover(service, identifier, body, factory=None):
                             expectedSha256=sha,
                             expectedSizeBytes=exported["sizeBytes"],
                             phase="UPLOAD",
+                            phaseStartedAt=datetime.now(timezone.utc).isoformat(),
                             commandId=command_id,
                             parameterName=parameter,
                             message="Local export validated. Uploading to the private workspace with a signed SHA-256 checksum.",
@@ -372,7 +394,7 @@ def recover(service, identifier, body, factory=None):
                         status="CUSTOMER_INPUT_REQUIRED",
                         message="Recovery output or stored artifact validation failed. No artifact is marked recovered.",
                     )
-            elif invocation["Status"] not in {"Pending", "InProgress", "Delayed"}:
+            elif job["status"] == "RECOVERING" and invocation["Status"] not in {"Pending", "InProgress", "Delayed"}:
                 job.update(
                     status="CUSTOMER_INPUT_REQUIRED",
                     message="Source recovery did not complete. Check SSM access, container runtime and retained release data.",
@@ -470,6 +492,7 @@ def recover(service, identifier, body, factory=None):
             "status": "RECOVERING",
             "message": "Reading the selected resource from the source cluster through the approved SSM host." if binding else "Checking retained content on the configured SSM host only. Other nodes are not checked. Original source availability remains unchanged.",
             "createdAt": datetime.now(timezone.utc).isoformat(),
+            "phaseStartedAt": datetime.now(timezone.utc).isoformat(),
             "objectKey": key,
             "commandId": command_id,
             "phase": "EXPORT",
