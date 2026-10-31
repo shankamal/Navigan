@@ -100,3 +100,59 @@ def test_log_scan_continues_empty_page_and_redacts_exception_message():
     assert result["matchedEvents"] == 2 and result["truncated"] is False
     assert result["failures"][1]["failure"]["sqlState"] == "42P01"
     assert "private" not in json.dumps(result) and "secret" not in json.dumps(result)
+
+
+def test_comparison_separates_repository_images_and_manual_recoveries():
+    old = {"workspace_id": "AWS-old", "inventory_version": 1, "artifacts": [
+        {"kind": "REPOSITORY_DEFINITION", "status": "COLLECTED", "stored": True, "bytes": 12},
+        {"kind": "IMAGE", "status": "COLLECTED", "stored": True, "bytes": 100},
+        {"kind": "HELM_RELEASE", "status": "COLLECTED", "stored": True, "bytes": 8}], "jobs": []}
+    current = {"workspace_id": WID, "inventory_version": 2, "artifacts": [
+        {"kind": "IMAGE", "status": "PENDING_COLLECTION", "stored": False},
+        {"kind": "LIVE_DEFINITION", "status": "COLLECTED", "stored": True, "bytes": 7},
+        {"kind": "LIVE_DEFINITION", "status": "EXPORT_REQUIRED", "stored": False}], "jobs": [
+        {"kind": "IMAGE", "status": "FAILED", "attempts": 3, "errorCode": "REGISTRY_ACCESS_DENIED", "updatedAt": "2026-10-31"},
+        {"kind": "IMAGE", "status": "FAILED", "errorCode": "private error message"}]}
+    result = audit.summarize_workspaces([current, old], WID)
+    assert result["selectedWorkspace"] == WID and result["selectedWorkspaceFound"]
+    now, before = [w["categories"] for w in result["workspaces"]]
+    assert now["repositoryFiles"]["total"] == 0
+    assert before["repositoryFiles"]["saved"] == 1
+    assert now["containerImages"]["saved"] == 0
+    assert now["containerImages"]["jobs"] == {"FAILED": 2}
+    assert now["sourceRecovery"]["saved"] == 1
+    assert now["sourceRecovery"]["states"]["EXPORT_REQUIRED"] == 1
+    assert "private error" not in json.dumps(result)
+    assert result["workspaces"][0]["recentJobFailures"][0]["errorCode"] == "REGISTRY_ACCESS_DENIED"
+
+
+def test_comparison_query_uses_prod_identity_and_parameterized_migration():
+    from unittest.mock import Mock
+    cfn, function, rds, data = Mock(), Mock(), Mock(), Mock()
+    cfn.describe_stacks.return_value = {"Stacks": [{"Parameters": [{"ParameterKey": "DatabaseName", "ParameterValue": "navigan"}]}]}
+    cfn.describe_stack_resource.return_value = {"StackResourceDetail": {"PhysicalResourceId": "nested-or-function"}}
+    function.get_function_configuration.return_value = {"FunctionArn": f"arn:aws:lambda:{audit.REGION}:{audit.ACCOUNT}:function:{audit.PARENT}-migration",
+        "Environment": {"Variables": {"DB_NAME": "navigan", "DB_SECRET_ARN": "private-secret-reference"}}}
+    rds.describe_db_clusters.return_value = {"DBClusters": [{"DBClusterArn": f"arn:aws:rds:{audit.REGION}:{audit.ACCOUNT}:cluster:aws-infra-platform-db"}]}
+    data.execute_statement.return_value = {"formattedRecords": "[]"}
+    sdk = SimpleNamespace(client=lambda name: {"cloudformation": cfn, "lambda": function, "rds": rds, "rds-data": data}[name])
+    result = audit.workspace_comparison(sdk, MID, WID)
+    kw = data.execute_statement.call_args.kwargs
+    assert kw["database"] == "navigan" and kw["parameters"][0]["value"]["stringValue"] == MID
+    assert MID not in kw["sql"] and "WHERE w.migration_id=:migration" in kw["sql"]
+    assert "provenance" not in kw["sql"] and "delivery_configuration" not in kw["sql"]
+    assert kw["sql"].startswith("SELECT ")
+    assert not result["selectedWorkspaceFound"]
+    assert "private-secret-reference" not in json.dumps(result)
+    function.get_function_configuration.return_value["Environment"]["Variables"]["DB_NAME"] = "navigan_dev"
+    data.reset_mock()
+    with pytest.raises(RuntimeError, match="PROD_DATABASE_IDENTITY_MISMATCH"):
+        audit.workspace_comparison(sdk, MID)
+    data.execute_statement.assert_not_called()
+
+
+def test_comparison_is_bounded_and_does_not_choose_another_snapshot_silently():
+    rows = [{"workspace_id": f"AWS-{i}", "artifacts": [], "jobs": []} for i in range(51)]
+    result = audit.summarize_workspaces(rows, "AWS-missing")
+    assert result["truncated"] and len(result["workspaces"]) == 50
+    assert result["selectedWorkspace"] is None and not result["selectedWorkspaceFound"]

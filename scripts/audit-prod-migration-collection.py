@@ -57,7 +57,80 @@ def log_failures(session, group):
     return {"group":group,"failures":examples,"matchedEvents":sum(counts.values()),"truncated":True}
 
 
-def collect(session, migration, include_logs=False):
+def workspace_comparison(session, migration, selected_workspace=None):
+    """Read scoped metadata through Data API; never load secrets or artifact bodies."""
+    cfn = session.client("cloudformation")
+    parent = cfn.describe_stacks(StackName=PARENT)["Stacks"][0]
+    parameters = {p["ParameterKey"]: p["ParameterValue"] for p in parent.get("Parameters", [])}
+    nested = cfn.describe_stack_resource(StackName=PARENT, LogicalResourceId="MigrationManagement")["StackResourceDetail"]["PhysicalResourceId"]
+    function = cfn.describe_stack_resource(StackName=nested, LogicalResourceId="MigrationFunction")["StackResourceDetail"]["PhysicalResourceId"]
+    config = session.client("lambda").get_function_configuration(FunctionName=function)
+    env = config.get("Environment", {}).get("Variables", {})
+    if parameters.get("DatabaseName") != "navigan" or env.get("DB_NAME") != "navigan":
+        raise RuntimeError("PROD_DATABASE_IDENTITY_MISMATCH")
+    if not config.get("FunctionArn", "").startswith(f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{PARENT}-"):
+        raise RuntimeError("PROD_FUNCTION_IDENTITY_MISMATCH")
+    cluster = session.client("rds").describe_db_clusters(DBClusterIdentifier="aws-infra-platform-db")["DBClusters"][0]
+    if not cluster["DBClusterArn"].startswith(f"arn:aws:rds:{REGION}:{ACCOUNT}:cluster:"):
+        raise RuntimeError("PROD_CLUSTER_IDENTITY_MISMATCH")
+    response = session.client("rds-data").execute_statement(
+        resourceArn=cluster["DBClusterArn"], secretArn=env["DB_SECRET_ARN"], database="navigan",
+        formatRecordsAs="JSON", parameters=[{"name": "migration", "value": {"stringValue": migration}}],
+        sql="""SELECT w.workspace_id,w.inventory_version,w.source_cluster_id,w.namespaces,w.status,
+          w.created_at,w.manifest->>'storageLayoutVersion' AS layout_version,
+          w.manifest->'storage'->>'prefix' AS storage_prefix,
+          w.inventory_digest=(SELECT i.inventory_digest FROM migration_management.migration_source_inventories i
+            WHERE i.migration_id=w.migration_id ORDER BY i.inventory_version DESC LIMIT 1) AS matches_latest_digest,
+          (SELECT COALESCE(jsonb_agg(jsonb_build_object('kind',a.kind,'status',a.status,
+            'stored',a.object_key IS NOT NULL,'bytes',COALESCE(a.size_bytes,0))), '[]'::jsonb)
+            FROM migration_management.workspace_artifacts a WHERE a.workspace_id=w.workspace_id) AS artifacts,
+          (SELECT COALESCE(jsonb_agg(jsonb_build_object('kind',a.kind,'status',j.status,'attempts',j.attempts,
+            'errorCode',j.error_code,'updatedAt',j.updated_at)), '[]'::jsonb)
+            FROM migration_management.workspace_collection_jobs j
+            JOIN migration_management.workspace_artifacts a ON a.workspace_id=j.workspace_id AND a.artifact_id=j.artifact_id
+            WHERE j.workspace_id=w.workspace_id) AS jobs
+          FROM migration_management.artifact_workspaces w
+          WHERE w.migration_id=:migration ORDER BY w.inventory_version DESC,w.created_at DESC LIMIT 51""")
+    return summarize_workspaces(json.loads(response["formattedRecords"]), selected_workspace)
+
+
+def summarize_workspaces(rows, selected_workspace=None):
+    summaries = []
+    for row in rows[:50]:
+        categories = {key: {"total": 0, "saved": 0, "storedObjects": 0, "bytes": 0, "states": {}, "jobs": {}}
+                      for key in ("repositoryFiles", "containerImages", "sourceRecovery", "other")}
+
+        def category(kind):
+            return ("containerImages" if kind == "IMAGE" else "sourceRecovery"
+                    if kind in {"LIVE_DEFINITION", "HELM_RELEASE"} else "repositoryFiles"
+                    if kind == "REPOSITORY_DEFINITION" else "other")
+
+        for artifact in row.get("artifacts", []):
+            group = categories[category(artifact["kind"])]
+            group["total"] += 1
+            group["saved"] += artifact["status"] == "COLLECTED"
+            group["storedObjects"] += bool(artifact.get("stored"))
+            group["bytes"] += artifact.get("bytes", 0)
+            state = artifact["status"]
+            group["states"][state] = group["states"].get(state, 0) + 1
+        failures = []
+        for job in row.get("jobs", []):
+            group = categories[category(job["kind"])]["jobs"]
+            group[job["status"]] = group.get(job["status"], 0) + 1
+            code = job.get("errorCode")
+            if code and re.fullmatch(r"[A-Z0-9_]{1,120}", code):
+                failures.append({key: job.get(key) for key in ("kind", "status", "attempts", "errorCode", "updatedAt")})
+        summaries.append({key: row.get(key) for key in ("workspace_id", "inventory_version", "source_cluster_id",
+            "namespaces", "status", "created_at", "layout_version", "storage_prefix", "matches_latest_digest")} |
+            {"categories": categories, "recentJobFailures": sorted(failures, key=lambda j: str(j.get("updatedAt") or ""), reverse=True)[:5]})
+    selected = next((w for w in summaries if w["workspace_id"] == selected_workspace), None) if selected_workspace else next(iter(summaries), None)
+    return {"workspaces": summaries, "truncated": len(rows) > 50,
+            "selectedWorkspace": selected["workspace_id"] if selected else None,
+            "selectedWorkspaceFound": selected is not None,
+            "note": "Counts are database artifact mappings and job states, not S3 folder counts. No jobs started or records changed. Same digest alone does not establish same scope/source/version."}
+
+
+def collect(session, migration, include_logs=False, compare_workspaces=False, selected_workspace=None):
     if session.client("sts").get_caller_identity()["Account"] != ACCOUNT:
         raise RuntimeError("Expected PROD account " + ACCOUNT)
     cfn = session.client("cloudformation")
@@ -164,6 +237,8 @@ def collect(session, migration, include_logs=False):
     for name, action in (("repositoryCollector", repository), ("imageCollector", images),
                          ("recentSourceRecovery", source), ("workspaceStorage", storage)):
         section(name, action)
+    if compare_workspaces:
+        section("workspaceComparison", lambda: workspace_comparison(session, migration, selected_workspace))
     return result
 
 
@@ -172,11 +247,16 @@ def main():
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--migration", required=True)
     parser.add_argument("--logs", action="store_true", help="Include paginated, redacted worker error summaries")
+    parser.add_argument("--compare-workspaces", action="store_true", help="Read scoped PROD database counts and job states for old/current snapshots")
+    parser.add_argument("--workspace", help="Identify the selected snapshot in the comparison")
     args = parser.parse_args()
     if not re.fullmatch(r"MIG-[a-f0-9]{32}", args.migration):
         parser.error("Use the exact migration ID from its page URL")
+    if args.workspace and (not args.compare_workspaces or not re.fullmatch(r"AWS-[a-f0-9]{32}", args.workspace)):
+        parser.error("Use --compare-workspaces and the exact AWS- workspace ID")
     session = boto3.Session(profile_name=args.profile, region_name=REGION)
-    print(json.dumps(collect(session, args.migration, include_logs=args.logs), indent=2, default=str))
+    print(json.dumps(collect(session, args.migration, include_logs=args.logs,
+        compare_workspaces=args.compare_workspaces, selected_workspace=args.workspace), indent=2, default=str))
 
 
 if __name__ == "__main__":

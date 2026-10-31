@@ -795,6 +795,77 @@ export function ArtifactWorkspacePanel({
       controller.abort();
     };
   }, [active, busy, migrationId, version, workspaces, canEdit]);
+  function workspaceControls() {
+    return (
+      <div
+        className={styles.workspaceControls}
+        role="group"
+        aria-label="Workspace controls"
+      >
+        <button type="button" disabled={busy} onClick={() => run(false)}>
+          <RefreshCw size={13} aria-hidden="true" />
+          {loaded ? "Refresh workspace" : "Load workspaces"}
+        </button>
+        <details
+          className={styles.workspaceOptions}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
+        >
+          <summary>
+            Workspace options <ChevronDown size={13} aria-hidden="true" />
+          </summary>
+          <div role="toolbar" aria-label="Workspace actions">
+            {existingWorkspace && stage !== "review" && (
+              <button
+                className={styles.primary}
+                type="button"
+                disabled={
+                  busy ||
+                  !loaded ||
+                  !canEdit ||
+                  !inventoryDigest ||
+                  !scope.length ||
+                  Boolean(existingWorkspace)
+                }
+                onClick={() => run(true)}
+              >
+                Create workspace
+              </button>
+            )}
+            {existingWorkspace && stage !== "review" && (
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  !loaded ||
+                  !canEdit ||
+                  !inventoryDigest ||
+                  !scope.length ||
+                  scopedWorkspaces.some(
+                    (w) =>
+                      (w.jobs ?? []).some((j) =>
+                        ["QUEUED", "RUNNING"].includes(j.status),
+                      ) || w.artifacts.some((a) => a.status === "RECOVERING"),
+                  )
+                }
+                onClick={() => run(true, true)}
+                title="Use current source checks and reuse verified files and images. Earlier snapshots are retained."
+              >
+                Update workspace index
+              </button>
+            )}
+
+            {activeWorkspace && !canExport && exportButton(activeWorkspace)}
+          </div>
+        </details>
+      </div>
+    );
+  }
+
   return (
     <details
       className={`${styles.panel} ${guided ? `${styles.guided} ${journey.collection}` : ""}`}
@@ -1011,6 +1082,7 @@ export function ArtifactWorkspacePanel({
             </select>
           </label>
         )}
+        {fixedScope && (!guided || !activeWorkspace) && workspaceControls()}
         {!inventoryDigest && (
           <p>Complete source discovery before creating a workspace.</p>
         )}
@@ -1104,10 +1176,14 @@ export function ArtifactWorkspacePanel({
                     </li>
                   </ol>
                   <div className={journey.collectionProgress}>
-                    <span>
-                      {required ? Math.floor((saved / required) * 100) : 0}%
-                      complete · {saved} of {required} required artifacts saved
-                    </span>
+                    <div className={styles.progressHeading}>
+                      <span>
+                        {required ? Math.floor((saved / required) * 100) : 0}%
+                        complete · {saved} of {required} required artifacts
+                        saved
+                      </span>
+                      {fixedScope && workspaceControls()}
+                    </div>
                     <progress
                       value={saved}
                       max={Math.max(required, 1)}
@@ -1696,69 +1772,7 @@ export function ArtifactWorkspacePanel({
             )}
             {activeWorkspace && canExport && exportButton(activeWorkspace)}
             {activeWorkspace && downloadExport(activeWorkspace)}
-            <details
-              className={styles.workspaceOptions}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.currentTarget.open = false;
-                  event.currentTarget.querySelector("summary")?.focus();
-                }
-              }}
-            >
-              <summary>Workspace options</summary>
-              <div role="toolbar" aria-label="Workspace actions">
-                {existingWorkspace && stage !== "review" && (
-                  <button
-                    className={styles.primary}
-                    type="button"
-                    disabled={
-                      busy ||
-                      !loaded ||
-                      !canEdit ||
-                      !inventoryDigest ||
-                      !scope.length ||
-                      Boolean(existingWorkspace)
-                    }
-                    onClick={() => run(true)}
-                  >
-                    Create workspace
-                  </button>
-                )}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => run(false)}
-                >
-                  <RefreshCw size={13} aria-hidden="true" />
-                  {loaded ? "Refresh workspaces" : "Load workspaces"}
-                </button>
-                {existingWorkspace && stage !== "review" && (
-                  <button
-                    type="button"
-                    disabled={
-                      busy ||
-                      !loaded ||
-                      !canEdit ||
-                      !inventoryDigest ||
-                      !scope.length ||
-                      scopedWorkspaces.some(
-                        (w) =>
-                          (w.jobs ?? []).some((j) =>
-                            ["QUEUED", "RUNNING"].includes(j.status),
-                          ) ||
-                          w.artifacts.some((a) => a.status === "RECOVERING"),
-                      )
-                    }
-                    onClick={() => run(true, true)}
-                    title="Use current source checks and reuse verified files and images. Earlier snapshots are retained."
-                  >
-                    Update workspace index
-                  </button>
-                )}
 
-                {activeWorkspace && !canExport && exportButton(activeWorkspace)}
-              </div>
-            </details>
             {navigation?.next}
           </MigrationActions>
         )}

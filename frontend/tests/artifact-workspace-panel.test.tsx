@@ -1393,17 +1393,42 @@ it("shows each artifact source and links transfer status by artifact ID instead 
   const actions = screen.getByRole("navigation", {
     name: "Migration step actions",
   });
-  fireEvent.click(screen.getByText("Workspace options"));
-  fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
-  for (const name of [
-    "Create workspace",
-    "Refresh workspaces",
-    "Collect / retry available images",
-    "Create workspace export",
-  ]) {
-    expect(within(actions).getByRole("button", { name })).toBeVisible();
+  const controls = screen.getByRole("group", { name: "Workspace controls" });
+  const progress = screen.getByRole("progressbar", {
+    name: "Collection progress for shop",
+  }).parentElement!;
+  expect(progress).toContainElement(controls);
+  const refresh = within(controls).getByRole("button", {
+    name: "Refresh workspace",
+  });
+  expect(refresh).toBeVisible();
+  expect(
+    within(actions).queryByText("Workspace options"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(refresh);
+  await waitFor(() => expect(refresh).toBeEnabled());
+  expect(api.get).toHaveBeenCalledTimes(2);
+  const options = within(controls).getByText("Workspace options");
+  fireEvent.click(options);
+  const menu = within(controls).getByRole("toolbar", {
+    name: "Workspace actions",
+  });
+  expect(
+    within(menu).queryByRole("button", { name: /Refresh/ }),
+  ).not.toBeInTheDocument();
+  for (const name of ["Create workspace", "Create workspace export"]) {
+    expect(within(menu).getByRole("button", { name })).toBeVisible();
     expect(screen.getAllByRole("button", { name })).toHaveLength(1);
   }
+  fireEvent.keyDown(options, { key: "Escape" });
+  expect(options.closest("details")).not.toHaveAttribute("open");
+  expect(options).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: /Container images/ }));
+  expect(
+    within(actions).getByRole("button", {
+      name: "Collect / retry available images",
+    }),
+  ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: /Repository files/ }));
   expect(
     within(actions).getByRole("button", {
