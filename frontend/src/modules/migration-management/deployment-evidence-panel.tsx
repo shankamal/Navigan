@@ -267,7 +267,7 @@ export function DeploymentEvidencePanel({
         cache.setQueryData(["deployment-sources", sourceId], result);
         setEditing(false);
         setNotice(
-          "Connections saved for this customer’s source cluster. Analyze deployment sources to inspect them.",
+          "Connections saved for this customer’s source cluster. Select Check sources to inspect repositories and registries.",
         );
         await cache.invalidateQueries({
           queryKey: ["deployment-evidence", migration.migrationId],
@@ -396,7 +396,7 @@ export function DeploymentEvidencePanel({
   }
   const sourceAnalysisAction = (
     <button
-      className="button button-secondary"
+      className={styles.primary}
       disabled={
         !canEdit || !!busy || editing || !evidence?.inventoryDigest || !matching
       }
@@ -404,11 +404,7 @@ export function DeploymentEvidencePanel({
       title="Refresh repository matches and image availability after inventory or access changes. This does not restart cluster discovery."
     >
       {busy === "analyze" && <LoaderCircle size={15} className={styles.spin} />}
-      {busy === "analyze"
-        ? "Analyzing sources…"
-        : evidence?.analyzedAt
-          ? "Recheck sources"
-          : "Analyze deployment sources"}
+      {busy === "analyze" ? "Checking sources…" : "Check sources"}
     </button>
   );
   const actionBar = (
@@ -422,7 +418,7 @@ export function DeploymentEvidencePanel({
               : "Deployment sources and versions"}
             <HelpTip label="Deployment source evidence">
               Inspect repository matches and running container versions. Collect
-              or recover missing files and images in migration scope. Recheck
+              or recover missing files and images in migration scope. Check
               sources refreshes evidence after inventory, repository or registry
               access changes; it does not restart discovery.
             </HelpTip>
@@ -463,8 +459,7 @@ export function DeploymentEvidencePanel({
                 Refresh cluster evidence
               </button>
             )}
-          {(!hideConnections || (guided && view === "overview")) &&
-            sourceAnalysisAction}
+          {sourceAnalysisAction}
           {!guided && footerAction}
           {hideConnections && (
             <details
@@ -490,7 +485,6 @@ export function DeploymentEvidencePanel({
                   }
                 }}
               >
-                {(!guided || view !== "overview") && sourceAnalysisAction}
                 <button onClick={() => setDiagnostics(true)}>
                   Source diagnostics
                 </button>

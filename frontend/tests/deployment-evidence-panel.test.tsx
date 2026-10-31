@@ -198,15 +198,33 @@ it("saves source connections once with version protection and required-field val
   );
   expect(api.analyze).not.toHaveBeenCalled();
 });
-it("explicit analysis persists no implicit refresh or workflow transition", async () => {
+it("keeps one Check sources action before and after analysis without refreshing discovery", async () => {
+  api.analyze.mockResolvedValue({
+    ...report,
+    analyzedAt: "2026-10-31T11:30:00Z",
+  });
   open();
   const button = await screen.findByRole("button", {
-    name: "Analyze deployment sources",
+    name: "Check sources",
   });
   await waitFor(() => expect(button).toBeEnabled());
   fireEvent.click(button);
   await waitFor(() => expect(api.analyze).toHaveBeenCalledWith("MIG-db", 5));
   expect(api.refresh).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Check sources" })).toBeEnabled(),
+  );
+  expect(screen.getAllByRole("button", { name: "Check sources" })).toHaveLength(
+    1,
+  );
+  expect(
+    screen.queryByRole("button", { name: "Recheck sources" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Analyze deployment sources" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Check sources" }));
+  await waitFor(() => expect(api.analyze).toHaveBeenCalledTimes(2));
   expect(await screen.findByText(/Analysis finished/)).toHaveAttribute(
     "role",
     "status",
@@ -237,7 +255,7 @@ it("scope summary includes only selected workload identities and checks sources 
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", {
-      name: /Recheck sources|Analyze deployment sources/,
+      name: /Check sources/,
     }),
   ).toBeVisible();
 });
@@ -267,7 +285,7 @@ it("viewer cannot mutate connections, analysis, refresh or confirmation", async 
   await screen.findByText("GitHub candidate");
   for (const name of [
     "Manage deployment sources",
-    "Analyze deployment sources",
+    "Check sources",
     "Refresh cluster evidence",
   ])
     expect(screen.getByRole("button", { name })).toBeDisabled();
@@ -541,7 +559,7 @@ it("continues pending registry checks within an explicit analysis action", async
     .mockResolvedValue(report);
   open();
   const button = await screen.findByRole("button", {
-    name: "Analyze deployment sources",
+    name: "Check sources",
   });
   await waitFor(() => expect(button).toBeEnabled());
   fireEvent.click(button);
@@ -742,7 +760,7 @@ it("labels unchecked source evidence without interpreting zero counts as missing
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", {
-      name: "Analyze deployment sources",
+      name: "Check sources",
       hidden: false,
     }),
   ).toBeVisible();
@@ -786,7 +804,7 @@ it("keeps source analysis visible when selected workload details are collapsed",
   });
   expect(
     await screen.findByRole("button", {
-      name: /Recheck sources|Analyze deployment sources/,
+      name: /Check sources/,
     }),
   ).toBeVisible();
   expect(
