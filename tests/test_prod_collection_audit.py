@@ -134,7 +134,12 @@ def test_comparison_query_uses_prod_identity_and_parameterized_migration():
     function.get_function_configuration.return_value = {"FunctionArn": f"arn:aws:lambda:{audit.REGION}:{audit.ACCOUNT}:function:{audit.PARENT}-migration",
         "Environment": {"Variables": {"DB_NAME": "navigan", "DB_SECRET_ARN": "private-secret-reference"}}}
     rds.describe_db_clusters.return_value = {"DBClusters": [{"DBClusterArn": f"arn:aws:rds:{audit.REGION}:{audit.ACCOUNT}:cluster:aws-infra-platform-db"}]}
-    data.execute_statement.return_value = {"formattedRecords": "[]"}
+    # This is the actual Data API wire shape: jsonb columns are JSON strings
+    # inside the outer formattedRecords JSON string, not nested arrays.
+    data.execute_statement.return_value = {"formattedRecords": json.dumps([{
+        "workspace_id": WID, "namespaces": json.dumps(["shop"]),
+        "artifacts": json.dumps([{"kind": "IMAGE", "status": "PENDING_COLLECTION", "stored": False, "bytes": 0}]),
+        "jobs": json.dumps([{"kind": "IMAGE", "status": "FAILED", "errorCode": "IMAGE_WORKER_UNAVAILABLE"}])}])}
     sdk = SimpleNamespace(client=lambda name: {"cloudformation": cfn, "lambda": function, "rds": rds, "rds-data": data}[name])
     result = audit.workspace_comparison(sdk, MID, WID)
     kw = data.execute_statement.call_args.kwargs
@@ -142,7 +147,10 @@ def test_comparison_query_uses_prod_identity_and_parameterized_migration():
     assert MID not in kw["sql"] and "WHERE w.migration_id=:migration" in kw["sql"]
     assert "provenance" not in kw["sql"] and "delivery_configuration" not in kw["sql"]
     assert kw["sql"].startswith("SELECT ")
-    assert not result["selectedWorkspaceFound"]
+    assert result["selectedWorkspaceFound"]
+    assert result["workspaces"][0]["namespaces"] == ["shop"]
+    assert result["workspaces"][0]["categories"]["containerImages"]["total"] == 1
+    assert result["workspaces"][0]["categories"]["containerImages"]["jobs"] == {"FAILED": 1}
     assert "private-secret-reference" not in json.dumps(result)
     function.get_function_configuration.return_value["Environment"]["Variables"]["DB_NAME"] = "navigan_dev"
     data.reset_mock()
@@ -156,3 +164,20 @@ def test_comparison_is_bounded_and_does_not_choose_another_snapshot_silently():
     result = audit.summarize_workspaces(rows, "AWS-missing")
     assert result["truncated"] and len(result["workspaces"]) == 50
     assert result["selectedWorkspace"] is None and not result["selectedWorkspaceFound"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("artifacts", "private invalid json"), ("jobs", '{"private":"data"}'),
+    ("artifacts", '["private"]'), ("namespaces", "null"), ("jobs", None),
+])
+def test_malformed_json_metadata_fails_clearly_without_printing_payload(field, value):
+    with pytest.raises(ValueError) as error:
+        audit.summarize_workspaces([{"workspace_id": WID, field: value}])
+    assert audit.safe_error(error.value) == "INVALID_WORKSPACE_" + field.upper()
+    assert "private" not in str(error.value)
+
+
+def test_encoded_empty_json_arrays_and_native_arrays_are_equivalent():
+    plain = {"workspace_id": WID, "artifacts": [], "jobs": [], "namespaces": []}
+    encoded = {**plain, **{key: "[]" for key in ("artifacts", "jobs", "namespaces")}}
+    assert audit.summarize_workspaces([encoded], WID) == audit.summarize_workspaces([plain], WID)

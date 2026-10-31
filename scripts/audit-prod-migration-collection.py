@@ -14,6 +14,10 @@ PARENT = "navigan-custmanagement-cfnstk"
 
 
 def safe_error(error):
+    if isinstance(error, ValueError) and str(error) in {
+        "INVALID_WORKSPACE_ARTIFACTS", "INVALID_WORKSPACE_JOBS", "INVALID_WORKSPACE_NAMESPACES"
+    }:
+        return str(error)
     return getattr(error, "response", {}).get("Error", {}).get("Code", type(error).__name__)
 
 
@@ -94,9 +98,25 @@ def workspace_comparison(session, migration, selected_workspace=None):
     return summarize_workspaces(json.loads(response["formattedRecords"]), selected_workspace)
 
 
+def json_array(value, field):
+    # Data API formattedRecords encodes PostgreSQL jsonb columns as strings.
+    # Decode those columns separately from the outer result-set JSON.
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            raise ValueError("INVALID_WORKSPACE_" + field.upper()) from None
+    expected = str if field == "namespaces" else dict
+    if not isinstance(value, list) or not all(isinstance(item, expected) for item in value):
+        raise ValueError("INVALID_WORKSPACE_" + field.upper())
+    return value
+
+
 def summarize_workspaces(rows, selected_workspace=None):
     summaries = []
     for row in rows[:50]:
+        row = {**row, **{field: json_array(row.get(field, []), field)
+                        for field in ("artifacts", "jobs", "namespaces")}}
         categories = {key: {"total": 0, "saved": 0, "storedObjects": 0, "bytes": 0, "states": {}, "jobs": {}}
                       for key in ("repositoryFiles", "containerImages", "sourceRecovery", "other")}
 
