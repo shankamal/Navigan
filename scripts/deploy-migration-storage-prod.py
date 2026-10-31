@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Provision one PROD migration workspace bucket through a scoped change set.
+"""Provision workspace storage or add its scoped layout-v2 policy.
 
 Default: read-only readiness check. --apply creates and executes change sets after
-checking the resource allowlist. Does not update Lambda, APIs, ECS, source hosts,
+checking the resource allowlist. Existing stacks receive only an additive IAM
+policy, preserving their deployed bucket/key/policy definitions. Does not update Lambda, APIs, ECS, source hosts,
 database contents, existing role trust, or the parent application stack.
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -23,6 +25,7 @@ from botocore.exceptions import ClientError, WaiterError
 ROOT = Path(__file__).resolve().parents[1]
 ACCOUNT = "905418045935"
 REGION = "ap-south-1"
+LAYOUT_POLICY = "WorkspaceLayoutV2Policy"
 PARENT = "navigan-custmanagement-cfnstk"
 BRANCH = "new_migration_approach_18oct26"
 TABLES = ("artifact_workspaces", "workspace_artifacts", "workspace_collection_jobs")
@@ -31,7 +34,8 @@ SPECS = {
     "artifact-workspace": {
         "file": "workspace-storage.yaml",
         "resources": {"WorkspaceKey": "AWS::KMS::Key", "WorkspaceBucket": "AWS::S3::Bucket",
-                      "WorkspaceBucketPolicy": "AWS::S3::BucketPolicy", "WorkspaceStoragePolicy": "AWS::IAM::Policy"},
+                      "WorkspaceBucketPolicy": "AWS::S3::BucketPolicy", "WorkspaceStoragePolicy": "AWS::IAM::Policy",
+                      LAYOUT_POLICY: "AWS::IAM::Policy"},
     },
 }
 
@@ -108,6 +112,69 @@ def validate_changes(changes, allowed):
         require(not change.get("ChangeSetId"), "Nested stack updates are not allowed in storage change sets")
 
 
+def layout_policy():
+    return {"Type":"AWS::IAM::Policy","Properties":{
+        "PolicyName":"NaviganMigrationWorkspaceLayoutV2","Roles":[{"Ref":"MigrationFunctionRoleName"}],
+        "PolicyDocument":{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+            "Action":["s3:PutObject","s3:GetObject","s3:GetObjectVersion","s3:AbortMultipartUpload"],
+            "Resource":{"Fn::Sub":"${WorkspaceBucket.Arn}/navigan/customers/*/migrations/*/inventories/*/workspaces/*"}}]}}}
+
+
+def policy_only_template(original):
+    """Preserve the live template; add only the layout-specific inline grant.
+
+    JSON templates are copied as objects. YAML is preserved byte-for-byte except
+    for one JSON-flow resource entry, so no local YAML dependency or bucket
+    reconstruction is needed.
+    """
+    if isinstance(original,str):
+        try:original=json.loads(original)
+        except ValueError:
+            header=re.search(r'(?m)^Resources:[ \t]*(?:#[^\n]*)?\r?\n',original)
+            require(header is not None,'Unsupported deployed template layout; no changes made')
+            remainder=original[header.end():]
+            child=re.search(r'(?m)^( +)[A-Za-z0-9]+:',remainder)
+            require(child is not None,'Cannot locate deployed storage resources; no changes made')
+            indent=child.group(1)
+            existing=re.search(r'(?m)^'+re.escape(indent+LAYOUT_POLICY)+r':[^\n]*',original)
+            if existing:
+                try:value=json.loads(existing.group(0).split(':',1)[1].strip())
+                except ValueError:raise RuntimeError('Existing layout policy needs review; no changes made') from None
+                require(value==layout_policy(),'Existing layout policy differs; no changes made')
+                return original
+            insertion=indent+LAYOUT_POLICY+': '+json.dumps(layout_policy(),separators=(',',':'))+'\n'
+            return original[:header.end()]+insertion+original[header.end():]
+    require(isinstance(original,dict) and isinstance(original.get('Resources'),dict),'Invalid deployed storage template')
+    updated=copy.deepcopy(original)
+    previous=updated['Resources'].get(LAYOUT_POLICY)
+    require(previous in (None,layout_policy()),'Existing layout policy differs; no changes made')
+    updated['Resources'][LAYOUT_POLICY]=layout_policy()
+    return json.dumps(updated)
+
+
+def recent_failures(cfn,stack):
+    try:
+        return [f"{e['LogicalResourceId']}: {e.get('ResourceStatusReason','No reason returned')}"
+                for e in cfn.describe_stack_events(StackName=stack).get('StackEvents',[])
+                if e.get('ResourceStatus') in {'CREATE_FAILED','UPDATE_FAILED','DELETE_FAILED'}][:5]
+    except Exception:return []
+
+
+def verify_layout_policy_ownership(session,stack,role):
+    try:
+        current=session.client('iam').get_role_policy(RoleName=role,PolicyName='NaviganMigrationWorkspaceLayoutV2')
+    except ClientError as error:
+        if error.response.get('Error',{}).get('Code')=='NoSuchEntity':return
+        raise
+    try:
+        resource=session.client('cloudformation').describe_stack_resource(StackName=stack,LogicalResourceId=LAYOUT_POLICY)['StackResourceDetail']
+    except ClientError:
+        raise RuntimeError('The layout policy name is already used outside this storage stack; review it before proceeding') from None
+    require(resource.get('ResourceType')=='AWS::IAM::Policy' and
+            current['PolicyDocument']==layout_policy()['Properties']['PolicyDocument'],
+            'Existing layout policy ownership/content differs; no changes made')
+
+
 def change_set(cfn, stack, spec, template, role, directory):
     existing = describe_optional(cfn, stack)
     if existing:
@@ -115,7 +182,12 @@ def change_set(cfn, stack, spec, template, role, directory):
         parameters = {p["ParameterKey"]: p["ParameterValue"] for p in existing.get("Parameters", [])}
         require(parameters == {"MigrationFunctionRoleName": role}, "Existing storage stack is attached to a different role; stopping")
         if existing["StackStatus"] != "REVIEW_IN_PROGRESS":
-            (directory / f"{stack}-original-template.json").write_text(json.dumps(cfn.get_template(StackName=stack)["TemplateBody"], indent=2))
+            original=cfn.get_template(StackName=stack,TemplateStage='Processed')["TemplateBody"]
+            (directory / f"{stack}-original-template.json").write_text(json.dumps(original, indent=2))
+            template=policy_only_template(original)
+            (directory / f"{stack}-policy-only-template.txt").write_text(template)
+            if existing['StackStatus']=='UPDATE_ROLLBACK_COMPLETE':
+                for failure in recent_failures(cfn,stack):print('Previous storage update failure: '+failure,flush=True)
         else:
             existing = None  # Resume an unexecuted CREATE change set from an earlier preparation.
     request = dict(StackName=stack, ChangeSetName="navigan-prod-storage-" + uuid.uuid4().hex[:16],
@@ -146,22 +218,35 @@ def change_set(cfn, stack, spec, template, role, directory):
         token = page.get("NextToken")
         if not token:
             break
-    validate_changes(changes, spec["resources"])
+    validate_changes(changes, {LAYOUT_POLICY:'AWS::IAM::Policy'} if existing else spec["resources"])
     require(bool(changes), "Prepared change set has no inspectable resource changes")
     (directory / f"{stack}-changes.json").write_text(json.dumps(changes, indent=2))
     for item in changes:
         change = item["ResourceChange"]
         print(f"  {change['Action']} {change['LogicalResourceId']} ({change['ResourceType']})")
-    return {"id": identifier, "stack": stack, "create": existing is None}
+    return {"id": identifier, "stack": stack, "create": existing is None, "policyOnly":existing is not None,
+            "templateSha256":hashlib.sha256(template.encode()).hexdigest()}
 
 
 def execute(cfn, plan):
     if plan is None:
         return
+    if plan.get('policyOnly'):
+        changes=[];token=None
+        while True:
+            page=cfn.describe_change_set(ChangeSetName=plan['id'],**({'NextToken':token} if token else {}))
+            changes.extend(page.get('Changes',[]));token=page.get('NextToken')
+            if not token:break
+        validate_changes(changes,{LAYOUT_POLICY:'AWS::IAM::Policy'})
+        require(bool(changes),'No inspectable policy update')
     cfn.execute_change_set(ChangeSetName=plan["id"])
     print("Waiting for " + plan["stack"], flush=True)
     waiter = "stack_create_complete" if plan["create"] else "stack_update_complete"
-    cfn.get_waiter(waiter).wait(StackName=plan["stack"], WaiterConfig={"Delay": 10, "MaxAttempts": 180})
+    try:
+        cfn.get_waiter(waiter).wait(StackName=plan["stack"], WaiterConfig={"Delay": 10, "MaxAttempts": 180})
+    except WaiterError:
+        for failure in recent_failures(cfn,plan['stack']):print('Storage update failure: '+failure,flush=True)
+        raise RuntimeError('Storage change did not complete; inspect the failure reason printed above. Collectors were not updated.') from None
 
 
 def verify_storage(session, suffix):
@@ -203,12 +288,13 @@ def main():
     templates = {suffix: (ROOT / "infrastructure/modules/migration-management" / spec["file"]).read_text()
                  for suffix, spec in SPECS.items()}
     if not args.apply:
-        print("Readiness check passed. No AWS resources modified. Use --apply to provision one private workspace bucket.")
+        print("Readiness check passed. Use --apply to add the layout-v2 policy to existing storage, or create storage if absent.")
         return 0
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-migration-storage-"))
     directory.chmod(0o700)
     print("Private deployment record: " + str(directory))
     cfn = session.client("cloudformation")
+    verify_layout_policy_ownership(session,PARENT+'-artifact-workspace',settings['role'])
     plans = [change_set(cfn, PARENT + "-" + suffix, spec, templates[suffix], settings["role"], directory)
              for suffix, spec in SPECS.items()]
     # Validate the workspace change set before executing; no legacy recovery stack is provisioned.
@@ -219,7 +305,7 @@ def main():
         execute(cfn, plan)
     outputs = {suffix: verify_storage(session, suffix) for suffix in SPECS}
     report = {"database": "navigan", "function": settings["function"], "outputs": outputs,
-              "templates": {s: hashlib.sha256(t.encode()).hexdigest() for s, t in templates.items()}}
+              "templates": {s: p.get('templateSha256') if p else None for s,p in zip(SPECS,plans)}}
     (directory / "storage-release.json").write_text(json.dumps(report, indent=2))
     print(json.dumps(outputs, indent=2))
     print("PROD migration storage deployed and verified. API configuration/code and frontend are unchanged.")
@@ -227,4 +313,5 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:raise SystemExit(main())
+    except RuntimeError as error:raise SystemExit(str(error)) from None

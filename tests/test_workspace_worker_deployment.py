@@ -132,6 +132,15 @@ def test_layout_gate_reads_only_and_accepts_consistent_upgraded_collectors(monke
     assert all(call[0].startswith(('get_','describe_')) for client in clients.values() for call in client.method_calls)
 
 
+def test_layout_gate_accepts_additive_api_policy_without_modifying_existing_policy(monkeypatch):
+    sdk,parent,clients=layout_gate_fixture(monkeypatch)
+    expected=clients['iam'].get_role_policy.return_value
+    clients['iam'].get_role_policy.side_effect=lambda **kw:({'PolicyDocument':{'Statement':[]}}
+        if kw['PolicyName']=='NaviganMigrationArtifactWorkspace' else expected)
+    module.verify_layout_ready(sdk,parent)
+    assert any(call.kwargs['PolicyName']=='NaviganMigrationWorkspaceLayoutV2' for call in clients['iam'].get_role_policy.call_args_list)
+
+
 @pytest.mark.parametrize('change',['repository-binding','repository-network','image-network','old-image','rollout','storage','worker-package'])
 def test_layout_gate_blocks_new_paths_when_a_writer_is_not_ready(monkeypatch,change):
     sdk,parent,_=layout_gate_fixture(monkeypatch,change)

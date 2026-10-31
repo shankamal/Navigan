@@ -1,5 +1,6 @@
 """Production release boundaries: read-only preflight, scoped changes, private storage."""
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import sys
@@ -52,6 +53,8 @@ class DataAPI:
 
 def session(config=None, data=None, account=release.ACCOUNT):
     config = config or configuration()
+    def missing_policy(**kwargs):
+        raise ClientError({'Error':{'Code':'NoSuchEntity'}},'GetRolePolicy')
     clients = {
         "sts": SimpleNamespace(get_caller_identity=lambda: {"Account": account}),
         "cloudformation": PreflightCFN(),
@@ -60,6 +63,7 @@ def session(config=None, data=None, account=release.ACCOUNT):
             "DBClusterArn": f"arn:aws:rds:{release.REGION}:{release.ACCOUNT}:cluster:aws-infra-platform-db",
             "HttpEndpointEnabled": True}]}),
         "rds-data": data or DataAPI(),
+        "iam":SimpleNamespace(get_role_policy=missing_policy),
     }
     return SimpleNamespace(client=lambda service, **kw: clients[service])
 
@@ -241,3 +245,92 @@ def test_apply_provisions_only_one_workspace_stack(monkeypatch, tmp_path):
 def test_legacy_recovery_storage_is_outside_release_scope():
     with pytest.raises(RuntimeError, match="release scope"):
         release.verify_storage(None, "source-recovery")
+
+
+def deployed_template():
+    return {'Parameters':{'MigrationFunctionRoleName':{'Type':'String'}},
+        'Resources':{
+            'WorkspaceBucket':{'Type':'AWS::S3::Bucket','DeletionPolicy':'Retain',
+                'Properties':{'BucketName':'existing-bucket','VersioningConfiguration':{'Status':'Enabled'},
+                              'Tags':[{'Key':'preserve-live-setting','Value':'unchanged'}]}},
+            'WorkspaceKey':{'Type':'AWS::KMS::Key','Properties':{'EnableKeyRotation':True}},
+            'WorkspaceBucketPolicy':{'Type':'AWS::S3::BucketPolicy','Properties':{'Bucket':{'Ref':'WorkspaceBucket'},
+                'PolicyDocument':{'Statement':[{'Sid':'PreserveDeployedPolicy'}]}}},
+            'WorkspaceStoragePolicy':{'Type':'AWS::IAM::Policy','Properties':{'PolicyName':'existing-policy','Roles':['ProductionMigrationRole']}}},
+        'Outputs':{'KeepOutput':{'Value':{'Fn::GetAtt':['WorkspaceBucket','Arn']}}}}
+
+
+def test_existing_json_template_only_gains_layout_policy_without_bucket_changes():
+    original=deployed_template();before=copy.deepcopy(original)
+    candidate=json.loads(release.policy_only_template(original))
+    assert original==before
+    assert set(candidate['Resources'])==set(original['Resources'])|{release.LAYOUT_POLICY}
+    assert candidate['Resources'].pop(release.LAYOUT_POLICY)==release.layout_policy()
+    assert candidate==original
+    assert json.loads(release.policy_only_template(json.dumps(original)))['Resources'][release.LAYOUT_POLICY]==release.layout_policy()
+
+
+def test_existing_yaml_is_preserved_outside_one_additive_json_flow_resource():
+    original="""AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+    WorkspaceBucket:
+        Type: AWS::S3::Bucket
+        DeletionPolicy: Retain
+    WorkspaceStoragePolicy:
+        Type: AWS::IAM::Policy
+        Properties:
+            Roles: [!Ref MigrationFunctionRoleName]
+Outputs:
+    Arn:
+        Value: !GetAtt WorkspaceBucket.Arn
+"""
+    candidate=release.policy_only_template(original)
+    added=[line for line in candidate.splitlines(keepends=True) if line.startswith('    '+release.LAYOUT_POLICY+':')]
+    assert len(added)==1 and candidate.replace(added[0],'',1)==original
+    assert json.loads(added[0].split(':',1)[1])==release.layout_policy()
+    assert release.policy_only_template(candidate)==candidate
+
+
+def test_layout_policy_name_collision_is_rejected():
+    original=deployed_template();original['Resources'][release.LAYOUT_POLICY]={'Type':'AWS::IAM::Role'}
+    with pytest.raises(RuntimeError,match='differs'):release.policy_only_template(original)
+
+
+@pytest.mark.parametrize('logical,kind',[('WorkspaceBucket','AWS::S3::Bucket'),('WorkspaceBucketPolicy','AWS::S3::BucketPolicy'),('WorkspaceKey','AWS::KMS::Key')])
+def test_existing_storage_update_cannot_modify_bucket_bucket_policy_or_key(tmp_path,logical,kind):
+    cfn=ChangeCFN(existing=existing(),changes=[change('Modify',logical,kind)])
+    cfn.get_template=lambda **kw:{'TemplateBody':deployed_template()}
+    with pytest.raises(RuntimeError,match='Unexpected resource'):
+        release.change_set(cfn,'stack',release.SPECS['artifact-workspace'],'unused-local-template','ProductionMigrationRole',tmp_path)
+    assert cfn.executed==[]
+
+
+def test_existing_storage_update_preserves_deployed_resources_and_rechecks_policy_scope(tmp_path):
+    cfn=ChangeCFN(existing=existing('UPDATE_ROLLBACK_COMPLETE'),changes=[change('Add',release.LAYOUT_POLICY,'AWS::IAM::Policy')])
+    cfn.get_template=lambda **kw:{'TemplateBody':deployed_template()}
+    plan=release.change_set(cfn,'stack',release.SPECS['artifact-workspace'],'unused-local-template','ProductionMigrationRole',tmp_path)
+    assert plan['policyOnly'] is True
+    candidate=json.loads(cfn.request['TemplateBody']);candidate['Resources'].pop(release.LAYOUT_POLICY)
+    assert candidate==deployed_template()
+    cfn.changes=[change('Modify','WorkspaceBucket','AWS::S3::Bucket')]
+    with pytest.raises(RuntimeError,match='Unexpected resource'):release.execute(cfn,plan)
+    assert cfn.executed==[]
+
+
+def test_waiter_failure_prints_actual_resource_reason_without_repeating_traceback(capsys):
+    cfn=ChangeCFN()
+    def waiter(name):
+        def wait(**kwargs):raise WaiterError(name=name,reason='rollback',last_response={})
+        return SimpleNamespace(wait=wait)
+    cfn.get_waiter=waiter
+    cfn.describe_stack_events=lambda **kw:{'StackEvents':[{'LogicalResourceId':'WorkspaceBucket','ResourceStatus':'UPDATE_FAILED','ResourceStatusReason':'Specific AWS failure reason'}]}
+    with pytest.raises(RuntimeError,match='did not complete'):release.execute(cfn,{'id':'change-set','stack':'stack','create':False})
+    assert 'WorkspaceBucket: Specific AWS failure reason' in capsys.readouterr().out
+
+
+def test_unmanaged_layout_policy_name_is_not_overwritten():
+    def missing_resource(**kwargs):raise ClientError({'Error':{'Code':'ValidationError'}},'DescribeStackResource')
+    clients={'iam':SimpleNamespace(get_role_policy=lambda **kw:{'PolicyDocument':release.layout_policy()['Properties']['PolicyDocument']}),
+             'cloudformation':SimpleNamespace(describe_stack_resource=missing_resource)}
+    with pytest.raises(RuntimeError,match='outside this storage stack'):
+        release.verify_layout_policy_ownership(SimpleNamespace(client=lambda name:clients[name]),'stack','role')

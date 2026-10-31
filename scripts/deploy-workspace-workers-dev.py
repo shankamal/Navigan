@@ -78,11 +78,19 @@ def verify_layout_ready(session,parent):
     require(service['desiredCount']==service['runningCount'] and service['pendingCount']==0 and
             len(service.get('deployments',[]))==1 and service['deployments'][0].get('rolloutState')=='COMPLETED','Wait for the collector rollout to complete')
     expected=f"arn:aws:s3:::{env['MIGRATION_WORKSPACE_BUCKET']}/navigan/customers/*/migrations/*/inventories/*/workspaces/*"
-    for role,policy in ((configs[0]['Role'],'NaviganMigrationArtifactWorkspace'),(task['taskRoleArn'],'WorkspaceImageCollection')):
-        document=iam.get_role_policy(RoleName=role.rsplit('/',1)[1],PolicyName=policy)['PolicyDocument']
-        require(any(s.get('Effect')=='Allow' and expected in ([s.get('Resource')] if isinstance(s.get('Resource'),str) else s.get('Resource',[]))
-                    and any(a in {'s3:PutObject','s3:*','*'} for a in ([s.get('Action')] if isinstance(s.get('Action'),str) else s.get('Action',[])))
-                    for s in document.get('Statement',[])),'Deploy layout v2 workspace storage permissions first')
+    for role,policies in ((configs[0]['Role'],('NaviganMigrationArtifactWorkspace','NaviganMigrationWorkspaceLayoutV2')),
+                          (task['taskRoleArn'],('WorkspaceImageCollection',))):
+        granted=False
+        for policy in policies:
+            try:document=iam.get_role_policy(RoleName=role.rsplit('/',1)[1],PolicyName=policy)['PolicyDocument']
+            except Exception as error:
+                if getattr(error,'response',{}).get('Error',{}).get('Code')=='NoSuchEntity':continue
+                raise
+            if any(s.get('Effect')=='Allow' and expected in ([s.get('Resource')] if isinstance(s.get('Resource'),str) else s.get('Resource',[]))
+                   and any(a in {'s3:PutObject','s3:*','*'} for a in ([s.get('Action')] if isinstance(s.get('Action'),str) else s.get('Action',[])))
+                   for s in document.get('Statement',[])):
+                granted=True;break
+        require(granted,'Deploy layout v2 workspace storage permissions first')
 
 
 def runtime_settings(config):

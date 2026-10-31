@@ -73,15 +73,24 @@ Resources:
         Statement:
           - Effect: Allow
             Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion, s3:AbortMultipartUpload]
-            Resource:
-              - !Sub '${WorkspaceBucket.Arn}/customers/*/migrations/*/workspaces/*'
-              - !Sub '${WorkspaceBucket.Arn}/navigan/customers/*/migrations/*/inventories/*/workspaces/*'
+            Resource: !Sub '${WorkspaceBucket.Arn}/customers/*/migrations/*/workspaces/*'
           - Effect: Allow
             Action: [kms:GenerateDataKey, kms:Decrypt]
             Resource: !GetAtt WorkspaceKey.Arn
             Condition:
               StringEquals:
                 kms:ViaService: !Sub 's3.${AWS::Region}.${AWS::URLSuffix}'
+  WorkspaceLayoutV2Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: NaviganMigrationWorkspaceLayoutV2
+      Roles: [!Ref MigrationFunctionRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion, s3:AbortMultipartUpload]
+            Resource: !Sub '${WorkspaceBucket.Arn}/navigan/customers/*/migrations/*/inventories/*/workspaces/*'
 Outputs:
   WorkspaceBucketName: {Value: !Ref WorkspaceBucket}
   WorkspaceKmsKeyArn: {Value: !GetAtt WorkspaceKey.Arn}

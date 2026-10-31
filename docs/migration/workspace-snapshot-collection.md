@@ -28,3 +28,5 @@ The progress UI continues already-started recoveries through POLL, including a r
 4. Deploy the progress UI update, then create a workspace from the saved scope and collect its artifacts. Verify artifact counts, exact S3 locations, checksums and export behavior. Deployment completion alone does not establish successful collection.
 
 Use the existing PROD scoped prepare/execute helper and DEV migration-only helper. The user executes deployment and merge commands. Cleanup/reset commands are outside this release; old workspaces and artifacts remain retained.
+
+For existing PROD storage, the helper starts from the deployed template and adds only `WorkspaceLayoutV2Policy`. Bucket, bucket policy, KMS key, lifecycle, encryption and existing IAM definitions are preserved. A change set proposing changes to any of those existing resources is rejected before execution. Previous failure reasons are printed when retrying after rollback.
