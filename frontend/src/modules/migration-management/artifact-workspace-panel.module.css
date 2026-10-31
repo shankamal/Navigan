@@ -773,3 +773,24 @@
 .s3Summary small {
   color: #63717f;
 }
+
+.artifactActionStack {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.panel[class] .artifactActionStack > button {
+  width: 180px;
+  max-width: 100%;
+  min-height: 32px;
+  margin: 0;
+  text-align: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.artifactActionStack > details {
+  width: 100%;
+  min-width: 0;
+}

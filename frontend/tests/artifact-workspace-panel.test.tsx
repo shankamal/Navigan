@@ -1895,3 +1895,81 @@ it.each(["failure", "incomplete"])(
     ).not.toBeInTheDocument();
   },
 );
+
+it("offers saved repository CronJobs in the filtered source recovery tab only within the same namespace", async () => {
+  const workspace = historicalWorkspace();
+  workspace.artifacts.push(
+    {
+      ...workspace.artifacts[1],
+      artifactId: "unsaved",
+      status: "PENDING_COLLECTION",
+    },
+    {
+      artifactId: "other-namespace",
+      kind: "REPOSITORY_DEFINITION",
+      status: "COLLECTED",
+      source: { filePath: "other/operations.yaml" },
+      workloads: [
+        {
+          apiVersion: "batch/v1",
+          kind: "CronJob",
+          namespace: "other",
+          name: "other-check",
+        },
+      ],
+    },
+  );
+  api.get.mockResolvedValue({ data: { workspaces: [workspace] } });
+  api.post.mockResolvedValue({ data: { workspace } });
+  render(
+    <ArtifactWorkspacePanel
+      {...props}
+      namespaces={["shop"]}
+      fixedScope
+      guided
+      active
+      stage="collect"
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Source recovery/ }),
+  );
+  fireEvent.click(screen.getByText("Review deleted Job run"));
+  const selector = screen.getByLabelText("Saved parent CronJob");
+  const options = within(selector).getAllByRole("option");
+  expect(options).toHaveLength(2);
+  expect(options[1]).toHaveTextContent("check · operations.yaml");
+  const record = screen.getByRole("button", {
+    name: "Record historical exclusion",
+  });
+  expect(record).toBeDisabled();
+  fireEvent.change(selector, {
+    target: {
+      value: JSON.stringify({ artifactId: "definition", name: "check" }),
+    },
+  });
+  expect(record).toBeDisabled();
+  fireEvent.click(
+    screen.getByLabelText(
+      "I checked that this is a deleted historical run of the selected CronJob.",
+    ),
+  );
+  fireEvent.click(record);
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith(
+      "/migrations/MIG-one/deployment-evidence",
+      {
+        version: 2,
+        recovery: {
+          operation: "EXCLUDE_HISTORICAL_JOB",
+          workspaceId: "AWS-one",
+          artifactId: "job",
+          parentArtifactId: "definition",
+          parentCronJobName: "check",
+          confirmHistoricalRun: true,
+        },
+      },
+      expect.anything(),
+    ),
+  );
+});
