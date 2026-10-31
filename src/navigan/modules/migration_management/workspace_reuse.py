@@ -4,7 +4,7 @@ import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-from .artifact_workspace import canonical, workspace_prefix
+from .artifact_workspace import canonical, storage_prefix
 
 
 def carry_forward(service, manifest, client, bucket, key_id, owner):
@@ -62,11 +62,11 @@ def carry_forward(service, manifest, client, bucket, key_id, owner):
         try:
             # Local import avoids the export -> workspace -> reuse import cycle.
             from .workspace_export import verify_object
-            previous_prefix = workspace_prefix(manifest['customerId'], manifest['migrationId'], row['workspace_id'])
+            previous_prefix = storage_prefix(manifest['customerId'], manifest['migrationId'], row['workspace_id'], row.get('previous_manifest'))
             verify_object(client, bucket, key_id, owner, previous_prefix, row,
                           image={'validation': row['validation']} if artifact['kind'] == 'IMAGE' else None,
                           artifact_id=artifact_id)
-            key = workspace_prefix(manifest['customerId'], manifest['migrationId'], manifest['workspaceId']) + 'reused/' + artifact_id
+            key = storage_prefix(manifest['customerId'], manifest['migrationId'], manifest['workspaceId'], manifest) + 'reused/' + artifact_id
             result = client.copy_object(
                 Bucket=bucket, Key=key, ExpectedBucketOwner=owner, ExpectedSourceBucketOwner=owner,
                 CopySource={'Bucket': bucket, 'Key': row['object_key'], 'VersionId': row['object_version']},

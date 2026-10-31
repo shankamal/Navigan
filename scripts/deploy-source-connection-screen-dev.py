@@ -48,6 +48,7 @@ ADDITIVE_FILES = {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
+    parser.add_argument("--workspace-layout-version",choices=("1","2"),help="Stage source with 1; enable 2 after collector and storage upgrades")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--migration-only", action="store_true", help="Package/update only MigrationFunction; leave the existing connector Lambda untouched.")
     parser.add_argument("--enable-artifact-workspace", action="store_true", help="Deploy private KMS workspace storage. Apply database migration 027 before using workspace APIs.")
@@ -69,6 +70,12 @@ def main():
         parser.error("Workspace/migration-only deployment cannot upgrade the source connector.")
     if args.finish_deployment and args.enable_artifact_workspace:
         parser.error("Workspace provisioning requires a full deployment; omit --finish-deployment.")
+    if args.workspace_layout_version == "2":
+        import boto3
+        import importlib.util
+        worker_spec=importlib.util.spec_from_file_location('workspace_layout_gate',ROOT/'scripts/deploy-workspace-workers-dev.py')
+        workers=importlib.util.module_from_spec(worker_spec);worker_spec.loader.exec_module(workers)
+        workers.verify_layout_ready(boto3.Session(profile_name=args.profile,region_name='ap-south-1'),STACK)
     for role in args.registry_role_arn:
         import re
         if not re.fullmatch(r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_-]+(?:/[A-Za-z0-9+=,.@_-]+)*", role):
@@ -240,6 +247,8 @@ def main():
     _, name, _, _ = staged[0]
     current = aws("lambda", "get-function-configuration", "--function-name", name)
     variables = dict(current.get("Environment", {}).get("Variables", {}))
+    if args.workspace_layout_version is not None:
+        variables["MIGRATION_WORKSPACE_LAYOUT_VERSION"] = args.workspace_layout_version
     variables["MIGRATION_SOURCE_FIRST_ENABLED"] = "true"
     if args.enable_artifact_workspace:
         workspace_stack = STACK + "-artifact-workspace"
@@ -296,7 +305,7 @@ def main():
 
 def finish_deployment(aws, stack, child, function_name, backup, args):
     aws.registry_role_arns = getattr(args, "registry_role_arn", [])
-    configure_deployment_discovery(aws, stack, child, function_name, backup)
+    configure_deployment_discovery(aws, stack, child, function_name, backup, getattr(args,'workspace_layout_version',None))
     if args.upgrade_source_connector:
         subprocess.check_call(
             [
@@ -312,7 +321,7 @@ def finish_deployment(aws, stack, child, function_name, backup, args):
     )
 
 
-def configure_deployment_discovery(aws, stack, child, function_name, backup):
+def configure_deployment_discovery(aws, stack, child, function_name, backup, workspace_layout_version=None):
     """Add only migration discovery routes and metadata read permissions in this DEV stack."""
     resources = aws("cloudformation", "list-stack-resources", "--stack-name", child)["StackResourceSummaries"]
     integration = next(
@@ -321,6 +330,8 @@ def configure_deployment_discovery(aws, stack, child, function_name, backup):
     # API ID is pinned by the already configured migration connector base URL.
     config = aws("lambda", "get-function-configuration", "--function-name", function_name)
     variables = dict(config.get("Environment", {}).get("Variables", {}))
+    if workspace_layout_version is not None:
+        variables['MIGRATION_WORKSPACE_LAYOUT_VERSION']=workspace_layout_version
     import re
 
     match = re.fullmatch(

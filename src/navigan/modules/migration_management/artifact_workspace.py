@@ -5,6 +5,7 @@ import json
 import os
 import re
 import uuid
+import unicodedata
 from datetime import datetime, timezone
 from pydantic import Field, field_validator
 from navigan.shared.errors import ApiError
@@ -32,6 +33,57 @@ def workspace_prefix(customer, migration, workspace):
     if any(not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', v) for v in (customer, migration, workspace)):
         raise ApiError(400, 'INVALID_WORKSPACE_IDENTITY', 'Invalid workspace identity.')
     return f'customers/{customer}/migrations/{migration}/workspaces/{workspace}/'
+
+
+def named_artifact_root(customer_id, customer_name, migration_id, migration_name):
+    def segment(identifier, name, prefix, fallback):
+        if not isinstance(identifier, str) or not re.fullmatch(prefix+r'-[A-Za-z0-9_-]{1,124}', identifier):
+            raise ApiError(409, 'INVALID_WORKSPACE_IDENTITY', 'Invalid workspace identity.')
+        name = unicodedata.normalize('NFKD', name or fallback).encode('ascii', 'ignore').decode().lower()
+        slug = re.sub(r'[^a-z0-9]+', '-', name).strip('-')[:48].rstrip('-') or fallback
+        suffix = (identifier.split('-', 1)[1][:12] if re.fullmatch(prefix+r'-[a-f0-9]{32}', identifier)
+                  else hashlib.sha256(identifier.encode()).hexdigest()[:12])
+        return slug+'--'+suffix
+    return ('navigan/customers/'+segment(customer_id, customer_name, 'CUS', 'customer')+
+            '/migrations/'+segment(migration_id, migration_name, 'MIG', 'migration')+'/')
+
+
+def storage_prefix(customer, migration, workspace, manifest=None):
+    legacy = workspace_prefix(customer, migration, workspace)
+    manifest = manifest or {}
+    saved = (manifest.get('storage') or {}).get('prefix')
+    if manifest.get('storageLayoutVersion', 1) == 1:
+        if saved not in (None, legacy):
+            raise ApiError(409, 'WORKSPACE_PREFIX_MISMATCH', 'Workspace storage identity does not match.')
+        return legacy
+    if (manifest.get('storageLayoutVersion') != 2 or manifest.get('customerId') != customer
+            or manifest.get('migrationId') != migration or manifest.get('workspaceId') != workspace
+            or not re.fullmatch(r'AWS-[a-f0-9]{32}', workspace)):
+        raise ApiError(409, 'WORKSPACE_PREFIX_MISMATCH', 'Workspace storage identity does not match.')
+    root = named_artifact_root(customer, manifest.get('customerName'), migration, manifest.get('migrationName'))
+    version = manifest.get('inventoryVersion')
+    try:
+        if type(version) is not int or version < 1:
+            raise ValueError()
+        captured = datetime.fromisoformat(manifest['inventoryCapturedAt'])
+        if captured.tzinfo is None:
+            raise ValueError()
+        captured = captured.astimezone(timezone.utc)
+        expected = (root+f'inventories/inventory-{version:04d}--'+captured.strftime('%Y%m%dt%H%M%Sz')+
+                    '/workspaces/workspace--'+workspace[4:]+'/')
+    except (ValueError, TypeError, KeyError):
+        raise ApiError(409, 'WORKSPACE_PREFIX_MISMATCH', 'Workspace snapshot identity does not match.') from None
+    if saved is not None and saved != expected:
+        raise ApiError(409, 'WORKSPACE_PREFIX_MISMATCH', 'Workspace storage identity does not match.')
+    return expected
+
+
+def artifact_folder(manifest, kind):
+    if manifest.get('storageLayoutVersion', 1) == 2:
+        return {'REPOSITORY_DEFINITION':'repository-files/', 'IMAGE':'container-images/',
+                'RECOVERY':'source-recovery/', 'REVIEW':'reports/reviews/'}[kind]
+    return {'REPOSITORY_DEFINITION':'definitions/original/', 'IMAGE':'images/',
+            'RECOVERY':'definitions/recovered/', 'REVIEW':'reviews/'}[kind]
 
 
 def plan_artifacts(report, namespaces):
@@ -128,12 +180,18 @@ def create(service, identifier, body, client=None):
     planned = plan_artifacts(report, body['namespaces'])
     fingerprint = hashlib.sha256(canonical(planned)).hexdigest()
     previous = service.repo.list_artifact_workspaces(identifier, migration['customer_id'])
+    configured_layout = os.getenv('MIGRATION_WORKSPACE_LAYOUT_VERSION', '1')
+    if configured_layout not in ('1', '2'):
+        raise ApiError(503, 'WORKSPACE_LAYOUT_REQUIRED', 'Unsupported workspace layout configuration.')
+    layout = int(configured_layout)
     for existing in previous:
         saved = existing['manifest']
         if (existing['inventory_digest'] == body['inventoryDigest']
                 and existing['source_cluster_id'] == source['source_cluster_id']
                 and sorted(saved['namespaces']) == sorted(body['namespaces'])
-                and saved.get('analysisFingerprint') == fingerprint):
+                and saved.get('analysisFingerprint') == fingerprint
+                and saved.get('storageLayoutVersion', 1) == layout
+                and (layout == 1 or saved.get('inventoryVersion') == inventory['inventoryVersion'])):
             return read(service, identifier, existing['workspace_id'])
     workspace_id = 'AWS-' + uuid.uuid4().hex
     manifest = dict(schemaVersion=1,workspaceId=workspace_id,migrationId=identifier,customerId=migration['customer_id'],
@@ -146,20 +204,25 @@ def create(service, identifier, body, client=None):
                     limitations=['Uncollected files and images require collection. Reused objects are verified copies of exact source identities.',
                                  'Persistent data and target deployment are separate workstreams.'])
     from .workspace_reuse import carry_forward, save_reused
+    if layout == 2:
+        manifest.update(storageLayoutVersion=2, customerName=migration.get('customer_name'),
+                        migrationName=migration.get('name'), collectionMode='FRESH',
+                        inventoryCapturedAt=inventory.get('createdAt') or manifest['createdAt'])
+        manifest['limitations'][0] = 'Fresh collection is required for every planned artifact; previous saved copies are not reused.'
+    manifest['storage'] = {'bucket': bucket, 'prefix': storage_prefix(migration['customer_id'], identifier, workspace_id, manifest)}
     client = client or s3_client(fast=True)
-    reused = carry_forward(service, manifest, client, bucket, key_id, owner)
+    reused = [] if layout == 2 else carry_forward(service, manifest, client, bucket, key_id, owner)
     by_id = {r['artifact_id']: r for r in reused}
     for artifact in manifest['artifacts']:
         if artifact['artifactId'] in by_id:
             artifact['status'] = 'COLLECTED'
             artifact['validation'] = by_id[artifact['artifactId']]['validation']
     manifest['reusedArtifactCount'] = len(reused)
-    manifest['storage'] = {'bucket': bucket, 'prefix': workspace_prefix(migration['customer_id'], identifier, workspace_id)}
     for artifact in manifest['artifacts']:
         if artifact['artifactId'] in by_id:
             record = by_id[artifact['artifactId']]
             artifact['storage'] = {'bucket': bucket, 'key': record['object_key'], 'versionId': record['object_version']}
-    key = workspace_prefix(migration['customer_id'],identifier,workspace_id) + 'workspace-manifest.json'
+    key = manifest['storage']['prefix'] + 'workspace-manifest.json'
     version, sha = persist_manifest(client,bucket,key_id,owner,key,manifest)
     service.repo.create_artifact_workspace(manifest,bucket,key,version,sha)
     save_reused(service, workspace_id, reused)
@@ -199,7 +262,8 @@ def read(service,identifier,workspace_id=None):
                         'unresolvedArtifactCount':sum(a['status'] not in {'COLLECTED','EXCLUDED_FROM_REPLAY'} for a in artifacts),
                         'jobs':[{'jobId':j['job_id'],'artifactId':j['artifact_id'],'status':j['status'],
                                  'attempts':j['attempts'],'errorCode':j['error_code']} for j in jobs],
-                        'stale':row['inventory_digest'] != inventory.get('inventoryDigest') or row['source_cluster_id'] != source['source_cluster_id']})
+                        'stale':row['inventory_digest'] != inventory.get('inventoryDigest') or row['source_cluster_id'] != source['source_cluster_id']
+                                or (row['manifest'].get('storageLayoutVersion', 1) == 2 and row['manifest'].get('inventoryVersion') != inventory.get('inventoryVersion'))})
     return results[0] if workspace_id else {'migrationId':identifier,'workspaces':results}
 
 
@@ -249,7 +313,7 @@ def exclude_historical_job(service, identifier, body, client=None):
         'SELECT artifact_id,object_key,object_version,sha256,size_bytes FROM migration_management.workspace_artifacts '
         'WHERE workspace_id=%s AND artifact_id=ANY(%s)', [workspace_id, required_ids]).fetchall()
     objects = {r['artifact_id']: r for r in records}
-    prefix = workspace_prefix(migration['customer_id'], identifier, workspace_id)
+    prefix = storage_prefix(migration['customer_id'], identifier, workspace_id, workspace)
     for required_id in required_ids:
         obj = objects.get(required_id, {})
         if (not obj.get('object_key', '').startswith(prefix) or not obj.get('object_version') or obj.get('object_version') == 'null'
@@ -265,7 +329,7 @@ def exclude_historical_job(service, identifier, body, client=None):
                    sourceClusterId=source['source_cluster_id'], inventoryDigest=workspace['inventoryDigest'],
                    artifactId=artifact_id, resource=resource, review=review, collectedParentObjects=records,
                    previousValidation=artifact.get('validation', {}))
-    key = prefix + 'reviews/' + review['decisionId'] + '.json'
+    key = prefix + artifact_folder(workspace, 'REVIEW') + review['decisionId'] + '.json'
     version, sha = persist_manifest(client or s3_client(), bucket, key_id, owner, key, receipt)
     validation = {**artifact.get('validation', {}), 'historicalReview': review, 'targetReady': False, 'reviewRequired': True}
     service.repo.db.execute(

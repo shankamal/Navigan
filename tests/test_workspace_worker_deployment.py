@@ -79,6 +79,65 @@ def test_stale_deployed_worker_package_is_rejected():
         module.verify_package(content.getvalue())
 
 
+def layout_gate_fixture(monkeypatch,change=None):
+    import base64
+    import hashlib
+    parent='navigan-custmanagement-cfnstk';api=parent+'-MigrationFunction-demo';worker=parent+'-workspace-repositories'
+    buffer=io.BytesIO()
+    with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED) as package:
+        for path in (ROOT/'src/navigan/modules/migration_management').glob('*.py'):
+            package.writestr('navigan/modules/migration_management/'+path.name,path.read_bytes())
+    raw=buffer.getvalue();cfg=configuration();cfg['Role']=f'arn:aws:iam::{module.ACCOUNT}:role/ProdApiRole'
+    cfg['Environment']['Variables']['DB_NAME']='navigan'
+    cfg['CodeSha256']=base64.b64encode(hashlib.sha256(raw).digest()).decode()
+    configs={}
+    for name in (api,worker):
+        configs[name]=copy.deepcopy(cfg);configs[name]['FunctionArn']=f'arn:aws:lambda:{module.REGION}:{module.ACCOUNT}:function:'+name
+    if change=='repository-binding':configs[worker]['Environment']['Variables']['DB_PROXY_HOST']='stale-db'
+    if change=='repository-network':configs[worker]['VpcConfig']['SubnetIds']=['other-subnet']
+    cfn,lam,ecs,iam,sts=(__import__('unittest.mock',fromlist=['Mock']).Mock() for _ in range(5))
+    sts.get_caller_identity.return_value={'Account':module.ACCOUNT}
+    cfn.describe_stack_resource.side_effect=lambda **kw:{'StackResourceDetail':{'PhysicalResourceId':'nested' if kw['LogicalResourceId']=='MigrationManagement' else api}}
+    def stacks(**kw):
+        outputs=({'WorkerName':worker} if kw['StackName'].endswith('workspace-repositories') else {'WorkerServiceName':'image-service'})
+        return {'Stacks':[{'Outputs':[{'OutputKey':k,'OutputValue':v} for k,v in outputs.items()],
+                           'Parameters':[{'ParameterKey':'ClusterArn','ParameterValue':'cluster'}]}]}
+    cfn.describe_stacks.side_effect=stacks
+    lam.get_function.side_effect=lambda **kw:{'Configuration':configs[kw['FunctionName']],'Code':{'Location':'https://packages/'+kw['FunctionName']}}
+    service={'taskDefinition':'task','desiredCount':1,'runningCount':1,'pendingCount':0,'deployments':[{'rolloutState':'COMPLETED'}],
+        'networkConfiguration':{'awsvpcConfiguration':{'subnets':['subnet-private'],'securityGroups':['sg-db']}}}
+    if change=='image-network':service['networkConfiguration']['awsvpcConfiguration']['subnets']=['other']
+    if change=='rollout':service['deployments'][0]['rolloutState']='IN_PROGRESS'
+    ecs.describe_services.return_value={'services':[service]}
+    variables={**cfg['Environment']['Variables'],'MIGRATION_COLLECTOR_SOURCE_SHA256':module.collector_source_sha()}
+    if change=='old-image':variables['MIGRATION_COLLECTOR_SOURCE_SHA256']='0'*64
+    ecs.describe_task_definition.return_value={'taskDefinition':{'taskRoleArn':f'arn:aws:iam::{module.ACCOUNT}:role/image-worker',
+        'containerDefinitions':[{'name':'collector','image':'repository@sha256:'+'a'*64,
+                                'environment':[{'name':k,'value':v} for k,v in variables.items()]}]}}
+    resource='arn:aws:s3:::private-workspace/navigan/customers/*/migrations/*/inventories/*/workspaces/*'
+    iam.get_role_policy.return_value={'PolicyDocument':{'Statement':[{'Effect':'Allow','Action':['s3:PutObject'],'Resource':[resource]}]}}
+    if change=='storage':iam.get_role_policy.return_value={'PolicyDocument':{'Statement':[]}}
+    def download(url,**kw):
+        if change=='worker-package' and url.endswith(worker):return io.BytesIO(b'wrong-package')
+        return io.BytesIO(raw)
+    monkeypatch.setattr(module.urllib.request,'urlopen',download)
+    clients={'cloudformation':cfn,'lambda':lam,'ecs':ecs,'iam':iam,'sts':sts}
+    sdk=__import__('types').SimpleNamespace(client=lambda name:clients[name])
+    return sdk,parent,clients
+
+
+def test_layout_gate_reads_only_and_accepts_consistent_upgraded_collectors(monkeypatch):
+    sdk,parent,clients=layout_gate_fixture(monkeypatch)
+    module.verify_layout_ready(sdk,parent)
+    assert all(call[0].startswith(('get_','describe_')) for client in clients.values() for call in client.method_calls)
+
+
+@pytest.mark.parametrize('change',['repository-binding','repository-network','image-network','old-image','rollout','storage','worker-package'])
+def test_layout_gate_blocks_new_paths_when_a_writer_is_not_ready(monkeypatch,change):
+    sdk,parent,_=layout_gate_fixture(monkeypatch,change)
+    with pytest.raises((RuntimeError,SystemExit)):module.verify_layout_ready(sdk,parent)
+
+
 def test_repository_review_is_read_only_and_does_not_require_docker(monkeypatch):
     config = configuration()
     writes = []

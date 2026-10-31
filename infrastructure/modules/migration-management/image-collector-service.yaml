@@ -18,6 +18,8 @@ Parameters:
   WorkspaceKmsKeyArn: {Type: String}
   AllowedRegistryRoleArns: {Type: String, Default: ''}
   DesiredCount: {Type: Number, Default: 0, AllowedValues: [0,1,2]}
+  CollectionLayoutVersion: {Type: String, Default: '1', AllowedValues: ['1','2']}
+  CollectionSourceSha: {Type: String, Default: '', AllowedPattern: '^$|^[a-f0-9]{64}$'}
 Conditions:
   HasRegistryRoles: !Not [!Equals [!Ref AllowedRegistryRoleArns, '']]
 Resources:
@@ -37,7 +39,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion, s3:AbortMultipartUpload]
-                Resource: !Sub 'arn:${AWS::Partition}:s3:::${WorkspaceBucketName}/customers/*/migrations/*/workspaces/*'
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::${WorkspaceBucketName}/customers/*/migrations/*/workspaces/*'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${WorkspaceBucketName}/navigan/customers/*/migrations/*/inventories/*/workspaces/*'
               - Effect: Allow
                 Action: [kms:GenerateDataKey,kms:Decrypt]
                 Resource: !Ref WorkspaceKmsKeyArn
@@ -92,6 +96,8 @@ Resources:
             - {Name: HOME, Value: /tmp}
             - {Name: DB_PROXY_HOST, Value: !Ref DatabaseProxyHost}
             - {Name: DB_NAME, Value: !Ref DatabaseName}
+            - {Name: MIGRATION_WORKSPACE_LAYOUT_VERSION, Value: !Ref CollectionLayoutVersion}
+            - {Name: MIGRATION_COLLECTOR_SOURCE_SHA256, Value: !Ref CollectionSourceSha}
             - {Name: DB_SECRET_ARN, Value: !Ref DatabaseSecretArn}
             - {Name: DB_CA_BUNDLE, Value: !Ref DatabaseCaPath}
             - {Name: MIGRATION_WORKSPACE_BUCKET, Value: !Ref WorkspaceBucketName}

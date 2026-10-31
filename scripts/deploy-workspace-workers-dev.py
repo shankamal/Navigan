@@ -6,6 +6,7 @@ The default command reviews repository-worker readiness without modifying AWS.
 builds/pushes the image collector and deploys a separate private Fargate service.
 """
 import argparse
+import base64
 import hashlib
 import io
 import json
@@ -30,6 +31,60 @@ HANDLER = "navigan.modules.migration_management.workspace_worker.lambda_handler"
 ROLE_PATTERN = r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+"
 
 
+def collector_source_sha():
+    files=sorted((ROOT/'src/navigan').rglob('*.py'))+[ROOT/'src/requirements.txt']
+    return hashlib.sha256(b''.join(str(p.relative_to(ROOT)).encode()+b'\0'+p.read_bytes()+b'\0' for p in files)).hexdigest()
+
+
+def verify_layout_ready(session,parent):
+    """Read-only gate: never enable new workspace paths before their writers."""
+    def require(condition,message):
+        if not condition:raise RuntimeError(message)
+    require(parent in {'navigan-ashok-dev','navigan-custmanagement-cfnstk'},'Unexpected workspace environment')
+    require(session.client('sts').get_caller_identity()['Account']==ACCOUNT,'Unexpected AWS account')
+    cfn=session.client('cloudformation');lam=session.client('lambda');ecs=session.client('ecs');iam=session.client('iam')
+    nested=cfn.describe_stack_resource(StackName=parent,LogicalResourceId='MigrationManagement')['StackResourceDetail']['PhysicalResourceId']
+    api=cfn.describe_stack_resource(StackName=nested,LogicalResourceId='MigrationFunction')['StackResourceDetail']['PhysicalResourceId']
+    def companion(suffix):
+        stack=cfn.describe_stacks(StackName=parent+suffix)['Stacks'][0]
+        return ({v['OutputKey']:v['OutputValue'] for v in stack.get('Outputs',[])},
+                {v['ParameterKey']:v['ParameterValue'] for v in stack.get('Parameters',[])})
+    output,_=companion('-workspace-repositories');worker=output['WorkerName']
+    require(worker==parent+'-workspace-repositories','Unexpected repository collector')
+    configs=[]
+    for name in (api,worker):
+        response=lam.get_function(FunctionName=name);config=response['Configuration']
+        require(config['FunctionArn'].startswith(f'arn:aws:lambda:{REGION}:{ACCOUNT}:function:{parent}-'),'Unexpected Lambda identity')
+        with urllib.request.urlopen(response['Code']['Location'],timeout=60) as stream:raw=stream.read()
+        require(base64.b64encode(hashlib.sha256(raw).digest()).decode()==config['CodeSha256'],'Lambda checksum mismatch')
+        verify_package(raw);configs.append(config)
+    env=configs[0]['Environment']['Variables']
+    require(all(configs[1]['Environment']['Variables'].get(k)==env.get(k) for k in ('DB_NAME','DB_PROXY_HOST','DB_SECRET_ARN','MIGRATION_WORKSPACE_BUCKET')),'Repository bindings differ from API')
+    require(all(sorted(configs[1].get('VpcConfig',{}).get(k,[]))==sorted(configs[0].get('VpcConfig',{}).get(k,[]))
+                for k in ('SubnetIds','SecurityGroupIds')),'Repository network differs from API')
+    output,params=companion('-workspace-images')
+    response=ecs.describe_services(cluster=params['ClusterArn'],services=[output['WorkerServiceName']])
+    require(not response.get('failures') and len(response.get('services',[]))==1,'Image collector service missing')
+    service=response['services'][0]
+    task=ecs.describe_task_definition(taskDefinition=service['taskDefinition'])['taskDefinition']
+    containers=[c for c in task['containerDefinitions'] if c['name']=='collector'];require(len(containers)==1,'Unexpected collector task')
+    image=containers[0];variables={v['name']:v['value'] for v in image.get('environment',[])}
+    require('@sha256:' in image['image'] and variables.get('MIGRATION_COLLECTOR_SOURCE_SHA256')==collector_source_sha(),
+            'Rebuild/deploy the image collector from this reviewed source before enabling workspace layout v2')
+    require(all(variables.get(k)==env.get(k) for k in ('DB_NAME','DB_PROXY_HOST','DB_SECRET_ARN','MIGRATION_WORKSPACE_BUCKET')),'Image collector bindings differ from API')
+    network=service.get('networkConfiguration',{}).get('awsvpcConfiguration',{})
+    require(all(sorted(network.get(key,[]))==sorted(configs[0].get('VpcConfig',{}).get(expected_key,[]))
+                for key,expected_key in (('subnets','SubnetIds'),('securityGroups','SecurityGroupIds'))),'Image collector network differs from API')
+    require(service['desiredCount']==service['runningCount'] and service['pendingCount']==0 and
+            len(service.get('deployments',[]))==1 and service['deployments'][0].get('rolloutState')=='COMPLETED','Wait for the collector rollout to complete')
+    expected=f"arn:aws:s3:::{env['MIGRATION_WORKSPACE_BUCKET']}/navigan/customers/*/migrations/*/inventories/*/workspaces/*"
+    for role,policy in ((configs[0]['Role'],'NaviganMigrationArtifactWorkspace'),(task['taskRoleArn'],'WorkspaceImageCollection')):
+        document=iam.get_role_policy(RoleName=role.rsplit('/',1)[1],PolicyName=policy)['PolicyDocument']
+        require(any(s.get('Effect')=='Allow' and expected in ([s.get('Resource')] if isinstance(s.get('Resource'),str) else s.get('Resource',[]))
+                    and any(a in {'s3:PutObject','s3:*','*'} for a in ([s.get('Action')] if isinstance(s.get('Action'),str) else s.get('Action',[])))
+                    for s in document.get('Statement',[])),'Deploy layout v2 workspace storage permissions first')
+
+
 def runtime_settings(config):
     """Copy only runtime settings; never print credentials or unrelated API env."""
     env = config.get("Environment", {}).get("Variables", {})
@@ -51,7 +106,7 @@ def runtime_settings(config):
     vpc = config.get("VpcConfig", {})
     if not vpc.get("SubnetIds") or not vpc.get("SecurityGroupIds"):
         raise SystemExit(f"Expected existing private {LABEL} migration network settings")
-    optional = ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY_SECRET_ARN", "DB_PORT"]
+    optional = ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY_SECRET_ARN", "DB_PORT", "MIGRATION_WORKSPACE_LAYOUT_VERSION"]
     return {key: env[key] for key in ["DB_NAME", *required, *optional] if env.get(key)}
 
 
@@ -59,7 +114,8 @@ def verify_package(content):
     """Use the deployed API ZIP only when its collector implementation is current."""
     with zipfile.ZipFile(io.BytesIO(content)) as package:
         for name in ["workspace_worker.py", "workspace_collection.py", "repository_collector.py",
-                     "artifact_workspace.py", "source_authentication.py", "deployment_sources.py"]:
+                     "artifact_workspace.py", "source_authentication.py", "deployment_sources.py",
+                     "artifact_recovery.py", "workspace_export.py", "workspace_reuse.py", "image_worker.py"]:
             member = "navigan/modules/migration_management/" + name
             source = ROOT / "src" / member
             if member not in package.namelist() or not source.is_file() or package.read(member) != source.read_bytes():
@@ -160,8 +216,8 @@ def main():
                 aws("cloudformation", "describe-stacks", "--stack-name", stack_name)["Stacks"][0].get("Outputs", [])}
 
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-    if branch != BRANCH:
-        raise SystemExit(f"Use branch {BRANCH}")
+    if branch not in {BRANCH, "main", "fix/prod-migration-collection"}:
+        raise SystemExit("Use a reviewed release checkout")
     if aws("sts", "get-caller-identity")["Account"] != ACCOUNT:
         raise SystemExit("Unexpected AWS account")
     stack = aws("cloudformation", "describe-stacks", "--stack-name", STACK)["Stacks"][0]
@@ -218,7 +274,9 @@ def main():
                 raise SystemExit("Unexpected collector repository; image deployment stopped")
             registry = foundation["RepositoryUri"].split("/")[0]
             worker_image = args.worker_image
+            source_sha = ""
             if not worker_image:
+                source_sha = collector_source_sha()
                 docker_env = {**os.environ, "DOCKER_CONFIG": str(directory / "docker-auth")}
                 password = subprocess.check_output([*command, "ecr", "get-login-password"], text=True)
                 subprocess.run(["docker", "login", "--username", "AWS", "--password-stdin", registry],
@@ -226,7 +284,7 @@ def main():
                 del password
                 tag = "build-" + uuid.uuid4().hex
                 image = foundation["RepositoryUri"] + ":" + tag
-                subprocess.check_call(["docker", "build", "--platform", "linux/amd64", "-f", "workspace_image_worker/Dockerfile", "-t", image, "."], cwd=ROOT, env=docker_env)
+                subprocess.check_call(["docker", "build", "--platform", "linux/amd64", "--label", "io.navigan.collector.source.sha256="+source_sha, "-f", "workspace_image_worker/Dockerfile", "-t", image, "."], cwd=ROOT, env=docker_env)
                 try:
                     subprocess.check_call(["docker", "push", image], env=docker_env, timeout=600)
                 except subprocess.TimeoutExpired:
@@ -241,6 +299,8 @@ def main():
                 WorkerImage=worker_image,
                 SubnetIds=",".join(config["VpcConfig"]["SubnetIds"]), SecurityGroupIds=",".join(config["VpcConfig"]["SecurityGroupIds"]),
                 DatabaseProxyHost=env["DB_PROXY_HOST"], DatabaseName=DATABASE, DatabaseSecretArn=env["DB_SECRET_ARN"],
+                CollectionLayoutVersion=env.get("MIGRATION_WORKSPACE_LAYOUT_VERSION", "1"),
+                CollectionSourceSha=source_sha,
                 SecretsKmsKeyArn=parent_params["SecretsKmsKeyArn"], WorkspaceBucketName=env["MIGRATION_WORKSPACE_BUCKET"],
                 WorkspaceBucketOwner=ACCOUNT, WorkspaceKmsKeyArn=env["MIGRATION_WORKSPACE_KMS_KEY"],
                 AllowedRegistryRoleArns=",".join(roles), DesiredCount=str(1 if args.start_images else 0))

@@ -10,7 +10,7 @@ import uuid
 from pydantic import Field
 from navigan.shared.errors import ApiError
 from .deployment_sources import StrictModel
-from .artifact_workspace import canonical, read, storage_configuration, workspace_prefix, persist_manifest
+from .artifact_workspace import canonical, read, storage_configuration, storage_prefix, persist_manifest
 
 MAX_ARTIFACTS = 100
 VERIFY_SECONDS = 18
@@ -148,10 +148,10 @@ def create(service, identifier, workspace_id, body, client=None):
             raise ApiError(409, 'EXPORT_IMAGE_VALIDATION_REQUIRED', 'An image lacks complete digest-verified collection evidence.',
                            {'artifactId': artifact['artifactId']})
     client = client or export_client()
-    prefix = workspace_prefix(migration['customer_id'], identifier, workspace_id)
     index = dict(object_key=row['manifest_key'], object_version=row['manifest_version'], sha256=row['manifest_sha256'])
     # The original planning index is immutable and its canonical bytes are retained in the DB manifest.
     stored = service.repo.list_artifact_workspaces(identifier, migration['customer_id'], workspace_id)[0]
+    prefix = storage_prefix(migration['customer_id'], identifier, workspace_id, stored['manifest'])
     index['size_bytes'] = len(canonical(stored['manifest']))
     def verify_artifact(artifact):
         record = by_record[artifact['artifactId']]

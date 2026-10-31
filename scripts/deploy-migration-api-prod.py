@@ -63,6 +63,12 @@ def require(condition, message):
     storage.require(condition, message)
 
 
+def verify_layout_ready(session):
+    spec=importlib.util.spec_from_file_location('workspace_layout_gate',ROOT/'scripts/deploy-workspace-workers-dev.py')
+    workers=importlib.util.module_from_spec(spec);spec.loader.exec_module(workers)
+    workers.verify_layout_ready(session,PARENT)
+
+
 def body(value):
     if isinstance(value, str):
         try:
@@ -347,6 +353,8 @@ def execute(session, path):
     current = session.client("lambda").get_function_configuration(FunctionName=plan["function"])
     require(current["FunctionArn"].startswith(f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{PARENT}-"), "Unexpected Lambda target")
     require(current["RevisionId"] == plan["revision"] and current["CodeSha256"] == plan["originalCodeSha256"], "Production API changed since preparation")
+    if plan.get('workspaceLayoutVersion') == '2':
+        verify_layout_ready(session)
     inspect_plan(cfn, plan["changeSet"])
     cfn.execute_change_set(ChangeSetName=plan["changeSet"])
     print("Waiting for scoped production migration API update", flush=True)
@@ -356,12 +364,15 @@ def execute(session, path):
     env = current.get("Environment", {}).get("Variables", {})
     require(env.get("DB_NAME") == "navigan" and env.get("MIGRATION_SOURCE_FIRST_ENABLED") == "true"
             and env.get("MIGRATION_WORKSPACE_BUCKET") == plan["workspaceBucket"], "Production API configuration verification failed")
+    if plan.get('workspaceLayoutVersion') is not None:
+        require(env.get('MIGRATION_WORKSPACE_LAYOUT_VERSION')==plan['workspaceLayoutVersion'],'Deployed workspace layout does not match release plan')
     print("PROD migration API deployed. Collectors, source agents and frontend have not been updated. Authenticated workflow smoke tests remain required.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
+    parser.add_argument("--workspace-layout-version",choices=("1","2"),help="Stage code with 1; activate 2 only after both collectors and storage permissions are upgraded")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--execute", type=Path, metavar="PLAN")
@@ -374,6 +385,10 @@ def main():
     settings = storage.preflight(session)
     workspace = storage.verify_storage(session, "artifact-workspace")
     parent, config, api, reference, routes, env, root, child = runtime(session, settings)
+    if args.workspace_layout_version is not None:
+        if args.workspace_layout_version == "2":
+            verify_layout_ready(session)
+        env["MIGRATION_WORKSPACE_LAYOUT_VERSION"] = args.workspace_layout_version
     policy = policy_document(session, env)
     # Detect route/policy collisions before any uploads or change-set writes.
     child_template(child, config, api, reference, routes, env, workspace, {"S3Bucket": "preflight"}, policy)
@@ -418,7 +433,8 @@ def main():
     plan = {"format": 1, "account": ACCOUNT, "region": REGION, "changeSet": identifier, "parentStamp": stamp(parent),
             "function": settings["function"], "revision": config["RevisionId"], "originalCodeSha256": config["CodeSha256"],
             "newCodeSha256": base64.b64encode(hashlib.sha256(package.read_bytes()).digest()).decode(),
-            "workspaceBucket": workspace["WorkspaceBucketName"], "rootChanges": root_changes, "migrationChanges": child_changes}
+            "workspaceBucket": workspace["WorkspaceBucketName"], "rootChanges": root_changes, "migrationChanges": child_changes,
+            "workspaceLayoutVersion":env.get('MIGRATION_WORKSPACE_LAYOUT_VERSION')}
     path = directory / "release-plan.json"
     path.write_text(json.dumps(plan, indent=2))
     print("Scoped API change set validated; not executed. Release plan: " + str(path))

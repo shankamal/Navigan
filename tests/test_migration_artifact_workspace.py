@@ -85,6 +85,43 @@ def test_stale_workspace():
  assert w.read(api,MID,WID)['stale'] is True
 
 
+def test_layout_v2_create_is_fresh_and_persists_readable_snapshot_path(monkeypatch):
+ from unittest.mock import Mock
+ monkeypatch.setenv('MIGRATION_WORKSPACE_LAYOUT_VERSION','2')
+ for name,value in [('BUCKET','bucket'),('KMS_KEY','key'),('BUCKET_OWNER','0'*12)]:monkeypatch.setenv('MIGRATION_WORKSPACE_'+name,value)
+ monkeypatch.setattr(w,'build_report',lambda *args:{'analysisCurrent':True,'workloads':[row()]})
+ reuse=Mock();monkeypatch.setattr('navigan.modules.migration_management.workspace_reuse.carry_forward',reuse)
+ api=service();api.repo.get.return_value.update(customer_name='Example Customer',name='Migration Demo')
+ api.repo.get_source_inventory.return_value['inventory']['createdAt']='2026-10-31T06:00:00+00:00'
+ api.repo.list_artifact_workspaces.return_value=[]
+ client=S3();result=w.create(api,MID,dict(version=2,inventoryDigest='current',namespaces=['shop']),client)
+ assert result['storageLayoutVersion']==2 and result['collectionMode']=='FRESH'
+ assert result['reusedArtifactCount']==0 and result['collectedArtifactCount']==0
+ assert result['storage']['prefix'].startswith('navigan/customers/example-customer--')
+ assert '/migrations/migration-demo--'+MID[4:16]+'/' in result['storage']['prefix']
+ assert '/inventories/inventory-0003--20261031t060000z/workspaces/workspace--' in result['storage']['prefix']
+ assert client.put['Key']==result['storage']['prefix']+'workspace-manifest.json'
+ reuse.assert_not_called()
+ assert w.storage_prefix('CUS-one',MID,result['workspaceId'],result)==result['storage']['prefix']
+ with pytest.raises(ApiError):w.storage_prefix('CUS-other',MID,result['workspaceId'],result)
+ changed={**result,'storage':{'prefix':'navigan/customers/other/private/'}}
+ with pytest.raises(ApiError):w.storage_prefix('CUS-one',MID,result['workspaceId'],changed)
+ # A newly captured inventory must get a fresh workspace even when its content
+ # digest and analyzed artifacts are identical to the previous snapshot.
+ api.repo.list_artifact_workspaces.return_value=[dict(workspace_id=result['workspaceId'],manifest=result,
+  inventory_digest='current',source_cluster_id='SRC-one',bucket_name='bucket',status='PLANNED')]
+ api.repo.get_source_inventory.return_value['inventory']['inventoryVersion']=4
+ result2=w.create(api,MID,dict(version=2,inventoryDigest='current',namespaces=['shop']),client)
+ assert result2['workspaceId']!=result['workspaceId'] and result2['inventoryVersion']==4
+ assert w.read(api,MID,result['workspaceId'])['stale'] is True
+
+
+@pytest.mark.parametrize('kind,folder',[('REPOSITORY_DEFINITION','repository-files/'),('IMAGE','container-images/'),('RECOVERY','source-recovery/'),('REVIEW','reports/reviews/')])
+def test_layout_v2_artifact_categories_are_consistent(kind,folder):
+ assert w.artifact_folder({'storageLayoutVersion':2},kind)==folder
+ assert w.storage_prefix('CUS-one',MID,WID)==w.workspace_prefix('CUS-one',MID,WID)
+
+
 @pytest.mark.parametrize('status', ['COLLECTED', 'EXCLUDED_FROM_REPLAY'])
 def test_saved_locations_use_exact_database_object_even_for_old_inventory(status):
  api=service()

@@ -6,7 +6,7 @@ import os
 import signal
 import tempfile
 import threading
-from .artifact_workspace import storage_configuration, workspace_prefix, s3_client
+from .artifact_workspace import storage_configuration, storage_prefix, artifact_folder, s3_client
 from .workspace_collection import claim, finish, renew
 from .workspace_worker import load_context
 from .image_collector import source_reference, copy_archive, validate_archive, upload_archive
@@ -62,7 +62,7 @@ def run_once(cancel=None):
                 os.chmod(directory, 0o700)
                 path = copy_archive(row['provenance'], directory, auth=auth, check=check)
                 validation = validate_archive(path, row['provenance']['digest'], check=check)
-                key = workspace_prefix(row['customer_id'], row['migration_id'], job['workspace_id'])+'images/'+job['artifact_id']+'/'+job['lease_token']+'.tar'
+                key = storage_prefix(row['customer_id'], row['migration_id'], job['workspace_id'], row['manifest'])+artifact_folder(row['manifest'],'IMAGE')+job['artifact_id']+'/'+job['lease_token']+'.tar'
                 result = upload_archive(s3_client(), path, bucket, key_id, owner, key, check=check)
                 result['validation'] = json.dumps(validation)
             check()

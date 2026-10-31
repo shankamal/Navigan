@@ -59,6 +59,7 @@ Globals:
     Environment:
       Variables:
         DB_PROXY_HOST: {Ref: DatabaseProxyHost}
+        MIGRATION_WORKSPACE_LAYOUT_VERSION: '2'
         DB_NAME: {Ref: DatabaseName}
         DB_CA_BUNDLE: /opt/certs/global-bundle.pem
         DB_SECRET_ARN: {Ref: ApiDatabaseSecretArn}

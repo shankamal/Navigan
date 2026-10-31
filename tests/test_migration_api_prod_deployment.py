@@ -248,6 +248,20 @@ def test_default_readiness_does_not_upload_or_create_change_sets(monkeypatch):
     assert release.main() == 0
 
 
+def test_layout_activation_stops_before_uploads_if_collectors_are_not_ready(monkeypatch):
+    from unittest.mock import Mock
+    monkeypatch.setattr(sys,'argv',['release','--prepare','--workspace-layout-version','2'])
+    monkeypatch.setattr(release,'check_checkout',lambda:None)
+    monkeypatch.setattr(release.storage,'preflight',lambda s:{'role':'ProdApiRole'})
+    monkeypatch.setattr(release.storage,'verify_storage',lambda *args:workspace())
+    monkeypatch.setattr(release,'runtime',lambda *args:({},config(),'production-api',reference(),[],{'DB_NAME':'navigan'},{},original()))
+    fake=object();monkeypatch.setattr(release.boto3,'Session',lambda **kwargs:fake)
+    gate=Mock(side_effect=RuntimeError('Collectors must be upgraded first'));monkeypatch.setattr(release,'verify_layout_ready',gate)
+    upload=Mock();monkeypatch.setattr(release,'upload',upload)
+    with pytest.raises(RuntimeError,match='Collectors must be upgraded'):release.main()
+    gate.assert_called_once_with(fake);upload.assert_not_called()
+
+
 def dependency_templates():
     return {"Resources": {
         "MigrationIntegration": {"Type": "AWS::ApiGatewayV2::Integration", "Properties": {

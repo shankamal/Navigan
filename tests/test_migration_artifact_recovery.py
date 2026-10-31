@@ -510,6 +510,26 @@ def test_workspace_recovery_cannot_poll_another_artifact_job(monkeypatch):
     assert dispatch.call_count == 1
 
 
+def test_recovery_attempts_from_old_snapshots_do_not_block_a_fresh_workspace(monkeypatch):
+    service, source, request, dispatch, _, s3, _ = workspace_setup(monkeypatch)
+    source['delivery_configuration']['artifactRecovery']={'MIG-test':[
+        {'jobId':'REC-old-'+str(i),'status':'PARTIAL_RECOVERY','workspaceId':'AWS-old',
+         'artifactId':request['artifactId']} for i in range(20)]}
+    result=recover(service,'MIG-test',{'version':2,'recovery':request},factory=lambda _:s3)
+    assert result['job']['status']=='RECOVERING' and dispatch.call_count==1
+
+
+def test_recovery_retries_remain_bounded_for_the_same_workspace_artifact(monkeypatch):
+    service, source, request, dispatch, _, s3, _ = workspace_setup(monkeypatch)
+    source['delivery_configuration']['artifactRecovery']={'MIG-test':[
+        {'jobId':'REC-old-'+str(i),'status':'CUSTOMER_INPUT_REQUIRED','workspaceId':request['workspaceId'],
+         'artifactId':request['artifactId']} for i in range(3)]}
+    with pytest.raises(ApiError) as error:
+        recover(service,'MIG-test',{'version':2,'recovery':request},factory=lambda _:s3)
+    assert error.value.code=='RECOVERY_LIMIT'
+    dispatch.assert_not_called()
+
+
 @pytest.mark.parametrize("bad", [{"VersionId": "null"}, {"SSEKMSKeyId": "wrong"}, {"ChecksumSHA256": "wrong"}, {"ContentLength": 11}])
 def test_workspace_upload_integrity_failure_never_marks_collected(monkeypatch, bad):
     service, source, request, _, ssm, s3, report = workspace_setup(monkeypatch)

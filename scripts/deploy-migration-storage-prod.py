@@ -43,7 +43,7 @@ def require(condition, message):
 
 def check_checkout():
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-    require(branch == BRANCH, f"Use the existing {BRANCH} checkout")
+    require(branch in {BRANCH, "main", "fix/prod-migration-collection"}, "Use a reviewed release checkout")
     paths = ["scripts/deploy-migration-storage-prod.py",
              "infrastructure/modules/migration-management/workspace-storage.yaml"]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)

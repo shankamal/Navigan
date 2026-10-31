@@ -467,19 +467,23 @@ def recover(service, identifier, body, factory=None):
                 "RECOVERY_IN_PROGRESS",
                 "Another recovery is running for this assessment. Use Check recovery progress in Migration files & images, or check its workload’s Resolve panel.",
             )
-        if len(current) >= 20:
+        attempts = ([j for j in current if j.get('workspaceId') == workspace['workspaceId']
+                     and j.get('artifactId') == artifact['artifactId']] if binding
+                    else [j for j in current if not j.get('workspaceId')])
+        if len(attempts) >= (3 if binding else 20):
             raise ApiError(
                 409,
                 "RECOVERY_LIMIT",
-                "This assessment has reached its 20 recovery attempts. Review existing artifacts.",
+                "This artifact has reached 3 recovery attempts in this workspace. Review source access." if binding
+                else "This assessment has reached its 20 recovery attempts. Review existing artifacts.",
             )
         ssm = ssm_client(source, factory)
         delivery = source["delivery_configuration"]
         job_id = "REC-" + uuid.uuid4().hex
         key = storage_key(migration, job_id)
         if binding:
-            from .artifact_workspace import workspace_prefix
-            key = workspace_prefix(migration["customer_id"], identifier, workspace["workspaceId"]) + "definitions/recovered/" + job_id + "/artifact"
+            from .artifact_workspace import storage_prefix, artifact_folder
+            key = storage_prefix(migration["customer_id"], identifier, workspace["workspaceId"], workspace) + artifact_folder(workspace, "RECOVERY") + job_id + "/artifact"
         payload.update(kubeconfigPath=delivery["kubeconfigPath"], jobId=job_id, phase="EXPORT")
         command_id, parameter = dispatch(ssm, source, payload)
         job = {

@@ -4,7 +4,7 @@ import urllib.error
 from navigan.shared.database import transaction
 from .workspace_collection import claim, finish
 from .repository_collector import collect, CollectionError
-from .artifact_workspace import storage_configuration, workspace_prefix, persist_manifest, s3_client, canonical
+from .artifact_workspace import storage_configuration, storage_prefix, artifact_folder, persist_manifest, s3_client, canonical
 from .source_authentication import repository_token
 from .deployment_sources import repository_read_token
 
@@ -12,7 +12,9 @@ from .deployment_sources import repository_read_token
 def load_context(db, job, kind="REPOSITORY_DEFINITION"):
     row=db.execute("SELECT w.*,a.provenance,a.kind AS artifact_kind,s.delivery_configuration,m.status AS migration_status,"
                    "m.source_configuration,(SELECT inventory_digest FROM migration_management.migration_source_inventories "
-                   "WHERE migration_id=w.migration_id ORDER BY inventory_version DESC LIMIT 1) AS current_digest "
+                   "WHERE migration_id=w.migration_id ORDER BY inventory_version DESC LIMIT 1) AS current_digest, "
+                   "(SELECT inventory_version FROM migration_management.migration_source_inventories "
+                   "WHERE migration_id=w.migration_id ORDER BY inventory_version DESC LIMIT 1) AS current_inventory_version "
                    "FROM migration_management.artifact_workspaces w JOIN migration_management.workspace_artifacts a USING(workspace_id) "
                    "JOIN migration_management.migrations m USING(migration_id) "
                    "JOIN migration_management.source_clusters s ON s.source_cluster_id=w.source_cluster_id AND s.customer_id=w.customer_id "
@@ -20,6 +22,8 @@ def load_context(db, job, kind="REPOSITORY_DEFINITION"):
                    "(SELECT 1 FROM migration_management.migration_audit_log l WHERE l.migration_id=w.migration_id AND l.action='MIGRATION_DELETED')",
                    [job['workspace_id'],job['artifact_id']]).fetchone()
     if not row or row['artifact_kind']!=kind or row['migration_status']=='CANCELLED' or row['current_digest']!=row['inventory_digest'] or row['source_configuration'].get('sourceClusterId')!=row['source_cluster_id']:
+        raise CollectionError('STALE_WORKSPACE')
+    if row.get('manifest',{}).get('storageLayoutVersion',1)==2 and row['inventory_version']!=row.get('current_inventory_version'):
         raise CollectionError('STALE_WORKSPACE')
     delivery=row.get('delivery_configuration') or {}
     if kind=='IMAGE':
@@ -55,7 +59,7 @@ def run_once():
         bucket,key_id,owner=storage_configuration()
         if bucket!=row['bucket_name']:
             raise CollectionError('WORKSPACE_STORAGE_CHANGED')
-        key=workspace_prefix(row['customer_id'],row['migration_id'],job['workspace_id'])+'definitions/original/'+job['artifact_id']+'/'+job['lease_token']+'.json'
+        key=storage_prefix(row['customer_id'],row['migration_id'],job['workspace_id'],row['manifest'])+artifact_folder(row['manifest'],'REPOSITORY_DEFINITION')+job['artifact_id']+'/'+job['lease_token']+'.json'
         version,sha=persist_manifest(s3_client(),bucket,key_id,owner,key,bundle)
         result=dict(key=key,version=version,sha256=sha,size=len(canonical(bundle)),validation=json.dumps(bundle['validation']))
         with transaction() as db:
