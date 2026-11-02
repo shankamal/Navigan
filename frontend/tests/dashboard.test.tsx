@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlatformDashboard } from "@/modules/dashboard/platform-dashboard";
 import { architect } from "./fixtures";
-const mocks = vi.hoisted(() => ({ refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  refresh: vi.fn(),
+  countPending: false,
+  environmentFilters: [] as unknown[],
+}));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ refetchQueries: mocks.refresh }),
@@ -19,12 +23,24 @@ vi.mock("@/shared/auth/auth-provider", () => ({
   useAuth: () => ({ identity: architect }),
 }));
 vi.mock("@/modules/customer-management/hooks/queries", () => ({
-  useCustomerCount: (s?: string) => query(s === "ACTIVE" ? 6 : s ? 0 : 18),
+  useCustomerCount: (s?: string) => ({
+    ...query(s === "ACTIVE" ? 6 : s ? 0 : 18),
+    isPending: mocks.countPending,
+  }),
   useCustomers: () => query({ items: [] }),
 }));
 vi.mock("@/modules/environment-management/hooks/queries", () => ({
   useEnvironmentCount: (s?: string) => query(s === "ACTIVE" ? 4 : s ? 0 : 6),
-  useEnvironments: () => query({ items: [] }),
+  useEnvironmentSummary: () =>
+    query({
+      total: 6,
+      byStatus: { ACTIVE: 4 },
+      byProvider: { AWS: 3, AZURE: 2, GCP: 1, OCI: 0 },
+    }),
+  useEnvironments: (filters: unknown) => {
+    mocks.environmentFilters.push(filters);
+    return query({ items: [] });
+  },
 }));
 vi.mock("@/modules/cluster-management/hooks/queries", () => ({
   useClusterCount: (s?: string) => query(s === "ACTIVE" ? 2 : s ? 0 : 4),
@@ -33,6 +49,8 @@ vi.mock("@/modules/cluster-management/hooks/queries", () => ({
 describe("Dashboard navigation and freshness", () => {
   beforeEach(() => {
     mocks.refresh.mockReset().mockResolvedValue({ data: {} });
+    mocks.countPending = false;
+    mocks.environmentFilters.length = 0;
   });
   it("places overview charts before compact estate and operation summaries", () => {
     render(<PlatformDashboard />);
@@ -56,6 +74,36 @@ describe("Dashboard navigation and freshness", () => {
       ).toBeInTheDocument();
     }
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("img", {
+        name: "Environment profiles by cloud provider",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("3", { selector: ".pd-provider-legend strong" }),
+    ).toBeInTheDocument();
+  });
+  it("renders progressively and avoids the redundant 100-environment request", () => {
+    mocks.countPending = true;
+    render(<PlatformDashboard />);
+
+    expect(
+      screen.getByRole("heading", { name: "Platform command center" }),
+    ).toBeInTheDocument();
+    expect(mocks.environmentFilters).not.toHaveLength(0);
+    expect(mocks.environmentFilters).toEqual(
+      expect.arrayContaining([
+        {
+          page: 0,
+          pageSize: 3,
+          status: "SUBMITTED",
+          sort: "updatedAt,desc",
+        },
+      ]),
+    );
+    expect(mocks.environmentFilters).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ pageSize: 100 })]),
+    );
   });
   it("opens exact filters for active records and failed operations", () => {
     render(<PlatformDashboard />);

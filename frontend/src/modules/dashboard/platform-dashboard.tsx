@@ -45,6 +45,7 @@ import {
 } from "@/modules/customer-management/hooks/queries";
 import {
   useEnvironmentCount,
+  useEnvironmentSummary,
   useEnvironments,
 } from "@/modules/environment-management/hooks/queries";
 import {
@@ -114,11 +115,7 @@ export function PlatformDashboard() {
   const planReadyClusters = useClusterCount("PLAN_READY");
   const applyingClusters = useClusterCount("APPLYING");
   const failedClusters = useClusterCount("FAILED");
-  const environments = useEnvironments({
-    page: 0,
-    pageSize: 100,
-    sort: "updatedAt,desc",
-  });
+  const environmentSummary = useEnvironmentSummary();
   const pendingCustomers = useCustomers({
     page: 0,
     pageSize: 3,
@@ -157,12 +154,14 @@ export function PlatformDashboard() {
   ];
   const dashboardQueries = [
     ...countQueries,
-    environments,
+    environmentSummary,
     pendingCustomers,
     pendingEnvironments,
     pendingClusters,
     recentClusters,
   ];
+  const countsPending = countQueries.some((query) => query.isPending);
+  const clusterCountsPending = totalClusters.isPending;
   const refreshing = dashboardQueries.some((query) => query.isFetching);
   const hasPartialError = dashboardQueries.some((query) => query.error);
   const oldestUpdate = Math.min(
@@ -197,7 +196,6 @@ export function PlatformDashboard() {
     );
     setRefreshError(results.some((result) => result.status === "rejected"));
   }
-  const failedQuery = countQueries.find((query) => query.error);
   const awaitingAction = sum(
     submittedCustomers.data,
     reviewCustomers.data,
@@ -207,13 +205,7 @@ export function PlatformDashboard() {
     reviewClusters.data,
   );
   const provisioningNow = sum(planReadyClusters.data, applyingClusters.data);
-  const providerCounts = (environments.data?.items ?? []).reduce<
-    Record<string, number>
-  >((counts, environment) => {
-    counts[environment.cloudProvider] =
-      (counts[environment.cloudProvider] ?? 0) + 1;
-    return counts;
-  }, {});
+  const providerCounts = environmentSummary.data?.byProvider ?? {};
   const providerTotal = Object.values(providerCounts).reduce(
     (total, value) => total + value,
     0,
@@ -288,18 +280,6 @@ export function PlatformDashboard() {
       tone: "success",
     })),
   ].slice(0, 2);
-
-  if (countQueries.some((query) => query.isPending)) {
-    return <Loading label="Loading platform dashboard…" />;
-  }
-  if (failedQuery?.error) {
-    return (
-      <ErrorNotice
-        error={failedQuery.error}
-        onRetry={() => void refreshDashboard()}
-      />
-    );
-  }
 
   const kpis = [
     {
@@ -436,12 +416,12 @@ export function PlatformDashboard() {
               </div>
             </div>
           </header>
-          {environments.isPending ? (
+          {environmentSummary.isPending ? (
             <Loading label="Loading cloud footprint…" />
-          ) : environments.error ? (
+          ) : environmentSummary.error ? (
             <ErrorNotice
-              error={environments.error}
-              onRetry={() => environments.refetch()}
+              error={environmentSummary.error}
+              onRetry={() => environmentSummary.refetch()}
             />
           ) : providerTotal === 0 ? (
             <p className="pd-empty">No environment profiles are available.</p>
@@ -498,56 +478,62 @@ export function PlatformDashboard() {
             </div>
             <span className="pd-data-label">Current records</span>
           </header>
-          <div className="pd-posture">
-            <SummaryDonut
-              label={`Average active record coverage ${overallPosture}%`}
-              total={100}
-              center={`${overallPosture}%`}
-              caption="Active"
-              values={[overallPosture, Math.max(0, 100 - overallPosture)]}
-              colors={["#79aa27", "#e9eee7"]}
-            />
-            <div className="pd-posture-metrics">
-              <div>
-                <span>
-                  <i className="pd-dot-green" />
-                  Customers
-                </span>
-                <strong>{customerHealth}%</strong>
-                <small>Active onboarding records</small>
+          {countsPending ? (
+            <Loading label="Loading active record coverage…" />
+          ) : (
+            <>
+              <div className="pd-posture">
+                <SummaryDonut
+                  label={`Average active record coverage ${overallPosture}%`}
+                  total={100}
+                  center={`${overallPosture}%`}
+                  caption="Active"
+                  values={[overallPosture, Math.max(0, 100 - overallPosture)]}
+                  colors={["#79aa27", "#e9eee7"]}
+                />
+                <div className="pd-posture-metrics">
+                  <div>
+                    <span>
+                      <i className="pd-dot-green" />
+                      Customers
+                    </span>
+                    <strong>{customerHealth}%</strong>
+                    <small>Active onboarding records</small>
+                  </div>
+                  <div>
+                    <span>
+                      <i className="pd-dot-blue" />
+                      Environments
+                    </span>
+                    <strong>{environmentHealth}%</strong>
+                    <small>Active governed profiles</small>
+                  </div>
+                  <div>
+                    <span>
+                      <i className="pd-dot-teal" />
+                      Clusters
+                    </span>
+                    <strong>{clusterHealth}%</strong>
+                    <small>Active cluster records</small>
+                  </div>
+                </div>
               </div>
-              <div>
+              <div
+                className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
+              >
+                {(failedClusters.data ?? 0) > 0 ? (
+                  <AlertTriangle size={17} />
+                ) : (
+                  <CheckCircle2 size={17} />
+                )}
                 <span>
-                  <i className="pd-dot-blue" />
-                  Environments
+                  {(failedClusters.data ?? 0) > 0
+                    ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
+                    : "No failed cluster operations are active in your access scope."}
                 </span>
-                <strong>{environmentHealth}%</strong>
-                <small>Active governed profiles</small>
               </div>
-              <div>
-                <span>
-                  <i className="pd-dot-teal" />
-                  Clusters
-                </span>
-                <strong>{clusterHealth}%</strong>
-                <small>Active cluster records</small>
-              </div>
-            </div>
-          </div>
-          <div
-            className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
-          >
-            {(failedClusters.data ?? 0) > 0 ? (
-              <AlertTriangle size={17} />
-            ) : (
-              <CheckCircle2 size={17} />
-            )}
-            <span>
-              {(failedClusters.data ?? 0) > 0
-                ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
-                : "No failed cluster operations are active in your access scope."}
-            </span>
-          </div>
+            </>
+          )}
         </article>
 
         <article className="pd-card">
@@ -574,7 +560,9 @@ export function PlatformDashboard() {
               Applying {display(applyingClusters.data)}
             </Link>
           </div>
-          {workflowTotal === 0 ? (
+          {clusterCountsPending ? (
+            <Loading label="Loading cluster workflow state…" />
+          ) : workflowTotal === 0 ? (
             <p className="pd-empty">No cluster requests are available.</p>
           ) : (
             <div className="pd-workflow pd-workflow-donut">

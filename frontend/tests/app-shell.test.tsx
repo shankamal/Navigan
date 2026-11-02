@@ -9,9 +9,14 @@ import {
 } from "@/shared/config/runtime-config";
 
 const signOut = vi.fn();
+const prefetchQuery = vi.fn().mockResolvedValue(undefined);
 let identity = engineer;
 let pathname = "/customers";
 
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ prefetchQuery }),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
 }));
@@ -27,6 +32,7 @@ describe("Application shell permissions", () => {
     identity = engineer;
     pathname = "/customers";
     signOut.mockReset();
+    prefetchQuery.mockClear();
     installRuntimeConfig({ ...runtimeConfig(), migrationUiPreview: false });
   });
 
@@ -95,6 +101,19 @@ describe("Application shell permissions", () => {
     expect(screen.queryByText("New Cluster Setup")).not.toBeInTheDocument();
     expect(screen.getByText("Cluster Reviews")).toBeInTheDocument();
     expect(screen.getByText("Bootstrap Approvals")).toBeInTheDocument();
+  });
+
+  it("warms workspace data when a user approaches a navigation item", () => {
+    identity = architect;
+    render(<AppShell>Content</AppShell>);
+
+    fireEvent.mouseEnter(
+      screen.getByRole("link", { name: "Migration Requests" }),
+    );
+
+    expect(prefetchQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["migrations"] }),
+    );
   });
 
   it("renders menus from dynamic privileges without a predefined role", () => {

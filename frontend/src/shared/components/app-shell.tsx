@@ -1,7 +1,14 @@
 "use client";
 import "./workspace-navigation.css";
 import "./workspace-backdrop.css";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { IntentLink as Link } from "@/shared/components/intent-link";
 import {
   WorkspacePageProvider,
@@ -40,6 +47,7 @@ import {
 import { signOut } from "@/shared/auth/session";
 import { runtimeConfig } from "@/shared/config/runtime-config";
 import { Button } from "./ui";
+import { prefetchWorkspaceData } from "@/shared/performance/prefetch-workspace-data";
 
 interface NavigationItem {
   href: string;
@@ -290,6 +298,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 function AppShellContent({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const { label: pageLabel } = useWorkspacePage();
   const pathname = usePathname();
   const { identity } = useAuth();
@@ -308,6 +317,24 @@ function AppShellContent({ children }: { children: ReactNode }) {
         (item.href !== "/" && pathname.startsWith(item.href + "/")),
     );
   const [isLocalDev, setIsLocalDev] = useState(false);
+  const warmWorkspace = useCallback(
+    (href: string) => {
+      void prefetchWorkspaceData(queryClient, href);
+    },
+    [queryClient],
+  );
+  useEffect(() => {
+    if (
+      pathname.startsWith("/migrations") ||
+      !canViewNavigation(identity, "migration.view")
+    )
+      return;
+    const timeout = window.setTimeout(
+      () => warmWorkspace("/migrations"),
+      4_000,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [identity, pathname, warmWorkspace]);
   useEffect(() => {
     setIsLocalDev(
       ["localhost", "127.0.0.1"].includes(window.location.hostname),
@@ -436,6 +463,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
                           title={item.label}
                           aria-current={selected ? "page" : undefined}
                           onClick={() => setExpanded(false)}
+                          onMouseEnter={() => warmWorkspace(item.href)}
+                          onFocus={() => warmWorkspace(item.href)}
+                          onTouchStart={() => warmWorkspace(item.href)}
                         >
                           <item.icon size={19} aria-hidden="true" />
                           <span>{item.label}</span>
