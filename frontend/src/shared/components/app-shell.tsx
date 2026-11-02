@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
   FolderPlus,
   Gauge,
+  Info,
   Layers3,
   LogOut,
   Menu,
@@ -444,6 +445,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
                   </div>
                 );
               })}
+              <Link
+                href="/about"
+                className={`nav-item ${pathname === "/about" ? "selected" : ""}`}
+                title="About Navigan"
+                aria-current={pathname === "/about" ? "page" : undefined}
+                onClick={() => setExpanded(false)}
+              >
+                <Info size={19} aria-hidden="true" />
+                <span>About Navigan</span>
+              </Link>
             </nav>
           </div>
           <div className="sidebar-footer">
@@ -463,10 +474,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <Link href="/dashboard">Home</Link>
             <ChevronRight size={14} />
             <Link
-              aria-label={`Back to ${current?.label ?? "dashboard"}`}
-              href={current?.href ?? "/dashboard"}
+              aria-label={`Back to ${(pathname === "/about" ? "About Navigan" : current?.label) ?? "dashboard"}`}
+              href={
+                pathname === "/about"
+                  ? "/about"
+                  : (current?.href ?? "/dashboard")
+              }
             >
-              {current?.label ?? "Access"}
+              {pathname === "/about"
+                ? "About Navigan"
+                : (current?.label ?? "Access")}
             </Link>
             {pathname.endsWith("/plan") && pageLabel && (
               <>

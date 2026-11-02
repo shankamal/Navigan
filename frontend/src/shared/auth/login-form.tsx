@@ -8,6 +8,7 @@ import {
   confirmResetPassword,
   type SignInOutput,
 } from "aws-amplify/auth";
+import { markLifecycleIntroPending } from "./lifecycle-intro-state";
 import { configureAuth } from "./session";
 import { Eye, EyeOff } from "lucide-react";
 import { Button, ErrorNotice } from "@/shared/components/ui";
@@ -120,6 +121,7 @@ export function LoginForm({
   async function next(result: SignInOutput) {
     if (result.isSignedIn) {
       // A document navigation clears transient password/challenge state and restores the provider.
+      markLifecycleIntroPending();
       window.location.replace("/dashboard");
       return;
     }

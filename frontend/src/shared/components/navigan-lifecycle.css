@@ -1,0 +1,485 @@
+.navigan-lifecycle .nb-surface {
+  --nb-green: #26733f;
+  --nb-lime: #86bc25;
+  --nb-ink: #243341;
+  --nb-muted: #586977;
+  --nb-line: #dce5e9;
+  box-sizing: border-box;
+  background: #fff;
+  color: var(--nb-ink);
+  font:
+    14px/1.45 Arial,
+    sans-serif;
+  border: 1px solid var(--nb-line);
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 784px;
+  position: relative;
+}
+.navigan-lifecycle .nb-surface * {
+  box-sizing: border-box;
+}
+.navigan-lifecycle .nb-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--nb-line);
+  background: #f8fafb;
+  min-height: 62px;
+}
+.navigan-lifecycle .nb-brand {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.navigan-lifecycle .nb-brand em {
+  font-style: normal;
+  color: #5c8f14;
+}
+.navigan-lifecycle .nb-product {
+  border-left: 1px solid var(--nb-line);
+  padding-left: 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.navigan-lifecycle .nb-heading {
+  text-align: center;
+  padding: 24px 12px 0;
+}
+.navigan-lifecycle .nb-eyebrow {
+  color: var(--nb-green);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.7px;
+}
+.navigan-lifecycle h2 {
+  font-size: 25px;
+  line-height: 1.2;
+  letter-spacing: -0.6px;
+  margin: 8px 0 0;
+}
+.navigan-lifecycle .nb-map {
+  width: min(100%, 430px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  position: relative;
+  isolation: isolate;
+}
+.navigan-lifecycle .nb-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.navigan-lifecycle .nb-spoke {
+  stroke: #dce5e9;
+  stroke-width: 1;
+}
+.navigan-lifecycle .nb-spoke[data-active="true"] {
+  stroke: #86bc25;
+  stroke-width: 2;
+}
+.navigan-lifecycle .nb-ring {
+  fill: none;
+  stroke: #e4ebee;
+  stroke-width: 1.5;
+}
+.navigan-lifecycle .nb-arc {
+  fill: none;
+  stroke: var(--nb-green);
+  stroke-width: 2;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+.navigan-lifecycle .nb-node {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 116px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  line-height: 1.2;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 2;
+}
+.navigan-lifecycle .nb-node-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 6px;
+  border-radius: 12px;
+  background: #f5f8fa;
+  border: 1px solid var(--nb-line);
+  color: #596c79;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.navigan-lifecycle .nb-node svg {
+  width: 20px;
+  height: 20px;
+}
+.navigan-lifecycle .nb-node[data-active="true"] .nb-node-icon {
+  background: #eaf4e4;
+  color: var(--nb-green);
+  border-color: #86bc25;
+  transform: translateY(-3px);
+}
+.navigan-lifecycle .nb-node[data-done="true"] .nb-node-icon {
+  color: var(--nb-green);
+  background: #eef6ed;
+}
+.navigan-lifecycle .nb-planned {
+  display: block;
+  font-size: 10px;
+  color: #687582;
+  font-weight: 400;
+  margin-top: 3px;
+}
+.navigan-lifecycle .nb-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 3;
+  background: #fff;
+  border-radius: 50%;
+  width: 144px;
+  height: 154px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.navigan-lifecycle .nb-bot {
+  width: 86px;
+  height: 95px;
+  position: relative;
+  transform: translateY(var(--bob, 0px)) rotate(var(--tilt, 0deg));
+  transform-origin: 50% 90%;
+}
+.navigan-lifecycle .nb-antenna {
+  position: absolute;
+  left: 42px;
+  top: 1px;
+  width: 2px;
+  height: 12px;
+  background: #779082;
+}
+.navigan-lifecycle .nb-antenna:before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nb-lime);
+}
+.navigan-lifecycle .nb-head {
+  position: absolute;
+  top: 15px;
+  left: 8px;
+  width: 70px;
+  height: 47px;
+  background: #fff;
+  border: 2px solid #73917e;
+  border-radius: 15px;
+  box-shadow: 0 5px 10px #2433410a;
+}
+.navigan-lifecycle .nb-face {
+  position: absolute;
+  inset: 8px 7px;
+  background: #e5f1dd;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 17px;
+}
+.navigan-lifecycle .nb-eye {
+  width: 5px;
+  height: 9px;
+  border-radius: 4px;
+  background: #315e3e;
+  transform: scaleY(var(--blink, 1));
+}
+.navigan-lifecycle .nb-body {
+  position: absolute;
+  left: 23px;
+  top: 66px;
+  width: 40px;
+  height: 25px;
+  border: 2px solid #73917e;
+  border-radius: 9px 9px 13px 13px;
+  background: #f0f6eb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--nb-green);
+}
+.navigan-lifecycle .nb-body svg {
+  width: 16px;
+  height: 16px;
+}
+.navigan-lifecycle .nb-arm {
+  position: absolute;
+  top: 68px;
+  left: 12px;
+  width: 7px;
+  height: 20px;
+  border-radius: 5px;
+  background: #73917e;
+  transform: rotate(18deg);
+}
+.navigan-lifecycle .nb-arm-right {
+  left: 67px;
+  transform-origin: 50% 12%;
+  transform: rotate(var(--wave, -30deg));
+}
+.navigan-lifecycle .nb-core strong {
+  font-size: 19px;
+  letter-spacing: -0.6px;
+  margin-top: 3px;
+}
+.navigan-lifecycle .nb-core small {
+  color: var(--nb-muted);
+  font-size: 10px;
+  letter-spacing: 1.1px;
+}
+.navigan-lifecycle .nb-caption {
+  position: relative;
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 0 20px;
+  text-align: center;
+  min-height: 84px;
+}
+.navigan-lifecycle .nb-caption-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--nb-green);
+  letter-spacing: 0.8px;
+}
+.navigan-lifecycle .nb-caption p,
+.app-shell main#main-content .navigan-lifecycle .nb-caption p {
+  font-size: 18px;
+  line-height: 1.35;
+  margin: 7px auto 0;
+  max-width: 440px;
+  min-height: 49px;
+  letter-spacing: -0.2px;
+}
+.navigan-lifecycle .nb-note,
+.app-shell main#main-content .navigan-lifecycle p.nb-note {
+  text-align: center;
+  font-size: 11px;
+  color: var(--nb-muted);
+  margin: 8px 18px 18px;
+}
+.navigan-lifecycle .nb-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 24px;
+  background: #f8fafb;
+  border-top: 1px solid var(--nb-line);
+}
+.navigan-lifecycle button {
+  font:
+    600 12px Arial,
+    sans-serif;
+  min-height: 38px;
+  border: 1px solid #cbd8d0;
+  border-radius: 6px;
+  padding: 9px 15px;
+  background: #fff;
+  color: var(--nb-green);
+}
+.navigan-lifecycle .nb-play {
+  background: var(--nb-green);
+  color: #fff;
+  border-color: var(--nb-green);
+  min-width: 125px;
+}
+.navigan-lifecycle .nb-length {
+  font-size: 11px;
+  color: var(--nb-muted);
+}
+.navigan-lifecycle .nb-skip {
+  margin-left: auto;
+}
+.navigan-lifecycle .nb-time {
+  height: 3px;
+  background: #e5ebee;
+}
+.navigan-lifecycle .nb-time span {
+  display: block;
+  height: 100%;
+  background: #26733f;
+  width: 0;
+}
+.navigan-lifecycle .nb-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-width: 470px) {
+  .navigan-lifecycle .nb-surface {
+    min-height: 696px;
+  }
+  .navigan-lifecycle .nb-header {
+    padding: 16px;
+    gap: 12px;
+  }
+  .navigan-lifecycle .nb-product {
+    font-size: 11px;
+    padding-left: 12px;
+    max-width: 170px;
+  }
+  .navigan-lifecycle h2 {
+    font-size: 22px;
+  }
+  .navigan-lifecycle .nb-map {
+    max-width: 370px;
+    margin: 12px auto;
+  }
+  .navigan-lifecycle .nb-node {
+    width: 90px;
+    font-size: 11px;
+  }
+  .navigan-lifecycle .nb-node-icon {
+    width: 33px;
+    height: 33px;
+    border-radius: 10px;
+  }
+  .navigan-lifecycle .nb-node svg {
+    width: 17px;
+    height: 17px;
+  }
+  .navigan-lifecycle .nb-core {
+    width: 112px;
+    height: 131px;
+  }
+  .navigan-lifecycle .nb-core strong {
+    font-size: 17px;
+  }
+  .navigan-lifecycle .nb-core small {
+    font-size: 9px;
+  }
+  .navigan-lifecycle .nb-bot {
+    transform: translateY(var(--bob, 0px)) rotate(var(--tilt, 0deg)) scale(0.87);
+    margin: -4px;
+  }
+  .navigan-lifecycle .nb-caption p,
+  .app-shell main#main-content .navigan-lifecycle .nb-caption p {
+    font-size: 16px;
+  }
+  .navigan-lifecycle .nb-controls {
+    padding: 14px 12px;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .navigan-lifecycle button {
+    min-height: 44px;
+    padding: 9px 11px;
+  }
+  .navigan-lifecycle .nb-length {
+    font-size: 10px;
+  }
+}
+@media (max-width: 470px) {
+  .navigan-lifecycle .nb-core {
+    width: 98px;
+  }
+  .navigan-lifecycle .nb-node:nth-child(2) > span:not(.nb-node-icon),
+  .navigan-lifecycle .nb-node:nth-child(4) > span:not(.nb-node-icon) {
+    display: block;
+    transform: translateX(22px);
+  }
+  .navigan-lifecycle .nb-node:nth-child(6) > span:not(.nb-node-icon),
+  .navigan-lifecycle .nb-node:nth-child(8) > span:not(.nb-node-icon) {
+    display: block;
+    transform: translateX(-22px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigan-lifecycle * {
+    transition: none !important;
+  }
+}
+
+.navigan-lifecycle {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.navigan-lifecycle .nb-logo {
+  max-width: 105px;
+  max-height: 32px;
+  object-fit: contain;
+}
+.post-login-intro {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: #f3f6f8;
+  padding: 24px;
+}
+.navigan-lifecycle .nb-surface {
+  font-family: inherit;
+  min-height: 0;
+}
+.navigan-lifecycle button {
+  font-family: inherit;
+}
+.navigan-lifecycle button:focus-visible {
+  outline: 3px solid #86bc25;
+  outline-offset: 3px;
+}
+@media (max-width: 470px) {
+  .post-login-intro {
+    padding: 10px;
+  }
+}
+
+/* Keep the approved scene typography inside the compact workspace shell. */
+.navigan-lifecycle .nb-heading h2,
+.app-shell main#main-content .navigan-lifecycle .nb-heading h2 {
+  font-size: 25px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  margin: 8px 0 0 !important;
+}
+.navigan-lifecycle .nb-caption p,
+.app-shell main#main-content .navigan-lifecycle .nb-caption p {
+  font-size: 18px !important;
+  line-height: 1.35 !important;
+  margin: 7px auto 0 !important;
+}
+.navigan-lifecycle .nb-note,
+.app-shell main#main-content .navigan-lifecycle p.nb-note {
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+  margin: 8px 18px 18px !important;
+}
+@media (max-width: 470px) {
+  .navigan-lifecycle .nb-heading h2,
+  .app-shell main#main-content .navigan-lifecycle .nb-heading h2 {
+    font-size: 22px !important;
+  }
+  .navigan-lifecycle .nb-caption p,
+  .app-shell main#main-content .navigan-lifecycle .nb-caption p {
+    font-size: 16px !important;
+  }
+}

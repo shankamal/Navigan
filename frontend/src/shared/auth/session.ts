@@ -1,4 +1,5 @@
 "use client";
+import { clearPendingLifecycleIntro } from "./lifecycle-intro-state";
 import { Amplify } from "aws-amplify";
 import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
 import { fetchAuthSession, signOut as cognitoSignOut } from "aws-amplify/auth";
@@ -132,6 +133,7 @@ export async function currentIdentity(): Promise<Identity | null> {
 export async function clearSession(): Promise<void> {
   configureAuth();
   await cognitoSignOut();
+  clearPendingLifecycleIntro();
 }
 export async function signOut(): Promise<void> {
   await clearSession();

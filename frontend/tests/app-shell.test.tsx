@@ -164,6 +164,22 @@ describe("Application shell permissions", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers About Navigan in expanded and collapsed navigation", () => {
+    pathname = "/about";
+    render(<AppShell>Content</AppShell>);
+    const about = screen.getByRole("link", {
+      name: "About Navigan",
+    });
+    expect(about).toHaveAttribute("href", "/about");
+    expect(about).toHaveAttribute("aria-current", "page");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse navigation" }),
+    );
+    expect(
+      screen.getByRole("link", { name: "About Navigan" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders the public shell without workspace navigation", () => {
     render(<PublicShell>Sign in form</PublicShell>);
     expect(screen.getByText("Sign in form")).toBeInTheDocument();
