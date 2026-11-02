@@ -14,6 +14,7 @@ import {
   Building2,
   ChevronRight,
   ChevronDown,
+  CircleArrowUp,
   ClipboardCheck,
   FolderPlus,
   Gauge,
@@ -21,10 +22,12 @@ import {
   LogOut,
   Menu,
   Network,
+  PlugZap,
   Rocket,
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  Workflow,
   X,
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
@@ -43,6 +46,29 @@ interface NavigationItem {
   icon: typeof FolderPlus;
   permission: PlatformPermission;
 }
+
+// These informational landing pages use the existing platform overview entitlement.
+// Individual workflow permissions will be added with each capability's implementation.
+const lifecycleNavigationItems: readonly NavigationItem[] = [
+  {
+    href: "/app-transformation",
+    label: "App Transformation",
+    icon: Workflow,
+    permission: "dashboard.platform.view",
+  },
+  {
+    href: "/onboarding",
+    label: "Onboarding",
+    icon: PlugZap,
+    permission: "dashboard.platform.view",
+  },
+  {
+    href: "/upgrades",
+    label: "Upgrades",
+    icon: CircleArrowUp,
+    permission: "dashboard.platform.view",
+  },
+];
 
 const navigationGroups: ReadonlyArray<{
   label: string;
@@ -139,6 +165,10 @@ const navigationGroups: ReadonlyArray<{
       },
     ],
   },
+  {
+    label: "Platform lifecycle",
+    items: lifecycleNavigationItems,
+  },
 ];
 
 const cloudEngineerNavigationGroups: ReadonlyArray<{
@@ -178,6 +208,7 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         icon: ArrowRightLeft,
         permission: "migration.view",
       },
+      ...lifecycleNavigationItems,
     ],
   },
 ];
