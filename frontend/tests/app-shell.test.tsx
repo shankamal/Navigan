@@ -171,6 +171,12 @@ describe("Application shell permissions", () => {
       name: "About Navigan",
     });
     expect(about).toHaveAttribute("href", "/about");
+    expect(about.closest(".sidebar-utilities")).not.toBeNull();
+    expect(about.closest('nav[aria-label="Platform modules"]')).toBeNull();
+    expect(about.textContent).toBe("");
+    expect(
+      screen.queryByRole("navigation", { name: "Breadcrumb" }),
+    ).not.toBeInTheDocument();
     expect(about).toHaveAttribute("aria-current", "page");
     fireEvent.click(
       screen.getByRole("button", { name: "Collapse navigation" }),

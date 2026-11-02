@@ -65,7 +65,7 @@ describe("Shared Navigan lifecycle", () => {
   });
   it("loops the About scene and supports pause and resume", () => {
     render(<NaviganLifecycle />);
-    advance(LIFECYCLE_DURATION_MS + 100);
+    advance(48_000 + 100);
     expect(frame).toBeDefined();
     expect(
       screen.getByRole("region", { name: "Navigan lifecycle overview" }),
@@ -74,6 +74,45 @@ describe("Shared Navigan lifecycle", () => {
     expect(frame).toBeUndefined();
     fireEvent.click(screen.getByRole("button", { name: "Resume motion" }));
     advance(LIFECYCLE_DURATION_MS);
+    expect(frame).toBeDefined();
+  });
+  it("changes the guide at every stage boundary and wraps with the active icon", () => {
+    const { container } = render(<NaviganLifecycle />);
+    const labels = [
+      "Customers",
+      "Environments",
+      "Clusters",
+      "Migration",
+      "App Transformation",
+      "Onboarding",
+      "Upgrades",
+      "Governance",
+    ];
+    let previous = "";
+    for (const label of labels) {
+      expect(container.querySelector(".nb-caption")).toHaveAttribute(
+        "data-stage",
+        label,
+      );
+      const caption = container.querySelector(
+        '.nb-guide-content[data-active="true"] p',
+      )?.textContent;
+      expect(caption).not.toBe(previous);
+      expect(
+        container.querySelector(
+          '.nb-guide-content[data-active="true"] .nb-stage-detail',
+        )?.textContent?.length,
+      ).toBeGreaterThan(60);
+      expect(
+        container.querySelector('.nb-node[data-active="true"]'),
+      ).toHaveTextContent(label);
+      previous = caption || "";
+      advance(6000);
+    }
+    expect(container.querySelector(".nb-caption")).toHaveAttribute(
+      "data-stage",
+      "Customers",
+    );
     expect(frame).toBeDefined();
   });
   it("retains a manual pause when the tab becomes visible again", () => {

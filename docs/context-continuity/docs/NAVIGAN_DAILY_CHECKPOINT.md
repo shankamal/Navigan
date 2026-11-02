@@ -1,3 +1,13 @@
+## 2 November 2026 — About feedback corrections; visual reference still needed
+
+User confirmed frontend revision 29 is PRIMARY/COMPLETED with 1/1 running, zero pending and zero failed tasks. The release helper's final state check failed earlier; its remaining image/HTTP verification did not run. Do not redeploy solely for that prior error.
+
+User rejected visual fidelity and requested synchronized stage text, no About title bar, no page scrolling, and a separate About icon. Source correction gives each of eight capability stages its own guide sentence, uses one active-stage index, and allows 6 seconds per About stage for reading. It removes the About page heading, duplicate corporate header, breadcrumb and page footer; fits the scene below the existing platform bar with a side-by-side arrangement for short desktop screens; and moves About to an accessible icon in the sidebar footer, including collapsed navigation. Existing capability names and planned labels remain intact. Each stage has a summary and detailed explanation; the guide uses a 650 ms cross-fade in a fixed-height grid, and icon colours soften between states. Reduced-motion mode remains static. Desktop places the detail panel beside the orbit.
+
+Validation: 33 focused lifecycle/shell/login/routing tests, TypeScript and production build passed. Local browser fixture uses the real lifecycle component and global shell styles; screenshots inspected at 1366x768, 1280x600, 1920x1080 and 390x844, with no document overflow. Fixture shell navigation is simplified, not a signed-in production session. Original approved sample could not be recovered; no exact visual-match claim. Ask user to reattach it before the remaining visual recreation. This correction is not deployed; production remains revision 29. Preserve the broader migration redesign hold.
+
+---
+
 ## 2 November 2026 — Lifecycle orbit refinement
 
 User approved continuing the first Lifecycle orbit direction. Frontend-only update on `feature/navigan-lifecycle-intro`, based on `b4d792d`: automatic About-page looping, eight stage colours, clockwise segmented arrows anchored to icon centres, highlighted stage motion, central bot, light surface, and responsive label placement. No Play button; pause/resume remains available. Post-login completes once or can be skipped; planned capabilities remain labelled. Manual pause survives tab visibility changes, and reduced-motion users retain a static overview.

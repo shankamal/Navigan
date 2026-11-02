@@ -35,14 +35,25 @@ const stageColors = [
   "#617d18",
   "#36774d",
 ];
-const phases = [
-  { nodes: [0, 1], copy: "Set up customers and cloud environments." },
-  { nodes: [2, 3], copy: "Manage clusters and plan workload migration." },
-  {
-    nodes: [4, 5, 6],
-    copy: "Next: transform applications, onboard and upgrade.",
-  },
-  { nodes: [7], copy: "Govern the lifecycle. Bring it together with Navigan." },
+const stageDescriptions = [
+  "Register customers and organize their platform access.",
+  "Connect cloud accounts and define environment baselines.",
+  "Provision and manage Kubernetes clusters and platform services.",
+  "Discover workloads and assess their migration readiness.",
+  "Planned: transform applications for container platforms.",
+  "Planned: onboard applications into managed environments.",
+  "Planned: coordinate cluster and platform upgrades.",
+  "Manage access, approvals and accountability across the lifecycle.",
+];
+const stageDetails = [
+  "Maintain customer records and keep each customer’s environments, clusters and migration assessments organized within their authorized scope.",
+  "Register cloud environment profiles, verify connectivity and review discovered infrastructure before using an environment for cluster provisioning.",
+  "Configure cluster requests, review provisioning status and inspect platform service health. Open connected tools when they are available and healthy.",
+  "Connect a source cluster, discover namespaces and workloads, select migration scope and collect deployment artifact evidence. Migration execution and traffic cutover remain planned.",
+  "Planned capability: assess application changes needed for containers and guide modernization. This is a roadmap capability, not an available automated transformation service.",
+  "Planned capability: guide application deployment into a managed environment, covering deployment configuration, images and required platform dependencies.",
+  "Planned capability: assess upgrade readiness and guide version changes with compatibility checks, validation and recovery planning.",
+  "Apply role-based access and customer boundaries. Use available review and approval workflows to keep platform changes accountable and traceable.",
 ];
 export const LIFECYCLE_DURATION_MS = 11_200;
 
@@ -87,17 +98,14 @@ export function NaviganLifecycle({
 
   useEffect(() => {
     if (!running || reduced) return;
+    const duration = looping ? 48_000 : LIFECYCLE_DURATION_MS;
     let frame = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      time.current = Math.min(
-        LIFECYCLE_DURATION_MS,
-        time.current + Math.max(0, now - last),
-      );
+      time.current = Math.min(duration, time.current + Math.max(0, now - last));
       last = now;
       setElapsed(time.current);
-      if (time.current < LIFECYCLE_DURATION_MS)
-        frame = requestAnimationFrame(tick);
+      if (time.current < duration) frame = requestAnimationFrame(tick);
       else if (looping) {
         time.current = 0;
         setElapsed(0);
@@ -112,11 +120,11 @@ export function NaviganLifecycle({
   }, [running, reduced, looping]);
 
   useEffect(() => {
-    if (elapsed >= LIFECYCLE_DURATION_MS && !completed.current) {
+    if (!looping && elapsed >= LIFECYCLE_DURATION_MS && !completed.current) {
       completed.current = true;
       callback.current?.();
     }
-  }, [elapsed]);
+  }, [elapsed, looping]);
 
   useEffect(() => {
     const visibility = () => {
@@ -131,16 +139,12 @@ export function NaviganLifecycle({
     return () => document.removeEventListener("visibilitychange", visibility);
   }, [autoPlay]);
 
-  const progress = Math.min(1, elapsed / LIFECYCLE_DURATION_MS);
-  const done = progress >= 1;
+  const duration = looping ? 48_000 : LIFECYCLE_DURATION_MS;
+  const progress = Math.min(1, elapsed / duration);
+  const done = reduced || progress >= 1;
   const activeIndex = Math.min(7, Math.floor(progress * 8));
-  const phaseIndex = phases.findIndex((item) =>
-    item.nodes.includes(activeIndex),
-  );
-  const phase = phases[phaseIndex];
   const active = (i: number) => !done && i === activeIndex;
-  const nodeDone = (i: number) =>
-    done || phases.slice(0, phaseIndex).some((p) => p.nodes.includes(i));
+  const nodeDone = (i: number) => done || i < activeIndex;
   const moving = running && !done && !reduced;
   const botStyle = {
     "--bob": moving ? `${-2 + Math.sin(elapsed / 230) * 2}px` : "0px",
@@ -171,27 +175,27 @@ export function NaviganLifecycle({
   }
 
   return (
-    <div className="navigan-lifecycle">
+    <div className={`navigan-lifecycle ${looping ? "nb-about" : "nb-welcome"}`}>
       <section
         className="nb-surface"
         aria-label="Navigan lifecycle overview"
         data-complete={done}
         data-moving={moving}
       >
-        <header className="nb-header">
-          {logo ? (
-            <img className="nb-logo" src={logo} alt="Corporate logo" />
-          ) : (
-            <span className="nb-brand">
-              Deloitte<em>.</em>
-            </span>
-          )}
-          <span className="nb-product">Container Management Platform</span>
-        </header>
+        {!looping && (
+          <header className="nb-header">
+            {logo ? (
+              <img className="nb-logo" src={logo} alt="Corporate logo" />
+            ) : (
+              <span className="nb-brand">
+                Deloitte<em>.</em>
+              </span>
+            )}
+            <span className="nb-product">Container Management Platform</span>
+          </header>
+        )}
         <div className="nb-heading">
-          <span className="nb-eyebrow">
-            {onComplete ? "WELCOME TO NAVIGAN" : "ABOUT NAVIGAN"}
-          </span>
+          {!looping && <span className="nb-eyebrow">WELCOME TO NAVIGAN</span>}
           <h2>One platform. Every stage.</h2>
         </div>
         <div
@@ -287,15 +291,49 @@ export function NaviganLifecycle({
             })}
           </div>
         </div>
-        <div className="nb-caption">
+        <div
+          className="nb-caption"
+          data-stage={done ? "overview" : capabilities[activeIndex].label}
+          style={{ "--stage": stageColors[activeIndex] } as CSSProperties}
+        >
           <span className="nb-caption-label">YOUR PLATFORM GUIDE</span>
-          <p>
-            {done
-              ? "Navigan. Your container lifecycle, connected."
-              : elapsed
-                ? phase.copy
-                : "Your container lifecycle, connected in one platform."}
-          </p>
+          <div className="nb-guide-stack">
+            {capabilities.map((stage, i) => (
+              <div
+                key={stage.label}
+                className="nb-guide-content"
+                data-active={!done && activeIndex === i}
+                aria-hidden={done || activeIndex !== i}
+              >
+                <h3 className="nb-stage-title">
+                  {stage.label}
+                  {stage.planned && (
+                    <span className="nb-stage-badge">Planned</span>
+                  )}
+                </h3>
+                <p>{stageDescriptions[i]}</p>
+                {looping && (
+                  <div className="nb-stage-detail">{stageDetails[i]}</div>
+                )}
+              </div>
+            ))}
+            <div
+              className="nb-guide-content"
+              data-active={done}
+              aria-hidden={!done}
+            >
+              <h3 className="nb-stage-title">Your container lifecycle</h3>
+              <p>Navigan. Your container lifecycle, connected.</p>
+              {looping && (
+                <div className="nb-stage-detail">
+                  Explore customer, environment, cluster and migration
+                  capabilities, with access and approvals across the platform.
+                  Application transformation, onboarding and upgrades are
+                  planned.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <p className="nb-note">
           App Transformation, Onboarding and Upgrades are planned capabilities.

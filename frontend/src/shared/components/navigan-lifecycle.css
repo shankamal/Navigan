@@ -398,21 +398,6 @@
     font-size: 10px;
   }
 }
-@media (max-width: 470px) {
-  .navigan-lifecycle .nb-core {
-    width: 98px;
-  }
-  .navigan-lifecycle .nb-node:nth-child(2) > span:not(.nb-node-icon),
-  .navigan-lifecycle .nb-node:nth-child(4) > span:not(.nb-node-icon) {
-    display: block;
-    transform: translateX(22px);
-  }
-  .navigan-lifecycle .nb-node:nth-child(6) > span:not(.nb-node-icon),
-  .navigan-lifecycle .nb-node:nth-child(8) > span:not(.nb-node-icon) {
-    display: block;
-    transform: translateX(-22px);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .navigan-lifecycle * {
     transition: none !important;
@@ -603,4 +588,236 @@
 }
 .navigan-lifecycle .nb-surface[data-moving="false"] .nb-link {
   animation-play-state: paused;
+}
+
+/* About uses the viewport below the existing platform bar, without a second title bar. */
+.app-shell.about-shell .content-column {
+  height: calc(100dvh - var(--workspace-topbar-height, 64px));
+  min-height: 0;
+}
+.app-shell.about-shell main#main-content {
+  padding: 12px 18px;
+  min-height: 0;
+  display: flex;
+}
+.navigan-lifecycle.nb-about {
+  height: 100%;
+  max-width: 1100px;
+}
+.nb-about .nb-surface {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 0;
+  border-radius: 12px;
+}
+.nb-about .nb-heading {
+  padding: 10px 12px 0;
+  flex-shrink: 0;
+}
+.nb-about .nb-map {
+  width: min(
+    100%,
+    460px,
+    calc(100dvh - var(--workspace-topbar-height, 64px) - 232px)
+  );
+  margin: auto;
+  flex-shrink: 0;
+}
+.nb-about .nb-caption {
+  min-height: 66px;
+  width: 100%;
+  padding: 6px 18px 0;
+  flex-shrink: 0;
+}
+.nb-about .nb-caption p,
+.app-shell main#main-content .nb-about .nb-caption p {
+  font-size: 16px !important;
+  min-height: 42px;
+  max-width: 580px;
+}
+.navigan-lifecycle .nb-caption-label {
+  color: var(--stage, #26733f);
+}
+.nb-about .nb-note,
+.app-shell main#main-content .nb-about p.nb-note {
+  margin: 4px 12px 8px !important;
+  flex-shrink: 0;
+}
+.nb-about .nb-controls {
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+.nb-about .nb-time {
+  flex-shrink: 0;
+}
+@media (max-height: 650px) and (min-width: 701px) {
+  .nb-about .nb-surface {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(210px, 0.85fr);
+    grid-template-rows: auto 1fr auto auto;
+    align-items: center;
+  }
+  .nb-about .nb-heading {
+    grid-column: 1 / -1;
+  }
+  .nb-about .nb-map {
+    grid-column: 1;
+    grid-row: 2 / 4;
+    width: min(
+      100%,
+      calc(100dvh - var(--workspace-topbar-height, 64px) - 165px)
+    );
+  }
+  .nb-about .nb-caption {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .nb-about .nb-note {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .nb-about .nb-controls {
+    grid-column: 1 / -1;
+  }
+  .nb-about .nb-time {
+    display: none;
+  }
+}
+
+@media (max-height: 650px) and (min-width: 701px) {
+  .nb-about .nb-core {
+    width: 126px;
+    height: 140px;
+  }
+}
+
+.navigan-lifecycle .nb-stage-title,
+.app-shell main#main-content .navigan-lifecycle .nb-stage-title {
+  margin: 8px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--stage, #26733f);
+  line-height: 1.3;
+}
+.navigan-lifecycle .nb-stage-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #eef1f5;
+  color: #586977;
+  font-size: 10px;
+  vertical-align: middle;
+}
+.navigan-lifecycle .nb-stage-detail {
+  margin-top: 12px;
+  color: #586977;
+  font-size: 14px;
+  line-height: 1.65;
+}
+@media (min-width: 701px) {
+  .nb-about .nb-surface {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.1fr) minmax(230px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0 12px;
+  }
+  .nb-about .nb-heading {
+    grid-column: 1 / -1;
+    padding-top: 18px;
+  }
+  .nb-about .nb-map {
+    grid-column: 1;
+    grid-row: 2;
+    width: min(
+      100%,
+      460px,
+      calc(100dvh - var(--workspace-topbar-height, 64px) - 190px)
+    );
+  }
+  .nb-about .nb-caption {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: left;
+    padding: 24px 28px 24px 8px;
+  }
+  .nb-about .nb-caption p,
+  .app-shell main#main-content .nb-about .nb-caption p {
+    min-height: 0;
+    margin-left: 0 !important;
+  }
+  .nb-about .nb-note {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .nb-about .nb-controls {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+  .nb-about .nb-time {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .nb-about .nb-map {
+    width: min(
+      100%,
+      370px,
+      calc(100dvh - var(--workspace-topbar-height, 64px) - 350px)
+    );
+  }
+  .nb-about .nb-caption {
+    padding-top: 0;
+  }
+  .nb-about .nb-stage-title {
+    font-size: 18px !important;
+    margin-top: 4px !important;
+  }
+  .nb-about .nb-stage-detail {
+    font-size: 12px;
+    line-height: 1.45;
+    margin-top: 6px;
+  }
+  .nb-about .nb-caption p,
+  .app-shell main#main-content .nb-about .nb-caption p {
+    font-size: 14px !important;
+    min-height: 0;
+  }
+}
+
+/* Overlapping grid panels reserve the tallest text height while cross-fading. */
+.navigan-lifecycle .nb-guide-stack {
+  display: grid;
+}
+.navigan-lifecycle .nb-guide-content {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition:
+    opacity 650ms ease,
+    transform 650ms ease,
+    visibility 0s 650ms;
+}
+.navigan-lifecycle .nb-guide-content[data-active="true"] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+.navigan-lifecycle .nb-node-icon {
+  transition:
+    color 550ms ease,
+    border-color 550ms ease,
+    box-shadow 650ms ease,
+    background 650ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigan-lifecycle .nb-guide-content {
+    transition: none;
+    transform: none;
+  }
 }

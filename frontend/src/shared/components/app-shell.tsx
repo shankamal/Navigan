@@ -341,7 +341,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div
-      className={`app-shell ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""}`}
+      className={`app-shell ${pathname === "/about" ? "about-shell" : ""} ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""}`}
     >
       <a className="skip-link" href="#main-content">
         Skip to content
@@ -445,78 +445,73 @@ function AppShellContent({ children }: { children: ReactNode }) {
                   </div>
                 );
               })}
-              <Link
-                href="/about"
-                className={`nav-item ${pathname === "/about" ? "selected" : ""}`}
-                title="About Navigan"
-                aria-current={pathname === "/about" ? "page" : undefined}
-                onClick={() => setExpanded(false)}
-              >
-                <Info size={19} aria-hidden="true" />
-                <span>About Navigan</span>
-              </Link>
             </nav>
           </div>
-          <div className="sidebar-footer">
-            <div className="workspace-card">
-              <div className="workspace-symbol">
-                <span aria-hidden="true">N</span>
-              </div>
-              <div>
-                <strong>Multi-cloud platform</strong>
-                <p>AWS · Azure · GCP · OCI</p>
-              </div>
-            </div>
+          <div className="sidebar-footer sidebar-utilities">
+            <Link
+              href="/about"
+              className="sidebar-about"
+              aria-label="About Navigan"
+              title="About Navigan"
+              aria-current={pathname === "/about" ? "page" : undefined}
+              onClick={() => setExpanded(false)}
+            >
+              <Info size={20} aria-hidden="true" />
+            </Link>
           </div>
         </aside>
         <div className="content-column">
-          <nav className="breadcrumb" aria-label="Breadcrumb">
-            <Link href="/dashboard">Home</Link>
-            <ChevronRight size={14} />
-            <Link
-              aria-label={`Back to ${(pathname === "/about" ? "About Navigan" : current?.label) ?? "dashboard"}`}
-              href={
-                pathname === "/about"
-                  ? "/about"
-                  : (current?.href ?? "/dashboard")
-              }
-            >
-              {pathname === "/about"
-                ? "About Navigan"
-                : (current?.label ?? "Access")}
-            </Link>
-            {pathname.endsWith("/plan") && pageLabel && (
-              <>
-                <ChevronRight size={14} />
-                <span aria-current="page">{pageLabel}</span>
-              </>
-            )}
-            {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
-              <>
-                <ChevronRight size={14} />
-                <span>Cluster request details</span>
-              </>
-            )}
-            {pathname.includes("/customers/") && (
-              <>
-                <ChevronRight size={14} />
-                <span>
-                  {pathname.endsWith("/new")
-                    ? "New customer"
-                    : pathname.endsWith("/edit")
-                      ? "Edit customer"
-                      : "Customer details"}
-                </span>
-              </>
-            )}
-          </nav>
+          {pathname !== "/about" && (
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <Link href="/dashboard">Home</Link>
+              <ChevronRight size={14} />
+              <Link
+                aria-label={`Back to ${(pathname === "/about" ? "About Navigan" : current?.label) ?? "dashboard"}`}
+                href={
+                  pathname === "/about"
+                    ? "/about"
+                    : (current?.href ?? "/dashboard")
+                }
+              >
+                {pathname === "/about"
+                  ? "About Navigan"
+                  : (current?.label ?? "Access")}
+              </Link>
+              {pathname.endsWith("/plan") && pageLabel && (
+                <>
+                  <ChevronRight size={14} />
+                  <span aria-current="page">{pageLabel}</span>
+                </>
+              )}
+              {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
+                <>
+                  <ChevronRight size={14} />
+                  <span>Cluster request details</span>
+                </>
+              )}
+              {pathname.includes("/customers/") && (
+                <>
+                  <ChevronRight size={14} />
+                  <span>
+                    {pathname.endsWith("/new")
+                      ? "New customer"
+                      : pathname.endsWith("/edit")
+                        ? "Edit customer"
+                        : "Customer details"}
+                  </span>
+                </>
+              )}
+            </nav>
+          )}
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>
-          <footer className="app-footer">
-            <span>Navigan</span>
-            <span>Customer identity and governance</span>
-          </footer>
+          {pathname !== "/about" && (
+            <footer className="app-footer">
+              <span>Navigan</span>
+              <span>Customer identity and governance</span>
+            </footer>
+          )}
         </div>
       </div>
     </div>

@@ -9015,3 +9015,30 @@ td {
 }
 
 /* Navigan's unified card, panel and accent rules live in navigan-theme.css. */
+
+/* A separate, keyboard-accessible About utility, including collapsed navigation. */
+.app-shell .sidebar .sidebar-footer.sidebar-utilities {
+  display: flex;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 10px 4px 2px;
+  border-top: 1px solid #e1e7ed;
+}
+.app-shell .sidebar-about {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  color: #536159;
+}
+.app-shell .sidebar-about:hover,
+.app-shell .sidebar-about[aria-current="page"] {
+  color: #26733f;
+  background: #eaf4e4;
+}
+.app-shell .sidebar-about:focus-visible {
+  outline: 2px solid #26733f;
+  outline-offset: 2px;
+}
