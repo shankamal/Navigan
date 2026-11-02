@@ -2,60 +2,80 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import {
-  ArrowRightLeft,
   Boxes,
   Building2,
-  CircleArrowUp,
-  Layers3,
-  Network,
-  PlugZap,
-  ShieldCheck,
+  RefreshCw,
+  WandSparkles,
   Workflow,
 } from "lucide-react";
-import { runtimeConfig } from "@/shared/config/runtime-config";
 import "./navigan-lifecycle.css";
 
 const capabilities = [
-  { label: "Customers", icon: Building2 },
-  { label: "Environments", icon: Layers3 },
-  { label: "Clusters", icon: Network },
-  { label: "Migration", icon: ArrowRightLeft },
-  { label: "App Transformation", icon: Workflow, planned: true },
-  { label: "Onboarding", icon: PlugZap, planned: true },
-  { label: "Upgrades", icon: CircleArrowUp, planned: true },
-  { label: "Governance", icon: ShieldCheck },
+  {
+    label: "Prepare",
+    icon: Building2,
+    subtitle: "Customers · Environments",
+    x: 50,
+    y: 7,
+    planned: false,
+  },
+  {
+    label: "Build",
+    icon: Boxes,
+    subtitle: "Cluster management",
+    x: 81,
+    y: 35,
+    planned: false,
+  },
+  {
+    label: "Transform",
+    icon: WandSparkles,
+    subtitle: "App transformation · Planned",
+    x: 70,
+    y: 75,
+    planned: true,
+  },
+  {
+    label: "Move",
+    icon: Workflow,
+    subtitle: "Migration · Onboarding*",
+    x: 30,
+    y: 75,
+    planned: false,
+  },
+  {
+    label: "Evolve",
+    icon: RefreshCw,
+    subtitle: "Upgrades · Planned",
+    x: 19,
+    y: 35,
+    planned: true,
+  },
 ];
-const stageColors = [
-  "#1677c8",
-  "#6555c4",
-  "#0797a8",
-  "#d17b17",
-  "#b34c9b",
-  "#168b73",
-  "#617d18",
-  "#36774d",
-];
+const stageColors = ["#3284dc", "#159caa", "#a267d5", "#bd790e", "#7ba83e"];
 const stageDescriptions = [
-  "Register customers and organize their platform access.",
-  "Connect cloud accounts and define environment baselines.",
-  "Provision and manage Kubernetes clusters and platform services.",
-  "Discover workloads and assess their migration readiness.",
-  "Planned: transform applications for container platforms.",
-  "Planned: onboard applications into managed environments.",
-  "Planned: coordinate cluster and platform upgrades.",
-  "Manage access, approvals and accountability across the lifecycle.",
+  "Prepare your cloud foundation.",
+  "Build and manage with clarity.",
+  "Transform applications for what’s next.",
+  "Move workloads with confidence.",
+  "Evolve your platform with control.",
 ];
 const stageDetails = [
-  "Maintain customer records and keep each customer’s environments, clusters and migration assessments organized within their authorized scope.",
-  "Register cloud environment profiles, verify connectivity and review discovered infrastructure before using an environment for cluster provisioning.",
-  "Configure cluster requests, review provisioning status and inspect platform service health. Open connected tools when they are available and healthy.",
-  "Connect a source cluster, discover namespaces and workloads, select migration scope and collect deployment artifact evidence. Migration execution and traffic cutover remain planned.",
-  "Planned capability: assess application changes needed for containers and guide modernization. This is a roadmap capability, not an available automated transformation service.",
-  "Planned capability: guide application deployment into a managed environment, covering deployment configuration, images and required platform dependencies.",
-  "Planned capability: assess upgrade readiness and guide version changes with compatibility checks, validation and recovery planning.",
-  "Apply role-based access and customer boundaries. Use available review and approval workflows to keep platform changes accountable and traceable.",
+  "Register customers, connect cloud environments and review infrastructure baselines. Keep each customer’s resources within their authorized scope.",
+  "Configure Kubernetes cluster requests, track provisioning and inspect platform service health. Access connected operational tools when they are ready.",
+  "Planned: assess application changes needed for containers and guide modernization. Automated application transformation is a roadmap capability.",
+  "Discover workloads, select migration scope and collect deployment evidence. Application onboarding, migration execution and traffic cutover are planned.",
+  "Planned: assess upgrade readiness and guide version changes with compatibility checks, validation and recovery planning.",
 ];
-export const LIFECYCLE_DURATION_MS = 11_200;
+// Curves follow the five-stage reference, with endpoints outside each icon.
+const connectors = [
+  "M 393 42 Q 463 99 555 122",
+  "M 581 163 Q 535 206 521 264",
+  "M 470 293 Q 357 273 250 293",
+  "M 201 262 Q 193 195 157 166",
+  "M 168 122 Q 266 98 327 42",
+];
+export const LIFECYCLE_DURATION_MS = 15_000;
 
 /** Shared scene for the once-per-login transition and the replayable About page. */
 export function NaviganLifecycle({
@@ -98,7 +118,7 @@ export function NaviganLifecycle({
 
   useEffect(() => {
     if (!running || reduced) return;
-    const duration = looping ? 48_000 : LIFECYCLE_DURATION_MS;
+    const duration = LIFECYCLE_DURATION_MS;
     let frame = 0;
     let last = performance.now();
     const tick = (now: number) => {
@@ -139,20 +159,23 @@ export function NaviganLifecycle({
     return () => document.removeEventListener("visibilitychange", visibility);
   }, [autoPlay]);
 
-  const duration = looping ? 48_000 : LIFECYCLE_DURATION_MS;
+  const duration = LIFECYCLE_DURATION_MS;
   const progress = Math.min(1, elapsed / duration);
   const done = reduced || progress >= 1;
-  const activeIndex = Math.min(7, Math.floor(progress * 8));
+  const activeIndex = Math.min(
+    capabilities.length - 1,
+    Math.floor(progress * capabilities.length),
+  );
   const active = (i: number) => !done && i === activeIndex;
   const nodeDone = (i: number) => done || i < activeIndex;
   const moving = running && !done && !reduced;
   const botStyle = {
-    "--bob": moving ? `${-2 + Math.sin(elapsed / 230) * 2}px` : "0px",
-    "--tilt": moving ? `${Math.sin(elapsed / 460) * 3}deg` : "0deg",
+    "--bob": moving ? `${-2 + Math.sin(elapsed / 600) * 2}px` : "0px",
+    "--tilt": moving ? `${Math.sin(elapsed / 900) * 2}deg` : "0deg",
     "--wave": moving ? `${-55 + Math.sin(elapsed / 220) * 20}deg` : "-30deg",
     "--blink": moving && elapsed % 2300 > 2160 ? ".15" : "1",
   } as CSSProperties;
-  const logo = runtimeConfig().corporateLogoUrl;
+
   function finish() {
     time.current = LIFECYCLE_DURATION_MS;
     setElapsed(LIFECYCLE_DURATION_MS);
@@ -182,28 +205,23 @@ export function NaviganLifecycle({
         data-complete={done}
         data-moving={moving}
       >
-        {!looping && (
-          <header className="nb-header">
-            {logo ? (
-              <img className="nb-logo" src={logo} alt="Corporate logo" />
-            ) : (
-              <span className="nb-brand">
-                Deloitte<em>.</em>
-              </span>
-            )}
-            <span className="nb-product">Container Management Platform</span>
-          </header>
-        )}
         <div className="nb-heading">
-          {!looping && <span className="nb-eyebrow">WELCOME TO NAVIGAN</span>}
-          <h2>One platform. Every stage.</h2>
+          <h2>
+            Navigan<span>.</span>
+          </h2>
+          <p>THE CONTAINER LIFECYCLE, CONNECTED</p>
         </div>
         <div
           className="nb-map"
           role="img"
-          aria-label="Navigan bot guides the connected circular lifecycle: customers, environments, clusters, migration, planned app transformation, onboarding and upgrades, and governance."
+          aria-label="Prepare, Build, Transform, Move and Evolve, with governance throughout."
         >
-          <svg className="nb-lines" viewBox="0 0 430 430" aria-hidden="true">
+          <svg
+            className="nb-lines"
+            viewBox="0 0 720 390"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
             <defs>
               {capabilities.map((c, i) => (
                 <marker
@@ -219,32 +237,27 @@ export function NaviganLifecycle({
                   <path
                     d="M 1 1 L 9 5 L 1 9"
                     fill="none"
-                    stroke={stageColors[i]}
+                    stroke={active(i) ? stageColors[i] : "#a8bdcc"}
                     strokeWidth="2"
                   />
                 </marker>
               ))}
             </defs>
-            {capabilities.map((c, i) => {
-              const point = (degrees: number) => {
-                const angle = (degrees * Math.PI) / 180;
-                return `${215 + 146.2 * Math.cos(angle)} ${215 + 146.2 * Math.sin(angle)}`;
-              };
-              const start = i * 45 - 90 + 13;
-              const end = (i + 1) * 45 - 90 - 13;
-              return (
-                <path
-                  key={c.label}
-                  className="nb-link"
-                  data-active={active(i)}
-                  d={`M ${point(start)} A 146.2 146.2 0 0 1 ${point(end)}`}
-                  style={{ "--stage": stageColors[i] } as CSSProperties}
-                  markerEnd={`url(#${sceneId}-arrow-${i})`}
-                />
-              );
-            })}
+            {connectors.map((path, i) => (
+              <path
+                key={path}
+                className="nb-link"
+                data-active={active(i)}
+                d={path}
+                style={{ "--stage": stageColors[i] } as CSSProperties}
+                markerEnd={`url(#${sceneId}-arrow-${i})`}
+              />
+            ))}
           </svg>
-          <div className="nb-core">
+          <div
+            className="nb-core"
+            style={{ "--stage": stageColors[activeIndex] } as CSSProperties}
+          >
             <div className="nb-bot" style={botStyle} aria-hidden="true">
               <div className="nb-antenna" />
               <div className="nb-head">
@@ -259,12 +272,15 @@ export function NaviganLifecycle({
                 <Boxes />
               </div>
             </div>
-            <strong>Navigan</strong>
-            <small>CONNECTED LIFECYCLE</small>
+            <strong>Your Navigan guide</strong>
+            <small>
+              GOVERNANCE
+              <br />
+              THROUGHOUT
+            </small>
           </div>
           <div className="nb-nodes">
-            {capabilities.map(({ label, icon: Icon, planned }, i) => {
-              const angle = ((i * 45 - 90) * Math.PI) / 180;
+            {capabilities.map(({ label, icon: Icon, subtitle, x, y }, i) => {
               return (
                 <div
                   key={label}
@@ -274,8 +290,8 @@ export function NaviganLifecycle({
                   style={
                     {
                       "--stage": stageColors[i],
-                      "--x": `${50 + 34 * Math.cos(angle)}%`,
-                      "--y": `${50 + 34 * Math.sin(angle)}%`,
+                      "--x": `${x}%`,
+                      "--y": `${y}%`,
                     } as CSSProperties
                   }
                 >
@@ -284,7 +300,7 @@ export function NaviganLifecycle({
                   </span>
                   <span className="nb-node-label">
                     {label}
-                    {planned && <span className="nb-planned">Planned</span>}
+                    <span className="nb-subtitle">{subtitle}</span>
                   </span>
                 </div>
               );
@@ -296,7 +312,6 @@ export function NaviganLifecycle({
           data-stage={done ? "overview" : capabilities[activeIndex].label}
           style={{ "--stage": stageColors[activeIndex] } as CSSProperties}
         >
-          <span className="nb-caption-label">YOUR PLATFORM GUIDE</span>
           <div className="nb-guide-stack">
             {capabilities.map((stage, i) => (
               <div
@@ -306,12 +321,12 @@ export function NaviganLifecycle({
                 aria-hidden={done || activeIndex !== i}
               >
                 <h3 className="nb-stage-title">
-                  {stage.label}
+                  {stageDescriptions[i]}
                   {stage.planned && (
                     <span className="nb-stage-badge">Planned</span>
                   )}
                 </h3>
-                <p>{stageDescriptions[i]}</p>
+
                 {looping && (
                   <div className="nb-stage-detail">{stageDetails[i]}</div>
                 )}
@@ -336,7 +351,8 @@ export function NaviganLifecycle({
           </div>
         </div>
         <p className="nb-note">
-          App Transformation, Onboarding and Upgrades are planned capabilities.
+          *Onboarding, app transformation and upgrades are planned. Governance
+          applies throughout.
         </p>
         <footer className="nb-controls">
           {!reduced && (
@@ -349,7 +365,7 @@ export function NaviganLifecycle({
               ? "Lifecycle overview"
               : looping
                 ? "Continuous lifecycle overview"
-                : "11-second welcome"}
+                : "15-second welcome"}
           </span>
           {onComplete && (
             <button type="button" className="nb-skip" onClick={finish}>

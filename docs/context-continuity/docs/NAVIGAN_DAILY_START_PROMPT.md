@@ -1,3 +1,13 @@
+## 2 November 2026 — Approved five-stage reference implemented
+
+The user supplied the missing reference screenshot and requested three seconds per lifecycle stage. It supersedes the earlier eight-node interpretation. The scene now follows Prepare (customers/environments), Build (cluster management), Transform (planned app transformation), Move (migration/planned onboarding) and Evolve (planned upgrades), with the guide bot and Governance throughout in the centre. Curved connectors, pale stage backgrounds, dark bot face/green eyes, brand caption and details beneath the scene follow the supplied reference. Details cross-fade over 650ms, with planned functionality explicitly identified.
+
+Timing is three seconds per stage in both contexts: About loops every 15 seconds; the welcome sequence completes after 15 seconds or Skip. The separate footer About icon, removed About title/breadcrumb and viewport-fitting layout remain. Reduced-motion mode is static. Reference-driven source is not deployed; last user-confirmed production revision remains 29.
+
+Validation: 33 focused tests and Next.js production build passed; stage-boundary tests verify the five labels, matching details/highlights and 15-second wrap. Local real-component/global-style fixture rendered at 1366x768, 1280x600, 1920x1080 and 390x844 without document overflow; desktop/mobile screenshots inspected. Fixture navigation is simplified, so this is not authenticated production acceptance. Next: promote the verified source to main before the existing main-only frontend release helper, prepare a fresh release, then execute the actual newly returned plan. Do not reuse revision 29's plan for these edits.
+
+---
+
 ## 2 November 2026 — About feedback corrections; visual reference still needed
 
 User confirmed frontend revision 29 is PRIMARY/COMPLETED with 1/1 running, zero pending and zero failed tasks. The release helper's final state check failed earlier; its remaining image/HTTP verification did not run. Do not redeploy solely for that prior error.
