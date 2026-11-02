@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowRightLeft,
   Boxes,
@@ -25,6 +25,16 @@ const capabilities = [
   { label: "Upgrades", icon: CircleArrowUp, planned: true },
   { label: "Governance", icon: ShieldCheck },
 ];
+const stageColors = [
+  "#1677c8",
+  "#6555c4",
+  "#0797a8",
+  "#d17b17",
+  "#b34c9b",
+  "#168b73",
+  "#617d18",
+  "#36774d",
+];
 const phases = [
   { nodes: [0, 1], copy: "Set up customers and cloud environments." },
   { nodes: [2, 3], copy: "Manage clusters and plan workload migration." },
@@ -38,18 +48,21 @@ export const LIFECYCLE_DURATION_MS = 11_200;
 
 /** Shared scene for the once-per-login transition and the replayable About page. */
 export function NaviganLifecycle({
-  autoPlay = false,
+  autoPlay = true,
   onComplete,
 }: {
   autoPlay?: boolean;
   onComplete?: () => void;
 }) {
+  const sceneId = useId();
+  const looping = !onComplete;
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const time = useRef(0);
   const completed = useRef(false);
+  const manuallyPaused = useRef(false);
   const callback = useRef(onComplete);
   useEffect(() => {
     callback.current = onComplete;
@@ -85,14 +98,18 @@ export function NaviganLifecycle({
       setElapsed(time.current);
       if (time.current < LIFECYCLE_DURATION_MS)
         frame = requestAnimationFrame(tick);
-      else {
+      else if (looping) {
+        time.current = 0;
+        setElapsed(0);
+        frame = requestAnimationFrame(tick);
+      } else {
         setRunning(false);
         setAnnouncement("Overview complete.");
       }
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [running, reduced]);
+  }, [running, reduced, looping]);
 
   useEffect(() => {
     if (elapsed >= LIFECYCLE_DURATION_MS && !completed.current) {
@@ -102,21 +119,26 @@ export function NaviganLifecycle({
   }, [elapsed]);
 
   useEffect(() => {
-    const pause = () => {
-      if (document.hidden) {
-        setRunning(false);
-        setAnnouncement("Overview paused.");
-      }
+    const visibility = () => {
+      setRunning(
+        !document.hidden &&
+          autoPlay &&
+          !completed.current &&
+          !manuallyPaused.current,
+      );
     };
-    document.addEventListener("visibilitychange", pause);
-    return () => document.removeEventListener("visibilitychange", pause);
-  }, []);
+    document.addEventListener("visibilitychange", visibility);
+    return () => document.removeEventListener("visibilitychange", visibility);
+  }, [autoPlay]);
 
   const progress = Math.min(1, elapsed / LIFECYCLE_DURATION_MS);
   const done = progress >= 1;
-  const phaseIndex = Math.min(3, Math.floor(progress * 4));
+  const activeIndex = Math.min(7, Math.floor(progress * 8));
+  const phaseIndex = phases.findIndex((item) =>
+    item.nodes.includes(activeIndex),
+  );
   const phase = phases[phaseIndex];
-  const active = (i: number) => elapsed > 0 && !done && phase.nodes.includes(i);
+  const active = (i: number) => !done && i === activeIndex;
   const nodeDone = (i: number) =>
     done || phases.slice(0, phaseIndex).some((p) => p.nodes.includes(i));
   const moving = running && !done && !reduced;
@@ -143,6 +165,7 @@ export function NaviganLifecycle({
       setElapsed(0);
       completed.current = false;
     }
+    manuallyPaused.current = running;
     setRunning(!running);
     setAnnouncement(running ? "Overview paused." : "Overview playing.");
   }
@@ -153,6 +176,7 @@ export function NaviganLifecycle({
         className="nb-surface"
         aria-label="Navigan lifecycle overview"
         data-complete={done}
+        data-moving={moving}
       >
         <header className="nb-header">
           {logo ? (
@@ -176,31 +200,45 @@ export function NaviganLifecycle({
           aria-label="Navigan bot guides the connected circular lifecycle: customers, environments, clusters, migration, planned app transformation, onboarding and upgrades, and governance."
         >
           <svg className="nb-lines" viewBox="0 0 430 430" aria-hidden="true">
-            <g>
-              {capabilities.map((c, i) => {
-                const angle = ((i * 45 - 90) * Math.PI) / 180;
-                return (
-                  <line
-                    key={c.label}
-                    className="nb-spoke"
-                    data-active={active(i)}
-                    x1="215"
-                    y1="215"
-                    x2={215 + 146.2 * Math.cos(angle)}
-                    y2={215 + 146.2 * Math.sin(angle)}
+            <defs>
+              {capabilities.map((c, i) => (
+                <marker
+                  key={c.label}
+                  id={`${sceneId}-arrow-${i}`}
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="5"
+                  markerHeight="5"
+                  orient="auto-start-reverse"
+                >
+                  <path
+                    d="M 1 1 L 9 5 L 1 9"
+                    fill="none"
+                    stroke={stageColors[i]}
+                    strokeWidth="2"
                   />
-                );
-              })}
-            </g>
-            <circle className="nb-ring" cx="215" cy="215" r="146.2" />
-            <circle
-              className="nb-arc"
-              cx="215"
-              cy="215"
-              r="146.2"
-              pathLength="1"
-              style={{ strokeDashoffset: 1 - progress }}
-            />
+                </marker>
+              ))}
+            </defs>
+            {capabilities.map((c, i) => {
+              const point = (degrees: number) => {
+                const angle = (degrees * Math.PI) / 180;
+                return `${215 + 146.2 * Math.cos(angle)} ${215 + 146.2 * Math.sin(angle)}`;
+              };
+              const start = i * 45 - 90 + 13;
+              const end = (i + 1) * 45 - 90 - 13;
+              return (
+                <path
+                  key={c.label}
+                  className="nb-link"
+                  data-active={active(i)}
+                  d={`M ${point(start)} A 146.2 146.2 0 0 1 ${point(end)}`}
+                  style={{ "--stage": stageColors[i] } as CSSProperties}
+                  markerEnd={`url(#${sceneId}-arrow-${i})`}
+                />
+              );
+            })}
           </svg>
           <div className="nb-core">
             <div className="nb-bot" style={botStyle} aria-hidden="true">
@@ -231,6 +269,7 @@ export function NaviganLifecycle({
                   data-done={nodeDone(i)}
                   style={
                     {
+                      "--stage": stageColors[i],
                       "--x": `${50 + 34 * Math.cos(angle)}%`,
                       "--y": `${50 + 34 * Math.sin(angle)}%`,
                     } as CSSProperties
@@ -239,8 +278,10 @@ export function NaviganLifecycle({
                   <span className="nb-node-icon">
                     <Icon aria-hidden="true" />
                   </span>
-                  <span>{label}</span>
-                  {planned && <span className="nb-planned">Planned</span>}
+                  <span className="nb-node-label">
+                    {label}
+                    {planned && <span className="nb-planned">Planned</span>}
+                  </span>
                 </div>
               );
             })}
@@ -262,22 +303,21 @@ export function NaviganLifecycle({
         <footer className="nb-controls">
           {!reduced && (
             <button type="button" className="nb-play" onClick={toggle}>
-              {done
-                ? "Replay animation"
-                : running
-                  ? "Pause"
-                  : elapsed
-                    ? "Resume"
-                    : "Play animation"}
+              {running ? "Pause motion" : "Resume motion"}
             </button>
           )}
           <span className="nb-length">
-            {reduced ? "Lifecycle overview" : "11-second overview"}
+            {reduced
+              ? "Lifecycle overview"
+              : looping
+                ? "Continuous lifecycle overview"
+                : "11-second welcome"}
           </span>
-          <button type="button" className="nb-skip" onClick={finish}>
-            {onComplete ? "Skip and continue" : "Show overview"}{" "}
-            <span aria-hidden="true">→</span>
-          </button>
+          {onComplete && (
+            <button type="button" className="nb-skip" onClick={finish}>
+              Skip and continue <span aria-hidden="true">→</span>
+            </button>
+          )}
         </footer>
         <div className="nb-time" aria-hidden="true">
           <span style={{ width: `${progress * 100}%` }} />

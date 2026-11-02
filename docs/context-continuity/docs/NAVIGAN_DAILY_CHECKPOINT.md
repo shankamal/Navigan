@@ -1,3 +1,11 @@
+## 2 November 2026 — Lifecycle orbit refinement
+
+User approved continuing the first Lifecycle orbit direction. Frontend-only update on `feature/navigan-lifecycle-intro`, based on `b4d792d`: automatic About-page looping, eight stage colours, clockwise segmented arrows anchored to icon centres, highlighted stage motion, central bot, light surface, and responsive label placement. No Play button; pause/resume remains available. Post-login completes once or can be skipped; planned capabilities remain labelled. Manual pause survives tab visibility changes, and reduced-motion users retain a static overview.
+
+Validation: eight lifecycle tests passed, TypeScript passed and the Next.js production build passed. Browser screenshot validation is pending: Playwright Chromium download returned an invalid/truncated archive. This is implementation evidence, not visual acceptance or a live deployment. No AWS resources or production service were changed. Do not deploy the earlier prepared revision 28 expecting these new edits; it predates this source update. Next: visually review desktop/mobile About and post-login scenes, then prepare a new frontend release from the updated committed source using the existing scoped helper.
+
+---
+
 ## 27 October 2026 — PROD bootstrap prevention deployed and verified
 
 The user supplied the completed WSL release output after pulling source `6b2a841a21c16f25df36cc69f2af64d09f3e6083`. The helper printed `Executing the scoped bootstrap release...` followed by `PROD bootstrap release verified: two Lambda packages and the pinned runner updated. Existing clusters were not reprovisioned. A fresh-cluster acceptance test is now required.`

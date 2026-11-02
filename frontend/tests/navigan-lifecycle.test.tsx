@@ -52,35 +52,35 @@ afterEach(() => {
 });
 
 describe("Shared Navigan lifecycle", () => {
-  it("plays the connected scene, pauses, resumes and replays without completing twice", () => {
+  it("starts automatically and completes the login sequence once", () => {
     const complete = vi.fn();
     render(<NaviganLifecycle onComplete={complete} />);
-    fireEvent.click(screen.getByRole("button", { name: "Play animation" }));
-    advance(3000);
     expect(
-      screen.getByText("Manage clusters and plan workload migration."),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    expect(frame).toBeUndefined();
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+      screen.queryByRole("button", { name: "Play animation" }),
+    ).not.toBeInTheDocument();
     advance(LIFECYCLE_DURATION_MS);
     expect(complete).toHaveBeenCalledTimes(1);
+    advance(LIFECYCLE_DURATION_MS);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+  it("loops the About scene and supports pause and resume", () => {
+    render(<NaviganLifecycle />);
+    advance(LIFECYCLE_DURATION_MS + 100);
+    expect(frame).toBeDefined();
     expect(
       screen.getByRole("region", { name: "Navigan lifecycle overview" }),
-    ).toHaveAttribute("data-complete", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Replay animation" }));
-    advance(LIFECYCLE_DURATION_MS);
-    expect(complete).toHaveBeenCalledTimes(2);
-  });
-  it("only plays automatically for the login transition", () => {
-    const { unmount } = render(<NaviganLifecycle />);
-    expect(
-      screen.getByRole("button", { name: "Play animation" }),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("data-complete", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Pause motion" }));
     expect(frame).toBeUndefined();
-    unmount();
-    render(<NaviganLifecycle autoPlay />);
-    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resume motion" }));
+    advance(LIFECYCLE_DURATION_MS);
+    expect(frame).toBeDefined();
+  });
+  it("retains a manual pause when the tab becomes visible again", () => {
+    render(<NaviganLifecycle />);
+    fireEvent.click(screen.getByRole("button", { name: "Pause motion" }));
+    fireEvent(document, new Event("visibilitychange"));
+    expect(frame).toBeUndefined();
   });
   it("blocks workspace mounting until skipped, clears the flag, and does not replay on refresh", () => {
     markLifecycleIntroPending();
