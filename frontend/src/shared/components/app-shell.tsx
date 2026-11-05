@@ -152,7 +152,7 @@ const platformArchitectNavigationGroups: ReadonlyArray<{
     items: [
       {
         href: "/upgrades",
-        label: "Upgrade Center",
+        label: "Upgrades & Patching",
         icon: CircleArrowUp,
         permission: "dashboard.platform.view",
       },
@@ -237,7 +237,7 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
     items: [
       {
         href: "/upgrades",
-        label: "Upgrade Center",
+        label: "Upgrades & Patching",
         icon: CircleArrowUp,
         permission: "dashboard.platform.view",
       },

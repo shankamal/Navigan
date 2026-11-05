@@ -32,3 +32,32 @@ Browser: select providers; add valid primary and technical contacts; clean subse
 Authentication/API persistence in the preview is synthetic; fresh authenticated DEV acceptance remains required after the user deploys. Existing shell density, sidebar labels/truncation and environment-badge logic are retained. Existing brand assets and Lucide check icons differ slightly from generated artwork by design. The leave warning covers links and browser reload/close; framework same-document back/forward navigation is not universally blocked. No backend, database, global theme, auth policy, cloud resource or PROD deployment is changed.
 
 No outstanding P0/P1/P2 findings in this scoped customer form. Follow-up P3: app-wide shell typography can be considered separately if requested.
+
+---
+
+# Upgrade Centre design QA — 5 November 2026
+
+final result: passed
+
+## Target and evidence
+
+The accepted Navigan fleet-upgrade concept is implemented under the approved **Upgrade Centre** name, using the existing graphite navigation, Deloitte green accents and compact workspace density. The guided upgrade-plan concept is retained as the primary follow-on flow.
+
+Evidence: `/upgrades` rendered at 1365 × 936 inside the Navigan application shell; landing state reviewed with summary metrics, multi-provider fleet table, readiness states and upgrade-path drawer. Automated interaction coverage validates tab switching and the first three guided-plan steps. The complete frontend regression suite, TypeScript, formatting and production build passed.
+
+## Findings, fixes and recheck
+
+- P1, fixed: cluster names wrapped too aggressively when the detail drawer reduced table width. Stable fleet-table minimum width and explicit cluster/platform column sizing keep names readable while containing horizontal scrolling within the table region.
+- P2, fixed: workspace navigation looked like tabs but exposed generic button semantics. It now uses `tablist`, `tab`, `aria-selected` and `tabpanel` relationships.
+- P2, fixed: a preview could imply live provider discovery or execution. A persistent preview boundary and disabled unconnected refresh/approval actions make the implementation status explicit.
+
+## Acceptance and limits
+
+- Navigation and page naming match the approved terminology.
+- Information hierarchy remains legible at the inspected desktop viewport.
+- Status is never communicated by colour alone.
+- Keyboard-visible native controls and semantic tab relationships are present.
+- No production cloud mutation or provider execution is exposed by this increment.
+- Remaining API-backed discovery, approvals and execution are intentionally deferred and identified in the interface.
+
+No outstanding P0/P1/P2 findings remain in this scoped Upgrade Centre increment.

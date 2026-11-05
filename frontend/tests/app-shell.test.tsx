@@ -104,7 +104,7 @@ describe("Application shell permissions", () => {
       screen.getByRole("link", { name: "Application Modernization" }),
     ).toHaveAttribute("href", "/app-transformation");
     expect(
-      screen.getByRole("link", { name: "Upgrade Center" }),
+      screen.getByRole("link", { name: "Upgrades & Patching" }),
     ).toHaveAttribute("href", "/upgrades");
     expect(screen.queryByText("Customer Directory")).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
@@ -165,7 +165,7 @@ describe("Application shell permissions", () => {
       screen.getByRole("link", { name: "Cluster Onboarding" }),
     ).toHaveAttribute("href", "/onboarding");
     expect(
-      screen.getByRole("link", { name: "Upgrade Center" }),
+      screen.getByRole("link", { name: "Upgrades & Patching" }),
     ).toHaveAttribute("href", "/upgrades");
     expect(
       screen.queryByRole("link", { name: "Customer Management" }),
