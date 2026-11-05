@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import uuid
 
@@ -75,6 +76,25 @@ def stable(service):
     return (service.get("desiredCount", 0) > 0 and service.get("runningCount") == service["desiredCount"]
             and service.get("pendingCount", 0) == 0 and len(deployments) == 1
             and deployments[0].get("status") == "PRIMARY" and deployments[0].get("rolloutState") == "COMPLETED")
+
+
+def wait_for_retained_service(ecs, expected_task, *, attempts=24, delay=5):
+    """Wait through ECS event propagation until one completed expected deployment remains."""
+    current = None
+    for attempt in range(attempts):
+        current = read_service(ecs)
+        if stable(current):
+            require(current["taskDefinition"] == expected_task,
+                    "Service did not retain the requested revision; inspect rollout/rollback events")
+            return current
+        expected = next((item for item in current.get("deployments", [])
+                         if item.get("taskDefinition") == expected_task), None)
+        if expected and expected.get("rolloutState") == "FAILED":
+            reason = expected.get("rolloutStateReason") or "ECS reported a failed deployment"
+            raise RuntimeError("Service did not retain the requested revision: " + reason)
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    raise RuntimeError("Service did not reach one completed requested revision; inspect rollout events")
 
 
 def environment(container):
@@ -372,8 +392,7 @@ def execute(session, path):
     ecs.update_service(cluster=CLUSTER, service=SERVICE, taskDefinition=plan["nextTask"])
     print("Updating only Navigan frontend service; rollback task: " + plan["previousTask"], flush=True)
     ecs.get_waiter("services_stable").wait(cluster=CLUSTER, services=[SERVICE], WaiterConfig={"Delay": 15, "MaxAttempts": 80})
-    current = read_service(ecs)
-    require(stable(current) and current["taskDefinition"] == plan["nextTask"], "Service did not retain the requested revision; inspect rollout/rollback events")
+    current = wait_for_retained_service(ecs, plan["nextTask"])
     arns = ecs.list_tasks(cluster=CLUSTER, serviceName=SERVICE, desiredStatus="RUNNING")["taskArns"]
     require(bool(arns), "Frontend has no running tasks")
     tasks = ecs.describe_tasks(cluster=CLUSTER, tasks=arns)

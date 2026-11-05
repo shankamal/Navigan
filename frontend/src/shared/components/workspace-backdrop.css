@@ -817,8 +817,12 @@
     padding-block: 7px;
   }
   .app-shell[class] .sidebar {
-    width: clamp(205px, 13vw, 226px);
-    flex-basis: clamp(205px, 13vw, 226px);
+    width: var(--workspace-sidebar-width, 232px);
+    flex-basis: var(--workspace-sidebar-width, 232px);
+  }
+  .app-shell[class].navigation-collapsed .sidebar {
+    width: 68px;
+    flex-basis: 68px;
   }
   .app-shell[class] .sidebar .sidebar-brand-panel {
     min-height: 48px;
@@ -888,6 +892,51 @@
   }
   .app-shell[class] main#main-content thead th {
     font-size: var(--navigan-font-label);
+  }
+}
+
+@media (min-width: 901px) {
+  .app-shell[class] .sidebar {
+    position: sticky;
+  }
+  .app-shell[class] .sidebar-resize-handle {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    right: -4px;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .app-shell[class] .sidebar-resize-handle::after {
+    position: absolute;
+    top: 50%;
+    right: 3px;
+    width: 2px;
+    height: 42px;
+    border-radius: 2px;
+    background: transparent;
+    content: "";
+    transform: translateY(-50%);
+    transition: background 160ms ease;
+  }
+  .app-shell[class] .sidebar-resize-handle:is(:hover, :focus-visible)::after,
+  .app-shell[class].navigation-resizing .sidebar-resize-handle::after {
+    background: #86bc25;
+  }
+  .app-shell[class] .sidebar-resize-handle:focus-visible {
+    outline: 2px solid #cbd5e1;
+    outline-offset: -2px;
+  }
+  .app-shell[class].navigation-collapsed .sidebar-resize-handle {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell[class] .sidebar-resize-handle {
+    display: none;
   }
 }
 @container (max-width:1800px) {

@@ -33,24 +33,62 @@ describe("Application shell permissions", () => {
     pathname = "/customers";
     signOut.mockReset();
     prefetchQuery.mockClear();
+    window.localStorage.clear();
     installRuntimeConfig({ ...runtimeConfig(), migrationUiPreview: false });
   });
 
-  it("shows one top-level management entry per domain to a Cloud Engineer", () => {
+  it("allows a desktop user to resize and reset the navigation width", () => {
     render(<AppShell>Content</AppShell>);
-    expect(
-      screen.getByRole("link", { name: "Customer Management" }),
-    ).toHaveAttribute("href", "/customers");
-    expect(
-      screen.getByRole("link", { name: "Environment Management" }),
-    ).toHaveAttribute("href", "/environments");
-    expect(
-      screen.getByRole("link", { name: "Cluster Management" }),
-    ).toHaveAttribute("href", "/clusters");
-    expect(screen.getByRole("link", { name: "Migration" })).toHaveAttribute(
-      "href",
-      "/migrations",
+    const resize = screen.getByRole("separator", {
+      name: "Resize navigation",
+    });
+    const shell = resize.closest<HTMLElement>(".app-shell");
+
+    fireEvent.keyDown(resize, { key: "ArrowRight" });
+    expect(shell?.style.getPropertyValue("--workspace-sidebar-width")).toBe(
+      "240px",
     );
+    expect(window.localStorage.getItem("navigan.sidebarWidth")).toBe("240");
+
+    fireEvent.doubleClick(resize);
+    expect(shell?.style.getPropertyValue("--workspace-sidebar-width")).toBe(
+      "232px",
+    );
+  });
+
+  it("shows capability-based working routes to a Cloud Engineer", () => {
+    render(<AppShell>Content</AppShell>);
+    expect(screen.getByText("Manage")).toBeInTheDocument();
+    expect(screen.getByText("Build & Onboard")).toBeInTheDocument();
+    expect(screen.getByText("Migrate & Modernize")).toBeInTheDocument();
+    expect(screen.getByText("Operate & Evolve")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
+      "href",
+      "/customers",
+    );
+    expect(screen.getByRole("link", { name: "Environments" })).toHaveAttribute(
+      "href",
+      "/environments",
+    );
+    expect(screen.getByRole("link", { name: "Clusters" })).toHaveAttribute(
+      "href",
+      "/clusters",
+    );
+    expect(
+      screen.getByRole("link", { name: "Create Cluster" }),
+    ).toHaveAttribute("href", "/clusters/new");
+    expect(
+      screen.getByRole("link", { name: "Import Cluster" }),
+    ).toHaveAttribute("href", "/onboarding");
+    expect(
+      screen.getByRole("link", { name: "Migration Assessments" }),
+    ).toHaveAttribute("href", "/migrations");
+    expect(
+      screen.getByRole("link", { name: "Application Modernization" }),
+    ).toHaveAttribute("href", "/app-transformation");
+    expect(
+      screen.getByRole("link", { name: "Upgrade Center" }),
+    ).toHaveAttribute("href", "/upgrades");
     expect(screen.queryByText("Customer Directory")).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("New Cluster Request")).not.toBeInTheDocument();
@@ -62,15 +100,16 @@ describe("Application shell permissions", () => {
     pathname = "/environments/new";
     render(<AppShell>Content</AppShell>);
 
-    expect(
-      screen.getByRole("link", { name: "Environment Management" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.getByRole("link", { name: "Customer Management" }),
-    ).not.toHaveAttribute("aria-current");
-    expect(
-      screen.getByRole("link", { name: "Cluster Management" }),
-    ).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Environments" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Customers" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "Clusters" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("shows review tools and hides create tools for a Platform Architect", () => {

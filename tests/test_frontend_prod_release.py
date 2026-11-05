@@ -223,6 +223,25 @@ def test_stable_service_after_circuit_breaker_rollback_is_not_reported_as_succes
         release.execute(session, path)
 
 
+def test_final_service_check_waits_for_single_completed_deployment(monkeypatch):
+    transitioning = service(NEW)
+    transitioning["deployments"] = [
+        {"status": "PRIMARY", "rolloutState": "IN_PROGRESS", "taskDefinition": NEW},
+        {"status": "ACTIVE", "rolloutState": "COMPLETED", "taskDefinition": OLD},
+    ]
+    responses = iter([transitioning, service(NEW)])
+    ecs = SimpleNamespace(
+        describe_services=lambda **kw: {"services": [next(responses)]}
+    )
+    waits = []
+    monkeypatch.setattr(release.time, "sleep", lambda seconds: waits.append(seconds))
+
+    current = release.wait_for_retained_service(ecs, NEW, attempts=3, delay=2)
+
+    assert current["taskDefinition"] == NEW
+    assert waits == [2]
+
+
 def test_wrong_running_image_digest_is_not_reported_as_success(monkeypatch, tmp_path):
     ecs = ECS(digest="sha256:" + "f" * 64)
     session, path = setup_execute(monkeypatch, tmp_path, ecs)
