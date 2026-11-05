@@ -1,3 +1,31 @@
+# Current checkpoint — 5 November 2026 (Asia/Kolkata)
+
+Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints below are historical.
+
+| Field | Latest recorded state |
+|---|---|
+| Navigan repository / branch | `shankamal/Navigan` / `main` |
+| Verified main HEAD | `a23017808c54e3136fc05f868473d59fa2dc9d16` — workspace loading performance |
+| Parent lifecycle commit | `954a34ab28a1d7c7a75fa2715762b305bcc2d55e` — approved five-stage lifecycle, 3 seconds per stage |
+| User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
+| PROD frontend | ECS task definition `:33`; digest `sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf` |
+| Deployment checks | Running image verified; health/login HTTP checks passed |
+| Lifecycle acceptance | User: “ok now it looks ok” |
+| Performance change | Progressive Dashboard rendering, summary-based provider totals, nav-intent prefetch, delayed Migrations prefetch |
+| Performance validation | 470 frontend tests, TypeScript, Prettier and production build passed |
+| Performance acceptance gap | Fresh authenticated timings for Dashboard/Migrations/other screens not yet recorded |
+| Demo cluster | `New-dbs-demo-cluster` |
+| System repo / branch | `Navigan-Org1/db-schenker-new-dbs-demo-cluster-system`; PR from `demo/headlamp-0.46.0` to `main` |
+| Demo change | `applications/30-headlamp.yaml`: chart `0.45.0` → `0.46.0` |
+| Argo internal names | Headlamp `navigan-dashboard`; monitoring `navigan-monitoring`; parent `navigan-system` |
+| Current blocker | Tool applications are not visible in Argo CD; diagnose filters/app-of-apps/RBAC/repository association before PR merge |
+| Immediate action | Establish visibility of `navigan-dashboard`, then rehearse the demo; keep PR unmerged until confirmed |
+| Rollback | Revert the system-repo main commit to restore Headlamp chart 0.45.0 and let Argo reconcile |
+
+---
+
+## Preserved checkpoint history — superseded as current state
+
 ## 2 November 2026 — Approved five-stage reference implemented
 
 The user supplied the missing reference screenshot and requested three seconds per lifecycle stage. It supersedes the earlier eight-node interpretation. The scene now follows Prepare (customers/environments), Build (cluster management), Transform (planned app transformation), Move (migration/planned onboarding) and Evolve (planned upgrades), with the guide bot and Governance throughout in the centre. Curved connectors, pale stage backgrounds, dark bot face/green eyes, brand caption and details beneath the scene follow the supplied reference. Details cross-fade over 650ms, with planned functionality explicitly identified.

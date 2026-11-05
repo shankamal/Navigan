@@ -1,3 +1,30 @@
+# Navigan — current continuation prompt (5 November 2026)
+
+Continue Navigan from the accepted state; read `docs/NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md`, then the latest checkpoint and master override. Older handoffs are history, not today's blockers or task list.
+
+Repository: https://github.com/shankamal/Navigan  
+User path: `/mnt/b/Langchain_Ai/Navigan-migration-test`  
+Active branch: `main`  
+Latest verified HEAD: `a23017808c54e3136fc05f868473d59fa2dc9d16`.
+
+Before edits run `git branch --show-current`, `git status -sb`, `git log -8 --oneline`. Preserve all local files and freshly verify remote HEAD before publishing.
+
+Current production frontend is ECS task definition `:33`, immutable digest `sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf`. Running image and health/login HTTP checks passed. Lifecycle/About was accepted by the user. Fresh authenticated workflow/performance timings remain unrecorded.
+
+Lifecycle commit `954a34a`: Prepare → Build → Transform → Move → Evolve; three seconds per stage; synchronized detailed guide text with cross-fade; About separated into the sidebar footer; redundant title bar and unnecessary scrolling removed.
+
+Performance commit `a230178`: progressive Dashboard rendering; summary `byProvider` instead of fetching 100 environment records; nav-intent prefetch for workspace screens; delayed Migrations prefetch. 470 frontend tests, TypeScript, Prettier and production build passed. Measure authenticated first/warm navigation before declaring the 6–8 second complaint resolved.
+
+Customer-demo work is in `Navigan-Org1/db-schenker-new-dbs-demo-cluster-system`. Open PR: base `main`, compare `demo/headlamp-0.46.0`, changing `applications/30-headlamp.yaml` from Headlamp 0.45.0 to 0.46.0. Keep it unmerged until Argo visibility is proven. In Argo, Headlamp is `navigan-dashboard`, Prometheus/Grafana are `navigan-monitoring`, and the parent is `navigan-system`. Argo CD itself is bootstrap-installed, not a child application.
+
+Immediate next step: clear Argo filters and establish whether `navigan-dashboard` exists in the application list or `navigan-system` resource tree. Do not merge the demo PR until confirmed. Pushing the demo branch alone does not affect runtime; merging to `main` triggers reconciliation. Roll back by reverting main to chart 0.45.0.
+
+Historical migration status remains: artifact export succeeded, but target readiness/deployment/data migration/cutover are incomplete; broader migration workflow redesign remains on hold. Keep credentials, presigned URLs and tokens out of chat/logs/kit.
+
+---
+
+## Preserved continuation history — superseded as current state
+
 ## 2 November 2026 — Approved five-stage reference implemented
 
 The user supplied the missing reference screenshot and requested three seconds per lifecycle stage. It supersedes the earlier eight-node interpretation. The scene now follows Prepare (customers/environments), Build (cluster management), Transform (planned app transformation), Move (migration/planned onboarding) and Evolve (planned upgrades), with the guide bot and Governance throughout in the centre. Curved connectors, pale stage backgrounds, dark bot face/green eyes, brand caption and details beneath the scene follow the supplied reference. Details cross-fade over 650ms, with planned functionality explicitly identified.
