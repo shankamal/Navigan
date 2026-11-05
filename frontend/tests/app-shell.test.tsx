@@ -74,9 +74,9 @@ describe("Application shell permissions", () => {
       ),
     ).toEqual([
       "Overview",
+      "Manage",
       "Build & Onboard",
       "Migrate & Modernise",
-      "Manage",
       "Operate & Evolve",
     ]);
     expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
@@ -138,9 +138,9 @@ describe("Application shell permissions", () => {
       ),
     ).toEqual([
       "Overview",
+      "Manage",
       "Build & Onboard",
       "Migrate & Modernise",
-      "Manage",
       "Operate & Evolve",
     ]);
     expect(

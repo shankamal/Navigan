@@ -79,40 +79,6 @@ const platformArchitectNavigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Build & Onboard",
-    items: [
-      {
-        href: "/clusters",
-        label: "Cluster Portfolio",
-        icon: Network,
-        permission: "cluster.view",
-      },
-      {
-        href: "/onboarding",
-        label: "Cluster Onboarding",
-        icon: PlugZap,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Migrate & Modernise",
-    items: [
-      {
-        href: "/migrations",
-        label: "Migration Portfolio",
-        icon: ArrowRightLeft,
-        permission: "migration.view",
-      },
-      {
-        href: "/app-transformation",
-        label: "Application Modernization",
-        icon: Workflow,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
     label: "Manage",
     items: [
       {
@@ -148,6 +114,40 @@ const platformArchitectNavigationGroups: ReadonlyArray<{
     ],
   },
   {
+    label: "Build & Onboard",
+    items: [
+      {
+        href: "/clusters",
+        label: "Cluster Portfolio",
+        icon: Network,
+        permission: "cluster.view",
+      },
+      {
+        href: "/onboarding",
+        label: "Cluster Onboarding",
+        icon: PlugZap,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Migrate & Modernise",
+    items: [
+      {
+        href: "/migrations",
+        label: "Migration Portfolio",
+        icon: ArrowRightLeft,
+        permission: "migration.view",
+      },
+      {
+        href: "/app-transformation",
+        label: "Application Modernization",
+        icon: Workflow,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
     label: "Operate & Evolve",
     items: [
       {
@@ -172,6 +172,29 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         label: "Platform Dashboard",
         icon: Gauge,
         permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Manage",
+    items: [
+      {
+        href: "/customers",
+        label: "Customers",
+        icon: Building2,
+        permission: "customer.view",
+      },
+      {
+        href: "/environments",
+        label: "Environments",
+        icon: Layers3,
+        permission: "environment.view",
+      },
+      {
+        href: "/clusters",
+        label: "Clusters",
+        icon: Network,
+        permission: "cluster.view",
       },
     ],
   },
@@ -206,29 +229,6 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         label: "Application Modernization",
         icon: Workflow,
         permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      {
-        href: "/customers",
-        label: "Customers",
-        icon: Building2,
-        permission: "customer.view",
-      },
-      {
-        href: "/environments",
-        label: "Environments",
-        icon: Layers3,
-        permission: "environment.view",
-      },
-      {
-        href: "/clusters",
-        label: "Clusters",
-        icon: Network,
-        permission: "cluster.view",
       },
     ],
   },
