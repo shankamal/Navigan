@@ -247,6 +247,104 @@ export const platformComponentInventorySchema = z.object({
   ),
   runtimeInventory: clusterRuntimeInventorySchema,
 });
+const eksHealthIssueSchema = z.object({
+  code: z.string().nullable().optional(),
+  message: z.string().nullable().optional(),
+  resourceIds: z.array(z.string()).default([]),
+});
+const eksVersionEvidenceSchema = z.object({
+  version: z.string(),
+  supportStatus: z.string(),
+  releaseDate: z.string().nullable(),
+  endOfStandardSupportDate: z.string().nullable(),
+  endOfExtendedSupportDate: z.string().nullable(),
+  defaultPlatformVersion: z.string().nullable().optional(),
+  kubernetesPatchVersion: z.string().nullable().optional(),
+});
+const eksReadinessFindingSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  insightId: z.string().nullable().optional(),
+});
+export const eksUpgradeReadinessSchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  provider: z.literal("EKS"),
+  region: z.string(),
+  source: z.literal("AWS_EKS_API"),
+  observedAt: z.string(),
+  controlPlane: z.object({
+    name: z.string(),
+    arn: z.string().nullable().optional(),
+    version: z.string(),
+    platformVersion: z.string().nullable().optional(),
+    status: z.string(),
+    support: eksVersionEvidenceSchema.nullable().optional(),
+  }),
+  recommendedTarget: eksVersionEvidenceSchema.nullable(),
+  nodeGroups: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string().nullable().optional(),
+      releaseVersion: z.string().nullable().optional(),
+      status: z.string(),
+      amiType: z.string().nullable().optional(),
+      capacityType: z.string().nullable().optional(),
+      healthIssues: z.array(eksHealthIssueSchema),
+    }),
+  ),
+  addons: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string().nullable().optional(),
+      status: z.string(),
+      serviceAccountRoleArn: z.string().nullable().optional(),
+      healthIssues: z.array(eksHealthIssueSchema),
+      targetVersion: z.string().nullable(),
+    }),
+  ),
+  insights: z.array(
+    z.object({
+      id: z.string().nullable().optional(),
+      name: z.string(),
+      category: z.string().nullable().optional(),
+      kubernetesVersion: z.string().nullable().optional(),
+      status: z.string(),
+      reason: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      recommendation: z.string().nullable().optional(),
+      lastRefreshTime: z.string().nullable(),
+      resources: z.array(
+        z.object({
+          arn: z.string().nullable().optional(),
+          kubernetesResourceUri: z.string().nullable().optional(),
+          status: z.string().nullable().optional(),
+          reason: z.string().nullable().optional(),
+        }),
+      ),
+    }),
+  ),
+  updates: z.array(
+    z.object({
+      id: z.string(),
+      type: z.string().nullable().optional(),
+      status: z.string(),
+      createdAt: z.string().nullable(),
+    }),
+  ),
+  readiness: z.object({
+    status: z.enum(["READY", "WARNING", "BLOCKED"]),
+    blockers: z.array(eksReadinessFindingSchema),
+    warnings: z.array(eksReadinessFindingSchema),
+    checks: z.object({
+      controlPlaneActive: z.boolean(),
+      nodeGroupsAligned: z.boolean(),
+      addonsHealthy: z.boolean(),
+      upgradeInsightsPassing: z.boolean(),
+      noUpdateInProgress: z.boolean(),
+    }),
+  }),
+});
 export const clusterToolAccessSchema = z.object({
   clusterId: z.string(),
   customerId: z.string(),
@@ -401,6 +499,7 @@ export type ClusterNamespaceInventory = z.infer<
   typeof clusterNamespaceInventorySchema
 >;
 export type ConnectorInstallation = z.infer<typeof connectorInstallationSchema>;
+export type EksUpgradeReadiness = z.infer<typeof eksUpgradeReadinessSchema>;
 export type ClusterToolAccess = z.infer<typeof clusterToolAccessSchema>;
 export type ClusterToolSession = z.infer<typeof clusterToolSessionSchema>;
 export type ClusterNodeGroupRequest = z.infer<

@@ -21,6 +21,11 @@ credential directly from customer Secrets Manager, and deletes the temporary
 secret after a successful rollout. It does not expose Kubernetes or AWS
 credentials to the UI.
 
+The provisioning role also includes read-only EKS version, managed node-group,
+managed add-on, update and upgrade-insight actions used by Upgrade Centre. These
+calls collect readiness evidence only; the Upgrade Centre discovery endpoint
+does not invoke an EKS create, update or delete API.
+
 Version 1.1.4 adds governed, request-specific names for dedicated EKS cluster
 roles, node roles and KMS aliases. Version 1.1.3 included the permissions required for EKS managed node groups to
 launch instances in the configured region, verifies the dedicated

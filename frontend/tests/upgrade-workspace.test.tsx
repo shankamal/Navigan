@@ -34,6 +34,65 @@ vi.mock("@/modules/cluster-management/service", () => ({
       },
     }),
     get: vi.fn().mockResolvedValue(activeCluster),
+    upgradeReadiness: vi.fn().mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      region: "ap-south-1",
+      source: "AWS_EKS_API",
+      observedAt: "2026-11-05T10:00:00Z",
+      controlPlane: {
+        name: "New-dbs-demo-cluster",
+        version: "1.34",
+        platformVersion: "eks.18",
+        status: "ACTIVE",
+        support: {
+          version: "1.34",
+          supportStatus: "STANDARD_SUPPORT",
+          releaseDate: null,
+          endOfStandardSupportDate: "2027-08-01T00:00:00Z",
+          endOfExtendedSupportDate: "2028-08-01T00:00:00Z",
+        },
+      },
+      recommendedTarget: {
+        version: "1.35",
+        supportStatus: "STANDARD_SUPPORT",
+        releaseDate: null,
+        endOfStandardSupportDate: "2027-12-01T00:00:00Z",
+        endOfExtendedSupportDate: "2028-12-01T00:00:00Z",
+      },
+      nodeGroups: [
+        {
+          name: "system",
+          version: "1.34",
+          status: "ACTIVE",
+          healthIssues: [],
+        },
+      ],
+      addons: [
+        {
+          name: "coredns",
+          version: "v1.11.4-eksbuild.20",
+          status: "ACTIVE",
+          healthIssues: [],
+          targetVersion: "v1.12.3-eksbuild.1",
+        },
+      ],
+      insights: [],
+      updates: [],
+      readiness: {
+        status: "READY",
+        blockers: [],
+        warnings: [],
+        checks: {
+          controlPlaneActive: true,
+          nodeGroupsAligned: true,
+          addonsHealthy: true,
+          upgradeInsightsPassing: true,
+          noUpdateInProgress: true,
+        },
+      },
+    }),
     platformComponents: vi.fn().mockResolvedValue({
       clusterId: "CLU-live",
       customerId: "CUS-live",
@@ -180,6 +239,8 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByRole("button", { name: /Create container upgrade plan/i }),
     ).toBeDisabled();
+    expect(await screen.findByText("Kubernetes 1.35")).toBeInTheDocument();
+    expect(screen.getByText("Ready for planning")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /Maintenance Schedule/i }));
     const section = screen

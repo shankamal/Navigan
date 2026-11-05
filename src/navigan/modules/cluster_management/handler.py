@@ -35,6 +35,7 @@ from .service import Service, TRANSITIONS
 from .connector_installation import ConnectorInstaller
 from .bootstrap_status import refresh_installer_status
 from .tool_access import resolve_tool_access
+from .upgrade_readiness import EksUpgradeDiscovery
 
 BASE = "/api/v1/clusters"
 logger = logging.getLogger(__name__)
@@ -366,6 +367,7 @@ def execute(event, principal, correlation):
         "identity",
         "access",
         "platform-components",
+        "upgrade-readiness",
         "tools",
     }
     read = method == "GET" and (
@@ -457,6 +459,11 @@ def execute(event, principal, correlation):
                     value = repo.kubernetes_access(identifier)
                 elif action == "platform-components":
                     value = repo.platform_components(identifier)
+                elif action == "upgrade-readiness":
+                    _, environment = repo.pinned_environment_snapshot(
+                        row["environment_id"], row["environment_approved_version"]
+                    )
+                    value = EksUpgradeDiscovery().discover(row, environment)
                 elif action == "tools":
                     value = resolve_tool_access(
                         row,

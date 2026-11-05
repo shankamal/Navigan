@@ -11,6 +11,7 @@ import {
   clusterNamespaceInventorySchema,
   connectorInstallationSchema,
   platformComponentInventorySchema,
+  eksUpgradeReadinessSchema,
   clusterToolAccessSchema,
   clusterToolSessionSchema,
   clusterNodeGroupRequestSchema,
@@ -106,6 +107,11 @@ export const clusters = {
     parseResponse(
       platformComponentInventorySchema,
       (await apiClient.get(`${base}/${id}/platform-components`)).data,
+    ),
+  upgradeReadiness: async (id: string) =>
+    parseResponse(
+      eksUpgradeReadinessSchema,
+      (await apiClient.get(`${base}/${id}/upgrade-readiness`)).data,
     ),
   tools: async (id: string) =>
     parseResponse(

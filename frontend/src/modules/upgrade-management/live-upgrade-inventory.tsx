@@ -104,8 +104,22 @@ function ContainerInventory({
   isFetching: boolean;
   onRefresh: () => void;
 }) {
-  const version = declaredVersion(selected);
+  const readiness = useQuery({
+    queryKey: ["eks-upgrade-readiness", selectedId],
+    queryFn: () => clusters.upgradeReadiness(selectedId),
+    enabled: Boolean(selectedId),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const evidence = readiness.data;
+  const version = evidence?.controlPlane.version ?? declaredVersion(selected);
+  const targetVersion = evidence?.recommendedTarget?.version;
   const hasVersion = version !== "Not reported";
+  const refreshing = isFetching || readiness.isFetching;
+  const findings = [
+    ...(evidence?.readiness.blockers ?? []),
+    ...(evidence?.readiness.warnings ?? []),
+  ];
   return (
     <section
       className="upgrade-live-capability"
@@ -116,13 +130,20 @@ function ContainerInventory({
           <p className="eyebrow">Live managed inventory</p>
           <h2 id="containers-title">Container distribution upgrades</h2>
           <p>
-            Select a managed cluster, verify its declared Kubernetes baseline,
-            and prepare it for provider version discovery.
+            Select a managed cluster and inspect live EKS control-plane,
+            node-group, add-on and upgrade-insight evidence.
           </p>
         </div>
-        <Button variant="secondary" onClick={onRefresh} disabled={isFetching}>
-          <RefreshCw size={16} className={isFetching ? "spin" : ""} />
-          {isFetching ? "Refreshing" : "Refresh inventory"}
+        <Button
+          variant="secondary"
+          onClick={() => {
+            onRefresh();
+            void readiness.refetch();
+          }}
+          disabled={refreshing}
+        >
+          <RefreshCw size={16} className={refreshing ? "spin" : ""} />
+          {refreshing ? "Refreshing" : "Refresh EKS evidence"}
         </Button>
       </header>
 
@@ -132,17 +153,12 @@ function ContainerInventory({
           <span>Active managed clusters</span>
         </div>
         <div>
-          <strong>
-            {
-              fleet.filter((item) => declaredVersion(item) !== "Not reported")
-                .length
-            }
-          </strong>
-          <span>Version baselines in directory</span>
+          <strong>{evidence?.controlPlane.version ?? "—"}</strong>
+          <span>Live control-plane version</span>
         </div>
         <div>
-          <strong>EKS</strong>
-          <span>Connected distribution</span>
+          <strong>{evidence?.readiness.status ?? "Discovering"}</strong>
+          <span>Upgrade readiness</span>
         </div>
       </div>
 
@@ -158,49 +174,118 @@ function ContainerInventory({
             <input value="Amazon EKS" readOnly />
           </label>
           <label className="upgrade-live-field">
-            <span>Current declared version</span>
+            <span>Current control-plane version</span>
             <input value={version} readOnly />
           </label>
           <label className="upgrade-live-field">
-            <span>Target version</span>
-            <select aria-label="Target version" disabled>
-              <option>Connect provider version catalogue</option>
+            <span>Recommended next target</span>
+            <select aria-label="Target version" disabled={!targetVersion}>
+              <option>
+                {targetVersion
+                  ? `Kubernetes ${targetVersion}`
+                  : "No supported sequential target reported"}
+              </option>
             </select>
           </label>
+          {evidence && (
+            <dl className="upgrade-eks-meta">
+              <div>
+                <dt>Region</dt>
+                <dd>{evidence.region}</dd>
+              </div>
+              <div>
+                <dt>Platform</dt>
+                <dd>
+                  {evidence.controlPlane.platformVersion ?? "Not reported"}
+                </dd>
+              </div>
+              <div>
+                <dt>Support</dt>
+                <dd>
+                  {evidence.controlPlane.support?.supportStatus ?? "Unknown"}
+                </dd>
+              </div>
+              <div>
+                <dt>Observed</dt>
+                <dd>{new Date(evidence.observedAt).toLocaleString()}</dd>
+              </div>
+            </dl>
+          )}
         </div>
 
         <aside
           className="upgrade-live-readiness"
           aria-label="Container upgrade readiness"
         >
-          <div className={hasVersion ? "ready" : "warning"}>
-            {hasVersion ? <CheckCircle2 /> : <AlertTriangle />}
+          <div
+            className={
+              evidence?.readiness.status === "BLOCKED"
+                ? "blocked"
+                : evidence?.readiness.status === "WARNING"
+                  ? "warning"
+                  : hasVersion
+                    ? "ready"
+                    : "pending"
+            }
+          >
+            {evidence?.readiness.status === "READY" ? (
+              <CheckCircle2 />
+            ) : (
+              <AlertTriangle />
+            )}
             <span>
               <strong>
-                {hasVersion ? "Baseline available" : "Version evidence missing"}
+                {readiness.isPending
+                  ? "Collecting EKS evidence"
+                  : readiness.isError
+                    ? "Live discovery unavailable"
+                    : evidence?.readiness.status === "READY"
+                      ? "Ready for planning"
+                      : evidence?.readiness.status === "WARNING"
+                        ? "Planning warnings detected"
+                        : evidence?.readiness.status === "BLOCKED"
+                          ? "Upgrade blockers detected"
+                          : "Version evidence missing"}
               </strong>
               <small>
-                {hasVersion
-                  ? `Navigan records ${version} for ${selected?.clusterName}.`
-                  : "The cluster record does not yet contain a Kubernetes version."}
+                {readiness.isError
+                  ? "Check the customer provisioning role and the registered EKS account and Region."
+                  : evidence
+                    ? `${evidence.readiness.blockers.length} blockers and ${evidence.readiness.warnings.length} warnings were reported.`
+                    : `Reading ${selected?.clusterName ?? "the selected cluster"} without changing it.`}
               </small>
             </span>
           </div>
-          <div className="pending">
+          <div
+            className={
+              evidence?.readiness.checks.nodeGroupsAligned ? "ready" : "pending"
+            }
+          >
             <CloudCog />
             <span>
-              <strong>Provider discovery required</strong>
+              <strong>Managed nodes</strong>
               <small>
-                Live control-plane, node-group, add-on and supported-target
-                evidence must be collected before planning.
+                {evidence
+                  ? `${evidence.nodeGroups.length} node groups discovered; version alignment is ${evidence.readiness.checks.nodeGroupsAligned ? "verified" : "not ready"}.`
+                  : "Waiting for live managed node-group evidence."}
               </small>
             </span>
           </div>
-          <div className="pending">
+          <div
+            className={
+              evidence?.readiness.checks.upgradeInsightsPassing
+                ? "ready"
+                : "pending"
+            }
+          >
             <ShieldCheck />
             <span>
-              <strong>Execution remains protected</strong>
-              <small>No EKS update API is called from this screen.</small>
+              <strong>Upgrade insights</strong>
+              <small>
+                {evidence
+                  ? `${evidence.insights.length} EKS upgrade insights evaluated. No update API is called.`
+                  : "Waiting for EKS upgrade-readiness insights."}
+              </small>
             </span>
           </div>
           <Button
@@ -211,6 +296,93 @@ function ContainerInventory({
           </Button>
         </aside>
       </div>
+
+      {evidence && (
+        <div className="upgrade-eks-evidence">
+          {findings.length > 0 && (
+            <section
+              className="upgrade-eks-findings"
+              aria-labelledby="eks-findings-title"
+            >
+              <h3 id="eks-findings-title">Readiness findings</h3>
+              <ul>
+                {findings.slice(0, 12).map((finding, index) => (
+                  <li key={`${finding.code}-${index}`}>
+                    <AlertTriangle />
+                    <span>
+                      <strong>{finding.code.replaceAll("_", " ")}</strong>
+                      <small>{finding.message}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <section aria-labelledby="eks-components-title">
+            <h3 id="eks-components-title">EKS component evidence</h3>
+            <div className="upgrade-eks-tables">
+              <table>
+                <caption>Managed node groups</caption>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Health</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evidence.nodeGroups.length ? (
+                    evidence.nodeGroups.map((node) => (
+                      <tr key={node.name}>
+                        <td>{node.name}</td>
+                        <td>{node.version ?? "Unknown"}</td>
+                        <td>{node.status}</td>
+                        <td>
+                          {node.healthIssues.length
+                            ? `${node.healthIssues.length} issues`
+                            : "Healthy"}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4}>No EKS managed node groups reported.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <table>
+                <caption>Managed add-ons</caption>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Installed</th>
+                    <th>Target compatible</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evidence.addons.length ? (
+                    evidence.addons.map((addon) => (
+                      <tr key={addon.name}>
+                        <td>{addon.name}</td>
+                        <td>{addon.version ?? "Unknown"}</td>
+                        <td>{addon.targetVersion ?? "Review required"}</td>
+                        <td>{addon.status}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4}>No EKS managed add-ons reported.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }

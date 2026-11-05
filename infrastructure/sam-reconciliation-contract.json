@@ -4,8 +4,8 @@
     "infrastructure/template.yaml": "f00aee22e2b3c8191b1553b68ac589d4dcf28c42bd30317d25f65f281faa8859",
     "infrastructure/modules/customer-management/template.yaml": "84941ee3fc783f123f2bfabf163802bb7c0129949bd34a1c33bb49aa90c91cd1",
     "infrastructure/modules/environment-management/template.yaml": "b836162e08d8387d29659f6efaba4eb5087f964771530f00dfd2b65ae9a5517e",
-    "infrastructure/modules/cluster-management/template.yaml": "c933008312bcb290fa63a923b5b9033f11e88a8eaa8a0b9b0e835c0d54a3c799",
-    "infrastructure/modules/migration-management/template.yaml": "05849992f797535ffd766ddc23828cd9723fb9523d7b0bc1a64d3466d19c8a7a",
+    "infrastructure/modules/cluster-management/template.yaml": "51dc7d58448a83c415e298abccbec8ac31547d332d6ff27072b0d9c5bc938513",
+    "infrastructure/modules/migration-management/template.yaml": "b0c63a14e8a33bb6c29808f7ec22e60968e12abe60f61d4836df9cedbf85ae18",
     "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa",
     "infrastructure/companion/dev-route-ownership.yaml": "b9a24be23c5c876542e8a8e44ccf0c66f003758bf7fd55450cba861d6f574825"
   },
@@ -183,6 +183,15 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterUpgradeReadinessRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-readiness",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterUpgradeReadinessRoute"
         }
       },
       {
@@ -1391,6 +1400,15 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterUpgradeReadinessRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-readiness",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterUpgradeReadinessRoute"
         }
       },
       {

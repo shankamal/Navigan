@@ -160,9 +160,9 @@ function PreviewNotice({ live = false }: { live?: boolean }) {
       <Info size={17} aria-hidden="true" />
       {live ? (
         <p>
-          <strong>Live read-only inventory.</strong> Cluster records and
-          connector-reported utility health are connected. Provider target
-          discovery, plan persistence, approvals and execution remain disabled.
+          <strong>Live read-only inventory.</strong> Cluster records, Amazon EKS
+          version readiness and connector-reported utility health are connected.
+          Plan persistence, approvals and execution remain disabled.
         </p>
       ) : (
         <p>

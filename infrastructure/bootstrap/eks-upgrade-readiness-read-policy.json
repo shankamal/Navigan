@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "NaviganEksUpgradeReadinessReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeAddon",
+        "eks:DescribeAddonVersions",
+        "eks:DescribeCluster",
+        "eks:DescribeClusterVersions",
+        "eks:DescribeInsight",
+        "eks:DescribeNodegroup",
+        "eks:DescribeUpdate",
+        "eks:ListAddons",
+        "eks:ListInsights",
+        "eks:ListNodegroups",
+        "eks:ListUpdates"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
