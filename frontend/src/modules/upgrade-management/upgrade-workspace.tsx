@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { Button, PageHeading } from "@/shared/components/ui";
+import { LiveUpgradeInventory } from "./live-upgrade-inventory";
 import "./upgrade-workspace.css";
 
 type WorkspaceTab =
@@ -153,15 +154,23 @@ function ReadinessBadge({ value }: { value: Readiness }) {
   );
 }
 
-function PreviewNotice() {
+function PreviewNotice({ live = false }: { live?: boolean }) {
   return (
     <div className="upgrade-preview-notice" role="note">
       <Info size={17} aria-hidden="true" />
-      <p>
-        <strong>Experience preview.</strong> Values on this page are sample
-        data. Provider discovery, approvals and execution are not connected, and
-        no cluster changes can be started from this increment.
-      </p>
+      {live ? (
+        <p>
+          <strong>Live read-only inventory.</strong> Cluster records and
+          connector-reported utility health are connected. Provider target
+          discovery, plan persistence, approvals and execution remain disabled.
+        </p>
+      ) : (
+        <p>
+          <strong>Experience preview.</strong> Values on this page are sample
+          data. Provider discovery, approvals and execution are not connected,
+          and no cluster changes can be started from this increment.
+        </p>
+      )}
     </div>
   );
 }
@@ -398,19 +407,10 @@ function ReadinessWorkspace({
 }
 
 function SupportingTab({ tab }: { tab: Exclude<WorkspaceTab, "readiness"> }) {
+  if (tab === "containers" || tab === "utilities") {
+    return <LiveUpgradeInventory mode={tab} />;
+  }
   const content = {
-    containers: {
-      icon: CloudCog,
-      title: "Container distribution upgrades",
-      description:
-        "Provider-specific EKS, AKS, GKE, OpenShift and Kubernetes upgrade workflows will appear here after the readiness and orchestration APIs are connected.",
-    },
-    utilities: {
-      icon: Wrench,
-      title: "System utility upgrades",
-      description:
-        "Discover GitOps, Helm, managed add-on and operator-owned utilities, validate compatibility and promote approved versions with an evidence-backed recovery path.",
-    },
     schedule: {
       icon: CalendarDays,
       title: "Maintenance schedule",
@@ -423,7 +423,7 @@ function SupportingTab({ tab }: { tab: Exclude<WorkspaceTab, "readiness"> }) {
       description:
         "Track draft, approved, scheduled, running and completed plans with immutable stage evidence and audit history.",
     },
-  }[tab];
+  }[tab as "schedule" | "history"];
   const Icon = content.icon;
   return (
     <section className="upgrade-coming-soon" aria-labelledby={`${tab}-title`}>
@@ -858,7 +858,7 @@ export function UpgradeWorkspace() {
           </Button>
         }
       />
-      <PreviewNotice />
+      <PreviewNotice live={tab === "containers" || tab === "utilities"} />
       <UpgradeTabs active={tab} onChange={setTab} />
       <div role="tabpanel">
         {tab === "readiness" ? (
