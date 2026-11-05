@@ -4,8 +4,8 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints bel
 
 | Field | Latest recorded state |
 |---|---|
-| Navigan repository / branch | `shankamal/Navigan` / `feature/upgrade-live-inventory` |
-| Latest product-code commit | `dcc6a7a` — live container and system-utility inventory; continuity updates may follow |
+| Navigan repository / branch | `shankamal/Navigan` / `feature/eks-upgrade-readiness` |
+| Latest product-code commit | `cb1c194` — live read-only EKS upgrade evidence plus existing system-utility inventory |
 | Parent lifecycle commit | `954a34ab28a1d7c7a75fa2715762b305bcc2d55e` — approved five-stage lifecycle, 3 seconds per stage |
 | User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
 | PROD frontend | ECS task definition `:37`; digest `sha256:7ac2946a96bf9ecb68f0337324ee04e1da4a5e9a639a02bb43d45bd8513e13e7` |
@@ -18,9 +18,10 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints bel
 | System repo / branch | `Navigan-Org1/db-schenker-new-dbs-demo-cluster-system`; PR from `demo/headlamp-0.46.0` to `main` |
 | Demo change | `applications/30-headlamp.yaml`: chart `0.45.0` → `0.46.0` |
 | Argo internal names | Headlamp `navigan-dashboard`; monitoring `navigan-monitoring`; parent `navigan-system` |
-| Upgrade Centre status | Approved planning preview plus live read-only managed-cluster and connector-reported system-utility inventory; provider targets, persistence, approvals and execution remain disconnected |
-| Upgrade validation | 476 frontend tests, TypeScript, production build, 17 focused tests and `git diff --check` passed |
-| Immediate action | Review live inventory, then implement the read-only EKS provider/version-policy adapter and persisted draft plans; do not enable execution yet |
+| Upgrade Centre status | Container Upgrades uses the protected EKS readiness API for control plane, sequential target, support, nodes, add-ons, insights and active updates; System Utilities remains connector-backed. Persistence, approval and execution remain disabled |
+| Upgrade validation | 2,000 backend tests passed with 25 skips; 476 frontend tests, TypeScript, production build, targeted Ruff/SAM checks and `git diff --check` passed |
+| Deployment status | `cb1c194` is not deployed. Scoped backend prepare/execute helper and additive customer-role read policy are ready; PROD frontend remains `:37` |
+| Immediate action | Publish branch, add the exact read-only role policy in the demo account, deploy backend then frontend through checked prepare/execute plans, and run authenticated PROD acceptance; do not enable execution |
 | Rollback | Revert the system-repo main commit to restore Headlamp chart 0.45.0 and let Argo reconcile |
 
 ---

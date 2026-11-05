@@ -4,14 +4,14 @@ Continue Navigan from the accepted state; read `docs/NAVIGAN_SESSION_HANDOFF_202
 
 Repository: https://github.com/shankamal/Navigan  
 User path: `/mnt/b/Langchain_Ai/Navigan-migration-test`  
-Active branch: `feature/upgrade-live-inventory`
-Latest product-code commit before continuity-only documentation updates: `dcc6a7a`.
+Active branch: `feature/eks-upgrade-readiness`
+Latest product-code commit before continuity-only documentation updates: `cb1c194`.
 
 Before edits run `git branch --show-current`, `git status -sb`, `git log -8 --oneline`. Preserve all local files and freshly verify remote HEAD before publishing.
 
 Current production frontend is ECS task definition `:37`, immutable digest `sha256:7ac2946a96bf9ecb68f0337324ee04e1da4a5e9a639a02bb43d45bd8513e13e7`. Running image verification and health/login HTTP checks passed. The later live-inventory source increment is not deployed.
 
-Upgrade Centre live-inventory commit `dcc6a7a`: **Container Upgrades** reads active managed clusters and the selected cluster's declared Kubernetes baseline. **System Utilities** reads the existing connector-reported platform-component inventory and supports cluster/utility selection, installed version/health/GitOps evidence and a requested target version. The landing fleet/readiness workspace remains preview data. Provider target discovery, plan persistence, approvals and execution are disabled. Validation passed: all 476 frontend tests, TypeScript, production build, 17 focused tests and `git diff --check`.
+Upgrade Centre EKS-readiness commit `cb1c194`: **Container Upgrades** calls the protected read-only EKS readiness endpoint and shows the live control-plane/platform version, immediate sequential target/support dates, managed node groups, managed add-ons, EKS insights, active updates and explicit READY/WARNING/BLOCKED findings. **System Utilities** retains connector-reported versions, health and GitOps evidence. The adapter has no EKS mutation calls; plan persistence, approval and execution remain disabled. Existing customer roles need the additive policy in `infrastructure/bootstrap/eks-upgrade-readiness-read-policy.json`. A scoped production backend prepare/execute helper changes only ClusterFunction code and the new JWT GET route. Validation passed: 2,000 backend tests with 25 skips, 476 frontend tests, TypeScript, targeted Ruff/SAM checks, production build and `git diff --check`. Nothing from this commit is deployed yet.
 
 Lifecycle commit `954a34a`: Prepare → Build → Transform → Move → Evolve; three seconds per stage; synchronized detailed guide text with cross-fade; About separated into the sidebar footer; redundant title bar and unnecessary scrolling removed.
 
@@ -19,7 +19,7 @@ Performance commit `a230178`: progressive Dashboard rendering; summary `byProvid
 
 Customer-demo work is in `Navigan-Org1/db-schenker-new-dbs-demo-cluster-system`. Open PR: base `main`, compare `demo/headlamp-0.46.0`, changing `applications/30-headlamp.yaml` from Headlamp 0.45.0 to 0.46.0. Keep it unmerged until Argo visibility is proven. In Argo, Headlamp is `navigan-dashboard`, Prometheus/Grafana are `navigan-monitoring`, and the parent is `navigan-system`. Argo CD itself is bootstrap-installed, not a child application.
 
-Immediate next step: review the live inventory UI, then add the read-only EKS provider adapter for live control-plane, node-group, add-on, upgrade-insight and supported-target evidence. After that add persisted draft plans. Keep execution disabled until approvals, evidence capture, idempotency and provider-specific recovery contracts are implemented.
+Immediate next step: publish the branch, apply the exact additive read policy to the demo account's `NaviganProvisioningRole`, prepare/execute `scripts/deploy-eks-upgrade-readiness-prod.py`, then prepare/execute the existing frontend release from the same branch. Run fresh authenticated PROD acceptance for Container Upgrades and System Utilities. After acceptance, implement persisted draft plans; keep execution disabled until approvals, evidence capture, idempotency and provider-specific recovery contracts exist.
 
 Historical migration status remains: artifact export succeeded, but target readiness/deployment/data migration/cutover are incomplete; broader migration workflow redesign remains on hold. Keep credentials, presigned URLs and tokens out of chat/logs/kit.
 

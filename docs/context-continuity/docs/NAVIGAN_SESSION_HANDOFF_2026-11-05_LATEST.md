@@ -4,23 +4,27 @@ Dates use Asia/Kolkata. This document supersedes the 23 October handoff as the c
 
 ## 0. Upgrade Centre implementation — latest increment
 
-- Working branch: `feature/upgrade-live-inventory`, based on `feature/upgrades-patching` at `ece18a67d46499b9b2044e6026720ee11a723087`.
-- Latest implementation commit: `dcc6a7a` — `Connect upgrade inventory and system utilities`.
+- Working branch: `feature/eks-upgrade-readiness`, based on published live-inventory branch commit `006244363eca45404380beb14accb6b1d22cf063`.
+- Latest implementation commit: `cb1c194` — `Connect live EKS upgrade readiness`.
+- Parent live-inventory commit: `dcc6a7a` — `Connect upgrade inventory and system utilities`.
 - Parent planning-workspace commit: `83e8dd2` — `Build Upgrade Centre planning workspace`.
 - Approved terminology: page/sidebar **Upgrades & Patching**; tabs **Upgrade Centre**, **Container Upgrades**, **System Utilities**, **Maintenance Schedule**, and **Plans & History**.
-- **Container Upgrades** is no longer a placeholder: it reads active managed clusters from the existing cluster API, loads the selected cluster record, shows the declared EKS/Kubernetes version and exposes explicit provider-discovery/readiness gates.
+- **Container Upgrades** now calls a JWT-protected, read-only `GET /api/v1/clusters/{clusterId}/upgrade-readiness` endpoint. The EKS adapter assumes the registered customer provisioning role and discovers the live control-plane/platform version, immediate sequential Kubernetes target, support dates, managed node-group alignment/health, managed add-on compatibility, upgrade-readiness insights and active cluster updates.
 - **System Utilities** is no longer a placeholder: it reads connector-reported platform components from the existing `platform-components` API, supports cluster/utility selection, displays installed version, component health, GitOps sync and observed time, and captures a requested target version in the UI.
-- The landing **Upgrade Centre** remains the previously approved multi-provider preview. Live provider target discovery, plan persistence, approvals and all execution remain disabled; this increment is read-only and cannot mutate a cluster, Git repository or cloud resource.
-- Validation: all 476 frontend tests, TypeScript and the production Next.js build passed. Focused Upgrade Centre and app-shell tests passed (17 tests); `git diff --check` passed.
-- Next implementation increment: add the read-only EKS provider adapter for live control-plane, managed-node, add-on, upgrade-insight and supported-target evidence. Then add persisted draft plans; do not enable execution yet.
-- No deployment was performed for the live-inventory increment.
+- The UI reports READY, WARNING or BLOCKED with explicit findings and component evidence. Only the immediate next Kubernetes minor can be recommended; node skew, unhealthy resources, EKS ERROR/UNKNOWN insights and in-progress updates block planning.
+- No EKS create/update/delete method exists in the adapter. Plan persistence, approval and execution buttons remain disabled. The landing **Upgrade Centre** is still preview data.
+- Added the exact read-only customer-role policy at `infrastructure/bootstrap/eks-upgrade-readiness-read-policy.json`; the current bootstrap role source includes the same actions. Existing production customer roles must receive that additive policy before live testing.
+- Added `scripts/deploy-eks-upgrade-readiness-prod.py`, which prepares then executes a checked CloudFormation release limited to the existing ClusterFunction package and the protected GET route. It preserves unrelated package members/resources and stops on source, runtime, stack or change-set drift.
+- Validation: 2,000 backend tests passed with 25 intentional skips; all 476 frontend tests passed; TypeScript, targeted Ruff, Python compilation, SAM reconciliation, `git diff --check`, 34 focused backend/release tests and the production Next.js build passed.
+- No AWS, customer-role, backend or frontend deployment was performed for commit `cb1c194`. Current production frontend remains task definition `:37` until a new release is explicitly executed.
+- Next action: publish the branch, apply the additive read policy to the exact demo account role, prepare/execute the scoped backend release, then prepare/execute the existing frontend release from this branch. Perform fresh authenticated Container Upgrades and System Utilities acceptance in PROD. Do not enable upgrade execution.
 
 ## 1. Immediate recovery point
 
 - Main repository: `https://github.com/shankamal/Navigan`.
 - User checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`.
-- Current feature branch: `feature/upgrade-live-inventory`.
-- Latest Upgrade Centre product-code commit: **`dcc6a7a`** — `Connect upgrade inventory and system utilities`.
+- Current feature branch: `feature/eks-upgrade-readiness`.
+- Latest Upgrade Centre product-code commit: **`cb1c194`** — `Connect live EKS upgrade readiness`.
 - Parent UI commit: **`954a34ab28a1d7c7a75fa2715762b305bcc2d55e`** — `Match approved five-stage lifecycle reference with three-second stages`.
 - Current production frontend: ECS task definition **`navigan-frontend-TaskDefinition-j9W80aX9PBkf:37`**.
 - Current immutable production image: **`905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:7ac2946a96bf9ecb68f0337324ee04e1da4a5e9a639a02bb43d45bd8513e13e7`**.
