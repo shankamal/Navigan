@@ -23,7 +23,6 @@ import {
   ChevronDown,
   CircleArrowUp,
   ClipboardCheck,
-  FolderPlus,
   Gauge,
   Info,
   Layers3,
@@ -31,7 +30,6 @@ import {
   Menu,
   Network,
   PlugZap,
-  Rocket,
   Settings2,
   ShieldAlert,
   ShieldCheck,
@@ -52,13 +50,13 @@ import { prefetchWorkspaceData } from "@/shared/performance/prefetch-workspace-d
 interface NavigationItem {
   href: string;
   label: string;
-  icon: typeof FolderPlus;
+  icon: typeof Gauge;
   permission: PlatformPermission;
 }
 
 // These informational landing pages use the existing platform overview entitlement.
 // Individual workflow permissions will be added with each capability's implementation.
-const lifecycleNavigationItems: readonly NavigationItem[] = [
+const cloudEngineerLifecycleNavigationItems: readonly NavigationItem[] = [
   {
     href: "/app-transformation",
     label: "App Transformation",
@@ -79,7 +77,7 @@ const lifecycleNavigationItems: readonly NavigationItem[] = [
   },
 ];
 
-const navigationGroups: ReadonlyArray<{
+const platformArchitectNavigationGroups: ReadonlyArray<{
   label: string;
   items: readonly NavigationItem[];
 }> = [
@@ -88,43 +86,26 @@ const navigationGroups: ReadonlyArray<{
     items: [
       {
         href: "/dashboard",
-        label: "Platform Dashboard",
+        label: "Platform Overview",
         icon: Gauge,
         permission: "dashboard.platform.view",
       },
     ],
   },
   {
-    label: "Customer Management",
+    label: "Govern",
     items: [
       {
         href: "/customers",
-        label: "Customer Directory",
+        label: "Customer Portfolio",
         icon: Building2,
         permission: "customer.view",
       },
       {
-        href: "/customers/new",
-        label: "Create Customer",
-        icon: FolderPlus,
-        permission: "customer.create",
-      },
-    ],
-  },
-  {
-    label: "Environment Management",
-    items: [
-      {
         href: "/environments",
-        label: "Environment Directory",
+        label: "Environment Portfolio",
         icon: Layers3,
         permission: "environment.view",
-      },
-      {
-        href: "/environments/new",
-        label: "Create Environment",
-        icon: FolderPlus,
-        permission: "environment.create",
       },
       {
         href: "/environments/reviews",
@@ -138,23 +119,6 @@ const navigationGroups: ReadonlyArray<{
         icon: ShieldAlert,
         permission: "remediation.review",
       },
-    ],
-  },
-  {
-    label: "Cluster Management",
-    items: [
-      {
-        href: "/clusters",
-        label: "Cluster Directory",
-        icon: Network,
-        permission: "cluster.view",
-      },
-      {
-        href: "/clusters/new",
-        label: "New Cluster Request",
-        icon: Rocket,
-        permission: "cluster.create",
-      },
       {
         href: "/clusters/reviews",
         label: "Cluster Reviews",
@@ -164,19 +128,49 @@ const navigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Migration",
+    label: "Build & Onboard",
     items: [
       {
-        href: "/migrations",
-        label: "Migration Requests",
-        icon: ArrowRightLeft,
-        permission: "migration.view",
+        href: "/clusters",
+        label: "Cluster Portfolio",
+        icon: Network,
+        permission: "cluster.view",
+      },
+      {
+        href: "/onboarding",
+        label: "Cluster Onboarding",
+        icon: PlugZap,
+        permission: "dashboard.platform.view",
       },
     ],
   },
   {
-    label: "Platform lifecycle",
-    items: lifecycleNavigationItems,
+    label: "Migrate & Modernize",
+    items: [
+      {
+        href: "/migrations",
+        label: "Migration Portfolio",
+        icon: ArrowRightLeft,
+        permission: "migration.view",
+      },
+      {
+        href: "/app-transformation",
+        label: "Application Modernization",
+        icon: Workflow,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Operate & Evolve",
+    items: [
+      {
+        href: "/upgrades",
+        label: "Upgrade Center",
+        icon: CircleArrowUp,
+        permission: "dashboard.platform.view",
+      },
+    ],
   },
 ];
 
@@ -217,7 +211,7 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         icon: ArrowRightLeft,
         permission: "migration.view",
       },
-      ...lifecycleNavigationItems,
+      ...cloudEngineerLifecycleNavigationItems,
     ],
   },
 ];
@@ -306,7 +300,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const activeNavigationGroups = isCloudEngineerOnly(identity)
     ? cloudEngineerNavigationGroups
-    : navigationGroups;
+    : platformArchitectNavigationGroups;
   const current = activeNavigationGroups
     .flatMap((group) => group.items)
     .filter((item) => canViewNavigation(identity, item.permission))

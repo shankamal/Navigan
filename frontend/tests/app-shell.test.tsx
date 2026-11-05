@@ -76,18 +76,34 @@ describe("Application shell permissions", () => {
   it("shows review tools and hides create tools for a Platform Architect", () => {
     identity = architect;
     render(<AppShell>Content</AppShell>);
+    expect(screen.getByText("Govern")).toBeInTheDocument();
+    expect(screen.getByText("Build & Onboard")).toBeInTheDocument();
+    expect(screen.getByText("Migrate & Modernize")).toBeInTheDocument();
+    expect(screen.getByText("Operate & Evolve")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Customer Directory" }),
+      screen.getByRole("link", { name: "Platform Overview" }),
+    ).toHaveAttribute("href", "/dashboard");
+    expect(
+      screen.getByRole("link", { name: "Customer Portfolio" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Environment Directory" }),
+      screen.getByRole("link", { name: "Environment Portfolio" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Cluster Directory" }),
+      screen.getByRole("link", { name: "Cluster Portfolio" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Migration Requests" }),
+      screen.getByRole("link", { name: "Migration Portfolio" }),
     ).toHaveAttribute("href", "/migrations");
+    expect(
+      screen.getByRole("link", { name: "Application Modernization" }),
+    ).toHaveAttribute("href", "/app-transformation");
+    expect(
+      screen.getByRole("link", { name: "Cluster Onboarding" }),
+    ).toHaveAttribute("href", "/onboarding");
+    expect(
+      screen.getByRole("link", { name: "Upgrade Center" }),
+    ).toHaveAttribute("href", "/upgrades");
     expect(
       screen.queryByRole("link", { name: "Customer Management" }),
     ).not.toBeInTheDocument();
@@ -108,7 +124,7 @@ describe("Application shell permissions", () => {
     render(<AppShell>Content</AppShell>);
 
     fireEvent.mouseEnter(
-      screen.getByRole("link", { name: "Migration Requests" }),
+      screen.getByRole("link", { name: "Migration Portfolio" }),
     );
 
     expect(prefetchQuery).toHaveBeenCalledWith(
@@ -129,11 +145,11 @@ describe("Application shell permissions", () => {
     };
     render(<AppShell>Content</AppShell>);
     expect(
-      screen.getByRole("link", { name: "Customer Directory" }),
+      screen.getByRole("link", { name: "Customer Portfolio" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Environment Reviews")).toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
-    expect(screen.queryByText("Cluster Directory")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cluster Portfolio")).not.toBeInTheDocument();
   });
 
   it("supports an explicit non-production migration preview", () => {
@@ -148,7 +164,7 @@ describe("Application shell permissions", () => {
 
     expect(
       screen.getByRole("link", {
-        name: "Migration Requests",
+        name: "Migration Portfolio",
       }),
     ).toHaveAttribute("href", "/migrations");
   });
@@ -169,7 +185,7 @@ describe("Application shell permissions", () => {
       screen.getByRole("link", { name: "Environment Reviews" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      screen.getByRole("link", { name: "Environment Directory" }),
+      screen.getByRole("link", { name: "Environment Portfolio" }),
     ).not.toHaveAttribute("aria-current");
   });
 
