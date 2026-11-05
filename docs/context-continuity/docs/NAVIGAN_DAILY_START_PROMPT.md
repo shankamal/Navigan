@@ -5,7 +5,7 @@ Continue Navigan from the accepted state; read `docs/NAVIGAN_SESSION_HANDOFF_202
 Repository: https://github.com/shankamal/Navigan  
 User path: `/mnt/b/Langchain_Ai/Navigan-migration-test`  
 Active branch: `main`  
-Latest verified HEAD: `a23017808c54e3136fc05f868473d59fa2dc9d16`.
+Latest verified product-code commit before continuity-only documentation updates: `a23017808c54e3136fc05f868473d59fa2dc9d16`.
 
 Before edits run `git branch --show-current`, `git status -sb`, `git log -8 --oneline`. Preserve all local files and freshly verify remote HEAD before publishing.
 

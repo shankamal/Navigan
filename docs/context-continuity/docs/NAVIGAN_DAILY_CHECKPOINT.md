@@ -5,7 +5,7 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints bel
 | Field | Latest recorded state |
 |---|---|
 | Navigan repository / branch | `shankamal/Navigan` / `main` |
-| Verified main HEAD | `a23017808c54e3136fc05f868473d59fa2dc9d16` — workspace loading performance |
+| Latest product-code commit | `a23017808c54e3136fc05f868473d59fa2dc9d16` — workspace loading performance; later commits may be documentation-only |
 | Parent lifecycle commit | `954a34ab28a1d7c7a75fa2715762b305bcc2d55e` — approved five-stage lifecycle, 3 seconds per stage |
 | User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
 | PROD frontend | ECS task definition `:33`; digest `sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf` |

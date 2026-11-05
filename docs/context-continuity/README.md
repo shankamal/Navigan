@@ -2,7 +2,7 @@
 
 Read [NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md](./docs/NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md) first. It supersedes conflicting current-state claims in older entries below.
 
-- Navigan `main` is verified at `a23017808c54e3136fc05f868473d59fa2dc9d16`.
+- Latest verified product-code commit before continuity-only documentation updates is `a23017808c54e3136fc05f868473d59fa2dc9d16`.
 - Production frontend is ECS task definition `:33`, immutable digest `sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf`; running-image and health/login HTTP checks passed.
 - The approved five-stage lifecycle/About experience runs Prepare → Build → Transform → Move → Evolve at three seconds per stage, with synchronized faded guide text. User: “ok now it looks ok.”
 - Workspace performance release adds progressive Dashboard rendering, summary-based provider totals, navigation-intent prefetch and delayed Migrations prefetch. Automated validation passed; fresh authenticated timing evidence is still required.

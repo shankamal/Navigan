@@ -7,7 +7,7 @@ Dates use Asia/Kolkata. This document supersedes the 23 October handoff as the c
 - Main repository: `https://github.com/shankamal/Navigan`.
 - User checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`.
 - Current branch and remote: `main` / `origin/main`.
-- Latest verified main HEAD: **`a23017808c54e3136fc05f868473d59fa2dc9d16`** — `Improve workspace data loading performance`.
+- Latest verified product-code commit before continuity-only documentation updates: **`a23017808c54e3136fc05f868473d59fa2dc9d16`** — `Improve workspace data loading performance`.
 - Parent UI commit: **`954a34ab28a1d7c7a75fa2715762b305bcc2d55e`** — `Match approved five-stage lifecycle reference with three-second stages`.
 - Current production frontend: ECS task definition **`navigan-frontend-TaskDefinition-j9W80aX9PBkf:33`**.
 - Current immutable production image: **`905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf`**.
