@@ -5,13 +5,13 @@ Continue Navigan from the accepted state; read `docs/NAVIGAN_SESSION_HANDOFF_202
 Repository: https://github.com/shankamal/Navigan  
 User path: `/mnt/b/Langchain_Ai/Navigan-migration-test`  
 Active branch: `feature/upgrades-patching`
-Latest product-code commit before continuity-only documentation updates: `ca8cfa4`.
+Latest product-code commit before continuity-only documentation updates: `83e8dd2`.
 
 Before edits run `git branch --show-current`, `git status -sb`, `git log -8 --oneline`. Preserve all local files and freshly verify remote HEAD before publishing.
 
 Current production frontend is ECS task definition `:36`, immutable digest `sha256:d123c0d46b6308182229298d30137cd04c6f3d8d38d8b14563a053cb56c11ae8`. Running image verification and health/login HTTP checks passed. The Upgrade Centre source increment is not deployed.
 
-Upgrade Centre commit `ca8cfa4`: page/sidebar **Upgrades & Patching**; tabs **Upgrade Centre**, **Container Upgrades**, **System Utilities**, **Maintenance Schedule**, and **Plans & History**. The frontend preview includes a multi-provider fleet exposure table, evidence drawer and six-step guided plan. Preview data is explicit; provider discovery, approval APIs and execution are disconnected, with refresh/final submission disabled. Validation passed: 476 frontend tests, formatting, TypeScript, production build and visual QA.
+Upgrade Centre commit `83e8dd2`: page/sidebar **Upgrades & Patching**; tabs **Upgrade Centre**, **Container Upgrades**, **System Utilities**, **Maintenance Schedule**, and **Plans & History**. The frontend preview includes a multi-provider fleet exposure table, evidence drawer and six-step guided plan. Preview data is explicit; provider discovery, approval APIs and execution are disconnected, with refresh/final submission disabled. Validation passed: 476 frontend tests, formatting, TypeScript, production build and visual QA.
 
 Lifecycle commit `954a34a`: Prepare → Build → Transform → Move → Evolve; three seconds per stage; synchronized detailed guide text with cross-fade; About separated into the sidebar footer; redundant title bar and unnecessary scrolling removed.
 

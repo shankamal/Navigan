@@ -5,7 +5,7 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints bel
 | Field | Latest recorded state |
 |---|---|
 | Navigan repository / branch | `shankamal/Navigan` / `feature/upgrades-patching` |
-| Latest product-code commit | `ca8cfa4` — Upgrade Centre planning workspace; continuity updates may follow |
+| Latest product-code commit | `83e8dd2` — Upgrade Centre planning workspace; continuity updates may follow |
 | Parent lifecycle commit | `954a34ab28a1d7c7a75fa2715762b305bcc2d55e` — approved five-stage lifecycle, 3 seconds per stage |
 | User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
 | PROD frontend | ECS task definition `:36`; digest `sha256:d123c0d46b6308182229298d30137cd04c6f3d8d38d8b14563a053cb56c11ae8` |

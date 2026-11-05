@@ -5,7 +5,7 @@ Dates use Asia/Kolkata. This document supersedes the 23 October handoff as the c
 ## 0. Upgrade Centre implementation — latest increment
 
 - Working branch: `feature/upgrades-patching`, based on the user-validated sidebar commit `5a7236783c6ea66c1f1ed7a806979d1c4a902de0`.
-- Implementation commit: `ca8cfa4` — `Build Upgrade Centre planning workspace`.
+- Implementation commit: `83e8dd2` — `Build Upgrade Centre planning workspace`.
 - Approved terminology: page/sidebar **Upgrades & Patching**; tabs **Upgrade Centre**, **Container Upgrades**, **System Utilities**, **Maintenance Schedule**, and **Plans & History**.
 - `/upgrades` now contains a frontend-only multi-provider fleet view, readiness/evidence drawer, and six-step guided upgrade-plan flow. EKS, AKS, GKE and OpenShift values are clearly identified as preview data.
 - Provider discovery, approvals and execution are not connected. Refresh and final submission remain disabled; this increment cannot mutate a cluster or cloud resource.
@@ -18,7 +18,7 @@ Dates use Asia/Kolkata. This document supersedes the 23 October handoff as the c
 - Main repository: `https://github.com/shankamal/Navigan`.
 - User checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`.
 - Current feature branch and remote: `feature/upgrades-patching` / `origin/feature/upgrades-patching`.
-- Latest Upgrade Centre product-code commit: **`ca8cfa4`** — `Build Upgrade Centre planning workspace`.
+- Latest Upgrade Centre product-code commit: **`83e8dd2`** — `Build Upgrade Centre planning workspace`.
 - Parent UI commit: **`954a34ab28a1d7c7a75fa2715762b305bcc2d55e`** — `Match approved five-stage lifecycle reference with three-second stages`.
 - Current production frontend: ECS task definition **`navigan-frontend-TaskDefinition-j9W80aX9PBkf:36`**.
 - Current immutable production image: **`905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:d123c0d46b6308182229298d30137cd04c6f3d8d38d8b14563a053cb56c11ae8`**.
