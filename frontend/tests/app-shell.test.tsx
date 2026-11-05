@@ -56,12 +56,29 @@ describe("Application shell permissions", () => {
     );
   });
 
+  it("keeps About outside the scrolling module menu", () => {
+    const { container } = render(<AppShell>Content</AppShell>);
+    const menuScroller = container.querySelector(".sidebar-menu-scroll");
+    const about = screen.getByRole("link", { name: "About Navigan" });
+
+    expect(menuScroller).toBeInTheDocument();
+    expect(menuScroller).not.toContainElement(about);
+    expect(about.closest(".sidebar-footer")).toBeInTheDocument();
+  });
+
   it("shows capability-based working routes to a Cloud Engineer", () => {
-    render(<AppShell>Content</AppShell>);
-    expect(screen.getByText("Manage")).toBeInTheDocument();
-    expect(screen.getByText("Build & Onboard")).toBeInTheDocument();
-    expect(screen.getByText("Migrate & Modernize")).toBeInTheDocument();
-    expect(screen.getByText("Operate & Evolve")).toBeInTheDocument();
+    const { container } = render(<AppShell>Content</AppShell>);
+    expect(
+      Array.from(container.querySelectorAll(".nav-section")).map(
+        (section) => section.textContent,
+      ),
+    ).toEqual([
+      "Overview",
+      "Build & Onboard",
+      "Migrate & Modernise",
+      "Manage",
+      "Operate & Evolve",
+    ]);
     expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
       "href",
       "/customers",
@@ -114,11 +131,18 @@ describe("Application shell permissions", () => {
 
   it("shows review tools and hides create tools for a Platform Architect", () => {
     identity = architect;
-    render(<AppShell>Content</AppShell>);
-    expect(screen.getByText("Govern")).toBeInTheDocument();
-    expect(screen.getByText("Build & Onboard")).toBeInTheDocument();
-    expect(screen.getByText("Migrate & Modernize")).toBeInTheDocument();
-    expect(screen.getByText("Operate & Evolve")).toBeInTheDocument();
+    const { container } = render(<AppShell>Content</AppShell>);
+    expect(
+      Array.from(container.querySelectorAll(".nav-section")).map(
+        (section) => section.textContent,
+      ),
+    ).toEqual([
+      "Overview",
+      "Build & Onboard",
+      "Migrate & Modernise",
+      "Manage",
+      "Operate & Evolve",
+    ]);
     expect(
       screen.getByRole("link", { name: "Platform Overview" }),
     ).toHaveAttribute("href", "/dashboard");

@@ -79,7 +79,41 @@ const platformArchitectNavigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Govern",
+    label: "Build & Onboard",
+    items: [
+      {
+        href: "/clusters",
+        label: "Cluster Portfolio",
+        icon: Network,
+        permission: "cluster.view",
+      },
+      {
+        href: "/onboarding",
+        label: "Cluster Onboarding",
+        icon: PlugZap,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Migrate & Modernise",
+    items: [
+      {
+        href: "/migrations",
+        label: "Migration Portfolio",
+        icon: ArrowRightLeft,
+        permission: "migration.view",
+      },
+      {
+        href: "/app-transformation",
+        label: "Application Modernization",
+        icon: Workflow,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Manage",
     items: [
       {
         href: "/customers",
@@ -114,40 +148,6 @@ const platformArchitectNavigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Build & Onboard",
-    items: [
-      {
-        href: "/clusters",
-        label: "Cluster Portfolio",
-        icon: Network,
-        permission: "cluster.view",
-      },
-      {
-        href: "/onboarding",
-        label: "Cluster Onboarding",
-        icon: PlugZap,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Migrate & Modernize",
-    items: [
-      {
-        href: "/migrations",
-        label: "Migration Portfolio",
-        icon: ArrowRightLeft,
-        permission: "migration.view",
-      },
-      {
-        href: "/app-transformation",
-        label: "Application Modernization",
-        icon: Workflow,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
     label: "Operate & Evolve",
     items: [
       {
@@ -176,6 +176,40 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
     ],
   },
   {
+    label: "Build & Onboard",
+    items: [
+      {
+        href: "/clusters/new",
+        label: "Create Cluster",
+        icon: Rocket,
+        permission: "cluster.create",
+      },
+      {
+        href: "/onboarding",
+        label: "Import Cluster",
+        icon: PlugZap,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Migrate & Modernise",
+    items: [
+      {
+        href: "/migrations",
+        label: "Migration Assessments",
+        icon: ArrowRightLeft,
+        permission: "migration.view",
+      },
+      {
+        href: "/app-transformation",
+        label: "Application Modernization",
+        icon: Workflow,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
     label: "Manage",
     items: [
       {
@@ -195,40 +229,6 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         label: "Clusters",
         icon: Network,
         permission: "cluster.view",
-      },
-    ],
-  },
-  {
-    label: "Build & Onboard",
-    items: [
-      {
-        href: "/clusters/new",
-        label: "Create Cluster",
-        icon: Rocket,
-        permission: "cluster.create",
-      },
-      {
-        href: "/onboarding",
-        label: "Import Cluster",
-        icon: PlugZap,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Migrate & Modernize",
-    items: [
-      {
-        href: "/migrations",
-        label: "Migration Assessments",
-        icon: ArrowRightLeft,
-        permission: "migration.view",
-      },
-      {
-        href: "/app-transformation",
-        label: "Application Modernization",
-        icon: Workflow,
-        permission: "dashboard.platform.view",
       },
     ],
   },
@@ -515,7 +515,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
               updateSidebarWidth(next);
             }}
           />
-          <div>
+          <div className="sidebar-navigation">
             <div className="sidebar-brand-panel">
               <Link
                 href="/dashboard"
@@ -538,7 +538,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 <Menu size={18} />
               </button>
             </div>
-            <nav aria-label="Platform modules">
+            <nav className="sidebar-menu-scroll" aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
                   canViewNavigation(identity, item.permission),
