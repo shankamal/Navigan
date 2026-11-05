@@ -2,15 +2,26 @@
 
 Dates use Asia/Kolkata. This document supersedes the 23 October handoff as the current recovery point. Preserve all earlier handoffs as historical evidence, not current instructions.
 
+## 0. Upgrade Centre implementation — latest increment
+
+- Working branch: `feature/upgrades-patching`, based on the user-validated sidebar commit `5a7236783c6ea66c1f1ed7a806979d1c4a902de0`.
+- Implementation commit: `ca8cfa4` — `Build Upgrade Centre planning workspace`.
+- Approved terminology: page/sidebar **Upgrades & Patching**; tabs **Upgrade Centre**, **Container Upgrades**, **System Utilities**, **Maintenance Schedule**, and **Plans & History**.
+- `/upgrades` now contains a frontend-only multi-provider fleet view, readiness/evidence drawer, and six-step guided upgrade-plan flow. EKS, AKS, GKE and OpenShift values are clearly identified as preview data.
+- Provider discovery, approvals and execution are not connected. Refresh and final submission remain disabled; this increment cannot mutate a cluster or cloud resource.
+- Validation: all 476 frontend tests passed; formatting, TypeScript and production Next.js build passed. Visual QA found and fixed compressed cluster-name columns; design QA is recorded in `design-qa.md`.
+- Next implementation increment: connect read-only fleet/provider discovery and version-policy adapters before enabling plan persistence or any execution action.
+- No deployment was performed for this Upgrade Centre increment.
+
 ## 1. Immediate recovery point
 
 - Main repository: `https://github.com/shankamal/Navigan`.
 - User checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`.
-- Current branch and remote: `main` / `origin/main`.
-- Latest verified product-code commit before continuity-only documentation updates: **`a23017808c54e3136fc05f868473d59fa2dc9d16`** — `Improve workspace data loading performance`.
+- Current feature branch and remote: `feature/upgrades-patching` / `origin/feature/upgrades-patching`.
+- Latest Upgrade Centre product-code commit: **`ca8cfa4`** — `Build Upgrade Centre planning workspace`.
 - Parent UI commit: **`954a34ab28a1d7c7a75fa2715762b305bcc2d55e`** — `Match approved five-stage lifecycle reference with three-second stages`.
-- Current production frontend: ECS task definition **`navigan-frontend-TaskDefinition-j9W80aX9PBkf:33`**.
-- Current immutable production image: **`905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf`**.
+- Current production frontend: ECS task definition **`navigan-frontend-TaskDefinition-j9W80aX9PBkf:36`**.
+- Current immutable production image: **`905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:d123c0d46b6308182229298d30137cd04c6f3d8d38d8b14563a053cb56c11ae8`**.
 - Deployment script reported running-image verification and health/login HTTP checks passed. Fresh authenticated end-to-end workflow and measured performance acceptance are still required.
 - The user visually accepted the lifecycle/About result: “ok now it looks ok.”
 - Current open question: the user cannot see Headlamp, Prometheus or Grafana in Argo CD. Resolve this visibility/application-name issue before merging the Headlamp demo PR.

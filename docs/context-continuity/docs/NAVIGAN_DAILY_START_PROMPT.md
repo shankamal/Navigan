@@ -4,12 +4,14 @@ Continue Navigan from the accepted state; read `docs/NAVIGAN_SESSION_HANDOFF_202
 
 Repository: https://github.com/shankamal/Navigan  
 User path: `/mnt/b/Langchain_Ai/Navigan-migration-test`  
-Active branch: `main`  
-Latest verified product-code commit before continuity-only documentation updates: `a23017808c54e3136fc05f868473d59fa2dc9d16`.
+Active branch: `feature/upgrades-patching`
+Latest product-code commit before continuity-only documentation updates: `ca8cfa4`.
 
 Before edits run `git branch --show-current`, `git status -sb`, `git log -8 --oneline`. Preserve all local files and freshly verify remote HEAD before publishing.
 
-Current production frontend is ECS task definition `:33`, immutable digest `sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf`. Running image and health/login HTTP checks passed. Lifecycle/About was accepted by the user. Fresh authenticated workflow/performance timings remain unrecorded.
+Current production frontend is ECS task definition `:36`, immutable digest `sha256:d123c0d46b6308182229298d30137cd04c6f3d8d38d8b14563a053cb56c11ae8`. Running image verification and health/login HTTP checks passed. The Upgrade Centre source increment is not deployed.
+
+Upgrade Centre commit `ca8cfa4`: page/sidebar **Upgrades & Patching**; tabs **Upgrade Centre**, **Container Upgrades**, **System Utilities**, **Maintenance Schedule**, and **Plans & History**. The frontend preview includes a multi-provider fleet exposure table, evidence drawer and six-step guided plan. Preview data is explicit; provider discovery, approval APIs and execution are disconnected, with refresh/final submission disabled. Validation passed: 476 frontend tests, formatting, TypeScript, production build and visual QA.
 
 Lifecycle commit `954a34a`: Prepare → Build → Transform → Move → Evolve; three seconds per stage; synchronized detailed guide text with cross-fade; About separated into the sidebar footer; redundant title bar and unnecessary scrolling removed.
 
@@ -17,7 +19,7 @@ Performance commit `a230178`: progressive Dashboard rendering; summary `byProvid
 
 Customer-demo work is in `Navigan-Org1/db-schenker-new-dbs-demo-cluster-system`. Open PR: base `main`, compare `demo/headlamp-0.46.0`, changing `applications/30-headlamp.yaml` from Headlamp 0.45.0 to 0.46.0. Keep it unmerged until Argo visibility is proven. In Argo, Headlamp is `navigan-dashboard`, Prometheus/Grafana are `navigan-monitoring`, and the parent is `navigan-system`. Argo CD itself is bootstrap-installed, not a child application.
 
-Immediate next step: clear Argo filters and establish whether `navigan-dashboard` exists in the application list or `navigan-system` resource tree. Do not merge the demo PR until confirmed. Pushing the demo branch alone does not affect runtime; merging to `main` triggers reconciliation. Roll back by reverting main to chart 0.45.0.
+Immediate next step: publish/review the Upgrade Centre branch, then connect read-only fleet discovery and provider-specific version-policy adapters. Keep execution disabled until persisted plans, approvals, evidence capture, idempotency and provider-specific recovery contracts are implemented.
 
 Historical migration status remains: artifact export succeeded, but target readiness/deployment/data migration/cutover are incomplete; broader migration workflow redesign remains on hold. Keep credentials, presigned URLs and tokens out of chat/logs/kit.
 

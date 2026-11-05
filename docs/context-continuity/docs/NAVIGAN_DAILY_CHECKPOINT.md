@@ -4,11 +4,11 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints bel
 
 | Field | Latest recorded state |
 |---|---|
-| Navigan repository / branch | `shankamal/Navigan` / `main` |
-| Latest product-code commit | `a23017808c54e3136fc05f868473d59fa2dc9d16` — workspace loading performance; later commits may be documentation-only |
+| Navigan repository / branch | `shankamal/Navigan` / `feature/upgrades-patching` |
+| Latest product-code commit | `ca8cfa4` — Upgrade Centre planning workspace; continuity updates may follow |
 | Parent lifecycle commit | `954a34ab28a1d7c7a75fa2715762b305bcc2d55e` — approved five-stage lifecycle, 3 seconds per stage |
 | User checkout | `/mnt/b/Langchain_Ai/Navigan-migration-test` |
-| PROD frontend | ECS task definition `:33`; digest `sha256:b35355a51da78e66ef6d2dd644e9f388f757e23f87b630e2be087c1dcb36e3bf` |
+| PROD frontend | ECS task definition `:36`; digest `sha256:d123c0d46b6308182229298d30137cd04c6f3d8d38d8b14563a053cb56c11ae8` |
 | Deployment checks | Running image verified; health/login HTTP checks passed |
 | Lifecycle acceptance | User: “ok now it looks ok” |
 | Performance change | Progressive Dashboard rendering, summary-based provider totals, nav-intent prefetch, delayed Migrations prefetch |
@@ -18,8 +18,9 @@ Read `NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. Older checkpoints bel
 | System repo / branch | `Navigan-Org1/db-schenker-new-dbs-demo-cluster-system`; PR from `demo/headlamp-0.46.0` to `main` |
 | Demo change | `applications/30-headlamp.yaml`: chart `0.45.0` → `0.46.0` |
 | Argo internal names | Headlamp `navigan-dashboard`; monitoring `navigan-monitoring`; parent `navigan-system` |
-| Current blocker | Tool applications are not visible in Argo CD; diagnose filters/app-of-apps/RBAC/repository association before PR merge |
-| Immediate action | Establish visibility of `navigan-dashboard`, then rehearse the demo; keep PR unmerged until confirmed |
+| Upgrade Centre status | Frontend preview implemented with fleet exposure, readiness drawer and six-step plan flow; provider APIs and execution are intentionally disconnected |
+| Upgrade validation | 476 frontend tests, formatting, TypeScript, production build and visual QA passed |
+| Immediate action | Review/publish the Upgrade Centre feature branch, then implement read-only provider discovery and version-policy adapters; do not enable execution yet |
 | Rollback | Revert the system-repo main commit to restore Headlamp chart 0.45.0 and let Argo reconcile |
 
 ---
