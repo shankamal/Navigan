@@ -5,13 +5,13 @@ Continue Navigan from the accepted state; read `docs/NAVIGAN_SESSION_HANDOFF_202
 Repository: https://github.com/shankamal/Navigan  
 User path: `/mnt/b/Langchain_Ai/Navigan-migration-test`  
 Active branch: `feature/eks-upgrade-readiness`
-Latest product-code commit before continuity-only documentation updates: `cb1c194`.
+Latest published product-code commit before continuity-only documentation updates: `0c710ec36ea95a5701a369a56dafbc3d2cc34ab8`.
 
 Before edits run `git branch --show-current`, `git status -sb`, `git log -8 --oneline`. Preserve all local files and freshly verify remote HEAD before publishing.
 
 Current production frontend is ECS task definition `:37`, immutable digest `sha256:7ac2946a96bf9ecb68f0337324ee04e1da4a5e9a639a02bb43d45bd8513e13e7`. Running image verification and health/login HTTP checks passed. The later live-inventory source increment is not deployed.
 
-Upgrade Centre EKS-readiness commit `cb1c194`: **Container Upgrades** calls the protected read-only EKS readiness endpoint and shows the live control-plane/platform version, immediate sequential target/support dates, managed node groups, managed add-ons, EKS insights, active updates and explicit READY/WARNING/BLOCKED findings. **System Utilities** retains connector-reported versions, health and GitOps evidence. The adapter has no EKS mutation calls; plan persistence, approval and execution remain disabled. Existing customer roles need the additive policy in `infrastructure/bootstrap/eks-upgrade-readiness-read-policy.json`. A scoped production backend prepare/execute helper changes only ClusterFunction code and the new JWT GET route. Validation passed: 2,000 backend tests with 25 skips, 476 frontend tests, TypeScript, targeted Ruff/SAM checks, production build and `git diff --check`. Nothing from this commit is deployed yet.
+Upgrade Centre EKS-readiness commit `0c710ec36ea95a5701a369a56dafbc3d2cc34ab8`: **Container Upgrades** calls the protected read-only EKS readiness endpoint and shows the live control-plane/platform version, immediate sequential target/support dates, managed node groups, managed add-ons, EKS insights, active updates and explicit READY/WARNING/BLOCKED findings. **System Utilities** retains connector-reported versions, health and GitOps evidence. The adapter has no EKS mutation calls; plan persistence, approval and execution remain disabled. Existing customer roles need the additive policy in `infrastructure/bootstrap/eks-upgrade-readiness-read-policy.json`. A scoped production backend prepare/execute helper changes only ClusterFunction code and the new JWT GET route. Validation passed: 2,000 backend tests with 25 skips, 476 frontend tests, TypeScript, targeted Ruff/SAM checks, production build and `git diff --check`. Nothing from this commit is deployed yet.
 
 Lifecycle commit `954a34a`: Prepare → Build → Transform → Move → Evolve; three seconds per stage; synchronized detailed guide text with cross-fade; About separated into the sidebar footer; redundant title bar and unnecessary scrolling removed.
 
