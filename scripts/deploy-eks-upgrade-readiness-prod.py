@@ -247,7 +247,9 @@ def inspect_change_set(cfn, identifier, saved):
     require(digest(json.dumps(after, sort_keys=True).encode()) == saved["templateHash"], "Prepared template changed")
     validate_delta(before, after, saved["functionLogical"], saved["routePresent"])
     nested = support.all_items(cfn, "describe_change_set", "Changes", ChangeSetName=child_id)
-    allowed = {saved["functionLogical"]} | (set() if saved["routePresent"] else {ROUTE_LOGICAL})
+    allowed = {saved["functionLogical"], saved["integrationLogical"]} | (
+        set() if saved["routePresent"] else {ROUTE_LOGICAL}
+    )
     require({item["ResourceChange"]["LogicalResourceId"] for item in nested} <= allowed, "Unrelated nested change")
     require(saved["functionLogical"] in {item["ResourceChange"]["LogicalResourceId"] for item in nested}, "ClusterFunction update missing")
     for item in nested:
@@ -255,6 +257,18 @@ def inspect_change_set(cfn, identifier, saved):
         require(value.get("Replacement", "False") == "False", "Resource replacement rejected")
         if value["LogicalResourceId"] == saved["functionLogical"]:
             require(value["Action"] == "Modify", "ClusterFunction must be modified in place")
+        elif value["LogicalResourceId"] == saved["integrationLogical"]:
+            require(
+                value["Action"] == "Modify"
+                and value["ResourceType"] == "AWS::ApiGatewayV2::Integration"
+                and before["Resources"][value["LogicalResourceId"]]
+                == after["Resources"][value["LogicalResourceId"]]
+                and support.references(
+                    before["Resources"][value["LogicalResourceId"]],
+                    saved["functionLogical"],
+                ),
+                "Only the unchanged Cluster integration dependency may refresh",
+            )
         else:
             require(value["Action"] == "Add", "Upgrade-readiness route must be an addition")
 
@@ -267,6 +281,7 @@ def signature(record):
             "stackStamp",
             "function",
             "functionLogical",
+            "integrationLogical",
             "revision",
             "oldSha",
             "api",
