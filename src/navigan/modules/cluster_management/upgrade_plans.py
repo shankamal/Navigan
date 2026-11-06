@@ -5,7 +5,7 @@ from typing import Literal
 import uuid
 
 from botocore.exceptions import BotoCoreError, ClientError
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from navigan.modules.customer_management.repository import json_text
 from navigan.shared.errors import ApiError
@@ -22,6 +22,15 @@ class CreateEksUpgradePlan(Model):
     strategy: Literal["PROVIDER_MANAGED_ROLLING"] = "PROVIDER_MANAGED_ROLLING"
     scheduledFor: datetime | None = None
     changeReason: str = Field(min_length=8, max_length=2000)
+
+    @field_validator("scheduledFor", mode="before")
+    @classmethod
+    def parse_maintenance_start(cls, value):
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if isinstance(value, datetime) and value.utcoffset() is None:
+            raise ValueError("Maintenance start must include a timezone.")
+        return value
 
 
 class UpgradePlanAction(Model):

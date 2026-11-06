@@ -3,7 +3,15 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from navigan.shared.errors import ApiError
-from navigan.modules.cluster_management.upgrade_plans import EksUpgradePlans
+from navigan.modules.cluster_management.upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans
+
+
+def test_browser_maintenance_timestamp_is_accepted_and_timezone_is_required():
+    body = {"targetVersion": "1.37", "changeReason": "Scheduled platform upgrade"}
+    plan = CreateEksUpgradePlan.model_validate({**body, "scheduledFor": "2026-12-01T10:30:00.000Z"})
+    assert plan.scheduledFor == datetime(2026, 12, 1, 10, 30, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match="timezone"):
+        CreateEksUpgradePlan.model_validate({**body, "scheduledFor": "2026-12-01T10:30:00"})
 
 
 def evidence():

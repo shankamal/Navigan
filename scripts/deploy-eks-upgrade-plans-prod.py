@@ -27,6 +27,7 @@ import boto3
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
+DEPLOYED_PLAN_TREE = "7e5dc724e7b29eea74a10b7edc3bd8dd054dbdd6"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ListClusterUpgradePlansRoute": "GET /api/v1/clusters/{clusterId}/upgrade-plans",
@@ -252,8 +253,13 @@ def package(original, destination):
         reviewed_handler = git_source(
             BASELINE_TREE, "src/navigan/modules/cluster_management/handler.py"
         )
+        plans_installed = new_module in names
+        expected_handler = (
+            scoped_handler_target(git_source(DEPLOYED_PLAN_TREE, "src/" + handler))
+            if plans_installed else deployed_handler_baseline(reviewed_handler)
+        )
         require(
-            semantic(old.read(handler)) == semantic(deployed_handler_baseline(reviewed_handler)),
+            semantic(old.read(handler)) == semantic(expected_handler),
             "Deployed handler differs from the reviewed production baseline",
         )
         reviewed_readiness = git_source(
@@ -263,14 +269,18 @@ def package(original, destination):
             semantic(old.read(readiness)) == semantic(reviewed_readiness),
             "Deployed upgrade-readiness module differs from the reviewed production baseline",
         )
-        require(
-            new_module not in names, "Upgrade-plan module is already present; prepare from a fresh baseline"
-        )
+        if plans_installed:
+            require(
+                semantic(old.read(new_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + new_module)),
+                "Deployed upgrade-plan module differs from the reviewed production baseline",
+            )
         target_handler = scoped_handler_target(
             (ROOT / "src/navigan/modules/cluster_management/handler.py").read_bytes()
         )
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
+                if entry.filename == new_module:
+                    continue
                 if entry.filename.endswith(".pyc") and any(
                     f"/{name}." in entry.filename
                     for name in ("handler", "upgrade_plans")

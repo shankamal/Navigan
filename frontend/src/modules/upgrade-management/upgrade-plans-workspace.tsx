@@ -49,7 +49,7 @@ export function UpgradePlansWorkspace({
       name,
     }: {
       row: PlanRow;
-      name: "approve" | "reject" | "execute" | "refresh";
+      name: "submit" | "approve" | "reject" | "execute" | "refresh";
     }) =>
       clusters.changeUpgradePlan(
         row.plan.clusterId,
@@ -161,6 +161,12 @@ export function UpgradePlansWorkspace({
                   </td>
                   <td>{new Date(row.plan.updatedAt).toLocaleString()}</td>
                   <td>
+                    {row.plan.status === "DRAFT" && (
+                      <Button disabled={action.isPending}
+                        onClick={() => action.mutate({ row, name: "submit" })}>
+                        Submit for approval
+                      </Button>
+                    )}
                     {row.plan.status === "SUBMITTED" && (
                       <Button
                         disabled={action.isPending}

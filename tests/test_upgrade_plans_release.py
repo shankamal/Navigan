@@ -83,6 +83,23 @@ def test_deployed_baseline_matches_observed_production_semantics():
     assert "summary" in normalized
 
 
+def test_release_updates_reviewed_installed_plans_without_duplicate_members(tmp_path):
+    release = load_release()
+    prefix = "navigan/modules/cluster_management/"
+    source, target = tmp_path / "old.zip", tmp_path / "new.zip"
+    with zipfile.ZipFile(source, "w") as package:
+        package.writestr(prefix + "handler.py", release.scoped_handler_target(
+            baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py")))
+        package.writestr(prefix + "upgrade_readiness.py", baseline(
+            release.BASELINE_TREE, "src/" + prefix + "upgrade_readiness.py"))
+        package.writestr(prefix + "upgrade_plans.py", baseline(
+            release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_plans.py"))
+    release.package(source, target)
+    with zipfile.ZipFile(target) as package:
+        assert package.namelist().count(prefix + "upgrade_plans.py") == 1
+        assert package.read(prefix + "upgrade_plans.py") == (ROOT / "src" / prefix / "upgrade_plans.py").read_bytes()
+
+
 def test_release_rejects_an_unreviewed_live_handler(tmp_path):
     release = load_release()
     prefix = "navigan/modules/cluster_management/"

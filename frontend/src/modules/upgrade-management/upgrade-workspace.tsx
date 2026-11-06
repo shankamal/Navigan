@@ -195,7 +195,7 @@ function PlanWizard({
           <Button
             variant="secondary"
             disabled={
-              step !== planSteps.length ||
+              step < 5 ||
               changeReason.trim().length < 8 ||
               createPlan.isPending ||
               Boolean(createdPlan)
@@ -451,6 +451,28 @@ function PlanWizard({
                   </p>
                 </div>
               </div>
+              <h3>Managed node-group upgrades</h3>
+              <p>After the control plane and managed add-ons, EKS rolls each managed node group to Kubernetes {target}. Worker nodes are replaced through the managed node group.</p>
+              <div className="table-scroll">
+                <table className="upgrade-fleet-table">
+                  <thead><tr><th>Node group</th><th>Current Kubernetes</th><th>Target Kubernetes</th><th>Status</th></tr></thead>
+                  <tbody>{(evidence?.nodeGroups ?? []).map((node) => (
+                    <tr key={node.name}><td>{node.name}</td><td>{node.version ?? "Not reported"}</td><td>{target}</td><td>{node.status}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {!evidence?.nodeGroups.length && <p>No EKS managed node groups were discovered. Self-managed nodes are outside this plan.</p>}
+              <h3>Managed add-on upgrades</h3>
+              <p>After the control plane, add-ons with a different compatible target version are upgraded sequentially. Existing configuration is preserved.</p>
+              <div className="table-scroll">
+                <table className="upgrade-fleet-table">
+                  <thead><tr><th>Add-on</th><th>Installed</th><th>Compatible target</th><th>Planned action</th></tr></thead>
+                  <tbody>{(evidence?.addons ?? []).map((addon) => (
+                    <tr key={addon.name}><td>{addon.name}</td><td>{addon.version ?? "Not reported"}</td><td>{addon.targetVersion ?? "Not reported"}</td><td>{!addon.targetVersion ? "Compatibility evidence required" : addon.targetVersion === addon.version ? "Keep installed version" : "Upgrade"}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {!evidence?.addons.length && <p>No EKS managed add-ons were discovered.</p>}
             </>
           )}
           {step === 5 && (
@@ -473,13 +495,20 @@ function PlanWizard({
                     aria-label="Maintenance start"
                     type="datetime-local"
                     value={scheduledFor}
-                    min={new Date(Date.now() + 60_000)
-                      .toISOString()
-                      .slice(0, 16)}
+                    disabled={Boolean(createdPlan)}
                     onChange={(event) => setScheduledFor(event.target.value)}
                   />
+                  <p>Time zone: {Intl.DateTimeFormat().resolvedOptions().timeZone}. Execution requires approval and a separate start action.</p>
                 </div>
               </div>
+              <label className="upgrade-live-field">
+                <span>Change reason (required, at least 8 characters)</span>
+                <textarea aria-label="Change reason" value={changeReason}
+                  disabled={Boolean(createdPlan)} rows={3}
+                  onChange={(event) => setChangeReason(event.target.value)} />
+              </label>
+              <p>{createdPlan ? `Plan ${createdPlan.planId} saved. Continue to review to submit for approval.` : "Enter a change reason to enable Save governed draft, then continue to review and submit."}</p>
+              {createPlan.isError && <div role="alert">Draft could not be saved: {createPlan.error.message}</div>}
             </>
           )}
           {step === 6 && (
@@ -511,10 +540,11 @@ function PlanWizard({
                 </div>
               </dl>
               <label className="upgrade-live-field">
-                <span>Change reason</span>
+                <span>Change reason (required, at least 8 characters)</span>
                 <textarea
                   aria-label="Change reason"
                   value={changeReason}
+                  disabled={Boolean(createdPlan)}
                   onChange={(event) => setChangeReason(event.target.value)}
                   placeholder="Describe the business reason and expected outcome."
                   rows={4}
