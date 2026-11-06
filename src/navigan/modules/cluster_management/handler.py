@@ -554,7 +554,13 @@ def execute(event, principal, correlation):
             return response(202, value, correlation)
         operation = method + " " + path
         fingerprint = hashlib.sha256(
-            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+            json.dumps(
+                {**body, "scheduledFor": body["scheduledFor"].isoformat()}
+                if create_upgrade_plan and body.get("scheduledFor")
+                else body,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
         ).hexdigest()
         customer_repo = CustomerRepository(db, principal)
         replay = customer_repo.idempotency_get(operation, key, fingerprint)

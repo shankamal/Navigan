@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import json
+from unittest.mock import MagicMock
 
 from navigan.shared.errors import ApiError
 from navigan.modules.cluster_management.upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans
@@ -12,6 +14,37 @@ def test_browser_maintenance_timestamp_is_accepted_and_timezone_is_required():
     assert plan.scheduledFor == datetime(2026, 12, 1, 10, 30, tzinfo=timezone.utc)
     with pytest.raises(ValueError, match="timezone"):
         CreateEksUpgradePlan.model_validate({**body, "scheduledFor": "2026-12-01T10:30:00"})
+
+
+def test_scheduled_draft_handler_fingerprints_datetime_and_replays(monkeypatch):
+    from navigan.modules.cluster_management import handler
+
+    customer = MagicMock()
+    customer.idempotency_get.return_value = None
+    plans = MagicMock()
+    plans.create.return_value = {"planId": "UPG-test", "status": "DRAFT", "version": 1}
+    monkeypatch.setattr(handler, "transaction", MagicMock())
+    monkeypatch.setattr(handler, "Repository", MagicMock())
+    monkeypatch.setattr(handler, "AccessEvaluator", MagicMock())
+    monkeypatch.setattr(handler, "CustomerRepository", MagicMock(return_value=customer))
+    monkeypatch.setattr(handler, "EksUpgradePlans", MagicMock(return_value=plans))
+    event = {
+        "rawPath": "/api/v1/clusters/CLU-live/upgrade-plans",
+        "requestContext": {"http": {"method": "POST"}},
+        "headers": {"content-type": "application/json", "idempotency-key": "draft-test"},
+        "body": json.dumps({"targetVersion": "1.37", "changeReason": "Scheduled upgrade",
+                            "scheduledFor": "2026-12-01T10:30:00.000Z"}),
+    }
+    result = handler.execute(event, MagicMock(), "test-correlation")
+    assert result["statusCode"] == 201
+    assert isinstance(plans.create.call_args.args[1]["scheduledFor"], datetime)
+    fingerprint = customer.idempotency_get.call_args.args[2]
+    assert len(fingerprint) == 64
+    customer.idempotency_get.return_value = {"status": 201, "body": plans.create.return_value}
+    replay = handler.execute(event, MagicMock(), "test-correlation")
+    assert replay["headers"]["Idempotency-Replayed"] == "true"
+    assert customer.idempotency_get.call_args.args[2] == fingerprint
+    plans.create.assert_called_once()
 
 
 def evidence():
