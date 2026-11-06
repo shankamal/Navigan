@@ -1,17 +1,32 @@
 """Governed, resumable Amazon EKS upgrade plans."""
 
 from datetime import datetime, timezone
+from typing import Literal
 import uuid
 
 from botocore.exceptions import BotoCoreError, ClientError
+from pydantic import Field
 
 from navigan.modules.customer_management.repository import json_text
 from navigan.shared.errors import ApiError
+from .models import Model
 from .repository import serialize
 from .upgrade_readiness import EksUpgradeDiscovery
 
 
 ACTIVE = {"DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"}
+
+
+class CreateEksUpgradePlan(Model):
+    targetVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
+    strategy: Literal["PROVIDER_MANAGED_ROLLING"] = "PROVIDER_MANAGED_ROLLING"
+    scheduledFor: datetime | None = None
+    changeReason: str = Field(min_length=8, max_length=2000)
+
+
+class UpgradePlanAction(Model):
+    version: int = Field(gt=0)
+    reason: str | None = Field(default=None, max_length=2000)
 
 
 def utcnow():

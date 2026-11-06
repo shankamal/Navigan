@@ -30,8 +30,6 @@ from .models import (
     GitHubAuthorizationRequest,
     CompleteGitHubAuthorization,
     ToolSessionRequest,
-    CreateEksUpgradePlan,
-    UpgradePlanAction,
 )
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
@@ -39,7 +37,7 @@ from .connector_installation import ConnectorInstaller
 from .bootstrap_status import refresh_installer_status
 from .tool_access import resolve_tool_access
 from .upgrade_readiness import EksUpgradeDiscovery
-from .upgrade_plans import EksUpgradePlans
+from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction
 
 BASE = "/api/v1/clusters"
 logger = logging.getLogger(__name__)

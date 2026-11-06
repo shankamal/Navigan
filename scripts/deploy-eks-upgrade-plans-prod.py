@@ -70,27 +70,158 @@ def semantic(source):
     return ast.dump(ast.parse(source.decode()), include_attributes=False)
 
 
-def handler_baselines(source):
-    values = {semantic(source)}
-    repository_order = (
+def replace_once(source, before, after, label):
+    require(source.count(before) == 1, "Unexpected " + label + " contract")
+    return source.replace(before, after, 1)
+
+
+def deployed_handler_baseline(source):
+    """Reproduce the exact reviewed handler shape currently deployed in PROD."""
+    replacements = (
+        (b"    ConnectorUpgradeRequest,\n", b"", "connector model import"),
+        (
+            b'    upgrade_connector = (\n        method == "POST" and len(parts) == 3\n'
+            b'        and parts[1:] == ["connector", "upgrade"]\n    )\n',
+            b"",
+            "connector route selector",
+        ),
+        (b"        or upgrade_connector\n", b"", "connector write selector"),
+        (
+            b"            else ConnectorUpgradeRequest\n            if upgrade_connector\n",
+            b"",
+            "connector request model",
+        ),
+        (
+            b"        if upgrade_connector:\n"
+            b'            access.require("cluster.access.manage")\n'
+            b"            operation = method + \" \" + path\n"
+            b"            fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(\",\", \":\")).encode()).hexdigest()\n"
+            b"            customer_repo = CustomerRepository(db, principal)\n"
+            b"            replay = customer_repo.idempotency_get(operation, key, fingerprint)\n"
+            b"            if replay:\n"
+            b'                result = response(replay["status"], replay["body"], correlation)\n'
+            b'                result["headers"]["Idempotency-Replayed"] = "true"\n'
+            b"                return result\n"
+            b"            value = repo.upgrade_connector_gitops(identifier, body)\n"
+            b'            customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})\n'
+            b"            return response(202, value, correlation)\n",
+            b"",
+            "connector upgrade handler",
+        ),
+    )
+    for before, after, label in replacements:
+        source = replace_once(source, before, after, label)
+    repository_imports = (
         b"from .bootstrap_status import refresh_installer_status\n"
         b"from .tool_access import resolve_tool_access\n"
         b"from .upgrade_readiness import EksUpgradeDiscovery\n"
     )
-    legacy_order = (
-        b"from .tool_access import resolve_tool_access\n"
-        b"from .bootstrap_status import refresh_installer_status\n"
-        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
-    )
-    deployed_readiness_order = (
+    deployed_imports = (
         b"from .tool_access import resolve_tool_access\n"
         b"from .upgrade_readiness import EksUpgradeDiscovery\n"
         b"from .bootstrap_status import refresh_installer_status\n"
     )
-    if repository_order in source:
-        values.add(semantic(source.replace(repository_order, legacy_order, 1)))
-        values.add(semantic(source.replace(repository_order, deployed_readiness_order, 1)))
-    return values
+    source = replace_once(source, repository_imports, deployed_imports, "readiness import order")
+    repository_summary = (
+        b'    if path != BASE and not path.startswith(BASE + "/"):\n'
+        b'        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")\n'
+        b'    parts = path[len(BASE):].strip("/").split("/") if path != BASE else []\n'
+        b'    if parts == ["summary"]:\n'
+        b'        if method != "GET":\n'
+        b'            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")\n'
+        b"        with transaction() as db:\n"
+        b'            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")\n'
+        b"            return response(200, Repository(db, principal).summary(), correlation)\n"
+    )
+    deployed_summary = (
+        b'    if path == BASE + "/summary":\n'
+        b'        if method != "GET":\n'
+        b'            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")\n'
+        b"        with transaction() as db:\n"
+        b'            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")\n'
+        b"            return response(200, Repository(db, principal).summary(), correlation)\n"
+        b'    if path != BASE and not path.startswith(BASE + "/"):\n'
+        b'        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")\n'
+        b'    parts = path[len(BASE):].strip("/").split("/") if path != BASE else []\n'
+    )
+    return replace_once(source, repository_summary, deployed_summary, "summary route order")
+
+
+def scoped_handler_target(source):
+    """Remove the unrelated connector-upgrade increment from the reviewed plan handler."""
+    replacements = (
+        (b"    ConnectorUpgradeRequest,\n", b"", "target connector model import"),
+        (
+            b'    upgrade_connector = method == "POST" and len(parts) == 3 and parts[1:] == ["connector", "upgrade"]\n',
+            b"",
+            "target connector route selector",
+        ),
+        (b"        or upgrade_connector\n", b"", "target connector write selector"),
+        (
+            b"            else ConnectorUpgradeRequest\n            if upgrade_connector\n",
+            b"",
+            "target connector request model",
+        ),
+        (
+            b"        if upgrade_connector:\n"
+            b'            access.require("cluster.access.manage")\n'
+            b"            operation = method + \" \" + path\n"
+            b"            fingerprint = hashlib.sha256(\n"
+            b'                json.dumps(body, sort_keys=True, separators=(",", ":")).encode()\n'
+            b"            ).hexdigest()\n"
+            b"            customer_repo = CustomerRepository(db, principal)\n"
+            b"            replay = customer_repo.idempotency_get(operation, key, fingerprint)\n"
+            b"            if replay:\n"
+            b'                result = response(replay["status"], replay["body"], correlation)\n'
+            b'                result["headers"]["Idempotency-Replayed"] = "true"\n'
+            b"                return result\n"
+            b"            value = repo.upgrade_connector_gitops(identifier, body)\n"
+            b'            customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})\n'
+            b"            return response(202, value, correlation)\n",
+            b"",
+            "target connector upgrade handler",
+        ),
+    )
+    for before, after, label in replacements:
+        source = replace_once(source, before, after, label)
+    repository_imports = (
+        b"from .bootstrap_status import refresh_installer_status\n"
+        b"from .tool_access import resolve_tool_access\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
+        b"from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction\n"
+    )
+    deployed_imports = (
+        b"from .tool_access import resolve_tool_access\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
+        b"from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction\n"
+        b"from .bootstrap_status import refresh_installer_status\n"
+    )
+    source = replace_once(
+        source, repository_imports, deployed_imports, "target readiness import order"
+    )
+    repository_summary = (
+        b'    if path != BASE and not path.startswith(BASE + "/"):\n'
+        b'        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")\n'
+        b'    parts = path[len(BASE) :].strip("/").split("/") if path != BASE else []\n'
+        b'    if parts == ["summary"]:\n'
+        b'        if method != "GET":\n'
+        b'            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")\n'
+        b"        with transaction() as db:\n"
+        b'            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")\n'
+        b"            return response(200, Repository(db, principal).summary(), correlation)\n"
+    )
+    deployed_summary = (
+        b'    if path == BASE + "/summary":\n'
+        b'        if method != "GET":\n'
+        b'            raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")\n'
+        b"        with transaction() as db:\n"
+        b'            db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")\n'
+        b"            return response(200, Repository(db, principal).summary(), correlation)\n"
+        b'    if path != BASE and not path.startswith(BASE + "/"):\n'
+        b'        raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")\n'
+        b'    parts = path[len(BASE) :].strip("/").split("/") if path != BASE else []\n'
+    )
+    return replace_once(source, repository_summary, deployed_summary, "target summary route order")
 
 
 def check_checkout(expected_branch):
@@ -111,33 +242,41 @@ def check_checkout(expected_branch):
 
 def package(original, destination):
     prefix = "navigan/modules/cluster_management/"
-    managed = {
-        prefix + "handler.py": "src/navigan/modules/cluster_management/handler.py",
-        prefix + "models.py": "src/navigan/modules/cluster_management/models.py",
-        prefix + "upgrade_readiness.py": "src/navigan/modules/cluster_management/upgrade_readiness.py",
-    }
+    handler = prefix + "handler.py"
+    readiness = prefix + "upgrade_readiness.py"
     new_module = prefix + "upgrade_plans.py"
     with zipfile.ZipFile(original) as old:
         names = old.namelist()
         require(len(names) == len(set(names)), "Duplicate ZIP members rejected")
-        for member, path in managed.items():
-            require(member in names, f"Deployed ClusterFunction is missing {member}")
-            baseline = git_source(BASELINE_TREE, path)
-            actual = semantic(old.read(member))
-            allowed = handler_baselines(baseline) if member.endswith("handler.py") else {semantic(baseline)}
-            require(actual in allowed, f"Deployed {member} differs from the reviewed production baseline")
+        require(handler in names and readiness in names, "Deployed ClusterFunction baseline is incomplete")
+        reviewed_handler = git_source(
+            BASELINE_TREE, "src/navigan/modules/cluster_management/handler.py"
+        )
+        require(
+            semantic(old.read(handler)) == semantic(deployed_handler_baseline(reviewed_handler)),
+            "Deployed handler differs from the reviewed production baseline",
+        )
+        reviewed_readiness = git_source(
+            BASELINE_TREE, "src/navigan/modules/cluster_management/upgrade_readiness.py"
+        )
+        require(
+            semantic(old.read(readiness)) == semantic(reviewed_readiness),
+            "Deployed upgrade-readiness module differs from the reviewed production baseline",
+        )
         require(
             new_module not in names, "Upgrade-plan module is already present; prepare from a fresh baseline"
+        )
+        target_handler = scoped_handler_target(
+            (ROOT / "src/navigan/modules/cluster_management/handler.py").read_bytes()
         )
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
                 if entry.filename.endswith(".pyc") and any(
                     f"/{name}." in entry.filename
-                    for name in ("handler", "models", "upgrade_readiness", "upgrade_plans")
+                    for name in ("handler", "upgrade_plans")
                 ):
                     continue
-                source = managed.get(entry.filename)
-                new.writestr(entry, (ROOT / source).read_bytes() if source else old.read(entry.filename))
+                new.writestr(entry, target_handler if entry.filename == handler else old.read(entry.filename))
             new.writestr(new_module, (ROOT / "src" / new_module).read_bytes())
     with zipfile.ZipFile(destination) as updated:
         require(
