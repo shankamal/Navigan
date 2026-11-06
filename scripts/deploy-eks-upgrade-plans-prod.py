@@ -72,16 +72,24 @@ def semantic(source):
 
 def handler_baselines(source):
     values = {semantic(source)}
-    before = (
+    repository_order = (
         b"from .bootstrap_status import refresh_installer_status\n"
         b"from .tool_access import resolve_tool_access\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
     )
-    after = (
+    legacy_order = (
         b"from .tool_access import resolve_tool_access\n"
         b"from .bootstrap_status import refresh_installer_status\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
     )
-    if before in source:
-        values.add(semantic(source.replace(before, after, 1)))
+    deployed_readiness_order = (
+        b"from .tool_access import resolve_tool_access\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
+        b"from .bootstrap_status import refresh_installer_status\n"
+    )
+    if repository_order in source:
+        values.add(semantic(source.replace(repository_order, legacy_order, 1)))
+        values.add(semantic(source.replace(repository_order, deployed_readiness_order, 1)))
     return values
 
 

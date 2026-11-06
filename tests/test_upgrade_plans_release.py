@@ -59,6 +59,39 @@ def test_release_replaces_only_reviewed_cluster_modules(tmp_path):
         assert package.read("navigan/shared/errors.py") == b"class ApiError(Exception): pass\n"
 
 
+def test_release_accepts_exact_deployed_readiness_import_order(tmp_path):
+    release = load_release()
+    prefix = "navigan/modules/cluster_management/"
+    paths = {
+        "handler.py": "src/navigan/modules/cluster_management/handler.py",
+        "models.py": "src/navigan/modules/cluster_management/models.py",
+        "upgrade_readiness.py": "src/navigan/modules/cluster_management/upgrade_readiness.py",
+    }
+    source = tmp_path / "old.zip"
+    target = tmp_path / "new.zip"
+    handler = baseline(release.BASELINE_TREE, paths["handler.py"])
+    repository_order = (
+        b"from .bootstrap_status import refresh_installer_status\n"
+        b"from .tool_access import resolve_tool_access\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
+    )
+    deployed_order = (
+        b"from .tool_access import resolve_tool_access\n"
+        b"from .upgrade_readiness import EksUpgradeDiscovery\n"
+        b"from .bootstrap_status import refresh_installer_status\n"
+    )
+    assert handler.count(repository_order) == 1
+    with zipfile.ZipFile(source, "w") as package:
+        package.writestr(prefix + "handler.py", handler.replace(repository_order, deployed_order, 1))
+        for member in ("models.py", "upgrade_readiness.py"):
+            package.writestr(prefix + member, baseline(release.BASELINE_TREE, paths[member]))
+
+    release.package(source, target)
+
+    with zipfile.ZipFile(target) as package:
+        assert package.read(prefix + "handler.py") == (ROOT / paths["handler.py"]).read_bytes()
+
+
 def test_release_rejects_an_unreviewed_live_handler(tmp_path):
     release = load_release()
     prefix = "navigan/modules/cluster_management/"
