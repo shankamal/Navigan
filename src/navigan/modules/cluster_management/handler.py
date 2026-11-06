@@ -1,4 +1,5 @@
 """JWT-protected Cluster Management API. Terraform executions are asynchronous."""
+
 import base64
 import hashlib
 import json
@@ -29,6 +30,8 @@ from .models import (
     GitHubAuthorizationRequest,
     CompleteGitHubAuthorization,
     ToolSessionRequest,
+    CreateEksUpgradePlan,
+    UpgradePlanAction,
 )
 from .repository import Repository, serialize
 from .service import Service, TRANSITIONS
@@ -36,19 +39,19 @@ from .connector_installation import ConnectorInstaller
 from .bootstrap_status import refresh_installer_status
 from .tool_access import resolve_tool_access
 from .upgrade_readiness import EksUpgradeDiscovery
+from .upgrade_plans import EksUpgradePlans
 
 BASE = "/api/v1/clusters"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-SECRET_VALUE = re.compile(
-    r"(?i)(external[_ -]?id|secret|string|token|password)\s*[:=]\s*\S+"
-)
+SECRET_VALUE = re.compile(r"(?i)(external[_ -]?id|secret|string|token|password)\s*[:=]\s*\S+")
 
 
 def response(status, body, correlation):
     headers = {
-        "Content-Type": "application/json", "Cache-Control": "no-store",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
         "X-Correlation-ID": correlation,
     }
     if isinstance(body, dict) and body.get("version"):
@@ -60,7 +63,7 @@ def path_of(event):
     path = event.get("rawPath", "")
     stage = event.get("requestContext", {}).get("stage")
     prefix = "/" + stage if stage and stage != "$default" else ""
-    return path[len(prefix):] if prefix and path.startswith(prefix + BASE) else path
+    return path[len(prefix) :] if prefix and path.startswith(prefix + BASE) else path
 
 
 def body_of(event):
@@ -211,10 +214,14 @@ def execution_logs(row):
     operation = execution.get("mode")
     if not operation and row.get("execution_artifact_prefix"):
         try:
-            body = boto3.client("s3").get_object(
-                Bucket=os.environ["TERRAFORM_ARTIFACT_BUCKET"],
-                Key=row["execution_artifact_prefix"] + "/input.json",
-            )["Body"].read()
+            body = (
+                boto3.client("s3")
+                .get_object(
+                    Bucket=os.environ["TERRAFORM_ARTIFACT_BUCKET"],
+                    Key=row["execution_artifact_prefix"] + "/input.json",
+                )["Body"]
+                .read()
+            )
             operation = json.loads(body).get("mode")
         except Exception:
             logger.info(
@@ -224,14 +231,14 @@ def execution_logs(row):
     project, _, stream = build_id.partition(":")
     if not project or not stream:
         return {
-            "status": row["status"], "operation": operation,
-            "events": [], "complete": True,
+            "status": row["status"],
+            "operation": operation,
+            "events": [],
+            "complete": True,
         }
     provider_status = None
     try:
-        builds = boto3.client("codebuild").batch_get_builds(ids=[build_id]).get(
-            "builds", []
-        )
+        builds = boto3.client("codebuild").batch_get_builds(ids=[build_id]).get("builds", [])
         if builds:
             provider_status = builds[0].get("buildStatus")
     except Exception:
@@ -243,9 +250,7 @@ def execution_logs(row):
     complete = (
         provider_status not in running_statuses
         if provider_status
-        else row["status"] not in {
-            "PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"
-        }
+        else row["status"] not in {"PLAN_RUNNING", "APPLYING", "STOPPING", "STARTING", "DELETING"}
     )
     result = boto3.client("logs").get_log_events(
         logGroupName=f"/aws/codebuild/{project}",
@@ -280,7 +285,7 @@ def execute(event, principal, correlation):
     path = path_of(event)
     if path != BASE and not path.startswith(BASE + "/"):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
-    parts = path[len(BASE):].strip("/").split("/") if path != BASE else []
+    parts = path[len(BASE) :].strip("/").split("/") if path != BASE else []
     if parts == ["summary"]:
         if method != "GET":
             raise ApiError(405, "METHOD_NOT_ALLOWED", "Method not supported for this endpoint.")
@@ -291,37 +296,25 @@ def execute(event, principal, correlation):
     if identifier and not re.fullmatch(r"CLU-[A-Za-z0-9-]{1,46}", identifier):
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
     action = parts[1] if len(parts) == 2 else ""
-    create_access = (
-        method == "POST" and len(parts) == 3
-        and parts[1:] == ["access", "assignments"]
-    )
+    create_access = method == "POST" and len(parts) == 3 and parts[1:] == ["access", "assignments"]
     revoke_access = (
-        method == "POST" and len(parts) == 5
-        and parts[1] == "access" and parts[2] == "assignments"
+        method == "POST"
+        and len(parts) == 5
+        and parts[1] == "access"
+        and parts[2] == "assignments"
         and re.fullmatch(r"KAA-[A-Fa-f0-9]{32}", parts[3] or "")
         and parts[4] == "revoke"
     )
-    access_subjects = (
-        method == "GET" and len(parts) == 3
-        and parts[1:] == ["access", "subjects"]
-    )
-    access_namespaces = (
-        method == "GET" and len(parts) == 3
-        and parts[1:] == ["access", "namespaces"]
-    )
-    install_connector = (
-        method == "POST" and len(parts) == 3
-        and parts[1:] == ["connector", "install"]
-    )
-    upgrade_connector = (
-        method == "POST" and len(parts) == 3
-        and parts[1:] == ["connector", "upgrade"]
-    )
+    access_subjects = method == "GET" and len(parts) == 3 and parts[1:] == ["access", "subjects"]
+    access_namespaces = method == "GET" and len(parts) == 3 and parts[1:] == ["access", "namespaces"]
+    install_connector = method == "POST" and len(parts) == 3 and parts[1:] == ["connector", "install"]
+    upgrade_connector = method == "POST" and len(parts) == 3 and parts[1:] == ["connector", "upgrade"]
     create_tool_session = (
         method == "POST"
         and len(parts) == 4
         and parts[1] == "tools"
-        and parts[2] in {
+        and parts[2]
+        in {
             "headlamp",
             "grafana",
             "prometheus",
@@ -341,19 +334,11 @@ def execute(event, principal, correlation):
     )
     create_node_group_request = method == "POST" and node_group_requests
     migrate_system_node_group = (
-        method == "POST"
-        and len(parts) == 2
-        and parts[1] == "migrate-system-node-group"
+        method == "POST" and len(parts) == 2 and parts[1] == "migrate-system-node-group"
     )
-    begin_github_authorization = (
-        method == "POST"
-        and len(parts) == 3
-        and parts[1:] == ["github", "authorize"]
-    )
+    begin_github_authorization = method == "POST" and len(parts) == 3 and parts[1:] == ["github", "authorize"]
     complete_github_authorization = (
-        method == "POST"
-        and len(parts) == 3
-        and parts[1:] == ["github", "complete"]
+        method == "POST" and len(parts) == 3 and parts[1:] == ["github", "complete"]
     )
     node_group_action = (
         method == "POST"
@@ -362,6 +347,21 @@ def execute(event, principal, correlation):
         and re.fullmatch(r"KNG-[a-f0-9]{32}", parts[2] or "")
         and parts[3] in {"submit", "approve", "reject", "apply", "retry"}
     )
+    upgrade_plans = len(parts) == 2 and parts[1] == "upgrade-plans"
+    upgrade_plan_detail = (
+        method == "GET"
+        and len(parts) == 3
+        and parts[1] == "upgrade-plans"
+        and re.fullmatch(r"UPG-[a-f0-9]{32}", parts[2] or "")
+    )
+    upgrade_plan_action = (
+        method == "POST"
+        and len(parts) == 4
+        and parts[1] == "upgrade-plans"
+        and re.fullmatch(r"UPG-[a-f0-9]{32}", parts[2] or "")
+        and parts[3] in {"submit", "approve", "reject", "cancel", "execute", "refresh"}
+    )
+    create_upgrade_plan = method == "POST" and upgrade_plans
     read_actions = {
         "execution-logs",
         "identity",
@@ -378,11 +378,14 @@ def execute(event, principal, correlation):
         or node_group_requests
         or audit_log
         or node_group_execution_logs
+        or (method == "GET" and upgrade_plans)
+        or upgrade_plan_detail
     )
     write = (
-        (method == "POST" and (
-            not parts or action in {*TRANSITIONS, "plan", "apply", "stop", "start", "delete"}
-        ))
+        (
+            method == "POST"
+            and (not parts or action in {*TRANSITIONS, "plan", "apply", "stop", "start", "delete"})
+        )
         or (method == "PUT" and len(parts) == 1)
         or create_access
         or revoke_access
@@ -394,6 +397,8 @@ def execute(event, principal, correlation):
         or begin_github_authorization
         or complete_github_authorization
         or node_group_action
+        or create_upgrade_plan
+        or upgrade_plan_action
     )
     if not read and not write:
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
@@ -429,6 +434,10 @@ def execute(event, principal, correlation):
             if complete_github_authorization
             else NodeGroupRequestAction
             if node_group_action
+            else CreateEksUpgradePlan
+            if create_upgrade_plan
+            else UpgradePlanAction
+            if upgrade_plan_action
             else CreateCluster
             if not identifier
             else UpdateCluster
@@ -471,16 +480,11 @@ def execute(event, principal, correlation):
                         repo.platform_component_rows(identifier),
                         base_url=os.environ.get("PLATFORM_TOOLS_BASE_URL"),
                         gateway_enabled=(
-                            os.environ.get("PLATFORM_TOOLS_GATEWAY_ENABLED", "false")
-                            .strip()
-                            .lower()
+                            os.environ.get("PLATFORM_TOOLS_GATEWAY_ENABLED", "false").strip().lower()
                             == "true"
                         ),
                         tunnel_enabled=(
-                            os.environ.get("PLATFORM_TOOLS_TUNNEL_ENABLED", "false")
-                            .strip()
-                            .lower()
-                            == "true"
+                            os.environ.get("PLATFORM_TOOLS_TUNNEL_ENABLED", "false").strip().lower() == "true"
                         ),
                         tunnel_connected=repo.tool_tunnel_connected(identifier),
                     )
@@ -498,17 +502,14 @@ def execute(event, principal, correlation):
                     value = repo.node_group_requests(identifier)
                 elif node_group_execution_logs:
                     access.require("cluster.logs.view")
-                    value = execution_logs(
-                        repo.get_node_group_request(identifier, parts[2])
-                    )
+                    value = execution_logs(repo.get_node_group_request(identifier, parts[2]))
+                elif upgrade_plans:
+                    value = EksUpgradePlans(repo, access, correlation).list(identifier)
+                elif upgrade_plan_detail:
+                    value = serialize(EksUpgradePlans(repo, access, correlation).get(identifier, parts[2]))
                 elif audit_log:
-                    if not (
-                        access.has("cluster.audit.view")
-                        or access.has("audit.platform.view")
-                    ):
-                        raise ApiError(
-                            403, "FORBIDDEN", "This operation is not permitted."
-                        )
+                    if not (access.has("cluster.audit.view") or access.has("audit.platform.view")):
+                        raise ApiError(403, "FORBIDDEN", "This operation is not permitted.")
                     value = repo.audit_log(identifier)
                 else:
                     value = serialize(row, access)
@@ -516,7 +517,9 @@ def execute(event, principal, correlation):
         if upgrade_connector:
             access.require("cluster.access.manage")
             operation = method + " " + path
-            fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            fingerprint = hashlib.sha256(
+                json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
             customer_repo = CustomerRepository(db, principal)
             replay = customer_repo.idempotency_get(operation, key, fingerprint)
             if replay:
@@ -549,9 +552,7 @@ def execute(event, principal, correlation):
                 correlation,
                 ConnectorInstaller(),
             )
-            customer_repo.idempotency_put(
-                operation, key, fingerprint, {"status": 202, "body": value}
-            )
+            customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})
             return response(202, value, correlation)
         operation = method + " " + path
         fingerprint = hashlib.sha256(
@@ -577,25 +578,15 @@ def execute(event, principal, correlation):
                 repo.platform_component_rows(identifier),
                 base_url=os.environ.get("PLATFORM_TOOLS_BASE_URL"),
                 gateway_enabled=(
-                    os.environ.get("PLATFORM_TOOLS_GATEWAY_ENABLED", "false")
-                    .strip()
-                    .lower()
-                    == "true"
+                    os.environ.get("PLATFORM_TOOLS_GATEWAY_ENABLED", "false").strip().lower() == "true"
                 ),
                 tunnel_enabled=(
-                    os.environ.get("PLATFORM_TOOLS_TUNNEL_ENABLED", "false")
-                    .strip()
-                    .lower()
-                    == "true"
+                    os.environ.get("PLATFORM_TOOLS_TUNNEL_ENABLED", "false").strip().lower() == "true"
                 ),
                 tunnel_connected=repo.tool_tunnel_connected(identifier),
             )
             tool = next(
-                (
-                    item
-                    for item in tool_access["tools"]
-                    if item["code"] == body["toolCode"]
-                ),
+                (item for item in tool_access["tools"] if item["code"] == body["toolCode"]),
                 None,
             )
             if not tool:
@@ -610,15 +601,11 @@ def execute(event, principal, correlation):
                     "TOOL_UNAVAILABLE",
                     tool["disabledReason"] or "This tool is not available.",
                 )
-            session = repo.create_tool_session(
-                cluster, body["toolCode"], correlation
-            )
+            session = repo.create_tool_session(cluster, body["toolCode"], correlation)
             value = {
                 **session,
                 "toolCode": body["toolCode"],
-                "exchangeUrl": (
-                    tool_access["gateway"]["baseUrl"] + "/session/exchange"
-                ),
+                "exchangeUrl": (tool_access["gateway"]["baseUrl"] + "/session/exchange"),
                 "launchUrl": tool["launchUrl"],
             }
             status = 201
@@ -629,44 +616,46 @@ def execute(event, principal, correlation):
             status = 201
         elif revoke_access:
             access.require("cluster.access.manage")
-            value = repo.revoke_kubernetes_access(
-                identifier, parts[3], body, correlation
-            )
+            value = repo.revoke_kubernetes_access(identifier, parts[3], body, correlation)
             status = 200
         elif create_node_group_request:
-            value = Service(repo, correlation).create_node_group_request(
-                identifier, body
-            )
+            value = Service(repo, correlation).create_node_group_request(identifier, body)
             status = 201
         elif migrate_system_node_group:
             access.require("cluster.apply")
-            value = Service(repo, correlation).migrate_system_node_group(
-                identifier, body
-            )
+            value = Service(repo, correlation).migrate_system_node_group(identifier, body)
             status = 202
         elif begin_github_authorization:
             access.require("cluster.approve")
-            value = Service(repo, correlation).begin_github_authorization(
-                identifier, body
-            )
+            value = Service(repo, correlation).begin_github_authorization(identifier, body)
             status = 200
         elif complete_github_authorization:
             access.require("cluster.approve")
-            value = Service(repo, correlation).complete_github_authorization(
-                identifier, body
-            )
+            value = Service(repo, correlation).complete_github_authorization(identifier, body)
             status = 200
         elif node_group_action:
-            value = Service(repo, correlation).change_node_group_request(
-                identifier, parts[2], parts[3], body
-            )
+            value = Service(repo, correlation).change_node_group_request(identifier, parts[2], parts[3], body)
             status = 202 if parts[3] in {"approve", "apply"} else 200
+        elif create_upgrade_plan:
+            value = EksUpgradePlans(repo, access, correlation).create(identifier, body)
+            status = 201
+        elif upgrade_plan_action:
+            value = EksUpgradePlans(repo, access, correlation).change(identifier, parts[2], parts[3], body)
+            status = 202 if parts[3] in {"execute", "refresh"} else 200
         else:
             service = Service(repo, correlation)
-            value = service.create(body) if not identifier else service.change(identifier, action or "update", body)
-            status = 201 if not identifier else 202 if action in {
-            "approve", "plan", "apply", "stop", "start", "delete"
-            } else 200
+            value = (
+                service.create(body)
+                if not identifier
+                else service.change(identifier, action or "update", body)
+            )
+            status = (
+                201
+                if not identifier
+                else 202
+                if action in {"approve", "plan", "apply", "stop", "start", "delete"}
+                else 200
+            )
         customer_repo.idempotency_put(operation, key, fingerprint, {"status": status, "body": value})
         return response(status, value, correlation)
 
@@ -698,19 +687,22 @@ def lambda_handler(event, context):
         error = ApiError(400, "VALIDATION_ERROR", "Check the request fields.")
         return response(error.status, error.payload(correlation), correlation)
     except Exception as error:
-        logger.error(json.dumps({
-            "correlationId": correlation,
-            "errorType": type(error).__name__,
-            "sqlState": getattr(error, "sqlstate", None),
-            "locations": [
+        logger.error(
+            json.dumps(
                 {
-                    "file": frame.filename.rsplit("/", 1)[-1],
-                    "line": frame.lineno,
-                    "function": frame.name,
+                    "correlationId": correlation,
+                    "errorType": type(error).__name__,
+                    "sqlState": getattr(error, "sqlstate", None),
+                    "locations": [
+                        {
+                            "file": frame.filename.rsplit("/", 1)[-1],
+                            "line": frame.lineno,
+                            "function": frame.name,
+                        }
+                        for frame in traceback.extract_tb(error.__traceback__)
+                    ][-8:],
                 }
-                for frame in traceback.extract_tb(error.__traceback__)
-            ][-8:],
-        }))
+            )
+        )
         error = ApiError(500, "INTERNAL_ERROR", "An unexpected error occurred.")
         return response(error.status, error.payload(correlation), correlation)
-

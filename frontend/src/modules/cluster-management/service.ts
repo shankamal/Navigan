@@ -12,6 +12,8 @@ import {
   connectorInstallationSchema,
   platformComponentInventorySchema,
   eksUpgradeReadinessSchema,
+  eksUpgradePlanSchema,
+  eksUpgradePlanListSchema,
   clusterToolAccessSchema,
   clusterToolSessionSchema,
   clusterNodeGroupRequestSchema,
@@ -112,6 +114,50 @@ export const clusters = {
     parseResponse(
       eksUpgradeReadinessSchema,
       (await apiClient.get(`${base}/${id}/upgrade-readiness`)).data,
+    ),
+  upgradePlans: async (id: string) =>
+    parseResponse(
+      eksUpgradePlanListSchema,
+      (await apiClient.get(`${base}/${id}/upgrade-plans`)).data,
+    ),
+  upgradePlan: async (id: string, planId: string) =>
+    parseResponse(
+      eksUpgradePlanSchema,
+      (await apiClient.get(`${base}/${id}/upgrade-plans/${planId}`)).data,
+    ),
+  createUpgradePlan: async (
+    id: string,
+    input: {
+      targetVersion: string;
+      strategy: "PROVIDER_MANAGED_ROLLING";
+      scheduledFor?: string;
+      changeReason: string;
+    },
+  ) =>
+    parseResponse(
+      eksUpgradePlanSchema,
+      (
+        await apiClient.post(`${base}/${id}/upgrade-plans`, input, {
+          headers: writeHeaders({ key: crypto.randomUUID() }),
+        })
+      ).data,
+    ),
+  changeUpgradePlan: async (
+    id: string,
+    planId: string,
+    action: "submit" | "approve" | "reject" | "cancel" | "execute" | "refresh",
+    version: number,
+    reason?: string,
+  ) =>
+    parseResponse(
+      eksUpgradePlanSchema,
+      (
+        await apiClient.post(
+          `${base}/${id}/upgrade-plans/${planId}/${action}`,
+          { version, ...(reason ? { reason } : {}) },
+          { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
+        )
+      ).data,
     ),
   tools: async (id: string) =>
     parseResponse(

@@ -1,4 +1,5 @@
 """Verify the scoped workspace rollout's transaction and database boundaries."""
+
 import hashlib
 import importlib.util
 from pathlib import Path
@@ -13,7 +14,9 @@ spec.loader.exec_module(runner)
 
 
 class DataAPI:
-    def __init__(self, *, fail=False, missing=False, checksums=None, database="navigan_dev", connected_database=None):
+    def __init__(
+        self, *, fail=False, missing=False, checksums=None, database="navigan_dev", connected_database=None
+    ):
         self.database = database
         self.connected_database = connected_database or database
         self.calls = []
@@ -39,6 +42,17 @@ class DataAPI:
         if self.fail and sql.startswith("CREATE TABLE migration_management"):
             raise RuntimeError("simulated DDL failure")
         if sql.startswith("SELECT to_regclass"):
+            if "AS table_name" in sql:
+                return {
+                    "records": [
+                        [
+                            {"isNull": True}
+                            if self.missing
+                            else {"stringValue": "cluster_management.upgrade_plans"},
+                            {"booleanValue": not self.missing},
+                        ]
+                    ]
+                }
             return {"records": [[{"isNull": True} if self.missing else {"stringValue": "table"}]]}
         return {"records": []}
 
@@ -50,15 +64,68 @@ class DataAPI:
 
 
 def setup(monkeypatch, client, *extra):
-    monkeypatch.setattr(sys, "argv", ["runner", "--profile", "navigan", "--region", "ap-south-1",
-                                    "--resource-arn", "cluster", "--secret-arn", "secret",
-                                    "--database", "navigan_dev", "--workspace-only",
-                                    "--migrations-dir", str(ROOT / "database/migrations"), *extra])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "runner",
+            "--profile",
+            "navigan",
+            "--region",
+            "ap-south-1",
+            "--resource-arn",
+            "cluster",
+            "--secret-arn",
+            "secret",
+            "--database",
+            "navigan_dev",
+            "--workspace-only",
+            "--migrations-dir",
+            str(ROOT / "database/migrations"),
+            *extra,
+        ],
+    )
+
     class Session:
         def __init__(self, **kwargs):
             pass
+
         def client(self, name):
             return client
+
+    monkeypatch.setattr(runner.boto3, "Session", Session)
+
+
+def setup_upgrade_plans(monkeypatch, client, *extra):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "runner",
+            "--profile",
+            "navigan",
+            "--region",
+            "ap-south-1",
+            "--resource-arn",
+            "cluster",
+            "--secret-arn",
+            "secret",
+            "--database",
+            "navigan_dev",
+            "--upgrade-plans-only",
+            "--migrations-dir",
+            str(ROOT / "database/migrations"),
+            *extra,
+        ],
+    )
+
+    class Session:
+        def __init__(self, **kwargs):
+            pass
+
+        def client(self, name):
+            return client
+
     monkeypatch.setattr(runner.boto3, "Session", Session)
 
 
@@ -73,14 +140,22 @@ def test_scoped_rollout_has_one_transaction_and_original_checksums(monkeypatch):
     assert len(creates) == 3
     grants = [statement for statement in sql if statement.startswith("GRANT")]
     assert grants == [runner.WORKSPACE_GRANTS.strip().rstrip(";")]
-    tracked = [call for call in client.calls if call["sql"].startswith("INSERT INTO platform.schema_migrations")]
+    tracked = [
+        call for call in client.calls if call["sql"].startswith("INSERT INTO platform.schema_migrations")
+    ]
     assert len(tracked) == 2
     for call, name in zip(tracked, runner.WORKSPACE_MIGRATIONS):
         values = {param["name"]: param["value"]["stringValue"] for param in call["parameters"]}
-        assert values == {"name": name, "checksum": hashlib.sha256((ROOT / "database/migrations" / name).read_bytes()).hexdigest()}
+        assert values == {
+            "name": name,
+            "checksum": hashlib.sha256((ROOT / "database/migrations" / name).read_bytes()).hexdigest(),
+        }
 
 
-@pytest.mark.parametrize("options", [{"fail": True}, {"missing": True}, {"checksums": {runner.WORKSPACE_MIGRATIONS[0]: "modified"}}])
+@pytest.mark.parametrize(
+    "options",
+    [{"fail": True}, {"missing": True}, {"checksums": {runner.WORKSPACE_MIGRATIONS[0]: "modified"}}],
+)
 def test_failure_rolls_back_without_commit(monkeypatch, options):
     client = DataAPI(**options)
     setup(monkeypatch, client)
@@ -104,16 +179,14 @@ def test_workspace_production_requires_exact_confirmation_before_aws(monkeypatch
 
 
 def test_workspace_production_dry_run_makes_no_aws_calls(monkeypatch):
-    setup(monkeypatch, None, "--database", "navigan",
-          "--confirm-production-database", "navigan", "--dry-run")
+    setup(monkeypatch, None, "--database", "navigan", "--confirm-production-database", "navigan", "--dry-run")
     monkeypatch.setattr(runner.boto3, "Session", lambda **kwargs: pytest.fail("AWS called"))
     assert runner.main() == 0
 
 
 @pytest.mark.parametrize("database", ["other", "other_dev"])
 def test_workspace_mode_rejects_unrelated_databases(monkeypatch, database):
-    setup(monkeypatch, None, "--database", database,
-          "--confirm-production-database", database)
+    setup(monkeypatch, None, "--database", database, "--confirm-production-database", database)
     monkeypatch.setattr(runner.boto3, "Session", lambda **kwargs: pytest.fail("AWS called"))
     with pytest.raises(SystemExit, match="supports only navigan_dev or navigan"):
         runner.main()
@@ -121,35 +194,67 @@ def test_workspace_mode_rejects_unrelated_databases(monkeypatch, database):
 
 def test_confirmed_production_uses_scoped_migrations_and_grants(monkeypatch):
     client = DataAPI(database="navigan")
-    setup(monkeypatch, client, "--database", "navigan",
-          "--confirm-production-database", "navigan")
+    setup(monkeypatch, client, "--database", "navigan", "--confirm-production-database", "navigan")
     assert runner.main() == 0
     assert client.committed and not client.rolled_back
-    tracked = [call for call in client.calls
-               if call["sql"].startswith("INSERT INTO platform.schema_migrations")]
-    assert [call["parameters"][0]["value"]["stringValue"] for call in tracked] == list(runner.WORKSPACE_MIGRATIONS)
+    tracked = [
+        call for call in client.calls if call["sql"].startswith("INSERT INTO platform.schema_migrations")
+    ]
+    assert [call["parameters"][0]["value"]["stringValue"] for call in tracked] == list(
+        runner.WORKSPACE_MIGRATIONS
+    )
     grants = [call["sql"] for call in client.calls if call["sql"].startswith("GRANT")]
     assert grants == [runner.WORKSPACE_GRANTS.strip().rstrip(";")]
-    assert sum(call["sql"].startswith("CREATE TABLE migration_management")
-               for call in client.calls) == 3
+    assert sum(call["sql"].startswith("CREATE TABLE migration_management") for call in client.calls) == 3
 
 
-@pytest.mark.parametrize("options", [{"fail": True}, {"missing": True},
-                                    {"connected_database": "navigan_dev"}])
+@pytest.mark.parametrize(
+    "options", [{"fail": True}, {"missing": True}, {"connected_database": "navigan_dev"}]
+)
 def test_production_failure_rolls_back(monkeypatch, options):
     client = DataAPI(database="navigan", **options)
-    setup(monkeypatch, client, "--database", "navigan",
-          "--confirm-production-database", "navigan")
+    setup(monkeypatch, client, "--database", "navigan", "--confirm-production-database", "navigan")
     with pytest.raises(RuntimeError):
         runner.main()
     assert client.rolled_back and not client.committed
 
 
 def test_repeat_run_skips_ddl(monkeypatch):
-    checksums = {name: hashlib.sha256((ROOT / "database/migrations" / name).read_bytes()).hexdigest()
-                 for name in runner.WORKSPACE_MIGRATIONS}
+    checksums = {
+        name: hashlib.sha256((ROOT / "database/migrations" / name).read_bytes()).hexdigest()
+        for name in runner.WORKSPACE_MIGRATIONS
+    }
     client = DataAPI(checksums=checksums)
     setup(monkeypatch, client)
     assert runner.main() == 0
     assert not any(call["sql"].startswith("CREATE TABLE migration_management") for call in client.calls)
     assert client.committed
+
+
+def test_upgrade_plan_mode_applies_only_migration_029_and_its_grant(monkeypatch):
+    client = DataAPI()
+    setup_upgrade_plans(monkeypatch, client)
+
+    assert runner.main() == 0
+
+    tracked = [
+        call for call in client.calls if call["sql"].startswith("INSERT INTO platform.schema_migrations")
+    ]
+    assert [call["parameters"][0]["value"]["stringValue"] for call in tracked] == list(
+        runner.UPGRADE_PLAN_MIGRATIONS
+    )
+    grants = [call["sql"] for call in client.calls if call["sql"].startswith("GRANT")]
+    assert grants == [runner.UPGRADE_PLAN_GRANTS.strip().rstrip(";")]
+    assert any(
+        call["sql"].startswith("CREATE TABLE cluster_management.upgrade_plans") for call in client.calls
+    )
+
+
+def test_upgrade_plan_mode_rolls_back_when_runtime_grant_is_missing(monkeypatch):
+    client = DataAPI(missing=True)
+    setup_upgrade_plans(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="Upgrade-plan table or runtime grants"):
+        runner.main()
+
+    assert client.rolled_back and not client.committed

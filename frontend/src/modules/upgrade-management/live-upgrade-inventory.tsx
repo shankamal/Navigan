@@ -13,6 +13,7 @@ import {
 import { clusters } from "@/modules/cluster-management/service";
 import type { Cluster } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
+import type { UpgradeCluster } from "./upgrade-workspace";
 
 type InventoryMode = "containers" | "utilities";
 
@@ -96,6 +97,7 @@ function ContainerInventory({
   onSelect,
   isFetching,
   onRefresh,
+  onPlan,
 }: {
   clusters: Cluster[];
   selected?: Cluster;
@@ -103,6 +105,7 @@ function ContainerInventory({
   onSelect: (value: string) => void;
   isFetching: boolean;
   onRefresh: () => void;
+  onPlan: (cluster: UpgradeCluster) => void;
 }) {
   const readiness = useQuery({
     queryKey: ["eks-upgrade-readiness", selectedId],
@@ -289,8 +292,42 @@ function ContainerInventory({
             </span>
           </div>
           <Button
-            disabled
-            title="Provider readiness and plan persistence are not connected"
+            disabled={
+              !selected ||
+              evidence?.readiness.status !== "READY" ||
+              !evidence?.recommendedTarget
+            }
+            title={
+              evidence?.readiness.status === "READY" &&
+              evidence.recommendedTarget
+                ? undefined
+                : "READY evidence and a supported sequential target are required"
+            }
+            onClick={() => {
+              if (!selected || !evidence?.recommendedTarget) return;
+              onPlan({
+                id: selected.clusterId,
+                name: selected.clusterName,
+                environment: selected.environmentName ?? "Environment",
+                provider: "EKS",
+                providerLabel: "Amazon EKS",
+                currentVersion: evidence.controlPlane.version,
+                targetVersion: evidence.recommendedTarget.version,
+                path: [
+                  evidence.controlPlane.version,
+                  evidence.recommendedTarget.version,
+                ],
+                support:
+                  evidence.controlPlane.support?.supportStatus ===
+                  "EXTENDED_SUPPORT"
+                    ? "EXTENDED_SUPPORT"
+                    : "SUPPORTED",
+                readiness: evidence.readiness.status,
+                findings: `${evidence.readiness.blockers.length + evidence.readiness.warnings.length} findings`,
+                window: "Not scheduled",
+                evidence,
+              });
+            }}
           >
             Create container upgrade plan
           </Button>
@@ -580,7 +617,13 @@ function UtilityInventory({
   );
 }
 
-export function LiveUpgradeInventory({ mode }: { mode: InventoryMode }) {
+export function LiveUpgradeInventory({
+  mode,
+  onPlan,
+}: {
+  mode: InventoryMode;
+  onPlan?: (cluster: UpgradeCluster) => void;
+}) {
   const [selectedId, setSelectedId] = useState("");
   const fleet = useQuery({
     queryKey: ["upgrade-managed-clusters"],
@@ -631,6 +674,7 @@ export function LiveUpgradeInventory({ mode }: { mode: InventoryMode }) {
           void fleet.refetch();
           if (effectiveId) void detail.refetch();
         }}
+        onPlan={onPlan ?? (() => undefined)}
       />
     );
   }

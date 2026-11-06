@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -13,14 +14,17 @@ import {
   CloudCog,
   History,
   Info,
-  RefreshCw,
   Save,
   ShieldAlert,
   Wrench,
   X,
 } from "lucide-react";
 import { Button, PageHeading } from "@/shared/components/ui";
+import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
+import { clusters } from "@/modules/cluster-management/service";
 import { LiveUpgradeInventory } from "./live-upgrade-inventory";
+import { LiveUpgradeCentre } from "./live-upgrade-centre";
+import { UpgradePlansWorkspace } from "./upgrade-plans-workspace";
 import "./upgrade-workspace.css";
 
 type WorkspaceTab =
@@ -28,7 +32,7 @@ type WorkspaceTab =
 
 type Readiness = "READY" | "WARNING" | "BLOCKED";
 
-interface UpgradeCluster {
+export interface UpgradeCluster {
   id: string;
   name: string;
   environment: string;
@@ -41,66 +45,8 @@ interface UpgradeCluster {
   readiness: Readiness;
   findings: string;
   window: string;
+  evidence?: EksUpgradeReadiness;
 }
-
-const previewClusters: UpgradeCluster[] = [
-  {
-    id: "preview-eks-payments",
-    name: "payments-prod-eu",
-    environment: "Production",
-    provider: "EKS",
-    providerLabel: "Amazon EKS",
-    currentVersion: "1.33",
-    targetVersion: "1.35",
-    path: ["1.33", "1.34", "1.35"],
-    support: "EXTENDED_SUPPORT",
-    readiness: "BLOCKED",
-    findings: "2 blockers",
-    window: "Sat 22:00 IST",
-  },
-  {
-    id: "preview-aks-retail",
-    name: "retail-aks-prod",
-    environment: "Production",
-    provider: "AKS",
-    providerLabel: "Azure AKS",
-    currentVersion: "1.34.6",
-    targetVersion: "1.35.3",
-    path: ["1.34.6", "1.35.3"],
-    support: "SUPPORTED",
-    readiness: "READY",
-    findings: "Ready",
-    window: "Sun 01:00 IST",
-  },
-  {
-    id: "preview-gke-analytics",
-    name: "analytics-gke",
-    environment: "Non-production",
-    provider: "GKE",
-    providerLabel: "GKE Regular",
-    currentVersion: "1.34.8",
-    targetVersion: "1.35 channel target",
-    path: ["1.34.8", "1.35 channel target"],
-    support: "SUPPORTED",
-    readiness: "WARNING",
-    findings: "1 warning",
-    window: "Managed window",
-  },
-  {
-    id: "preview-ocp-orders",
-    name: "orders-ocp",
-    environment: "Non-production",
-    provider: "OPENSHIFT",
-    providerLabel: "OpenShift stable",
-    currentVersion: "4.20.8",
-    targetVersion: "4.21.3",
-    path: ["4.20.8", "4.21.3"],
-    support: "SUPPORTED",
-    readiness: "READY",
-    findings: "Ready",
-    window: "Fri 23:30 IST",
-  },
-];
 
 const tabs: ReadonlyArray<{
   id: WorkspaceTab;
@@ -123,54 +69,16 @@ const planSteps = [
   "Review & approve",
 ] as const;
 
-function ProviderMark({ provider }: { provider: UpgradeCluster["provider"] }) {
-  return (
-    <span
-      className={`upgrade-provider-mark provider-${provider.toLowerCase()}`}
-    >
-      {provider === "OPENSHIFT" ? "OC" : provider}
-    </span>
-  );
-}
-
-function ReadinessBadge({ value }: { value: Readiness }) {
-  const Icon =
-    value === "READY"
-      ? CheckCircle2
-      : value === "BLOCKED"
-        ? ShieldAlert
-        : AlertTriangle;
-  return (
-    <span
-      className={`upgrade-readiness-badge readiness-${value.toLowerCase()}`}
-    >
-      <Icon size={15} aria-hidden="true" />
-      {value === "READY"
-        ? "Ready"
-        : value === "BLOCKED"
-          ? "Blocked"
-          : "Warning"}
-    </span>
-  );
-}
-
-function PreviewNotice({ live = false }: { live?: boolean }) {
+function LiveCapabilityNotice() {
   return (
     <div className="upgrade-preview-notice" role="note">
       <Info size={17} aria-hidden="true" />
-      {live ? (
-        <p>
-          <strong>Live read-only inventory.</strong> Cluster records, Amazon EKS
-          version readiness and connector-reported utility health are connected.
-          Plan persistence, approvals and execution remain disabled.
-        </p>
-      ) : (
-        <p>
-          <strong>Experience preview.</strong> Values on this page are sample
-          data. Provider discovery, approvals and execution are not connected,
-          and no cluster changes can be started from this increment.
-        </p>
-      )}
+      <p>
+        <strong>Live governed inventory.</strong> Cluster records, Amazon EKS
+        readiness and EKS upgrade plans are connected. Execution requires
+        independent approval, a valid maintenance window and fresh readiness
+        evidence. Utility execution is not enabled yet.
+      </p>
     </div>
   );
 }
@@ -201,240 +109,17 @@ function UpgradeTabs({
   );
 }
 
-function ReadinessWorkspace({
-  selected,
-  onSelect,
+function SupportingTab({
+  tab,
   onPlan,
 }: {
-  selected: UpgradeCluster;
-  onSelect: (cluster: UpgradeCluster) => void;
+  tab: Exclude<WorkspaceTab, "readiness">;
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
-  return (
-    <div className="upgrade-readiness-layout">
-      <section className="upgrade-fleet" aria-labelledby="upgrade-fleet-title">
-        <div className="upgrade-summary-strip">
-          <div>
-            <strong>12</strong>
-            <span>Clusters require action</span>
-          </div>
-          <div>
-            <strong>4</strong>
-            <span>Approaching end of support</span>
-          </div>
-          <div>
-            <strong>3</strong>
-            <span>Blocked by readiness findings</span>
-          </div>
-        </div>
-        <div className="upgrade-fleet-heading">
-          <div>
-            <h2 id="upgrade-fleet-title">Fleet upgrade exposure</h2>
-            <p>Review support risk, valid targets and readiness evidence.</p>
-          </div>
-          <Button
-            variant="secondary"
-            disabled
-            title="Live inventory is not connected yet"
-          >
-            <RefreshCw size={16} aria-hidden="true" />
-            Refresh inventory
-          </Button>
-        </div>
-        <div className="table-scroll">
-          <table className="upgrade-fleet-table">
-            <thead>
-              <tr>
-                <th>Cluster</th>
-                <th>Platform</th>
-                <th>Current</th>
-                <th>Recommended target</th>
-                <th>Support</th>
-                <th>Readiness</th>
-                <th>Maintenance window</th>
-                <th>
-                  <span className="sr-only">Action</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {previewClusters.map((cluster) => (
-                <tr
-                  key={cluster.id}
-                  className={selected.id === cluster.id ? "selected" : ""}
-                >
-                  <td>
-                    <button
-                      type="button"
-                      className="upgrade-cluster-link"
-                      onClick={() => onSelect(cluster)}
-                    >
-                      <strong>{cluster.name}</strong>
-                      <span>{cluster.environment}</span>
-                    </button>
-                  </td>
-                  <td>
-                    <span className="upgrade-provider-cell">
-                      <ProviderMark provider={cluster.provider} />
-                      {cluster.providerLabel}
-                    </span>
-                  </td>
-                  <td>{cluster.currentVersion}</td>
-                  <td>{cluster.targetVersion}</td>
-                  <td>
-                    <span
-                      className={`upgrade-support support-${cluster.support.toLowerCase()}`}
-                    >
-                      {cluster.support === "SUPPORTED"
-                        ? "Supported"
-                        : "Extended support"}
-                    </span>
-                  </td>
-                  <td>
-                    <ReadinessBadge value={cluster.readiness} />
-                  </td>
-                  <td>{cluster.window}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="upgrade-row-action"
-                      onClick={() => {
-                        onSelect(cluster);
-                        onPlan(cluster);
-                      }}
-                    >
-                      {cluster.readiness === "READY" ? "Plan" : "Review"}
-                      <ChevronRight size={15} aria-hidden="true" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <aside
-        className="upgrade-cluster-drawer"
-        aria-label={`${selected.name} upgrade details`}
-      >
-        <div className="upgrade-drawer-title">
-          <div>
-            <p>{selected.providerLabel}</p>
-            <h2>{selected.name}</h2>
-          </div>
-          <ReadinessBadge value={selected.readiness} />
-        </div>
-        <dl className="upgrade-version-summary">
-          <div>
-            <dt>Current</dt>
-            <dd>{selected.currentVersion}</dd>
-          </div>
-          <div>
-            <dt>Target</dt>
-            <dd>{selected.targetVersion}</dd>
-          </div>
-        </dl>
-        <div className="upgrade-path">
-          <h3>Recommended upgrade path</h3>
-          <ol>
-            <li className="complete">
-              <span>
-                <Check size={14} />
-              </span>
-              <div>
-                <strong>Pre-flight checks</strong>
-                <p>Capture configuration, capacity and workload evidence.</p>
-              </div>
-            </li>
-            {selected.path.slice(1).flatMap((version) => [
-              <li key={`control-${version}`}>
-                <span />
-                <div>
-                  <strong>Control plane {version}</strong>
-                  <p>Apply the provider-supported control-plane update.</p>
-                </div>
-              </li>,
-              <li key={`nodes-${version}`}>
-                <span />
-                <div>
-                  <strong>Nodes & add-ons {version}</strong>
-                  <p>Roll nodes and align compatible platform components.</p>
-                </div>
-              </li>,
-            ])}
-            <li>
-              <span />
-              <div>
-                <strong>Validation</strong>
-                <p>Confirm health, workloads, policies and integrations.</p>
-              </div>
-            </li>
-          </ol>
-        </div>
-        {selected.readiness === "BLOCKED" && (
-          <div className="upgrade-blocker-notice">
-            <strong>
-              <ShieldAlert size={17} /> 2 blockers
-            </strong>
-            <ul>
-              <li>
-                Deprecated APIs must be remediated before the selected target.
-              </li>
-              <li>
-                Two disruption budgets currently prevent safe node draining.
-              </li>
-            </ul>
-          </div>
-        )}
-        {selected.readiness === "WARNING" && (
-          <div className="upgrade-warning-notice">
-            <AlertTriangle size={17} />
-            Release-channel timing needs confirmation before scheduling.
-          </div>
-        )}
-        <Button
-          className="upgrade-drawer-action"
-          onClick={() => onPlan(selected)}
-        >
-          {selected.readiness === "READY"
-            ? "Create upgrade plan"
-            : "Open readiness assessment"}
-        </Button>
-      </aside>
-    </div>
-  );
-}
-
-function SupportingTab({ tab }: { tab: Exclude<WorkspaceTab, "readiness"> }) {
   if (tab === "containers" || tab === "utilities") {
-    return <LiveUpgradeInventory mode={tab} />;
+    return <LiveUpgradeInventory mode={tab} onPlan={onPlan} />;
   }
-  const content = {
-    schedule: {
-      icon: CalendarDays,
-      title: "Maintenance schedule",
-      description:
-        "Coordinate approved plans through sandbox, non-production and production windows while respecting freezes, dependencies and promotion gates.",
-    },
-    history: {
-      icon: History,
-      title: "Plans and execution history",
-      description:
-        "Track draft, approved, scheduled, running and completed plans with immutable stage evidence and audit history.",
-    },
-  }[tab as "schedule" | "history"];
-  const Icon = content.icon;
-  return (
-    <section className="upgrade-coming-soon" aria-labelledby={`${tab}-title`}>
-      <Icon size={28} aria-hidden="true" />
-      <div>
-        <p className="eyebrow">Next delivery increment</p>
-        <h2 id={`${tab}-title`}>{content.title}</h2>
-        <p>{content.description}</p>
-      </div>
-    </section>
-  );
+  return <UpgradePlansWorkspace mode={tab} />;
 }
 
 function PlanWizard({
@@ -446,8 +131,36 @@ function PlanWizard({
 }) {
   const [step, setStep] = useState(1);
   const [target, setTarget] = useState(cluster.targetVersion);
-  const [saved, setSaved] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState("");
+  const [changeReason, setChangeReason] = useState("");
+  const [createdPlan, setCreatedPlan] = useState<Awaited<
+    ReturnType<typeof clusters.createUpgradePlan>
+  > | null>(null);
   const targetChoices = cluster.path.slice(1);
+  const evidence = cluster.evidence;
+  const createPlan = useMutation({
+    mutationFn: () =>
+      clusters.createUpgradePlan(cluster.id, {
+        targetVersion: target,
+        strategy: "PROVIDER_MANAGED_ROLLING",
+        ...(scheduledFor
+          ? { scheduledFor: new Date(scheduledFor).toISOString() }
+          : {}),
+        changeReason,
+      }),
+    onSuccess: setCreatedPlan,
+  });
+  const submitPlan = useMutation({
+    mutationFn: () =>
+      clusters.changeUpgradePlan(
+        cluster.id,
+        createdPlan!.planId,
+        "submit",
+        createdPlan!.version,
+        "Ready for independent platform approval.",
+      ),
+    onSuccess: setCreatedPlan,
+  });
 
   const planStages = useMemo(
     () => [
@@ -479,14 +192,27 @@ function PlanWizard({
               {cluster.providerLabel} · {cluster.name} · {cluster.environment}
             </p>
           </div>
-          <Button variant="secondary" onClick={() => setSaved(true)}>
+          <Button
+            variant="secondary"
+            disabled={
+              step !== planSteps.length ||
+              changeReason.trim().length < 8 ||
+              createPlan.isPending ||
+              Boolean(createdPlan)
+            }
+            onClick={() => createPlan.mutate()}
+          >
             <Save size={16} aria-hidden="true" />
-            {saved ? "Draft saved locally" : "Save draft"}
+            {createdPlan
+              ? `Draft ${createdPlan.planId}`
+              : createPlan.isPending
+                ? "Saving draft"
+                : "Save governed draft"}
           </Button>
         </div>
       </div>
 
-      <PreviewNotice />
+      <LiveCapabilityNotice />
 
       <ol className="upgrade-plan-steps" aria-label="Upgrade plan progress">
         {planSteps.map((label, index) => {
@@ -562,7 +288,7 @@ function PlanWizard({
                 </div>
                 <div>
                   <span>Managed add-ons</span>
-                  <strong>4</strong>
+                  <strong>{evidence?.addons.length ?? 0}</strong>
                 </div>
               </div>
               <h3>Upgrade path</h3>
@@ -613,7 +339,7 @@ function PlanWizard({
                       </strong>
                       <small>
                         {index === targetChoices.length - 1
-                          ? "Recommended preview target"
+                          ? "Provider-supported sequential target"
                           : "Complete this hop and plan the next version later"}
                       </small>
                     </span>
@@ -623,25 +349,31 @@ function PlanWizard({
               <div className="upgrade-release-impact">
                 <h3>Release impact</h3>
                 <ul>
-                  <li className="warning">
-                    <AlertTriangle size={16} />
-                    <strong>Removed APIs detected</strong>
-                    <span>3 API usages need review</span>
-                  </li>
-                  <li>
-                    <CheckCircle2 size={16} />
-                    <strong>CoreDNS</strong>
-                    <span>Compatibility check required</span>
-                  </li>
-                  <li>
-                    <CheckCircle2 size={16} />
-                    <strong>Network plugin</strong>
-                    <span>Compatibility check required</span>
-                  </li>
+                  {(evidence?.addons ?? []).map((addon) => (
+                    <li
+                      key={addon.name}
+                      className={addon.targetVersion ? "" : "warning"}
+                    >
+                      {addon.targetVersion ? (
+                        <CheckCircle2 size={16} />
+                      ) : (
+                        <AlertTriangle size={16} />
+                      )}
+                      <strong>{addon.name}</strong>
+                      <span>
+                        {addon.targetVersion
+                          ? `${addon.version ?? "Unknown"} → ${addon.targetVersion}`
+                          : "Compatible target requires review"}
+                      </span>
+                    </li>
+                  ))}
                   <li>
                     <Clock3 size={16} />
-                    <strong>Estimated maintenance</strong>
-                    <span>Two maintenance windows</span>
+                    <strong>Managed node groups</strong>
+                    <span>
+                      {evidence?.nodeGroups.length ?? 0} rolling updates after
+                      the control plane
+                    </span>
                   </li>
                 </ul>
               </div>
@@ -655,43 +387,56 @@ function PlanWizard({
                 Resolve blocking findings before an upgrade can be approved.
               </p>
               <div className="upgrade-readiness-list">
-                <div className="blocked">
-                  <ShieldAlert />
-                  <span>
-                    <strong>Deprecated API compatibility</strong>
-                    <small>
-                      Three API usages require remediation or evidence.
-                    </small>
-                  </span>
-                  <b>Blocked</b>
-                </div>
-                <div className="blocked">
-                  <ShieldAlert />
-                  <span>
-                    <strong>Pod disruption budgets</strong>
-                    <small>
-                      Two workloads currently prevent safe draining.
-                    </small>
-                  </span>
-                  <b>Blocked</b>
-                </div>
-                <div>
-                  <CheckCircle2 />
-                  <span>
-                    <strong>Capacity headroom</strong>
-                    <small>
-                      Surge capacity is available for rolling replacement.
-                    </small>
-                  </span>
-                  <b>Ready</b>
-                </div>
+                {[
+                  ...(evidence?.readiness.blockers ?? []),
+                  ...(evidence?.readiness.warnings ?? []),
+                ].map((finding) => (
+                  <div
+                    key={`${finding.code}-${finding.message}`}
+                    className={
+                      evidence?.readiness.blockers.some(
+                        (item) => item.code === finding.code,
+                      )
+                        ? "blocked"
+                        : "warning"
+                    }
+                  >
+                    <ShieldAlert />
+                    <span>
+                      <strong>{finding.code.replaceAll("_", " ")}</strong>
+                      <small>{finding.message}</small>
+                    </span>
+                    <b>
+                      {evidence?.readiness.blockers.some(
+                        (item) => item.code === finding.code,
+                      )
+                        ? "Blocked"
+                        : "Warning"}
+                    </b>
+                  </div>
+                ))}
+                {evidence?.readiness.status === "READY" && (
+                  <div>
+                    <CheckCircle2 />
+                    <span>
+                      <strong>Live EKS readiness</strong>
+                      <small>
+                        {evidence.nodeGroups.length} node groups,{" "}
+                        {evidence.addons.length} add-ons and{" "}
+                        {evidence.insights.length} insights passed the plan
+                        gate.
+                      </small>
+                    </span>
+                    <b>Ready</b>
+                  </div>
+                )}
               </div>
             </>
           )}
           {step === 4 && (
             <>
               <p className="eyebrow">Step 4 of 6</p>
-              <h2>Choose an upgrade strategy</h2>
+              <h2>Confirm the upgrade strategy</h2>
               <p className="upgrade-step-description">
                 Use the provider-supported rolling strategy by default and
                 document any exception.
@@ -703,16 +448,6 @@ function PlanWizard({
                   <p>
                     Respect disruption budgets, drain nodes safely and validate
                     each stage.
-                  </p>
-                </div>
-              </div>
-              <div className="upgrade-strategy-option">
-                <CloudCog />
-                <div>
-                  <strong>Blue/green cluster migration</strong>
-                  <p>
-                    Plan a separate target cluster where in-place risk is
-                    unacceptable.
                   </p>
                 </div>
               </div>
@@ -729,17 +464,20 @@ function PlanWizard({
               <div className="upgrade-schedule-preview">
                 <CalendarDays />
                 <div>
-                  <strong>Window 1 · Saturday 22:00 IST</strong>
+                  <strong>Approved maintenance start</strong>
                   <p>
-                    Control plane, nodes and add-ons for the first required hop.
+                    Select a future time, or leave empty for approval without
+                    scheduling.
                   </p>
-                </div>
-              </div>
-              <div className="upgrade-schedule-preview">
-                <CalendarDays />
-                <div>
-                  <strong>Window 2 · Following Saturday 22:00 IST</strong>
-                  <p>Final target stages and post-upgrade validation.</p>
+                  <input
+                    aria-label="Maintenance start"
+                    type="datetime-local"
+                    value={scheduledFor}
+                    min={new Date(Date.now() + 60_000)
+                      .toISOString()
+                      .slice(0, 16)}
+                    onChange={(event) => setScheduledFor(event.target.value)}
+                  />
                 </div>
               </div>
             </>
@@ -769,14 +507,41 @@ function PlanWizard({
                 </div>
                 <div>
                   <dt>Approval state</dt>
-                  <dd>Draft preview</dd>
+                  <dd>{createdPlan?.status ?? "Not created"}</dd>
                 </div>
               </dl>
+              <label className="upgrade-live-field">
+                <span>Change reason</span>
+                <textarea
+                  aria-label="Change reason"
+                  value={changeReason}
+                  onChange={(event) => setChangeReason(event.target.value)}
+                  placeholder="Describe the business reason and expected outcome."
+                  rows={4}
+                />
+              </label>
+              {createdPlan && (
+                <div className="upgrade-submit-boundary">
+                  <CheckCircle2 />
+                  <p>
+                    Governed draft <strong>{createdPlan.planId}</strong> is
+                    persisted with live evidence version {createdPlan.version}.
+                  </p>
+                </div>
+              )}
+              {(createPlan.isError || submitPlan.isError) && (
+                <div className="upgrade-blocker-notice" role="alert">
+                  <strong>
+                    <AlertTriangle size={17} /> Plan request failed
+                  </strong>
+                  <p>{(createPlan.error ?? submitPlan.error)?.message}</p>
+                </div>
+              )}
               <div className="upgrade-submit-boundary">
                 <Info />
                 <p>
-                  Submission remains unavailable until identity, provider
-                  discovery and approval APIs are connected.
+                  Creating a draft does not call an EKS update API. Submission
+                  requires an independent authorized approver before execution.
                 </p>
               </div>
             </>
@@ -806,8 +571,8 @@ function PlanWizard({
           </div>
           <div className="upgrade-duration">
             <Clock3 size={18} />
-            <span>Estimated duration</span>
-            <strong>2h 40m across 2 windows</strong>
+            <span>Execution stages</span>
+            <strong>{planStages.length} resumable gates</strong>
           </div>
         </aside>
       </div>
@@ -828,8 +593,26 @@ function PlanWizard({
             <ChevronRight size={16} />
           </Button>
         ) : (
-          <Button disabled title="Approval API is not connected">
-            Submit for approval
+          <Button
+            disabled={
+              changeReason.trim().length < 8 ||
+              createPlan.isPending ||
+              submitPlan.isPending ||
+              createdPlan?.status === "SUBMITTED"
+            }
+            onClick={() =>
+              createdPlan ? submitPlan.mutate() : createPlan.mutate()
+            }
+          >
+            {createdPlan?.status === "SUBMITTED"
+              ? "Submitted for independent approval"
+              : createdPlan
+                ? submitPlan.isPending
+                  ? "Submitting"
+                  : "Submit for approval"
+                : createPlan.isPending
+                  ? "Creating draft"
+                  : "Create governed draft"}
           </Button>
         )}
       </div>
@@ -839,7 +622,6 @@ function PlanWizard({
 
 export function UpgradeWorkspace() {
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
-  const [selected, setSelected] = useState(previewClusters[0]);
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
 
   if (planning)
@@ -852,23 +634,19 @@ export function UpgradeWorkspace() {
         description="Plan and govern platform lifecycle changes across managed clusters."
         icon={<CircleArrowUp />}
         action={
-          <Button onClick={() => setPlanning(selected)}>
+          <Button onClick={() => setTab("readiness")}>
             <CircleArrowUp size={17} />
-            Create upgrade plan
+            Review live readiness
           </Button>
         }
       />
-      <PreviewNotice live={tab === "containers" || tab === "utilities"} />
+      <LiveCapabilityNotice />
       <UpgradeTabs active={tab} onChange={setTab} />
       <div role="tabpanel">
         {tab === "readiness" ? (
-          <ReadinessWorkspace
-            selected={selected}
-            onSelect={setSelected}
-            onPlan={setPlanning}
-          />
+          <LiveUpgradeCentre onPlan={setPlanning} />
         ) : (
-          <SupportingTab tab={tab} />
+          <SupportingTab tab={tab} onPlan={setPlanning} />
         )}
       </div>
     </div>

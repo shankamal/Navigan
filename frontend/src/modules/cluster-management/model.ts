@@ -345,6 +345,44 @@ export const eksUpgradeReadinessSchema = z.object({
     }),
   }),
 });
+export const eksUpgradePlanSchema = z.object({
+  planId: z.string(),
+  clusterId: z.string(),
+  customerId: z.string(),
+  provider: z.literal("EKS"),
+  currentVersion: z.string(),
+  targetVersion: z.string(),
+  strategy: z.literal("PROVIDER_MANAGED_ROLLING"),
+  status: z.enum([
+    "DRAFT",
+    "SUBMITTED",
+    "APPROVED",
+    "SCHEDULED",
+    "EXECUTING",
+    "SUCCEEDED",
+    "FAILED",
+    "REJECTED",
+    "CANCELLED",
+  ]),
+  scheduledFor: z.string().nullable().optional(),
+  changeReason: z.string(),
+  readinessEvidence: eksUpgradeReadinessSchema,
+  execution: z.record(z.string(), z.unknown()),
+  version: z.number(),
+  submittedBy: z.string().nullable().optional(),
+  submittedAt: z.string().nullable().optional(),
+  approvedBy: z.string().nullable().optional(),
+  approvedAt: z.string().nullable().optional(),
+  createdBy: z.string(),
+  createdAt: z.string(),
+  updatedBy: z.string(),
+  updatedAt: z.string(),
+});
+export const eksUpgradePlanListSchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  items: z.array(eksUpgradePlanSchema),
+});
 export const clusterToolAccessSchema = z.object({
   clusterId: z.string(),
   customerId: z.string(),
@@ -500,6 +538,7 @@ export type ClusterNamespaceInventory = z.infer<
 >;
 export type ConnectorInstallation = z.infer<typeof connectorInstallationSchema>;
 export type EksUpgradeReadiness = z.infer<typeof eksUpgradeReadinessSchema>;
+export type EksUpgradePlan = z.infer<typeof eksUpgradePlanSchema>;
 export type ClusterToolAccess = z.infer<typeof clusterToolAccessSchema>;
 export type ClusterToolSession = z.infer<typeof clusterToolSessionSchema>;
 export type ClusterNodeGroupRequest = z.infer<

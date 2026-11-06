@@ -4,7 +4,7 @@
     "infrastructure/template.yaml": "f00aee22e2b3c8191b1553b68ac589d4dcf28c42bd30317d25f65f281faa8859",
     "infrastructure/modules/customer-management/template.yaml": "84941ee3fc783f123f2bfabf163802bb7c0129949bd34a1c33bb49aa90c91cd1",
     "infrastructure/modules/environment-management/template.yaml": "b836162e08d8387d29659f6efaba4eb5087f964771530f00dfd2b65ae9a5517e",
-    "infrastructure/modules/cluster-management/template.yaml": "51dc7d58448a83c415e298abccbec8ac31547d332d6ff27072b0d9c5bc938513",
+    "infrastructure/modules/cluster-management/template.yaml": "d7d29fca26ac291d4ccd8d3dad10525e3f14cd0de9ad7a957874494901bc9161",
     "infrastructure/modules/migration-management/template.yaml": "b0c63a14e8a33bb6c29808f7ec22e60968e12abe60f61d4836df9cedbf85ae18",
     "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa",
     "infrastructure/companion/dev-route-ownership.yaml": "b9a24be23c5c876542e8a8e44ccf0c66f003758bf7fd55450cba861d6f574825"
@@ -183,6 +183,24 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ListClusterUpgradePlansRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-plans",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ListClusterUpgradePlansRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterUpgradePlanRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-plans/{planId}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterUpgradePlanRoute"
         }
       },
       {
@@ -399,6 +417,24 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "CreateClusterToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateClusterUpgradePlanRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/upgrade-plans",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateClusterUpgradePlanRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ClusterUpgradePlanActionRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/upgrade-plans/{planId}/{upgradeAction}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ClusterUpgradePlanActionRoute"
         }
       },
       {
@@ -1404,6 +1440,24 @@
       },
       {
         "module": "ClusterManagement",
+        "sourceLogicalId": "ListClusterUpgradePlansRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-plans",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ListClusterUpgradePlansRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "GetClusterUpgradePlanRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-plans/{planId}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "GetClusterUpgradePlanRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
         "sourceLogicalId": "GetClusterUpgradeReadinessRoute",
         "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-readiness",
         "owner": {
@@ -1607,6 +1661,24 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "CreateClusterToolSessionRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "CreateClusterUpgradePlanRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/upgrade-plans",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "CreateClusterUpgradePlanRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ClusterUpgradePlanActionRoute",
+        "routeKey": "POST /api/v1/clusters/{clusterId}/upgrade-plans/{planId}/{upgradeAction}",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ClusterUpgradePlanActionRoute"
         }
       },
       {

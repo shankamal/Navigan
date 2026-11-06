@@ -33,6 +33,7 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA environment_management TO navigan_api;
 GRANT USAGE ON SCHEMA cluster_management TO navigan_api;
 GRANT SELECT,INSERT,UPDATE ON cluster_management.clusters TO navigan_api;
 GRANT SELECT,INSERT,UPDATE ON cluster_management.cluster_node_group_requests TO navigan_api;
+GRANT SELECT,INSERT,UPDATE ON cluster_management.upgrade_plans TO navigan_api;
 GRANT SELECT,INSERT ON cluster_management.cluster_versions,
  cluster_management.cluster_status_history,cluster_management.cluster_audit_log TO navigan_api;
 GRANT SELECT ON cluster_management.cluster_identity_integrations,

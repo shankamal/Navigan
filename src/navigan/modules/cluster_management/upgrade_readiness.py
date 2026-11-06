@@ -58,7 +58,7 @@ class EksUpgradeDiscovery:
         self.secrets = secrets or boto3.client("secretsmanager", config=READ_CONFIG)
         self.client_factory = client_factory or boto3.client
 
-    def discover(self, cluster, environment_snapshot):
+    def client(self, cluster, environment_snapshot):
         if cluster.get("platform") != "EKS":
             raise ApiError(
                 422,
@@ -73,24 +73,27 @@ class EksUpgradeDiscovery:
                 "UPGRADE_REGION_NOT_CONFIGURED",
                 "The approved environment does not contain an AWS Region.",
             )
+        external_id = self.secrets.get_secret_value(SecretId=cluster["external_id_secret_arn"])[
+            "SecretString"
+        ]
+        credentials = self.sts.assume_role(
+            RoleArn=cluster["provisioning_role_arn"],
+            RoleSessionName=f"NaviganUpgrade-{cluster['cluster_id'][-20:]}"[:64],
+            ExternalId=external_id,
+            DurationSeconds=900,
+        )["Credentials"]
+        return self.client_factory(
+            "eks",
+            region_name=region,
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+            config=READ_CONFIG,
+        ), region
+
+    def discover(self, cluster, environment_snapshot):
         try:
-            external_id = self.secrets.get_secret_value(
-                SecretId=cluster["external_id_secret_arn"]
-            )["SecretString"]
-            credentials = self.sts.assume_role(
-                RoleArn=cluster["provisioning_role_arn"],
-                RoleSessionName=f"NaviganUpgradeRead-{cluster['cluster_id'][-20:]}"[:64],
-                ExternalId=external_id,
-                DurationSeconds=900,
-            )["Credentials"]
-            eks = self.client_factory(
-                "eks",
-                region_name=region,
-                aws_access_key_id=credentials["AccessKeyId"],
-                aws_secret_access_key=credentials["SecretAccessKey"],
-                aws_session_token=credentials["SessionToken"],
-                config=READ_CONFIG,
-            )
+            eks, region = self.client(cluster, environment_snapshot)
             return self._inventory(eks, cluster, region)
         except ApiError:
             raise
@@ -177,7 +180,8 @@ class EksUpgradeDiscovery:
                 blockers.append(
                     {
                         "code": issue.get("code") or "NODE_GROUP_HEALTH_ISSUE",
-                        "message": issue.get("message") or f"Managed node group {node['name']} has a health issue.",
+                        "message": issue.get("message")
+                        or f"Managed node group {node['name']} has a health issue.",
                     }
                 )
         for addon in addons:
@@ -199,13 +203,16 @@ class EksUpgradeDiscovery:
                 blockers.append(
                     {
                         "code": issue.get("code") or "ADDON_HEALTH_ISSUE",
-                        "message": issue.get("message") or f"Managed add-on {addon['name']} has a health issue.",
+                        "message": issue.get("message")
+                        or f"Managed add-on {addon['name']} has a health issue.",
                     }
                 )
         for insight in insights:
             finding = {
                 "code": "EKS_UPGRADE_INSIGHT_" + insight["status"],
-                "message": insight["name"] + ": " + (insight["reason"] or insight["description"] or "Review the EKS insight."),
+                "message": insight["name"]
+                + ": "
+                + (insight["reason"] or insight["description"] or "Review the EKS insight."),
                 "insightId": insight["id"],
             }
             if insight["status"] in BLOCKING_INSIGHT_STATES:
@@ -250,19 +257,15 @@ class EksUpgradeDiscovery:
                 "checks": {
                     "controlPlaneActive": cluster.get("status") == "ACTIVE",
                     "nodeGroupsAligned": all(
-                        node["status"] == "ACTIVE" and node["version"] == current
-                        and not node["healthIssues"] for node in node_groups
+                        node["status"] == "ACTIVE" and node["version"] == current and not node["healthIssues"]
+                        for node in node_groups
                     ),
                     "addonsHealthy": all(
-                        addon["status"] == "ACTIVE" and not addon["healthIssues"]
-                        for addon in addons
+                        addon["status"] == "ACTIVE" and not addon["healthIssues"] for addon in addons
                     ),
-                    "upgradeInsightsPassing": all(
-                        insight["status"] == "PASSING" for insight in insights
-                    ),
+                    "upgradeInsightsPassing": all(insight["status"] == "PASSING" for insight in insights),
                     "noUpdateInProgress": not any(
-                        update["status"] in {"InProgress", "Pending"}
-                        for update in updates
+                        update["status"] in {"InProgress", "Pending"} for update in updates
                     ),
                 },
             },
@@ -281,16 +284,10 @@ class EksUpgradeDiscovery:
                 values.append(
                     {
                         "version": item.get("clusterVersion"),
-                        "supportStatus": normalize_support(
-                            item.get("versionStatus") or item.get("status")
-                        ),
+                        "supportStatus": normalize_support(item.get("versionStatus") or item.get("status")),
                         "releaseDate": iso(item.get("releaseDate")),
-                        "endOfStandardSupportDate": iso(
-                            item.get("endOfStandardSupportDate")
-                        ),
-                        "endOfExtendedSupportDate": iso(
-                            item.get("endOfExtendedSupportDate")
-                        ),
+                        "endOfStandardSupportDate": iso(item.get("endOfStandardSupportDate")),
+                        "endOfExtendedSupportDate": iso(item.get("endOfExtendedSupportDate")),
                         "defaultPlatformVersion": item.get("defaultPlatformVersion"),
                         "kubernetesPatchVersion": item.get("kubernetesPatchVersion"),
                     }
@@ -315,9 +312,7 @@ class EksUpgradeDiscovery:
                 break
         result = []
         for name in names:
-            item = eks.describe_nodegroup(
-                clusterName=cluster_name, nodegroupName=name
-            )["nodegroup"]
+            item = eks.describe_nodegroup(clusterName=cluster_name, nodegroupName=name)["nodegroup"]
             result.append(
                 {
                     "name": item.get("nodegroupName", name),
@@ -326,9 +321,7 @@ class EksUpgradeDiscovery:
                     "status": item.get("status"),
                     "amiType": item.get("amiType"),
                     "capacityType": item.get("capacityType"),
-                    "healthIssues": health_issues(
-                        (item.get("health") or {}).get("issues")
-                    ),
+                    "healthIssues": health_issues((item.get("health") or {}).get("issues")),
                 }
             )
         return result
@@ -356,11 +349,7 @@ class EksUpgradeDiscovery:
                     addonName=name,
                     maxResults=100,
                 ).get("addons", [])
-                candidates = [
-                    version
-                    for addon in versions
-                    for version in addon.get("addonVersions", [])
-                ]
+                candidates = [version for addon in versions for version in addon.get("addonVersions", [])]
                 target = next(
                     (
                         version.get("addonVersion")
@@ -379,9 +368,7 @@ class EksUpgradeDiscovery:
                     "version": item.get("addonVersion"),
                     "status": item.get("status"),
                     "serviceAccountRoleArn": item.get("serviceAccountRoleArn"),
-                    "healthIssues": health_issues(
-                        (item.get("health") or {}).get("issues")
-                    ),
+                    "healthIssues": health_issues((item.get("health") or {}).get("issues")),
                     "targetVersion": target,
                 }
             )
@@ -396,11 +383,7 @@ class EksUpgradeDiscovery:
                 "clusterName": cluster_name,
                 "filter": {
                     "categories": ["UPGRADE_READINESS"],
-                    **(
-                        {"kubernetesVersions": [target_version]}
-                        if target_version
-                        else {}
-                    ),
+                    **({"kubernetesVersions": [target_version]} if target_version else {}),
                 },
                 "maxResults": 100,
             }
@@ -416,9 +399,9 @@ class EksUpgradeDiscovery:
             status = (summary.get("insightStatus") or {}).get("status", "UNKNOWN")
             detail = summary
             if status != "PASSING" and summary.get("id"):
-                detail = eks.describe_insight(
-                    clusterName=cluster_name, id=summary["id"]
-                ).get("insight", summary)
+                detail = eks.describe_insight(clusterName=cluster_name, id=summary["id"]).get(
+                    "insight", summary
+                )
             insight_status = detail.get("insightStatus") or {}
             result.append(
                 {
@@ -434,15 +417,9 @@ class EksUpgradeDiscovery:
                     "resources": [
                         {
                             "arn": resource.get("arn"),
-                            "kubernetesResourceUri": resource.get(
-                                "kubernetesResourceUri"
-                            ),
-                            "status": (
-                                resource.get("insightStatus") or {}
-                            ).get("status"),
-                            "reason": (
-                                resource.get("insightStatus") or {}
-                            ).get("reason"),
+                            "kubernetesResourceUri": resource.get("kubernetesResourceUri"),
+                            "status": (resource.get("insightStatus") or {}).get("status"),
+                            "reason": (resource.get("insightStatus") or {}).get("reason"),
                         }
                         for resource in detail.get("resources", [])
                     ],
@@ -455,9 +432,7 @@ class EksUpgradeDiscovery:
         page = eks.list_updates(name=cluster_name, maxResults=10)
         result = []
         for update_id in page.get("updateIds", [])[:10]:
-            item = eks.describe_update(name=cluster_name, updateId=update_id).get(
-                "update", {}
-            )
+            item = eks.describe_update(name=cluster_name, updateId=update_id).get("update", {})
             if item.get("status") in {"InProgress", "Pending"}:
                 result.append(
                     {

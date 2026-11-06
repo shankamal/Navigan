@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -48,9 +49,7 @@ class CreateCluster(Model):
     environmentId: str = Field(pattern=r"^ENV-[A-Za-z0-9-]+$", max_length=50)
     environmentApprovedVersion: int | None = Field(default=None, gt=0)
     blueprintName: str = Field(min_length=1, max_length=63)
-    clusterName: str = Field(
-        min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$"
-    )
+    clusterName: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     kubernetesVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
     endpointAccess: Literal["PRIVATE", "PUBLIC_AND_PRIVATE"] = "PRIVATE"
     nodeGroups: list[NodeGroup] = Field(min_length=1, max_length=20)
@@ -73,20 +72,15 @@ class CreateCluster(Model):
     @model_validator(mode="after")
     def initial_cluster_has_one_system_pool(self):
         if len(self.nodeGroups) != 1 or self.nodeGroups[0].purpose != "SYSTEM":
-            raise ValueError(
-                "A new cluster must start with exactly one system node group."
-            )
+            raise ValueError("A new cluster must start with exactly one system node group.")
         if self.nodeGroups[0].capacityType != "ON_DEMAND":
             raise ValueError("The system node group must use on-demand capacity.")
         if self.nodeGroups[0].minSize < 2 or self.nodeGroups[0].desiredSize < 2:
             raise ValueError("The system node group must keep at least two nodes ready.")
         if any(
-            instance_type.endswith((".nano", ".micro"))
-            for instance_type in self.nodeGroups[0].instanceTypes
+            instance_type.endswith((".nano", ".micro")) for instance_type in self.nodeGroups[0].instanceTypes
         ):
-            raise ValueError(
-                "The EKS system node group cannot use nano or micro instance types."
-            )
+            raise ValueError("The EKS system node group cannot use nano or micro instance types.")
         return self
 
 
@@ -118,9 +112,7 @@ class Action(Model):
 class SystemNodeGroupMigration(Model):
     version: int = Field(gt=0)
     targetNodeGroup: NodeGroup
-    legacyNodeGroupName: str = Field(
-        pattern=r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
-    )
+    legacyNodeGroupName: str = Field(pattern=r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
     reason: str = Field(min_length=3, max_length=2000)
 
     @model_validator(mode="after")
@@ -133,22 +125,15 @@ class SystemNodeGroupMigration(Model):
             raise ValueError("The target and legacy node groups must be different.")
         if self.targetNodeGroup.capacityType != "ON_DEMAND":
             raise ValueError("The system node group must use on-demand capacity.")
-        if (
-            self.targetNodeGroup.minSize < 2
-            or self.targetNodeGroup.desiredSize < 2
-        ):
+        if self.targetNodeGroup.minSize < 2 or self.targetNodeGroup.desiredSize < 2:
             raise ValueError("The system node group must keep at least two nodes ready.")
         return self
 
 
 class KubernetesAccessAssignment(Model):
     subjectType: Literal["USER", "GROUP"]
-    subjectId: str = Field(
-        min_length=1, max_length=255, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:@/+_-]*$"
-    )
-    profileCode: Literal[
-        "NAMESPACE_VIEWER", "NAMESPACE_OPERATOR", "CLUSTER_OPERATOR"
-    ]
+    subjectId: str = Field(min_length=1, max_length=255, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:@/+_-]*$")
+    profileCode: Literal["NAMESPACE_VIEWER", "NAMESPACE_OPERATOR", "CLUSTER_OPERATOR"]
     namespace: str | None = Field(
         default=None,
         max_length=253,
@@ -167,9 +152,7 @@ class ConnectorInstallationRequest(Model):
 
 
 class ToolSessionRequest(Model):
-    toolCode: Literal[
-        "HEADLAMP", "GRAFANA", "PROMETHEUS", "ARGOCD", "WEBKUBECTL"
-    ]
+    toolCode: Literal["HEADLAMP", "GRAFANA", "PROMETHEUS", "ARGOCD", "WEBKUBECTL"]
 
 
 class CreateNodeGroupRequest(Model):
@@ -193,3 +176,15 @@ class ConnectorUpgradeRequest(Model):
     version: int = Field(ge=1)
     imageDigest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
     reason: str = Field(min_length=8, max_length=500)
+
+
+class CreateEksUpgradePlan(Model):
+    targetVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
+    strategy: Literal["PROVIDER_MANAGED_ROLLING"] = "PROVIDER_MANAGED_ROLLING"
+    scheduledFor: datetime | None = None
+    changeReason: str = Field(min_length=8, max_length=2000)
+
+
+class UpgradePlanAction(Model):
+    version: int = Field(gt=0)
+    reason: str | None = Field(default=None, max_length=2000)

@@ -20,11 +20,16 @@ WORKSPACE_MIGRATIONS = (
     "027_migration_artifact_workspaces.sql",
     "028_workspace_collection_jobs.sql",
 )
+UPGRADE_PLAN_MIGRATIONS = ("029_upgrade_plans.sql",)
 WORKSPACE_GRANTS = """
 GRANT SELECT, INSERT, UPDATE ON
 migration_management.artifact_workspaces,
 migration_management.workspace_artifacts,
 migration_management.workspace_collection_jobs TO navigan_api;
+"""
+UPGRADE_PLAN_GRANTS = """
+GRANT SELECT, INSERT, UPDATE ON
+cluster_management.upgrade_plans TO navigan_api;
 """
 
 DOLLAR_TAG = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
@@ -150,8 +155,7 @@ def workspace_statements(source: str) -> list[str]:
     if not statements or statements[0].upper() != "BEGIN" or statements[-1].upper() != "COMMIT":
         raise ValueError("Workspace migration must have outer BEGIN/COMMIT wrappers")
     statements = statements[1:-1]
-    if any(re.match(r"^(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION|END)\b", sql, re.I)
-           for sql in statements):
+    if any(re.match(r"^(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION|END)\b", sql, re.I) for sql in statements):
         raise ValueError("Unexpected transaction control in workspace migration")
     return statements
 
@@ -183,8 +187,17 @@ def main() -> int:
     parser.add_argument("--database", required=True)
     parser.add_argument("--migrations-dir", default="database/migrations")
     parser.add_argument("--roles-file", default="database/bootstrap/roles.sql")
-    parser.add_argument("--workspace-only", action="store_true",
-                        help="Apply only workspace migrations 027/028 and grants to navigan_dev or confirmed navigan")
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument(
+        "--workspace-only",
+        action="store_true",
+        help="Apply only workspace migrations 027/028 and their runtime grants",
+    )
+    scope.add_argument(
+        "--upgrade-plans-only",
+        action="store_true",
+        help="Apply only governed EKS upgrade-plan migration 029 and its runtime grant",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--confirm-production-database",
@@ -192,16 +205,15 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.workspace_only and args.database not in {"navigan_dev", "navigan"}:
-        raise SystemExit("Safety stop: --workspace-only supports only navigan_dev or navigan")
+    if (args.workspace_only or args.upgrade_plans_only) and args.database not in {
+        "navigan_dev",
+        "navigan",
+    }:
+        raise SystemExit("Safety stop: scoped migration mode supports only navigan_dev or navigan")
 
-    if (
-        not args.database.endswith("_dev")
-        and args.confirm_production_database != args.database
-    ):
+    if not args.database.endswith("_dev") and args.confirm_production_database != args.database:
         raise SystemExit(
-            "Safety stop: non-Dev targets require "
-            "--confirm-production-database with the exact database name"
+            "Safety stop: non-Dev targets require --confirm-production-database with the exact database name"
         )
 
     migrations_dir = Path(args.migrations_dir).resolve()
@@ -209,17 +221,27 @@ def main() -> int:
     migration_files = sorted(migrations_dir.glob("*.sql"))
     if args.workspace_only:
         migration_files = [migrations_dir / name for name in WORKSPACE_MIGRATIONS]
+    elif args.upgrade_plans_only:
+        migration_files = [migrations_dir / name for name in UPGRADE_PLAN_MIGRATIONS]
+    if args.workspace_only or args.upgrade_plans_only:
         missing = [str(path) for path in migration_files if not path.is_file()]
         if missing:
-            raise SystemExit(f"Workspace migrations not found: {missing}")
+            raise SystemExit(f"Scoped migrations not found: {missing}")
     if not migration_files:
         raise SystemExit(f"No migrations found in {migrations_dir}")
     if not args.workspace_only and not roles_file.is_file():
         raise SystemExit(f"Roles file not found: {roles_file}")
 
-    grants_source = (WORKSPACE_GRANTS if args.workspace_only
-                     else roles_file.read_text(encoding="utf-8"))
-    parse_migration = workspace_statements if args.workspace_only else split_postgresql_script
+    grants_source = (
+        WORKSPACE_GRANTS
+        if args.workspace_only
+        else UPGRADE_PLAN_GRANTS
+        if args.upgrade_plans_only
+        else roles_file.read_text(encoding="utf-8")
+    )
+    parse_migration = (
+        workspace_statements if args.workspace_only or args.upgrade_plans_only else split_postgresql_script
+    )
     # Validate every selected file before opening a database transaction.
     for path in migration_files:
         parse_migration(path.read_text(encoding="utf-8"))
@@ -288,15 +310,12 @@ def main() -> int:
                 try:
                     execute(client, args, transaction_id, statement)
                 except Exception as error:
-                    raise RuntimeError(
-                        f"{path.name} statement {number}/{len(statements)} failed"
-                    ) from error
+                    raise RuntimeError(f"{path.name} statement {number}/{len(statements)} failed") from error
             execute(
                 client,
                 args,
                 transaction_id,
-                "INSERT INTO platform.schema_migrations(name, checksum) "
-                "VALUES (:name, :checksum)",
+                "INSERT INTO platform.schema_migrations(name, checksum) VALUES (:name, :checksum)",
                 [
                     string_parameter("name", path.name),
                     string_parameter("checksum", checksum),
@@ -310,17 +329,35 @@ def main() -> int:
             try:
                 execute(client, args, transaction_id, statement)
             except Exception as error:
-                raise RuntimeError(
-                    f"roles.sql statement {number}/{len(role_statements)} failed"
-                ) from error
+                raise RuntimeError(f"roles.sql statement {number}/{len(role_statements)} failed") from error
 
         if args.workspace_only:
             for table in ("artifact_workspaces", "workspace_artifacts", "workspace_collection_jobs"):
-                result = execute(client, args, transaction_id,
-                                 "SELECT to_regclass(:table_name)::text",
-                                 [string_parameter("table_name", f"migration_management.{table}")])
+                result = execute(
+                    client,
+                    args,
+                    transaction_id,
+                    "SELECT to_regclass(:table_name)::text",
+                    [string_parameter("table_name", f"migration_management.{table}")],
+                )
                 if not result.get("records") or result["records"][0][0].get("isNull", False):
                     raise RuntimeError(f"Workspace table missing after migrations: {table}")
+        elif args.upgrade_plans_only:
+            result = execute(
+                client,
+                args,
+                transaction_id,
+                "SELECT to_regclass('cluster_management.upgrade_plans')::text AS table_name, "
+                "has_table_privilege('navigan_api', 'cluster_management.upgrade_plans', "
+                "'SELECT,INSERT,UPDATE') AS runtime_grants",
+            )
+            records = result.get("records", [])
+            if (
+                len(records) != 1
+                or not records[0][0].get("stringValue")
+                or records[0][1].get("booleanValue") is not True
+            ):
+                raise RuntimeError("Upgrade-plan table or runtime grants are missing")
 
         client.commit_transaction(
             resourceArn=args.resource_arn,

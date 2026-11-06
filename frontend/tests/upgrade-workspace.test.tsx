@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { UpgradeWorkspace } from "../src/modules/upgrade-management/upgrade-workspace";
@@ -93,6 +99,13 @@ vi.mock("@/modules/cluster-management/service", () => ({
         },
       },
     }),
+    upgradePlans: vi.fn().mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [],
+    }),
+    createUpgradePlan: vi.fn(),
+    changeUpgradePlan: vi.fn(),
     platformComponents: vi.fn().mockResolvedValue({
       clusterId: "CLU-live",
       customerId: "CUS-live",
@@ -142,21 +155,24 @@ function mount() {
 }
 
 describe("Upgrade workspace", () => {
-  it("presents the approved readiness workspace without live execution claims", () => {
+  it("presents live fleet readiness without preview data", async () => {
     mount();
 
     expect(
       screen.getByRole("heading", { name: "Upgrades & Patching" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Experience preview.")).toBeInTheDocument();
+    expect(screen.getByText("Live governed inventory.")).toBeInTheDocument();
     expect(
       screen.getByRole("tab", { name: /Upgrade Centre/i }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(screen.getAllByText("payments-prod-eu")).toHaveLength(2);
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(screen.getAllByText("New-dbs-demo-cluster")).toHaveLength(2);
+    expect(screen.queryByText("payments-prod-eu")).not.toBeInTheDocument();
+    expect(screen.getAllByText("1.34")).not.toHaveLength(0);
+    expect(screen.getAllByText("1.35")).not.toHaveLength(0);
     expect(
       screen.getByRole("button", { name: /Refresh inventory/i }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it("uses the approved workspace names", () => {
@@ -181,11 +197,11 @@ describe("Upgrade workspace", () => {
     expect(screen.queryByText("Upgrade Readiness")).not.toBeInTheDocument();
   });
 
-  it("opens and navigates the guided upgrade plan", () => {
+  it("opens and navigates the guided live upgrade plan", async () => {
     mount();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Create upgrade plan" }),
+      await screen.findByRole("button", { name: "Create upgrade plan" }),
     );
     expect(
       screen.getByRole("heading", { name: "Create upgrade plan" }),
@@ -210,7 +226,8 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByRole("heading", { name: "Review readiness evidence" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Blocked")).toHaveLength(2);
+    expect(screen.getByText("Live EKS readiness")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
   });
 
   it("opens live inventory tabs without exposing cloud actions", async () => {
@@ -220,7 +237,7 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByRole("heading", { name: "System utility upgrades" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Live read-only inventory.")).toBeInTheDocument();
+    expect(screen.getByText("Live governed inventory.")).toBeInTheDocument();
     expect(await screen.findAllByText("Headlamp")).not.toHaveLength(0);
     expect(screen.getAllByText("0.45.0")).not.toHaveLength(0);
     expect(
@@ -236,19 +253,23 @@ describe("Upgrade workspace", () => {
         name: "Container distribution upgrades",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Create container upgrade plan/i }),
-    ).toBeDisabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Create container upgrade plan/i }),
+      ).toBeEnabled(),
+    );
     expect(await screen.findByText("Kubernetes 1.35")).toBeInTheDocument();
     expect(screen.getByText("Ready for planning")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /Maintenance Schedule/i }));
-    const section = screen
-      .getByRole("heading", { name: "Maintenance schedule" })
-      .closest("section");
+    const section = (
+      await screen.findByRole("heading", { name: "Maintenance schedule" })
+    ).closest("section");
     expect(section).not.toBeNull();
     expect(
-      within(section!).getByText(/sandbox, non-production and production/i),
+      await within(section!).findByText(
+        /No approved maintenance windows are scheduled/i,
+      ),
     ).toBeInTheDocument();
   });
 });

@@ -107,6 +107,21 @@ describe("Cluster API contract", () => {
     expect(
       isAllowedRoute("POST", ["clusters", "CLU-demo", "upgrade-readiness"]),
     ).toBe(false);
+    expect(
+      isAllowedRoute("GET", ["clusters", "CLU-demo", "upgrade-plans"]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("POST", ["clusters", "CLU-demo", "upgrade-plans"]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("POST", [
+        "clusters",
+        "CLU-demo",
+        "upgrade-plans",
+        "UPG-0123456789abcdef0123456789abcdef",
+        "execute",
+      ]),
+    ).toBe(true);
     expect(isAllowedRoute("GET", ["clusters", "CLU-demo", "tools"])).toBe(true);
     expect(
       isAllowedRoute("POST", [
