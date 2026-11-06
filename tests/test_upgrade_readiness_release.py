@@ -67,3 +67,38 @@ def test_release_patches_only_handler_and_adds_discovery_module(tmp_path):
             "navigan/modules/cluster_management/upgrade_readiness.py"
         ) == (ROOT / "src/navigan/modules/cluster_management/upgrade_readiness.py").read_bytes()
         assert package.read("navigan/shared/errors.py") == b"class ApiError(Exception): pass\n"
+
+
+def test_release_patches_crlf_deployed_handler_without_promoting_other_source_changes():
+    release = load_release()
+    desired = (ROOT / "src/navigan/modules/cluster_management/handler.py").read_text()
+    old = desired.replace(
+        "from .upgrade_readiness import EksUpgradeDiscovery\n", ""
+    ).replace('        "upgrade-readiness",\n', "").replace(
+        '                elif action == "upgrade-readiness":\n'
+        "                    _, environment = repo.pinned_environment_snapshot(\n"
+        '                        row["environment_id"], row["environment_approved_version"]\n'
+        "                    )\n"
+        "                    value = EksUpgradeDiscovery().discover(row, environment)\n",
+        "",
+    )
+    old = old.replace(
+        "from .bootstrap_status import refresh_installer_status\n"
+        "from .tool_access import resolve_tool_access\n",
+        "from .tool_access import resolve_tool_access\n"
+        "from .bootstrap_status import refresh_installer_status\n",
+    ).replace(
+        '"""JWT-protected Cluster Management API. Terraform executions are asynchronous."""\n',
+        '"""JWT-protected Cluster Management API. Terraform executions are asynchronous."""\n'
+        "# deployed-only-sentinel\n",
+    )
+    old = old.replace("\n", "\r\n")
+
+    patched = release.patch_handler(old)
+
+    assert "\r\n" in patched
+    assert "# deployed-only-sentinel\r\n" in patched
+    assert patched.index("from .tool_access") < patched.index("from .bootstrap_status")
+    assert patched.count("from .upgrade_readiness import EksUpgradeDiscovery") == 1
+    assert patched.count('        "upgrade-readiness",') == 1
+    assert patched.count('                elif action == "upgrade-readiness":') == 1

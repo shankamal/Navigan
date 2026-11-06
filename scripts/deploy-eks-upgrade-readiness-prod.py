@@ -9,6 +9,7 @@ IAM role. Existing customer roles need the separately reviewed read policy.
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import copy
 import hashlib
@@ -78,10 +79,19 @@ def check_checkout(expected_branch):
 
 
 def patch_handler(original):
-    desired = (ROOT / "src/navigan/modules/cluster_management/handler.py").read_text()
-    if original == desired:
+    newline = "\r\n" if "\r\n" in original else "\n"
+    result = original.replace("\r\n", "\n")
+    markers = (
+        "from .upgrade_readiness import EksUpgradeDiscovery",
+        '        "upgrade-readiness",',
+        '                elif action == "upgrade-readiness":',
+        "                    value = EksUpgradeDiscovery().discover(row, environment)",
+    )
+    present = [result.count(marker) for marker in markers]
+    if all(count == 1 for count in present):
+        ast.parse(result)
         return original
-    result = original
+    require(not any(present), "Partially installed upgrade-readiness handler rejected")
     insertions = (
         (
             "from .tool_access import resolve_tool_access\n",
@@ -107,8 +117,12 @@ def patch_handler(original):
     for before, after in insertions:
         require(result.count(before) == 1, "Unexpected deployed Cluster handler contract")
         result = result.replace(before, after, 1)
-    require(result == desired, "Deployed Cluster handler has unrelated differences; review before release")
-    return result
+    require(
+        all(result.count(marker) == 1 for marker in markers),
+        "Upgrade-readiness handler patch is incomplete",
+    )
+    ast.parse(result)
+    return result if newline == "\n" else result.replace("\n", "\r\n")
 
 
 def package(original, destination):
