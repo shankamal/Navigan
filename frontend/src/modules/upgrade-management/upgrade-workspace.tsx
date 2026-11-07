@@ -93,9 +93,11 @@ function SupportingTab({
   tab,
   onPlan,
   reviewPlanId,
+  rescheduleRequested,
 }: {
   tab: Exclude<WorkspaceTab, "readiness">;
   reviewPlanId?: string;
+  rescheduleRequested?: boolean;
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
   if (tab === "containers" || tab === "utilities") {
@@ -103,9 +105,10 @@ function SupportingTab({
   }
   return (
     <UpgradePlansWorkspace
-      key={reviewPlanId ?? tab}
+      key={(reviewPlanId ?? tab) + (rescheduleRequested ? "-reschedule" : "")}
       mode={tab}
       initialPlanId={reviewPlanId}
+      rescheduleRequested={rescheduleRequested}
     />
   );
 }
@@ -409,6 +412,7 @@ function PlanWizard({
 export function UpgradeWorkspace() {
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [reviewPlanId, setReviewPlanId] = useState<string>();
+  const [rescheduleRequested, setRescheduleRequested] = useState(false);
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
   const plans = useUpgradePlans();
   const now = useScheduleClock();
@@ -439,6 +443,7 @@ export function UpgradeWorkspace() {
             onClick={() => {
               setPlanning(null);
               setReviewPlanId(undefined);
+              setRescheduleRequested(false);
               setTab("history");
             }}
           >
@@ -449,6 +454,7 @@ export function UpgradeWorkspace() {
             onClick={() => {
               setPlanning(null);
               setReviewPlanId(undefined);
+              setRescheduleRequested(false);
               setTab("containers");
             }}
           >
@@ -462,6 +468,7 @@ export function UpgradeWorkspace() {
         onChange={(value) => {
           setPlanning(null);
           setReviewPlanId(undefined);
+          setRescheduleRequested(false);
           setTab(value);
         }}
       />
@@ -473,14 +480,16 @@ export function UpgradeWorkspace() {
             onClose={() => {
               setPlanning(null);
               setReviewPlanId(undefined);
+              setRescheduleRequested(false);
               setTab("history");
             }}
           />
         ) : tab === "readiness" ? (
           <LiveUpgradeCentre
             onPlan={setPlanning}
-            onReview={(planId) => {
-              setReviewPlanId(planId);
+            onReview={(planId, reschedule = false) => {
+              setReviewPlanId(planId ?? undefined);
+              setRescheduleRequested(reschedule);
               setTab("history");
             }}
           />
@@ -489,6 +498,7 @@ export function UpgradeWorkspace() {
             tab={tab}
             onPlan={setPlanning}
             reviewPlanId={reviewPlanId}
+            rescheduleRequested={rescheduleRequested}
           />
         )}
       </div>

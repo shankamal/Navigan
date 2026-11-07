@@ -1,15 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Fragment, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  CalendarClock,
+  Cpu,
+  ChevronDown,
+  Puzzle,
   CheckCircle2,
   ChevronRight,
   CloudCog,
   Layers3,
-  LifeBuoy,
   RefreshCw,
   ShieldAlert,
 } from "lucide-react";
@@ -107,72 +108,99 @@ function planLabel(plan: EksUpgradePlan) {
   return labels[plan.status] ?? plan.status;
 }
 
-function UpgradeImpact({ evidence }: { evidence: EksUpgradeReadiness }) {
+function ClusterChanges({
+  evidence,
+  overdue,
+  plan,
+}: {
+  evidence: EksUpgradeReadiness;
+  overdue: boolean;
+  plan?: EksUpgradePlan;
+}) {
   const target = evidence.recommendedTarget?.version;
+  const findings = [
+    ...evidence.readiness.blockers,
+    ...evidence.readiness.warnings,
+  ];
   return (
-    <div className="table-scroll upgrade-impact-table-wrap">
-      <table className="upgrade-impact-table">
-        <caption className="sr-only">Proposed component changes</caption>
-        <thead>
-          <tr>
-            <th>Component</th>
-            <th>Current</th>
-            <th>Target</th>
-            <th>Update method / notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <strong>Control plane</strong>
-            </td>
-            <td>{evidence.controlPlane.version}</td>
-            <td>{target ?? "Not reported"}</td>
-            <td>
-              {target
-                ? "Update control plane to Kubernetes " + target + "."
-                : "No provider-supported sequential target reported."}
-            </td>
-          </tr>
-          {evidence.nodeGroups.map((node) => (
-            <tr key={"node-" + node.name}>
-              <td>
-                <strong>Managed node group</strong>
-                <small>{node.name}</small>
-              </td>
-              <td>{node.version ?? "Not reported"}</td>
-              <td>{target ?? "Not reported"}</td>
-              <td>
-                {!target
-                  ? "Target evidence required."
-                  : node.version === target
-                    ? "Keep version; verify node health after the control-plane update."
-                    : "Rolling update to Kubernetes " +
-                      target +
-                      " after compatible add-ons."}
-              </td>
-            </tr>
-          ))}
-          {evidence.addons.map((addon) => (
-            <tr key={"addon-" + addon.name}>
-              <td>
-                <strong>Managed add-on</strong>
-                <small>{addon.name}</small>
-              </td>
-              <td>{addon.version ?? "Not reported"}</td>
-              <td>{addon.targetVersion ?? "Review required"}</td>
-              <td>
+    <>
+      <ul
+        className="upgrade-change-cards"
+        aria-label="Proposed component changes"
+      >
+        <li>
+          <Cpu size={30} aria-hidden="true" />
+          <div>
+            <strong>Control plane</strong>
+            <span>
+              {evidence.controlPlane.version} →{" "}
+              {target ?? "Target not reported"}
+            </span>
+          </div>
+        </li>
+        {evidence.nodeGroups.map((node) => (
+          <li key={"node-" + node.name}>
+            <Layers3 size={30} aria-hidden="true" />
+            <div>
+              <strong>Managed node group {node.name}</strong>
+              <span>
+                {node.version ?? "Not reported"} →{" "}
+                {target ?? "Target not reported"}
+              </span>
+              <small>
+                {node.version === target
+                  ? "Keep version; verify node health"
+                  : "Rolling update after compatible add-ons"}
+              </small>
+            </div>
+          </li>
+        ))}
+        {evidence.addons.map((addon) => (
+          <li key={"addon-" + addon.name}>
+            <Puzzle size={30} aria-hidden="true" />
+            <div>
+              <strong>Managed add-on</strong>
+              <span>{addon.name}</span>
+              <small>
                 {!addon.targetVersion
-                  ? "Verify a target-compatible version before planning."
+                  ? "Verify target compatibility"
                   : addon.targetVersion === addon.version
-                    ? "Keep version; compatible with the proposed Kubernetes target."
-                    : "Update to the provider-reported compatible version."}
-              </td>
-            </tr>
+                    ? "Keep " + addon.version + "; target-compatible"
+                    : (addon.version ?? "Not reported") +
+                      " → " +
+                      addon.targetVersion}
+              </small>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="upgrade-expanded-guidance">
+        {evidence.readiness.status === "READY"
+          ? overdue
+            ? "Cluster readiness passed. Choose a future maintenance time before submitting again."
+            : "Provider readiness checks passed. A plan requires independent approval before execution."
+          : "Review the provider findings before creating or submitting a plan."}
+      </p>
+      {findings.length > 0 && (
+        <ul className="upgrade-expanded-findings">
+          {findings.map((finding) => (
+            <li key={finding.code + finding.message}>{finding.message}</li>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </ul>
+      )}
+      {overdue && plan?.scheduledFor && (
+        <p className="upgrade-expired-time">
+          <strong>Expired:</strong>{" "}
+          {new Date(plan.scheduledFor).toLocaleString()} ·{" "}
+          {Intl.DateTimeFormat().resolvedOptions().timeZone}
+        </p>
+      )}
+      <p className="upgrade-expanded-observed">
+        {evidence.region} · Support:{" "}
+        {supportLabel(evidence.controlPlane.support?.supportStatus)} · Evidence
+        observed {new Date(evidence.observedAt).toLocaleString()}
+      </p>
+    </>
   );
 }
 
@@ -181,10 +209,9 @@ export function LiveUpgradeCentre({
   onReview,
 }: {
   onPlan: (cluster: UpgradeCluster) => void;
-  onReview: (planId: string) => void;
+  onReview: (planId: string | null, reschedule?: boolean) => void;
 }) {
-  const [selectedId, setSelectedId] = useState("");
-  const detailsRef = useRef<HTMLElement>(null);
+  const [expandedId, setExpandedId] = useState<string | null>();
   const plans = useUpgradePlans();
   const now = useScheduleClock();
   const fleet = useQuery({
@@ -239,8 +266,7 @@ export function LiveUpgradeCentre({
       query,
     };
   });
-  const selected = rows.find((row) => row.id === selectedId) ?? rows[0];
-  const evidence = selected?.evidence;
+  const openId = expandedId === undefined ? rows[0]?.id : expandedId;
   const unavailable = readinessQueries.filter((query) => query.isError).length;
   const evidenceComplete = readinessQueries.every(
     (query) => !query.isPending && !query.isError,
@@ -255,33 +281,24 @@ export function LiveUpgradeCentre({
         (row.evidence?.readiness.status === "BLOCKED" ? 1 : 0)),
     0,
   );
-  const endingSoon = rows.filter((row) => {
-    const support = row.evidence?.controlPlane.support;
-    const date =
-      support?.supportStatus === "EXTENDED_SUPPORT"
-        ? support.endOfExtendedSupportDate
-        : support?.endOfStandardSupportDate;
-    const end = date ? new Date(date).getTime() : NaN;
-    return end > now && end <= now + 90 * 86400000;
-  }).length;
-  const overdueCount = plans.rows.filter(
+  const overdueRequests = plans.rows.filter(
     (row) =>
       items.some((item) => item.clusterId === row.plan.clusterId) &&
       scheduleOverdue(row.plan, now),
-  ).length;
+  );
+  const overdueCount = overdueRequests.length;
   const refreshing =
     fleet.isFetching || readinessQueries.some((query) => query.isFetching);
-  const canPlan = Boolean(
-    hasPermission(plans.identity, "cluster.plan") &&
-    evidence?.readiness.status === "READY" &&
-    evidence.recommendedTarget &&
-    !selected?.query.isFetching &&
-    !selected?.query.isError &&
-    !plans.pending &&
-    !plans.errors.length,
-  );
-  const review = (plan: EksUpgradePlan) => onReview(plan.planId);
-
+  const canPlan = (row: (typeof rows)[number]) =>
+    Boolean(
+      hasPermission(plans.identity, "cluster.plan") &&
+      row.evidence?.readiness.status === "READY" &&
+      row.evidence.recommendedTarget &&
+      !row.query.isFetching &&
+      !row.query.isError &&
+      !plans.pending &&
+      !plans.errors.length,
+    );
   if (fleet.isPending)
     return (
       <section className="upgrade-live-message" role="status">
@@ -307,57 +324,54 @@ export function LiveUpgradeCentre({
       </section>
     );
 
-  const findings = evidence
-    ? [...evidence.readiness.blockers, ...evidence.readiness.warnings]
-    : [];
-  const overdue = Boolean(
-    selected?.plan && scheduleOverdue(selected.plan, now),
-  );
   const planUnknown = plans.pending || plans.errors.length > 0;
-  const metrics = [
-    {
-      label: "Upgrade available",
-      value: evidenceComplete ? available : "—",
-      Icon: Layers3,
-      hint: "Clusters with a provider-reported sequential target",
-    },
-    {
-      label: "Readiness blockers",
-      value: evidenceComplete ? blockers : "—",
-      Icon: AlertTriangle,
-      hint: "Blocking provider-readiness findings",
-    },
-    {
-      label: "Support ending soon",
-      value: evidenceComplete ? endingSoon : "—",
-      Icon: LifeBuoy,
-      hint: "Current support phase ends within 90 days",
-    },
-    {
-      label: "Overdue requests",
-      value: planUnknown ? "—" : overdueCount,
-      Icon: CalendarClock,
-      hint: "Draft or submitted requests whose requested start has passed",
-    },
-  ];
-
   return (
-    <div className="upgrade-centre">
+    <div className="upgrade-centre upgrade-accordion-centre">
       <section
-        className="upgrade-centre-metrics"
+        className="upgrade-attention-strip"
         aria-label="Upgrade fleet summary"
       >
-        {metrics.map(({ label, value, Icon, hint }) => (
-          <div key={label} title={hint}>
-            <Icon size={26} aria-hidden="true" />
-            <div>
-              <strong>{value}</strong>
-              <span>{label}</span>
-            </div>
-          </div>
-        ))}
+        <div className="upgrade-attention-message">
+          {overdueCount > 0 && !planUnknown ? (
+            <>
+              <AlertTriangle size={25} aria-hidden="true" />
+              <strong>
+                {overdueCount} maintenance{" "}
+                {overdueCount === 1 ? "request needs" : "requests need"} a new
+                time
+              </strong>
+              <button
+                className="upgrade-row-action"
+                onClick={() =>
+                  onReview(
+                    overdueCount === 1 ? overdueRequests[0].plan.planId : null,
+                    true,
+                  )
+                }
+              >
+                {overdueCount === 1 ? "Review & reschedule" : "Review requests"}
+              </button>
+            </>
+          ) : (
+            <>
+              <CalendarStatus pending={planUnknown} />
+              <span>
+                {planUnknown
+                  ? plans.pending
+                    ? "Loading maintenance requests…"
+                    : "Maintenance requests unavailable"
+                  : "No overdue maintenance requests"}
+              </span>
+            </>
+          )}
+        </div>
+        <p>
+          {evidenceComplete ? available : "—"}{" "}
+          {available === 1 ? "upgrade" : "upgrades"} available{" "}
+          <span aria-hidden="true">·</span> {evidenceComplete ? blockers : "—"}{" "}
+          readiness blockers
+        </p>
       </section>
-
       <section
         className="upgrade-centre-inventory"
         aria-labelledby="upgrade-fleet-title"
@@ -373,244 +387,181 @@ export function LiveUpgradeCentre({
               plans.refresh();
             }}
           >
-            <RefreshCw size={16} className={refreshing ? "spin" : ""} />
+            <RefreshCw size={18} className={refreshing ? "spin" : ""} />
             {refreshing ? "Refreshing" : "Refresh inventory"}
           </Button>
         </header>
         {unavailable > 0 && (
           <p className="upgrade-centre-evidence-note" role="status">
             {unavailable} cluster evidence{" "}
-            {unavailable === 1 ? "request failed" : "requests failed"}. Select
-            the cluster to review its status.
+            {unavailable === 1 ? "request failed" : "requests failed"}. Expand a
+            cluster to review its status.
           </p>
         )}
-        <div className="table-scroll upgrade-centre-table-wrap">
-          <table className="upgrade-centre-table">
+        <div className="table-scroll upgrade-accordion-table-wrap">
+          <table className="upgrade-accordion-table">
             <caption className="sr-only">
               Registered active clusters and upgrade readiness
             </caption>
             <thead>
               <tr>
                 <th>Cluster</th>
-                <th>Cloud</th>
-                <th>Container platform</th>
-                <th>Current</th>
-                <th>Target</th>
-                <th>Readiness</th>
+                <th>Version change</th>
+                <th>Provider readiness</th>
                 <th>Maintenance</th>
-                <th>
-                  <span className="sr-only">Action</span>
-                </th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className={row.id === selected?.id ? "selected" : ""}
-                >
-                  <td>
-                    <button
-                      className="upgrade-cluster-link"
-                      type="button"
-                      aria-pressed={row.id === selected?.id}
-                      onClick={() => setSelectedId(row.id)}
+              {rows.map((row) => {
+                const expanded = row.id === openId;
+                const overdue = Boolean(
+                  row.plan && scheduleOverdue(row.plan, now),
+                );
+                const panelId = "upgrade-changes-" + row.id;
+                return (
+                  <Fragment key={row.id}>
+                    <tr
+                      className={
+                        expanded
+                          ? "upgrade-cluster-row is-expanded"
+                          : "upgrade-cluster-row"
+                      }
                     >
-                      <strong>{row.name}</strong>
-                      <span>{row.environment}</span>
-                    </button>
-                  </td>
-                  <td>
-                    <PlatformIdentity identity={row.identity} kind="cloud" />
-                  </td>
-                  <td>
-                    <PlatformIdentity identity={row.identity} kind="platform" />
-                  </td>
-                  <td>
-                    {row.query.isError ? "Unavailable" : row.currentVersion}
-                  </td>
-                  <td>
-                    {row.query.isError ? "Unavailable" : row.targetVersion}
-                  </td>
-                  <td>
-                    <ReadinessBadge
-                      evidence={row.evidence}
-                      loading={row.query.isPending}
-                    />
-                  </td>
-                  <td>
-                    <div className="upgrade-maintenance-cell">
-                      {planUnknown ? (
-                        <span>
-                          {plans.pending
-                            ? "Loading plans…"
-                            : "Plan records unavailable"}
-                        </span>
-                      ) : row.plan ? (
-                        <>
-                          <span
-                            className={
-                              scheduleOverdue(row.plan, now)
-                                ? "upgrade-overdue-text"
-                                : ""
+                      <td>
+                        <div className="upgrade-accordion-cluster">
+                          <button
+                            className="upgrade-expand-cluster"
+                            aria-expanded={expanded}
+                            aria-controls={expanded ? panelId : undefined}
+                            aria-label={
+                              (expanded ? "Collapse " : "Expand ") + row.name
+                            }
+                            onClick={() =>
+                              setExpandedId(expanded ? null : row.id)
                             }
                           >
-                            {scheduleOverdue(row.plan, now)
-                              ? "Overdue"
-                              : planLabel(row.plan)}
-                          </span>
+                            {expanded ? (
+                              <ChevronDown size={20} aria-hidden="true" />
+                            ) : (
+                              <ChevronRight size={20} aria-hidden="true" />
+                            )}
+                            <strong>{row.name}</strong>
+                          </button>
+                          <div className="upgrade-cluster-identities">
+                            <PlatformIdentity
+                              identity={row.identity}
+                              kind="cloud"
+                            />
+                            <PlatformIdentity
+                              identity={row.identity}
+                              kind="platform"
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="upgrade-version-change">
+                          {row.query.isError
+                            ? "Unavailable"
+                            : row.currentVersion + " → " + row.targetVersion}
+                        </span>
+                      </td>
+                      <td>
+                        <ReadinessBadge
+                          evidence={row.evidence}
+                          loading={row.query.isPending}
+                        />
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            overdue
+                              ? "upgrade-overdue-text"
+                              : "upgrade-maintenance-label"
+                          }
+                        >
+                          {planUnknown
+                            ? plans.pending
+                              ? "Loading plans…"
+                              : "Unavailable"
+                            : row.plan
+                              ? overdue
+                                ? "Overdue"
+                                : planLabel(row.plan)
+                              : "No active plan"}
+                        </span>
+                      </td>
+                      <td>
+                        {row.plan && !planUnknown ? (
                           <button
                             className="upgrade-row-action"
-                            aria-label={"Review plan for " + row.name}
-                            onClick={() => review(row.plan!)}
+                            onClick={() => onReview(row.plan!.planId, overdue)}
                           >
-                            Review plan
+                            {overdue ? "Review & reschedule" : "Review plan"}
                           </button>
-                        </>
-                      ) : (
-                        <span>No active plan</span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <button
-                      className="upgrade-row-action"
-                      aria-label={"View upgrade details for " + row.name}
-                      onClick={() => {
-                        setSelectedId(row.id);
-                        detailsRef.current?.scrollIntoView?.({
-                          block: "nearest",
-                          behavior: "auto",
-                        });
-                      }}
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                        ) : (
+                          <button
+                            className="upgrade-row-action"
+                            disabled={!canPlan(row) || planUnknown}
+                            aria-label={"Create plan for " + row.name}
+                            onClick={() => onPlan(row)}
+                          >
+                            Create plan
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr className="upgrade-expanded-row">
+                        <td colSpan={5}>
+                          <section
+                            className="upgrade-expanded-changes"
+                            id={panelId}
+                            aria-label={"Proposed changes for " + row.name}
+                          >
+                            <h3>Proposed changes for {row.name}</h3>
+                            {row.query.isError ? (
+                              <div
+                                className="upgrade-blocker-notice"
+                                role="alert"
+                              >
+                                <strong>Live evidence unavailable</strong>
+                                <p>
+                                  Refresh inventory to retry the provider
+                                  checks.
+                                </p>
+                              </div>
+                            ) : row.evidence ? (
+                              <ClusterChanges
+                                evidence={row.evidence}
+                                overdue={overdue}
+                                plan={row.plan}
+                              />
+                            ) : (
+                              <p role="status">
+                                Collecting provider readiness evidence…
+                              </p>
+                            )}
+                          </section>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </section>
-
-      {selected && (
-        <section
-          ref={detailsRef}
-          className="upgrade-centre-impact"
-          aria-labelledby="upgrade-impact-title"
-        >
-          <div className="upgrade-impact-heading">
-            <div>
-              <h2 id="upgrade-impact-title">What this upgrade includes</h2>
-              <div className="upgrade-impact-context">
-                <strong>{selected.name}</strong>
-                <PlatformIdentity identity={selected.identity} kind="cloud" />
-                <PlatformIdentity
-                  identity={selected.identity}
-                  kind="platform"
-                />
-                <span>{evidence?.region ?? "Region unavailable"}</span>
-              </div>
-              <p className="upgrade-proposed-change">
-                <strong>Proposed change</strong>
-                <span>
-                  Kubernetes {selected.currentVersion} →{" "}
-                  {evidence?.recommendedTarget?.version ??
-                    "No supported target reported"}
-                </span>
-              </p>
-              <p className="upgrade-impact-observed">
-                Support:{" "}
-                {supportLabel(evidence?.controlPlane.support?.supportStatus)}
-                {evidence
-                  ? " · Observed " +
-                    new Date(evidence.observedAt).toLocaleString()
-                  : ""}
-              </p>
-            </div>
-            <div
-              className={
-                "upgrade-impact-status" + (overdue ? " is-overdue" : "")
-              }
-            >
-              {overdue ? (
-                <AlertTriangle size={23} aria-hidden="true" />
-              ) : evidence?.readiness.status === "READY" ? (
-                <CheckCircle2 size={23} aria-hidden="true" />
-              ) : (
-                <AlertTriangle size={23} aria-hidden="true" />
-              )}
-              <div>
-                <strong>
-                  {overdue
-                    ? "Existing maintenance request overdue—choose a new time."
-                    : selected.plan
-                      ? planLabel(selected.plan)
-                      : evidence?.readiness.status === "READY"
-                        ? "Provider readiness checks passed."
-                        : selected.query.isPending
-                          ? "Collecting provider readiness evidence."
-                          : "Review readiness before planning."}
-                </strong>
-                {selected.plan?.scheduledFor && (
-                  <p>
-                    {overdue ? "Expired request: " : "Requested time: "}
-                    {new Date(selected.plan.scheduledFor).toLocaleString()}
-                  </p>
-                )}
-                {selected.plan ? (
-                  <button
-                    className="upgrade-row-action"
-                    onClick={() => review(selected.plan!)}
-                  >
-                    Review existing plan
-                  </button>
-                ) : (
-                  <p>Creating a plan does not start an upgrade.</p>
-                )}
-              </div>
-            </div>
-          </div>
-          {selected.query.isError && (
-            <div className="upgrade-blocker-notice" role="alert">
-              <strong>Live evidence unavailable</strong>
-              <p>Refresh inventory to retry the provider checks.</p>
-            </div>
-          )}
-          {findings.length > 0 && (
-            <div
-              className={
-                evidence?.readiness.status === "BLOCKED"
-                  ? "upgrade-blocker-notice"
-                  : "upgrade-warning-notice"
-              }
-            >
-              <div>
-                <strong>
-                  {findings.length} readiness{" "}
-                  {findings.length === 1 ? "finding" : "findings"}
-                </strong>
-                <ul>
-                  {findings.map((finding) => (
-                    <li key={finding.code + finding.message}>
-                      {finding.message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-          {evidence && <UpgradeImpact evidence={evidence} />}
-          {!selected.plan && (
-            <div className="upgrade-impact-actions">
-              <Button disabled={!canPlan} onClick={() => onPlan(selected)}>
-                Create upgrade plan
-              </Button>
-            </div>
-          )}
-        </section>
-      )}
     </div>
+  );
+}
+
+function CalendarStatus({ pending }: { pending: boolean }) {
+  return pending ? (
+    <RefreshCw size={23} aria-hidden="true" />
+  ) : (
+    <CheckCircle2 size={23} aria-hidden="true" />
   );
 }

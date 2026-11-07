@@ -19,20 +19,25 @@ const timeLabel = (value?: string | null) =>
 export function UpgradePlansWorkspace({
   mode,
   initialPlanId,
+  rescheduleRequested = false,
 }: {
   mode: "schedule" | "history";
   initialPlanId?: string;
+  rescheduleRequested?: boolean;
 }) {
   const data = useUpgradePlans();
   const now = useScheduleClock();
   const [newSchedule, setNewSchedule] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>(
+    rescheduleRequested && !initialPlanId ? "overdue" : "all",
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     initialPlanId ?? null,
   );
   const [reason, setReason] = useState("");
   const [confirmStart, setConfirmStart] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
+  const rescheduleRef = useRef<HTMLInputElement>(null);
   const selected = data.rows.find((row) => row.plan.planId === selectedId);
   const hasSelectedPlan = Boolean(selected);
   useEffect(() => {
@@ -40,12 +45,15 @@ export function UpgradePlansWorkspace({
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    drawerRef.current?.focus();
+    (rescheduleRequested
+      ? (rescheduleRef.current ?? drawerRef.current)
+      : drawerRef.current
+    )?.focus();
     return () => {
       document.body.style.overflow = overflow;
       previous?.focus();
     };
-  }, [selectedId, hasSelectedPlan]);
+  }, [selectedId, hasSelectedPlan, rescheduleRequested]);
   const canApprove = hasPermission(data.identity, "cluster.approve");
   const canPlan = hasPermission(data.identity, "cluster.plan");
   const canExecute = hasPermission(data.identity, "cluster.apply");
@@ -109,6 +117,7 @@ export function UpgradePlansWorkspace({
     onSuccess: () => {
       data.refresh();
       setReason("");
+      setNewSchedule("");
       setConfirmStart(false);
     },
   });
@@ -252,6 +261,7 @@ export function UpgradePlansWorkspace({
                     <Button
                       variant="secondary"
                       onClick={() => {
+                        setNewSchedule("");
                         setSelectedId(row.plan.planId);
                         setReason("");
                         setConfirmStart(false);
@@ -377,6 +387,7 @@ export function UpgradePlansWorkspace({
                       <input
                         type="datetime-local"
                         aria-label="New maintenance start"
+                        ref={rescheduleRef}
                         value={newSchedule}
                         onChange={(event) => setNewSchedule(event.target.value)}
                       />
