@@ -282,6 +282,8 @@ describe("Upgrade workspace", () => {
       version: 2,
       createdBy: "engineer-maker",
       submittedBy: "engineer-maker",
+      submittedByName: "Ashok Rajendran",
+      submittedAt: "2026-11-06T10:01:00Z",
       createdAt: "2026-11-06T10:00:00Z",
       updatedAt: "2026-11-06T10:01:00Z",
       updatedBy: "engineer-maker",
@@ -305,6 +307,8 @@ describe("Upgrade workspace", () => {
       const drawer = screen.getByRole("dialog", {
         name: "Review upgrade plan",
       });
+      expect(within(drawer).getByText("Ashok Rajendran")).toBeInTheDocument();
+      expect(within(drawer).getByText("Submitted at")).toBeInTheDocument();
       expect(
         within(drawer).getByText("Keep cluster supported"),
       ).toBeInTheDocument();

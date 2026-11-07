@@ -182,6 +182,22 @@ def test_rejects_non_sequential_target():
     assert raised.value.code == "UPGRADE_TARGET_CHANGED"
 
 
+def test_plan_list_resolves_submitter_name_without_changing_actor_ids():
+    repo = Repo()
+    repo.db = MagicMock()
+    repo.db.execute.return_value.fetchall.return_value = [{
+        "plan_id": "UPG-test", "created_by": "creator-id", "submitted_by": "submitter-id",
+        "submitted_by_name": "Ashok Rajendran", "approved_by_name": None,
+    }]
+    result = EksUpgradePlans(repo, Access(), "correlation", Discovery()).list("CLU-live")
+    assert result["items"][0]["submittedByName"] == "Ashok Rajendran"
+    assert result["items"][0]["submittedBy"] == "submitter-id"
+    sql, params = repo.db.execute.call_args.args
+    assert "LEFT JOIN access_management.users submitter ON submitter.user_id=p.submitted_by" in sql
+    assert "WHERE p.cluster_id=%s" in sql
+    assert params == ["CLU-live"]
+
+
 class TransitionPlans(EksUpgradePlans):
     def __init__(self, row, access, discovery=None):
         super().__init__(Repo(), access, "correlation", discovery or Discovery())

@@ -52,8 +52,14 @@ class EksUpgradePlans:
     def list(self, cluster_id):
         cluster = self.repo.get(cluster_id)
         rows = self.repo.db.execute(
-            "SELECT * FROM cluster_management.upgrade_plans "
-            "WHERE cluster_id=%s ORDER BY created_at DESC,plan_id",
+            "SELECT p.*,creator.display_name AS created_by_name,"
+            "submitter.display_name AS submitted_by_name,"
+            "approver.display_name AS approved_by_name "
+            "FROM cluster_management.upgrade_plans p "
+            "LEFT JOIN access_management.users creator ON creator.user_id=p.created_by "
+            "LEFT JOIN access_management.users submitter ON submitter.user_id=p.submitted_by "
+            "LEFT JOIN access_management.users approver ON approver.user_id=p.approved_by "
+            "WHERE p.cluster_id=%s ORDER BY p.created_at DESC,p.plan_id",
             [cluster_id],
         ).fetchall()
         return {

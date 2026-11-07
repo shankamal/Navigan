@@ -205,7 +205,16 @@ export function UpgradePlansWorkspace({
                         </small>
                       )}
                   </td>
-                  <td>{row.plan.submittedBy ?? row.plan.createdBy}</td>
+                  <td>
+                    {row.plan.submittedBy
+                      ? row.plan.submittedByName || row.plan.submittedBy
+                      : "Not submitted"}
+                    {row.plan.submittedAt && (
+                      <small className="upgrade-window-pending">
+                        {timeLabel(row.plan.submittedAt)}
+                      </small>
+                    )}
+                  </td>
                   <td>
                     <Button
                       variant="secondary"
@@ -288,12 +297,32 @@ export function UpgradePlansWorkspace({
                 <dd>{timeLabel(plan.scheduledFor)}</dd>
               </div>
               <div>
-                <dt>Requester ID</dt>
-                <dd>{plan.createdBy}</dd>
+                <dt>Created by</dt>
+                <dd>{plan.createdByName || plan.createdBy}</dd>
+              </div>
+              <div>
+                <dt>Submitted by</dt>
+                <dd>
+                  {plan.submittedBy
+                    ? plan.submittedByName || plan.submittedBy
+                    : "Not submitted"}
+                </dd>
+              </div>
+              <div>
+                <dt>Submitted at</dt>
+                <dd>
+                  {plan.submittedAt
+                    ? timeLabel(plan.submittedAt)
+                    : "Not submitted"}
+                </dd>
               </div>
               <div>
                 <dt>Approved by</dt>
-                <dd>{plan.approvedBy ?? "Awaiting independent approval"}</dd>
+                <dd>
+                  {plan.approvedByName ||
+                    plan.approvedBy ||
+                    "Awaiting independent approval"}
+                </dd>
               </div>
             </dl>
             <p>
