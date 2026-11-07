@@ -173,7 +173,9 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByRole("heading", { name: "Upgrades & Patching" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Live governed inventory.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Live governed inventory/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("tab", { name: /Upgrade Centre/i }),
     ).toHaveAttribute("aria-selected", "true");
@@ -262,6 +264,13 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByText(/Awaiting independent approval. Find it/),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Plans & approvals/ }));
+    expect(
+      screen.getByRole("tab", { name: /Plans & History/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.queryByRole("heading", { name: "1. Cluster & target" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows submitted requests and requested windows to an independent architect", async () => {
@@ -430,7 +439,9 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByRole("heading", { name: "System utility upgrades" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Live governed inventory.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Live governed inventory/),
+    ).not.toBeInTheDocument();
     expect(await screen.findAllByText("Headlamp")).not.toHaveLength(0);
     expect(screen.getAllByText("0.45.0")).not.toHaveLength(0);
     expect(

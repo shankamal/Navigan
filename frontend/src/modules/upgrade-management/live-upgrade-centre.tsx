@@ -266,6 +266,7 @@ export function LiveUpgradeCentre({
                     <button
                       type="button"
                       className="upgrade-cluster-link"
+                      aria-pressed={cluster.id === effectiveId}
                       onClick={() => setSelectedId(cluster.id)}
                     >
                       <strong>{cluster.name}</strong>

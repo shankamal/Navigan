@@ -11,7 +11,6 @@ import {
   Circle,
   CloudCog,
   History,
-  Info,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
@@ -63,20 +62,6 @@ const tabs: ReadonlyArray<{
   { id: "schedule", label: "Maintenance Schedule", icon: CalendarDays },
   { id: "history", label: "Plans & History", icon: History },
 ];
-
-function LiveCapabilityNotice() {
-  return (
-    <div className="upgrade-preview-notice" role="note">
-      <Info size={17} aria-hidden="true" />
-      <p>
-        <strong>Live governed inventory.</strong> Cluster records, Amazon EKS
-        readiness and EKS upgrade plans are connected. Execution requires
-        independent approval, a valid maintenance window and fresh readiness
-        evidence. Utility execution is not enabled yet.
-      </p>
-    </div>
-  );
-}
 
 function UpgradeTabs({
   active,
@@ -437,18 +422,28 @@ export function UpgradeWorkspace() {
         icon={<CircleArrowUp />}
         action={
           <div className="upgrade-heading-actions">
-            <Button variant="secondary" onClick={() => setTab("history")}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPlanning(null);
+                setTab("history");
+              }}
+            >
               Plans & approvals
               {pendingReviews ? " (" + pendingReviews + " pending)" : ""}
             </Button>
-            <Button onClick={() => setTab("readiness")}>
+            <Button
+              onClick={() => {
+                setPlanning(null);
+                setTab("readiness");
+              }}
+            >
               <CircleArrowUp size={17} />
               Review live readiness
             </Button>
           </div>
         }
       />
-      {!planning && <LiveCapabilityNotice />}
       <UpgradeTabs
         active={planning ? "containers" : tab}
         onChange={(value) => {
