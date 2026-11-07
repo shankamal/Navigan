@@ -92,14 +92,22 @@ function UpgradeTabs({
 function SupportingTab({
   tab,
   onPlan,
+  reviewPlanId,
 }: {
   tab: Exclude<WorkspaceTab, "readiness">;
+  reviewPlanId?: string;
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
   if (tab === "containers" || tab === "utilities") {
     return <LiveUpgradeInventory mode={tab} onPlan={onPlan} />;
   }
-  return <UpgradePlansWorkspace mode={tab} />;
+  return (
+    <UpgradePlansWorkspace
+      key={reviewPlanId ?? tab}
+      mode={tab}
+      initialPlanId={reviewPlanId}
+    />
+  );
 }
 
 function PlanWizard({
@@ -400,6 +408,7 @@ function PlanWizard({
 
 export function UpgradeWorkspace() {
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
+  const [reviewPlanId, setReviewPlanId] = useState<string>();
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
   const plans = useUpgradePlans();
   const now = useScheduleClock();
@@ -429,6 +438,7 @@ export function UpgradeWorkspace() {
             variant="secondary"
             onClick={() => {
               setPlanning(null);
+              setReviewPlanId(undefined);
               setTab("history");
             }}
           >
@@ -438,6 +448,7 @@ export function UpgradeWorkspace() {
           <Button
             onClick={() => {
               setPlanning(null);
+              setReviewPlanId(undefined);
               setTab("containers");
             }}
           >
@@ -450,6 +461,7 @@ export function UpgradeWorkspace() {
         active={planning ? "containers" : tab}
         onChange={(value) => {
           setPlanning(null);
+          setReviewPlanId(undefined);
           setTab(value);
         }}
       />
@@ -460,13 +472,24 @@ export function UpgradeWorkspace() {
             cluster={planning}
             onClose={() => {
               setPlanning(null);
+              setReviewPlanId(undefined);
               setTab("history");
             }}
           />
         ) : tab === "readiness" ? (
-          <LiveUpgradeCentre onPlan={setPlanning} />
+          <LiveUpgradeCentre
+            onPlan={setPlanning}
+            onReview={(planId) => {
+              setReviewPlanId(planId);
+              setTab("history");
+            }}
+          />
         ) : (
-          <SupportingTab tab={tab} onPlan={setPlanning} />
+          <SupportingTab
+            tab={tab}
+            onPlan={setPlanning}
+            reviewPlanId={reviewPlanId}
+          />
         )}
       </div>
     </div>

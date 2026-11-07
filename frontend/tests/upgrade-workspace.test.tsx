@@ -179,14 +179,111 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByRole("tab", { name: /Upgrade Centre/i }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("table", {
+        name: "Registered active clusters and upgrade readiness",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("New-dbs-demo-cluster")).toHaveLength(2);
     expect(screen.queryByText("payments-prod-eu")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "What this upgrade includes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Cloud" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Container platform" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("table", { name: "Proposed component changes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Provider-supported upgrade path"),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText("1.34")).not.toHaveLength(0);
     expect(screen.getAllByText("1.35")).not.toHaveLength(0);
     expect(
       screen.getByRole("button", { name: /Refresh inventory/i }),
     ).toBeEnabled();
+  });
+
+  it("changes component details with the selected registered cluster", async () => {
+    const originalList = vi.mocked(clusters.list).getMockImplementation()!;
+    const originalReadiness = vi
+      .mocked(clusters.upgradeReadiness)
+      .getMockImplementation()!;
+    const evidence = await clusters.upgradeReadiness("CLU-live");
+    vi.mocked(clusters.list).mockResolvedValue({
+      items: [
+        activeCluster,
+        {
+          ...activeCluster,
+          clusterId: "CLU-second",
+          clusterName: "Second cluster",
+        },
+      ],
+      pagination: { page: 0, pageSize: 100, totalPages: 1, totalElements: 2 },
+    });
+    vi.mocked(clusters.upgradeReadiness).mockImplementation(async (id) =>
+      id === "CLU-second"
+        ? {
+            ...evidence,
+            clusterId: id,
+            nodeGroups: [
+              {
+                name: "second-system",
+                version: "1.34",
+                status: "ACTIVE",
+                healthIssues: [],
+              },
+            ],
+          }
+        : evidence,
+    );
+    try {
+      mount();
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /^Second cluster/,
+        }),
+      );
+      const details = await screen.findByRole("table", {
+        name: "Proposed component changes",
+      });
+      expect(within(details).getByText("second-system")).toBeInTheDocument();
+      expect(within(details).queryByText("system")).not.toBeInTheDocument();
+    } finally {
+      vi.mocked(clusters.list).mockImplementation(originalList);
+      vi.mocked(clusters.upgradeReadiness).mockImplementation(
+        originalReadiness,
+      );
+    }
+  });
+
+  it("does not treat failed provider evidence as ready and recovers on refresh", async () => {
+    vi.mocked(clusters.upgradeReadiness).mockRejectedValueOnce(
+      new Error("Provider unavailable"),
+    );
+    mount();
+    expect(
+      await screen.findByText("Live evidence unavailable"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("table", { name: "Proposed component changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create upgrade plan" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh inventory" }));
+    expect(
+      await screen.findByRole("table", { name: "Proposed component changes" }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Create upgrade plan" }),
+      ).toBeEnabled(),
+    );
   });
 
   it("uses the approved workspace names", () => {
@@ -304,7 +401,9 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
-      expect(await screen.findByText(/Awaiting approval/)).toBeInTheDocument();
+      expect(
+        (await screen.findAllByText(/Awaiting approval/)).length,
+      ).toBeGreaterThan(0);
       expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
       fireEvent.click(
@@ -383,9 +482,11 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
-      fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+      expect(
+        await screen.findByText(/Existing maintenance request overdue/),
+      ).toBeInTheDocument();
       fireEvent.click(
-        await screen.findByRole("button", { name: "Review plan" }),
+        await screen.findByRole("button", { name: "Review existing plan" }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Review upgrade plan",

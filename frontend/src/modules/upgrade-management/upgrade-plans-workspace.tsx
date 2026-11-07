@@ -18,19 +18,25 @@ const timeLabel = (value?: string | null) =>
 
 export function UpgradePlansWorkspace({
   mode,
+  initialPlanId,
 }: {
   mode: "schedule" | "history";
+  initialPlanId?: string;
 }) {
   const data = useUpgradePlans();
   const now = useScheduleClock();
   const [newSchedule, setNewSchedule] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialPlanId ?? null,
+  );
   const [reason, setReason] = useState("");
   const [confirmStart, setConfirmStart] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
+  const selected = data.rows.find((row) => row.plan.planId === selectedId);
+  const hasSelectedPlan = Boolean(selected);
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || !hasSelectedPlan) return;
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -39,7 +45,7 @@ export function UpgradePlansWorkspace({
       document.body.style.overflow = overflow;
       previous?.focus();
     };
-  }, [selectedId]);
+  }, [selectedId, hasSelectedPlan]);
   const canApprove = hasPermission(data.identity, "cluster.approve");
   const canPlan = hasPermission(data.identity, "cluster.plan");
   const canExecute = hasPermission(data.identity, "cluster.apply");
@@ -75,7 +81,6 @@ export function UpgradePlansWorkspace({
         ? (a.plan.scheduledFor ?? "").localeCompare(b.plan.scheduledFor ?? "")
         : b.plan.updatedAt.localeCompare(a.plan.updatedAt),
     );
-  const selected = data.rows.find((row) => row.plan.planId === selectedId);
   const action = useMutation({
     mutationFn: ({
       planId,
