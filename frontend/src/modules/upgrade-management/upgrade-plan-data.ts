@@ -31,6 +31,19 @@ export function useUpgradePlans() {
   });
   return {
     identity,
+    stateForCluster: (clusterId: string) => {
+      const index = items.findIndex((item) => item.clusterId === clusterId);
+      const query = queries[index];
+      return {
+        pending: fleet.isPending || Boolean(query?.isPending),
+        error:
+          fleet.error?.message ||
+          query?.error?.message ||
+          (!fleet.isPending && index < 0
+            ? "Cluster plan inventory unavailable"
+            : undefined),
+      };
+    },
     rows: items.flatMap((cluster, index) =>
       (queries[index]?.data?.items ?? []).map((plan) => ({
         clusterName: cluster.clusterName,

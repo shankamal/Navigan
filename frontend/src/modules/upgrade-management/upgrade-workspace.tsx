@@ -22,8 +22,6 @@ import type {
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
 import { PlanComponents, EvidenceChecks, PlanCheck } from "./plan-components";
-import { useUpgradePlans } from "./upgrade-plan-data";
-import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 import { clusters } from "@/modules/cluster-management/service";
 import { LiveUpgradeInventory } from "./live-upgrade-inventory";
 import { LiveUpgradeCentre } from "./live-upgrade-centre";
@@ -59,8 +57,8 @@ const tabs: ReadonlyArray<{
   { id: "readiness", label: "Upgrade Centre", icon: ShieldAlert },
   { id: "containers", label: "Container Upgrades", icon: CloudCog },
   { id: "utilities", label: "System Utilities", icon: Wrench },
-  { id: "schedule", label: "Maintenance Schedule", icon: CalendarDays },
   { id: "history", label: "Plans & History", icon: History },
+  { id: "schedule", label: "Maintenance Schedule", icon: CalendarDays },
 ];
 
 function UpgradeTabs({
@@ -78,7 +76,29 @@ function UpgradeTabs({
           type="button"
           role="tab"
           className={active === id ? "active" : ""}
+          id={"upgrade-tab-" + id}
+          aria-controls="upgrade-tabpanel"
+          tabIndex={active === id ? 0 : -1}
           aria-selected={active === id}
+          onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+              return;
+            event.preventDefault();
+            const index = tabs.findIndex((item) => item.id === id);
+            const next =
+              event.key === "Home"
+                ? tabs[0]
+                : event.key === "End"
+                  ? tabs[tabs.length - 1]
+                  : tabs[
+                      (index +
+                        (event.key === "ArrowRight" ? 1 : -1) +
+                        tabs.length) %
+                        tabs.length
+                    ];
+            onChange(next.id);
+            document.getElementById("upgrade-tab-" + next.id)?.focus();
+          }}
           onClick={() => onChange(id)}
         >
           <Icon size={16} aria-hidden="true" />
@@ -94,14 +114,18 @@ function SupportingTab({
   onPlan,
   reviewPlanId,
   rescheduleRequested,
+  onReview,
 }: {
   tab: Exclude<WorkspaceTab, "readiness">;
   reviewPlanId?: string;
   rescheduleRequested?: boolean;
+  onReview: (planId: string | null, reschedule?: boolean) => void;
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
   if (tab === "containers" || tab === "utilities") {
-    return <LiveUpgradeInventory mode={tab} onPlan={onPlan} />;
+    return (
+      <LiveUpgradeInventory mode={tab} onPlan={onPlan} onReview={onReview} />
+    );
   }
   return (
     <UpgradePlansWorkspace
@@ -414,14 +438,12 @@ export function UpgradeWorkspace() {
   const [reviewPlanId, setReviewPlanId] = useState<string>();
   const [rescheduleRequested, setRescheduleRequested] = useState(false);
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
-  const plans = useUpgradePlans();
-  const now = useScheduleClock();
-  const pendingReviews = plans.rows.filter(
-    (row) =>
-      row.plan.status === "SUBMITTED" &&
-      !scheduleOverdue(row.plan, now) &&
-      row.plan.createdBy !== plans.identity?.subject,
-  ).length;
+  const openPlan = (planId: string | null, reschedule = false) => {
+    setReviewPlanId(planId ?? undefined);
+    setRescheduleRequested(reschedule);
+    setPlanning(null);
+    setTab("history");
+  };
 
   return (
     <div
@@ -437,31 +459,6 @@ export function UpgradeWorkspace() {
             plans.
           </p>
         </div>
-        <div className="upgrade-heading-actions">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setPlanning(null);
-              setReviewPlanId(undefined);
-              setRescheduleRequested(false);
-              setTab("history");
-            }}
-          >
-            Plans & approvals
-            {pendingReviews ? " (" + pendingReviews + " pending)" : ""}
-          </Button>
-          <Button
-            onClick={() => {
-              setPlanning(null);
-              setReviewPlanId(undefined);
-              setRescheduleRequested(false);
-              setTab("containers");
-            }}
-          >
-            <CircleArrowUp size={17} />
-            Plan upgrade
-          </Button>
-        </div>
       </header>
       <UpgradeTabs
         active={planning ? "containers" : tab}
@@ -472,7 +469,11 @@ export function UpgradeWorkspace() {
           setTab(value);
         }}
       />
-      <div role="tabpanel">
+      <div
+        role="tabpanel"
+        id="upgrade-tabpanel"
+        aria-labelledby={"upgrade-tab-" + (planning ? "containers" : tab)}
+      >
         {planning ? (
           <PlanWizard
             key={planning.id}
@@ -485,20 +486,14 @@ export function UpgradeWorkspace() {
             }}
           />
         ) : tab === "readiness" ? (
-          <LiveUpgradeCentre
-            onPlan={setPlanning}
-            onReview={(planId, reschedule = false) => {
-              setReviewPlanId(planId ?? undefined);
-              setRescheduleRequested(reschedule);
-              setTab("history");
-            }}
-          />
+          <LiveUpgradeCentre onPlan={setPlanning} onReview={openPlan} />
         ) : (
           <SupportingTab
             tab={tab}
             onPlan={setPlanning}
             reviewPlanId={reviewPlanId}
             rescheduleRequested={rescheduleRequested}
+            onReview={openPlan}
           />
         )}
       </div>

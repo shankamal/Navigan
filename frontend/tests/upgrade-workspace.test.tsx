@@ -10,15 +10,17 @@ import { describe, expect, it, vi } from "vitest";
 import { UpgradeWorkspace } from "../src/modules/upgrade-management/upgrade-workspace";
 import { clusters } from "@/modules/cluster-management/service";
 
+const { authIdentity } = vi.hoisted(() => ({
+  authIdentity: {
+    subject: "architect-reviewer",
+    displayName: "Platform Architect",
+    roles: ["PLATFORM_ARCHITECT"],
+    privileges: ["cluster.plan", "cluster.approve"],
+    platformScope: true,
+  },
+}));
 vi.mock("@/shared/auth/auth-provider", () => ({
-  useAuth: () => ({
-    identity: {
-      subject: "architect-reviewer",
-      roles: ["PLATFORM_ARCHITECT"],
-      privileges: ["cluster.plan", "cluster.approve"],
-      platformScope: true,
-    },
-  }),
+  useAuth: () => ({ identity: authIdentity }),
 }));
 
 const { activeCluster } = vi.hoisted(() => ({
@@ -216,6 +218,13 @@ describe("Upgrade workspace", () => {
       .mocked(clusters.upgradeReadiness)
       .getMockImplementation()!;
     const evidence = await clusters.upgradeReadiness("CLU-live");
+    const originalPlans = vi
+      .mocked(clusters.upgradePlans)
+      .getMockImplementation()!;
+    vi.mocked(clusters.upgradePlans).mockImplementation(async (id) => {
+      if (id === "CLU-second") throw new Error("Plan lookup failed");
+      return { clusterId: id, customerId: "CUS-live", items: [] };
+    });
     vi.mocked(clusters.list).mockResolvedValue({
       items: [
         activeCluster,
@@ -245,6 +254,21 @@ describe("Upgrade workspace", () => {
     );
     try {
       mount();
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", {
+            name: "Create plan for New-dbs-demo-cluster",
+          }),
+        ).toBeEnabled(),
+      );
+      expect(
+        screen.getByRole("button", { name: "Create plan for Second cluster" }),
+      ).toBeDisabled();
+      expect(
+        await screen.findByText(
+          /Existing plans could not be checked for this cluster/,
+        ),
+      ).toBeInTheDocument();
       fireEvent.click(
         await screen.findByRole("button", {
           name: "Expand Second cluster",
@@ -277,6 +301,7 @@ describe("Upgrade workspace", () => {
       ).toHaveAttribute("aria-expanded", "false");
     } finally {
       vi.mocked(clusters.list).mockImplementation(originalList);
+      vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
       vi.mocked(clusters.upgradeReadiness).mockImplementation(
         originalReadiness,
       );
@@ -309,6 +334,61 @@ describe("Upgrade workspace", () => {
           name: "Create plan for New-dbs-demo-cluster",
         }),
       ).toBeEnabled(),
+    );
+  });
+
+  it("explains missing planning permission in both entry points", async () => {
+    const privileges = authIdentity.privileges;
+    authIdentity.privileges = [];
+    try {
+      mount();
+      expect(
+        await screen.findByText(
+          "Your current account does not have permission to create upgrade plans.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "Create plan for New-dbs-demo-cluster",
+        }),
+      ).toBeDisabled();
+      fireEvent.click(screen.getByRole("tab", { name: "Container Upgrades" }));
+      expect(
+        await screen.findByText(
+          "Your current account does not have permission to create upgrade plans.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Create upgrade plan" }),
+      ).toBeDisabled();
+    } finally {
+      authIdentity.privileges = privileges;
+    }
+  });
+
+  it("orders the work areas and supports keyboard navigation without duplicate shortcuts", async () => {
+    mount();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Upgrade Centre",
+      "Container Upgrades",
+      "System Utilities",
+      "Plans & History",
+      "Maintenance Schedule",
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Plan upgrade" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Plans & approvals/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Upgrade Centre" }), {
+      key: "ArrowRight",
+    });
+    expect(
+      await screen.findByRole("heading", { name: "Container upgrades" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName(
+      "Container Upgrades",
     );
   });
 
@@ -391,7 +471,7 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByText(/Awaiting independent approval. Find it/),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Plans & approvals/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
     expect(
       screen.getByRole("tab", { name: /Plans & History/ }),
     ).toHaveAttribute("aria-selected", "true");
@@ -569,13 +649,69 @@ describe("Upgrade workspace", () => {
     }
   });
 
+  it("shows why a different user cannot reschedule an overdue plan", async () => {
+    const evidence = await clusters.upgradeReadiness("CLU-live");
+    const original = vi.mocked(clusters.upgradePlans).getMockImplementation()!;
+    const plan = {
+      planId: "UPG-other-owner",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status: "SUBMITTED",
+      scheduledFor: "2020-01-01T08:15:00Z",
+      changeReason: "Keep cluster supported",
+      readinessEvidence: evidence,
+      execution: {},
+      version: 2,
+      createdBy: "other-engineer",
+      createdByName: "Plan Creator",
+      submittedBy: "other-engineer",
+      createdAt: "2020-01-01T06:00:00Z",
+      updatedAt: "2020-01-01T06:00:00Z",
+      updatedBy: "other-engineer",
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [plan],
+    });
+    try {
+      mount();
+      const fleet = await screen.findByRole("table", {
+        name: "Registered active clusters and upgrade readiness",
+      });
+      fireEvent.click(
+        await within(fleet).findByRole("button", { name: "Review plan" }),
+      );
+      const drawer = screen.getByRole("dialog", {
+        name: "Review upgrade plan",
+      });
+      expect(
+        within(drawer).getByText(
+          /Only the plan creator, Plan Creator, can change its schedule/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(drawer).getByLabelText("New maintenance start"),
+      ).toBeDisabled();
+      expect(
+        within(drawer).getByRole("button", { name: "Save new schedule" }),
+      ).toBeDisabled();
+    } finally {
+      vi.mocked(clusters.upgradePlans).mockImplementation(original);
+    }
+  });
+
   it("opens live inventory tabs without exposing cloud actions", async () => {
     mount();
 
-    fireEvent.click(screen.getByRole("button", { name: "Plan upgrade" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Container Upgrades" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Container distribution upgrades",
+        name: "Container upgrades",
       }),
     ).toBeInTheDocument();
 
@@ -598,15 +734,15 @@ describe("Upgrade workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Container Upgrades/i }));
     expect(
       await screen.findByRole("heading", {
-        name: "Container distribution upgrades",
+        name: "Container upgrades",
       }),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: /Create container upgrade plan/i }),
+        screen.getByRole("button", { name: /Create upgrade plan/i }),
       ).toBeEnabled(),
     );
-    expect(await screen.findByText("Kubernetes 1.35")).toBeInTheDocument();
+    expect((await screen.findAllByText("1.35")).length).toBeGreaterThan(0);
     expect(screen.getByText("Ready for planning")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /Maintenance Schedule/i }));

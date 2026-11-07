@@ -20,13 +20,16 @@ import type {
   EksUpgradePlan,
   EksUpgradeReadiness,
 } from "@/modules/cluster-management/model";
-import { hasPermission } from "@/shared/auth/permissions";
 import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { supportLabel } from "./support-label";
 import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 import { containerIdentity, PlatformIdentity } from "./platform-identity";
+import {
+  planningBlockReason,
+  rescheduleBlockReason,
+} from "./plan-availability";
 
 function liveCluster(
   cluster: Cluster,
@@ -289,16 +292,16 @@ export function LiveUpgradeCentre({
   const overdueCount = overdueRequests.length;
   const refreshing =
     fleet.isFetching || readinessQueries.some((query) => query.isFetching);
-  const canPlan = (row: (typeof rows)[number]) =>
-    Boolean(
-      hasPermission(plans.identity, "cluster.plan") &&
-      row.evidence?.readiness.status === "READY" &&
-      row.evidence.recommendedTarget &&
-      !row.query.isFetching &&
-      !row.query.isError &&
-      !plans.pending &&
-      !plans.errors.length,
-    );
+  const blockReason = (row: (typeof rows)[number]) => {
+    const state = plans.stateForCluster(row.id);
+    return planningBlockReason(plans.identity, row.evidence, {
+      readinessPending: row.query.isFetching,
+      readinessError: row.query.isError,
+      planPending: state.pending,
+      planError: state.error,
+      activePlan: row.plan,
+    });
+  };
   if (fleet.isPending)
     return (
       <section className="upgrade-live-message" role="status">
@@ -345,11 +348,19 @@ export function LiveUpgradeCentre({
                 onClick={() =>
                   onReview(
                     overdueCount === 1 ? overdueRequests[0].plan.planId : null,
-                    true,
+                    overdueCount === 1
+                      ? !rescheduleBlockReason(
+                          plans.identity,
+                          overdueRequests[0].plan,
+                        )
+                      : true,
                   )
                 }
               >
-                {overdueCount === 1 ? "Review & reschedule" : "Review requests"}
+                {overdueCount === 1 &&
+                !rescheduleBlockReason(plans.identity, overdueRequests[0].plan)
+                  ? "Review & reschedule"
+                  : "Review overdue requests"}
               </button>
             </>
           ) : (
@@ -419,6 +430,13 @@ export function LiveUpgradeCentre({
                   row.plan && scheduleOverdue(row.plan, now),
                 );
                 const panelId = "upgrade-changes-" + row.id;
+                const planState = plans.stateForCluster(row.id);
+                const rowPlanUnknown =
+                  planState.pending || Boolean(planState.error);
+                const blocked = blockReason(row);
+                const canReschedule = Boolean(
+                  row.plan && !rescheduleBlockReason(plans.identity, row.plan),
+                );
                 return (
                   <Fragment key={row.id}>
                     <tr
@@ -481,8 +499,8 @@ export function LiveUpgradeCentre({
                               : "upgrade-maintenance-label"
                           }
                         >
-                          {planUnknown
-                            ? plans.pending
+                          {rowPlanUnknown
+                            ? planState.pending
                               ? "Loading plans…"
                               : "Unavailable"
                             : row.plan
@@ -493,22 +511,38 @@ export function LiveUpgradeCentre({
                         </span>
                       </td>
                       <td>
-                        {row.plan && !planUnknown ? (
+                        {row.plan && !rowPlanUnknown ? (
                           <button
                             className="upgrade-row-action"
-                            onClick={() => onReview(row.plan!.planId, overdue)}
+                            onClick={() =>
+                              onReview(
+                                row.plan!.planId,
+                                overdue && canReschedule,
+                              )
+                            }
                           >
-                            {overdue ? "Review & reschedule" : "Review plan"}
+                            {overdue && canReschedule
+                              ? "Review & reschedule"
+                              : "Review plan"}
                           </button>
                         ) : (
                           <button
                             className="upgrade-row-action"
-                            disabled={!canPlan(row) || planUnknown}
+                            disabled={Boolean(blocked)}
+                            aria-describedby={"upgrade-plan-help-" + row.id}
                             aria-label={"Create plan for " + row.name}
                             onClick={() => onPlan(row)}
                           >
                             Create plan
                           </button>
+                        )}
+                        {!row.plan && blocked && (
+                          <small
+                            className="upgrade-action-help"
+                            id={"upgrade-plan-help-" + row.id}
+                          >
+                            {blocked}
+                          </small>
                         )}
                       </td>
                     </tr>

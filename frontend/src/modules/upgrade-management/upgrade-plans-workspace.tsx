@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/ui";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { PlanComponents, EvidenceChecks, PlanCheck } from "./plan-components";
 import { scheduleOverdue, useScheduleClock } from "./schedule-state";
+import { rescheduleBlockReason } from "./plan-availability";
 
 type Filter = "all" | "drafts" | "review" | "scheduled" | "overdue";
 const statusLabel = (status: string) =>
@@ -45,7 +46,7 @@ export function UpgradePlansWorkspace({
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    (rescheduleRequested
+    (rescheduleRequested && !rescheduleRef.current?.disabled
       ? (rescheduleRef.current ?? drawerRef.current)
       : drawerRef.current
     )?.focus();
@@ -123,6 +124,9 @@ export function UpgradePlansWorkspace({
   });
   const plan = selected?.plan;
   const overdue = plan ? scheduleOverdue(plan, now) : false;
+  const rescheduleBlocked = plan
+    ? rescheduleBlockReason(data.identity, plan)
+    : undefined;
   const run = (
     name:
       | "submit"
@@ -380,35 +384,40 @@ export function UpgradePlansWorkspace({
                   The requested start time has passed. Approval is blocked. The
                   creator must choose a future schedule and resubmit.
                 </p>
-                {canPlan && plan.createdBy === subject && (
-                  <>
-                    <label className="upgrade-live-field">
-                      <span>New maintenance start</span>
-                      <input
-                        type="datetime-local"
-                        aria-label="New maintenance start"
-                        ref={rescheduleRef}
-                        value={newSchedule}
-                        onChange={(event) => setNewSchedule(event.target.value)}
-                      />
-                    </label>
-                    <Button
-                      disabled={
-                        action.isPending ||
-                        !newSchedule ||
-                        !Number.isFinite(new Date(newSchedule).getTime()) ||
-                        new Date(newSchedule).getTime() <= now
-                      }
-                      onClick={() => run("reschedule")}
-                    >
-                      Save new schedule
-                    </Button>
-                    <p>
-                      Saving returns the plan to Draft and clears the previous
-                      submission. Submit it again for independent approval.
-                    </p>
-                  </>
+                {rescheduleBlocked && (
+                  <p className="upgrade-access-explanation">
+                    {rescheduleBlocked}
+                  </p>
                 )}
+                <>
+                  <label className="upgrade-live-field">
+                    <span>New maintenance start</span>
+                    <input
+                      type="datetime-local"
+                      aria-label="New maintenance start"
+                      ref={rescheduleRef}
+                      disabled={Boolean(rescheduleBlocked)}
+                      value={newSchedule}
+                      onChange={(event) => setNewSchedule(event.target.value)}
+                    />
+                  </label>
+                  <Button
+                    disabled={
+                      Boolean(rescheduleBlocked) ||
+                      action.isPending ||
+                      !newSchedule ||
+                      !Number.isFinite(new Date(newSchedule).getTime()) ||
+                      new Date(newSchedule).getTime() <= now
+                    }
+                    onClick={() => run("reschedule")}
+                  >
+                    Save new schedule
+                  </Button>
+                  <p>
+                    Saving returns the plan to Draft and clears the previous
+                    submission. Submit it again for independent approval.
+                  </p>
+                </>
               </div>
             )}
             <h3>Upgrade components</h3>

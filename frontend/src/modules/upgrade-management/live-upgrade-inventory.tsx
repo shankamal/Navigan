@@ -2,19 +2,20 @@
 
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CloudCog,
-  RefreshCw,
-  ShieldCheck,
-  Wrench,
-} from "lucide-react";
+import { AlertTriangle, RefreshCw, Wrench } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import type { Cluster } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
 import { supportLabel } from "./support-label";
+import { PlanComponents, EvidenceChecks } from "./plan-components";
+import { containerIdentity, PlatformIdentity } from "./platform-identity";
+import { useUpgradePlans } from "./upgrade-plan-data";
+import {
+  planningBlockReason,
+  rescheduleBlockReason,
+} from "./plan-availability";
+import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 
 type InventoryMode = "containers" | "utilities";
 
@@ -99,6 +100,7 @@ function ContainerInventory({
   isFetching,
   onRefresh,
   onPlan,
+  onReview,
 }: {
   clusters: Cluster[];
   selected?: Cluster;
@@ -107,6 +109,7 @@ function ContainerInventory({
   isFetching: boolean;
   onRefresh: () => void;
   onPlan: (cluster: UpgradeCluster) => void;
+  onReview?: (planId: string | null, reschedule?: boolean) => void;
 }) {
   const readiness = useQuery({
     queryKey: ["eks-upgrade-readiness", selectedId],
@@ -115,27 +118,68 @@ function ContainerInventory({
     staleTime: 30_000,
     retry: false,
   });
-  const evidence = readiness.data;
-  const version = evidence?.controlPlane.version ?? declaredVersion(selected);
-  const targetVersion = evidence?.recommendedTarget?.version;
-  const hasVersion = version !== "Not reported";
+  const evidence = readiness.isError ? undefined : readiness.data;
+  const plans = useUpgradePlans();
+  const now = useScheduleClock();
+  const planState = plans.stateForCluster(selectedId);
+  const activePlan = plans.rows
+    .filter(
+      (row) =>
+        row.plan.clusterId === selectedId &&
+        ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"].includes(
+          row.plan.status,
+        ),
+    )
+    .sort((a, b) => b.plan.updatedAt.localeCompare(a.plan.updatedAt))[0]?.plan;
   const refreshing = isFetching || readiness.isFetching;
+  const blocked = planningBlockReason(plans.identity, evidence, {
+    readinessPending: refreshing,
+    readinessError: readiness.isError,
+    planPending: planState.pending,
+    planError: planState.error,
+    activePlan,
+  });
   const findings = [
     ...(evidence?.readiness.blockers ?? []),
     ...(evidence?.readiness.warnings ?? []),
   ];
+  const identity = containerIdentity(selected?.platform ?? "EKS");
+  const overdue = Boolean(activePlan && scheduleOverdue(activePlan, now));
+  const canReschedule = Boolean(
+    activePlan && !rescheduleBlockReason(plans.identity, activePlan),
+  );
+  const create = () => {
+    if (!selected || !evidence?.recommendedTarget || blocked) return;
+    onPlan({
+      id: selected.clusterId,
+      name: selected.clusterName,
+      environment: selected.environmentName ?? "Environment",
+      provider: "EKS",
+      providerLabel: "Amazon EKS",
+      currentVersion: evidence.controlPlane.version,
+      targetVersion: evidence.recommendedTarget.version,
+      path: [evidence.controlPlane.version, evidence.recommendedTarget.version],
+      support:
+        evidence.controlPlane.support?.supportStatus === "EXTENDED_SUPPORT"
+          ? "EXTENDED_SUPPORT"
+          : "SUPPORTED",
+      readiness: evidence.readiness.status,
+      findings: findings.length + " findings",
+      window: "",
+      evidence,
+    });
+  };
   return (
     <section
-      className="upgrade-live-capability"
+      className="upgrade-live-capability upgrade-container-workbench"
       aria-labelledby="containers-title"
     >
       <header className="upgrade-live-header">
         <div>
-          <p className="eyebrow">Live managed inventory</p>
-          <h2 id="containers-title">Container distribution upgrades</h2>
+          <h2 id="containers-title">Container upgrades</h2>
           <p>
-            Select a managed cluster and inspect live EKS control-plane,
-            node-group, add-on and upgrade-insight evidence.
+            Choose a cluster, review its version change and component readiness,
+            then create a plan.
           </p>
         </div>
         <Button
@@ -143,284 +187,151 @@ function ContainerInventory({
           onClick={() => {
             onRefresh();
             void readiness.refetch();
+            plans.refresh();
           }}
           disabled={refreshing}
         >
           <RefreshCw size={16} className={refreshing ? "spin" : ""} />
-          {refreshing ? "Refreshing" : "Refresh EKS evidence"}
+          {refreshing ? "Refreshing" : "Refresh evidence"}
         </Button>
       </header>
-
-      <div className="upgrade-live-summary">
-        <div>
-          <strong>{fleet.length}</strong>
-          <span>Active managed clusters</span>
+      <div className="upgrade-container-scope">
+        <ClusterPicker
+          items={fleet}
+          selectedId={selectedId}
+          onSelect={onSelect}
+        />
+        <div className="upgrade-container-platform">
+          <PlatformIdentity identity={identity} kind="cloud" />
+          <PlatformIdentity identity={identity} kind="platform" />
+          <span>{evidence?.region ?? "Region not reported"}</span>
         </div>
-        <div>
-          <strong>{evidence?.controlPlane.version ?? "—"}</strong>
-          <span>Live control-plane version</span>
-        </div>
-        <div>
-          <strong>{evidence?.readiness.status ?? "Discovering"}</strong>
-          <span>Upgrade readiness</span>
+        <div className="upgrade-container-version">
+          <span>
+            Current{" "}
+            <strong>
+              {evidence?.controlPlane.version ?? declaredVersion(selected)}
+            </strong>
+          </span>
+          <span aria-hidden="true">→</span>
+          <span>
+            Target{" "}
+            <strong>
+              {evidence?.recommendedTarget?.version ?? "Not reported"}
+            </strong>
+          </span>
         </div>
       </div>
-
-      <div className="upgrade-live-grid">
-        <div className="upgrade-live-form">
-          <ClusterPicker
-            items={fleet}
-            selectedId={selectedId}
-            onSelect={onSelect}
-          />
-          <label className="upgrade-live-field">
-            <span>Distribution</span>
-            <input value="Amazon EKS" readOnly />
-          </label>
-          <label className="upgrade-live-field">
-            <span>Current control-plane version</span>
-            <input value={version} readOnly />
-          </label>
-          <label className="upgrade-live-field">
-            <span>Recommended next target</span>
-            <select aria-label="Target version" disabled={!targetVersion}>
-              <option>
-                {targetVersion
-                  ? `Kubernetes ${targetVersion}`
-                  : "No supported sequential target reported"}
-              </option>
-            </select>
-          </label>
-          {evidence && (
-            <dl className="upgrade-eks-meta">
-              <div>
-                <dt>Region</dt>
-                <dd>{evidence.region}</dd>
-              </div>
-              <div>
-                <dt>Platform</dt>
-                <dd>
-                  {evidence.controlPlane.platformVersion ?? "Not reported"}
-                </dd>
-              </div>
-              <div>
-                <dt>Support</dt>
-                <dd className="upgrade-support-label">
-                  {supportLabel(evidence.controlPlane.support?.supportStatus)}
-                </dd>
-              </div>
-              <div>
-                <dt>Observed</dt>
-                <dd>{new Date(evidence.observedAt).toLocaleString()}</dd>
-              </div>
-            </dl>
-          )}
-        </div>
-
-        <aside
-          className="upgrade-live-readiness"
-          aria-label="Container upgrade readiness"
+      <div className="upgrade-container-review">
+        <section
+          className="upgrade-container-components"
+          aria-labelledby="container-components-title"
         >
-          <div
-            className={
-              evidence?.readiness.status === "BLOCKED"
-                ? "blocked"
-                : evidence?.readiness.status === "WARNING"
-                  ? "warning"
-                  : hasVersion
-                    ? "ready"
-                    : "pending"
-            }
-          >
-            {evidence?.readiness.status === "READY" ? (
-              <CheckCircle2 />
-            ) : (
-              <AlertTriangle />
-            )}
-            <span>
-              <strong>
-                {readiness.isPending
-                  ? "Collecting EKS evidence"
-                  : readiness.isError
-                    ? "Live discovery unavailable"
-                    : evidence?.readiness.status === "READY"
-                      ? "Ready for planning"
-                      : evidence?.readiness.status === "WARNING"
-                        ? "Planning warnings detected"
-                        : evidence?.readiness.status === "BLOCKED"
-                          ? "Upgrade blockers detected"
-                          : "Version evidence missing"}
-              </strong>
-              <small>
-                {readiness.isError
-                  ? "Check the customer provisioning role and the registered EKS account and Region."
-                  : evidence
-                    ? `${evidence.readiness.blockers.length} blockers and ${evidence.readiness.warnings.length} warnings were reported.`
-                    : `Reading ${selected?.clusterName ?? "the selected cluster"} without changing it.`}
-              </small>
-            </span>
-          </div>
-          <div
-            className={
-              evidence?.readiness.checks.nodeGroupsAligned ? "ready" : "pending"
-            }
-          >
-            <CloudCog />
-            <span>
-              <strong>Managed nodes</strong>
-              <small>
-                {evidence
-                  ? `${evidence.nodeGroups.length} node groups discovered; version alignment is ${evidence.readiness.checks.nodeGroupsAligned ? "verified" : "not ready"}.`
-                  : "Waiting for live managed node-group evidence."}
-              </small>
-            </span>
-          </div>
-          <div
-            className={
-              evidence?.readiness.checks.upgradeInsightsPassing
-                ? "ready"
-                : "pending"
-            }
-          >
-            <ShieldCheck />
-            <span>
-              <strong>Upgrade insights</strong>
-              <small>
-                {evidence
-                  ? `${evidence.insights.length} EKS upgrade insights evaluated. No update API is called.`
-                  : "Waiting for EKS upgrade-readiness insights."}
-              </small>
-            </span>
-          </div>
-          <Button
-            disabled={
-              !selected ||
-              evidence?.readiness.status !== "READY" ||
-              !evidence?.recommendedTarget
-            }
-            title={
-              evidence?.readiness.status === "READY" &&
-              evidence.recommendedTarget
-                ? undefined
-                : "READY evidence and a supported sequential target are required"
-            }
-            onClick={() => {
-              if (!selected || !evidence?.recommendedTarget) return;
-              onPlan({
-                id: selected.clusterId,
-                name: selected.clusterName,
-                environment: selected.environmentName ?? "Environment",
-                provider: "EKS",
-                providerLabel: "Amazon EKS",
-                currentVersion: evidence.controlPlane.version,
-                targetVersion: evidence.recommendedTarget.version,
-                path: [
-                  evidence.controlPlane.version,
-                  evidence.recommendedTarget.version,
-                ],
-                support:
-                  evidence.controlPlane.support?.supportStatus ===
-                  "EXTENDED_SUPPORT"
-                    ? "EXTENDED_SUPPORT"
-                    : "SUPPORTED",
-                readiness: evidence.readiness.status,
-                findings: `${evidence.readiness.blockers.length + evidence.readiness.warnings.length} findings`,
-                window: "Not scheduled",
-                evidence,
-              });
-            }}
-          >
-            Create container upgrade plan
-          </Button>
-        </aside>
-      </div>
-
-      {evidence && (
-        <div className="upgrade-eks-evidence">
+          <h3 id="container-components-title">Proposed component changes</h3>
+          <p>
+            Control plane first, compatible managed add-ons next, then rolling
+            managed node-group updates.
+          </p>
+          {readiness.isPending ? (
+            <InventoryMessage kind="loading">
+              Collecting provider evidence…
+            </InventoryMessage>
+          ) : readiness.isError ? (
+            <InventoryMessage kind="error">
+              Live discovery unavailable. Refresh evidence to retry.
+            </InventoryMessage>
+          ) : (
+            <PlanComponents
+              evidence={evidence}
+              target={evidence?.recommendedTarget?.version ?? "Not reported"}
+            />
+          )}
           {findings.length > 0 && (
-            <section
-              className="upgrade-eks-findings"
-              aria-labelledby="eks-findings-title"
-            >
-              <h3 id="eks-findings-title">Readiness findings</h3>
+            <div className="upgrade-eks-findings">
+              <h3>Readiness findings</h3>
               <ul>
-                {findings.slice(0, 12).map((finding, index) => (
-                  <li key={`${finding.code}-${index}`}>
-                    <AlertTriangle />
-                    <span>
-                      <strong>{finding.code.replaceAll("_", " ")}</strong>
-                      <small>{finding.message}</small>
-                    </span>
+                {findings.map((finding, index) => (
+                  <li key={finding.code + index}>
+                    <AlertTriangle size={16} />
+                    <span>{finding.message}</span>
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
-          <section aria-labelledby="eks-components-title">
-            <h3 id="eks-components-title">EKS component evidence</h3>
-            <div className="upgrade-eks-tables">
-              <table>
-                <caption>Managed node groups</caption>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Version</th>
-                    <th>Status</th>
-                    <th>Health</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {evidence.nodeGroups.length ? (
-                    evidence.nodeGroups.map((node) => (
-                      <tr key={node.name}>
-                        <td>{node.name}</td>
-                        <td>{node.version ?? "Unknown"}</td>
-                        <td>{node.status}</td>
-                        <td>
-                          {node.healthIssues.length
-                            ? `${node.healthIssues.length} issues`
-                            : "Healthy"}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4}>No EKS managed node groups reported.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-              <table>
-                <caption>Managed add-ons</caption>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Installed</th>
-                    <th>Target compatible</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {evidence.addons.length ? (
-                    evidence.addons.map((addon) => (
-                      <tr key={addon.name}>
-                        <td>{addon.name}</td>
-                        <td>{addon.version ?? "Unknown"}</td>
-                        <td>{addon.targetVersion ?? "Review required"}</td>
-                        <td>{addon.status}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4}>No EKS managed add-ons reported.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
             </div>
-          </section>
+          )}
+        </section>
+        <aside
+          className="upgrade-container-checks"
+          aria-label="Container upgrade readiness"
+        >
+          <h3>
+            {readiness.isPending
+              ? "Checking readiness"
+              : readiness.isError
+                ? "Evidence unavailable"
+                : evidence?.readiness.status === "READY"
+                  ? "Ready for planning"
+                  : "Readiness needs attention"}
+          </h3>
+          <ul className="upgrade-review-checks">
+            <EvidenceChecks evidence={evidence} />
+          </ul>
+          {evidence && (
+            <p>
+              Support:{" "}
+              {supportLabel(evidence.controlPlane.support?.supportStatus)} ·
+              Checked {new Date(evidence.observedAt).toLocaleString()}
+            </p>
+          )}
+        </aside>
+      </div>
+      <footer className="upgrade-container-actions">
+        <div>
+          {activePlan ? (
+            <>
+              <strong>
+                {overdue
+                  ? "Existing request is overdue"
+                  : "An active upgrade plan already exists"}
+              </strong>
+              <p>
+                Review its scope and requested time before creating another
+                plan.
+              </p>
+            </>
+          ) : (
+            <>
+              <strong id="container-plan-availability">
+                {blocked ?? "Ready to create an upgrade plan"}
+              </strong>
+              <p>
+                Creating a plan does not start an upgrade. You will add the
+                reason and maintenance time next.
+              </p>
+            </>
+          )}
         </div>
-      )}
+        {activePlan && onReview ? (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              onReview(activePlan.planId, overdue && canReschedule)
+            }
+          >
+            {overdue && canReschedule
+              ? "Review & reschedule"
+              : "Review existing plan"}
+          </Button>
+        ) : (
+          <Button
+            onClick={create}
+            disabled={Boolean(blocked)}
+            aria-describedby="container-plan-availability"
+          >
+            Create upgrade plan
+          </Button>
+        )}
+      </footer>
     </section>
   );
 }
@@ -621,9 +532,11 @@ function UtilityInventory({
 export function LiveUpgradeInventory({
   mode,
   onPlan,
+  onReview,
 }: {
   mode: InventoryMode;
   onPlan?: (cluster: UpgradeCluster) => void;
+  onReview?: (planId: string | null, reschedule?: boolean) => void;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const fleet = useQuery({
@@ -676,6 +589,7 @@ export function LiveUpgradeInventory({
           if (effectiveId) void detail.refetch();
         }}
         onPlan={onPlan ?? (() => undefined)}
+        onReview={onReview}
       />
     );
   }
