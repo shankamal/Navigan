@@ -25,6 +25,8 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 3 && path[2] === "audit-log") return method === "GET";
     if (path.length === 3 && path[2] === "platform-components")
       return method === "GET";
+    if (path.length === 3 && path[2] === "utility-upgrade-options")
+      return method === "GET";
     if (path.length === 3 && path[2] === "upgrade-readiness")
       return method === "GET";
     if (path.length === 3 && path[2] === "upgrade-plans")

@@ -46,6 +46,7 @@ export function useUpgradePlans() {
     },
     rows: items.flatMap((cluster, index) =>
       (queries[index]?.data?.items ?? []).map((plan) => ({
+        cluster,
         clusterName: cluster.clusterName,
         environment: cluster.environmentName ?? "Environment",
         plan,

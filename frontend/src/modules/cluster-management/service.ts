@@ -13,6 +13,7 @@ import {
   platformComponentInventorySchema,
   eksUpgradeReadinessSchema,
   eksUpgradePlanSchema,
+  utilityUpgradeOptionsSchema,
   eksUpgradePlanListSchema,
   clusterToolAccessSchema,
   clusterToolSessionSchema,
@@ -109,6 +110,32 @@ export const clusters = {
     parseResponse(
       platformComponentInventorySchema,
       (await apiClient.get(`${base}/${id}/platform-components`)).data,
+    ),
+  utilityUpgradeOptions: async (id: string, utility: string) =>
+    parseResponse(
+      utilityUpgradeOptionsSchema,
+      (
+        await apiClient.get(`${base}/${id}/utility-upgrade-options`, {
+          params: { utility },
+        })
+      ).data,
+    ),
+  createUtilityUpgradePlan: async (
+    id: string,
+    input: {
+      utilityCode: string;
+      targetVersion: string;
+      scheduledFor?: string;
+      changeReason: string;
+    },
+  ) =>
+    parseResponse(
+      eksUpgradePlanSchema,
+      (
+        await apiClient.post(`${base}/${id}/upgrade-plans`, input, {
+          headers: writeHeaders({ key: crypto.randomUUID() }),
+        })
+      ).data,
     ),
   upgradeReadiness: async (id: string) =>
     parseResponse(

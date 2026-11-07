@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, RefreshCw, Wrench } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import type { Cluster } from "@/modules/cluster-management/model";
+import { useAuth } from "@/shared/auth/auth-provider";
+import { hasPermission } from "@/shared/auth/permissions";
+import { ClusterContext } from "./cluster-context";
 import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
 import { supportLabel } from "./support-label";
@@ -125,6 +128,7 @@ function ContainerInventory({
   const activePlan = plans.rows
     .filter(
       (row) =>
+        row.plan.kind !== "UTILITY" &&
         row.plan.clusterId === selectedId &&
         ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"].includes(
           row.plan.status,
@@ -195,6 +199,24 @@ function ContainerInventory({
           {refreshing ? "Refreshing" : "Refresh evidence"}
         </Button>
       </header>
+      <ClusterContext cluster={selected} />
+      {activePlan && (
+        <div className="upgrade-existing-plan" role="status">
+          <strong>
+            Existing container upgrade:{" "}
+            {activePlan.status === "SUBMITTED"
+              ? "Awaiting approval"
+              : activePlan.status}
+          </strong>
+          <span>
+            Requested start:{" "}
+            {activePlan.scheduledFor
+              ? new Date(activePlan.scheduledFor).toLocaleString()
+              : "Not scheduled"}{" "}
+            · {Intl.DateTimeFormat().resolvedOptions().timeZone}
+          </span>
+        </div>
+      )}
       <div className="upgrade-container-scope">
         <ClusterPicker
           items={fleet}
@@ -337,16 +359,23 @@ function ContainerInventory({
 }
 
 function UtilityInventory({
+  onReview,
   fleet,
   selected,
   selectedId,
   onSelect,
 }: {
+  onReview?: (planId: string | null, reschedule?: boolean) => void;
   fleet: Cluster[];
   selected?: Cluster;
   selectedId: string;
   onSelect: (value: string) => void;
 }) {
+  const { identity } = useAuth();
+  const planInventory = useUpgradePlans();
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
   const [componentCode, setComponentCode] = useState("");
   const [targetVersion, setTargetVersion] = useState("");
   const inventory = useQuery({
@@ -361,6 +390,91 @@ function UtilityInventory({
     components[0];
   const effectiveCode = selectedComponent?.componentCode ?? "";
   const reported = components.filter((item) => item.version).length;
+  const ready = components.filter(
+    (item) => item.status === "READY" && item.syncStatus === "Synced",
+  ).length;
+  const options = useQuery({
+    queryKey: [
+      "utility-upgrade-options",
+      identity?.subject,
+      selectedId,
+      effectiveCode,
+    ],
+    queryFn: () =>
+      clusters.utilityUpgradeOptions(selectedId, effectiveCode.toLowerCase()),
+    enabled: Boolean(selectedId && effectiveCode),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const activeUtility = planInventory.rows.find(
+    (row) =>
+      row.plan.kind === "UTILITY" &&
+      row.plan.clusterId === selectedId &&
+      row.plan.managedGroup === options.data?.chart &&
+      ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"].includes(
+        row.plan.status,
+      ),
+  )?.plan;
+  const planState = planInventory.stateForCluster(selectedId);
+  const target = options.data?.versions.includes(targetVersion)
+    ? targetVersion
+    : (options.data?.versions[0] ?? "");
+  const create = useMutation({
+    mutationFn: () =>
+      clusters.createUtilityUpgradePlan(selectedId, {
+        utilityCode: effectiveCode.toLowerCase(),
+        targetVersion: target,
+        changeReason: reason.trim(),
+        ...(scheduledFor
+          ? { scheduledFor: new Date(scheduledFor).toISOString() }
+          : {}),
+      }),
+    onSuccess: (plan) => {
+      queryClient.setQueryData<
+        Awaited<ReturnType<typeof clusters.upgradePlans>>
+      >(
+        [
+          "eks-upgrade-plans",
+          identity?.subject,
+          identity?.authorizationRevision,
+          selectedId,
+        ],
+        (previous) => ({
+          clusterId: selectedId,
+          customerId: plan.customerId,
+          items: [
+            ...(previous?.items ?? []).filter(
+              (item) => item.planId !== plan.planId,
+            ),
+            plan,
+          ],
+        }),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["eks-upgrade-plans"] });
+      onReview?.(plan.planId);
+    },
+  });
+  const blocked = !hasPermission(identity, "cluster.plan")
+    ? "Your account does not have upgrade planning permission."
+    : activeUtility
+      ? "An active request already exists for this chart. Review it before creating another."
+      : planState.pending
+        ? "Checking existing utility plans…"
+        : planState.error
+          ? "Existing plans could not be checked. Refresh plans before creating another."
+          : options.isPending
+            ? "Loading official chart releases…"
+            : (options.error?.message ??
+              options.data?.blockReason ??
+              (!target
+                ? "No supported release available."
+                : !reason.trim() || reason.trim().length < 8
+                  ? "Provide a change reason of at least 8 characters."
+                  : scheduledFor &&
+                      (!Number.isFinite(new Date(scheduledFor).getTime()) ||
+                        new Date(scheduledFor).getTime() <= Date.now())
+                    ? "Choose a future maintenance start."
+                    : undefined));
 
   return (
     <section
@@ -378,7 +492,10 @@ function UtilityInventory({
         </div>
         <Button
           variant="secondary"
-          onClick={() => inventory.refetch()}
+          onClick={() => {
+            void inventory.refetch();
+            void options.refetch();
+          }}
           disabled={inventory.isFetching || !selectedId}
         >
           <RefreshCw size={16} className={inventory.isFetching ? "spin" : ""} />
@@ -389,18 +506,29 @@ function UtilityInventory({
       <div className="upgrade-live-summary">
         <div>
           <strong>{components.length}</strong>
-          <span>Expected or discovered utilities</span>
+          <span>Utilities tracked in this cluster</span>
+          <small>Includes required components not yet reporting</small>
         </div>
         <div>
           <strong>{reported}</strong>
-          <span>Versions reported</span>
+          <span>
+            Chart versions reported · {reported} of {components.length}
+          </span>
+          <small>{components.length - reported} need version evidence</small>
         </div>
         <div>
-          <strong>{inventory.data?.status ?? "—"}</strong>
-          <span>Inventory health</span>
+          <strong>
+            {ready} / {components.length}
+          </strong>
+          <span>Healthy and GitOps synced</span>
+          <small>
+            {components.length - ready} need attention; see component state
+            below
+          </small>
         </div>
       </div>
 
+      <ClusterContext cluster={selected} />
       <div className="upgrade-utility-layout">
         <div className="upgrade-live-form">
           <ClusterPicker
@@ -435,7 +563,7 @@ function UtilityInventory({
             </select>
           </label>
           <label className="upgrade-live-field">
-            <span>Installed version</span>
+            <span>Installed chart version</span>
             <input
               value={selectedComponent?.version ?? "Not reported"}
               readOnly
@@ -443,28 +571,86 @@ function UtilityInventory({
           </label>
           <label className="upgrade-live-field">
             <span>Requested target version</span>
-            <input
+            <select
               aria-label="Requested target version"
-              value={targetVersion}
+              value={target}
               onChange={(event) => setTargetVersion(event.target.value)}
-              placeholder="Example: 0.46.0"
-              disabled={!selectedComponent}
-            />
+              disabled={options.isPending || !options.data?.versions.length}
+            >
+              {!options.data?.versions.length && (
+                <option value="">
+                  {options.isPending
+                    ? "Loading releases…"
+                    : "No verified target available"}
+                </option>
+              )}
+              {options.data?.versions.map((version) => (
+                <option key={version} value={version}>
+                  {version} · chart release
+                </option>
+              ))}
+            </select>
+            <small>
+              {options.data?.label}. Targets come from the official chart
+              release catalogue. Chart and application versions can differ.
+            </small>
           </label>
           <div className="upgrade-live-selection-note">
             <Wrench />
             <p>
               {selectedComponent
-                ? `${componentLabel(selectedComponent.componentCode)} on ${selected?.clusterName} is selected. Compatibility, chart availability and recovery evidence must be verified before approval.`
+                ? `${componentLabel(selectedComponent.componentCode)} on ${selected?.clusterName} is selected. Compatibility, chart availability and recovery evidence must be verified before execution.`
                 : "Select a cluster with a reported platform-component inventory."}
             </p>
           </div>
+          <label className="upgrade-live-field">
+            <span>Requested maintenance start (optional)</span>
+            <input
+              aria-label="Utility maintenance start"
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(event) => setScheduledFor(event.target.value)}
+            />
+          </label>
+          <label className="upgrade-live-field">
+            <span>Change reason</span>
+            <textarea
+              aria-label="Utility change reason"
+              maxLength={2000}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          {activeUtility && (
+            <div className="upgrade-existing-plan">
+              <strong>
+                {activeUtility.utilityEvidence?.label} · {activeUtility.status}
+              </strong>
+              <span>
+                {activeUtility.scheduledFor
+                  ? new Date(activeUtility.scheduledFor).toLocaleString()
+                  : "Not scheduled"}
+              </span>
+              <Button
+                variant="secondary"
+                onClick={() => onReview?.(activeUtility.planId)}
+              >
+                Review utility plan
+              </Button>
+            </div>
+          )}
+          {blocked && <p role="status">{blocked}</p>}
+          {create.error && <p role="alert">{create.error.message}</p>}
           <Button
-            disabled
-            title="Utility plan persistence and approval are not connected"
+            disabled={Boolean(blocked) || create.isPending}
+            onClick={() => create.mutate()}
           >
             Create utility upgrade plan
           </Button>
+          <small>
+            Saves a governed draft. Approval does not deploy; GitOps execution
+            is not enabled yet.
+          </small>
         </div>
 
         <div className="upgrade-utility-table-wrap">
@@ -485,7 +671,7 @@ function UtilityInventory({
               <thead>
                 <tr>
                   <th>Utility</th>
-                  <th>Installed version</th>
+                  <th>Reported version</th>
                   <th>Component</th>
                   <th>GitOps sync</th>
                   <th>Observed</th>
@@ -595,6 +781,7 @@ export function LiveUpgradeInventory({
   }
   return (
     <UtilityInventory
+      onReview={onReview}
       fleet={items}
       selected={selected}
       selectedId={effectiveId}

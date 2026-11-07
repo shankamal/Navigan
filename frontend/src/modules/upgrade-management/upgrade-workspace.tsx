@@ -1,5 +1,6 @@
 "use client";
 
+import { ClusterContext } from "./cluster-context";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -213,6 +214,13 @@ function PlanWizard({
         <ArrowLeft size={16} /> Upgrades & Patching
       </button>
       <h2 className="sr-only">Create upgrade plan</h2>
+      <ClusterContext
+        cluster={{
+          clusterId: cluster.id,
+          clusterName: cluster.name,
+          environmentName: cluster.environment,
+        }}
+      />
       <div className="upgrade-cluster-strip">
         <div>
           <small>Current cluster</small>

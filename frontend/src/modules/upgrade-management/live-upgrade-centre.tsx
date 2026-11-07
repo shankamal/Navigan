@@ -1,5 +1,7 @@
 "use client";
 
+import { ClusterContext } from "./cluster-context";
+import { UpgradeMetrics } from "./upgrade-metrics";
 import { Fragment, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
@@ -253,6 +255,7 @@ export function LiveUpgradeCentre({
     const plan = plans.rows
       .filter(
         (row) =>
+          row.plan.kind !== "UTILITY" &&
           row.plan.clusterId === record.clusterId &&
           ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"].includes(
             row.plan.status,
@@ -263,6 +266,7 @@ export function LiveUpgradeCentre({
       )[0]?.plan;
     return {
       ...liveCluster(record, evidence),
+      record,
       identity: containerIdentity(record.platform),
       evidence,
       plan,
@@ -330,6 +334,23 @@ export function LiveUpgradeCentre({
   const planUnknown = plans.pending || plans.errors.length > 0;
   return (
     <div className="upgrade-centre upgrade-accordion-centre">
+      <UpgradeMetrics
+        ready={
+          rows.filter((row) => row.evidence?.readiness.status === "READY")
+            .length
+        }
+        blocked={
+          rows.filter((row) => row.evidence?.readiness.status === "BLOCKED")
+            .length
+        }
+        review={
+          rows.filter((row) => row.evidence?.readiness.status === "WARNING")
+            .length
+        }
+        unknown={rows.filter((row) => !row.evidence).length}
+        plans={plans.rows.map((row) => row.plan)}
+        loading={refreshing || plans.pending}
+      />
       <section
         className="upgrade-attention-strip"
         aria-label="Upgrade fleet summary"
@@ -466,6 +487,7 @@ export function LiveUpgradeCentre({
                             )}
                             <strong>{row.name}</strong>
                           </button>
+                          <ClusterContext cluster={row.record} compact />
                           <div className="upgrade-cluster-identities">
                             <PlatformIdentity
                               identity={row.identity}
@@ -509,6 +531,11 @@ export function LiveUpgradeCentre({
                                 : planLabel(row.plan)
                               : "No active plan"}
                         </span>
+                        {row.plan?.scheduledFor && (
+                          <small className="upgrade-window-pending">
+                            {new Date(row.plan.scheduledFor).toLocaleString()}
+                          </small>
+                        )}
                       </td>
                       <td>
                         {row.plan && !rowPlanUnknown ? (

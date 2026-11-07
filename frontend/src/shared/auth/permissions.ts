@@ -31,6 +31,7 @@ export type PlatformPermission =
   | "cluster.submit"
   | "cluster.review"
   | "cluster.approve"
+  | "cluster.upgrade.approve"
   | "cluster.plan"
   | "cluster.apply"
   | "cluster.retry"
@@ -69,6 +70,7 @@ export type PlatformPermission =
 
 const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
   CLOUD_ENGINEER: [
+    "cluster.upgrade.approve",
     "dashboard.platform.view",
     "workqueue.own.view",
     "customer.view",
@@ -113,6 +115,7 @@ const rolePermissions: Record<PlatformRole, readonly PlatformPermission[]> = {
     "cluster.view",
     "cluster.review",
     "cluster.approve",
+    "cluster.upgrade.approve",
     "cluster.plan",
     "cluster.apply",
     "cluster.audit.view",

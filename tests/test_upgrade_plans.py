@@ -30,6 +30,7 @@ def test_scheduled_draft_handler_fingerprints_datetime_and_replays(monkeypatch, 
     monkeypatch.setattr(handler, "AccessEvaluator", MagicMock())
     monkeypatch.setattr(handler, "CustomerRepository", MagicMock(return_value=customer))
     monkeypatch.setattr(handler, "EksUpgradePlans", MagicMock(return_value=plans))
+    monkeypatch.setattr(handler, "plan_service", MagicMock(return_value=plans))
     event = {
         "rawPath": "/api/v1/clusters/CLU-live/upgrade-plans",
         "requestContext": {"http": {"method": "POST"}},
@@ -137,6 +138,9 @@ class Access:
     def __init__(self, user="architect-a", privileges=None):
         self.user_id = user
         self.privileges = set(privileges or {"cluster.plan", "cluster.approve", "cluster.apply"})
+
+    def has(self, privilege):
+        return privilege in self.privileges
 
     def require(self, privilege):
         if privilege not in self.privileges:

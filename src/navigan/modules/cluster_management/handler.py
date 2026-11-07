@@ -39,6 +39,8 @@ from .tool_access import resolve_tool_access
 from .upgrade_readiness import EksUpgradeDiscovery
 from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction
 
+from .utility_upgrades import CreateUtilityUpgradePlan, UtilityUpgradePlans, plan_service
+
 BASE = "/api/v1/clusters"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -366,6 +368,7 @@ def execute(event, principal, correlation):
         "access",
         "platform-components",
         "upgrade-readiness",
+        "utility-upgrade-options",
         "tools",
     }
     read = method == "GET" and (
@@ -432,7 +435,7 @@ def execute(event, principal, correlation):
             if complete_github_authorization
             else NodeGroupRequestAction
             if node_group_action
-            else CreateEksUpgradePlan
+            else (CreateUtilityUpgradePlan if body.get("utilityCode") else CreateEksUpgradePlan)
             if create_upgrade_plan
             else UpgradePlanAction
             if upgrade_plan_action
@@ -501,10 +504,14 @@ def execute(event, principal, correlation):
                 elif node_group_execution_logs:
                     access.require("cluster.logs.view")
                     value = execution_logs(repo.get_node_group_request(identifier, parts[2]))
+                elif action == "utility-upgrade-options":
+                    value = UtilityUpgradePlans(repo, access, correlation).options(identifier, query_of(event).get("utility", "").lower())
                 elif upgrade_plans:
                     value = EksUpgradePlans(repo, access, correlation).list(identifier)
+                    value["items"].extend(UtilityUpgradePlans(repo, access, correlation).list(identifier)["items"])
                 elif upgrade_plan_detail:
-                    value = serialize(EksUpgradePlans(repo, access, correlation).get(identifier, parts[2]))
+                    service = plan_service(repo, access, correlation, identifier, parts[2])
+                    value = service.present(service.get(identifier, parts[2]))
                 elif audit_log:
                     if not (access.has("cluster.audit.view") or access.has("audit.platform.view")):
                         raise ApiError(403, "FORBIDDEN", "This operation is not permitted.")
@@ -641,10 +648,11 @@ def execute(event, principal, correlation):
             value = Service(repo, correlation).change_node_group_request(identifier, parts[2], parts[3], body)
             status = 202 if parts[3] in {"approve", "apply"} else 200
         elif create_upgrade_plan:
-            value = EksUpgradePlans(repo, access, correlation).create(identifier, body)
+            service = UtilityUpgradePlans(repo, access, correlation) if body.get("utilityCode") else EksUpgradePlans(repo, access, correlation)
+            value = service.create(identifier, body)
             status = 201
         elif upgrade_plan_action:
-            value = EksUpgradePlans(repo, access, correlation).change(identifier, parts[2], parts[3], body)
+            value = plan_service(repo, access, correlation, identifier, parts[2]).change(identifier, parts[2], parts[3], body)
             status = 202 if parts[3] in {"execute", "refresh"} else 200
         else:
             service = Service(repo, correlation)

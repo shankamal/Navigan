@@ -20,7 +20,7 @@ WORKSPACE_MIGRATIONS = (
     "027_migration_artifact_workspaces.sql",
     "028_workspace_collection_jobs.sql",
 )
-UPGRADE_PLAN_MIGRATIONS = ("029_upgrade_plans.sql",)
+UPGRADE_PLAN_MIGRATIONS = ("029_upgrade_plans.sql", "030_utility_upgrade_plans.sql", "031_upgrade_approval_permission.sql")
 WORKSPACE_GRANTS = """
 GRANT SELECT, INSERT, UPDATE ON
 migration_management.artifact_workspaces,
@@ -29,7 +29,7 @@ migration_management.workspace_collection_jobs TO navigan_api;
 """
 UPGRADE_PLAN_GRANTS = """
 GRANT SELECT, INSERT, UPDATE ON
-cluster_management.upgrade_plans TO navigan_api;
+cluster_management.upgrade_plans, cluster_management.utility_upgrade_plans TO navigan_api;
 """
 
 DOLLAR_TAG = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
@@ -196,7 +196,7 @@ def main() -> int:
     scope.add_argument(
         "--upgrade-plans-only",
         action="store_true",
-        help="Apply only governed EKS upgrade-plan migration 029 and its runtime grant",
+        help="Apply scoped upgrade-plan migrations 029–031 and their runtime grants",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -343,21 +343,17 @@ def main() -> int:
                 if not result.get("records") or result["records"][0][0].get("isNull", False):
                     raise RuntimeError(f"Workspace table missing after migrations: {table}")
         elif args.upgrade_plans_only:
-            result = execute(
-                client,
-                args,
-                transaction_id,
-                "SELECT to_regclass('cluster_management.upgrade_plans')::text AS table_name, "
-                "has_table_privilege('navigan_api', 'cluster_management.upgrade_plans', "
-                "'SELECT,INSERT,UPDATE') AS runtime_grants",
-            )
-            records = result.get("records", [])
-            if (
-                len(records) != 1
-                or not records[0][0].get("stringValue")
-                or records[0][1].get("booleanValue") is not True
-            ):
-                raise RuntimeError("Upgrade-plan table or runtime grants are missing")
+            for table in ("upgrade_plans", "utility_upgrade_plans"):
+                result = execute(
+                    client, args, transaction_id,
+                    f"SELECT to_regclass('cluster_management.{table}')::text AS table_name, "
+                    f"has_table_privilege('navigan_api', 'cluster_management.{table}', "
+                    "'SELECT,INSERT,UPDATE') AS runtime_grants",
+                )
+                records = result.get("records", [])
+                if (len(records) != 1 or not records[0][0].get("stringValue")
+                        or records[0][1].get("booleanValue") is not True):
+                    raise RuntimeError("Upgrade-plan table or runtime grants are missing: " + table)
 
         client.commit_transaction(
             resourceArn=args.resource_arn,

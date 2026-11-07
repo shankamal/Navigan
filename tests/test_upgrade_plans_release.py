@@ -61,6 +61,7 @@ def test_release_preserves_live_modules_and_adds_only_scoped_plan_code(tmp_path)
         assert "upgrade_connector" not in normalized
         assert "ConnectorUpgradeRequest" not in normalized
         assert "EksUpgradePlans" in normalized
+        assert package.read(prefix + "utility_upgrades.py") == (ROOT / "src" / prefix / "utility_upgrades.py").read_bytes()
         assert package.read(prefix + "models.py") == live_models
         assert package.read(prefix + "upgrade_readiness.py") == live_readiness
         assert (

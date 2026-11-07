@@ -345,42 +345,92 @@ export const eksUpgradeReadinessSchema = z.object({
     }),
   }),
 });
-export const eksUpgradePlanSchema = z.object({
-  planId: z.string(),
-  clusterId: z.string(),
-  customerId: z.string(),
-  provider: z.literal("EKS"),
-  currentVersion: z.string(),
-  targetVersion: z.string(),
-  strategy: z.literal("PROVIDER_MANAGED_ROLLING"),
-  status: z.enum([
-    "DRAFT",
-    "SUBMITTED",
-    "APPROVED",
-    "SCHEDULED",
-    "EXECUTING",
-    "SUCCEEDED",
-    "FAILED",
-    "REJECTED",
-    "CANCELLED",
-  ]),
-  scheduledFor: z.string().nullable().optional(),
-  changeReason: z.string(),
-  readinessEvidence: eksUpgradeReadinessSchema,
-  execution: z.record(z.string(), z.unknown()),
-  version: z.number(),
-  submittedBy: z.string().nullable().optional(),
-  submittedByName: z.string().nullable().optional(),
-  createdByName: z.string().nullable().optional(),
-  approvedByName: z.string().nullable().optional(),
-  submittedAt: z.string().nullable().optional(),
-  approvedBy: z.string().nullable().optional(),
-  approvedAt: z.string().nullable().optional(),
-  createdBy: z.string(),
-  createdAt: z.string(),
-  updatedBy: z.string(),
-  updatedAt: z.string(),
+export const utilityUpgradeOptionsSchema = z.object({
+  utilityCode: z.string(),
+  label: z.string(),
+  chart: z.string().nullable(),
+  currentVersion: z.string().nullable(),
+  versions: z.array(z.string()),
+  blockReason: z.string().nullable(),
+  observedAt: z.string().nullable(),
+  source: z.string().optional(),
+  versionKind: z.string().optional(),
+  compatibility: z.string().optional(),
 });
+export const eksUpgradePlanSchema = z
+  .object({
+    planId: z.string(),
+    clusterId: z.string(),
+    customerId: z.string(),
+    provider: z.literal("EKS"),
+    currentVersion: z.string(),
+    targetVersion: z.string(),
+    kind: z.enum(["CONTAINER", "UTILITY"]).default("CONTAINER"),
+    utilityCode: z.string().optional(),
+    managedGroup: z.string().optional(),
+    utilityEvidence: z
+      .object({
+        label: z.string(),
+        chart: z.string().nullable(),
+        currentVersion: z.string().nullable(),
+        versions: z.array(z.string()),
+        observedAt: z.string().nullable(),
+        source: z.string().optional(),
+        compatibility: z.string().optional(),
+      })
+      .optional(),
+    strategy: z.enum(["PROVIDER_MANAGED_ROLLING", "GITOPS_REVIEW"]),
+    status: z.enum([
+      "DRAFT",
+      "SUBMITTED",
+      "APPROVED",
+      "SCHEDULED",
+      "EXECUTING",
+      "SUCCEEDED",
+      "FAILED",
+      "REJECTED",
+      "CANCELLED",
+    ]),
+    scheduledFor: z.string().nullable().optional(),
+    changeReason: z.string(),
+    readinessEvidence: eksUpgradeReadinessSchema.optional(),
+    execution: z.record(z.string(), z.unknown()),
+    version: z.number(),
+    submittedBy: z.string().nullable().optional(),
+    submittedByName: z.string().nullable().optional(),
+    createdByName: z.string().nullable().optional(),
+    approvedByName: z.string().nullable().optional(),
+    submittedAt: z.string().nullable().optional(),
+    approvedBy: z.string().nullable().optional(),
+    approvedAt: z.string().nullable().optional(),
+    createdBy: z.string(),
+    createdAt: z.string(),
+    updatedBy: z.string(),
+    updatedAt: z.string(),
+  })
+  .superRefine((plan, ctx) => {
+    if (plan.kind === "UTILITY") {
+      if (
+        !plan.utilityEvidence ||
+        !plan.utilityCode ||
+        !plan.managedGroup ||
+        plan.strategy !== "GITOPS_REVIEW"
+      )
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Utility plans require chart evidence and GitOps review strategy.",
+        });
+    } else if (
+      !plan.readinessEvidence ||
+      plan.strategy !== "PROVIDER_MANAGED_ROLLING"
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Container plans require EKS readiness evidence and provider rolling strategy.",
+      });
+  });
 export const eksUpgradePlanListSchema = z.object({
   clusterId: z.string(),
   customerId: z.string(),

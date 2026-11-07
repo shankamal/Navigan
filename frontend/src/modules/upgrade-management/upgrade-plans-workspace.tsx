@@ -9,6 +9,8 @@ import { Button } from "@/shared/components/ui";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { PlanComponents, EvidenceChecks, PlanCheck } from "./plan-components";
 import { scheduleOverdue, useScheduleClock } from "./schedule-state";
+import { ClusterContext } from "./cluster-context";
+import { MaintenanceCalendar } from "./maintenance-calendar";
 import { rescheduleBlockReason } from "./plan-availability";
 
 type Filter = "all" | "drafts" | "review" | "scheduled" | "overdue";
@@ -55,7 +57,9 @@ export function UpgradePlansWorkspace({
       previous?.focus();
     };
   }, [selectedId, hasSelectedPlan, rescheduleRequested]);
-  const canApprove = hasPermission(data.identity, "cluster.approve");
+  const canApprove =
+    hasPermission(data.identity, "cluster.approve") ||
+    hasPermission(data.identity, "cluster.upgrade.approve");
   const canPlan = hasPermission(data.identity, "cluster.plan");
   const canExecute = hasPermission(data.identity, "cluster.apply");
   const subject = data.identity?.subject;
@@ -195,11 +199,11 @@ export function UpgradePlansWorkspace({
       )}
       {data.pending ? (
         <p role="status">Loading governed upgrade plans…</p>
+      ) : mode === "schedule" ? (
+        <MaintenanceCalendar rows={rows} onReview={setSelectedId} now={now} />
       ) : !rows.length ? (
         <p role="status" className="upgrade-live-message">
-          {mode === "schedule"
-            ? "No requested maintenance windows match this filter."
-            : "No upgrade plans match this filter in your authorized cluster scope."}
+          No upgrade plans match this filter in your authorized cluster scope.
         </p>
       ) : (
         <div className="table-scroll">
@@ -218,11 +222,18 @@ export function UpgradePlansWorkspace({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.plan.planId}>
-                  <td>{row.plan.planId}</td>
+                  <td>
+                    {row.plan.planId}
+                    <small className="upgrade-window-pending">
+                      {row.plan.kind === "UTILITY"
+                        ? row.plan.utilityEvidence?.label
+                        : "Container upgrade"}
+                    </small>
+                  </td>
                   <td>
                     <strong>{row.clusterName}</strong>
                     <br />
-                    <small>{row.environment}</small>
+                    <ClusterContext cluster={row.cluster} compact />
                   </td>
                   <td>
                     {row.plan.currentVersion} → {row.plan.targetVersion}
@@ -336,6 +347,7 @@ export function UpgradePlansWorkspace({
               {selected.clusterName} · {plan.currentVersion} →{" "}
               {plan.targetVersion}
             </h3>
+            <ClusterContext cluster={selected.cluster} />
             <dl className="upgrade-scope-list">
               <div>
                 <dt>Plan</dt>
@@ -420,31 +432,56 @@ export function UpgradePlansWorkspace({
                 </>
               </div>
             )}
-            <h3>Upgrade components</h3>
-            <PlanComponents
-              evidence={plan.readinessEvidence}
-              target={plan.targetVersion}
-            />
-            <h3>Readiness evidence at plan creation</h3>
-            <ul className="upgrade-review-checks">
-              <EvidenceChecks evidence={plan.readinessEvidence} />
-              <PlanCheck
-                label="Independent approval recorded"
-                passed={Boolean(plan.approvedAt)}
-                pending
-              />
-            </ul>
-            <p>
-              Evidence observed:{" "}
-              {new Date(plan.readinessEvidence.observedAt).toLocaleString()}.
-              Execution revalidates live evidence.
-            </p>
+            {plan.kind === "UTILITY" ? (
+              <section className="upgrade-utility-evidence">
+                <h3>{plan.utilityEvidence?.label}</h3>
+                <p>
+                  Helm chart {plan.managedGroup}: {plan.currentVersion} →{" "}
+                  {plan.targetVersion}
+                </p>
+                <p>
+                  Approval records the reviewed request. Chart compatibility and
+                  GitOps execution are not enabled in this release.
+                </p>
+              </section>
+            ) : (
+              <>
+                <h3>Upgrade components</h3>
+                <PlanComponents
+                  evidence={plan.readinessEvidence}
+                  target={plan.targetVersion}
+                />
+                <h3>Readiness evidence at plan creation</h3>
+                <ul className="upgrade-review-checks">
+                  <EvidenceChecks evidence={plan.readinessEvidence} />
+                  <PlanCheck
+                    label="Independent approval recorded"
+                    passed={Boolean(plan.approvedAt)}
+                    pending
+                  />
+                </ul>
+                <p>
+                  Evidence observed:{" "}
+                  {new Date(
+                    plan.readinessEvidence?.observedAt ?? plan.createdAt,
+                  ).toLocaleString()}
+                  . Execution revalidates live evidence.
+                </p>
+              </>
+            )}
             <h3>Change reason</h3>
             <p>{plan.changeReason}</p>
             {plan.createdBy === subject && plan.status === "SUBMITTED" && (
               <p>
                 You created this plan. Another authorized reviewer must approve
                 it.
+              </p>
+            )}
+            {plan.status === "SUBMITTED" && !canApprove && (
+              <p role="status">
+                Your account does not have upgrade approval permission. An
+                independent reviewer needs the Upgrade plan approval privilege
+                within this customer scope.
               </p>
             )}
             <label className="upgrade-live-field">
@@ -510,7 +547,8 @@ export function UpgradePlansWorkspace({
                   </Button>
                 )}
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
-                canExecute && (
+                canExecute &&
+                plan.kind !== "UTILITY" && (
                   <>
                     {plan.scheduledFor &&
                     new Date(plan.scheduledFor).getTime() > Date.now() ? (
@@ -547,14 +585,16 @@ export function UpgradePlansWorkspace({
                     )}
                   </>
                 )}
-              {plan.status === "EXECUTING" && canExecute && (
-                <Button
-                  disabled={action.isPending}
-                  onClick={() => run("refresh")}
-                >
-                  Refresh execution / advance stage
-                </Button>
-              )}
+              {plan.status === "EXECUTING" &&
+                canExecute &&
+                plan.kind !== "UTILITY" && (
+                  <Button
+                    disabled={action.isPending}
+                    onClick={() => run("refresh")}
+                  >
+                    Refresh execution / advance stage
+                  </Button>
+                )}
             </footer>
             <p>Approval does not start the upgrade.</p>
           </section>

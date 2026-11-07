@@ -49,6 +49,16 @@ def utcnow():
 
 
 class EksUpgradePlans:
+    table = "cluster_management.upgrade_plans"
+
+    @staticmethod
+    def present(row):
+        return serialize(row)
+
+    def require_approval(self):
+        if not (self.access.has("cluster.upgrade.approve") or self.access.has("cluster.approve")):
+            self.access.require("cluster.upgrade.approve")
+
     def __init__(self, repo, access, correlation, discovery=None):
         self.repo = repo
         self.access = access
@@ -61,7 +71,7 @@ class EksUpgradePlans:
             "SELECT p.*,creator.display_name AS created_by_name,"
             "submitter.display_name AS submitted_by_name,"
             "approver.display_name AS approved_by_name "
-            "FROM cluster_management.upgrade_plans p "
+            f"FROM {self.table} p "
             "LEFT JOIN access_management.users creator ON creator.user_id=p.created_by "
             "LEFT JOIN access_management.users submitter ON submitter.user_id=p.submitted_by "
             "LEFT JOIN access_management.users approver ON approver.user_id=p.approved_by "
@@ -71,13 +81,13 @@ class EksUpgradePlans:
         return {
             "clusterId": cluster_id,
             "customerId": cluster["customer_id"],
-            "items": [serialize(row) for row in rows],
+            "items": [self.present(row) for row in rows],
         }
 
     def get(self, cluster_id, plan_id, lock=False):
         self.repo.get(cluster_id)
         row = self.repo.db.execute(
-            "SELECT * FROM cluster_management.upgrade_plans "
+            f"SELECT * FROM {self.table} "
             "WHERE cluster_id=%s AND plan_id=%s" + (" FOR UPDATE" if lock else ""),
             [cluster_id, plan_id],
         ).fetchone()
@@ -89,7 +99,7 @@ class EksUpgradePlans:
         self.access.require("cluster.plan")
         cluster = self.repo.get(cluster_id, lock=True)
         active = self.repo.db.execute(
-            "SELECT plan_id FROM cluster_management.upgrade_plans "
+            f"SELECT plan_id FROM {self.table} "
             "WHERE cluster_id=%s AND status=ANY(%s) LIMIT 1",
             [cluster_id, list(ACTIVE)],
         ).fetchone()
@@ -152,7 +162,7 @@ class EksUpgradePlans:
         }
         self._save(row, create=True)
         self._audit(None, row, "EksUpgradePlanCreated")
-        return serialize(row)
+        return self.present(row)
 
     def change(self, cluster_id, plan_id, action, body):
         plan = self.get(cluster_id, plan_id, lock=True)
@@ -172,7 +182,7 @@ class EksUpgradePlans:
                 },
             )
         if action == "approve":
-            self.access.require("cluster.approve")
+            self.require_approval()
             self._require_status(plan, {"SUBMITTED"})
             self._require_future_requested_time(plan)
             if plan["created_by"] == self.access.user_id:
@@ -194,7 +204,7 @@ class EksUpgradePlans:
                 },
             )
         if action == "reject":
-            self.access.require("cluster.approve")
+            self.require_approval()
             self._require_status(plan, {"SUBMITTED"})
             if not body.get("reason"):
                 raise ApiError(422, "REJECTION_REASON_REQUIRED", "Provide a rejection reason.")
@@ -413,7 +423,7 @@ class EksUpgradePlans:
         )
         self._save(row)
         self._audit(old, row, action)
-        return serialize(row)
+        return self.present(row)
 
     @staticmethod
     def _require_status(plan, expected):
@@ -432,7 +442,7 @@ class EksUpgradePlans:
             slots = ["%s::jsonb" if key in json_columns else "%s" for key in columns]
             values = [json_text(value) if key in json_columns else value for key, value in row.items()]
             self.repo.db.execute(
-                "INSERT INTO cluster_management.upgrade_plans ("
+                f"INSERT INTO {self.table} ("
                 + ",".join(columns)
                 + ") VALUES ("
                 + ",".join(slots)
@@ -455,7 +465,7 @@ class EksUpgradePlans:
         ]
         values = [json_text(row[key]) if key in json_columns else row.get(key) for key in mutable]
         self.repo.db.execute(
-            "UPDATE cluster_management.upgrade_plans SET "
+            f"UPDATE {self.table} SET "
             + ",".join(f"{key}={'%s::jsonb' if key in json_columns else '%s'}" for key in mutable)
             + " WHERE plan_id=%s AND version=%s",
             [*values, row["plan_id"], row["version"] - 1],

@@ -3,7 +3,7 @@
 
 The database migration and customer-role execution policy are separate, explicit
 prerequisites. This release changes only the existing ClusterFunction package
-and four JWT-protected upgrade-plan routes. It never invokes an EKS update API.
+and five JWT-protected upgrade routes. It never invokes an EKS update API.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 DEPLOYED_PLAN_TREE = "012b8100c469fa06b2f80ac2b7167d165b8e393d"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
+    "ClusterUtilityUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/utility-upgrade-options",
     "ListClusterUpgradePlansRoute": "GET /api/v1/clusters/{clusterId}/upgrade-plans",
     "CreateClusterUpgradePlanRoute": "POST /api/v1/clusters/{clusterId}/upgrade-plans",
     "GetClusterUpgradePlanRoute": "GET /api/v1/clusters/{clusterId}/upgrade-plans/{planId}",
@@ -234,6 +235,7 @@ def check_checkout(expected_branch):
         "src/navigan/modules/cluster_management/models.py",
         "src/navigan/modules/cluster_management/upgrade_readiness.py",
         "src/navigan/modules/cluster_management/upgrade_plans.py",
+        "src/navigan/modules/cluster_management/utility_upgrades.py",
         "infrastructure/modules/cluster-management/template.yaml",
     ]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
@@ -246,6 +248,7 @@ def package(original, destination):
     handler = prefix + "handler.py"
     readiness = prefix + "upgrade_readiness.py"
     new_module = prefix + "upgrade_plans.py"
+    utility_module = prefix + "utility_upgrades.py"
     with zipfile.ZipFile(original) as old:
         names = old.namelist()
         require(len(names) == len(set(names)), "Duplicate ZIP members rejected")
@@ -274,20 +277,23 @@ def package(original, destination):
                 semantic(old.read(new_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + new_module)),
                 "Deployed upgrade-plan module differs from the reviewed production baseline",
             )
+        if utility_module in names:
+            require(semantic(old.read(utility_module)) == semantic((ROOT / "src" / utility_module).read_bytes()), "Deployed utility plan module differs from reviewed release")
         target_handler = scoped_handler_target(
             (ROOT / "src/navigan/modules/cluster_management/handler.py").read_bytes()
         )
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
-                if entry.filename == new_module:
+                if entry.filename in {new_module, utility_module}:
                     continue
                 if entry.filename.endswith(".pyc") and any(
                     f"/{name}." in entry.filename
-                    for name in ("handler", "upgrade_plans")
+                    for name in ("handler", "upgrade_plans", "utility_upgrades")
                 ):
                     continue
                 new.writestr(entry, target_handler if entry.filename == handler else old.read(entry.filename))
             new.writestr(new_module, (ROOT / "src" / new_module).read_bytes())
+            new.writestr(utility_module, (ROOT / "src" / utility_module).read_bytes())
     with zipfile.ZipFile(destination) as updated:
         require(
             sum(item.file_size for item in updated.infolist()) <= 250 * 1024 * 1024,
@@ -308,6 +314,9 @@ def verify_database(session, parent):
         database="navigan",
         sql=(
             "SELECT to_regclass('cluster_management.upgrade_plans')::text AS table_name, "
+            "to_regclass('cluster_management.utility_upgrade_plans')::text AS utility_table, "
+            "has_table_privilege('navigan_api','cluster_management.utility_upgrade_plans','SELECT,INSERT,UPDATE') AS utility_grants, "
+            "EXISTS(SELECT 1 FROM access_management.privileges WHERE privilege_code='cluster.upgrade.approve') AS approval_privilege, "
             "has_table_privilege('navigan_api','cluster_management.upgrade_plans',"
             "'SELECT,INSERT,UPDATE') AS runtime_grants"
         ),
@@ -315,8 +324,9 @@ def verify_database(session, parent):
     )
     rows = json.loads(result["formattedRecords"])
     require(
-        len(rows) == 1 and rows[0].get("table_name") and rows[0].get("runtime_grants") is True,
-        "Apply confirmed scoped migration 029 before preparing the backend release",
+        len(rows) == 1 and rows[0].get("table_name") and rows[0].get("runtime_grants") is True
+        and rows[0].get("utility_table") and rows[0].get("utility_grants") is True and rows[0].get("approval_privilege") is True,
+        "Apply confirmed scoped migrations 029–031 before preparing the backend release",
     )
 
 
