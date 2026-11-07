@@ -8,8 +8,9 @@ import { hasPermission } from "@/shared/auth/permissions";
 import { Button } from "@/shared/components/ui";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { PlanComponents, EvidenceChecks, PlanCheck } from "./plan-components";
+import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 
-type Filter = "all" | "drafts" | "review" | "scheduled";
+type Filter = "all" | "drafts" | "review" | "scheduled" | "overdue";
 const statusLabel = (status: string) =>
   status === "SUBMITTED" ? "Awaiting approval" : status.replaceAll("_", " ");
 const timeLabel = (value?: string | null) =>
@@ -21,6 +22,8 @@ export function UpgradePlansWorkspace({
   mode: "schedule" | "history";
 }) {
   const data = useUpgradePlans();
+  const now = useScheduleClock();
+  const [newSchedule, setNewSchedule] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -45,6 +48,7 @@ export function UpgradePlansWorkspace({
     (row) =>
       row.plan.status === "SUBMITTED" &&
       row.plan.createdBy !== subject &&
+      !scheduleOverdue(row.plan, now) &&
       canApprove,
   );
   const rows = data.rows
@@ -59,6 +63,7 @@ export function UpgradePlansWorkspace({
       if (mode === "schedule" && !row.plan.scheduledFor) return false;
       if (filter === "drafts")
         return row.plan.status === "DRAFT" && row.plan.createdBy === subject;
+      if (filter === "overdue") return scheduleOverdue(row.plan, now);
       if (filter === "review")
         return waiting.some((item) => item.plan.planId === row.plan.planId);
       if (filter === "scheduled")
@@ -77,7 +82,14 @@ export function UpgradePlansWorkspace({
       name,
     }: {
       planId: string;
-      name: "submit" | "approve" | "reject" | "cancel" | "execute" | "refresh";
+      name:
+        | "submit"
+        | "approve"
+        | "reject"
+        | "cancel"
+        | "execute"
+        | "refresh"
+        | "reschedule";
     }) => {
       const row = data.rows.find((item) => item.plan.planId === planId)!;
       return clusters.changeUpgradePlan(
@@ -86,6 +98,7 @@ export function UpgradePlansWorkspace({
         name,
         row.plan.version,
         reason.trim() || undefined,
+        ...(name === "reschedule" ? [new Date(newSchedule).toISOString()] : []),
       );
     },
     onSuccess: () => {
@@ -95,8 +108,16 @@ export function UpgradePlansWorkspace({
     },
   });
   const plan = selected?.plan;
+  const overdue = plan ? scheduleOverdue(plan, now) : false;
   const run = (
-    name: "submit" | "approve" | "reject" | "cancel" | "execute" | "refresh",
+    name:
+      | "submit"
+      | "approve"
+      | "reject"
+      | "cancel"
+      | "execute"
+      | "refresh"
+      | "reschedule",
   ) => {
     if (plan) action.mutate({ planId: plan.planId, name });
   };
@@ -130,6 +151,7 @@ export function UpgradePlansWorkspace({
             ["drafts", "My drafts"],
             ["review", "Awaiting my review (" + waiting.length + ")"],
             ["scheduled", "Approved / scheduled"],
+            ["overdue", "Overdue / inactive"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -193,7 +215,9 @@ export function UpgradePlansWorkspace({
                         "utility-state state-" + row.plan.status.toLowerCase()
                       }
                     >
-                      {statusLabel(row.plan.status)}
+                      {scheduleOverdue(row.plan, now)
+                        ? "Overdue · inactive"
+                        : statusLabel(row.plan.status)}
                     </span>
                   </td>
                   <td>
@@ -201,7 +225,11 @@ export function UpgradePlansWorkspace({
                     {["DRAFT", "SUBMITTED"].includes(row.plan.status) &&
                       row.plan.scheduledFor && (
                         <small className="upgrade-window-pending">
-                          Requested · awaiting approval
+                          {scheduleOverdue(row.plan, now)
+                            ? "Past due — new schedule required"
+                            : row.plan.status === "DRAFT"
+                              ? "Draft · not submitted"
+                              : "Requested · awaiting approval"}
                         </small>
                       )}
                   </td>
@@ -282,7 +310,9 @@ export function UpgradePlansWorkspace({
                 <X />
               </button>
             </header>
-            <span className="utility-state">{statusLabel(plan.status)}</span>
+            <span className="utility-state">
+              {overdue ? "Overdue · inactive" : statusLabel(plan.status)}
+            </span>
             <h3>
               {selected.clusterName} · {plan.currentVersion} →{" "}
               {plan.targetVersion}
@@ -328,6 +358,43 @@ export function UpgradePlansWorkspace({
             <p>
               Times shown in {Intl.DateTimeFormat().resolvedOptions().timeZone}.
             </p>
+            {overdue && (
+              <div className="upgrade-overdue-notice" role="alert">
+                <strong>Past due · schedule inactive</strong>
+                <p>
+                  The requested start time has passed. Approval is blocked. The
+                  creator must choose a future schedule and resubmit.
+                </p>
+                {canPlan && plan.createdBy === subject && (
+                  <>
+                    <label className="upgrade-live-field">
+                      <span>New maintenance start</span>
+                      <input
+                        type="datetime-local"
+                        aria-label="New maintenance start"
+                        value={newSchedule}
+                        onChange={(event) => setNewSchedule(event.target.value)}
+                      />
+                    </label>
+                    <Button
+                      disabled={
+                        action.isPending ||
+                        !newSchedule ||
+                        !Number.isFinite(new Date(newSchedule).getTime()) ||
+                        new Date(newSchedule).getTime() <= now
+                      }
+                      onClick={() => run("reschedule")}
+                    >
+                      Save new schedule
+                    </Button>
+                    <p>
+                      Saving returns the plan to Draft and clears the previous
+                      submission. Submit it again for independent approval.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
             <h3>Upgrade components</h3>
             <PlanComponents
               evidence={plan.readinessEvidence}
@@ -377,7 +444,7 @@ export function UpgradePlansWorkspace({
               </p>
             )}
             <footer>
-              {plan.status === "DRAFT" && canPlan && (
+              {plan.status === "DRAFT" && canPlan && !overdue && (
                 <Button
                   disabled={action.isPending}
                   onClick={() => run("submit")}
@@ -387,6 +454,7 @@ export function UpgradePlansWorkspace({
               )}
               {plan.status === "SUBMITTED" &&
                 canApprove &&
+                !overdue &&
                 plan.createdBy !== subject && (
                   <>
                     <Button

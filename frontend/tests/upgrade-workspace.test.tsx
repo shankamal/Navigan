@@ -230,9 +230,9 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByText("Managed node groups aligned").closest("li"),
     ).toHaveClass("check-passed");
-    expect(screen.getByText("Independent approval").closest("li")).toHaveClass(
-      "check-pending",
-    );
+    expect(
+      screen.getByText("Independent approval pending").closest("li"),
+    ).toHaveClass("check-pending");
     expect(
       screen.getByRole("button", { name: "Save & submit" }),
     ).toBeDisabled();
@@ -336,6 +336,84 @@ describe("Upgrade workspace", () => {
         ),
       );
       expect(clusters.list).toHaveBeenCalledWith({ page: 0, pageSize: 100 });
+    } finally {
+      vi.mocked(clusters.upgradePlans).mockResolvedValue({
+        clusterId: "CLU-live",
+        customerId: "CUS-live",
+        items: [],
+      });
+    }
+  });
+
+  it("marks an overdue submission inactive and requires a new schedule before review", async () => {
+    const evidence = await clusters.upgradeReadiness("CLU-live");
+    const overdue = {
+      planId: "UPG-overdue",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status: "SUBMITTED",
+      scheduledFor: "2020-01-01T08:15:00Z",
+      changeReason: "Keep cluster supported",
+      readinessEvidence: evidence,
+      execution: {},
+      version: 2,
+      createdBy: "architect-reviewer",
+      submittedBy: "architect-reviewer",
+      createdAt: "2020-01-01T06:00:00Z",
+      updatedAt: "2020-01-01T06:00:00Z",
+      updatedBy: "architect-reviewer",
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [overdue],
+    });
+    try {
+      mount();
+      fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Review plan" }),
+      );
+      const drawer = screen.getByRole("dialog", {
+        name: "Review upgrade plan",
+      });
+      expect(
+        within(drawer).getByText("Overdue · inactive"),
+      ).toBeInTheDocument();
+      expect(
+        within(drawer).queryByRole("button", { name: "Approve plan" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(drawer).queryByRole("button", { name: "Submit for approval" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(drawer).getByRole("button", { name: "Save new schedule" }),
+      ).toBeDisabled();
+      fireEvent.change(within(drawer).getByLabelText("New maintenance start"), {
+        target: { value: "2027-01-01T22:00" },
+      });
+      vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
+        ...overdue,
+        status: "DRAFT",
+        scheduledFor: "2027-01-01T22:00:00Z",
+      });
+      fireEvent.click(
+        within(drawer).getByRole("button", { name: "Save new schedule" }),
+      );
+      await waitFor(() =>
+        expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+          "CLU-live",
+          "UPG-overdue",
+          "reschedule",
+          2,
+          undefined,
+          new Date("2027-01-01T22:00").toISOString(),
+        ),
+      );
     } finally {
       vi.mocked(clusters.upgradePlans).mockResolvedValue({
         clusterId: "CLU-live",

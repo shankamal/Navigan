@@ -36,6 +36,12 @@ class CreateEksUpgradePlan(Model):
 class UpgradePlanAction(Model):
     version: int = Field(gt=0)
     reason: str | None = Field(default=None, max_length=2000)
+    scheduledFor: datetime | None = None
+
+    @field_validator("scheduledFor", mode="before")
+    @classmethod
+    def parse_maintenance_start(cls, value):
+        return CreateEksUpgradePlan.parse_maintenance_start(value)
 
 
 def utcnow():
@@ -155,6 +161,7 @@ class EksUpgradePlans:
         if action == "submit":
             self.access.require("cluster.plan")
             self._require_status(plan, {"DRAFT"})
+            self._require_future_requested_time(plan)
             return self._transition(
                 plan,
                 "SUBMITTED",
@@ -167,6 +174,7 @@ class EksUpgradePlans:
         if action == "approve":
             self.access.require("cluster.approve")
             self._require_status(plan, {"SUBMITTED"})
+            self._require_future_requested_time(plan)
             if plan["created_by"] == self.access.user_id:
                 raise ApiError(
                     409,
@@ -209,11 +217,30 @@ class EksUpgradePlans:
                     "execution": {"cancellationReason": body.get("reason")},
                 },
             )
+        if action == "reschedule":
+            self.access.require("cluster.plan")
+            self._require_status(plan, {"DRAFT", "SUBMITTED"})
+            if plan["created_by"] != self.access.user_id:
+                raise ApiError(403, "UPGRADE_PLAN_OWNER_REQUIRED", "The plan creator must choose the new schedule.")
+            scheduled = body.get("scheduledFor")
+            if not scheduled or scheduled <= utcnow():
+                raise ApiError(422, "MAINTENANCE_WINDOW_INVALID", "Choose a future maintenance start.")
+            return self._transition(plan, "DRAFT", "EksUpgradePlanRescheduled", {
+                "scheduled_for": scheduled,
+                "submitted_by": None, "submitted_at": None,
+                "approved_by": None, "approved_at": None,
+            })
         if action == "execute":
             return self._execute(plan)
         if action == "refresh":
             return self._refresh(plan)
         raise ApiError(404, "ROUTE_NOT_FOUND", "Endpoint not found.")
+
+    @staticmethod
+    def _require_future_requested_time(plan):
+        if plan.get("scheduled_for") and plan["scheduled_for"] <= utcnow():
+            raise ApiError(409, "MAINTENANCE_SCHEDULE_OVERDUE",
+                           "Requested maintenance time has passed. Choose a new schedule and resubmit the plan.")
 
     def _execute(self, plan):
         self.access.require("cluster.apply")
@@ -415,6 +442,7 @@ class EksUpgradePlans:
             return
         mutable = [
             "status",
+            "scheduled_for",
             "readiness_evidence",
             "execution",
             "version",

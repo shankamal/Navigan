@@ -145,16 +145,28 @@ export const clusters = {
   changeUpgradePlan: async (
     id: string,
     planId: string,
-    action: "submit" | "approve" | "reject" | "cancel" | "execute" | "refresh",
+    action:
+      | "submit"
+      | "approve"
+      | "reject"
+      | "cancel"
+      | "execute"
+      | "refresh"
+      | "reschedule",
     version: number,
     reason?: string,
+    scheduledFor?: string,
   ) =>
     parseResponse(
       eksUpgradePlanSchema,
       (
         await apiClient.post(
           `${base}/${id}/upgrade-plans/${planId}/${action}`,
-          { version, ...(reason ? { reason } : {}) },
+          {
+            version,
+            ...(reason ? { reason } : {}),
+            ...(scheduledFor ? { scheduledFor } : {}),
+          },
           { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
         )
       ).data,

@@ -61,3 +61,16 @@ Evidence: `/upgrades` rendered at 1365 × 936 inside the Navigan application she
 - Remaining API-backed discovery, approvals and execution are intentionally deferred and identified in the interface.
 
 No outstanding P0/P1/P2 findings remain in this scoped Upgrade Centre increment.
+
+## 2026-11-07: approved planner and review layout, overdue schedules
+
+Compared the supplied option 1 single-page planner and option 2 review drawer with rendered React components in Chrome at 1363 × 936. The preview uses isolated test inventory and test identities; it is not a production workflow verification.
+
+- Planner: restored persistent workspace navigation, cluster/version strip, three numbered sections, a right-hand checklist/status flow, and sticky save actions. Green ticks follow evidence and form completion. Independent approval remains pending until recorded.
+- Review: right-hand drawer retains the plans table context, submitter name/time, component versions/actions, readiness and approval controls. Fixed the clipped component table; cells wrap within the drawer.
+- Overdue: the fixture reproduces 7 November 2026, 08:15 Asia/Kolkata. The centre and plan list show an inactive overdue schedule, the approval count excludes it, and the drawer provides a new schedule input instead of approval. Browser interaction confirmed selecting a future time returns the plan to Draft.
+- Intentional differences: retained Navigan's shared shell and icons rather than replacing unrelated navigation from illustrative mockups. Actual provider execution order is displayed (control plane, managed add-ons, managed node groups). Readiness in a saved plan is labelled as evidence at creation; execution revalidates it. All supported evidence checks remain available.
+- Responsive layout stacks the checklist below the form below 1000px; narrower drawers use 90vw. Desktop visual inspection confirmed readable, unclipped component/version columns and distinct pending/completed states.
+- Backend checks enforce the same overdue rule and creator-only rescheduling. Existing approved execution windows are not invalidated when their start time arrives. No schema migration is needed.
+
+Local evidence captures inspected: planner, review drawer and overdue rescheduling. These are isolated test-data previews, not production screenshots. Screenshot binaries are excluded from the code release.

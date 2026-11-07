@@ -27,7 +27,7 @@ import boto3
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
-DEPLOYED_PLAN_TREE = "cacfb60d8b797d171fcf62c2a77f00cb3dcf38dc"
+DEPLOYED_PLAN_TREE = "012b8100c469fa06b2f80ac2b7167d165b8e393d"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ListClusterUpgradePlansRoute": "GET /api/v1/clusters/{clusterId}/upgrade-plans",

@@ -20,6 +20,7 @@ import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { supportLabel } from "./support-label";
+import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 
 function configuredVersion(cluster: Cluster): string {
   const configuration = cluster.configuration ?? {};
@@ -102,6 +103,7 @@ export function LiveUpgradeCentre({
 }) {
   const [selectedId, setSelectedId] = useState("");
   const plans = useUpgradePlans();
+  const now = useScheduleClock();
   const fleet = useQuery({
     queryKey: ["upgrade-centre-fleet"],
     queryFn: () => clusters.list({ page: 0, pageSize: 100, status: "ACTIVE" }),
@@ -135,6 +137,8 @@ export function LiveUpgradeCentre({
               b.plan.updatedAt.localeCompare(a.plan.updatedAt),
             )[0]?.plan;
           if (!plan) return "No active plan";
+          if (scheduleOverdue(plan, now))
+            return "Overdue · inactive — new schedule required";
           return (
             (plan.scheduledFor
               ? new Date(plan.scheduledFor).toLocaleString()
@@ -145,7 +149,7 @@ export function LiveUpgradeCentre({
           );
         })(),
       })),
-    [items, readinessQueries, plans.rows, plans.pending, plans.errors],
+    [items, readinessQueries, plans.rows, plans.pending, plans.errors, now],
   );
   const effectiveId = rows.some((row) => row.id === selectedId)
     ? selectedId

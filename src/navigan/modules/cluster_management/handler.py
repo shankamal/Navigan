@@ -357,7 +357,7 @@ def execute(event, principal, correlation):
         and len(parts) == 4
         and parts[1] == "upgrade-plans"
         and re.fullmatch(r"UPG-[a-f0-9]{32}", parts[2] or "")
-        and parts[3] in {"submit", "approve", "reject", "cancel", "execute", "refresh"}
+        and parts[3] in {"submit", "approve", "reject", "cancel", "execute", "refresh", "reschedule"}
     )
     create_upgrade_plan = method == "POST" and upgrade_plans
     read_actions = {
@@ -556,7 +556,7 @@ def execute(event, principal, correlation):
         fingerprint = hashlib.sha256(
             json.dumps(
                 {**body, "scheduledFor": body["scheduledFor"].isoformat()}
-                if create_upgrade_plan and body.get("scheduledFor")
+                if (create_upgrade_plan or upgrade_plan_action) and body.get("scheduledFor")
                 else body,
                 sort_keys=True,
                 separators=(",", ":"),

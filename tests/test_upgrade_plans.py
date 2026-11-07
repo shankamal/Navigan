@@ -16,13 +16,15 @@ def test_browser_maintenance_timestamp_is_accepted_and_timezone_is_required():
         CreateEksUpgradePlan.model_validate({**body, "scheduledFor": "2026-12-01T10:30:00"})
 
 
-def test_scheduled_draft_handler_fingerprints_datetime_and_replays(monkeypatch):
+@pytest.mark.parametrize("reschedule", [False, True])
+def test_scheduled_draft_handler_fingerprints_datetime_and_replays(monkeypatch, reschedule):
     from navigan.modules.cluster_management import handler
 
     customer = MagicMock()
     customer.idempotency_get.return_value = None
     plans = MagicMock()
     plans.create.return_value = {"planId": "UPG-test", "status": "DRAFT", "version": 1}
+    plans.change.return_value = plans.create.return_value
     monkeypatch.setattr(handler, "transaction", MagicMock())
     monkeypatch.setattr(handler, "Repository", MagicMock())
     monkeypatch.setattr(handler, "AccessEvaluator", MagicMock())
@@ -35,16 +37,21 @@ def test_scheduled_draft_handler_fingerprints_datetime_and_replays(monkeypatch):
         "body": json.dumps({"targetVersion": "1.37", "changeReason": "Scheduled upgrade",
                             "scheduledFor": "2026-12-01T10:30:00.000Z"}),
     }
+    if reschedule:
+        event["rawPath"] += "/UPG-" + "a" * 32 + "/reschedule"
+        event["body"] = json.dumps({"version": 2, "scheduledFor": "2026-12-01T10:30:00.000Z"})
     result = handler.execute(event, MagicMock(), "test-correlation")
-    assert result["statusCode"] == 201
-    assert isinstance(plans.create.call_args.args[1]["scheduledFor"], datetime)
+    expected_status = 200 if reschedule else 201
+    assert result["statusCode"] == expected_status
+    operation = plans.change if reschedule else plans.create
+    assert isinstance(operation.call_args.args[-1]["scheduledFor"], datetime)
     fingerprint = customer.idempotency_get.call_args.args[2]
     assert len(fingerprint) == 64
-    customer.idempotency_get.return_value = {"status": 201, "body": plans.create.return_value}
+    customer.idempotency_get.return_value = {"status": expected_status, "body": plans.create.return_value}
     replay = handler.execute(event, MagicMock(), "test-correlation")
     assert replay["headers"]["Idempotency-Replayed"] == "true"
     assert customer.idempotency_get.call_args.args[2] == fingerprint
-    plans.create.assert_called_once()
+    operation.assert_called_once()
 
 
 def evidence():
@@ -245,6 +252,34 @@ def test_enforces_independent_approval():
     with pytest.raises(ApiError) as raised:
         service.change("CLU-live", service.row["plan_id"], "approve", {"version": 1})
     assert raised.value.code == "MAKER_CHECKER_REQUIRED"
+
+
+@pytest.mark.parametrize("action,status,user", [("submit", "DRAFT", "architect-a"), ("approve", "SUBMITTED", "architect-b")])
+def test_overdue_requested_time_blocks_submission_and_approval(action, status, user):
+    plan = base_plan(status)
+    plan["scheduled_for"] = datetime.now(timezone.utc) - timedelta(minutes=1)
+    service = TransitionPlans(plan, Access(user))
+    with pytest.raises(ApiError) as raised:
+        service.change("CLU-live", plan["plan_id"], action, {"version": 1})
+    assert raised.value.code == "MAINTENANCE_SCHEDULE_OVERDUE"
+    assert service.row["status"] == status
+
+
+def test_reschedule_requires_owner_and_future_time_and_resets_submission():
+    plan = base_plan()
+    plan["scheduled_for"] = datetime.now(timezone.utc) - timedelta(hours=1)
+    future = datetime.now(timezone.utc) + timedelta(days=1)
+    with pytest.raises(ApiError) as raised:
+        TransitionPlans(plan, Access("architect-b")).change(
+            "CLU-live", plan["plan_id"], "reschedule", {"version": 1, "scheduledFor": future})
+    assert raised.value.code == "UPGRADE_PLAN_OWNER_REQUIRED"
+    service = TransitionPlans(plan, Access("architect-a"))
+    result = service.change("CLU-live", plan["plan_id"], "reschedule", {"version": 1, "scheduledFor": future})
+    assert result["status"] == "DRAFT"
+    assert result["scheduledFor"] == future.isoformat()
+    assert result["submittedAt"] is None
+    assert result["approvedBy"] is None
+    assert result["version"] == 2
     service = TransitionPlans(base_plan(), Access("architect-b"))
     result = service.change("CLU-live", service.row["plan_id"], "approve", {"version": 1})
     assert result["status"] == "APPROVED"

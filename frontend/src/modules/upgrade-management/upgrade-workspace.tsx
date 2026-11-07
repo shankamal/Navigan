@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   CalendarDays,
   CircleArrowUp,
+  CheckCircle2,
+  Circle,
   CloudCog,
   History,
   Info,
@@ -22,6 +24,7 @@ import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
 import { PlanComponents, EvidenceChecks, PlanCheck } from "./plan-components";
 import { useUpgradePlans } from "./upgrade-plan-data";
+import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 import { clusters } from "@/modules/cluster-management/service";
 import { LiveUpgradeInventory } from "./live-upgrade-inventory";
 import { LiveUpgradeCentre } from "./live-upgrade-centre";
@@ -185,39 +188,52 @@ function PlanWizard({
   });
   const locked = Boolean(created) || mutation.isPending;
   return (
-    <div className="upgrade-plan-workspace">
+    <div className="upgrade-plan-workspace upgrade-reference-planner">
       <button className="upgrade-back-link" type="button" onClick={onClose}>
         <ArrowLeft size={16} /> Upgrades & Patching
       </button>
-      <PageHeading
-        title="Create upgrade plan"
-        description={cluster.name + " · " + cluster.environment}
-        icon={<CircleArrowUp />}
-      />
+      <h2 className="sr-only">Create upgrade plan</h2>
+      <div className="upgrade-cluster-strip">
+        <div>
+          <small>Current cluster</small>
+          <strong>
+            <CloudCog size={22} /> {cluster.name}
+          </strong>
+        </div>
+        <div>
+          <small>EKS version</small>
+          <strong>
+            <span>
+              Current:{" "}
+              {evidence?.controlPlane.version ?? cluster.currentVersion}
+            </span>
+            <span>→</span>
+            <span className="upgrade-target-chip">Target: {target}</span>
+          </strong>
+        </div>
+      </div>
       <div className="upgrade-compact-layout">
         <div className="upgrade-compact-sections">
           <section className="upgrade-compact-card">
             <h2>1. Cluster & target</h2>
-            <dl className="upgrade-scope-list">
-              <div>
-                <dt>Managed cluster</dt>
-                <dd>{cluster.name}</dd>
-              </div>
-              <div>
-                <dt>Distribution</dt>
-                <dd>{cluster.providerLabel}</dd>
-              </div>
-              <div>
-                <dt>Current Kubernetes</dt>
-                <dd>
-                  {evidence?.controlPlane.version ?? cluster.currentVersion}
-                </dd>
-              </div>
-              <div>
-                <dt>Supported target</dt>
-                <dd>{target}</dd>
-              </div>
-            </dl>
+            <div className="upgrade-compact-fields">
+              <label className="upgrade-live-field">
+                <span>Cluster</span>
+                <select aria-label="Plan cluster" value={cluster.id} disabled>
+                  <option value={cluster.id}>{cluster.name}</option>
+                </select>
+              </label>
+              <label className="upgrade-live-field">
+                <span>Target EKS version</span>
+                <select
+                  aria-label="Plan target version"
+                  value={target}
+                  disabled
+                >
+                  <option>{target}</option>
+                </select>
+              </label>
+            </div>
           </section>
           <section className="upgrade-compact-card">
             <div className="upgrade-compact-card-heading">
@@ -230,10 +246,12 @@ function PlanWizard({
                 Refresh evidence
               </Button>
             </div>
-            <p>
-              Provider-managed rolling: control plane → managed add-ons → node
-              groups → final validation.
-            </p>
+            <label className="upgrade-strategy-line">
+              <span>Upgrade strategy</span>
+              <select aria-label="Upgrade strategy" value="rolling" disabled>
+                <option value="rolling">Provider-managed rolling</option>
+              </select>
+            </label>
             <PlanComponents evidence={evidence} target={target} />
             <p>
               Only discovered EKS managed node groups and add-ons are included.
@@ -285,25 +303,52 @@ function PlanWizard({
         >
           <h2>Plan checklist</h2>
           <ul>
-            <PlanCheck label="Scope selected" passed={Boolean(cluster.id)} />
-            <EvidenceChecks evidence={evidence} />
-            <PlanCheck label="Change reason provided" passed={reasonReady} />
+            <PlanCheck label="Scope defined" passed={Boolean(cluster.id)} />
             <PlanCheck
-              label={
-                scheduledFor
-                  ? "Future maintenance start"
-                  : "No maintenance time requested (optional)"
-              }
-              passed={validTime}
+              label="Target version set"
+              passed={Boolean(evidence?.recommendedTarget)}
             />
-            <PlanCheck label="Plan saved" passed={Boolean(created)} pending />
+            <PlanCheck label="Live checks" passed={ready} />
+            <PlanCheck label="Reason provided" passed={reasonReady} />
             <PlanCheck
-              label="Submitted for review"
-              passed={created?.status === "SUBMITTED"}
+              label="Requested time"
+              passed={Boolean(scheduledFor) && validTime}
+              pending={!scheduledFor}
+            />
+            <PlanCheck
+              label="Independent approval pending"
+              passed={false}
               pending
             />
-            <PlanCheck label="Independent approval" passed={false} pending />
           </ul>
+          <details className="upgrade-evidence-details">
+            <summary>View evidence checklist</summary>
+            <ul>
+              <EvidenceChecks evidence={evidence} />
+            </ul>
+          </details>
+          <h3>Plan status & flow</h3>
+          <ol className="upgrade-status-flow">
+            <li className={created?.status === "SUBMITTED" ? "done" : ""}>
+              <CheckCircle2 />
+              <strong>Submitted</strong>
+              <small>
+                {created?.submittedAt
+                  ? new Date(created.submittedAt).toLocaleString()
+                  : "Not submitted"}
+              </small>
+            </li>
+            <li>
+              <Circle />
+              <strong>Approval</strong>
+              <small>Awaiting approval</small>
+            </li>
+            <li>
+              <Circle />
+              <strong>Execution</strong>
+              <small>Pending approval</small>
+            </li>
+          </ol>
           <p>
             Evidence observed:{" "}
             {evidence
@@ -372,26 +417,20 @@ export function UpgradeWorkspace() {
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
   const plans = useUpgradePlans();
+  const now = useScheduleClock();
   const pendingReviews = plans.rows.filter(
     (row) =>
       row.plan.status === "SUBMITTED" &&
+      !scheduleOverdue(row.plan, now) &&
       row.plan.createdBy !== plans.identity?.subject,
   ).length;
 
-  if (planning)
-    return (
-      <PlanWizard
-        key={planning.id}
-        cluster={planning}
-        onClose={() => {
-          setPlanning(null);
-          setTab("history");
-        }}
-      />
-    );
-
   return (
-    <div className="upgrade-workspace">
+    <div
+      className={
+        planning ? "upgrade-workspace is-planning" : "upgrade-workspace"
+      }
+    >
       <PageHeading
         title="Upgrades & Patching"
         description="Plan and govern platform lifecycle changes across managed clusters."
@@ -409,10 +448,25 @@ export function UpgradeWorkspace() {
           </div>
         }
       />
-      <LiveCapabilityNotice />
-      <UpgradeTabs active={tab} onChange={setTab} />
+      {!planning && <LiveCapabilityNotice />}
+      <UpgradeTabs
+        active={planning ? "containers" : tab}
+        onChange={(value) => {
+          setPlanning(null);
+          setTab(value);
+        }}
+      />
       <div role="tabpanel">
-        {tab === "readiness" ? (
+        {planning ? (
+          <PlanWizard
+            key={planning.id}
+            cluster={planning}
+            onClose={() => {
+              setPlanning(null);
+              setTab("history");
+            }}
+          />
+        ) : tab === "readiness" ? (
           <LiveUpgradeCentre onPlan={setPlanning} />
         ) : (
           <SupportingTab tab={tab} onPlan={setPlanning} />

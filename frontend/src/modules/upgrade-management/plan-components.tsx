@@ -1,6 +1,13 @@
 "use client";
 
-import { CheckCircle2, Circle, AlertTriangle } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  AlertTriangle,
+  CloudCog,
+  Layers,
+  Puzzle,
+} from "lucide-react";
 import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
 
 export function PlanComponents({
@@ -19,18 +26,49 @@ export function PlanComponents({
             <th>Current</th>
             <th>Target</th>
             <th>Planned action</th>
+            <th>Readiness</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Control plane</td>
+            <td>
+              <span className="upgrade-component-name">
+                <CloudCog size={22} />
+                Control plane
+              </span>
+            </td>
             <td>{evidence?.controlPlane.version ?? "Unknown"}</td>
             <td>{target}</td>
             <td>Upgrade first</td>
+            <td>
+              <span
+                className={
+                  evidence?.readiness.checks.controlPlaneActive
+                    ? "upgrade-component-ready"
+                    : "upgrade-component-warning"
+                }
+              >
+                {evidence?.readiness.checks.controlPlaneActive ? (
+                  <CheckCircle2 size={15} />
+                ) : (
+                  <AlertTriangle size={15} />
+                )}{" "}
+                {evidence?.readiness.checks.controlPlaneActive
+                  ? "Control plane active"
+                  : "Evidence required"}
+              </span>
+            </td>
           </tr>
           {(evidence?.addons ?? []).map((addon) => (
             <tr key={addon.name}>
-              <td>Managed add-on · {addon.name}</td>
+              <td>
+                <span className="upgrade-component-name">
+                  <Puzzle size={22} />
+                  <span>
+                    Managed add-on<small>{addon.name}</small>
+                  </span>
+                </span>
+              </td>
               <td>{addon.version}</td>
               <td>{addon.targetVersion ?? "Unknown"}</td>
               <td>
@@ -40,14 +78,57 @@ export function PlanComponents({
                     ? "Keep version"
                     : "Upgrade after control plane"}
               </td>
+              <td>
+                <span
+                  className={
+                    addon.targetVersion
+                      ? "upgrade-component-ready"
+                      : "upgrade-component-warning"
+                  }
+                >
+                  {addon.targetVersion ? (
+                    <CheckCircle2 size={15} />
+                  ) : (
+                    <AlertTriangle size={15} />
+                  )}{" "}
+                  {addon.targetVersion
+                    ? "Add-on compatible"
+                    : "Compatibility required"}
+                </span>
+              </td>
             </tr>
           ))}
           {(evidence?.nodeGroups ?? []).map((node) => (
             <tr key={node.name}>
-              <td>Node group · {node.name}</td>
+              <td>
+                <span className="upgrade-component-name">
+                  <Layers size={22} />
+                  <span>
+                    Managed node group<small>{node.name}</small>
+                  </span>
+                </span>
+              </td>
               <td>{node.version}</td>
               <td>{target}</td>
               <td>Rolling upgrade after add-ons</td>
+              <td>
+                <span
+                  className={
+                    node.status === "ACTIVE" && !node.healthIssues.length
+                      ? "upgrade-component-ready"
+                      : "upgrade-component-warning"
+                  }
+                >
+                  {node.status === "ACTIVE" && !node.healthIssues.length ? (
+                    <CheckCircle2 size={15} />
+                  ) : (
+                    <AlertTriangle size={15} />
+                  )}{" "}
+                  {node.status === "ACTIVE" && !node.healthIssues.length
+                    ? "Node group healthy"
+                    : "Readiness required"}
+                </span>
+              </td>
             </tr>
           ))}
         </tbody>
