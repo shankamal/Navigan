@@ -121,3 +121,32 @@ def test_release_rejects_an_unreviewed_live_handler(tmp_path):
         assert "reviewed production baseline" in str(error)
     else:
         raise AssertionError("Unreviewed deployed code was accepted")
+
+
+def test_production_baseline_includes_both_rescheduling_handler_fixes():
+    release = load_release()
+    handler = release.scoped_handler_target(baseline(
+        release.DEPLOYED_PLAN_TREE, "src/navigan/modules/cluster_management/handler.py"
+    ))
+    source = handler.decode()
+    assert '"refresh", "reschedule"}' in source
+    assert 'if (create_upgrade_plan or upgrade_plan_action) and body.get("scheduledFor")' in source
+    plans = baseline(release.DEPLOYED_PLAN_TREE, "src/navigan/modules/cluster_management/upgrade_plans.py").decode()
+    assert 'if action == "reschedule":' in plans
+    assert 'MAINTENANCE_SCHEDULE_OVERDUE' in plans
+
+
+def test_release_rejects_drift_even_when_rescheduling_is_present(tmp_path):
+    import pytest
+    release = load_release()
+    prefix = "navigan/modules/cluster_management/"
+    handler = release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py"))
+    # A recognized route does not permit unrelated behavior changes.
+    handler = handler.replace(b're.fullmatch(r"UPG-[a-f0-9]{32}", parts[2] or "")', b'True')
+    source = tmp_path / "drift.zip"
+    with zipfile.ZipFile(source, "w") as package:
+        package.writestr(prefix + "handler.py", handler)
+        package.writestr(prefix + "upgrade_readiness.py", baseline(release.BASELINE_TREE, "src/" + prefix + "upgrade_readiness.py"))
+        package.writestr(prefix + "upgrade_plans.py", baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_plans.py"))
+    with pytest.raises(RuntimeError, match="Deployed handler differs"):
+        release.package(source, tmp_path / "rejected.zip")

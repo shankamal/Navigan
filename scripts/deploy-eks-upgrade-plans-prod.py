@@ -27,7 +27,10 @@ import boto3
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
-DEPLOYED_PLAN_TREE = "012b8100c469fa06b2f80ac2b7167d165b8e393d"
+# PROD already contains the reviewed overdue/rescheduling release, including
+# the action timestamp fingerprint fix. Pin its published commit as a pair:
+# both handler.py and upgrade_plans.py must match, not just the route selector.
+DEPLOYED_PLAN_TREE = "db1e9ff1d487174ca168a0399bc9a7e571f2e549"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ClusterUtilityUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/utility-upgrade-options",
