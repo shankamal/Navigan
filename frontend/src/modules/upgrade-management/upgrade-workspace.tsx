@@ -14,7 +14,7 @@ import {
   ShieldAlert,
   Wrench,
 } from "lucide-react";
-import { Button, PageHeading } from "@/shared/components/ui";
+import { Button } from "@/shared/components/ui";
 import type {
   EksUpgradeReadiness,
   EksUpgradePlan,
@@ -416,34 +416,36 @@ export function UpgradeWorkspace() {
         planning ? "upgrade-workspace is-planning" : "upgrade-workspace"
       }
     >
-      <PageHeading
-        title="Upgrades & Patching"
-        description="Plan and govern platform lifecycle changes across managed clusters."
-        icon={<CircleArrowUp />}
-        action={
-          <div className="upgrade-heading-actions">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setPlanning(null);
-                setTab("history");
-              }}
-            >
-              Plans & approvals
-              {pendingReviews ? " (" + pendingReviews + " pending)" : ""}
-            </Button>
-            <Button
-              onClick={() => {
-                setPlanning(null);
-                setTab("readiness");
-              }}
-            >
-              <CircleArrowUp size={17} />
-              Review live readiness
-            </Button>
-          </div>
-        }
-      />
+      <header className="upgrade-page-heading">
+        <div className="upgrade-page-heading-copy">
+          <h1>Upgrades &amp; Patching</h1>
+          <p>
+            Review available upgrades, assess readiness and manage maintenance
+            plans.
+          </p>
+        </div>
+        <div className="upgrade-heading-actions">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setPlanning(null);
+              setTab("history");
+            }}
+          >
+            Plans & approvals
+            {pendingReviews ? " (" + pendingReviews + " pending)" : ""}
+          </Button>
+          <Button
+            onClick={() => {
+              setPlanning(null);
+              setTab("containers");
+            }}
+          >
+            <CircleArrowUp size={17} />
+            Plan upgrade
+          </Button>
+        </div>
+      </header>
       <UpgradeTabs
         active={planning ? "containers" : tab}
         onChange={(value) => {

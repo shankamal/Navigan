@@ -12,6 +12,52 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+/* Open header is local to Upgrades; other routes retain their shared title bands. */
+.upgrade-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 16px;
+  color: var(--upgrade-ink);
+}
+.upgrade-page-heading-copy {
+  min-width: 0;
+}
+.upgrade-page-heading h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+.upgrade-page-heading p {
+  margin: 6px 0 0;
+  color: #4f5e6d;
+  font-size: var(--navigan-font-body);
+  line-height: 1.45;
+}
+.upgrade-page-heading .upgrade-heading-actions {
+  flex-shrink: 0;
+}
+@container (max-width: 720px) {
+  .upgrade-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .upgrade-page-heading .upgrade-heading-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
+@media (max-width: 760px) {
+  .upgrade-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
 .upgrade-tabs {
   display: flex;
   gap: 4px;

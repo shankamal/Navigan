@@ -435,6 +435,13 @@ describe("Upgrade workspace", () => {
   it("opens live inventory tabs without exposing cloud actions", async () => {
     mount();
 
+    fireEvent.click(screen.getByRole("button", { name: "Plan upgrade" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Container distribution upgrades",
+      }),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("tab", { name: /System Utilities/i }));
     expect(
       await screen.findByRole("heading", { name: "System utility upgrades" }),
