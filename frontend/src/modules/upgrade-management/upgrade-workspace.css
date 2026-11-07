@@ -1215,3 +1215,166 @@
     grid-column: 2;
   }
 }
+.upgrade-compact-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.5fr) minmax(260px, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  align-items: start;
+}
+.upgrade-compact-sections {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.upgrade-compact-card {
+  padding: 18px;
+  border: 1px solid var(--upgrade-line, #dce3e5);
+  border-radius: 8px;
+  background: white;
+  min-width: 0;
+}
+.upgrade-compact-card h2 {
+  font-size: 17px;
+  margin: 0 0 12px;
+}
+.upgrade-compact-card p,
+.upgrade-review-drawer p {
+  font-size: 13px;
+  color: #4a5965;
+  line-height: 1.5;
+}
+.upgrade-compact-card-heading,
+.upgrade-review-drawer header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.upgrade-compact-fields {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 16px;
+}
+.upgrade-checklist ul,
+.upgrade-review-checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.upgrade-checklist li,
+.upgrade-review-checks li {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef1f2;
+  font-size: 13px;
+}
+.upgrade-checklist li svg,
+.upgrade-review-checks li svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.check-passed svg {
+  color: #578400;
+}
+.check-pending svg {
+  color: #b77d00;
+}
+.upgrade-checklist small,
+.upgrade-window-pending {
+  display: block;
+  color: #687783;
+  font-size: 12px;
+}
+.upgrade-compact-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: white;
+  padding: 14px 18px;
+  border-top: 1px solid #dce3e5;
+  margin-top: 16px;
+  z-index: 3;
+}
+.upgrade-compact-actions > span {
+  margin-right: auto;
+  font-size: 13px;
+}
+.upgrade-plan-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+}
+.upgrade-plan-filters button {
+  background: white;
+  border: 1px solid #dce3e5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.upgrade-plan-filters button[aria-pressed="true"] {
+  background: #f0f8e4;
+  border-color: #86bc25;
+  color: #365900;
+}
+.upgrade-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #14233066;
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+}
+.upgrade-review-drawer {
+  width: min(760px, 94vw);
+  height: 100%;
+  overflow-y: auto;
+  background: white;
+  box-shadow: -12px 0 35px #10203033;
+  padding: 24px;
+}
+.upgrade-review-drawer header button {
+  background: white;
+  border: 0;
+  cursor: pointer;
+  padding: 8px;
+}
+.upgrade-review-drawer h2 {
+  font-size: 21px;
+  margin: 0;
+}
+.upgrade-review-drawer h3 {
+  font-size: 15px;
+  margin: 20px 0 10px;
+}
+.upgrade-review-drawer footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 18px;
+}
+.upgrade-review-drawer dd {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 950px) {
+  .upgrade-compact-layout {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-compact-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.upgrade-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

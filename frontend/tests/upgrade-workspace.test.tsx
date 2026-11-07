@@ -8,6 +8,18 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { UpgradeWorkspace } from "../src/modules/upgrade-management/upgrade-workspace";
+import { clusters } from "@/modules/cluster-management/service";
+
+vi.mock("@/shared/auth/auth-provider", () => ({
+  useAuth: () => ({
+    identity: {
+      subject: "architect-reviewer",
+      roles: ["PLATFORM_ARCHITECT"],
+      privileges: ["cluster.plan", "cluster.approve"],
+      platformScope: true,
+    },
+  }),
+}));
 
 const { activeCluster } = vi.hoisted(() => ({
   activeCluster: {
@@ -197,7 +209,7 @@ describe("Upgrade workspace", () => {
     expect(screen.queryByText("Upgrade Readiness")).not.toBeInTheDocument();
   });
 
-  it("opens and navigates the guided live upgrade plan", async () => {
+  it("shows a single-page planner with evidence ticks and saves then submits", async () => {
     mount();
 
     fireEvent.click(
@@ -207,27 +219,126 @@ describe("Upgrade workspace", () => {
       screen.getByRole("heading", { name: "Create upgrade plan" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Confirm upgrade scope" }),
+      screen.getByRole("heading", { name: "1. Cluster & target" }),
     ).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Continue to target version/i }),
+    expect(
+      screen.getByRole("heading", { name: "2. Components & readiness" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "3. Maintenance & reason" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Managed node groups aligned").closest("li"),
+    ).toHaveClass("check-passed");
+    expect(screen.getByText("Independent approval").closest("li")).toHaveClass(
+      "check-pending",
     );
     expect(
-      screen.getByRole("heading", { name: "Select a supported target" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("radio", { name: /Continue to 1.35/i }),
-    ).toBeChecked();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Continue to readiness/i }),
+      screen.getByRole("button", { name: "Save & submit" }),
+    ).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Change reason"), {
+      target: { value: "Apply supported cluster upgrade" },
+    });
+    const saved = {
+      planId: "UPG-test",
+      version: 1,
+      status: "DRAFT",
+    } as Awaited<ReturnType<typeof clusters.createUpgradePlan>>;
+    vi.mocked(clusters.createUpgradePlan).mockResolvedValueOnce(saved);
+    vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
+      ...saved,
+      version: 2,
+      status: "SUBMITTED",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save & submit" }));
+    await waitFor(() =>
+      expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+        "CLU-live",
+        "UPG-test",
+        "submit",
+        1,
+      ),
     );
     expect(
-      screen.getByRole("heading", { name: "Review readiness evidence" }),
+      await screen.findByText(/Awaiting independent approval. Find it/),
     ).toBeInTheDocument();
-    expect(screen.getByText("Live EKS readiness")).toBeInTheDocument();
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("shows submitted requests and requested windows to an independent architect", async () => {
+    const evidence = await clusters.upgradeReadiness("CLU-live");
+    const submitted = {
+      planId: "UPG-review",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status: "SUBMITTED",
+      scheduledFor: "2027-01-01T16:30:00Z",
+      changeReason: "Keep cluster supported",
+      readinessEvidence: evidence,
+      execution: {},
+      version: 2,
+      createdBy: "engineer-maker",
+      submittedBy: "engineer-maker",
+      createdAt: "2026-11-06T10:00:00Z",
+      updatedAt: "2026-11-06T10:01:00Z",
+      updatedBy: "engineer-maker",
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [submitted],
+    });
+    try {
+      mount();
+      expect(await screen.findByText(/Awaiting approval/)).toBeInTheDocument();
+      expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Awaiting my review (1)" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Review plan" }),
+      );
+      const drawer = screen.getByRole("dialog", {
+        name: "Review upgrade plan",
+      });
+      expect(
+        within(drawer).getByText("Keep cluster supported"),
+      ).toBeInTheDocument();
+      expect(
+        within(drawer).getByText("Independent approval recorded").closest("li"),
+      ).toHaveClass("check-pending");
+      expect(
+        within(drawer).getByRole("button", { name: "Reject with reason" }),
+      ).toBeDisabled();
+      vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
+        ...submitted,
+        status: "SCHEDULED",
+        approvedBy: "architect-reviewer",
+      });
+      fireEvent.click(
+        within(drawer).getByRole("button", { name: "Approve plan" }),
+      );
+      await waitFor(() =>
+        expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+          "CLU-live",
+          "UPG-review",
+          "approve",
+          2,
+          undefined,
+        ),
+      );
+      expect(clusters.list).toHaveBeenCalledWith({ page: 0, pageSize: 100 });
+    } finally {
+      vi.mocked(clusters.upgradePlans).mockResolvedValue({
+        clusterId: "CLU-live",
+        customerId: "CUS-live",
+        items: [],
+      });
+    }
   });
 
   it("opens live inventory tabs without exposing cloud actions", async () => {
@@ -268,7 +379,7 @@ describe("Upgrade workspace", () => {
     expect(section).not.toBeNull();
     expect(
       await within(section!).findByText(
-        /No approved maintenance windows are scheduled/i,
+        /No requested maintenance windows match/i,
       ),
     ).toBeInTheDocument();
   });

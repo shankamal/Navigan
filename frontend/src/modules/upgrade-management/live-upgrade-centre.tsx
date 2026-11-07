@@ -18,6 +18,7 @@ import type {
 } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
+import { useUpgradePlans } from "./upgrade-plan-data";
 
 function configuredVersion(cluster: Cluster): string {
   const configuration = cluster.configuration ?? {};
@@ -58,7 +59,7 @@ function liveCluster(
     findings: findings.length
       ? `${findings.length} ${findings.length === 1 ? "finding" : "findings"}`
       : "Ready",
-    window: "Not scheduled",
+    window: "No requested window",
     evidence,
   };
 }
@@ -99,6 +100,7 @@ export function LiveUpgradeCentre({
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
   const [selectedId, setSelectedId] = useState("");
+  const plans = useUpgradePlans();
   const fleet = useQuery({
     queryKey: ["upgrade-centre-fleet"],
     queryFn: () => clusters.list({ page: 0, pageSize: 100, status: "ACTIVE" }),
@@ -115,10 +117,34 @@ export function LiveUpgradeCentre({
   });
   const rows = useMemo(
     () =>
-      items.map((cluster, index) =>
-        liveCluster(cluster, readinessQueries[index]?.data),
-      ),
-    [items, readinessQueries],
+      items.map((cluster, index) => ({
+        ...liveCluster(cluster, readinessQueries[index]?.data),
+        window: (() => {
+          if (plans.errors.length) return "Plan records unavailable";
+          if (plans.pending) return "Loading plans…";
+          const plan = plans.rows
+            .filter(
+              (row) =>
+                row.plan.clusterId === cluster.clusterId &&
+                !["CANCELLED", "REJECTED", "FAILED", "SUCCEEDED"].includes(
+                  row.plan.status,
+                ),
+            )
+            .sort((a, b) =>
+              b.plan.updatedAt.localeCompare(a.plan.updatedAt),
+            )[0]?.plan;
+          if (!plan) return "No active plan";
+          return (
+            (plan.scheduledFor
+              ? new Date(plan.scheduledFor).toLocaleString()
+              : "No time requested") +
+            (plan.status === "SUBMITTED"
+              ? " · Awaiting approval"
+              : " · " + plan.status)
+          );
+        })(),
+      })),
+    [items, readinessQueries, plans.rows, plans.pending, plans.errors],
   );
   const effectiveId = rows.some((row) => row.id === selectedId)
     ? selectedId
