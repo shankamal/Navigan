@@ -96,7 +96,7 @@ class EksUpgradePlans:
         return row
 
     def create(self, cluster_id, body):
-        self.access.require("cluster.plan")
+        self.access.require("cluster.upgrade.plan")
         cluster = self.repo.get(cluster_id, lock=True)
         active = self.repo.db.execute(
             f"SELECT plan_id FROM {self.table} "
@@ -169,7 +169,7 @@ class EksUpgradePlans:
         if plan["version"] != body["version"]:
             raise ApiError(409, "VERSION_CONFLICT", "Refresh the upgrade plan and retry.")
         if action == "submit":
-            self.access.require("cluster.plan")
+            self.access.require("cluster.upgrade.plan")
             self._require_status(plan, {"DRAFT"})
             self._require_future_requested_time(plan)
             return self._transition(
@@ -185,7 +185,7 @@ class EksUpgradePlans:
             self.require_approval()
             self._require_status(plan, {"SUBMITTED"})
             self._require_future_requested_time(plan)
-            if plan["created_by"] == self.access.user_id:
+            if self.access.user_id in {plan["created_by"], plan.get("submitted_by")}:
                 raise ApiError(
                     409,
                     "MAKER_CHECKER_REQUIRED",
@@ -217,7 +217,7 @@ class EksUpgradePlans:
                 },
             )
         if action == "cancel":
-            self.access.require("cluster.plan")
+            self.access.require("cluster.upgrade.plan")
             self._require_status(plan, {"DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED"})
             return self._transition(
                 plan,
@@ -228,10 +228,8 @@ class EksUpgradePlans:
                 },
             )
         if action == "reschedule":
-            self.access.require("cluster.plan")
+            self.access.require("cluster.upgrade.plan")
             self._require_status(plan, {"DRAFT", "SUBMITTED"})
-            if plan["created_by"] != self.access.user_id:
-                raise ApiError(403, "UPGRADE_PLAN_OWNER_REQUIRED", "The plan creator must choose the new schedule.")
             scheduled = body.get("scheduledFor")
             if not scheduled or scheduled <= utcnow():
                 raise ApiError(422, "MAINTENANCE_WINDOW_INVALID", "Choose a future maintenance start.")

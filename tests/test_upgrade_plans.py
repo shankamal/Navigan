@@ -137,7 +137,7 @@ class Repo:
 class Access:
     def __init__(self, user="architect-a", privileges=None):
         self.user_id = user
-        self.privileges = set(privileges or {"cluster.plan", "cluster.approve", "cluster.apply"})
+        self.privileges = set(privileges or {"cluster.upgrade.plan", "cluster.approve", "cluster.apply"})
 
     def has(self, privilege):
         return privilege in self.privileges
@@ -269,17 +269,19 @@ def test_overdue_requested_time_blocks_submission_and_approval(action, status, u
     assert service.row["status"] == status
 
 
-def test_reschedule_requires_owner_and_future_time_and_resets_submission():
+def test_authorized_engineer_can_reschedule_another_users_plan_and_resets_approval():
     plan = base_plan()
     plan["scheduled_for"] = datetime.now(timezone.utc) - timedelta(hours=1)
     future = datetime.now(timezone.utc) + timedelta(days=1)
     with pytest.raises(ApiError) as raised:
-        TransitionPlans(plan, Access("architect-b")).change(
+        TransitionPlans(plan, Access("architect-b", {"cluster.approve"})).change(
             "CLU-live", plan["plan_id"], "reschedule", {"version": 1, "scheduledFor": future})
-    assert raised.value.code == "UPGRADE_PLAN_OWNER_REQUIRED"
-    service = TransitionPlans(plan, Access("architect-a"))
+    assert raised.value.code == "FORBIDDEN"
+    service = TransitionPlans(plan, Access("suhas", {"cluster.upgrade.plan"}))
     result = service.change("CLU-live", plan["plan_id"], "reschedule", {"version": 1, "scheduledFor": future})
     assert result["status"] == "DRAFT"
+    assert result["updatedBy"] == "suhas"
+    assert result["createdBy"] == plan["created_by"]
     assert result["scheduledFor"] == future.isoformat()
     assert result["submittedAt"] is None
     assert result["approvedBy"] is None

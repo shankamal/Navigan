@@ -23,10 +23,12 @@ export function UpgradePlansWorkspace({
   mode,
   initialPlanId,
   rescheduleRequested = false,
+  onCreate,
 }: {
   mode: "schedule" | "history";
   initialPlanId?: string;
   rescheduleRequested?: boolean;
+  onCreate?: (kind: "containers" | "utilities", date: string) => void;
 }) {
   const data = useUpgradePlans();
   const now = useScheduleClock();
@@ -60,13 +62,14 @@ export function UpgradePlansWorkspace({
   const canApprove =
     hasPermission(data.identity, "cluster.approve") ||
     hasPermission(data.identity, "cluster.upgrade.approve");
-  const canPlan = hasPermission(data.identity, "cluster.plan");
+  const canPlan = hasPermission(data.identity, "cluster.upgrade.plan");
   const canExecute = hasPermission(data.identity, "cluster.apply");
   const subject = data.identity?.subject;
   const waiting = data.rows.filter(
     (row) =>
       row.plan.status === "SUBMITTED" &&
       row.plan.createdBy !== subject &&
+      row.plan.submittedBy !== subject &&
       !scheduleOverdue(row.plan, now) &&
       canApprove,
   );
@@ -81,7 +84,10 @@ export function UpgradePlansWorkspace({
         return false;
       if (mode === "schedule" && !row.plan.scheduledFor) return false;
       if (filter === "drafts")
-        return row.plan.status === "DRAFT" && row.plan.createdBy === subject;
+        return (
+          row.plan.status === "DRAFT" &&
+          (row.plan.createdBy === subject || row.plan.updatedBy === subject)
+        );
       if (filter === "overdue") return scheduleOverdue(row.plan, now);
       if (filter === "review")
         return waiting.some((item) => item.plan.planId === row.plan.planId);
@@ -200,7 +206,13 @@ export function UpgradePlansWorkspace({
       {data.pending ? (
         <p role="status">Loading governed upgrade plans…</p>
       ) : mode === "schedule" ? (
-        <MaintenanceCalendar rows={rows} onReview={setSelectedId} now={now} />
+        <MaintenanceCalendar
+          rows={rows}
+          onReview={setSelectedId}
+          now={now}
+          canCreate={canPlan}
+          onCreate={onCreate}
+        />
       ) : !rows.length ? (
         <p role="status" className="upgrade-live-message">
           No upgrade plans match this filter in your authorized cluster scope.
@@ -393,8 +405,9 @@ export function UpgradePlansWorkspace({
               <div className="upgrade-overdue-notice" role="alert">
                 <strong>Past due · schedule inactive</strong>
                 <p>
-                  The requested start time has passed. Approval is blocked. The
-                  creator must choose a future schedule and resubmit.
+                  The requested start time has passed. Approval is blocked. An
+                  authorized Cloud Engineer must choose a future schedule and
+                  resubmit.
                 </p>
                 {rescheduleBlocked && (
                   <p className="upgrade-access-explanation">
@@ -517,7 +530,8 @@ export function UpgradePlansWorkspace({
               {plan.status === "SUBMITTED" &&
                 canApprove &&
                 !overdue &&
-                plan.createdBy !== subject && (
+                plan.createdBy !== subject &&
+                plan.submittedBy !== subject && (
                   <>
                     <Button
                       variant="secondary"

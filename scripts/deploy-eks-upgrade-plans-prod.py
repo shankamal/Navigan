@@ -27,10 +27,9 @@ import boto3
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
-# PROD already contains the reviewed overdue/rescheduling release, including
-# the action timestamp fingerprint fix. Pin its published commit as a pair:
-# both handler.py and upgrade_plans.py must match, not just the route selector.
-DEPLOYED_PLAN_TREE = "db1e9ff1d487174ca168a0399bc9a7e571f2e549"
+# PROD revision 49 uses this reviewed container/utility plan backend.
+# Keep all deployed modules pinned together before replacing scoped plan code.
+DEPLOYED_PLAN_TREE = "c7dcb8492907b14ed18e35124e6e616382e572a6"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ClusterUtilityUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/utility-upgrade-options",
@@ -281,7 +280,7 @@ def package(original, destination):
                 "Deployed upgrade-plan module differs from the reviewed production baseline",
             )
         if utility_module in names:
-            require(semantic(old.read(utility_module)) == semantic((ROOT / "src" / utility_module).read_bytes()), "Deployed utility plan module differs from reviewed release")
+            require(semantic(old.read(utility_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + utility_module)), "Deployed utility plan module differs from reviewed release")
         target_handler = scoped_handler_target(
             (ROOT / "src/navigan/modules/cluster_management/handler.py").read_bytes()
         )
@@ -319,7 +318,7 @@ def verify_database(session, parent):
             "SELECT to_regclass('cluster_management.upgrade_plans')::text AS table_name, "
             "to_regclass('cluster_management.utility_upgrade_plans')::text AS utility_table, "
             "has_table_privilege('navigan_api','cluster_management.utility_upgrade_plans','SELECT,INSERT,UPDATE') AS utility_grants, "
-            "EXISTS(SELECT 1 FROM access_management.privileges WHERE privilege_code='cluster.upgrade.approve') AS approval_privilege, "
+            "EXISTS(SELECT 1 FROM access_management.privileges WHERE privilege_code='cluster.upgrade.plan') AS planning_privilege, "
             "has_table_privilege('navigan_api','cluster_management.upgrade_plans',"
             "'SELECT,INSERT,UPDATE') AS runtime_grants"
         ),
@@ -328,8 +327,8 @@ def verify_database(session, parent):
     rows = json.loads(result["formattedRecords"])
     require(
         len(rows) == 1 and rows[0].get("table_name") and rows[0].get("runtime_grants") is True
-        and rows[0].get("utility_table") and rows[0].get("utility_grants") is True and rows[0].get("approval_privilege") is True,
-        "Apply confirmed scoped migrations 029–031 before preparing the backend release",
+        and rows[0].get("utility_table") and rows[0].get("utility_grants") is True and rows[0].get("planning_privilege") is True,
+        "Apply confirmed scoped migrations 029–032 before preparing the backend release",
     )
 
 

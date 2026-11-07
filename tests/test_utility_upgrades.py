@@ -7,7 +7,7 @@ from navigan.shared.access import EffectiveAccess, Scope
 from navigan.shared.errors import ApiError
 
 
-def access(user='architect',privileges=('cluster.plan',)):
+def access(user='architect',privileges=('cluster.upgrade.plan',)):
     return EffectiveAccess(user,user,1,frozenset(privileges),(Scope('PLATFORM'),))
 
 
@@ -96,3 +96,28 @@ def test_narrow_upgrade_reviewer_can_approve_but_creator_cannot():
 def test_utility_schedule_requires_timezone():
     with pytest.raises(ValueError,match='timezone'):
         CreateUtilityUpgradePlan(utilityCode='headlamp',targetVersion='0.46.0',changeReason='Upgrade chart',scheduledFor='2027-01-01T12:00:00')
+
+
+def test_engineer_plans_but_cannot_approve_and_architect_reviews_without_provisioning():
+    plans,repo=service()
+    engineer=access('suhas',('cluster.upgrade.plan',))
+    plans.access=engineer
+    result=plans.create('CLU-live',{'utilityCode':'headlamp','targetVersion':'0.46.0','changeReason':'Upgrade dashboard chart'})
+    assert result['createdBy']=='suhas'
+    plans.get=MagicMock(return_value={'version':1,'created_by':'other-maker','submitted_by':'other-maker','status':'SUBMITTED'})
+    with pytest.raises(ApiError) as error:plans.change('CLU-live','UPG-test','approve',{'version':1})
+    assert error.value.status==403
+    plans.access=access('architect',('cluster.upgrade.approve',))
+    with pytest.raises(ApiError) as error:plans.create('CLU-live',{'utilityCode':'headlamp','targetVersion':'0.46.0','changeReason':'Upgrade chart'})
+    assert error.value.status==403
+    assert not engineer.has('cluster.plan') and not engineer.has('cluster.apply')
+
+
+def test_role_migration_changes_only_upgrade_grants_and_preserves_custom_denies():
+    from pathlib import Path
+    source=(Path(__file__).parents[1]/'database/migrations/032_upgrade_maker_reviewer_roles.sql').read_text()
+    assert "'cluster.upgrade.plan'" in source
+    assert "r.role_code='CLOUD_ENGINEER'" in source
+    assert "rp.effect='ALLOW' AND rp.created_by='SYSTEM'" in source
+    assert "r.role_type='SYSTEM_TEMPLATE'" in source
+    assert "'cluster.plan'" not in source

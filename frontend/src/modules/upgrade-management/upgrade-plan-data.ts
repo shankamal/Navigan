@@ -31,6 +31,7 @@ export function useUpgradePlans() {
   });
   return {
     identity,
+    fleet: items,
     stateForCluster: (clusterId: string) => {
       const index = items.findIndex((item) => item.clusterId === clusterId);
       const query = queries[index];

@@ -16,7 +16,7 @@ export function planningBlockReason(
     activePlan?: EksUpgradePlan;
   },
 ): string | undefined {
-  if (!hasPermission(identity, "cluster.plan"))
+  if (!hasPermission(identity, "cluster.upgrade.plan"))
     return "Your current account does not have permission to create upgrade plans.";
   if (state.planPending) return "Loading this cluster’s existing plans…";
   if (state.planError)
@@ -37,9 +37,9 @@ export function rescheduleBlockReason(
   identity: Identity | null,
   plan: EksUpgradePlan,
 ): string | undefined {
-  if (identity?.subject !== plan.createdBy)
-    return `Only the plan creator, ${plan.createdByName || plan.createdBy}, can change its schedule. You are signed in as ${identity?.displayName || identity?.subject || "another user"}.`;
-  if (!hasPermission(identity, "cluster.plan"))
-    return "You created this plan, but your current account no longer has permission to reschedule it. Contact your platform administrator.";
+  if (!["DRAFT", "SUBMITTED"].includes(plan.status))
+    return "Only a draft or pending request can be rescheduled. Cancel an approved plan and create a new request.";
+  if (!hasPermission(identity, "cluster.upgrade.plan"))
+    return "An authorized Cloud Engineer must revise the requested maintenance time and resubmit this plan.";
   return undefined;
 }

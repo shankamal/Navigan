@@ -15,7 +15,7 @@ const { authIdentity } = vi.hoisted(() => ({
     subject: "architect-reviewer",
     displayName: "Platform Architect",
     roles: ["PLATFORM_ARCHITECT"],
-    privileges: ["cluster.plan", "cluster.approve"],
+    privileges: ["cluster.upgrade.plan", "cluster.approve"],
     platformScope: true,
   },
 }));
@@ -497,7 +497,7 @@ describe("Upgrade workspace", () => {
     "allows an independent reviewer with %s to review the submitted request",
     async (privilege) => {
       const previousPrivileges = authIdentity.privileges;
-      authIdentity.privileges = ["cluster.plan", privilege];
+      authIdentity.privileges = ["cluster.upgrade.plan", privilege];
       const evidence = await clusters.upgradeReadiness("CLU-live");
       const submitted = {
         planId: "UPG-review",
@@ -670,7 +670,7 @@ describe("Upgrade workspace", () => {
     }
   });
 
-  it("shows why a different user cannot reschedule an overdue plan", async () => {
+  it("allows an authorized planner to reschedule another users overdue plan", async () => {
     const evidence = await clusters.upgradeReadiness("CLU-live");
     const original = vi.mocked(clusters.upgradePlans).getMockImplementation()!;
     const plan = {
@@ -705,26 +705,70 @@ describe("Upgrade workspace", () => {
         name: "Registered active clusters and upgrade readiness",
       });
       fireEvent.click(
-        await within(fleet).findByRole("button", { name: "Review plan" }),
+        await within(fleet).findByRole("button", {
+          name: "Review & reschedule",
+        }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Review upgrade plan",
       });
       expect(
-        within(drawer).getByText(
-          /Only the plan creator, Plan Creator, can change its schedule/,
-        ),
-      ).toBeInTheDocument();
+        within(drawer).queryByText(/Only the plan creator/),
+      ).not.toBeInTheDocument();
       expect(
         within(drawer).getByLabelText("New maintenance start"),
-      ).toBeDisabled();
+      ).toBeEnabled();
+      fireEvent.change(within(drawer).getByLabelText("New maintenance start"), {
+        target: { value: "2027-01-01T12:00" },
+      });
       expect(
         within(drawer).getByRole("button", { name: "Save new schedule" }),
-      ).toBeDisabled();
+      ).toBeEnabled();
     } finally {
       vi.mocked(clusters.upgradePlans).mockImplementation(original);
     }
   });
+
+  it.each(["utilities", "containers"])(
+    "preserves a calendar date when opening a %s request",
+    async (kind) => {
+      mount();
+      fireEvent.click(
+        screen.getByRole("tab", { name: "Maintenance Schedule" }),
+      );
+      const future = new Date();
+      future.setDate(future.getDate() + 1);
+      const key = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`;
+      fireEvent.click(
+        await screen.findByRole("button", { name: `Create upgrade on ${key}` }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: kind === "utilities" ? "Utility upgrade" : "Container upgrade",
+        }),
+      );
+      if (kind === "utilities") {
+        await screen.findByRole("heading", { name: "System utility upgrades" });
+        expect(
+          (
+            screen.getByLabelText(
+              "Utility maintenance start",
+            ) as HTMLInputElement
+          ).value,
+        ).toBe(key + "T09:00");
+      } else {
+        const button = await screen.findByRole("button", {
+          name: "Create upgrade plan",
+        });
+        await waitFor(() => expect(button).toBeEnabled());
+        fireEvent.click(button);
+        expect(
+          (screen.getByLabelText("Maintenance start") as HTMLInputElement)
+            .value,
+        ).toBe(key + "T09:00");
+      }
+    },
+  );
 
   it("populates chart targets and persists a utility draft with a reason", async () => {
     vi.mocked(clusters.createUtilityUpgradePlan).mockResolvedValue({

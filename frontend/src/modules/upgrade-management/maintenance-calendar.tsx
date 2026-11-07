@@ -24,15 +24,20 @@ export function MaintenanceCalendar({
   rows,
   onReview,
   now,
+  onCreate,
+  canCreate = false,
 }: {
   rows: Row[];
   onReview: (id: string) => void;
   now: number;
+  onCreate?: (kind: "containers" | "utilities", date: string) => void;
+  canCreate?: boolean;
 }) {
   const [month, setMonth] = useState(
       () => new Date(new Date(now).getFullYear(), new Date(now).getMonth(), 1),
     ),
     [selected, setSelected] = useState(() => dayKey(new Date(now)));
+  const [createDate, setCreateDate] = useState<string>();
   const days = calendarDays(month),
     zone = Intl.DateTimeFormat().resolvedOptions().timeZone,
     events = rows.filter(
@@ -95,6 +100,36 @@ export function MaintenanceCalendar({
           </Button>
         </div>
       </header>
+      {canCreate && createDate && (
+        <div
+          className="upgrade-calendar-create"
+          role="group"
+          aria-label="Create upgrade on selected date"
+        >
+          <div>
+            <strong>
+              New maintenance request ·{" "}
+              {new Date(createDate + "T12:00:00").toLocaleDateString()}
+            </strong>
+            <p>
+              Choose the upgrade type, then select a cluster and review
+              readiness.
+            </p>
+          </div>
+          <Button onClick={() => onCreate?.("containers", createDate)}>
+            Container upgrade
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => onCreate?.("utilities", createDate)}
+          >
+            Utility upgrade
+          </Button>
+          <Button variant="secondary" onClick={() => setCreateDate(undefined)}>
+            Close
+          </Button>
+        </div>
+      )}
       <div
         className="upgrade-calendar-grid"
         role="group"
@@ -111,36 +146,59 @@ export function MaintenanceCalendar({
               (row) => dayKey(new Date(row.plan.scheduledFor!)) === key,
             );
           return (
-            <button
-              type="button"
-              key={key}
-              aria-label={`${day.toLocaleDateString(undefined, { dateStyle: "full" })}, ${matches.length} maintenance requests`}
-              aria-pressed={key === selected}
-              className={
-                day.getMonth() !== month.getMonth() ? "outside-month" : ""
-              }
-              onClick={() => setSelected(key)}
-            >
-              <time dateTime={key}>{day.getDate()}</time>
-              {key === dayKey(new Date(now)) && <small>Today</small>}
-              {matches.slice(0, 2).map((row) => (
-                <span
-                  key={row.plan.planId}
-                  className={
-                    scheduleOverdue(row.plan, now)
-                      ? "calendar-event overdue"
-                      : "calendar-event"
+            <div key={key} className="upgrade-calendar-day">
+              <button
+                type="button"
+                aria-label={`${day.toLocaleDateString(undefined, { dateStyle: "full" })}, ${matches.length} maintenance requests`}
+                aria-pressed={key === selected}
+                className={
+                  "upgrade-calendar-date " +
+                  (day.getMonth() !== month.getMonth() ? "outside-month" : "")
+                }
+                onClick={() => setSelected(key)}
+              >
+                <time dateTime={key}>{day.getDate()}</time>
+                {key === dayKey(new Date(now)) && <small>Today</small>}
+                {matches.slice(0, 2).map((row) => (
+                  <span
+                    key={row.plan.planId}
+                    className={
+                      scheduleOverdue(row.plan, now)
+                        ? "calendar-event overdue"
+                        : "calendar-event"
+                    }
+                  >
+                    {new Date(row.plan.scheduledFor!).toLocaleTimeString(
+                      undefined,
+                      { hour: "2-digit", minute: "2-digit" },
+                    )}{" "}
+                    · {row.clusterName}
+                  </span>
+                ))}
+                {matches.length > 2 && (
+                  <small>+{matches.length - 2} more</small>
+                )}
+              </button>
+              {canCreate && onCreate && (
+                <button
+                  type="button"
+                  className="upgrade-calendar-add"
+                  aria-label={`Create upgrade on ${key}`}
+                  disabled={key < dayKey(new Date(now))}
+                  title={
+                    key < dayKey(new Date(now))
+                      ? "Choose today or a future date"
+                      : "Create container or utility request"
                   }
+                  onClick={() => {
+                    setSelected(key);
+                    setCreateDate(key);
+                  }}
                 >
-                  {new Date(row.plan.scheduledFor!).toLocaleTimeString(
-                    undefined,
-                    { hour: "2-digit", minute: "2-digit" },
-                  )}{" "}
-                  · {row.clusterName}
-                </span>
-              ))}
-              {matches.length > 2 && <small>+{matches.length - 2} more</small>}
-            </button>
+                  +
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

@@ -491,10 +491,6 @@ export function LiveUpgradeCentre({
                           <div className="upgrade-cluster-identities">
                             <PlatformIdentity
                               identity={row.identity}
-                              kind="cloud"
-                            />
-                            <PlatformIdentity
-                              identity={row.identity}
                               kind="platform"
                             />
                           </div>

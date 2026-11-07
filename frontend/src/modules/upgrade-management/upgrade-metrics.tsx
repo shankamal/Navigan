@@ -1,5 +1,72 @@
 import type { EksUpgradePlan } from "@/modules/cluster-management/model";
-import { scheduleOverdue } from "./schedule-state";
+import { scheduleOverdue, useScheduleClock } from "./schedule-state";
+type Slice = { label: string; count: number; color: string };
+export function Doughnut({
+  slices,
+  total,
+  label,
+}: {
+  slices: Slice[];
+  total: number;
+  label: string;
+}) {
+  let offset = 0;
+  return (
+    <div className="upgrade-doughnut-layout">
+      <div className="upgrade-doughnut">
+        <svg
+          viewBox="0 0 120 120"
+          role="img"
+          aria-label={`${label}. ${slices.map((s) => `${s.label}: ${s.count}`).join(", ")}`}
+        >
+          <circle
+            cx="60"
+            cy="60"
+            r="46"
+            fill="none"
+            stroke="#e6ebf0"
+            strokeWidth="13"
+          />
+          {slices
+            .filter((s) => s.count > 0)
+            .map((s) => {
+              const percent = total ? (s.count / total) * 100 : 0,
+                start = offset;
+              offset += percent;
+              return (
+                <circle
+                  key={s.label}
+                  cx="60"
+                  cy="60"
+                  r="46"
+                  pathLength="100"
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth="13"
+                  strokeDasharray={`${percent} ${100 - percent}`}
+                  strokeDashoffset={-start}
+                  transform="rotate(-90 60 60)"
+                />
+              );
+            })}
+        </svg>
+        <div className="upgrade-doughnut-total">
+          <strong>{total}</strong>
+          <span>{label}</span>
+        </div>
+      </div>
+      <ul className="upgrade-doughnut-legend">
+        {slices.map((s) => (
+          <li key={s.label}>
+            <i style={{ background: s.color }} />
+            <span>{s.label}</span>
+            <strong>{s.count}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 export function UpgradeMetrics({
   ready,
   blocked,
@@ -15,37 +82,44 @@ export function UpgradeMetrics({
   plans: EksUpgradePlan[];
   loading: boolean;
 }) {
-  const total = ready + blocked + review + unknown,
-    buckets = [
-      { label: "Ready", count: ready, className: "ready" },
-      { label: "Blocked", count: blocked, className: "blocked" },
-      { label: "Review required", count: review, className: "review" },
-      { label: "Evidence unavailable", count: unknown, className: "unknown" },
-    ];
-  const active = plans.filter((p) =>
+  const now = useScheduleClock(),
+    total = ready + blocked + review + unknown,
+    active = plans.filter((p) =>
       ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"].includes(
         p.status,
       ),
     ),
-    overdue = active.filter((p) => scheduleOverdue(p, Date.now())).length;
+    valid = active.filter((p) => !scheduleOverdue(p, now)),
+    overdue = active.length - valid.length;
+  const readiness = [
+    { label: "Ready", count: ready, color: "#347535" },
+    { label: "Blocked", count: blocked, color: "#b14c45" },
+    { label: "Review required", count: review, color: "#c58b22" },
+    { label: "Evidence unavailable", count: unknown, color: "#8795a5" },
+  ];
   const stages = [
     {
       label: "Draft",
-      count: active.filter((p) => p.status === "DRAFT").length,
+      count: valid.filter((p) => p.status === "DRAFT").length,
+      color: "#73889b",
     },
     {
       label: "Awaiting approval",
-      count: active.filter((p) => p.status === "SUBMITTED").length,
+      count: valid.filter((p) => p.status === "SUBMITTED").length,
+      color: "#c58b22",
     },
     {
       label: "Approved / scheduled",
-      count: active.filter((p) => ["APPROVED", "SCHEDULED"].includes(p.status))
+      count: valid.filter((p) => ["APPROVED", "SCHEDULED"].includes(p.status))
         .length,
+      color: "#347535",
     },
     {
       label: "Executing",
-      count: active.filter((p) => p.status === "EXECUTING").length,
+      count: valid.filter((p) => p.status === "EXECUTING").length,
+      color: "#426fa1",
     },
+    { label: "Overdue / inactive", count: overdue, color: "#b14c45" },
   ];
   return (
     <div
@@ -61,54 +135,15 @@ export function UpgradeMetrics({
           </strong>
         </header>
         <p>Latest EKS evidence across active managed clusters</p>
-        <div
-          className="upgrade-readiness-bar"
-          role="img"
-          aria-label={buckets.map((b) => `${b.label}: ${b.count}`).join(", ")}
-        >
-          {buckets.map((b) => (
-            <span
-              key={b.label}
-              className={b.className}
-              style={{ width: `${total ? (b.count / total) * 100 : 0}%` }}
-            />
-          ))}
-        </div>
-        <ul className="upgrade-chart-legend">
-          {buckets.map((b) => (
-            <li key={b.label}>
-              <i className={b.className} />
-              {b.label}
-              <strong>{b.count}</strong>
-            </li>
-          ))}
-        </ul>
+        <Doughnut slices={readiness} total={total} label="clusters" />
       </section>
       <section>
         <header>
           <h2>Plan pipeline</h2>
-          <strong>{active.length} active</strong>
+          <strong>{active.length} open requests</strong>
         </header>
-        <p>Container and utility requests · {overdue} overdue / inactive</p>
-        <div
-          className="upgrade-pipeline-chart"
-          role="img"
-          aria-label={stages.map((b) => `${b.label}: ${b.count}`).join(", ")}
-        >
-          {stages.map((b) => (
-            <div key={b.label}>
-              <span>{b.label}</span>
-              <div>
-                <i
-                  style={{
-                    width: `${(b.count / Math.max(1, ...stages.map((s) => s.count))) * 100}%`,
-                  }}
-                />
-              </div>
-              <strong>{b.count}</strong>
-            </div>
-          ))}
-        </div>
+        <p>Container and utility plans · {overdue} overdue / inactive</p>
+        <Doughnut slices={stages} total={active.length} label="requests" />
       </section>
     </div>
   );

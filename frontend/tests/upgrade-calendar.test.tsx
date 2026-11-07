@@ -70,3 +70,33 @@ describe("maintenance calendar and cluster context", () => {
     expect(screen.getByText(/No maintenance starts/)).toBeInTheDocument();
   });
 });
+
+it("offers container and utility requests for a selected future date, with no actions on past dates", () => {
+  const onCreate = vi.fn(),
+    now = new Date(2026, 10, 7, 12);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MaintenanceCalendar
+        rows={[]}
+        onReview={vi.fn()}
+        now={now.getTime()}
+        canCreate
+        onCreate={onCreate}
+      />
+    </QueryClientProvider>,
+  );
+  expect(
+    screen.getByRole("button", { name: "Create upgrade on 2026-11-06" }),
+  ).toBeDisabled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Create upgrade on 2026-11-10" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Container upgrade" }),
+  );
+  expect(onCreate).toHaveBeenCalledWith("containers", "2026-11-10");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Utility upgrade" }),
+  );
+  expect(onCreate).toHaveBeenCalledWith("utilities", "2026-11-10");
+});

@@ -114,7 +114,7 @@ class UtilityUpgradePlans(EksUpgradePlans):
                 "versionKind": "Helm chart version", "compatibility": "Compatibility review required before execution"}
 
     def create(self, cluster_id, body):
-        self.access.require("cluster.plan")
+        self.access.require("cluster.upgrade.plan")
         cluster = self.repo.get(cluster_id, lock=True)
         code = body["utilityCode"]
         evidence = self.options(cluster_id, code)

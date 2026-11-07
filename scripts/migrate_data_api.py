@@ -20,7 +20,7 @@ WORKSPACE_MIGRATIONS = (
     "027_migration_artifact_workspaces.sql",
     "028_workspace_collection_jobs.sql",
 )
-UPGRADE_PLAN_MIGRATIONS = ("029_upgrade_plans.sql", "030_utility_upgrade_plans.sql", "031_upgrade_approval_permission.sql")
+UPGRADE_PLAN_MIGRATIONS = ("029_upgrade_plans.sql", "030_utility_upgrade_plans.sql", "031_upgrade_approval_permission.sql", "032_upgrade_maker_reviewer_roles.sql")
 WORKSPACE_GRANTS = """
 GRANT SELECT, INSERT, UPDATE ON
 migration_management.artifact_workspaces,
@@ -196,7 +196,7 @@ def main() -> int:
     scope.add_argument(
         "--upgrade-plans-only",
         action="store_true",
-        help="Apply scoped upgrade-plan migrations 029–031 and their runtime grants",
+        help="Apply scoped upgrade-plan migrations 029–032 and their runtime grants",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(

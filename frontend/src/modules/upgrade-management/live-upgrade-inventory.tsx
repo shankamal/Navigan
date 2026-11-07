@@ -18,7 +18,11 @@ import {
   planningBlockReason,
   rescheduleBlockReason,
 } from "./plan-availability";
-import { scheduleOverdue, useScheduleClock } from "./schedule-state";
+import {
+  calendarSchedule,
+  scheduleOverdue,
+  useScheduleClock,
+} from "./schedule-state";
 
 type InventoryMode = "containers" | "utilities";
 
@@ -224,7 +228,6 @@ function ContainerInventory({
           onSelect={onSelect}
         />
         <div className="upgrade-container-platform">
-          <PlatformIdentity identity={identity} kind="cloud" />
           <PlatformIdentity identity={identity} kind="platform" />
           <span>{evidence?.region ?? "Region not reported"}</span>
         </div>
@@ -359,6 +362,7 @@ function ContainerInventory({
 }
 
 function UtilityInventory({
+  requestedDate,
   onReview,
   fleet,
   selected,
@@ -366,6 +370,7 @@ function UtilityInventory({
   onSelect,
 }: {
   onReview?: (planId: string | null, reschedule?: boolean) => void;
+  requestedDate?: string;
   fleet: Cluster[];
   selected?: Cluster;
   selectedId: string;
@@ -375,7 +380,9 @@ function UtilityInventory({
   const planInventory = useUpgradePlans();
   const queryClient = useQueryClient();
   const [reason, setReason] = useState("");
-  const [scheduledFor, setScheduledFor] = useState("");
+  const [scheduledFor, setScheduledFor] = useState(() =>
+    calendarSchedule(requestedDate),
+  );
   const [componentCode, setComponentCode] = useState("");
   const [targetVersion, setTargetVersion] = useState("");
   const inventory = useQuery({
@@ -454,7 +461,7 @@ function UtilityInventory({
       onReview?.(plan.planId);
     },
   });
-  const blocked = !hasPermission(identity, "cluster.plan")
+  const blocked = !hasPermission(identity, "cluster.upgrade.plan")
     ? "Your account does not have upgrade planning permission."
     : activeUtility
       ? "An active request already exists for this chart. Review it before creating another."
@@ -717,9 +724,11 @@ function UtilityInventory({
 
 export function LiveUpgradeInventory({
   mode,
+  requestedDate,
   onPlan,
   onReview,
 }: {
+  requestedDate?: string;
   mode: InventoryMode;
   onPlan?: (cluster: UpgradeCluster) => void;
   onReview?: (planId: string | null, reschedule?: boolean) => void;
@@ -781,6 +790,7 @@ export function LiveUpgradeInventory({
   }
   return (
     <UtilityInventory
+      requestedDate={requestedDate}
       onReview={onReview}
       fleet={items}
       selected={selected}

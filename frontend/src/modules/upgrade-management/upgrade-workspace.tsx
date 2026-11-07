@@ -1,5 +1,8 @@
 "use client";
 
+import { calendarSchedule } from "./schedule-state";
+import { useUpgradePlans } from "./upgrade-plan-data";
+import { containerIdentity, PlatformIdentity } from "./platform-identity";
 import { ClusterContext } from "./cluster-context";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -116,7 +119,11 @@ function SupportingTab({
   reviewPlanId,
   rescheduleRequested,
   onReview,
+  onCreate,
+  requestedDate,
 }: {
+  onCreate: (kind: "containers" | "utilities", date: string) => void;
+  requestedDate?: string;
   tab: Exclude<WorkspaceTab, "readiness">;
   reviewPlanId?: string;
   rescheduleRequested?: boolean;
@@ -125,13 +132,19 @@ function SupportingTab({
 }) {
   if (tab === "containers" || tab === "utilities") {
     return (
-      <LiveUpgradeInventory mode={tab} onPlan={onPlan} onReview={onReview} />
+      <LiveUpgradeInventory
+        mode={tab}
+        onPlan={onPlan}
+        onReview={onReview}
+        requestedDate={requestedDate}
+      />
     );
   }
   return (
     <UpgradePlansWorkspace
       key={(reviewPlanId ?? tab) + (rescheduleRequested ? "-reschedule" : "")}
       mode={tab}
+      onCreate={onCreate}
       initialPlanId={reviewPlanId}
       rescheduleRequested={rescheduleRequested}
     />
@@ -140,9 +153,11 @@ function SupportingTab({
 
 function PlanWizard({
   cluster,
+  initialDate,
   onClose,
 }: {
   cluster: UpgradeCluster;
+  initialDate?: string;
   onClose: () => void;
 }) {
   const cache = useQueryClient();
@@ -155,7 +170,9 @@ function PlanWizard({
   });
   const evidence = evidenceQuery.data;
   const target = evidence?.recommendedTarget?.version ?? cluster.targetVersion;
-  const [scheduledFor, setScheduledFor] = useState("");
+  const [scheduledFor, setScheduledFor] = useState(() =>
+    calendarSchedule(initialDate),
+  );
   const [changeReason, setChangeReason] = useState("");
   const [created, setCreated] = useState<EksUpgradePlan | null>(null);
   const validTime =
@@ -168,7 +185,7 @@ function PlanWizard({
     !evidenceQuery.isFetching &&
     !evidenceQuery.isError;
   const reasonReady = changeReason.trim().length >= 8;
-  const canCreate = hasPermission(identity, "cluster.plan");
+  const canCreate = hasPermission(identity, "cluster.upgrade.plan");
   const missing = !canCreate
     ? "Your account needs permission to plan cluster upgrades."
     : !ready
@@ -442,6 +459,11 @@ function PlanWizard({
 }
 
 export function UpgradeWorkspace() {
+  const fleetData = useUpgradePlans();
+  const providers = [
+    ...new Set(fleetData.fleet.map((cluster) => cluster.platform)),
+  ];
+  const [requestedDate, setRequestedDate] = useState<string>();
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [reviewPlanId, setReviewPlanId] = useState<string>();
   const [rescheduleRequested, setRescheduleRequested] = useState(false);
@@ -467,10 +489,23 @@ export function UpgradeWorkspace() {
             plans.
           </p>
         </div>
+        <div
+          className="upgrade-provider-scope"
+          aria-label="Managed cloud providers"
+        >
+          {providers.map((provider) => (
+            <PlatformIdentity
+              key={provider}
+              identity={containerIdentity(provider)}
+              kind="cloud"
+            />
+          ))}
+        </div>
       </header>
       <UpgradeTabs
         active={planning ? "containers" : tab}
         onChange={(value) => {
+          setRequestedDate(undefined);
           setPlanning(null);
           setReviewPlanId(undefined);
           setRescheduleRequested(false);
@@ -486,6 +521,7 @@ export function UpgradeWorkspace() {
           <PlanWizard
             key={planning.id}
             cluster={planning}
+            initialDate={requestedDate}
             onClose={() => {
               setPlanning(null);
               setReviewPlanId(undefined);
@@ -498,6 +534,14 @@ export function UpgradeWorkspace() {
         ) : (
           <SupportingTab
             tab={tab}
+            requestedDate={requestedDate}
+            onCreate={(kind, date) => {
+              setPlanning(null);
+              setRequestedDate(date);
+              setReviewPlanId(undefined);
+              setRescheduleRequested(false);
+              setTab(kind);
+            }}
             onPlan={setPlanning}
             reviewPlanId={reviewPlanId}
             rescheduleRequested={rescheduleRequested}
