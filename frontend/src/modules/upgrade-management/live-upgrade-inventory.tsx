@@ -14,6 +14,7 @@ import { clusters } from "@/modules/cluster-management/service";
 import type { Cluster } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
+import { supportLabel } from "./support-label";
 
 type InventoryMode = "containers" | "utilities";
 
@@ -204,8 +205,8 @@ function ContainerInventory({
               </div>
               <div>
                 <dt>Support</dt>
-                <dd>
-                  {evidence.controlPlane.support?.supportStatus ?? "Unknown"}
+                <dd className="upgrade-support-label">
+                  {supportLabel(evidence.controlPlane.support?.supportStatus)}
                 </dd>
               </div>
               <div>

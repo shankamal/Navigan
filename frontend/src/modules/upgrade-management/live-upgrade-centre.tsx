@@ -19,6 +19,7 @@ import type {
 import { Button } from "@/shared/components/ui";
 import type { UpgradeCluster } from "./upgrade-workspace";
 import { useUpgradePlans } from "./upgrade-plan-data";
+import { supportLabel } from "./support-label";
 
 function configuredVersion(cluster: Cluster): string {
   const configuration = cluster.configuration ?? {};
@@ -286,8 +287,11 @@ export function LiveUpgradeCentre({
                       : cluster.targetVersion}
                   </td>
                   <td>
-                    {cluster.evidence?.controlPlane.support?.supportStatus ??
-                      "Unavailable"}
+                    <span className="upgrade-support-label">
+                      {supportLabel(
+                        cluster.evidence?.controlPlane.support?.supportStatus,
+                      )}
+                    </span>
                   </td>
                   <td>
                     <ReadinessBadge value={cluster.readiness} />

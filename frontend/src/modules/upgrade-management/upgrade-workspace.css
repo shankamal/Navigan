@@ -1378,3 +1378,11 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.upgrade-workspace .upgrade-support-label {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  color: #52616b;
+}
