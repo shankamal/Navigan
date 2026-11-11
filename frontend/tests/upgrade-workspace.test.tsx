@@ -230,6 +230,9 @@ describe("Upgrade workspace", () => {
         name: "Registered active clusters and upgrade readiness",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create plan" }),
+    ).not.toBeInTheDocument();
     const create = await screen.findByRole("button", {
       name: "Create upgrade plan",
     });
@@ -241,7 +244,6 @@ describe("Upgrade workspace", () => {
     authIdentity.privileges = [];
     try {
       mount();
-      fireEvent.click(screen.getByRole("button", { name: "Create plan" }));
       expect(
         await screen.findByText(
           "Your current account does not have permission to create upgrade plans.",
@@ -270,6 +272,9 @@ describe("Upgrade workspace", () => {
 
   it("saves a scoped draft for operation review before submission", async () => {
     mount();
+    expect(
+      screen.queryByRole("button", { name: "Create plan" }),
+    ).not.toBeInTheDocument();
     const create = await screen.findByRole("button", {
       name: "Create upgrade plan",
     });

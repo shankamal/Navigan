@@ -64,7 +64,7 @@ def test_release_preserves_live_modules_and_adds_only_scoped_plan_code(tmp_path)
         assert package.read(prefix + "utility_upgrades.py") == (ROOT / "src" / prefix / "utility_upgrades.py").read_bytes()
         assert package.read(prefix + "upgrade_paths.py") == (ROOT / "src" / prefix / "upgrade_paths.py").read_bytes()
         assert package.read(prefix + "models.py") == live_models
-        assert package.read(prefix + "upgrade_readiness.py") == live_readiness
+        assert package.read(prefix + "upgrade_readiness.py") == (ROOT / "src" / prefix / "upgrade_readiness.py").read_bytes()
         assert (
             package.read(prefix + "upgrade_plans.py")
             == (ROOT / "src/navigan/modules/cluster_management/upgrade_plans.py").read_bytes()
@@ -165,3 +165,42 @@ def test_release_requires_path_schema_and_scoped_execution_privilege():
         release.verify_database(session,parent)
     session.client.return_value.execute_statement.return_value={"formattedRecords":json.dumps([{"table_name":"table","runtime_grants":True,"utility_table":"utility","utility_grants":True,"planning_privilege":True,"path_column":True,"execution_privilege":True}])}
     release.verify_database(session,parent)
+
+
+def test_assembled_production_package_serves_options_with_real_discovery(tmp_path):
+    """Catch dependency mismatches hidden by a mocked Discovery service."""
+    import runpy
+    from unittest.mock import MagicMock
+    from navigan.modules.cluster_management.upgrade_paths import ScopedEksUpgradePlans
+    from navigan.shared.access import EffectiveAccess, Scope
+    release=load_release()
+    prefix="navigan/modules/cluster_management/"
+    source,target=tmp_path/"production.zip",tmp_path/"updated.zip"
+    deployed_discovery=baseline(release.BASELINE_TREE,"src/"+prefix+"upgrade_readiness.py")
+    assert "def client(" not in deployed_discovery.decode()
+    with zipfile.ZipFile(source,"w") as archive:
+        archive.writestr(prefix+"handler.py",release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"handler.py")))
+        archive.writestr(prefix+"upgrade_readiness.py",deployed_discovery)
+        for module in ["upgrade_plans.py","utility_upgrades.py","upgrade_paths.py"]:
+            archive.writestr(prefix+module,baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+module))
+        archive.writestr(prefix+"__pycache__/upgrade_readiness.cpython-312.pyc",b"stale cached module")
+    release.package(source,target)
+    with zipfile.ZipFile(target) as archive:
+        assert not any("upgrade_readiness." in n and n.endswith(".pyc") for n in archive.namelist())
+        namespace={"__name__":"packaged_discovery"}
+        exec(compile(archive.read(prefix+"upgrade_readiness.py"),"packaged_discovery","exec"),namespace)
+    fixtures=runpy.run_path(str(ROOT/"tests/test_eks_upgrade_readiness.py"))
+    eks=fixtures["eks_client"]();sts=MagicMock();secrets=MagicMock()
+    sts.assume_role.return_value={"Credentials":{"AccessKeyId":"test","SecretAccessKey":"test","SessionToken":"test"}}
+    secrets.get_secret_value.return_value={"SecretString":"test-external-id"}
+    discovery=namespace["EksUpgradeDiscovery"](sts,secrets,lambda *args,**kwargs:eks)
+    repo=MagicMock();repo.get.return_value=fixtures["managed_cluster"]()
+    repo.pinned_environment_snapshot.return_value=({},fixtures["environment"]())
+    access=EffectiveAccess("engineer","Engineer",0,frozenset({"cluster.upgrade.plan"}),(Scope("PLATFORM"),))
+    result=ScopedEksUpgradePlans(repo,access,"test",discovery).options("CLU-test")
+    assert result["currentVersion"]=="1.33" and result["targetVersions"]==["1.34","1.35"]
+    assert result["nodeGroups"][0]["name"]=="system"
+    assert result["addons"][0]["name"]=="coredns"
+    eks.update_cluster_version.assert_not_called()
+    eks.update_nodegroup_version.assert_not_called()
+    eks.update_addon.assert_not_called()

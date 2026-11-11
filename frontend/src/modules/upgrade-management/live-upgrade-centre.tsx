@@ -1,7 +1,7 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { AlertTriangle, RefreshCw, Plus } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import type {
   Cluster,
@@ -68,7 +68,6 @@ export function LiveUpgradeCentre({
   const [status, setStatus] = useState("all");
   const [customer, setCustomer] = useState("all");
   const [environment, setEnvironment] = useState("all");
-  const opportunitiesRef = useRef<HTMLElement>(null);
   const active = data.fleet.filter((c) => c.status === "ACTIVE");
   const evidence = useQueries({
     queries: active.map((c) => ({
@@ -162,18 +161,6 @@ export function LiveUpgradeCentre({
             >
               <RefreshCw size={15} />
               Refresh inventory
-            </Button>
-            <Button
-              onClick={() => {
-                opportunitiesRef.current?.scrollIntoView?.({
-                  behavior: "smooth",
-                  block: "start",
-                });
-                opportunitiesRef.current?.focus();
-              }}
-            >
-              <Plus size={15} />
-              Create plan
             </Button>
           </div>
         </header>
@@ -273,9 +260,7 @@ export function LiveUpgradeCentre({
                     {cluster.customerName ?? cluster.customerId}
                     <small>{environment}</small>
                   </td>
-                  <td>
-                    {planVersionLabel(plan)}
-                  </td>
+                  <td>{planVersionLabel(plan)}</td>
                   <td>
                     <span
                       className="upgrade-plan-status"
@@ -321,7 +306,6 @@ export function LiveUpgradeCentre({
       </section>
       <section
         className="upgrade-opportunities"
-        ref={opportunitiesRef}
         tabIndex={-1}
         aria-label="Available cluster upgrades"
       >

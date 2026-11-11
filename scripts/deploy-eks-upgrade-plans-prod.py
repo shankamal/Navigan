@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 # PROD backend uses the reviewed maker/reviewer container/utility release.
 # Keep all deployed modules pinned together before replacing scoped plan code.
-DEPLOYED_PLAN_TREE = "b011d7015d0348151a88f0afb25378eaf4c6c37e"
+DEPLOYED_PLAN_TREE = "f26a0a064236af6d1149e6491ded5e8c63587817"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ClusterUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/upgrade-options",
@@ -285,6 +285,8 @@ def package(original, destination):
                 semantic(old.read(new_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + new_module)),
                 "Deployed upgrade-plan module differs from the reviewed production baseline",
             )
+        if paths_module in names:
+            require(semantic(old.read(paths_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + paths_module)), "Deployed component-path module differs from reviewed release")
         if utility_module in names:
             require(semantic(old.read(utility_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + utility_module)), "Deployed utility plan module differs from reviewed release")
         target_handler = scoped_handler_target(
@@ -292,14 +294,15 @@ def package(original, destination):
         )
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
-                if entry.filename in {new_module, utility_module, paths_module}:
+                if entry.filename in {new_module, utility_module, paths_module, readiness}:
                     continue
                 if entry.filename.endswith(".pyc") and any(
                     f"/{name}." in entry.filename
-                    for name in ("handler", "upgrade_plans", "utility_upgrades", "upgrade_paths")
+                    for name in ("handler", "upgrade_readiness", "upgrade_plans", "utility_upgrades", "upgrade_paths")
                 ):
                     continue
                 new.writestr(entry, target_handler if entry.filename == handler else old.read(entry.filename))
+            new.writestr(readiness, (ROOT / "src" / readiness).read_bytes())
             new.writestr(new_module, (ROOT / "src" / new_module).read_bytes())
             new.writestr(utility_module, (ROOT / "src" / utility_module).read_bytes())
             new.writestr(paths_module, (ROOT / "src" / paths_module).read_bytes())
