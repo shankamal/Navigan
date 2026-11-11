@@ -7,10 +7,20 @@ import type {
 } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import { ClusterContext } from "./cluster-context";
-import { planScopes, scopeTypes, PlanScopeLabel } from "./plan-scope";
+import {
+  planTypeLabel,
+  planScopes,
+  scopeTypes,
+  PlanScopeLabel,
+} from "./plan-scope";
 import { planStage } from "./component-plan-metrics";
 import { scheduleOverdue } from "./schedule-state";
-type Row = { clusterName: string; cluster: Cluster; plan: EksUpgradePlan };
+type Row = {
+  eventKey?: string;
+  clusterName: string;
+  cluster: Cluster;
+  plan: EksUpgradePlan;
+};
 export function dayKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -88,24 +98,53 @@ export function MaintenanceCalendar({
   );
   const days = calendarDays(month),
     zone = Intl.DateTimeFormat().resolvedOptions().timeZone,
-    events = rows.filter(
-      (row) =>
-        row.plan.scheduledFor &&
-        Number.isFinite(new Date(row.plan.scheduledFor).getTime()) &&
-        (customer === "all" || row.cluster.customerId === customer) &&
-        (environment === "all" || row.cluster.environmentId === environment) &&
-        (type === "all" || planScopes(row.plan).some((s) => s === type)) &&
-        (status === "all" || planStage(row.plan, now) === status) &&
-        [
-          row.clusterName,
-          row.cluster.customerName,
-          row.plan.utilityEvidence?.label,
-          row.plan.planId,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-    ),
+    events = rows
+      .flatMap((row) =>
+        row.plan.planSpec
+          ? row.plan.planSpec.steps.flatMap((step, i) =>
+              step.window
+                ? [
+                    {
+                      ...row,
+                      eventKey: `${row.plan.planId}:${i}`,
+                      clusterName: `${row.clusterName} · Step ${i + 1}`,
+                      plan: {
+                        ...row.plan,
+                        scheduledFor: step.window.scheduledFor,
+                        status:
+                          Number(row.plan.execution.completedHops ?? 0) > i
+                            ? ("SUCCEEDED" as const)
+                            : row.plan.status === "EXECUTING" &&
+                                i > Number(row.plan.execution.hopIndex ?? 0)
+                              ? ("SCHEDULED" as const)
+                              : row.plan.status,
+                        execution: { ...row.plan.execution, hopIndex: i },
+                      },
+                    },
+                  ]
+                : [],
+            )
+          : [row],
+      )
+      .filter(
+        (row) =>
+          row.plan.scheduledFor &&
+          Number.isFinite(new Date(row.plan.scheduledFor).getTime()) &&
+          (customer === "all" || row.cluster.customerId === customer) &&
+          (environment === "all" ||
+            row.cluster.environmentId === environment) &&
+          (type === "all" || planScopes(row.plan).some((s) => s === type)) &&
+          (status === "all" || planStage(row.plan, now) === status) &&
+          [
+            row.clusterName,
+            row.cluster.customerName,
+            row.plan.utilityEvidence?.label,
+            row.plan.planId,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+      ),
     selectedEvents = events.filter(
       (row) => dayKey(new Date(row.plan.scheduledFor!)) === selected,
     );
@@ -134,8 +173,9 @@ export function MaintenanceCalendar({
                 })}
           </h3>
           <p>
-            Requested starts · {zone}. Durations are not recorded. Awaiting
-            approval is not confirmed.
+            Requested starts · {zone}. Open a plan to review each step’s
+            duration. Legacy requests record a start only. Awaiting approval is
+            not confirmed.
           </p>
         </div>
         <div>
@@ -368,7 +408,7 @@ export function MaintenanceCalendar({
                 {matches.slice(0, 2).map((row) => (
                   <button
                     type="button"
-                    key={row.plan.planId}
+                    key={row.eventKey ?? row.plan.planId}
                     className="upgrade-calendar-plan"
                     data-status={planStage(row.plan, now)}
                     onClick={() => onReview(row.plan.planId)}
@@ -485,13 +525,15 @@ export function MaintenanceCalendar({
                         date.getHours(),
                     );
                     const lane = concurrent.findIndex(
-                      (r) => r.plan.planId === row.plan.planId,
+                      (r) =>
+                        (r.eventKey ?? r.plan.planId) ===
+                        (row.eventKey ?? row.plan.planId),
                     );
                     return (
                       <button
-                        key={row.plan.planId}
+                        key={row.eventKey ?? row.plan.planId}
                         className="upgrade-week-event"
-                        title={`${row.clusterName} · ${row.plan.kind === "UTILITY" ? row.plan.utilityEvidence?.label : "Cluster upgrade"} · ${planStage(row.plan, now)}`}
+                        title={`${row.clusterName} · ${planTypeLabel(row.plan)} · ${planStage(row.plan, now)}`}
                         data-status={planStage(row.plan, now)}
                         onClick={() => onReview(row.plan.planId)}
                         style={{
@@ -510,11 +552,7 @@ export function MaintenanceCalendar({
                           })}
                         </time>
                         <strong>{row.clusterName}</strong>
-                        <span>
-                          {row.plan.kind === "UTILITY"
-                            ? row.plan.utilityEvidence?.label
-                            : "Cluster upgrade"}
-                        </span>
+                        <span>{planTypeLabel(row.plan)}</span>
                         <small>{planStage(row.plan, now)}</small>
                       </button>
                     );
@@ -536,13 +574,10 @@ export function MaintenanceCalendar({
           <p>No maintenance starts requested for this date.</p>
         ) : (
           selectedEvents.map((row) => (
-            <article key={row.plan.planId}>
+            <article key={row.eventKey ?? row.plan.planId}>
               <div>
                 <strong>
-                  {row.clusterName} ·{" "}
-                  {row.plan.kind === "UTILITY"
-                    ? row.plan.utilityEvidence?.label
-                    : "Cluster upgrade"}
+                  {row.clusterName} · {planTypeLabel(row.plan)}
                 </strong>
                 <PlanScopeLabel plan={row.plan} />
                 <p>

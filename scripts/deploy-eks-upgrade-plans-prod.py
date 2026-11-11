@@ -3,7 +3,7 @@
 
 The database migration and customer-role execution policy are separate, explicit
 prerequisites. This release changes only the existing ClusterFunction package
-and five JWT-protected upgrade routes. It never invokes an EKS update API.
+and six JWT-protected upgrade routes. It never invokes an EKS update API.
 """
 
 from __future__ import annotations
@@ -27,11 +27,12 @@ import boto3
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
-# PROD revision 49 uses this reviewed container/utility plan backend.
+# PROD backend uses the reviewed maker/reviewer container/utility release.
 # Keep all deployed modules pinned together before replacing scoped plan code.
-DEPLOYED_PLAN_TREE = "c7dcb8492907b14ed18e35124e6e616382e572a6"
+DEPLOYED_PLAN_TREE = "b011d7015d0348151a88f0afb25378eaf4c6c37e"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
+    "ClusterUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/upgrade-options",
     "ClusterUtilityUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/utility-upgrade-options",
     "ListClusterUpgradePlansRoute": "GET /api/v1/clusters/{clusterId}/upgrade-plans",
     "CreateClusterUpgradePlanRoute": "POST /api/v1/clusters/{clusterId}/upgrade-plans",
@@ -188,17 +189,20 @@ def scoped_handler_target(source):
     )
     for before, after, label in replacements:
         source = replace_once(source, before, after, label)
+    plan_imports = (b"from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction\n"
+        if b"from .upgrade_paths import" not in source else
+        b"from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans\n"
+        b"from .upgrade_paths import CreateScopedUpgradePlan, ScopedUpgradePlanAction as UpgradePlanAction, ScopedEksUpgradePlans\n")
     repository_imports = (
         b"from .bootstrap_status import refresh_installer_status\n"
         b"from .tool_access import resolve_tool_access\n"
         b"from .upgrade_readiness import EksUpgradeDiscovery\n"
-        b"from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction\n"
+        + plan_imports
     )
     deployed_imports = (
         b"from .tool_access import resolve_tool_access\n"
         b"from .upgrade_readiness import EksUpgradeDiscovery\n"
-        b"from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction\n"
-        b"from .bootstrap_status import refresh_installer_status\n"
+        + plan_imports + b"from .bootstrap_status import refresh_installer_status\n"
     )
     source = replace_once(
         source, repository_imports, deployed_imports, "target readiness import order"
@@ -238,6 +242,7 @@ def check_checkout(expected_branch):
         "src/navigan/modules/cluster_management/upgrade_readiness.py",
         "src/navigan/modules/cluster_management/upgrade_plans.py",
         "src/navigan/modules/cluster_management/utility_upgrades.py",
+        "src/navigan/modules/cluster_management/upgrade_paths.py",
         "infrastructure/modules/cluster-management/template.yaml",
     ]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
@@ -251,6 +256,7 @@ def package(original, destination):
     readiness = prefix + "upgrade_readiness.py"
     new_module = prefix + "upgrade_plans.py"
     utility_module = prefix + "utility_upgrades.py"
+    paths_module = prefix + "upgrade_paths.py"
     with zipfile.ZipFile(original) as old:
         names = old.namelist()
         require(len(names) == len(set(names)), "Duplicate ZIP members rejected")
@@ -286,16 +292,17 @@ def package(original, destination):
         )
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
-                if entry.filename in {new_module, utility_module}:
+                if entry.filename in {new_module, utility_module, paths_module}:
                     continue
                 if entry.filename.endswith(".pyc") and any(
                     f"/{name}." in entry.filename
-                    for name in ("handler", "upgrade_plans", "utility_upgrades")
+                    for name in ("handler", "upgrade_plans", "utility_upgrades", "upgrade_paths")
                 ):
                     continue
                 new.writestr(entry, target_handler if entry.filename == handler else old.read(entry.filename))
             new.writestr(new_module, (ROOT / "src" / new_module).read_bytes())
             new.writestr(utility_module, (ROOT / "src" / utility_module).read_bytes())
+            new.writestr(paths_module, (ROOT / "src" / paths_module).read_bytes())
     with zipfile.ZipFile(destination) as updated:
         require(
             sum(item.file_size for item in updated.infolist()) <= 250 * 1024 * 1024,
@@ -315,7 +322,9 @@ def verify_database(session, parent):
         secretArn=params["ApiDatabaseSecretArn"],
         database="navigan",
         sql=(
-            "SELECT to_regclass('cluster_management.upgrade_plans')::text AS table_name, "
+            "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='cluster_management' AND table_name='upgrade_plans' AND column_name='plan_spec') AS path_column, "
+            "EXISTS(SELECT 1 FROM access_management.privileges WHERE privilege_code='cluster.upgrade.execute') AS execution_privilege, "
+            "to_regclass('cluster_management.upgrade_plans')::text AS table_name, "
             "to_regclass('cluster_management.utility_upgrade_plans')::text AS utility_table, "
             "has_table_privilege('navigan_api','cluster_management.utility_upgrade_plans','SELECT,INSERT,UPDATE') AS utility_grants, "
             "EXISTS(SELECT 1 FROM access_management.privileges WHERE privilege_code='cluster.upgrade.plan') AS planning_privilege, "
@@ -327,8 +336,9 @@ def verify_database(session, parent):
     rows = json.loads(result["formattedRecords"])
     require(
         len(rows) == 1 and rows[0].get("table_name") and rows[0].get("runtime_grants") is True
+        and rows[0].get("path_column") is True and rows[0].get("execution_privilege") is True
         and rows[0].get("utility_table") and rows[0].get("utility_grants") is True and rows[0].get("planning_privilege") is True,
-        "Apply confirmed scoped migrations 029–032 before preparing the backend release",
+        "Apply confirmed scoped migrations 029–033 before preparing the backend release",
     )
 
 

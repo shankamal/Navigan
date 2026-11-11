@@ -23,13 +23,8 @@ export function planningBlockReason(
     return "Existing plans could not be checked for this cluster. Refresh plans before creating another.";
   if (state.activePlan)
     return "Review the existing active plan before creating another.";
-  if (state.readinessPending) return "Refreshing provider readiness evidence…";
-  if (state.readinessError || !evidence)
-    return "Provider readiness is unavailable. Refresh evidence to retry.";
-  if (!evidence.recommendedTarget)
-    return "The provider has not reported a supported next version.";
-  if (evidence.readiness.status !== "READY")
-    return "Resolve the provider readiness findings before creating a plan.";
+  // Component-only plans remain available when the control plane has no next target
+  // or node skew blocks a control-plane upgrade. The scope planner validates live data.
   return undefined;
 }
 

@@ -132,6 +132,26 @@ vi.mock("@/modules/cluster-management/service", () => ({
       items: [],
     }),
     createUpgradePlan: vi.fn(),
+    createScopedUpgradePlan: vi.fn(),
+    upgradeOptions: vi.fn().mockResolvedValue({
+      clusterId: "CLU-live",
+      provider: "EKS",
+      region: "ap-south-1",
+      currentVersion: "1.34",
+      status: "ACTIVE",
+      targetVersions: ["1.35", "1.36", "1.37"],
+      nodeGroups: [{ name: "system", version: "1.34", status: "ACTIVE" }],
+      addons: [
+        {
+          name: "coredns",
+          version: "v1.11.4-eksbuild.20",
+          status: "ACTIVE",
+          versions: [{ version: "v1.12.3-eksbuild.1", recommended: true }],
+        },
+      ],
+      observedAt: "2026-11-11T10:00:00Z",
+      nodeUpgradeNote: "Align selected groups to the control plane.",
+    }),
     changeUpgradePlan: vi.fn(),
     platformComponents: vi.fn().mockResolvedValue({
       clusterId: "CLU-live",
@@ -248,58 +268,100 @@ describe("Upgrade workspace", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a single-page planner with evidence ticks and saves then submits", async () => {
+  it("saves a scoped draft for operation review before submission", async () => {
     mount();
-
     const create = await screen.findByRole("button", {
       name: "Create upgrade plan",
     });
     await waitFor(() => expect(create).toBeEnabled());
     fireEvent.click(create);
+    const scope = await screen.findByRole("radio", { name: "Cluster version" });
+    expect(scope).toBeChecked();
     expect(
-      screen.getByRole("heading", {
-        name: "Create upgrade plan",
-      }),
+      screen.getByRole("radio", { name: "Node groups" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "1. Cluster & target" }),
+      screen.getByRole("radio", { name: "Managed add-ons" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "2. Components & readiness" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("group", { name: "Upgrade strategy" }),
-    ).toHaveTextContent("Provider-managed rolling");
-    expect(
-      screen.queryByRole("combobox", { name: "Upgrade strategy" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "3. Maintenance & reason" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Managed node groups aligned").closest("li"),
-    ).toHaveClass("check-passed");
-    expect(
-      screen.getByText("Platform Architect approval").closest("li"),
-    ).toHaveClass("check-pending");
-    expect(
-      screen.getByRole("button", { name: "Save & submit" }),
+      screen.getByRole("button", { name: "Save draft & review" }),
     ).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Change reason"), {
-      target: { value: "Apply supported cluster upgrade" },
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "3. Change reason" }),
+      { target: { value: "Apply supported cluster upgrade" } },
+    );
+    fireEvent.change(screen.getByLabelText("Step 1 maintenance start"), {
+      target: { value: "2027-01-01T12:00" },
     });
     const saved = {
       planId: "UPG-test",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      kind: "CONTAINER",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      changeReason: "Apply supported cluster upgrade",
+      execution: {},
+      createdBy: "engineer",
+      createdAt: "2026-11-11T10:00:00Z",
+      updatedBy: "engineer",
+      updatedAt: "2026-11-11T10:00:00Z",
       version: 1,
       status: "DRAFT",
-    } as Awaited<ReturnType<typeof clusters.createUpgradePlan>>;
-    vi.mocked(clusters.createUpgradePlan).mockResolvedValueOnce(saved);
+      planSpec: {
+        format: 1,
+        scope: "CLUSTER",
+        sourceVersion: "1.34",
+        finalVersion: "1.35",
+        nodeGroups: ["system"],
+        addonNames: [],
+        validation: "Validate application health.",
+        steps: [
+          {
+            fromVersion: "1.34",
+            targetVersion: "1.35",
+            window: {
+              scheduledFor: "2027-01-01T12:00:00Z",
+              durationMinutes: 120,
+            },
+            operations: [
+              { kind: "CONTROL_PLANE", name: "demo", from: "1.34", to: "1.35" },
+            ],
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof clusters.createScopedUpgradePlan>>;
+    vi.mocked(clusters.createScopedUpgradePlan).mockResolvedValueOnce(saved);
     vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
       ...saved,
       version: 2,
       status: "SUBMITTED",
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save & submit" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save draft & review" }),
+    );
+    expect(
+      await screen.findByText(/Draft saved. Review the exact operations/),
+    ).toBeInTheDocument();
+    expect(clusters.changeUpgradePlan).not.toHaveBeenCalled();
+    expect(clusters.createScopedUpgradePlan).toHaveBeenCalledWith(
+      "CLU-live",
+      expect.objectContaining({
+        upgradeScope: "CLUSTER",
+        targetVersion: "1.35",
+        hopWindows: [
+          {
+            scheduledFor: new Date("2027-01-01T12:00").toISOString(),
+            durationMinutes: 120,
+          },
+        ],
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit for approval" }),
+    );
     await waitFor(() =>
       expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
         "CLU-live",
@@ -309,15 +371,8 @@ describe("Upgrade workspace", () => {
       ),
     );
     expect(
-      await screen.findByText(/Awaiting Platform Architect approval. Find it/),
+      await screen.findByText("Submitted for Platform Architect approval."),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: /Plans & Approvals/ }));
-    expect(
-      screen.getByRole("tab", { name: /Plans & Approvals/ }),
-    ).toHaveAttribute("aria-selected", "true");
-    expect(
-      screen.queryByRole("heading", { name: "1. Cluster & target" }),
-    ).not.toBeInTheDocument();
   });
 
   it.each(["cluster.approve", "cluster.upgrade.approve"])(
@@ -690,8 +745,11 @@ describe("Upgrade workspace", () => {
         await waitFor(() => expect(button).toBeEnabled());
         fireEvent.click(button);
         expect(
-          (screen.getByLabelText("Maintenance start") as HTMLInputElement)
-            .value,
+          (
+            (await screen.findByLabelText(
+              "Step 1 maintenance start",
+            )) as HTMLInputElement
+          ).value,
         ).toBe(key + "T09:00");
       }
     },
@@ -786,6 +844,8 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByLabelText("Weekly maintenance starts"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Durations are not recorded/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Legacy requests record a start only/),
+    ).toBeInTheDocument();
   });
 });

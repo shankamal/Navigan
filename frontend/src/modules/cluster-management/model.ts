@@ -357,6 +357,65 @@ export const utilityUpgradeOptionsSchema = z.object({
   versionKind: z.string().optional(),
   compatibility: z.string().optional(),
 });
+export const upgradeWindowSchema = z.object({
+  scheduledFor: z.string(),
+  durationMinutes: z.number(),
+});
+export const upgradeSpecSchema = z.object({
+  format: z.literal(1),
+  scope: z.enum(["CLUSTER", "NODES", "ADDONS"]),
+  sourceVersion: z.string(),
+  finalVersion: z.string(),
+  nodeGroups: z.array(z.string()),
+  addonNames: z.array(z.string()),
+  validation: z.string(),
+  steps: z.array(
+    z.object({
+      fromVersion: z.string(),
+      targetVersion: z.string(),
+      window: upgradeWindowSchema.nullable(),
+      operations: z.array(
+        z.object({
+          kind: z.enum(["CONTROL_PLANE", "NODEGROUP", "ADDON"]),
+          name: z.string(),
+          from: z.string(),
+          to: z.string(),
+          prerequisite: z.boolean().optional(),
+        }),
+      ),
+    }),
+  ),
+});
+export const upgradeOptionsSchema = z.object({
+  clusterId: z.string(),
+  provider: z.literal("EKS"),
+  region: z.string(),
+  currentVersion: z.string(),
+  status: z.string(),
+  targetVersions: z.array(z.string()),
+  observedAt: z.string(),
+  nodeUpgradeNote: z.string(),
+  nodeGroups: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string().nullable(),
+      status: z.string(),
+      amiType: z.string().nullable().optional(),
+    }),
+  ),
+  addons: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string(),
+      status: z.string(),
+      versions: z.array(
+        z.object({ version: z.string(), recommended: z.boolean() }),
+      ),
+    }),
+  ),
+});
+export type UpgradeSpec = z.infer<typeof upgradeSpecSchema>;
+export type UpgradeWindow = z.infer<typeof upgradeWindowSchema>;
 export const eksUpgradePlanSchema = z
   .object({
     planId: z.string(),
@@ -394,6 +453,7 @@ export const eksUpgradePlanSchema = z
     scheduledFor: z.string().nullable().optional(),
     changeReason: z.string(),
     readinessEvidence: eksUpgradeReadinessSchema.optional(),
+    planSpec: upgradeSpecSchema.optional(),
     execution: z.record(z.string(), z.unknown()),
     version: z.number(),
     submittedBy: z.string().nullable().optional(),
@@ -422,7 +482,7 @@ export const eksUpgradePlanSchema = z
             "Utility plans require chart evidence and GitOps review strategy.",
         });
     } else if (
-      !plan.readinessEvidence ||
+      (!plan.readinessEvidence && !plan.planSpec) ||
       plan.strategy !== "PROVIDER_MANAGED_ROLLING"
     )
       ctx.addIssue({

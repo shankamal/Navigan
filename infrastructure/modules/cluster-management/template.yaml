@@ -590,6 +590,16 @@ Resources:
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
       AuthorizationScopes: [!Ref JwtScope]
+  ClusterUpgradeOptionsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: GET /api/v1/clusters/{clusterId}/upgrade-options
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
   ClusterUtilityUpgradeOptionsRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: ClusterInvokePermission

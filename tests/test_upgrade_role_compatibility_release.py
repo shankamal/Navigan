@@ -12,14 +12,15 @@ release = runpy.run_path(str(ROOT / "scripts/deploy-upgrade-role-compatibility-p
 
 def original_access():
     source = (ROOT / "src/navigan/shared/access.py").read_text()
-    return source.replace('            "cluster.upgrade.plan",\n', "", 1)
+    return source.replace('            "cluster.upgrade.plan",\n', "", 1).replace('            "cluster.upgrade.execute",\n', "", 1)
 
 
 def test_only_legacy_maker_catalogue_changes():
     original = original_access()
     patched = release["patch_access"](original)
     assert patched.count('"cluster.upgrade.plan"') == 1
-    assert patched.replace('            "cluster.upgrade.plan",\n', "", 1) == original
+    assert patched.count('"cluster.upgrade.execute"') == 1
+    assert patched.replace('            "cluster.upgrade.plan",\n', "", 1).replace('            "cluster.upgrade.execute",\n', "", 1) == original
     assert release["patch_access"](patched) == patched
     # No fallback grant is introduced in dynamic authorization evaluation.
     old_tree, new_tree = ast.parse(original), ast.parse(patched)
@@ -83,3 +84,9 @@ def test_change_set_accepts_scoped_function_update():
     client = change_set_client({"LogicalResourceId": "AccessFunction", "Action": "Modify",
         "Replacement": "False", "ResourceType": "AWS::Lambda::Function"})
     release["inspect"](client, "root", {"releases": {"AccessManagement": {"before": {"Resources": {}}}}})
+
+
+def test_already_deployed_planning_grant_gets_only_execution_added():
+    original=original_access().replace('            "cluster.submit",', '            "cluster.upgrade.plan",\n            "cluster.submit",',1)
+    patched=release["patch_access"](original)
+    assert patched.replace('            "cluster.upgrade.execute",\n', '',1)==original

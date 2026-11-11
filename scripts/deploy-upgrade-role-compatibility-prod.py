@@ -48,15 +48,16 @@ def patch_access(source):
     require(all(isinstance(n, ast.Constant) and isinstance(n.value, str) for n in values.elts), "Nonliteral role privileges")
     privileges = {n.value for n in values.elts}
     require({"cluster.create", "cluster.submit", "cluster.view"} <= privileges, "Unexpected maker role")
-    if "cluster.upgrade.plan" in privileges:
+    missing = [code for code in ("cluster.upgrade.plan", "cluster.upgrade.execute") if code not in privileges]
+    if not missing:
         return source
     last = values.elts[-1]
     lines = source.splitlines(keepends=True)
-    lines.insert(last.end_lineno, ' ' * last.col_offset + '"cluster.upgrade.plan",\n')
+    lines.insert(last.end_lineno, "".join(' ' * last.col_offset + '"' + code + '",\n' for code in missing))
     patched = "".join(lines)
-    values.elts.append(ast.Constant(value="cluster.upgrade.plan"))
+    values.elts.extend(ast.Constant(value=code) for code in missing)
     require(ast.dump(tree, include_attributes=False) == ast.dump(ast.parse(patched), include_attributes=False),
-            "Patch changed more than the maker privilege")
+            "Patch changed more than the scoped maker privileges")
     return patched
 
 
@@ -194,7 +195,7 @@ def execute(session, path):
     _, _, deployed = snapshot(session)
     for logical, current in deployed.items():
         require(current["oldSha"] == plan["releases"][logical]["newSha"], "Deployed checksum differs")
-    print("PROD legacy Cloud Engineer upgrade planning deployed and checksums verified. No upgrade started.")
+    print("PROD legacy Cloud Engineer upgrade planning and scoped execution privileges deployed and checksums verified. No upgrade started.")
 
 
 if __name__ == "__main__":

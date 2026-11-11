@@ -165,3 +165,56 @@ it("shows a Monday-based week, opens entries directly and filters requested star
     }),
   ).toBeInTheDocument();
 });
+
+it("shows each multi-step maintenance start and opens the parent plan", () => {
+  const now = new Date(2027, 0, 1, 8),
+    review = vi.fn();
+  const cluster = {
+    clusterId: "CLU-step",
+    clusterName: "demo",
+    customerName: "DB Schenker",
+    environmentName: "Prod",
+    provisioningRoleArn: "arn:aws:iam::123456789012:role/Provisioning",
+  } as Cluster;
+  const plan = {
+    planId: "UPG-path",
+    kind: "CONTAINER",
+    status: "SCHEDULED",
+    scheduledFor: new Date(2027, 0, 1, 10).toISOString(),
+    currentVersion: "1.34",
+    targetVersion: "1.36",
+    execution: {},
+    planSpec: {
+      scope: "CLUSTER",
+      steps: [1, 2].map((day) => ({
+        fromVersion: `1.${33 + day}`,
+        targetVersion: `1.${34 + day}`,
+        window: {
+          scheduledFor: new Date(2027, 0, day, 10).toISOString(),
+          durationMinutes: 120,
+        },
+        operations: [
+          {
+            kind: "CONTROL_PLANE",
+            name: "demo",
+            from: `1.${33 + day}`,
+            to: `1.${34 + day}`,
+          },
+        ],
+      })),
+    },
+  } as EksUpgradePlan;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MaintenanceCalendar
+        rows={[{ clusterName: "demo", cluster, plan }]}
+        now={now.getTime()}
+        onReview={review}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.getAllByText(/demo · Step 1/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/demo · Step 2/).length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole("button", { name: "Review plan" }));
+  expect(review).toHaveBeenCalledWith("UPG-path");
+});

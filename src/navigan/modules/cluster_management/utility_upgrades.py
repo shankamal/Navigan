@@ -158,4 +158,5 @@ def plan_service(repo, access, correlation, cluster_id, plan_id):
     """Route a scoped plan ID without allowing a utility plan into EKS execution."""
     repo.get(cluster_id)
     exists = repo.db.execute("SELECT plan_id FROM cluster_management.utility_upgrade_plans WHERE cluster_id=%s AND plan_id=%s", [cluster_id, plan_id]).fetchone()
-    return UtilityUpgradePlans(repo, access, correlation) if exists else EksUpgradePlans(repo, access, correlation)
+    from .upgrade_paths import ScopedEksUpgradePlans
+    return UtilityUpgradePlans(repo, access, correlation) if exists else ScopedEksUpgradePlans(repo, access, correlation)

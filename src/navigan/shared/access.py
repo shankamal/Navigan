@@ -27,6 +27,7 @@ LEGACY_ROLE_PRIVILEGES = {
             "cluster.view",
             "cluster.create",
             "cluster.upgrade.plan",
+            "cluster.upgrade.execute",
             "cluster.edit",
             "cluster.submit",
             "cluster.logs.view",

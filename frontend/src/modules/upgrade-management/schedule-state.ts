@@ -1,9 +1,28 @@
 "use client";
 import { useEffect, useState } from "react";
 export function scheduleOverdue(
-  plan: { status: string; scheduledFor?: string | null },
+  plan: {
+    status: string;
+    scheduledFor?: string | null;
+    planSpec?: {
+      steps: {
+        window: { scheduledFor: string; durationMinutes: number } | null;
+      }[];
+    };
+    execution?: Record<string, unknown>;
+  },
   now = Date.now(),
 ) {
+  if (plan.planSpec && ["APPROVED", "SCHEDULED"].includes(plan.status)) {
+    const index = Number(plan.execution?.hopIndex ?? 0);
+    const window = plan.planSpec.steps[index]?.window;
+    return Boolean(
+      window &&
+      new Date(window.scheduledFor).getTime() +
+        window.durationMinutes * 60000 <=
+        now,
+    );
+  }
   return (
     ["DRAFT", "SUBMITTED"].includes(plan.status) &&
     Boolean(plan.scheduledFor) &&

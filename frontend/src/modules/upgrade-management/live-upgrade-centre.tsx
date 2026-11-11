@@ -19,6 +19,7 @@ import {
   scopeTypes,
   type PlanScope,
 } from "./plan-scope";
+import { planVersionLabel } from "./plan-scope";
 import { useScheduleClock } from "./schedule-state";
 import { clusterAccount } from "./cluster-context";
 function liveCluster(
@@ -273,7 +274,7 @@ export function LiveUpgradeCentre({
                     <small>{environment}</small>
                   </td>
                   <td>
-                    {plan.currentVersion} → {plan.targetVersion}
+                    {planVersionLabel(plan)}
                   </td>
                   <td>
                     <span

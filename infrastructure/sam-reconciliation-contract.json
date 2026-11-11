@@ -4,7 +4,7 @@
     "infrastructure/template.yaml": "f00aee22e2b3c8191b1553b68ac589d4dcf28c42bd30317d25f65f281faa8859",
     "infrastructure/modules/customer-management/template.yaml": "84941ee3fc783f123f2bfabf163802bb7c0129949bd34a1c33bb49aa90c91cd1",
     "infrastructure/modules/environment-management/template.yaml": "b836162e08d8387d29659f6efaba4eb5087f964771530f00dfd2b65ae9a5517e",
-    "infrastructure/modules/cluster-management/template.yaml": "52861ed96907865c733e35edc9e9a1fd84fa8aa61fbbe2ef9588a0779636a00c",
+    "infrastructure/modules/cluster-management/template.yaml": "08da36e17572dafc7d7af2086b0049a0230ce34bb975daadc5d484d879c75468",
     "infrastructure/modules/migration-management/template.yaml": "b0c63a14e8a33bb6c29808f7ec22e60968e12abe60f61d4836df9cedbf85ae18",
     "infrastructure/modules/access-management/template.yaml": "2565a77d63d9ea23465e4a0f3f2fcb09a2cce347c9ff30592fbc353f4f7f80aa",
     "infrastructure/companion/dev-route-ownership.yaml": "b9a24be23c5c876542e8a8e44ccf0c66f003758bf7fd55450cba861d6f574825"
@@ -183,6 +183,15 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ClusterUpgradeOptionsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-options",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ClusterUpgradeOptionsRoute"
         }
       },
       {
@@ -1445,6 +1454,15 @@
         "owner": {
           "captureStack": "root--ClusterManagement",
           "logicalId": "GetClusterToolsRoute"
+        }
+      },
+      {
+        "module": "ClusterManagement",
+        "sourceLogicalId": "ClusterUpgradeOptionsRoute",
+        "routeKey": "GET /api/v1/clusters/{clusterId}/upgrade-options",
+        "owner": {
+          "captureStack": "root--ClusterManagement",
+          "logicalId": "ClusterUpgradeOptionsRoute"
         }
       },
       {

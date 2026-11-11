@@ -1,0 +1,216 @@
+from copy import deepcopy
+from datetime import timedelta
+from unittest.mock import MagicMock
+import pytest
+from navigan.shared.access import EffectiveAccess, Scope
+from navigan.shared.errors import ApiError
+from navigan.modules.cluster_management.upgrade_paths import (
+    ScopedEksUpgradePlans, CreateScopedUpgradePlan, sequential_path, validate_windows, utcnow,
+)
+
+class Eks:
+    def __init__(self):
+        self.version="1.34"; self.nodes=[{"name":"system","version":"1.34","status":"ACTIVE","healthIssues":[],"amiType":"AL2023_x86_64_STANDARD"}]
+        self.addons=[{"name":"cni","version":"v1.0.0","status":"ACTIVE","healthIssues":[]}]
+        self.writes=[]; self.update_status="Successful"; self.active=[]
+        self.versions={v:["v1.0.0","v1.1.0"] for v in ["1.34","1.35","1.36","1.37"]}
+    def describe_cluster(self, **kwargs): return {"cluster":{"version":self.version,"status":"ACTIVE"}}
+    def describe_addon_versions(self, addonName, kubernetesVersion, **kwargs):
+        return {"addons":[{"addonVersions":[{"addonVersion":v,"compatibilities":[{"clusterVersion":kubernetesVersion,"defaultVersion":True}]} for v in self.versions[kubernetesVersion]]}]}
+    def list_updates(self, **kwargs): return {"updateIds":[]}
+    def describe_update(self, **kwargs): return {"update":{"id":"id","status":self.update_status}}
+    def update_cluster_version(self, **kwargs): self.writes.append(("CONTROL_PLANE",kwargs));return {"update":{"id":"cp","status":"InProgress"}}
+    def update_nodegroup_version(self, **kwargs): self.writes.append(("NODEGROUP",kwargs));return {"update":{"id":"node","status":"InProgress"}}
+    def update_addon(self, **kwargs): self.writes.append(("ADDON",kwargs));return {"update":{"id":"addon","status":"InProgress"}}
+
+class Discovery:
+    def __init__(self, eks): self.eks=eks
+    def client(self,*_): return self.eks,"ap-south-1"
+    def _node_groups(self,*_): return deepcopy(self.eks.nodes)
+    def _addons(self,*_): return deepcopy(self.eks.addons)
+    def _versions(self,*_): return [{"version":v,"supportStatus":"STANDARD_SUPPORT"} for v in ["1.34","1.35","1.36","1.37"]]
+    def _insights(self,*_): return []
+
+@pytest.fixture
+def service():
+    eks=Eks(); repo=MagicMock()
+    repo.get.return_value={"cluster_id":"CLU-one","cluster_name":"demo","customer_id":"CUS-one","environment_id":"ENV-one","environment_approved_version":1}
+    repo.pinned_environment_snapshot.return_value=({}, {})
+    repo.db.execute.return_value.fetchone.return_value=None
+    access=EffectiveAccess("engineer","Engineer",0,frozenset({"cluster.upgrade.plan","cluster.upgrade.execute"}),(Scope("PLATFORM"),))
+    return ScopedEksUpgradePlans(repo, access,"test",Discovery(eks))
+
+def payload(scope="CLUSTER",**changes):
+    return {"upgradeScope":scope,"targetVersion":"1.37" if scope=="CLUSTER" else None,"changeReason":"Apply supported upgrade",**changes}
+
+def row(service, body=None):
+    captured={}
+    service._save=lambda value,create=False: captured.update(deepcopy(value))
+    service.create("CLU-one",body or payload())
+    return captured
+
+def approve(plan, at):
+    for step in plan["plan_spec"]["steps"]:
+        step["window"]={"scheduledFor":at.isoformat(),"durationMinutes":120};at+=timedelta(days=1)
+    plan.update(status="SCHEDULED",approved_by="architect",submitted_by="engineer")
+    return plan
+
+def test_sequential_path_rejects_gaps_and_downgrades(service):
+    catalogue=service.discovery._versions()
+    assert sequential_path("1.34","1.37",catalogue)==["1.35","1.36","1.37"]
+    with pytest.raises(ApiError,match="intermediate"):
+        sequential_path("1.34","1.37",[x for x in catalogue if x["version"]!="1.36"])
+    with pytest.raises(ApiError,match="higher"):
+        sequential_path("1.34","1.33",catalogue)
+
+def test_draft_stores_complete_path_without_calling_update_api(service):
+    p=row(service)
+    assert [s["targetVersion"] for s in p["plan_spec"]["steps"]]==["1.35","1.36","1.37"]
+    assert all([o["kind"] for o in s["operations"]]==["CONTROL_PLANE","NODEGROUP"] for s in p["plan_spec"]["steps"])
+    assert service.discovery.eks.writes==[]
+    assert "readinessEvidence" not in service.present(p)
+
+def test_node_only_scope_catches_up_without_control_plane_update(service):
+    service.discovery.eks.version="1.35"
+    p=row(service,payload("NODES",nodeGroups=["system"]))
+    assert p["current_version"]==p["target_version"]=="1.35"
+    assert [o["kind"] for o in p["plan_spec"]["steps"][0]["operations"]]==["NODEGROUP"]
+    assert service.discovery.eks.writes==[]
+
+def test_addon_only_scope_has_no_node_or_control_plane_operations(service):
+    p=row(service,payload("ADDONS",addons={"cni":"v1.1.0"}))
+    assert [o["kind"] for o in p["plan_spec"]["steps"][0]["operations"]]==["ADDON"]
+    with pytest.raises(ApiError,match="compatible"):
+        row(service,payload("ADDONS",addons={"cni":"v9.9.9"}))
+
+def test_incompatible_addon_becomes_prerequisite_before_control_plane(service):
+    service.discovery.eks.versions["1.35"]=["v1.1.0"]
+    p=row(service,payload(targetVersion="1.35"))
+    assert [o["kind"] for o in p["plan_spec"]["steps"][0]["operations"]]==["ADDON","CONTROL_PLANE","NODEGROUP"]
+    service.discovery.eks.versions["1.35"]=["v2.0.0"]
+    with pytest.raises(ApiError,match="compatible with both"):
+        row(service,payload(targetVersion="1.35"))
+
+def test_maker_permission_cannot_execute_and_expired_windows_never_call_aws(service):
+    p=approve(row(service),utcnow()-timedelta(hours=3))
+    with pytest.raises(ApiError,match="expired"):
+        service._execute(p)
+    assert service.discovery.eks.writes==[]
+    service.access=EffectiveAccess("engineer","Engineer",0,frozenset({"cluster.upgrade.plan"}),(Scope("PLATFORM"),))
+    with pytest.raises(ApiError) as error: service._execute(p)
+    assert error.value.status==403
+
+def test_one_hop_advances_components_then_waits_for_next_window(service):
+    p=approve(row(service),utcnow()-timedelta(minutes=1))
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p);p=saved[-1]
+    assert service.discovery.eks.writes[-1][0]=="CONTROL_PLANE"
+    service.discovery.eks.version="1.35"
+    service._refresh(p);p=saved[-1]
+    assert service.discovery.eks.writes[-1][0]=="NODEGROUP"
+    assert service.discovery.eks.writes[-1][1].get("force") is None
+    service.discovery.eks.nodes[0]["version"]="1.35"
+    service._refresh(p);p=saved[-1]
+    assert p["status"]=="SCHEDULED" and p["execution"]["hopIndex"]==1
+    assert len(p["execution"]["results"])==2
+    with pytest.raises(ApiError,match="not started"):service._execute(p)
+    assert len(service.discovery.eks.writes)==2
+
+def test_failed_stage_never_advances_to_node_update(service):
+    p=approve(row(service),utcnow()-timedelta(minutes=1))
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p);p=saved[-1];service.discovery.eks.update_status="Failed"
+    service._refresh(p)
+    assert saved[-1]["status"]=="FAILED" and len(service.discovery.eks.writes)==1
+
+def test_window_order_and_input_validation():
+    with pytest.raises(ValueError,match="timezone"):
+        CreateScopedUpgradePlan.model_validate(payload(hopWindows=[{"scheduledFor":"2026-12-01T10:00:00"}]))
+    window={"scheduledFor":"2026-12-01T10:00:00Z","durationMinutes":120}
+    with pytest.raises(ApiError,match="overlap"):
+        validate_windows([{"window":window},{"window":window}],require_all=True)
+    with pytest.raises(ApiError,match="every upgrade step"):
+        validate_windows([{}],require_all=True)
+
+def test_addon_minor_path_and_downgrade_guard(service):
+    eks=service.discovery.eks
+    eks.versions["1.34"]=["v1.0.0","v1.1.0","v1.2.0","v1.3.0"]
+    p=row(service,payload("ADDONS",addons={"cni":"v1.3.0"}))
+    assert [o["to"] for o in p["plan_spec"]["steps"][0]["operations"]]==["v1.1.0","v1.2.0","v1.3.0"]
+    eks.versions["1.34"]=["v1.0.0","v1.3.0"]
+    with pytest.raises(ApiError,match="intermediate"):
+        row(service,payload("ADDONS",addons={"cni":"v1.3.0"}))
+    eks.addons[0]["version"]="v1.3.0"
+    with pytest.raises(ApiError,match="newer"):
+        row(service,payload("ADDONS",addons={"cni":"v1.0.0"}))
+
+def test_expired_window_stops_between_components(service):
+    p=approve(row(service,payload(targetVersion="1.35")),utcnow()-timedelta(minutes=1))
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p);p=saved[-1]
+    service.discovery.eks.version="1.35"
+    p["plan_spec"]["steps"][0]["window"]["scheduledFor"]=(utcnow()-timedelta(hours=3)).isoformat()
+    service._refresh(p)
+    assert saved[-1]["status"]=="FAILED"
+    assert len(service.discovery.eks.writes)==1
+    assert saved[-1]["execution"]["results"][0]["status"]=="SUCCEEDED"
+
+def test_drift_or_bad_insights_never_starts_provider_update(service):
+    p=approve(row(service),utcnow()-timedelta(minutes=1))
+    service.discovery.eks.nodes.append({"name":"new-node","version":"1.34","status":"ACTIVE"})
+    with pytest.raises(ApiError,match="membership"):
+        service._execute(p)
+    service.discovery.eks.nodes.pop()
+    service.discovery._insights=lambda *_:[{"status":"ERROR"}]
+    with pytest.raises(ApiError,match="insights"):
+        service._execute(p)
+    assert service.discovery.eks.writes==[]
+
+def test_submit_and_reschedule_keep_exact_approved_scope(service):
+    p=row(service)
+    service.get=lambda *_args,**_kwargs:p
+    with pytest.raises(ApiError,match="every upgrade step"):
+        service.change("CLU-one",p["plan_id"],"submit",{"version":1})
+    windows=[{"scheduledFor":(utcnow()+timedelta(days=i+1)).isoformat(),"durationMinutes":120} for i in range(3)]
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    result=service.change("CLU-one",p["plan_id"],"reschedule",{"version":1,"hopWindows":windows})
+    assert result["status"]=="DRAFT"
+    assert saved[-1]["plan_spec"]["steps"][2]["window"]==windows[2]
+    assert saved[-1]["plan_spec"]["scope"]=="CLUSTER"
+    assert service.discovery.eks.writes==[]
+
+def test_list_serializes_scoped_spec_without_legacy_empty_evidence(service):
+    p=row(service,payload("ADDONS",addons={"cni":"v1.1.0"}))
+    service.repo.db.execute.return_value.fetchall.return_value=[p]
+    result=service.list("CLU-one")["items"][0]
+    assert result["planSpec"]["scope"]=="ADDONS"
+    assert "readinessEvidence" not in result
+
+def test_legacy_rows_with_migrated_empty_spec_remain_readable():
+    legacy={"plan_spec":{},"readiness_evidence":{"observedAt":"test"}}
+    value=ScopedEksUpgradePlans.present(legacy)
+    assert "planSpec" not in value and value["readinessEvidence"]==legacy["readiness_evidence"]
+
+def test_read_failure_explains_customer_role_without_any_update(service):
+    from botocore.exceptions import ClientError
+    service.discovery.eks.describe_cluster=MagicMock(side_effect=ClientError({"Error":{"Code":"AccessDeniedException"}},"DescribeCluster"))
+    with pytest.raises(ApiError,match="customer provisioning role") as error:
+        service.options("CLU-one")
+    assert error.value.code=="EKS_DISCOVERY_ACCESS_DENIED"
+    assert service.discovery.eks.writes==[]
+
+def test_cancel_preserves_completed_hop_history(service):
+    p=row(service);p.update(status="SCHEDULED",execution={"completedHops":1,"results":[{"status":"SUCCEEDED"}]})
+    service.get=lambda *_args,**_kwargs:p
+    service._save=lambda *_args,**_kwargs:None
+    result=service.change("CLU-one",p["plan_id"],"cancel",{"version":1,"reason":"Replan next window"})
+    assert result["status"]=="CANCELLED"
+    assert result["execution"]["completedHops"]==1
+    assert result["execution"]["results"]==[{"status":"SUCCEEDED"}]
+
+def test_control_plane_plan_requires_node_catchup_before_approval(service):
+    service.discovery.eks.nodes[0]["version"]="1.33"
+    with pytest.raises(ApiError,match="Align managed node groups"):
+        row(service)
+    p=row(service,payload("NODES",nodeGroups=["system"]))
+    assert p["plan_spec"]["steps"][0]["operations"][0]["to"]=="1.34"

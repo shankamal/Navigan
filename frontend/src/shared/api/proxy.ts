@@ -27,7 +27,10 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
       return method === "GET";
     if (path.length === 3 && path[2] === "utility-upgrade-options")
       return method === "GET";
-    if (path.length === 3 && path[2] === "upgrade-readiness")
+    if (
+      path.length === 3 &&
+      ["upgrade-readiness", "upgrade-options"].includes(path[2])
+    )
       return method === "GET";
     if (path.length === 3 && path[2] === "upgrade-plans")
       return ["GET", "POST"].includes(method);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { UpgradePathDetails } from "./scoped-upgrade-planner";
 import { X, RefreshCw } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import { hasPermission } from "@/shared/auth/permissions";
@@ -13,7 +14,7 @@ import { ClusterContext } from "./cluster-context";
 import { MaintenanceCalendar } from "./maintenance-calendar";
 import { rescheduleBlockReason } from "./plan-availability";
 import { PlatformIdentity, containerIdentity } from "./platform-identity";
-import { PlanScopeLabel } from "./plan-scope";
+import { planVersionLabel, PlanScopeLabel } from "./plan-scope";
 
 type Filter = "all" | "drafts" | "review" | "scheduled" | "overdue";
 const statusLabel = (status: string) =>
@@ -39,6 +40,9 @@ export function UpgradePlansWorkspace({
   const data = useUpgradePlans();
   const now = useScheduleClock();
   const [newSchedule, setNewSchedule] = useState("");
+  const [stepSchedules, setStepSchedules] = useState<
+    Record<number, { start: string; duration: number }>
+  >({});
   const [filter, setFilter] = useState<Filter>(
     rescheduleRequested && !initialPlanId ? "overdue" : "all",
   );
@@ -97,7 +101,7 @@ export function UpgradePlansWorkspace({
     hasPermission(data.identity, "cluster.approve") ||
     hasPermission(data.identity, "cluster.upgrade.approve");
   const canPlan = hasPermission(data.identity, "cluster.upgrade.plan");
-  const canExecute = hasPermission(data.identity, "cluster.apply");
+  const canExecute = hasPermission(data.identity, "cluster.upgrade.execute");
   const subject = data.identity?.subject;
   const waiting = data.rows.filter(
     (row) =>
@@ -150,6 +154,28 @@ export function UpgradePlansWorkspace({
         | "reschedule";
     }) => {
       const row = data.rows.find((item) => item.plan.planId === planId)!;
+      if (name === "reschedule")
+        return clusters.changeUpgradePlan(
+          row.plan.clusterId,
+          planId,
+          name,
+          row.plan.version,
+          undefined,
+          row.plan.planSpec ? undefined : new Date(newSchedule).toISOString(),
+          ...(row.plan.planSpec
+            ? [
+                row.plan.planSpec.steps.map((step, i) => ({
+                  scheduledFor: stepSchedules[i]?.start
+                    ? new Date(stepSchedules[i].start).toISOString()
+                    : step.window?.scheduledFor || "",
+                  durationMinutes:
+                    stepSchedules[i]?.duration ||
+                    step.window?.durationMinutes ||
+                    120,
+                })),
+              ]
+            : []),
+        );
       return clusters.changeUpgradePlan(
         row.plan.clusterId,
         planId,
@@ -158,13 +184,13 @@ export function UpgradePlansWorkspace({
         name === "approve" || name === "reject"
           ? reason.trim() || undefined
           : undefined,
-        ...(name === "reschedule" ? [new Date(newSchedule).toISOString()] : []),
       );
     },
     onSuccess: () => {
       data.refresh();
       setReason("");
       setNewSchedule("");
+      setStepSchedules({});
       setConfirmStart(false);
     },
   });
@@ -292,9 +318,7 @@ export function UpgradePlansWorkspace({
                       <br />
                       <ClusterContext cluster={row.cluster} compact />
                     </td>
-                    <td>
-                      {row.plan.currentVersion} → {row.plan.targetVersion}
-                    </td>
+                    <td>{planVersionLabel(row.plan)}</td>
                     <td>
                       <span
                         className={
@@ -334,6 +358,7 @@ export function UpgradePlansWorkspace({
                         variant="secondary"
                         onClick={() => {
                           setNewSchedule("");
+                          setStepSchedules({});
                           setSelectedId(row.plan.planId);
                           setReason("");
                           setConfirmStart(false);
@@ -422,8 +447,7 @@ export function UpgradePlansWorkspace({
               {overdue ? "Overdue · inactive" : statusLabel(plan.status)}
             </span>
             <h3>
-              {selected.clusterName} · {plan.currentVersion} →{" "}
-              {plan.targetVersion}
+              {selected.clusterName} · {planVersionLabel(plan)}
             </h3>
             <PlatformIdentity
               identity={containerIdentity(selected.cluster.platform)}
@@ -471,7 +495,7 @@ export function UpgradePlansWorkspace({
             <p>
               Times shown in {Intl.DateTimeFormat().resolvedOptions().timeZone}.
             </p>
-            {overdue && (
+            {overdue && !plan.planSpec && (
               <div className="upgrade-overdue-notice" role="alert">
                 <strong>Past due · schedule inactive</strong>
                 <p>
@@ -515,6 +539,83 @@ export function UpgradePlansWorkspace({
                 </>
               </div>
             )}
+            {plan.planSpec && ["DRAFT", "SUBMITTED"].includes(plan.status) && (
+              <section className="upgrade-path-step">
+                <h3>
+                  {overdue
+                    ? "Past due · choose new maintenance windows"
+                    : "Revise maintenance windows"}
+                </h3>
+                {plan.planSpec.steps.map((step, i) => (
+                  <div className="upgrade-window-fields" key={i}>
+                    <label className="upgrade-live-field">
+                      <span>Step {i + 1} new maintenance start</span>
+                      <input
+                        type="datetime-local"
+                        disabled={!canPlan}
+                        value={stepSchedules[i]?.start ?? ""}
+                        onChange={(e) =>
+                          setStepSchedules((prev) => ({
+                            ...prev,
+                            [i]: {
+                              start: e.target.value,
+                              duration:
+                                prev[i]?.duration ||
+                                step.window?.durationMinutes ||
+                                120,
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="upgrade-live-field">
+                      <span>Duration (minutes)</span>
+                      <input
+                        type="number"
+                        min={30}
+                        max={1440}
+                        step={30}
+                        disabled={!canPlan}
+                        value={
+                          stepSchedules[i]?.duration ??
+                          step.window?.durationMinutes ??
+                          120
+                        }
+                        onChange={(e) =>
+                          setStepSchedules((prev) => ({
+                            ...prev,
+                            [i]: {
+                              start: prev[i]?.start || "",
+                              duration: Number(e.target.value),
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                ))}
+                <Button
+                  variant="secondary"
+                  disabled={
+                    !canPlan ||
+                    action.isPending ||
+                    plan.planSpec.steps.some(
+                      (step, i) =>
+                        !stepSchedules[i]?.start &&
+                        (!step.window ||
+                          new Date(step.window.scheduledFor).getTime() <= now),
+                    )
+                  }
+                  onClick={() => run("reschedule")}
+                >
+                  Save maintenance windows
+                </Button>
+                <p>
+                  Saving returns the plan to Draft. Submit it again for Platform
+                  Architect approval.
+                </p>
+              </section>
+            )}
             {plan.kind === "UTILITY" ? (
               <section className="upgrade-utility-evidence">
                 <h3>{plan.utilityEvidence?.label}</h3>
@@ -527,6 +628,11 @@ export function UpgradePlansWorkspace({
                   GitOps execution are not enabled in this release.
                 </p>
               </section>
+            ) : plan.planSpec ? (
+              <UpgradePathDetails
+                spec={plan.planSpec}
+                execution={plan.execution}
+              />
             ) : (
               <>
                 <h3>Upgrade components</h3>
@@ -596,6 +702,14 @@ export function UpgradePlansWorkspace({
                 {String(plan.execution.providerStatus ?? "")}
               </p>
             )}
+            {!plan.planSpec &&
+              plan.kind !== "UTILITY" &&
+              ["APPROVED", "SCHEDULED"].includes(plan.status) && (
+                <p>
+                  Legacy plan: create a new plan with explicit component scope
+                  and maintenance windows before execution.
+                </p>
+              )}
             <footer>
               <Button variant="secondary" onClick={closeDrawer}>
                 Close
@@ -639,7 +753,9 @@ export function UpgradePlansWorkspace({
                 )}
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&
-                plan.kind !== "UTILITY" && (
+                plan.kind !== "UTILITY" &&
+                Boolean(plan.planSpec) &&
+                !overdue && (
                   <>
                     {plan.scheduledFor &&
                     new Date(plan.scheduledFor).getTime() > Date.now() ? (
@@ -650,8 +766,10 @@ export function UpgradePlansWorkspace({
                     ) : confirmStart ? (
                       <>
                         <p>
-                          This starts an EKS version upgrade. Control-plane
-                          downgrades are unavailable.
+                          This starts the approved component operations for this
+                          step. Confirm application health and maintenance
+                          coverage before continuing. Recovery must follow the
+                          provider-supported procedure.
                         </p>
                         <Button
                           disabled={action.isPending}

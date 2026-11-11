@@ -37,7 +37,8 @@ from .connector_installation import ConnectorInstaller
 from .bootstrap_status import refresh_installer_status
 from .tool_access import resolve_tool_access
 from .upgrade_readiness import EksUpgradeDiscovery
-from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans, UpgradePlanAction
+from .upgrade_plans import CreateEksUpgradePlan, EksUpgradePlans
+from .upgrade_paths import CreateScopedUpgradePlan, ScopedUpgradePlanAction as UpgradePlanAction, ScopedEksUpgradePlans
 
 from .utility_upgrades import CreateUtilityUpgradePlan, UtilityUpgradePlans, plan_service
 
@@ -368,6 +369,7 @@ def execute(event, principal, correlation):
         "access",
         "platform-components",
         "upgrade-readiness",
+        "upgrade-options",
         "utility-upgrade-options",
         "tools",
     }
@@ -435,7 +437,7 @@ def execute(event, principal, correlation):
             if complete_github_authorization
             else NodeGroupRequestAction
             if node_group_action
-            else (CreateUtilityUpgradePlan if body.get("utilityCode") else CreateEksUpgradePlan)
+            else (CreateUtilityUpgradePlan if body.get("utilityCode") else CreateScopedUpgradePlan if body.get("upgradeScope") else CreateEksUpgradePlan)
             if create_upgrade_plan
             else UpgradePlanAction
             if upgrade_plan_action
@@ -504,10 +506,12 @@ def execute(event, principal, correlation):
                 elif node_group_execution_logs:
                     access.require("cluster.logs.view")
                     value = execution_logs(repo.get_node_group_request(identifier, parts[2]))
+                elif action == "upgrade-options":
+                    value = ScopedEksUpgradePlans(repo, access, correlation).options(identifier)
                 elif action == "utility-upgrade-options":
                     value = UtilityUpgradePlans(repo, access, correlation).options(identifier, query_of(event).get("utility", "").lower())
                 elif upgrade_plans:
-                    value = EksUpgradePlans(repo, access, correlation).list(identifier)
+                    value = ScopedEksUpgradePlans(repo, access, correlation).list(identifier)
                     value["items"].extend(UtilityUpgradePlans(repo, access, correlation).list(identifier)["items"])
                 elif upgrade_plan_detail:
                     service = plan_service(repo, access, correlation, identifier, parts[2])
@@ -648,7 +652,7 @@ def execute(event, principal, correlation):
             value = Service(repo, correlation).change_node_group_request(identifier, parts[2], parts[3], body)
             status = 202 if parts[3] in {"approve", "apply"} else 200
         elif create_upgrade_plan:
-            service = UtilityUpgradePlans(repo, access, correlation) if body.get("utilityCode") else EksUpgradePlans(repo, access, correlation)
+            service = UtilityUpgradePlans(repo, access, correlation) if body.get("utilityCode") else ScopedEksUpgradePlans(repo, access, correlation) if body.get("upgradeScope") else EksUpgradePlans(repo, access, correlation)
             value = service.create(identifier, body)
             status = 201
         elif upgrade_plan_action:

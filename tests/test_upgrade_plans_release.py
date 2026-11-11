@@ -62,6 +62,7 @@ def test_release_preserves_live_modules_and_adds_only_scoped_plan_code(tmp_path)
         assert "ConnectorUpgradeRequest" not in normalized
         assert "EksUpgradePlans" in normalized
         assert package.read(prefix + "utility_upgrades.py") == (ROOT / "src" / prefix / "utility_upgrades.py").read_bytes()
+        assert package.read(prefix + "upgrade_paths.py") == (ROOT / "src" / prefix / "upgrade_paths.py").read_bytes()
         assert package.read(prefix + "models.py") == live_models
         assert package.read(prefix + "upgrade_readiness.py") == live_readiness
         assert (
@@ -150,3 +151,17 @@ def test_release_rejects_drift_even_when_rescheduling_is_present(tmp_path):
         package.writestr(prefix + "upgrade_plans.py", baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_plans.py"))
     with pytest.raises(RuntimeError, match="Deployed handler differs"):
         release.package(source, tmp_path / "rejected.zip")
+
+
+def test_release_requires_path_schema_and_scoped_execution_privilege():
+    from unittest.mock import MagicMock
+    import pytest
+    release=load_release()
+    session=MagicMock()
+    session.client.return_value.describe_db_clusters.return_value={"DBClusters":[{"DBClusterArn":"cluster"}]}
+    parent={"Parameters":[{"ParameterKey":"DatabaseName","ParameterValue":"navigan"},{"ParameterKey":"ApiDatabaseSecretArn","ParameterValue":"secret"}]}
+    session.client.return_value.execute_statement.return_value={"formattedRecords":json.dumps([{"table_name":"table","runtime_grants":True,"utility_table":"utility","utility_grants":True,"planning_privilege":True}])}
+    with pytest.raises(RuntimeError,match="029–033"):
+        release.verify_database(session,parent)
+    session.client.return_value.execute_statement.return_value={"formattedRecords":json.dumps([{"table_name":"table","runtime_grants":True,"utility_table":"utility","utility_grants":True,"planning_privilege":True,"path_column":True,"execution_privilege":True}])}
+    release.verify_database(session,parent)

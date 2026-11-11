@@ -10,6 +10,16 @@ export const scopeTypes = [
 export type PlanScope = (typeof scopeTypes)[number]["id"];
 export function planScopes(plan: EksUpgradePlan): PlanScope[] {
   if (plan.kind === "UTILITY") return ["utilities"];
+  if (plan.planSpec) {
+    const kinds = new Set(
+      plan.planSpec.steps.flatMap((s) => s.operations.map((o) => o.kind)),
+    );
+    return [
+      ...(kinds.has("CONTROL_PLANE") ? ["cluster" as const] : []),
+      ...(kinds.has("NODEGROUP") ? ["nodes" as const] : []),
+      ...(kinds.has("ADDON") ? ["addons" as const] : []),
+    ];
+  }
   const evidence = plan.readinessEvidence;
   return [
     ...(plan.currentVersion !== plan.targetVersion ? ["cluster" as const] : []),
@@ -24,6 +34,23 @@ export function planScopes(plan: EksUpgradePlan): PlanScope[] {
       ? ["addons" as const]
       : []),
   ];
+}
+export function planTypeLabel(plan: EksUpgradePlan): string {
+  if (plan.kind === "UTILITY")
+    return plan.utilityEvidence?.label || "System utility upgrade";
+  return plan.planSpec?.scope === "NODES"
+    ? "Node group upgrade"
+    : plan.planSpec?.scope === "ADDONS"
+      ? "Managed add-on upgrade"
+      : "Cluster upgrade";
+}
+export function planVersionLabel(plan: EksUpgradePlan): string {
+  if (!plan.planSpec || plan.planSpec.scope === "CLUSTER")
+    return `${plan.currentVersion} → ${plan.targetVersion}`;
+  const ops = plan.planSpec.steps.flatMap((s) => s.operations);
+  return ops.length === 1
+    ? `${ops[0].from} → ${ops[0].to}`
+    : `${new Set(ops.map((o) => o.name)).size} components · ${ops.length} updates`;
 }
 export function PlanScopeLabel({ plan }: { plan: EksUpgradePlan }) {
   if (plan.kind === "UTILITY") {
@@ -48,7 +75,13 @@ export function PlanScopeLabel({ plan }: { plan: EksUpgradePlan }) {
   const scopes = planScopes(plan);
   return (
     <span className="upgrade-scope-label">
-      <Cpu size={18} aria-hidden="true" />
+      {plan.planSpec?.scope === "NODES" ? (
+        <Layers3 size={18} aria-hidden="true" />
+      ) : plan.planSpec?.scope === "ADDONS" ? (
+        <Puzzle size={18} aria-hidden="true" />
+      ) : (
+        <Cpu size={18} aria-hidden="true" />
+      )}
       {scopes.length
         ? scopes
             .map((s) =>
