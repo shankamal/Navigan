@@ -50,3 +50,10 @@ The existing main failure is a stale migration-management template hash in infra
 - Utility execution, automated scheduling and agentic execution are not implemented. Legacy plans require explicit component scope/windows before execution. Architect self-approval still requires effective privilege and scope.
 - Merging source does not execute database migrations, alter customer cloud resources or deploy PROD. Existing production evidence and unconfirmed frontend :56 execution remain as recorded in the consolidated checkpoint.
 - User deferred remaining product findings until tomorrow. The merge incorporates current implementation; it does not declare those findings resolved.
+
+## GitHub validation follow-up
+
+- Corrected backend CI passed all 2,108 tests including disposable PostgreSQL integration, API-document comparisons and Python lint.
+- Infrastructure/SAM validation/build and container build-once DEV/PROD fixture, startup and health checks passed.
+- Frontend typecheck, 519 tests, formatting and production build passed. Its first browser setup failed before tests because the runner could not resolve azure.archive.ubuntu.com while downloading optional font packages; its log shows the browser runtime libraries already installed. A fresh-runner retry also remained in OS setup for several minutes.
+- Frontend CI now installs bundled Chromium without --with-deps, using the hosted Ubuntu runtime libraries. Browser smoke scripts are unchanged; missing required libraries still cause launch failure. This avoids an unnecessary OS/font-package download dependency rather than suppressing tests. Verify this final workflow revision before merge.
