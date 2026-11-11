@@ -199,16 +199,19 @@ describe("Upgrade workspace", () => {
     expect(
       screen.queryByRole("button", { name: /Expand .*cluster/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Explore opportunities" }),
-    );
+    expect(
+      screen.queryByRole("button", { name: "Explore opportunities" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Hide opportunities" }),
+    ).not.toBeInTheDocument();
     expect(
       await screen.findByRole("table", {
         name: "Registered active clusters and upgrade readiness",
       }),
     ).toBeInTheDocument();
     const create = await screen.findByRole("button", {
-      name: "Create container plan",
+      name: "Create upgrade plan",
     });
     await waitFor(() => expect(create).toBeEnabled());
   });
@@ -225,7 +228,7 @@ describe("Upgrade workspace", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Create container plan" }),
+        screen.getByRole("button", { name: "Create upgrade plan" }),
       ).toBeDisabled();
     } finally {
       authIdentity.privileges = previous;
@@ -248,11 +251,8 @@ describe("Upgrade workspace", () => {
   it("shows a single-page planner with evidence ticks and saves then submits", async () => {
     mount();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Explore opportunities" }),
-    );
     const create = await screen.findByRole("button", {
-      name: "Create container plan",
+      name: "Create upgrade plan",
     });
     await waitFor(() => expect(create).toBeEnabled());
     fireEvent.click(create);
@@ -268,13 +268,19 @@ describe("Upgrade workspace", () => {
       screen.getByRole("heading", { name: "2. Components & readiness" }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("group", { name: "Upgrade strategy" }),
+    ).toHaveTextContent("Provider-managed rolling");
+    expect(
+      screen.queryByRole("combobox", { name: "Upgrade strategy" }),
+    ).not.toBeInTheDocument();
+    expect(
       screen.getByRole("heading", { name: "3. Maintenance & reason" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Managed node groups aligned").closest("li"),
     ).toHaveClass("check-passed");
     expect(
-      screen.getByText("Independent approval pending").closest("li"),
+      screen.getByText("Platform Architect approval").closest("li"),
     ).toHaveClass("check-pending");
     expect(
       screen.getByRole("button", { name: "Save & submit" }),
@@ -303,7 +309,7 @@ describe("Upgrade workspace", () => {
       ),
     );
     expect(
-      await screen.findByText(/Awaiting independent approval. Find it/),
+      await screen.findByText(/Awaiting Platform Architect approval. Find it/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: /Plans & Approvals/ }));
     expect(
@@ -372,9 +378,7 @@ describe("Upgrade workspace", () => {
           within(drawer).getByText("Keep cluster supported"),
         ).toBeInTheDocument();
         expect(
-          within(drawer)
-            .getByText("Independent approval recorded")
-            .closest("li"),
+          within(drawer).getByText("Platform Architect approval").closest("li"),
         ).toHaveClass("check-pending");
         expect(
           within(drawer).getByRole("button", { name: "Reject with reason" }),
@@ -667,7 +671,7 @@ describe("Upgrade workspace", () => {
       );
       fireEvent.click(
         screen.getByRole("button", {
-          name: kind === "utilities" ? "Utility upgrade" : "Container upgrade",
+          name: kind === "utilities" ? "Utility upgrade" : "Cluster upgrade",
         }),
       );
       if (kind === "utilities") {
@@ -681,7 +685,7 @@ describe("Upgrade workspace", () => {
         ).toBe(key + "T09:00");
       } else {
         const button = await screen.findByRole("button", {
-          name: "Create container plan",
+          name: "Create upgrade plan",
         });
         await waitFor(() => expect(button).toBeEnabled());
         fireEvent.click(button);

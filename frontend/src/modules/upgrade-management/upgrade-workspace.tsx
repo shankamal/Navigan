@@ -228,7 +228,13 @@ function PlanWizard({
       <button className="upgrade-back-link" type="button" onClick={onClose}>
         <ArrowLeft size={16} /> Upgrades & Patching
       </button>
-      <h2 className="sr-only">Create upgrade plan</h2>
+      <header className="upgrade-planner-heading">
+        <h2>Create upgrade plan</h2>
+        <p>
+          Review the cluster, confirm the upgrade scope and request a
+          maintenance time.
+        </p>
+      </header>
       <ClusterContext
         cluster={{
           clusterId: cluster.id,
@@ -238,9 +244,12 @@ function PlanWizard({
       />
       <div className="upgrade-cluster-strip">
         <div>
-          <small>Current cluster</small>
+          <small>Distribution</small>
           <strong>
-            <CloudCog size={22} /> {cluster.name}
+            <PlatformIdentity
+              identity={containerIdentity(cluster.provider)}
+              kind="platform"
+            />
           </strong>
         </div>
         <div>
@@ -262,19 +271,20 @@ function PlanWizard({
             <div className="upgrade-compact-fields">
               <label className="upgrade-live-field">
                 <span>Cluster</span>
-                <select aria-label="Plan cluster" value={cluster.id} disabled>
-                  <option value={cluster.id}>{cluster.name}</option>
-                </select>
+                <input
+                  aria-label="Plan cluster"
+                  value={cluster.name}
+                  readOnly
+                />
               </label>
               <label className="upgrade-live-field">
                 <span>Target EKS version</span>
-                <select
+                <input
                   aria-label="Plan target version"
                   value={target}
-                  disabled
-                >
-                  <option>{target}</option>
-                </select>
+                  readOnly
+                />
+                <small>Provider-supported next version</small>
               </label>
             </div>
           </section>
@@ -289,12 +299,18 @@ function PlanWizard({
                 Refresh evidence
               </Button>
             </div>
-            <label className="upgrade-strategy-line">
+            <div
+              className="upgrade-strategy-line"
+              role="group"
+              aria-label="Upgrade strategy"
+            >
               <span>Upgrade strategy</span>
-              <select aria-label="Upgrade strategy" value="rolling" disabled>
-                <option value="rolling">Provider-managed rolling</option>
-              </select>
-            </label>
+              <strong>Provider-managed rolling</strong>
+            </div>
+            <p className="upgrade-section-help">
+              The current EKS workflow uses a rolling upgrade: control plane
+              first, then compatible add-ons and managed node groups.
+            </p>
             <PlanComponents evidence={evidence} target={target} />
             <p>
               Only discovered EKS managed node groups and add-ons are included.
@@ -323,7 +339,7 @@ function PlanWizard({
                 />
                 <small>
                   {Intl.DateTimeFormat().resolvedOptions().timeZone} · Subject
-                  to independent approval
+                  to Platform Architect approval
                 </small>
               </label>
               <label className="upgrade-live-field">
@@ -359,7 +375,7 @@ function PlanWizard({
               pending={!scheduledFor}
             />
             <PlanCheck
-              label="Independent approval pending"
+              label="Platform Architect approval"
               passed={false}
               pending
             />
@@ -414,7 +430,7 @@ function PlanWizard({
         <div role="status" className="upgrade-submit-boundary">
           Plan {created.planId} ·{" "}
           {created.status === "SUBMITTED"
-            ? "Awaiting independent approval. Find it in Plans & History."
+            ? "Awaiting Platform Architect approval. Find it in Plans & Approvals."
             : "Draft saved. Submit when ready."}
         </div>
       )}
@@ -422,11 +438,11 @@ function PlanWizard({
         <span id="plan-save-help">
           {missing ||
             (created?.status === "SUBMITTED"
-              ? "Submitted for independent approval"
+              ? "Submitted for Platform Architect approval"
               : "Ready to save")}
         </span>
         <Button variant="secondary" onClick={onClose}>
-          Back to plans
+          Close
         </Button>
         <Button
           variant="secondary"
@@ -528,11 +544,7 @@ export function UpgradeWorkspace() {
             }}
           />
         ) : tab === "readiness" ? (
-          <LiveUpgradeCentre
-            onPlan={setPlanning}
-            onReview={openPlan}
-            showOpportunities={Boolean(requestedDate)}
-          />
+          <LiveUpgradeCentre onPlan={setPlanning} onReview={openPlan} />
         ) : (
           <SupportingTab
             tab={tab}

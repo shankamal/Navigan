@@ -2346,3 +2346,125 @@
 .upgrade-week-event small {
   display: none;
 }
+/* Keep cluster opportunities visible and make calendar creation unmistakable. */
+.upgrade-section-help {
+  font-size: 11px;
+  color: var(--upgrade-muted);
+  margin: 5px 0 0;
+}
+.upgrade-opportunities {
+  scroll-margin-top: 100px;
+}
+.upgrade-calendar-create-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(23, 37, 59, 0.2);
+}
+.upgrade-calendar-create-backdrop .upgrade-calendar-create {
+  width: min(500px, 100%);
+  margin: 0;
+  padding: 20px;
+  box-shadow: 0 12px 40px #17253b26;
+  border-radius: 8px;
+  outline: none;
+}
+.upgrade-calendar-create-backdrop .upgrade-calendar-create > div {
+  flex: 1 0 100%;
+  margin: 0 0 12px;
+}
+.upgrade-calendar-create strong {
+  font-size: 13px;
+}
+.upgrade-calendar-create p {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+  color: var(--upgrade-muted);
+}
+.upgrade-week-day header button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* One planner grid; metadata and version summary span the form, checklist aligns to fields. */
+.upgrade-reference-planner {
+  display: block;
+}
+.upgrade-reference-planner > .upgrade-back-link {
+  display: inline-flex;
+  margin-bottom: 12px;
+}
+.upgrade-planner-heading h2 {
+  font-size: var(--navigan-font-page-title, 18px);
+  margin: 0;
+}
+.upgrade-planner-heading p {
+  font-size: 12px;
+  color: var(--upgrade-muted);
+  margin: 6px 0 16px;
+}
+.upgrade-reference-planner > .upgrade-cluster-context {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.upgrade-reference-planner > .upgrade-cluster-context > div {
+  display: block;
+}
+.upgrade-reference-planner > .upgrade-cluster-context dt {
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+.upgrade-reference-planner > .upgrade-cluster-context dd {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.upgrade-reference-planner .upgrade-cluster-strip {
+  background: #fff;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.upgrade-reference-planner .upgrade-compact-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.3fr) minmax(250px, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.upgrade-reference-planner .upgrade-checklist {
+  grid-column: auto;
+  grid-row: auto;
+  position: sticky;
+  top: 90px;
+  background: #fff;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+}
+.upgrade-reference-planner .upgrade-compact-card {
+  background: #fff;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+}
+.upgrade-reference-planner .upgrade-compact-card h2 {
+  font-size: 13px;
+}
+@media (max-width: 1000px) {
+  .upgrade-reference-planner .upgrade-compact-layout {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-reference-planner .upgrade-checklist {
+    position: static;
+  }
+  .upgrade-reference-planner > .upgrade-cluster-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

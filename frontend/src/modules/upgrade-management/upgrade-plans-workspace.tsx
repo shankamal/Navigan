@@ -464,7 +464,7 @@ export function UpgradePlansWorkspace({
                 <dd>
                   {plan.approvedByName ||
                     plan.approvedBy ||
-                    "Awaiting independent approval"}
+                    "Awaiting Platform Architect approval"}
                 </dd>
               </div>
             </dl>
@@ -510,7 +510,7 @@ export function UpgradePlansWorkspace({
                   </Button>
                   <p>
                     Saving returns the plan to Draft and clears the previous
-                    submission. Submit it again for independent approval.
+                    submission. Submit it again for Platform Architect approval.
                   </p>
                 </>
               </div>
@@ -539,7 +539,8 @@ export function UpgradePlansWorkspace({
                 <ul className="upgrade-review-checks">
                   <EvidenceChecks evidence={plan.readinessEvidence} />
                   <PlanCheck
-                    label="Independent approval recorded"
+                    label="Platform Architect approval"
+                    completeLabel="Approved"
                     passed={Boolean(plan.approvedAt)}
                     pending
                   />
@@ -558,8 +559,8 @@ export function UpgradePlansWorkspace({
             {plan.status === "SUBMITTED" && !canReviewSelected && !overdue && (
               <p role="status">
                 Submitted for Platform Architect approval. No review comments
-                are required from you. An independent authorized Platform
-                Architect can review and approve or reject this request.
+                are required from you. A different authorized Platform Architect
+                can review and approve or reject this request.
               </p>
             )}
             {canReviewSelected && (

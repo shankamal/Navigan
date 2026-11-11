@@ -91,10 +91,16 @@ it("offers container and utility requests for a selected future date, with no ac
   fireEvent.click(
     screen.getByRole("button", { name: "Create upgrade on 2026-11-10" }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Container upgrade" }));
+  const dialog = screen.getByRole("dialog", {
+    name: /New maintenance request/,
+  });
+  expect(dialog).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Cluster upgrade" }));
   expect(onCreate).toHaveBeenCalledWith("containers", "2026-11-10");
   fireEvent.click(screen.getByRole("button", { name: "Utility upgrade" }));
   expect(onCreate).toHaveBeenCalledWith("utilities", "2026-11-10");
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 it("shows a Monday-based week, opens entries directly and filters requested starts", () => {

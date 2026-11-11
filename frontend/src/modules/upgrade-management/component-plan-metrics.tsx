@@ -46,10 +46,10 @@ export function ComponentPlanMetrics({
       aria-busy={loading}
     >
       <header>
-        <h2>Plans by component scope</h2>
+        <h2>Upgrade plans by type</h2>
         <p>
-          A plan may include multiple component types. Kept versions are
-          excluded.
+          Counts show saved plans. One plan may affect multiple types. Kept
+          versions are excluded.
         </p>
       </header>
       <div className="upgrade-component-metric-grid">

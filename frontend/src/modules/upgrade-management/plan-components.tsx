@@ -195,10 +195,12 @@ export function PlanCheck({
   label,
   passed,
   pending = false,
+  completeLabel = "Complete",
 }: {
   label: string;
   passed: boolean;
   pending?: boolean;
+  completeLabel?: string;
 }) {
   const Icon = passed ? CheckCircle2 : pending ? Circle : AlertTriangle;
   return (
@@ -206,7 +208,9 @@ export function PlanCheck({
       <Icon size={18} aria-hidden="true" />
       <span>
         {label}
-        <small>{passed ? "Complete" : pending ? "Pending" : "Required"}</small>
+        <small>
+          {passed ? completeLabel : pending ? "Pending" : "Required"}
+        </small>
       </span>
     </li>
   );

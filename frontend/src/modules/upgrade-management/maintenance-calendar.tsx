@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   Cluster,
   EksUpgradePlan,
@@ -40,6 +41,18 @@ export function MaintenanceCalendar({
     ),
     [selected, setSelected] = useState(() => dayKey(new Date(now)));
   const [createDate, setCreateDate] = useState<string>();
+  const createDialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!createDate) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    createDialog.current?.focus();
+    return () => {
+      document.body.style.overflow = overflow;
+      previous?.focus();
+    };
+  }, [createDate]);
   const [search, setSearch] = useState("");
   const [customer, setCustomer] = useState("all");
   const [environment, setEnvironment] = useState("all");
@@ -233,36 +246,80 @@ export function MaintenanceCalendar({
           ))}
         </select>
       </div>
-      {canCreate && createDate && (
-        <div
-          className="upgrade-calendar-create"
-          role="group"
-          aria-label="Create upgrade on selected date"
-        >
-          <div>
-            <strong>
-              New maintenance request ·{" "}
-              {new Date(createDate + "T12:00:00").toLocaleDateString()}
-            </strong>
-            <p>
-              Choose the upgrade type, then select a cluster and review
-              readiness.
-            </p>
-          </div>
-          <Button onClick={() => onCreate?.("containers", createDate)}>
-            Container upgrade
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => onCreate?.("utilities", createDate)}
+      {canCreate &&
+        createDate &&
+        createPortal(
+          <div
+            className="upgrade-calendar-create-backdrop"
+            onClick={() => setCreateDate(undefined)}
           >
-            Utility upgrade
-          </Button>
-          <Button variant="secondary" onClick={() => setCreateDate(undefined)}>
-            Close
-          </Button>
-        </div>
-      )}
+            <div
+              ref={createDialog}
+              tabIndex={-1}
+              className="upgrade-calendar-create"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="calendar-create-title"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setCreateDate(undefined);
+                }
+                if (event.key === "Tab") {
+                  const buttons = Array.from(
+                    createDialog.current?.querySelectorAll<HTMLButtonElement>(
+                      "button:not(:disabled)",
+                    ) ?? [],
+                  );
+                  const first = buttons[0],
+                    last = buttons.at(-1);
+                  if (
+                    event.shiftKey &&
+                    (document.activeElement === first ||
+                      document.activeElement === createDialog.current)
+                  ) {
+                    event.preventDefault();
+                    last?.focus();
+                  } else if (
+                    !event.shiftKey &&
+                    document.activeElement === last
+                  ) {
+                    event.preventDefault();
+                    first?.focus();
+                  }
+                }
+              }}
+            >
+              <div>
+                <strong id="calendar-create-title">
+                  New maintenance request ·{" "}
+                  {new Date(createDate + "T12:00:00").toLocaleDateString()}
+                </strong>
+                <p>
+                  Choose the upgrade type, then select a cluster and review
+                  readiness.
+                </p>
+              </div>
+              <Button onClick={() => onCreate?.("containers", createDate)}>
+                Cluster upgrade
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => onCreate?.("utilities", createDate)}
+              >
+                Utility upgrade
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setCreateDate(undefined)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>,
+          document.body,
+        )}
       <ul className="upgrade-stage-key">
         {["Draft", "Awaiting approval", "Scheduled", "Running", "Overdue"].map(
           (stage) => (
@@ -345,6 +402,11 @@ export function MaintenanceCalendar({
                     className="upgrade-calendar-add"
                     aria-label={`Create upgrade on ${key}`}
                     disabled={key < dayKey(new Date(now))}
+                    title={
+                      key < dayKey(new Date(now))
+                        ? "Past dates cannot be scheduled. Choose today or a future date."
+                        : "Create a cluster or utility upgrade"
+                    }
                     onClick={() => {
                       setSelected(key);
                       setCreateDate(key);
@@ -394,6 +456,11 @@ export function MaintenanceCalendar({
                       <button
                         aria-label={`Create upgrade on ${key}`}
                         disabled={key < dayKey(new Date(now))}
+                        title={
+                          key < dayKey(new Date(now))
+                            ? "Past dates cannot be scheduled. Choose today or a future date."
+                            : "Create a cluster or utility upgrade"
+                        }
                         onClick={() => {
                           setSelected(key);
                           setCreateDate(key);
@@ -424,7 +491,7 @@ export function MaintenanceCalendar({
                       <button
                         key={row.plan.planId}
                         className="upgrade-week-event"
-                        title={`${row.clusterName} · ${row.plan.kind === "UTILITY" ? row.plan.utilityEvidence?.label : "Container upgrade"} · ${planStage(row.plan, now)}`}
+                        title={`${row.clusterName} · ${row.plan.kind === "UTILITY" ? row.plan.utilityEvidence?.label : "Cluster upgrade"} · ${planStage(row.plan, now)}`}
                         data-status={planStage(row.plan, now)}
                         onClick={() => onReview(row.plan.planId)}
                         style={{
@@ -446,7 +513,7 @@ export function MaintenanceCalendar({
                         <span>
                           {row.plan.kind === "UTILITY"
                             ? row.plan.utilityEvidence?.label
-                            : "Container upgrade"}
+                            : "Cluster upgrade"}
                         </span>
                         <small>{planStage(row.plan, now)}</small>
                       </button>
@@ -475,7 +542,7 @@ export function MaintenanceCalendar({
                   {row.clusterName} ·{" "}
                   {row.plan.kind === "UTILITY"
                     ? row.plan.utilityEvidence?.label
-                    : "Container upgrade"}
+                    : "Cluster upgrade"}
                 </strong>
                 <PlanScopeLabel plan={row.plan} />
                 <p>

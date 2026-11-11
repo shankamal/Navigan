@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { AlertTriangle, RefreshCw, Plus } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
@@ -56,9 +56,7 @@ function liveCluster(
 export function LiveUpgradeCentre({
   onPlan,
   onReview,
-  showOpportunities = false,
 }: {
-  showOpportunities?: boolean;
   onPlan: (cluster: UpgradeCluster) => void;
   onReview: (id: string | null, reschedule?: boolean) => void;
 }) {
@@ -69,7 +67,7 @@ export function LiveUpgradeCentre({
   const [status, setStatus] = useState("all");
   const [customer, setCustomer] = useState("all");
   const [environment, setEnvironment] = useState("all");
-  const [opportunities, setOpportunities] = useState(showOpportunities);
+  const opportunitiesRef = useRef<HTMLElement>(null);
   const active = data.fleet.filter((c) => c.status === "ACTIVE");
   const evidence = useQueries({
     queries: active.map((c) => ({
@@ -146,7 +144,13 @@ export function LiveUpgradeCentre({
       )}
       <section aria-label="Upgrade requests">
         <header className="upgrade-centre-section-heading">
-          <h2>Upgrade requests</h2>
+          <div>
+            <h2>Saved upgrade plans</h2>
+            <p className="upgrade-section-help">
+              Only created plans appear here. All active clusters are listed
+              below.
+            </p>
+          </div>
           <div className="upgrade-action-group">
             <Button
               variant="secondary"
@@ -158,7 +162,15 @@ export function LiveUpgradeCentre({
               <RefreshCw size={15} />
               Refresh inventory
             </Button>
-            <Button onClick={() => setOpportunities(!opportunities)}>
+            <Button
+              onClick={() => {
+                opportunitiesRef.current?.scrollIntoView?.({
+                  behavior: "smooth",
+                  block: "start",
+                });
+                opportunitiesRef.current?.focus();
+              }}
+            >
               <Plus size={15} />
               Create plan
             </Button>
@@ -306,111 +318,110 @@ export function LiveUpgradeCentre({
           </p>
         )}
       </section>
-      <section className="upgrade-opportunities">
+      <section
+        className="upgrade-opportunities"
+        ref={opportunitiesRef}
+        tabIndex={-1}
+        aria-label="Available cluster upgrades"
+      >
         <header className="upgrade-centre-section-heading">
           <div>
-            <h2>Available container upgrades</h2>
-            <p>Live cluster readiness is separate from saved upgrade plans.</p>
+            <h2>Available cluster upgrades</h2>
+            <p>
+              All active managed clusters, their readiness and existing plans.
+            </p>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => setOpportunities(!opportunities)}
-          >
-            {opportunities ? "Hide opportunities" : "Explore opportunities"}
-          </Button>
         </header>
-        {opportunities && (
-          <div className="table-scroll">
-            <table className="upgrade-request-table">
-              <caption className="sr-only">
-                Registered active clusters and upgrade readiness
-              </caption>
-              <thead>
-                <tr>
-                  <th>Cluster / context</th>
-                  <th>Distribution</th>
-                  <th>Version change</th>
-                  <th>Readiness</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {active.map((cluster, i) => {
-                  const q = evidence[i],
-                    e = q.data;
-                  const existing = data.rows.find(
-                    (r) =>
-                      r.plan.kind !== "UTILITY" &&
-                      r.plan.clusterId === cluster.clusterId &&
-                      [
-                        "DRAFT",
-                        "SUBMITTED",
-                        "APPROVED",
-                        "SCHEDULED",
-                        "EXECUTING",
-                      ].includes(r.plan.status),
-                  )?.plan;
-                  const state = data.stateForCluster(cluster.clusterId);
-                  const blocked = planningBlockReason(data.identity, e, {
-                    readinessPending: q.isFetching,
-                    readinessError: q.isError,
-                    planPending: state.pending,
-                    planError: state.error,
-                    activePlan: existing,
-                  });
-                  return (
-                    <tr key={cluster.clusterId}>
-                      <td>
-                        <strong>{cluster.clusterName}</strong>
-                        <small>
-                          {cluster.customerName ?? cluster.customerId} ·{" "}
-                          {cluster.environmentName}
-                        </small>
-                      </td>
-                      <td>
-                        <PlatformIdentity
-                          identity={containerIdentity(cluster.platform)}
-                          kind="platform"
-                        />
-                      </td>
-                      <td>
-                        {e?.controlPlane.version ?? "Not reported"} →{" "}
-                        {e?.recommendedTarget?.version ?? "No target reported"}
-                      </td>
-                      <td>
-                        {q.isError
-                          ? "Evidence unavailable"
-                          : q.isPending
-                            ? "Checking…"
-                            : (e?.readiness.status ?? "Not reported")}
-                      </td>
-                      <td>
-                        {existing ? (
+        <div className="table-scroll">
+          <table className="upgrade-request-table">
+            <caption className="sr-only">
+              Registered active clusters and upgrade readiness
+            </caption>
+            <thead>
+              <tr>
+                <th>Cluster / context</th>
+                <th>Distribution</th>
+                <th>Version change</th>
+                <th>Readiness</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {active.map((cluster, i) => {
+                const q = evidence[i],
+                  e = q.data;
+                const existing = data.rows.find(
+                  (r) =>
+                    r.plan.kind !== "UTILITY" &&
+                    r.plan.clusterId === cluster.clusterId &&
+                    [
+                      "DRAFT",
+                      "SUBMITTED",
+                      "APPROVED",
+                      "SCHEDULED",
+                      "EXECUTING",
+                    ].includes(r.plan.status),
+                )?.plan;
+                const state = data.stateForCluster(cluster.clusterId);
+                const blocked = planningBlockReason(data.identity, e, {
+                  readinessPending: q.isFetching,
+                  readinessError: q.isError,
+                  planPending: state.pending,
+                  planError: state.error,
+                  activePlan: existing,
+                });
+                return (
+                  <tr key={cluster.clusterId}>
+                    <td>
+                      <strong>{cluster.clusterName}</strong>
+                      <small>
+                        {cluster.customerName ?? cluster.customerId} ·{" "}
+                        {cluster.environmentName}
+                      </small>
+                    </td>
+                    <td>
+                      <PlatformIdentity
+                        identity={containerIdentity(cluster.platform)}
+                        kind="platform"
+                      />
+                    </td>
+                    <td>
+                      {e?.controlPlane.version ?? "Not reported"} →{" "}
+                      {e?.recommendedTarget?.version ?? "No target reported"}
+                    </td>
+                    <td>
+                      {q.isError
+                        ? "Evidence unavailable"
+                        : q.isPending
+                          ? "Checking…"
+                          : (e?.readiness.status ?? "Not reported")}
+                    </td>
+                    <td>
+                      {existing ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => onReview(existing.planId)}
+                        >
+                          Review existing plan
+                        </Button>
+                      ) : (
+                        <>
                           <Button
-                            variant="secondary"
-                            onClick={() => onReview(existing.planId)}
+                            disabled={!!blocked}
+                            onClick={() => onPlan(liveCluster(cluster, e))}
                           >
-                            View plan
+                            Create upgrade plan
                           </Button>
-                        ) : (
-                          <>
-                            <Button
-                              disabled={!!blocked}
-                              onClick={() => onPlan(liveCluster(cluster, e))}
-                            >
-                              Create container plan
-                            </Button>
-                            {blocked && <small>{blocked}</small>}
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                          {blocked && <small>{blocked}</small>}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
