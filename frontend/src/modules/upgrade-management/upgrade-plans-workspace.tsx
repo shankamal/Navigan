@@ -111,11 +111,13 @@ export function UpgradePlansWorkspace({
   const canPlan = hasPermission(data.identity, "cluster.upgrade.plan");
   const canExecute = hasPermission(data.identity, "cluster.upgrade.execute");
   const subject = data.identity?.subject;
+  const canSelfApprove =
+    canApprove && Boolean(data.identity?.roles.includes("PLATFORM_ARCHITECT"));
   const waiting = data.rows.filter(
     (row) =>
       row.plan.status === "SUBMITTED" &&
-      row.plan.createdBy !== subject &&
-      row.plan.submittedBy !== subject &&
+      (canSelfApprove ||
+        (row.plan.createdBy !== subject && row.plan.submittedBy !== subject)) &&
       !scheduleOverdue(row.plan, now) &&
       canApprove,
   );
@@ -209,8 +211,8 @@ export function UpgradePlansWorkspace({
     plan.status === "SUBMITTED" &&
     canApprove &&
     !overdue &&
-    plan.createdBy !== subject &&
-    plan.submittedBy !== subject,
+    (canSelfApprove ||
+      (plan.createdBy !== subject && plan.submittedBy !== subject)),
   );
   const rescheduleBlocked = plan
     ? rescheduleBlockReason(data.identity, plan)
@@ -702,6 +704,19 @@ export function UpgradePlansWorkspace({
                     : "Your current account does not have the approval privilege for this request. A Platform Architect role label alone does not establish effective approval permission."}
               </p>
             )}
+            {canReviewSelected &&
+              (plan.createdBy === subject || plan.submittedBy === subject) && (
+                <p role="status">
+                  You can approve your own plan as Platform Architect. This
+                  decision will be recorded as self-approval.
+                </p>
+              )}
+            {plan.execution.approval &&
+            typeof plan.execution.approval === "object" &&
+            "selfApproved" in plan.execution.approval &&
+            plan.execution.approval.selfApproved === true ? (
+              <p>Approval mode: Platform Architect self-approval</p>
+            ) : null}
             {canReviewSelected && (
               <label className="upgrade-live-field">
                 <span>
@@ -768,7 +783,9 @@ export function UpgradePlansWorkspace({
                     disabled={action.isPending}
                     onClick={() => run("approve")}
                   >
-                    Approve plan
+                    {plan.createdBy === subject || plan.submittedBy === subject
+                      ? "Approve own plan"
+                      : "Approve plan"}
                   </Button>
                 </>
               )}

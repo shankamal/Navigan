@@ -15,6 +15,9 @@ from .repository import serialize
 from .upgrade_readiness import EksUpgradeDiscovery
 
 
+SELF_APPROVAL_POLICY = "PLATFORM_ARCHITECT_SELF_APPROVAL_V1"
+
+
 ACTIVE = {"DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED", "EXECUTING"}
 
 
@@ -63,6 +66,25 @@ class EksUpgradePlans:
                 preferred = getattr(self.access, "display_name", None)
             result[{"created":"createdByName", "submitted":"submittedByName", "approved":"approvedByName"}[actor]] = self._actor_names.resolve(actor_id, preferred)
         return result
+
+    def allows_self_approval(self):
+        principal = getattr(self.repo, "principal", None)
+        return "PLATFORM_ARCHITECT" in getattr(principal, "roles", ())
+
+    @staticmethod
+    def recorded_approval_valid(plan):
+        approver = plan.get("approved_by")
+        if not approver:
+            return False
+        if approver not in {plan.get("created_by"), plan.get("submitted_by")}:
+            return True
+        approval = (plan.get("execution") or {}).get("approval") or {}
+        if not isinstance(approval, dict):
+            return False
+        return (approval.get("policy") == SELF_APPROVAL_POLICY
+                and approval.get("actorId") == approver
+                and approval.get("selfApproved") is True
+                and approval.get("role") == "PLATFORM_ARCHITECT")
 
     def require_approval(self):
         if not (self.access.has("cluster.upgrade.approve") or self.access.has("cluster.approve")):
@@ -200,22 +222,32 @@ class EksUpgradePlans:
             self.require_approval()
             self._require_status(plan, {"SUBMITTED"})
             self._require_future_requested_time(plan)
-            if self.access.user_id in {plan["created_by"], plan.get("submitted_by")}:
+            self_review = self.access.user_id in {plan["created_by"], plan.get("submitted_by")}
+            if self_review and not self.allows_self_approval():
                 raise ApiError(
                     409,
                     "MAKER_CHECKER_REQUIRED",
-                    "A different authorized user must approve this upgrade plan.",
+                    "Only an authorized Platform Architect can approve their own upgrade plan.",
                 )
             status = (
                 "SCHEDULED" if plan.get("scheduled_for") and plan["scheduled_for"] > utcnow() else "APPROVED"
             )
+            approved_at = utcnow()
+            execution = dict(plan.get("execution") or {})
+            execution["approval"] = {
+                "policy": SELF_APPROVAL_POLICY if self_review else "REVIEWER_APPROVAL_V1",
+                "actorId": self.access.user_id, "selfApproved": self_review,
+                "role": "PLATFORM_ARCHITECT" if self_review else "AUTHORIZED_REVIEWER",
+                "approvedAt": approved_at.isoformat(), "planVersion": plan["version"],
+            }
             return self._transition(
                 plan,
                 status,
-                "EksUpgradePlanApproved",
+                "EksUpgradePlanSelfApproved" if self_review else "EksUpgradePlanApproved",
                 {
                     "approved_by": self.access.user_id,
-                    "approved_at": utcnow(),
+                    "approved_at": approved_at,
+                    "execution": execution,
                 },
             )
         if action == "reject":

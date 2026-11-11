@@ -94,7 +94,7 @@ def test_release_updates_reviewed_installed_plans_without_duplicate_members(tmp_
         package.writestr(prefix + "handler.py", release.scoped_handler_target(
             baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py")))
         package.writestr(prefix + "upgrade_readiness.py", baseline(
-            release.BASELINE_TREE, "src/" + prefix + "upgrade_readiness.py"))
+            release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_readiness.py"))
         package.writestr(prefix + "upgrade_plans.py", baseline(
             release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_plans.py"))
     release.package(source, target)
@@ -148,7 +148,7 @@ def test_release_rejects_drift_even_when_rescheduling_is_present(tmp_path):
     source = tmp_path / "drift.zip"
     with zipfile.ZipFile(source, "w") as package:
         package.writestr(prefix + "handler.py", handler)
-        package.writestr(prefix + "upgrade_readiness.py", baseline(release.BASELINE_TREE, "src/" + prefix + "upgrade_readiness.py"))
+        package.writestr(prefix + "upgrade_readiness.py", baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_readiness.py"))
         package.writestr(prefix + "upgrade_plans.py", baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_plans.py"))
     with pytest.raises(RuntimeError, match="Deployed handler differs"):
         release.package(source, tmp_path / "rejected.zip")
@@ -177,8 +177,8 @@ def test_assembled_production_package_serves_options_with_real_discovery(tmp_pat
     release=load_release()
     prefix="navigan/modules/cluster_management/"
     source,target=tmp_path/"production.zip",tmp_path/"updated.zip"
-    deployed_discovery=baseline(release.BASELINE_TREE,"src/"+prefix+"upgrade_readiness.py")
-    assert "def client(" not in deployed_discovery.decode()
+    deployed_discovery=baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"upgrade_readiness.py")
+    assert "def client(" in deployed_discovery.decode()
     with zipfile.ZipFile(source,"w") as archive:
         archive.writestr(prefix+"handler.py",release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"handler.py")))
         archive.writestr(prefix+"upgrade_readiness.py",deployed_discovery)

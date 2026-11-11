@@ -1,4 +1,4 @@
-"""Scoped utility release discovery and persisted, independently reviewed plans.
+"""Scoped utility release discovery and persisted, authorized review plans.
 
 Planning never changes the system repository or a Kubernetes resource.
 """

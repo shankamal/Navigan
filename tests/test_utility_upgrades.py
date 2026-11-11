@@ -121,3 +121,18 @@ def test_role_migration_changes_only_upgrade_grants_and_preserves_custom_denies(
     assert "rp.effect='ALLOW' AND rp.created_by='SYSTEM'" in source
     assert "r.role_type='SYSTEM_TEMPLATE'" in source
     assert "'cluster.plan'" not in source
+
+
+def test_platform_architect_self_approval_applies_to_utility_review_only():
+    from types import SimpleNamespace
+    plans,repo=service()
+    plans.access=access('architect',('cluster.upgrade.approve',))
+    repo.principal=SimpleNamespace(roles=frozenset({'PLATFORM_ARCHITECT'}))
+    plans.get=MagicMock(return_value={'version':1,'created_by':'architect','submitted_by':'engineer','status':'SUBMITTED','scheduled_for':utcnow()+timedelta(days=1),'execution':{}})
+    plans._transition=MagicMock(return_value={'status':'SCHEDULED'})
+    result=plans.change('CLU-live','UPG-plan','approve',{'version':1})
+    assert result['status']=='SCHEDULED'
+    assert plans._transition.call_args.args[3]['execution']['approval']['selfApproved'] is True
+    with pytest.raises(ApiError) as error:
+        plans.change('CLU-live','UPG-plan','execute',{'version':1})
+    assert error.value.code=='UTILITY_EXECUTION_NOT_ENABLED'

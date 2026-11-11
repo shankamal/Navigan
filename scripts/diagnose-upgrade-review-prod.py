@@ -128,7 +128,7 @@ def inspect_plan(session, plan_id, reviewer_email):
                 result["databaseApprovalPrivilege"] = access.has("cluster.approve") or access.has("cluster.upgrade.approve")
                 result["databaseCustomerScope"] = access.can_access_customer(row["customer_id"])
             if result["reviewerMatchesCreator"] or result["reviewerMatchesSubmitter"]:
-                result["approvalFinding"] = "SELF_APPROVAL_BLOCKED"
+                result["approvalFinding"] = "SELF_REVIEW_REQUIRES_ARCHITECT_ROLE_AND_APPROVAL_PRIVILEGE"
             elif user and not result["databaseApprovalPrivilege"]:
                 result["approvalFinding"] = "DATABASE_APPROVAL_PRIVILEGE_MISSING"
             else:

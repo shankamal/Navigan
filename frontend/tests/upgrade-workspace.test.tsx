@@ -476,8 +476,8 @@ describe("Upgrade workspace", () => {
     ["new engineer submission", ["cluster.upgrade.plan"], "architect-reviewer"],
     ["engineer resubmission", ["cluster.upgrade.plan"], "original-maker"],
     [
-      "reviewer submitting their own plan",
-      ["cluster.upgrade.plan", "cluster.upgrade.approve"],
+      "planner submitting their own plan",
+      ["cluster.upgrade.plan"],
       "architect-reviewer",
     ],
   ])(
@@ -903,7 +903,10 @@ it.each([
       mount();
       fireEvent.click(await screen.findByRole("button", { name: "View plan" }));
       const drawer = screen.getByRole("dialog", {
-        name: "Upgrade plan details",
+        name:
+          status === "SUBMITTED"
+            ? "Review upgrade plan"
+            : "Upgrade plan details",
       });
       const field = (name: string) =>
         within(drawer)
@@ -938,3 +941,70 @@ it.each([
     }
   },
 );
+
+it("allows an authorized Platform Architect to approve their own submitted plan", async () => {
+  const oldPrivileges = authIdentity.privileges;
+  const original = vi.mocked(clusters.upgradePlans).getMockImplementation()!;
+  authIdentity.privileges = ["cluster.upgrade.approve"];
+  const plan = {
+    planId: "UPG-self",
+    clusterId: "CLU-live",
+    customerId: "CUS-live",
+    provider: "EKS",
+    kind: "CONTAINER",
+    currentVersion: "1.34",
+    targetVersion: "1.35",
+    strategy: "PROVIDER_MANAGED_ROLLING",
+    status: "SUBMITTED",
+    scheduledFor: "2027-03-01T12:00:00Z",
+    changeReason: "Approve our upgrade schedule",
+    readinessEvidence: await clusters.upgradeReadiness("CLU-live"),
+    execution: {},
+    version: 3,
+    createdBy: "architect-reviewer",
+    submittedBy: "another-engineer",
+    createdAt: "2026-11-11T06:00:00Z",
+    updatedAt: "2026-11-11T06:00:00Z",
+    updatedBy: "another-engineer",
+  } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+  vi.mocked(clusters.upgradePlans).mockResolvedValue({
+    clusterId: "CLU-live",
+    customerId: "CUS-live",
+    items: [plan],
+  });
+  vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
+    ...plan,
+    status: "SCHEDULED",
+    approvedBy: "architect-reviewer",
+  });
+  try {
+    mount();
+    fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Awaiting my review (1)" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Review plan" }));
+    const drawer = screen.getByRole("dialog", { name: "Review upgrade plan" });
+    expect(
+      within(drawer).getByText(
+        /You can approve your own plan as Platform Architect/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(drawer).getByRole("button", { name: "Approve own plan" }),
+    );
+    await waitFor(() =>
+      expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+        "CLU-live",
+        "UPG-self",
+        "approve",
+        3,
+        undefined,
+      ),
+    );
+    fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
+  } finally {
+    authIdentity.privileges = oldPrivileges;
+    vi.mocked(clusters.upgradePlans).mockImplementation(original);
+  }
+});

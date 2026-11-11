@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 # PROD backend uses the reviewed maker/reviewer container/utility release.
 # Keep all deployed modules pinned together before replacing scoped plan code.
-DEPLOYED_PLAN_TREE = "f26a0a064236af6d1149e6491ded5e8c63587817"
+DEPLOYED_PLAN_TREE = "e2ac592242bf75419643874223400e9adefbd529"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ClusterUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/upgrade-options",
@@ -276,7 +276,8 @@ def package(original, destination):
             "Deployed handler differs from the reviewed production baseline",
         )
         reviewed_readiness = git_source(
-            BASELINE_TREE, "src/navigan/modules/cluster_management/upgrade_readiness.py"
+            DEPLOYED_PLAN_TREE if plans_installed else BASELINE_TREE,
+            "src/navigan/modules/cluster_management/upgrade_readiness.py"
         )
         require(
             semantic(old.read(readiness)) == semantic(reviewed_readiness),
@@ -289,6 +290,8 @@ def package(original, destination):
             )
         if paths_module in names:
             require(semantic(old.read(paths_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + paths_module)), "Deployed component-path module differs from reviewed release")
+        if actors_module in names:
+            require(semantic(old.read(actors_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + actors_module)), "Deployed actor-name module differs from reviewed release")
         if utility_module in names:
             require(semantic(old.read(utility_module)) == semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + utility_module)), "Deployed utility plan module differs from reviewed release")
         target_handler = scoped_handler_target(

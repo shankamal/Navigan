@@ -214,3 +214,16 @@ def test_control_plane_plan_requires_node_catchup_before_approval(service):
         row(service)
     p=row(service,payload("NODES",nodeGroups=["system"]))
     assert p["plan_spec"]["steps"][0]["operations"][0]["to"]=="1.34"
+
+
+def test_engineer_executes_recorded_architect_self_approval_but_not_unrecorded_self_approval(service):
+    p=approve(row(service),utcnow()-timedelta(minutes=1))
+    p.update(created_by="architect",approved_by="architect")
+    with pytest.raises(ApiError,match="policy record"):
+        service._execute(p)
+    assert service.discovery.eks.writes==[]
+    p["execution"]={"approval":{"policy":"PLATFORM_ARCHITECT_SELF_APPROVAL_V1","actorId":"architect","role":"PLATFORM_ARCHITECT","selfApproved":True}}
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p)
+    assert service.discovery.eks.writes[-1][0]=="CONTROL_PLANE"
+    assert saved[-1]["execution"]["approval"]["selfApproved"] is True

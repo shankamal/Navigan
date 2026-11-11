@@ -343,3 +343,48 @@ def test_refresh_identifies_the_active_eks_resource(phase, resource_key, resourc
             resource_key: resource_name,
         }
     ]
+
+
+@pytest.mark.parametrize("self_actor", ["creator", "submitter"])
+def test_verified_platform_architect_can_self_approve_and_audits_policy(self_actor):
+    from types import SimpleNamespace
+    plan=base_plan()
+    if self_actor == "submitter":plan["created_by"]="another-maker"
+    plan["execution"]={"existingEvidence":"preserved"}
+    service=TransitionPlans(plan,Access("architect-a",{"cluster.upgrade.approve"}))
+    service.repo.principal=SimpleNamespace(roles=frozenset({"PLATFORM_ARCHITECT"}))
+    service._audit=MagicMock()
+    result=service.change("CLU-live",plan["plan_id"],"approve",{"version":1})
+    assert result["approvedBy"]=="architect-a"
+    assert result["execution"]["existingEvidence"]=="preserved"
+    assert result["execution"]["approval"]["policy"]=="PLATFORM_ARCHITECT_SELF_APPROVAL_V1"
+    assert result["execution"]["approval"]["selfApproved"] is True
+    assert service.recorded_approval_valid(service.row)
+    assert service._audit.call_args.args[2]=="EksUpgradePlanSelfApproved"
+
+
+def test_architect_role_cannot_override_missing_effective_approval_privilege():
+    from types import SimpleNamespace
+    service=TransitionPlans(base_plan(),Access("architect-a",{"cluster.view"}))
+    service.repo.principal=SimpleNamespace(roles=frozenset({"PLATFORM_ARCHITECT"}))
+    with pytest.raises(ApiError) as error:
+        service.change("CLU-live",service.row["plan_id"],"approve",{"version":1})
+    assert error.value.status==403
+    assert service.row["approved_by"] is None
+
+
+def test_engineer_even_with_custom_approval_privilege_cannot_self_approve():
+    from types import SimpleNamespace
+    service=TransitionPlans(base_plan(),Access("architect-a",{"cluster.upgrade.approve"}))
+    service.repo.principal=SimpleNamespace(roles=frozenset({"CLOUD_ENGINEER"}))
+    with pytest.raises(ApiError) as error:
+        service.change("CLU-live",service.row["plan_id"],"approve",{"version":1})
+    assert error.value.code=="MAKER_CHECKER_REQUIRED"
+
+
+@pytest.mark.parametrize("change", [{"actorId":"another-user"},{"role":"CLOUD_ENGINEER"},{"policy":"OTHER"},{"selfApproved":False}])
+def test_execution_rejects_inconsistent_self_approval_record(change):
+    plan=base_plan()
+    plan['approved_by']=plan['created_by']
+    plan['execution']={'approval':{'policy':'PLATFORM_ARCHITECT_SELF_APPROVAL_V1','actorId':plan['created_by'],'role':'PLATFORM_ARCHITECT','selfApproved':True,**change}}
+    assert not EksUpgradePlans.recorded_approval_valid(plan)

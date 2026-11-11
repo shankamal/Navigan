@@ -352,8 +352,8 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
         spec = plan.get("plan_spec")
         if not spec:
             fail("UPGRADE_PLAN_REVISION_REQUIRED", "Recreate this legacy plan with explicit component scope and maintenance windows before execution.")
-        if not plan.get("approved_by") or plan["approved_by"] in {plan["created_by"], plan.get("submitted_by")}:
-            fail("MAKER_CHECKER_REQUIRED", "A different Platform Architect must approve the plan.")
+        if not self.recorded_approval_valid(plan):
+            fail("APPROVAL_REQUIRED", "Record an authorized approval before execution. Platform Architect self-approval must include its policy record.")
         execution = deepcopy(plan.get("execution") or {})
         index = execution.get("hopIndex", 0)
         step = spec["steps"][index]

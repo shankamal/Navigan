@@ -35,7 +35,7 @@ def test_reports_original_creator_even_after_another_user_resubmits_without_writ
     result=module["inspect_plan"](session,PLAN,"reviewer@example.com")
     assert result["readOnly"] is True
     assert result["reviewerMatchesCreator"] is True and result["reviewerMatchesSubmitter"] is False
-    assert result["approvalFinding"]=="SELF_APPROVAL_BLOCKED"
+    assert result["approvalFinding"]=="SELF_REVIEW_REQUIRES_ARCHITECT_ROLE_AND_APPROVAL_PRIVILEGE"
     assert result["reviewerProfile"]["resolvedName"]=="Reviewer Name"
     api=clients["rds-data"]
     api.rollback_transaction.assert_called_once()
