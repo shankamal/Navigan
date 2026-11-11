@@ -13,10 +13,64 @@ import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
 export function PlanComponents({
   evidence,
   target,
+  compact = false,
 }: {
   evidence?: EksUpgradeReadiness;
   target: string;
+  compact?: boolean;
 }) {
+  if (compact)
+    return (
+      <ul className="upgrade-drawer-components" aria-label="Upgrade components">
+        <li>
+          <CloudCog size={20} />
+          <div>
+            <strong>Control plane</strong>
+            <span>
+              {evidence?.controlPlane.version ?? "Not reported"} → {target}
+            </span>
+          </div>
+          <small>Upgrade</small>
+        </li>
+        {(evidence?.nodeGroups ?? []).map((node) => (
+          <li key={node.name}>
+            <Layers size={20} />
+            <div>
+              <strong>Managed node group</strong>
+              <span>{node.name}</span>
+              <span>
+                {node.version ?? "Not reported"} → {target}
+              </span>
+            </div>
+            <small>
+              {node.version === target ? "Keep version" : "Rolling upgrade"}
+            </small>
+          </li>
+        ))}
+        {(evidence?.addons ?? []).map((addon) => (
+          <li key={addon.name}>
+            <Puzzle size={20} />
+            <div>
+              <strong>Managed add-on</strong>
+              <span>{addon.name}</span>
+              <span>
+                {addon.version ?? "Not reported"}
+                {addon.targetVersion && addon.targetVersion !== addon.version
+                  ? " → " + addon.targetVersion
+                  : ""}
+              </span>
+            </div>
+            <small>
+              {!addon.targetVersion
+                ? "Compatibility required"
+                : addon.targetVersion === addon.version
+                  ? "Keep version"
+                  : "Upgrade"}
+            </small>
+          </li>
+        ))}
+      </ul>
+    );
   return (
     <div className="table-scroll">
       <table className="upgrade-fleet-table">

@@ -12,6 +12,8 @@ import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 import { ClusterContext } from "./cluster-context";
 import { MaintenanceCalendar } from "./maintenance-calendar";
 import { rescheduleBlockReason } from "./plan-availability";
+import { PlatformIdentity, containerIdentity } from "./platform-identity";
+import { PlanScopeLabel } from "./plan-scope";
 
 type Filter = "all" | "drafts" | "review" | "scheduled" | "overdue";
 const statusLabel = (status: string) =>
@@ -24,7 +26,11 @@ export function UpgradePlansWorkspace({
   initialPlanId,
   rescheduleRequested = false,
   onCreate,
+  drawerOnly = false,
+  onClose,
 }: {
+  drawerOnly?: boolean;
+  onClose?: () => void;
   mode: "schedule" | "history";
   initialPlanId?: string;
   rescheduleRequested?: boolean;
@@ -43,6 +49,34 @@ export function UpgradePlansWorkspace({
   const [confirmStart, setConfirmStart] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
   const rescheduleRef = useRef<HTMLInputElement>(null);
+  const closeCallback = useRef(onClose);
+  closeCallback.current = onClose;
+  const closeDrawer = () => {
+    if (window.history.state?.naviganUpgradePlan === selectedId)
+      window.history.back();
+    setSelectedId(null);
+    closeCallback.current?.();
+  };
+  useEffect(() => {
+    if (!selectedId) return;
+    const previous = window.location.href;
+    const previousState = window.history.state;
+    window.history.pushState(
+      { ...window.history.state, naviganUpgradePlan: selectedId },
+      "",
+      "#upgrade-plan=" + encodeURIComponent(selectedId),
+    );
+    const back = () => {
+      setSelectedId(null);
+      closeCallback.current?.();
+    };
+    window.addEventListener("popstate", back);
+    return () => {
+      window.removeEventListener("popstate", back);
+      if (window.history.state?.naviganUpgradePlan === selectedId)
+        window.history.replaceState(previousState, "", previous);
+    };
+  }, [selectedId]);
   const selected = data.rows.find((row) => row.plan.planId === selectedId);
   const hasSelectedPlan = Boolean(selected);
   useEffect(() => {
@@ -160,165 +194,183 @@ export function UpgradePlansWorkspace({
     if (plan) action.mutate({ planId: plan.planId, name });
   };
   return (
-    <section className="upgrade-live-capability">
-      <header className="upgrade-live-header">
-        <div>
-          <p className="eyebrow">Governed upgrade records</p>
-          <h2>
-            {mode === "schedule"
-              ? "Maintenance schedule"
-              : "Plans and execution history"}
-          </h2>
-          <p>
-            Requested windows remain visible during review. Approval and
-            starting execution are separate actions.
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          disabled={data.pending}
-          onClick={data.refresh}
-        >
-          <RefreshCw size={16} /> Refresh plans
-        </Button>
-      </header>
-      <div className="upgrade-plan-filters" aria-label="Filter upgrade plans">
-        {(
-          [
-            ["all", "All"],
-            ["drafts", "My drafts"],
-            ["review", "Awaiting my review (" + waiting.length + ")"],
-            ["scheduled", "Approved / scheduled"],
-            ["overdue", "Overdue / inactive"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            type="button"
-            aria-pressed={filter === value}
-            key={value}
-            onClick={() => setFilter(value)}
+    <section
+      className={
+        drawerOnly ? "upgrade-plan-overlay-host" : "upgrade-live-capability"
+      }
+    >
+      <div hidden={drawerOnly}>
+        <header className="upgrade-live-header">
+          <div>
+            <p className="eyebrow">Governed upgrade records</p>
+            <h2>
+              {mode === "schedule"
+                ? "Maintenance schedule"
+                : "Plans and execution history"}
+            </h2>
+            <p>
+              Requested windows remain visible during review. Approval and
+              starting execution are separate actions.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            disabled={data.pending}
+            onClick={data.refresh}
           >
-            {label}
-          </button>
-        ))}
-      </div>
-      {data.errors.length > 0 && (
-        <div className="upgrade-blocker-notice" role="alert">
-          <strong>Some plan records could not be loaded</strong>
-          {data.errors.map((message) => (
-            <p key={message}>{message}</p>
+            <RefreshCw size={16} /> Refresh plans
+          </Button>
+        </header>
+        <div className="upgrade-plan-filters" aria-label="Filter upgrade plans">
+          {(
+            [
+              ["all", "All"],
+              ["drafts", "My drafts"],
+              ["review", "Awaiting my review (" + waiting.length + ")"],
+              ["scheduled", "Approved / scheduled"],
+              ["overdue", "Overdue / inactive"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              type="button"
+              aria-pressed={filter === value}
+              key={value}
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </button>
           ))}
-          <p>
-            Only clusters within your account's authorized scope can be shown.
-          </p>
         </div>
-      )}
-      {data.pending ? (
-        <p role="status">Loading governed upgrade plans…</p>
-      ) : mode === "schedule" ? (
-        <MaintenanceCalendar
-          rows={rows}
-          onReview={setSelectedId}
-          now={now}
-          canCreate={canPlan}
-          onCreate={onCreate}
-        />
-      ) : !rows.length ? (
-        <p role="status" className="upgrade-live-message">
-          No upgrade plans match this filter in your authorized cluster scope.
-        </p>
-      ) : (
-        <div className="table-scroll">
-          <table className="upgrade-fleet-table">
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th>Cluster</th>
-                <th>Version change</th>
-                <th>Status</th>
-                <th>Requested window</th>
-                <th>Submitted by</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.plan.planId}>
-                  <td>
-                    {row.plan.planId}
-                    <small className="upgrade-window-pending">
-                      {row.plan.kind === "UTILITY"
-                        ? row.plan.utilityEvidence?.label
-                        : "Container upgrade"}
-                    </small>
-                  </td>
-                  <td>
-                    <strong>{row.clusterName}</strong>
-                    <br />
-                    <ClusterContext cluster={row.cluster} compact />
-                  </td>
-                  <td>
-                    {row.plan.currentVersion} → {row.plan.targetVersion}
-                  </td>
-                  <td>
-                    <span
-                      className={
-                        "utility-state state-" + row.plan.status.toLowerCase()
-                      }
-                    >
-                      {scheduleOverdue(row.plan, now)
-                        ? "Overdue · inactive"
-                        : statusLabel(row.plan.status)}
-                    </span>
-                  </td>
-                  <td>
-                    {timeLabel(row.plan.scheduledFor)}
-                    {["DRAFT", "SUBMITTED"].includes(row.plan.status) &&
-                      row.plan.scheduledFor && (
+        {data.errors.length > 0 && (
+          <div className="upgrade-blocker-notice" role="alert">
+            <strong>Some plan records could not be loaded</strong>
+            {data.errors.map((message) => (
+              <p key={message}>{message}</p>
+            ))}
+            <p>
+              Only clusters within your account's authorized scope can be shown.
+            </p>
+          </div>
+        )}
+        {data.pending ? (
+          <p role="status">Loading governed upgrade plans…</p>
+        ) : mode === "schedule" ? (
+          <MaintenanceCalendar
+            rows={rows}
+            onReview={setSelectedId}
+            now={now}
+            canCreate={canPlan}
+            onCreate={onCreate}
+          />
+        ) : !rows.length ? (
+          <p role="status" className="upgrade-live-message">
+            No upgrade plans match this filter in your authorized cluster scope.
+          </p>
+        ) : (
+          <div className="table-scroll">
+            <table className="upgrade-fleet-table">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th>Cluster</th>
+                  <th>Version change</th>
+                  <th>Status</th>
+                  <th>Requested window</th>
+                  <th>Submitted by</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.plan.planId}>
+                    <td>
+                      {row.plan.planId}
+                      <PlanScopeLabel plan={row.plan} />
+                    </td>
+                    <td>
+                      <strong>{row.clusterName}</strong>
+                      <br />
+                      <ClusterContext cluster={row.cluster} compact />
+                    </td>
+                    <td>
+                      {row.plan.currentVersion} → {row.plan.targetVersion}
+                    </td>
+                    <td>
+                      <span
+                        className={
+                          "utility-state state-" + row.plan.status.toLowerCase()
+                        }
+                      >
+                        {scheduleOverdue(row.plan, now)
+                          ? "Overdue · inactive"
+                          : statusLabel(row.plan.status)}
+                      </span>
+                    </td>
+                    <td>
+                      {timeLabel(row.plan.scheduledFor)}
+                      {["DRAFT", "SUBMITTED"].includes(row.plan.status) &&
+                        row.plan.scheduledFor && (
+                          <small className="upgrade-window-pending">
+                            {scheduleOverdue(row.plan, now)
+                              ? "Past due — new schedule required"
+                              : row.plan.status === "DRAFT"
+                                ? "Draft · not submitted"
+                                : "Requested · awaiting approval"}
+                          </small>
+                        )}
+                    </td>
+                    <td>
+                      {row.plan.submittedBy
+                        ? row.plan.submittedByName || row.plan.submittedBy
+                        : "Not submitted"}
+                      {row.plan.submittedAt && (
                         <small className="upgrade-window-pending">
-                          {scheduleOverdue(row.plan, now)
-                            ? "Past due — new schedule required"
-                            : row.plan.status === "DRAFT"
-                              ? "Draft · not submitted"
-                              : "Requested · awaiting approval"}
+                          {timeLabel(row.plan.submittedAt)}
                         </small>
                       )}
-                  </td>
-                  <td>
-                    {row.plan.submittedBy
-                      ? row.plan.submittedByName || row.plan.submittedBy
-                      : "Not submitted"}
-                    {row.plan.submittedAt && (
-                      <small className="upgrade-window-pending">
-                        {timeLabel(row.plan.submittedAt)}
-                      </small>
-                    )}
-                  </td>
-                  <td>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setNewSchedule("");
-                        setSelectedId(row.plan.planId);
-                        setReason("");
-                        setConfirmStart(false);
-                        action.reset();
-                      }}
-                    >
-                      Review plan
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                    <td>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setNewSchedule("");
+                          setSelectedId(row.plan.planId);
+                          setReason("");
+                          setConfirmStart(false);
+                          action.reset();
+                        }}
+                      >
+                        Review plan
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {drawerOnly && !plan && (
+        <div className="upgrade-drawer-backdrop">
+          <section
+            className="upgrade-review-drawer"
+            role="dialog"
+            aria-label="Plan details"
+          >
+            <p role="status">
+              {data.pending
+                ? "Loading plan…"
+                : "Plan details unavailable. Refresh plans to retry."}
+            </p>
+            <Button variant="secondary" onClick={data.refresh}>
+              Refresh plans
+            </Button>
+            <Button onClick={closeDrawer}>Close</Button>
+          </section>
         </div>
       )}
       {plan && selected && (
-        <div
-          className="upgrade-drawer-backdrop"
-          onClick={() => setSelectedId(null)}
-        >
+        <div className="upgrade-drawer-backdrop" onClick={closeDrawer}>
           <section
             ref={drawerRef}
             className="upgrade-review-drawer"
@@ -327,7 +379,7 @@ export function UpgradePlansWorkspace({
             aria-labelledby="upgrade-review-title"
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
-              if (event.key === "Escape") setSelectedId(null);
+              if (event.key === "Escape") closeDrawer();
               if (event.key === "Tab") {
                 const controls = Array.from(
                   drawerRef.current?.querySelectorAll<HTMLElement>(
@@ -360,7 +412,7 @@ export function UpgradePlansWorkspace({
               <button
                 type="button"
                 aria-label="Close plan review"
-                onClick={() => setSelectedId(null)}
+                onClick={closeDrawer}
                 autoFocus
               >
                 <X />
@@ -373,6 +425,10 @@ export function UpgradePlansWorkspace({
               {selected.clusterName} · {plan.currentVersion} →{" "}
               {plan.targetVersion}
             </h3>
+            <PlatformIdentity
+              identity={containerIdentity(selected.cluster.platform)}
+              kind="platform"
+            />
             <ClusterContext cluster={selected.cluster} />
             <dl className="upgrade-scope-list">
               <div>
@@ -475,6 +531,7 @@ export function UpgradePlansWorkspace({
               <>
                 <h3>Upgrade components</h3>
                 <PlanComponents
+                  compact
                   evidence={plan.readinessEvidence}
                   target={plan.targetVersion}
                 />
@@ -539,6 +596,9 @@ export function UpgradePlansWorkspace({
               </p>
             )}
             <footer>
+              <Button variant="secondary" onClick={closeDrawer}>
+                Close
+              </Button>
               {plan.status === "DRAFT" && canPlan && !overdue && (
                 <Button
                   disabled={action.isPending}

@@ -32,8 +32,7 @@ import { LiveUpgradeCentre } from "./live-upgrade-centre";
 import { UpgradePlansWorkspace } from "./upgrade-plans-workspace";
 import "./upgrade-workspace.css";
 
-type WorkspaceTab =
-  "readiness" | "containers" | "utilities" | "schedule" | "history";
+type WorkspaceTab = "readiness" | "utilities" | "schedule" | "history";
 
 type Readiness = "READY" | "WARNING" | "BLOCKED";
 
@@ -59,10 +58,9 @@ const tabs: ReadonlyArray<{
   icon: typeof CircleArrowUp;
 }> = [
   { id: "readiness", label: "Upgrade Centre", icon: ShieldAlert },
-  { id: "containers", label: "Container Upgrades", icon: CloudCog },
   { id: "utilities", label: "System Utilities", icon: Wrench },
-  { id: "history", label: "Plans & History", icon: History },
-  { id: "schedule", label: "Maintenance Schedule", icon: CalendarDays },
+  { id: "history", label: "Plans & Approvals", icon: History },
+  { id: "schedule", label: "Maintenance Calendar", icon: CalendarDays },
 ];
 
 function UpgradeTabs({
@@ -130,7 +128,7 @@ function SupportingTab({
   onReview: (planId: string | null, reschedule?: boolean) => void;
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
-  if (tab === "containers" || tab === "utilities") {
+  if (tab === "utilities") {
     return (
       <LiveUpgradeInventory
         mode={tab}
@@ -467,12 +465,12 @@ export function UpgradeWorkspace() {
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [reviewPlanId, setReviewPlanId] = useState<string>();
   const [rescheduleRequested, setRescheduleRequested] = useState(false);
+  const [plannerOrigin, setPlannerOrigin] = useState<WorkspaceTab>("readiness");
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
   const openPlan = (planId: string | null, reschedule = false) => {
     setReviewPlanId(planId ?? undefined);
     setRescheduleRequested(reschedule);
     setPlanning(null);
-    setTab("history");
   };
 
   return (
@@ -503,7 +501,7 @@ export function UpgradeWorkspace() {
         </div>
       </header>
       <UpgradeTabs
-        active={planning ? "containers" : tab}
+        active={planning ? "readiness" : tab}
         onChange={(value) => {
           setRequestedDate(undefined);
           setPlanning(null);
@@ -515,7 +513,7 @@ export function UpgradeWorkspace() {
       <div
         role="tabpanel"
         id="upgrade-tabpanel"
-        aria-labelledby={"upgrade-tab-" + (planning ? "containers" : tab)}
+        aria-labelledby={"upgrade-tab-" + (planning ? "readiness" : tab)}
       >
         {planning ? (
           <PlanWizard
@@ -526,29 +524,47 @@ export function UpgradeWorkspace() {
               setPlanning(null);
               setReviewPlanId(undefined);
               setRescheduleRequested(false);
-              setTab("history");
+              setTab(plannerOrigin);
             }}
           />
         ) : tab === "readiness" ? (
-          <LiveUpgradeCentre onPlan={setPlanning} onReview={openPlan} />
+          <LiveUpgradeCentre
+            onPlan={setPlanning}
+            onReview={openPlan}
+            showOpportunities={Boolean(requestedDate)}
+          />
         ) : (
           <SupportingTab
             tab={tab}
             requestedDate={requestedDate}
             onCreate={(kind, date) => {
               setPlanning(null);
+              setPlannerOrigin("schedule");
               setRequestedDate(date);
               setReviewPlanId(undefined);
               setRescheduleRequested(false);
-              setTab(kind);
+              setTab(kind === "containers" ? "readiness" : "utilities");
             }}
             onPlan={setPlanning}
-            reviewPlanId={reviewPlanId}
-            rescheduleRequested={rescheduleRequested}
+            reviewPlanId={undefined}
+            rescheduleRequested={false}
             onReview={openPlan}
           />
         )}
       </div>
+      {reviewPlanId && (
+        <UpgradePlansWorkspace
+          key={reviewPlanId}
+          mode="history"
+          drawerOnly
+          initialPlanId={reviewPlanId}
+          rescheduleRequested={rescheduleRequested}
+          onClose={() => {
+            setReviewPlanId(undefined);
+            setRescheduleRequested(false);
+          }}
+        />
+      )}
     </div>
   );
 }

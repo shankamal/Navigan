@@ -91,12 +91,71 @@ it("offers container and utility requests for a selected future date, with no ac
   fireEvent.click(
     screen.getByRole("button", { name: "Create upgrade on 2026-11-10" }),
   );
-  fireEvent.click(
-    screen.getByRole("button", { name: "Container upgrade" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Container upgrade" }));
   expect(onCreate).toHaveBeenCalledWith("containers", "2026-11-10");
-  fireEvent.click(
-    screen.getByRole("button", { name: "Utility upgrade" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Utility upgrade" }));
   expect(onCreate).toHaveBeenCalledWith("utilities", "2026-11-10");
+});
+
+it("shows a Monday-based week, opens entries directly and filters requested starts", () => {
+  const review = vi.fn(),
+    now = new Date(2026, 10, 11, 12);
+  const cluster = {
+    clusterId: "CLU-week",
+    clusterName: "Weekly cluster",
+    customerId: "CUS-one",
+    customerName: "Db Schenker",
+    environmentId: "ENV-one",
+    environmentName: "DEV",
+  } as Cluster;
+  const plan = {
+    planId: "UPG-week",
+    kind: "UTILITY",
+    utilityEvidence: { label: "Headlamp" },
+    status: "SUBMITTED",
+    scheduledFor: new Date(2026, 10, 12, 22).toISOString(),
+    currentVersion: "0.45.0",
+    targetVersion: "0.46.0",
+  } as EksUpgradePlan;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MaintenanceCalendar
+        rows={[{ clusterName: cluster.clusterName, cluster, plan }]}
+        now={now.getTime()}
+        onReview={review}
+      />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Week" }));
+  expect(
+    screen.getByRole("heading", {
+      name:
+        "Week of " +
+        new Date(2026, 10, 9).toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+    }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Weekly cluster/ }));
+  expect(review).toHaveBeenCalledWith("UPG-week");
+  fireEvent.change(screen.getByLabelText("Calendar status"), {
+    target: { value: "Scheduled" },
+  });
+  expect(
+    screen.queryByRole("button", { name: /Weekly cluster/ }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Next week" }));
+  expect(
+    screen.getByRole("heading", {
+      name:
+        "Week of " +
+        new Date(2026, 10, 16).toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+    }),
+  ).toBeInTheDocument();
 });

@@ -182,259 +182,80 @@ function mount() {
 }
 
 describe("Upgrade workspace", () => {
-  it("presents live fleet readiness without preview data", async () => {
+  it("shows four distinct tabs and component metrics without cluster accordions", async () => {
     mount();
-
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Upgrade Centre",
+      "System Utilities",
+      "Plans & Approvals",
+      "Maintenance Calendar",
+    ]);
     expect(
-      screen.getByRole("heading", { name: "Upgrades & Patching" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Live governed inventory/),
+      screen.queryByRole("tab", { name: "Container Upgrades" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: /Upgrade Centre/i }),
-    ).toHaveAttribute("aria-selected", "true");
+      await screen.findByRole("region", { name: "Upgrade plans by component" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Expand .*cluster/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Explore opportunities" }),
+    );
     expect(
       await screen.findByRole("table", {
         name: "Registered active clusters and upgrade readiness",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Collapse New-dbs-demo-cluster" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(screen.queryByText("payments-prod-eu")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Proposed changes for New-dbs-demo-cluster",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("AWS")).toBeInTheDocument();
-    expect(screen.getByText("Amazon EKS")).toBeInTheDocument();
-    expect(
-      screen.getByRole("columnheader", { name: "Version change" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("list", { name: "Proposed component changes" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Provider-supported upgrade path"),
-    ).not.toBeInTheDocument();
-    expect(screen.getAllByText(/1\.34.*→.*1\.35/)).not.toHaveLength(0);
-    expect(
-      screen.getByRole("button", { name: /Refresh inventory/i }),
-    ).toBeEnabled();
-  });
-
-  it("changes component details with the selected registered cluster", async () => {
-    const originalList = vi.mocked(clusters.list).getMockImplementation()!;
-    const originalReadiness = vi
-      .mocked(clusters.upgradeReadiness)
-      .getMockImplementation()!;
-    const evidence = await clusters.upgradeReadiness("CLU-live");
-    const originalPlans = vi
-      .mocked(clusters.upgradePlans)
-      .getMockImplementation()!;
-    vi.mocked(clusters.upgradePlans).mockImplementation(async (id) => {
-      if (id === "CLU-second") throw new Error("Plan lookup failed");
-      return { clusterId: id, customerId: "CUS-live", items: [] };
+    const create = await screen.findByRole("button", {
+      name: "Create container plan",
     });
-    vi.mocked(clusters.list).mockResolvedValue({
-      items: [
-        activeCluster,
-        {
-          ...activeCluster,
-          clusterId: "CLU-second",
-          clusterName: "Second cluster",
-        },
-      ],
-      pagination: { page: 0, pageSize: 100, totalPages: 1, totalElements: 2 },
-    });
-    vi.mocked(clusters.upgradeReadiness).mockImplementation(async (id) =>
-      id === "CLU-second"
-        ? {
-            ...evidence,
-            clusterId: id,
-            nodeGroups: [
-              {
-                name: "second-system",
-                version: "1.34",
-                status: "ACTIVE",
-                healthIssues: [],
-              },
-            ],
-          }
-        : evidence,
-    );
-    try {
-      mount();
-      await waitFor(() =>
-        expect(
-          screen.getByRole("button", {
-            name: "Create plan for New-dbs-demo-cluster",
-          }),
-        ).toBeEnabled(),
-      );
-      expect(
-        screen.getByRole("button", { name: "Create plan for Second cluster" }),
-      ).toBeDisabled();
-      expect(
-        await screen.findByText(
-          /Existing plans could not be checked for this cluster/,
-        ),
-      ).toBeInTheDocument();
-      fireEvent.click(
-        await screen.findByRole("button", {
-          name: "Expand Second cluster",
-        }),
-      );
-      const details = await screen.findByRole("list", {
-        name: "Proposed component changes",
-      });
-      expect(
-        within(details).getByText("Managed node group second-system"),
-      ).toBeInTheDocument();
-      expect(
-        within(details).queryByText("Managed node group system"),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("region", {
-          name: "Proposed changes for New-dbs-demo-cluster",
-        }),
-      ).not.toBeInTheDocument();
-      const expanded = screen.getByRole("button", {
-        name: "Collapse Second cluster",
-      });
-      expect(expanded).toHaveAttribute("aria-expanded", "true");
-      fireEvent.click(expanded);
-      expect(
-        screen.queryByRole("list", { name: "Proposed component changes" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Expand Second cluster" }),
-      ).toHaveAttribute("aria-expanded", "false");
-    } finally {
-      vi.mocked(clusters.list).mockImplementation(originalList);
-      vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
-      vi.mocked(clusters.upgradeReadiness).mockImplementation(
-        originalReadiness,
-      );
-    }
+    await waitFor(() => expect(create).toBeEnabled());
   });
 
-  it("does not treat failed provider evidence as ready and recovers on refresh", async () => {
-    vi.mocked(clusters.upgradeReadiness).mockRejectedValueOnce(
-      new Error("Provider unavailable"),
-    );
-    mount();
-    expect(
-      await screen.findByText("Live evidence unavailable"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("list", { name: "Proposed component changes" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "Create plan for New-dbs-demo-cluster",
-      }),
-    ).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh inventory" }));
-    expect(
-      await screen.findByRole("list", { name: "Proposed component changes" }),
-    ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", {
-          name: "Create plan for New-dbs-demo-cluster",
-        }),
-      ).toBeEnabled(),
-    );
-  });
-
-  it("explains missing planning permission in both entry points", async () => {
-    const privileges = authIdentity.privileges;
+  it("retains the permission guard on the container planning entry point", async () => {
+    const previous = authIdentity.privileges;
     authIdentity.privileges = [];
     try {
       mount();
+      fireEvent.click(screen.getByRole("button", { name: "Create plan" }));
       expect(
         await screen.findByText(
           "Your current account does not have permission to create upgrade plans.",
         ),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("button", {
-          name: "Create plan for New-dbs-demo-cluster",
-        }),
-      ).toBeDisabled();
-      fireEvent.click(screen.getByRole("tab", { name: "Container Upgrades" }));
-      expect(
-        await screen.findByText(
-          "Your current account does not have permission to create upgrade plans.",
-        ),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Create upgrade plan" }),
+        screen.getByRole("button", { name: "Create container plan" }),
       ).toBeDisabled();
     } finally {
-      authIdentity.privileges = privileges;
+      authIdentity.privileges = previous;
     }
   });
 
-  it("orders the work areas and supports keyboard navigation without duplicate shortcuts", async () => {
+  it("supports keyboard navigation between the four tabs", async () => {
     mount();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Upgrade Centre",
-      "Container Upgrades",
-      "System Utilities",
-      "Plans & History",
-      "Maintenance Schedule",
-    ]);
-    expect(
-      screen.queryByRole("button", { name: "Plan upgrade" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Plans & approvals/ }),
-    ).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("tab", { name: "Upgrade Centre" }), {
       key: "ArrowRight",
     });
     expect(
-      await screen.findByRole("heading", { name: "Container upgrades" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("tabpanel")).toHaveAccessibleName(
-      "Container Upgrades",
-    );
-  });
-
-  it("uses the approved workspace names", () => {
-    mount();
-
-    for (const label of [
-      "Upgrade Centre",
-      "Container Upgrades",
-      "System Utilities",
-      "Maintenance Schedule",
-      "Plans & History",
-    ]) {
-      expect(
-        screen.getByRole("tab", { name: new RegExp(label, "i") }),
-      ).toBeInTheDocument();
-    }
+      screen.getByRole("tab", { name: "System Utilities" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.queryByText("Upgrade Command Centre"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Calendar & Campaigns")).not.toBeInTheDocument();
-    expect(screen.queryByText("Upgrade Overview")).not.toBeInTheDocument();
-    expect(screen.queryByText("Upgrade Readiness")).not.toBeInTheDocument();
+      await screen.findByRole("heading", { name: "System utility upgrades" }),
+    ).toBeInTheDocument();
   });
 
   it("shows a single-page planner with evidence ticks and saves then submits", async () => {
     mount();
 
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Create plan for New-dbs-demo-cluster",
-      }),
+      screen.getByRole("button", { name: "Explore opportunities" }),
     );
+    const create = await screen.findByRole("button", {
+      name: "Create container plan",
+    });
+    await waitFor(() => expect(create).toBeEnabled());
+    fireEvent.click(create);
     expect(
       screen.getByRole("heading", {
         name: "Create upgrade plan",
@@ -484,9 +305,9 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByText(/Awaiting independent approval. Find it/),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Plans & Approvals/ }));
     expect(
-      screen.getByRole("tab", { name: /Plans & History/ }),
+      screen.getByRole("tab", { name: /Plans & Approvals/ }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
       screen.queryByRole("heading", { name: "1. Cluster & target" }),
@@ -532,7 +353,7 @@ describe("Upgrade workspace", () => {
           (await screen.findAllByText(/Awaiting approval/)).length,
         ).toBeGreaterThan(0);
         expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+        fireEvent.click(screen.getByRole("tab", { name: /Plans & Approvals/ }));
         fireEvent.click(
           await screen.findByRole("button", { name: "Awaiting my review (1)" }),
         );
@@ -630,11 +451,15 @@ describe("Upgrade workspace", () => {
         customerId: "CUS-live",
         items: [plan],
       });
+      const originalHistoryState = window.history.state;
+      window.history.replaceState({ ...originalHistoryState, __NA: true }, "");
       try {
         mount();
-        fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+        fireEvent.change(screen.getByLabelText("Search upgrade plans"), {
+          target: { value: "UPG-submitted-handoff" },
+        });
         fireEvent.click(
-          await screen.findByRole("button", { name: "Review plan" }),
+          await screen.findByRole("button", { name: "View plan" }),
         );
         const drawer = screen.getByRole("dialog", {
           name: "Upgrade plan details",
@@ -656,7 +481,26 @@ describe("Upgrade workspace", () => {
             /does not have upgrade approval permission/,
           ),
         ).not.toBeInTheDocument();
+        expect(within(drawer).getByText("Customer")).toBeInTheDocument();
+        expect(within(drawer).getByText("Environment")).toBeInTheDocument();
+        expect(within(drawer).getByText("Cluster")).toBeInTheDocument();
+        if (creator === "original-maker") window.history.back();
+        else
+          fireEvent.click(
+            within(drawer).getByRole("button", { name: "Close" }),
+          );
+        await waitFor(() =>
+          expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+        );
+        await waitFor(() => expect(window.history.state?.__NA).toBe(true));
+        expect(
+          screen.getByRole("tab", { name: "Upgrade Centre" }),
+        ).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByLabelText("Search upgrade plans")).toHaveValue(
+          "UPG-submitted-handoff",
+        );
       } finally {
+        window.history.replaceState(originalHistoryState, "");
         authIdentity.privileges = previousPrivileges;
         vi.mocked(clusters.upgradePlans).mockImplementation(original);
       }
@@ -696,7 +540,7 @@ describe("Upgrade workspace", () => {
         await screen.findByText("1 maintenance request needs a new time"),
       ).toBeInTheDocument();
       const fleet = screen.getByRole("table", {
-        name: "Registered active clusters and upgrade readiness",
+        name: "Upgrade plans across component types",
       });
       fireEvent.click(
         within(fleet).getByRole("button", { name: "Review & reschedule" }),
@@ -781,7 +625,7 @@ describe("Upgrade workspace", () => {
     try {
       mount();
       const fleet = await screen.findByRole("table", {
-        name: "Registered active clusters and upgrade readiness",
+        name: "Upgrade plans across component types",
       });
       fireEvent.click(
         await within(fleet).findByRole("button", {
@@ -813,7 +657,7 @@ describe("Upgrade workspace", () => {
     async (kind) => {
       mount();
       fireEvent.click(
-        screen.getByRole("tab", { name: "Maintenance Schedule" }),
+        screen.getByRole("tab", { name: "Maintenance Calendar" }),
       );
       const future = new Date();
       future.setDate(future.getDate() + 1);
@@ -837,7 +681,7 @@ describe("Upgrade workspace", () => {
         ).toBe(key + "T09:00");
       } else {
         const button = await screen.findByRole("button", {
-          name: "Create upgrade plan",
+          name: "Create container plan",
         });
         await waitFor(() => expect(button).toBeEnabled());
         fireEvent.click(button);
@@ -850,7 +694,10 @@ describe("Upgrade workspace", () => {
   );
 
   it("populates chart targets and persists a utility draft with a reason", async () => {
-    vi.mocked(clusters.createUtilityUpgradePlan).mockResolvedValue({
+    const originalPlans = vi
+      .mocked(clusters.upgradePlans)
+      .getMockImplementation()!;
+    const utilityPlan = {
       planId: "UPG-utility",
       clusterId: "CLU-live",
       customerId: "CUS-live",
@@ -876,7 +723,17 @@ describe("Upgrade workspace", () => {
         versions: ["0.46.0"],
         observedAt: "2026-11-07T10:00:00Z",
       },
-    } as Awaited<ReturnType<typeof clusters.createUtilityUpgradePlan>>);
+    } as Awaited<ReturnType<typeof clusters.createUtilityUpgradePlan>>;
+    vi.mocked(clusters.createUtilityUpgradePlan).mockImplementationOnce(
+      async () => {
+        vi.mocked(clusters.upgradePlans).mockResolvedValue({
+          clusterId: "CLU-live",
+          customerId: "CUS-live",
+          items: [utilityPlan],
+        });
+        return utilityPlan;
+      },
+    );
     mount();
     fireEvent.click(screen.getByRole("tab", { name: "System Utilities" }));
     const targets = await screen.findByRole("combobox", {
@@ -904,61 +761,27 @@ describe("Upgrade workspace", () => {
       ),
     );
     expect(
-      await screen.findByRole("heading", {
-        name: "Plans and execution history",
-      }),
+      await screen.findByRole("dialog", { name: "Upgrade plan details" }),
     ).toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
+    );
+    expect(
+      screen.getByRole("tab", { name: "System Utilities" }),
+    ).toHaveAttribute("aria-selected", "true");
+    vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
   });
 
-  it("opens live inventory tabs without exposing cloud actions", async () => {
+  it("keeps maintenance separate from plans and exposes both calendar views", async () => {
     mount();
-
-    fireEvent.click(screen.getByRole("tab", { name: "Container Upgrades" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance Calendar" }));
     expect(
-      await screen.findByRole("heading", {
-        name: "Container upgrades",
-      }),
+      await screen.findByRole("button", { name: "Month" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    expect(
+      screen.getByLabelText("Weekly maintenance starts"),
     ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /System Utilities/i }));
-    expect(
-      await screen.findByRole("heading", { name: "System utility upgrades" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Live governed inventory/),
-    ).not.toBeInTheDocument();
-    expect(await screen.findAllByText("Headlamp")).not.toHaveLength(0);
-    expect(screen.getAllByText("0.45.0")).not.toHaveLength(0);
-    expect(
-      screen.getByRole("button", { name: /Create utility upgrade plan/i }),
-    ).toBeDisabled();
-    expect(
-      screen.queryByRole("button", { name: /Upgrade now/i }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /Container Upgrades/i }));
-    expect(
-      await screen.findByRole("heading", {
-        name: "Container upgrades",
-      }),
-    ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /Create upgrade plan/i }),
-      ).toBeEnabled(),
-    );
-    expect((await screen.findAllByText("1.35")).length).toBeGreaterThan(0);
-    expect(screen.getByText("Ready for planning")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /Maintenance Schedule/i }));
-    const section = (
-      await screen.findByRole("heading", { name: "Maintenance schedule" })
-    ).closest("section");
-    expect(section).not.toBeNull();
-    expect(
-      await within(section!).findByText(
-        /No maintenance starts requested for this date/i,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Durations are not recorded/)).toBeInTheDocument();
   });
 });
