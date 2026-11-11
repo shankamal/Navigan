@@ -695,9 +695,11 @@ export function UpgradePlansWorkspace({
             <p>{plan.changeReason}</p>
             {plan.status === "SUBMITTED" && !canReviewSelected && !overdue && (
               <p role="status">
-                Submitted for Platform Architect approval. No review comments
-                are required from you. A different authorized Platform Architect
-                can review and approve or reject this request.
+                {plan.createdBy === subject
+                  ? "You created this plan. A different authorized Platform Architect must review it. Rescheduling or resubmitting does not change its original creator."
+                  : plan.submittedBy === subject
+                    ? "You submitted this plan. A different authorized Platform Architect must review it."
+                    : "Your current account does not have the approval privilege for this request. A Platform Architect role label alone does not establish effective approval permission."}
               </p>
             )}
             {canReviewSelected && (

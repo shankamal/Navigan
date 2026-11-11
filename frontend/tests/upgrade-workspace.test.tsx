@@ -529,7 +529,11 @@ describe("Upgrade workspace", () => {
           name: "Upgrade plan details",
         });
         expect(
-          within(drawer).getByText(/Submitted for Platform Architect approval/),
+          within(drawer).getByText(
+            creator === "original-maker"
+              ? /You submitted this plan/
+              : /You created this plan/,
+          ),
         ).toBeInTheDocument();
         expect(
           within(drawer).queryByLabelText("Review comment"),
