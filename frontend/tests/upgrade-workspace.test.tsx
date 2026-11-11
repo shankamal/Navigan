@@ -854,3 +854,83 @@ describe("Upgrade workspace", () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each([
+  ["DRAFT", "Not requested"],
+  ["SUBMITTED", "Awaiting Platform Architect review"],
+  ["SCHEDULED", "Approved"],
+] as const)(
+  "shows truthful submission and approval metadata for %s",
+  async (status, approvalStatus) => {
+    const original = vi.mocked(clusters.upgradePlans).getMockImplementation()!;
+    const evidence = await clusters.upgradeReadiness("CLU-live");
+    const plan = {
+      planId: "UPG-metadata",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      kind: "CONTAINER",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status,
+      scheduledFor: "2027-03-01T12:00:00Z",
+      changeReason: "Review the upgrade schedule",
+      readinessEvidence: evidence,
+      execution: {},
+      version: 3,
+      createdBy: "architect-reviewer",
+      createdByName: "Ashok Rajendran",
+      createdAt: "2026-11-11T06:00:00Z",
+      updatedBy: "architect-reviewer",
+      updatedAt: "2026-11-11T06:00:00Z",
+      submittedBy: status === "DRAFT" ? null : "architect-reviewer",
+      submittedByName: status === "DRAFT" ? null : "Suhas Yadav",
+      submittedAt: status === "DRAFT" ? null : "2026-11-11T07:00:00Z",
+      approvedBy: status === "SCHEDULED" ? "architect-two" : null,
+      approvedByName: status === "SCHEDULED" ? "Reviewer Name" : null,
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [plan],
+    });
+    try {
+      mount();
+      fireEvent.click(await screen.findByRole("button", { name: "View plan" }));
+      const drawer = screen.getByRole("dialog", {
+        name: "Upgrade plan details",
+      });
+      const field = (name: string) =>
+        within(drawer)
+          .getByText(name, { selector: "dt" })
+          .parentElement!.querySelector("dd")!;
+      expect(field("Approval status")).toHaveTextContent(approvalStatus);
+      expect(field("Created by")).toHaveTextContent("Ashok Rajendran");
+      expect(field("Submitted by")).toHaveTextContent(
+        status === "DRAFT" ? "—" : "Suhas Yadav",
+      );
+      expect(
+        within(drawer).queryByText("architect-reviewer"),
+      ).not.toBeInTheDocument();
+      expect(field("Submitted at").textContent).toBe(
+        status === "DRAFT"
+          ? "—"
+          : new Date("2026-11-11T07:00:00Z").toLocaleString(),
+      );
+      expect(field("Approved by")).toHaveTextContent(
+        status === "SCHEDULED" ? "Reviewer Name" : "—",
+      );
+      expect(
+        within(drawer).queryByText("Awaiting Platform Architect approval"),
+      ).not.toBeInTheDocument();
+      if (status === "DRAFT")
+        expect(
+          within(drawer).getByRole("button", { name: "Submit for approval" }),
+        ).toBeEnabled();
+      fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
+    } finally {
+      vi.mocked(clusters.upgradePlans).mockImplementation(original);
+    }
+  },
+);

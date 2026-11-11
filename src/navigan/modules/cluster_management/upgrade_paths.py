@@ -133,9 +133,8 @@ def addon_path(installed, desired, catalogue):
 
 
 class ScopedEksUpgradePlans(EksUpgradePlans):
-    @staticmethod
-    def present(row):
-        result = EksUpgradePlans.present(row)
+    def present(self, row):
+        result = super().present(row)
         if not row.get("plan_spec"):
             result.pop("planSpec", None)
         if row.get("plan_spec") and not row.get("readiness_evidence"):

@@ -186,9 +186,9 @@ def test_list_serializes_scoped_spec_without_legacy_empty_evidence(service):
     assert result["planSpec"]["scope"]=="ADDONS"
     assert "readinessEvidence" not in result
 
-def test_legacy_rows_with_migrated_empty_spec_remain_readable():
+def test_legacy_rows_with_migrated_empty_spec_remain_readable(service):
     legacy={"plan_spec":{},"readiness_evidence":{"observedAt":"test"}}
-    value=ScopedEksUpgradePlans.present(legacy)
+    value=service.present(legacy)
     assert "planSpec" not in value and value["readinessEvidence"]==legacy["readiness_evidence"]
 
 def test_read_failure_explains_customer_role_without_any_update(service):

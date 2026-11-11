@@ -70,9 +70,8 @@ class UtilityUpgradePlans(EksUpgradePlans):
         self.repo, self.access, self.correlation = repo, access, correlation
         self.releases = releases or upstream_releases
 
-    @staticmethod
-    def present(row):
-        result = serialize(row)
+    def present(self, row):
+        result = super().present(row)
         result["kind"] = "UTILITY"
         result["utilityEvidence"] = result.pop("readinessEvidence")
         return result

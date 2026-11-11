@@ -22,6 +22,14 @@ const statusLabel = (status: string) =>
 const timeLabel = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "No time requested";
 
+function actorName(name?: string | null, id?: string | null) {
+  return name &&
+    name !== id &&
+    !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(name)
+    ? name
+    : "Name unavailable";
+}
+
 export function UpgradePlansWorkspace({
   mode,
   initialPlanId,
@@ -345,7 +353,10 @@ export function UpgradePlansWorkspace({
                     </td>
                     <td>
                       {row.plan.submittedBy
-                        ? row.plan.submittedByName || row.plan.submittedBy
+                        ? actorName(
+                            row.plan.submittedByName,
+                            row.plan.submittedBy,
+                          )
                         : "Not submitted"}
                       {row.plan.submittedAt && (
                         <small className="upgrade-window-pending">
@@ -465,30 +476,50 @@ export function UpgradePlansWorkspace({
               </div>
               <div>
                 <dt>Created by</dt>
-                <dd>{plan.createdByName || plan.createdBy}</dd>
+                <dd>{actorName(plan.createdByName, plan.createdBy)}</dd>
               </div>
               <div>
                 <dt>Submitted by</dt>
                 <dd>
-                  {plan.submittedBy
-                    ? plan.submittedByName || plan.submittedBy
-                    : "Not submitted"}
+                  {plan.status !== "DRAFT" && plan.submittedBy
+                    ? actorName(plan.submittedByName, plan.submittedBy)
+                    : "—"}
                 </dd>
               </div>
               <div>
                 <dt>Submitted at</dt>
                 <dd>
-                  {plan.submittedAt
+                  {plan.status !== "DRAFT" && plan.submittedAt
                     ? timeLabel(plan.submittedAt)
-                    : "Not submitted"}
+                    : "—"}
                 </dd>
               </div>
               <div>
                 <dt>Approved by</dt>
                 <dd>
-                  {plan.approvedByName ||
-                    plan.approvedBy ||
-                    "Awaiting Platform Architect approval"}
+                  {plan.status !== "DRAFT"
+                    ? plan.approvedBy
+                      ? actorName(plan.approvedByName, plan.approvedBy)
+                      : "—"
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>Approval status</dt>
+                <dd>
+                  {plan.status === "DRAFT"
+                    ? "Not requested"
+                    : plan.status === "SUBMITTED"
+                      ? overdue
+                        ? "New schedule required"
+                        : "Awaiting Platform Architect review"
+                      : plan.status === "REJECTED"
+                        ? "Rejected"
+                        : plan.status === "CANCELLED"
+                          ? "Cancelled"
+                          : plan.approvedBy
+                            ? "Approved"
+                            : "Not recorded"}
                 </dd>
               </div>
             </dl>

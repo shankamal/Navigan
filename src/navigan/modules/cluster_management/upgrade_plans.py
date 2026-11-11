@@ -10,6 +10,7 @@ from pydantic import Field, field_validator
 from navigan.modules.customer_management.repository import json_text
 from navigan.shared.errors import ApiError
 from .models import Model
+from .upgrade_actors import UpgradeActorNames
 from .repository import serialize
 from .upgrade_readiness import EksUpgradeDiscovery
 
@@ -51,9 +52,17 @@ def utcnow():
 class EksUpgradePlans:
     table = "cluster_management.upgrade_plans"
 
-    @staticmethod
-    def present(row):
-        return serialize(row)
+    def present(self, row):
+        result = serialize(row)
+        if not hasattr(self, "_actor_names"):
+            self._actor_names = UpgradeActorNames()
+        for actor in ("created", "submitted", "approved"):
+            actor_id = row.get(actor + "_by")
+            preferred = row.get(actor + "_by_name")
+            if not preferred and actor_id == self.access.user_id:
+                preferred = getattr(self.access, "display_name", None)
+            result[{"created":"createdByName", "submitted":"submittedByName", "approved":"approvedByName"}[actor]] = self._actor_names.resolve(actor_id, preferred)
+        return result
 
     def require_approval(self):
         if not (self.access.has("cluster.upgrade.approve") or self.access.has("cluster.approve")):
@@ -87,8 +96,14 @@ class EksUpgradePlans:
     def get(self, cluster_id, plan_id, lock=False):
         self.repo.get(cluster_id)
         row = self.repo.db.execute(
-            f"SELECT * FROM {self.table} "
-            "WHERE cluster_id=%s AND plan_id=%s" + (" FOR UPDATE" if lock else ""),
+            "SELECT p.*,creator.display_name AS created_by_name,"
+            "submitter.display_name AS submitted_by_name,"
+            "approver.display_name AS approved_by_name "
+            f"FROM {self.table} p "
+            "LEFT JOIN access_management.users creator ON creator.user_id=p.created_by "
+            "LEFT JOIN access_management.users submitter ON submitter.user_id=p.submitted_by "
+            "LEFT JOIN access_management.users approver ON approver.user_id=p.approved_by "
+            "WHERE p.cluster_id=%s AND p.plan_id=%s" + (" FOR UPDATE OF p" if lock else ""),
             [cluster_id, plan_id],
         ).fetchone()
         if not row:

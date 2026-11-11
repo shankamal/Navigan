@@ -63,6 +63,7 @@ def test_release_preserves_live_modules_and_adds_only_scoped_plan_code(tmp_path)
         assert "EksUpgradePlans" in normalized
         assert package.read(prefix + "utility_upgrades.py") == (ROOT / "src" / prefix / "utility_upgrades.py").read_bytes()
         assert package.read(prefix + "upgrade_paths.py") == (ROOT / "src" / prefix / "upgrade_paths.py").read_bytes()
+        assert package.read(prefix + "upgrade_actors.py") == (ROOT / "src" / prefix / "upgrade_actors.py").read_bytes()
         assert package.read(prefix + "models.py") == live_models
         assert package.read(prefix + "upgrade_readiness.py") == (ROOT / "src" / prefix / "upgrade_readiness.py").read_bytes()
         assert (
