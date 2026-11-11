@@ -458,4 +458,3 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             return self._transition(plan, "SCHEDULED", "ScopedEksUpgradeHopCompleted", {"execution": execution, "scheduled_for": timestamp(next_window["scheduledFor"])})
         execution.update({"phase": "VALIDATION", "completedAt": utcnow().isoformat()})
         return self._transition(plan, "SUCCEEDED", "ScopedEksUpgradeSucceeded", {"execution": execution})
-
