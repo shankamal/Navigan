@@ -75,6 +75,14 @@ def semantic(source):
     return ast.dump(ast.parse(source.decode()), include_attributes=False)
 
 
+def normalized_semantic(source):
+    # Compare the same canonical source representation used by the read-only
+    # production diff. Reparse it to retain checks on operations, literals,
+    # branches and names rather than comparing source layout/parser artifacts.
+    canonical = ast.unparse(ast.parse(source.decode()))
+    return semantic(canonical.encode("utf-8"))
+
+
 def replace_once(source, before, after, label):
     require(source.count(before) == 1, "Unexpected " + label + " contract")
     return source.replace(before, after, 1)
@@ -280,7 +288,7 @@ def package(original, destination):
             "src/navigan/modules/cluster_management/upgrade_readiness.py"
         )
         require(
-            semantic(old.read(readiness)) == semantic(reviewed_readiness),
+            normalized_semantic(old.read(readiness)) == normalized_semantic(reviewed_readiness),
             "Deployed upgrade-readiness module differs from the reviewed production baseline",
         )
         if plans_installed:

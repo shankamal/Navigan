@@ -205,3 +205,30 @@ def test_assembled_production_package_serves_options_with_real_discovery(tmp_pat
     eks.update_cluster_version.assert_not_called()
     eks.update_nodegroup_version.assert_not_called()
     eks.update_addon.assert_not_called()
+
+
+def test_readiness_comparison_matches_the_reviewed_normalized_source_diff():
+    import ast
+    release=load_release()
+    source=baseline(release.DEPLOYED_PLAN_TREE,"src/navigan/modules/cluster_management/upgrade_readiness.py")
+    # The user's production comparison showed identical ast.unparse output.
+    # This invariant must hold on whichever supported Python prepares a release.
+    normalized=(ast.unparse(ast.parse(source.decode()))+"\n").encode()
+    assert release.normalized_semantic(source)==release.normalized_semantic(normalized)
+    changed=normalized.replace(b"'ACTIVE'",b"'DELETING'",1)
+    assert changed!=normalized
+    assert release.normalized_semantic(changed)!=release.normalized_semantic(source)
+
+
+def test_normalization_never_accepts_unreviewed_readiness_behavior(tmp_path):
+    import pytest
+    release=load_release()
+    prefix="navigan/modules/cluster_management/"
+    original=tmp_path/"drift.zip"
+    with zipfile.ZipFile(original,"w") as archive:
+        archive.writestr(prefix+"handler.py",release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"handler.py")))
+        discovery=baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"upgrade_readiness.py")
+        archive.writestr(prefix+"upgrade_readiness.py",discovery.replace(b'"ACTIVE"',b'"DELETING"',1))
+        archive.writestr(prefix+"upgrade_plans.py",baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"upgrade_plans.py"))
+    with pytest.raises(RuntimeError,match="Deployed upgrade-readiness module differs"):
+        release.package(original,tmp_path/"rejected.zip")
