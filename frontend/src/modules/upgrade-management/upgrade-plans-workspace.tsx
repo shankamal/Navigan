@@ -121,7 +121,9 @@ export function UpgradePlansWorkspace({
         planId,
         name,
         row.plan.version,
-        reason.trim() || undefined,
+        name === "approve" || name === "reject"
+          ? reason.trim() || undefined
+          : undefined,
         ...(name === "reschedule" ? [new Date(newSchedule).toISOString()] : []),
       );
     },
@@ -134,6 +136,14 @@ export function UpgradePlansWorkspace({
   });
   const plan = selected?.plan;
   const overdue = plan ? scheduleOverdue(plan, now) : false;
+  const canReviewSelected = Boolean(
+    plan &&
+    plan.status === "SUBMITTED" &&
+    canApprove &&
+    !overdue &&
+    plan.createdBy !== subject &&
+    plan.submittedBy !== subject,
+  );
   const rescheduleBlocked = plan
     ? rescheduleBlockReason(data.identity, plan)
     : undefined;
@@ -342,7 +352,11 @@ export function UpgradePlansWorkspace({
             tabIndex={-1}
           >
             <header>
-              <h2 id="upgrade-review-title">Review upgrade plan</h2>
+              <h2 id="upgrade-review-title">
+                {canReviewSelected
+                  ? "Review upgrade plan"
+                  : "Upgrade plan details"}
+              </h2>
               <button
                 type="button"
                 aria-label="Close plan review"
@@ -484,34 +498,40 @@ export function UpgradePlansWorkspace({
             )}
             <h3>Change reason</h3>
             <p>{plan.changeReason}</p>
-            {plan.createdBy === subject && plan.status === "SUBMITTED" && (
-              <p>
-                You created this plan. Another authorized reviewer must approve
-                it.
-              </p>
-            )}
-            {plan.status === "SUBMITTED" && !canApprove && (
+            {plan.status === "SUBMITTED" && !canReviewSelected && !overdue && (
               <p role="status">
-                Your account does not have upgrade approval permission. An
-                independent reviewer needs the Upgrade plan approval privilege
-                within this customer scope.
+                Submitted for Platform Architect approval. No review comments
+                are required from you. An independent authorized Platform
+                Architect can review and approve or reject this request.
               </p>
             )}
-            <label className="upgrade-live-field">
-              <span>Review comment / rejection reason</span>
-              <textarea
-                aria-label="Review comment"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                maxLength={2000}
-              />
-            </label>
+            {canReviewSelected && (
+              <label className="upgrade-live-field">
+                <span>
+                  Review comment (optional for approval; required for rejection)
+                </span>
+                <textarea
+                  aria-label="Review comment"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  maxLength={2000}
+                />
+              </label>
+            )}
             {action.isError && (
               <div role="alert" className="upgrade-blocker-notice">
                 {action.error.message}
               </div>
             )}
-            {action.isSuccess && <p role="status">Plan action saved.</p>}
+            {action.isSuccess && (
+              <p role="status">
+                {action.variables?.name === "submit"
+                  ? "Plan submitted successfully. Awaiting Platform Architect approval."
+                  : action.variables?.name === "reschedule"
+                    ? "New schedule saved as a draft. Submit it for Platform Architect approval."
+                    : "Plan action saved."}
+              </p>
+            )}
             {plan.execution.phase != null && (
               <p>
                 Execution stage: {String(plan.execution.phase)} ·{" "}
@@ -527,27 +547,23 @@ export function UpgradePlansWorkspace({
                   Submit for approval
                 </Button>
               )}
-              {plan.status === "SUBMITTED" &&
-                canApprove &&
-                !overdue &&
-                plan.createdBy !== subject &&
-                plan.submittedBy !== subject && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      disabled={action.isPending || !reason.trim()}
-                      onClick={() => run("reject")}
-                    >
-                      Reject with reason
-                    </Button>
-                    <Button
-                      disabled={action.isPending}
-                      onClick={() => run("approve")}
-                    >
-                      Approve plan
-                    </Button>
-                  </>
-                )}
+              {canReviewSelected && (
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={action.isPending || !reason.trim()}
+                    onClick={() => run("reject")}
+                  >
+                    Reject with reason
+                  </Button>
+                  <Button
+                    disabled={action.isPending}
+                    onClick={() => run("approve")}
+                  >
+                    Approve plan
+                  </Button>
+                </>
+              )}
               {["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED"].includes(
                 plan.status,
               ) &&

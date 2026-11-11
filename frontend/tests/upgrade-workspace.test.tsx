@@ -542,6 +542,9 @@ describe("Upgrade workspace", () => {
         const drawer = screen.getByRole("dialog", {
           name: "Review upgrade plan",
         });
+        expect(
+          within(drawer).getByLabelText("Review comment"),
+        ).toBeInTheDocument();
         expect(within(drawer).getByText("Ashok Rajendran")).toBeInTheDocument();
         expect(within(drawer).getByText("Submitted at")).toBeInTheDocument();
         expect(
@@ -580,6 +583,82 @@ describe("Upgrade workspace", () => {
           customerId: "CUS-live",
           items: [],
         });
+      }
+    },
+  );
+
+  it.each([
+    ["new engineer submission", ["cluster.upgrade.plan"], "architect-reviewer"],
+    ["engineer resubmission", ["cluster.upgrade.plan"], "original-maker"],
+    [
+      "reviewer submitting their own plan",
+      ["cluster.upgrade.plan", "cluster.upgrade.approve"],
+      "architect-reviewer",
+    ],
+  ])(
+    "shows a read-only approval handoff for %s",
+    async (_, privileges, creator) => {
+      const previousPrivileges = authIdentity.privileges;
+      authIdentity.privileges = privileges as string[];
+      const original = vi
+        .mocked(clusters.upgradePlans)
+        .getMockImplementation()!;
+      const evidence = await clusters.upgradeReadiness("CLU-live");
+      const plan = {
+        planId: "UPG-submitted-handoff",
+        clusterId: "CLU-live",
+        customerId: "CUS-live",
+        provider: "EKS",
+        currentVersion: "1.34",
+        targetVersion: "1.35",
+        strategy: "PROVIDER_MANAGED_ROLLING",
+        status: "SUBMITTED",
+        scheduledFor: "2027-01-01T16:30:00Z",
+        changeReason: "Keep cluster supported",
+        readinessEvidence: evidence,
+        execution: {},
+        version: 3,
+        createdBy: creator,
+        submittedBy: "architect-reviewer",
+        submittedAt: "2026-11-11T06:00:00Z",
+        createdAt: "2026-11-06T10:00:00Z",
+        updatedAt: "2026-11-11T06:00:00Z",
+        updatedBy: "architect-reviewer",
+      } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+      vi.mocked(clusters.upgradePlans).mockResolvedValue({
+        clusterId: "CLU-live",
+        customerId: "CUS-live",
+        items: [plan],
+      });
+      try {
+        mount();
+        fireEvent.click(screen.getByRole("tab", { name: /Plans & History/ }));
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Review plan" }),
+        );
+        const drawer = screen.getByRole("dialog", {
+          name: "Upgrade plan details",
+        });
+        expect(
+          within(drawer).getByText(/Submitted for Platform Architect approval/),
+        ).toBeInTheDocument();
+        expect(
+          within(drawer).queryByLabelText("Review comment"),
+        ).not.toBeInTheDocument();
+        expect(
+          within(drawer).queryByRole("button", { name: "Approve plan" }),
+        ).not.toBeInTheDocument();
+        expect(
+          within(drawer).queryByRole("button", { name: "Reject with reason" }),
+        ).not.toBeInTheDocument();
+        expect(
+          within(drawer).queryByText(
+            /does not have upgrade approval permission/,
+          ),
+        ).not.toBeInTheDocument();
+      } finally {
+        authIdentity.privileges = previousPrivileges;
+        vi.mocked(clusters.upgradePlans).mockImplementation(original);
       }
     },
   );
@@ -623,7 +702,7 @@ describe("Upgrade workspace", () => {
         within(fleet).getByRole("button", { name: "Review & reschedule" }),
       );
       const drawer = screen.getByRole("dialog", {
-        name: "Review upgrade plan",
+        name: "Upgrade plan details",
       });
       expect(
         within(drawer).getByText("Overdue · inactive"),
@@ -710,7 +789,7 @@ describe("Upgrade workspace", () => {
         }),
       );
       const drawer = screen.getByRole("dialog", {
-        name: "Review upgrade plan",
+        name: "Upgrade plan details",
       });
       expect(
         within(drawer).queryByText(/Only the plan creator/),
