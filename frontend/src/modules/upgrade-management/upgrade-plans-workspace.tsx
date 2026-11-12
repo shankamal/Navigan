@@ -924,7 +924,6 @@ export function UpgradePlansWorkspace({
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                plan.planSpec?.scope !== "ADDONS" &&
                 Boolean(plan.planSpec) &&
                 executionWindow.state === "UPCOMING" && (
                   <p role="status">
@@ -937,7 +936,6 @@ export function UpgradePlansWorkspace({
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                plan.planSpec?.scope !== "ADDONS" &&
                 Boolean(plan.planSpec) &&
                 executionWindow.state === "EXPIRED" && (
                   <div className="upgrade-blocker-notice" role="alert">
@@ -951,7 +949,6 @@ export function UpgradePlansWorkspace({
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                plan.planSpec?.scope !== "ADDONS" &&
                 Boolean(plan.planSpec) &&
                 executionWindow.state === "READY" &&
                 !confirmStart && (
@@ -971,7 +968,6 @@ export function UpgradePlansWorkspace({
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                plan.planSpec?.scope !== "ADDONS" &&
                 Boolean(plan.planSpec) &&
                 executionWindow.state === "READY" &&
                 confirmStart && (
