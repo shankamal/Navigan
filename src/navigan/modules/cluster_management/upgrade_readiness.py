@@ -141,7 +141,11 @@ class EksUpgradeDiscovery:
             target = None
 
         node_groups = self._node_groups(eks, name)
-        addons = self._addons(eks, name, target_name if target else None)
+        # Even when the control plane is already on the newest supported minor,
+        # discover EKS-managed add-on updates that are compatible with the
+        # current Kubernetes version. Component-only plans remain useful.
+        addon_target_version = target_name if target else current
+        addons = self._addons(eks, name, addon_target_version)
         insights = self._insights(eks, name, target_name if target else None)
         updates = self._updates(eks, name)
 
@@ -152,13 +156,6 @@ class EksUpgradeDiscovery:
                 {
                     "code": "CONTROL_PLANE_NOT_ACTIVE",
                     "message": f"EKS control plane status is {cluster.get('status', 'UNKNOWN')}.",
-                }
-            )
-        if not target:
-            blockers.append(
-                {
-                    "code": "NO_SUPPORTED_NEXT_MINOR",
-                    "message": "Amazon EKS did not report the next sequential Kubernetes minor version as supported.",
                 }
             )
         for node in node_groups:
@@ -349,7 +346,15 @@ class EksUpgradeDiscovery:
                     addonName=name,
                     maxResults=100,
                 ).get("addons", [])
-                candidates = [version for addon in versions for version in addon.get("addonVersions", [])]
+                candidates = [
+                    version
+                    for addon in versions
+                    for version in addon.get("addonVersions", [])
+                    if any(
+                        compatibility.get("clusterVersion") == target_version
+                        for compatibility in version.get("compatibilities", [])
+                    )
+                ]
                 target = next(
                     (
                         version.get("addonVersion")
