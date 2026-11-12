@@ -480,7 +480,9 @@ describe("Upgrade workspace", () => {
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
-      expect(within(drawer).getByText("Stage health gate required")).toBeInTheDocument();
+      expect(
+        within(drawer).getByText("Stage health gate required"),
+      ).toBeInTheDocument();
       expect(
         within(drawer).queryByRole("button", { name: "Refresh execution" }),
       ).not.toBeInTheDocument();

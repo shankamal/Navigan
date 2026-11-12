@@ -864,27 +864,27 @@ export function UpgradePlansWorkspace({
                   </>
                 )}
               {plan.status === "EXECUTING" &&
+              canExecute &&
+              plan.kind !== "UTILITY" &&
+              gatePending ? (
+                <Button
+                  disabled={action.isPending}
+                  onClick={() => run("continue")}
+                >
+                  Validate health & continue
+                </Button>
+              ) : (
+                plan.status === "EXECUTING" &&
                 canExecute &&
-                plan.kind !== "UTILITY" &&
-                gatePending ? (
+                plan.kind !== "UTILITY" && (
                   <Button
                     disabled={action.isPending}
-                    onClick={() => run("continue")}
+                    onClick={() => run("refresh")}
                   >
-                    Validate health & continue
+                    Refresh execution
                   </Button>
-                ) : (
-                  plan.status === "EXECUTING" &&
-                  canExecute &&
-                  plan.kind !== "UTILITY" && (
-                    <Button
-                      disabled={action.isPending}
-                      onClick={() => run("refresh")}
-                    >
-                      Refresh execution
-                    </Button>
-                  )
-                )}
+                )
+              )}
             </footer>
             <p>Approval does not start the upgrade.</p>
           </section>
