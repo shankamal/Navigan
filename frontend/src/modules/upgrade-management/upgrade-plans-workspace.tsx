@@ -161,6 +161,7 @@ export function UpgradePlansWorkspace({
         | "cancel"
         | "execute"
         | "refresh"
+        | "continue"
         | "reschedule";
     }) => {
       const row = data.rows.find((item) => item.plan.planId === planId)!;
@@ -750,6 +751,20 @@ export function UpgradePlansWorkspace({
                 {String(plan.execution.providerStatus ?? "")}
               </p>
             )}
+            {plan.execution.gate &&
+              typeof plan.execution.gate === "object" &&
+              "status" in plan.execution.gate &&
+              plan.execution.gate.status === "PENDING" && (
+                <div className="upgrade-blocker-notice" role="status">
+                  <strong>Stage health gate required</strong>
+                  <p>
+                    The previous stage completed successfully. Navigan will
+                    re-read live EKS health before starting the next approved
+                    stage. Confirm application health and maintenance coverage
+                    before continuing.
+                  </p>
+                </div>
+              )}
             {!plan.planSpec &&
               plan.kind !== "UTILITY" &&
               ["APPROVED", "SCHEDULED"].includes(plan.status) && (
@@ -846,13 +861,28 @@ export function UpgradePlansWorkspace({
                 )}
               {plan.status === "EXECUTING" &&
                 canExecute &&
-                plan.kind !== "UTILITY" && (
+                plan.kind !== "UTILITY" &&
+                plan.execution.gate &&
+                typeof plan.execution.gate === "object" &&
+                "status" in plan.execution.gate &&
+                plan.execution.gate.status === "PENDING" ? (
                   <Button
                     disabled={action.isPending}
-                    onClick={() => run("refresh")}
+                    onClick={() => run("continue")}
                   >
-                    Refresh execution / advance stage
+                    Validate health & continue
                   </Button>
+                ) : (
+                  plan.status === "EXECUTING" &&
+                  canExecute &&
+                  plan.kind !== "UTILITY" && (
+                    <Button
+                      disabled={action.isPending}
+                      onClick={() => run("refresh")}
+                    >
+                      Refresh execution
+                    </Button>
+                  )
                 )}
             </footer>
             <p>Approval does not start the upgrade.</p>
