@@ -229,6 +229,12 @@ export function UpgradePlansWorkspace({
     },
   });
   const plan = selected?.plan;
+  const iacReconciliation =
+    plan &&
+    typeof plan.execution.iacReconciliation === "object" &&
+    plan.execution.iacReconciliation !== null
+      ? (plan.execution.iacReconciliation as Record<string, unknown>)
+      : undefined;
   const gate = plan?.execution.gate;
   const gatePending =
     typeof gate === "object" &&
@@ -794,58 +800,25 @@ export function UpgradePlansWorkspace({
             {plan.status === "SUCCEEDED" &&
               plan.kind !== "UTILITY" &&
               plan.planSpec &&
-              typeof plan.execution.iacReconciliation === "object" &&
-              plan.execution.iacReconciliation !== null && (
+              iacReconciliation && (
                 <div className="upgrade-blocker-notice" role="status">
                   <strong>IaC reconciliation</strong>
                   <p>
-                    Status:{" "}
-                    {String(
-                      (
-                        plan.execution.iacReconciliation as Record<
-                          string,
-                          unknown
-                        >
-                      ).status ?? "Not started",
-                    )}
+                    Status: {String(iacReconciliation.status ?? "Not started")}
                   </p>
-                  {(
-                    plan.execution.iacReconciliation as Record<string, unknown>
-                  ).targetVersion != null && (
+                  {iacReconciliation.targetVersion != null && (
                     <p>
                       Desired Kubernetes version:{" "}
                       {String(
-                        (
-                          plan.execution.iacReconciliation as Record<
-                            string,
-                            unknown
-                          >
-                        ).desiredVersionBefore ?? "Unknown",
+                        iacReconciliation.desiredVersionBefore ?? "Unknown",
                       )}{" "}
-                      →{" "}
-                      {String(
-                        (
-                          plan.execution.iacReconciliation as Record<
-                            string,
-                            unknown
-                          >
-                        ).targetVersion,
-                      )}
+                      → {String(iacReconciliation.targetVersion)}
                     </p>
                   )}
-                  {(
-                    plan.execution.iacReconciliation as Record<string, unknown>
-                  ).failureCode != null && (
+                  {iacReconciliation.failureCode != null && (
                     <p>
                       Reconciliation finding:{" "}
-                      {String(
-                        (
-                          plan.execution.iacReconciliation as Record<
-                            string,
-                            unknown
-                          >
-                        ).failureCode,
-                      )}
+                      {String(iacReconciliation.failureCode)}
                     </p>
                   )}
                 </div>
@@ -1020,11 +993,9 @@ export function UpgradePlansWorkspace({
                 plan.kind !== "UTILITY" &&
                 plan.planSpec?.scope !== "ADDONS" &&
                 Boolean(plan.planSpec) &&
-                (!plan.execution.iacReconciliation ||
-                  (plan.execution.iacReconciliation as Record<string, unknown>)
-                    .status === "FAILED" ||
-                  (plan.execution.iacReconciliation as Record<string, unknown>)
-                    .status === "BLOCKED") && (
+                (!iacReconciliation ||
+                  iacReconciliation.status === "FAILED" ||
+                  iacReconciliation.status === "BLOCKED") && (
                   <Button
                     disabled={action.isPending}
                     onClick={() => run("reconcile")}
@@ -1036,13 +1007,7 @@ export function UpgradePlansWorkspace({
                 canExecute &&
                 plan.kind !== "UTILITY" &&
                 ["PLAN_RUNNING", "APPLYING"].includes(
-                  String(
-                    (
-                      plan.execution.iacReconciliation as
-                        | Record<string, unknown>
-                        | undefined
-                    )?.status ?? "",
-                  ),
+                  String(iacReconciliation?.status ?? ""),
                 ) && (
                   <Button
                     disabled={action.isPending}
@@ -1054,13 +1019,7 @@ export function UpgradePlansWorkspace({
               {plan.status === "SUCCEEDED" &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                String(
-                  (
-                    plan.execution.iacReconciliation as
-                      | Record<string, unknown>
-                      | undefined
-                  )?.status ?? "",
-                ) === "PLAN_READY" && (
+                String(iacReconciliation?.status ?? "") === "PLAN_READY" && (
                   <Button
                     disabled={action.isPending}
                     onClick={() => run("apply-reconciliation")}
