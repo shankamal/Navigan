@@ -20,6 +20,14 @@ def baseline(tree, path):
     return subprocess.check_output(["git", "show", f"{tree}:{path}"], cwd=ROOT)
 
 
+def test_release_guard_is_pinned_to_last_confirmed_deployed_backend():
+    release = load_release()
+    assert (
+        release.DEPLOYED_PLAN_TREE
+        == "1894355b5c90dd1bcd10aa3624b91106360f3d6b"
+    )
+
+
 def test_execution_policy_is_limited_to_required_eks_resources():
     policy = json.loads((ROOT / "infrastructure/bootstrap/eks-upgrade-execution-policy.json").read_text())
     statements = {statement["Action"]: statement["Resource"] for statement in policy["Statement"]}
