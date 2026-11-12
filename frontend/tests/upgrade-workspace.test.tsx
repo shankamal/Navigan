@@ -506,6 +506,131 @@ describe("Upgrade workspace", () => {
     }
   });
 
+  it("requires two-step confirmation to start an approved plan inside its window", async () => {
+    const previousPrivileges = authIdentity.privileges;
+    const originalPlans = vi
+      .mocked(clusters.upgradePlans)
+      .getMockImplementation()!;
+    const now = vi.spyOn(Date, "now").mockReturnValue(
+      Date.parse("2027-01-01T12:30:00Z"),
+    );
+    authIdentity.privileges = [
+      "cluster.upgrade.plan",
+      "cluster.upgrade.execute",
+    ];
+    const scheduled = {
+      planId: "UPG-ready",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      kind: "CONTAINER",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status: "SCHEDULED",
+      scheduledFor: "2027-01-01T12:00:00Z",
+      changeReason: "Upgrade during the approved window",
+      version: 4,
+      createdBy: "engineer-maker",
+      submittedBy: "engineer-maker",
+      approvedBy: "architect-reviewer",
+      approvedAt: "2026-12-31T10:00:00Z",
+      createdAt: "2026-12-30T10:00:00Z",
+      updatedBy: "architect-reviewer",
+      updatedAt: "2026-12-31T10:00:00Z",
+      execution: {},
+      planSpec: {
+        format: 1,
+        scope: "CLUSTER",
+        sourceVersion: "1.34",
+        finalVersion: "1.35",
+        nodeGroups: ["system"],
+        addonNames: [],
+        validation: "Validate platform health.",
+        steps: [
+          {
+            fromVersion: "1.34",
+            targetVersion: "1.35",
+            window: {
+              scheduledFor: "2027-01-01T12:00:00Z",
+              durationMinutes: 120,
+            },
+            operations: [
+              {
+                kind: "CONTROL_PLANE",
+                stage: "CONTROL_PLANE",
+                name: "New-dbs-demo-cluster",
+                from: "1.34",
+                to: "1.35",
+              },
+              {
+                kind: "NODEGROUP",
+                stage: "DATA_PLANE",
+                name: "system",
+                from: "1.34",
+                to: "1.35",
+              },
+            ],
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [scheduled],
+    });
+    vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
+      ...scheduled,
+      status: "EXECUTING",
+      version: 5,
+      execution: {
+        phase: "CONTROL_PLANE:New-dbs-demo-cluster",
+        providerStatus: "InProgress",
+      },
+    });
+    try {
+      mount();
+      fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Review plan" }),
+      );
+      const drawer = screen.getByRole("dialog", {
+        name: "Upgrade plan details",
+      });
+      expect(
+        within(drawer).getByText(/Approved execution window is open/),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        within(drawer).getByRole("button", {
+          name: "Start approved upgrade",
+        }),
+      );
+      expect(clusters.changeUpgradePlan).not.toHaveBeenCalled();
+      expect(
+        within(drawer).getByText(/first approved stage: control plane/i),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        within(drawer).getByRole("button", {
+          name: "Confirm start upgrade",
+        }),
+      );
+      await waitFor(() =>
+        expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+          "CLU-live",
+          "UPG-ready",
+          "execute",
+          4,
+          undefined,
+        ),
+      );
+    } finally {
+      now.mockRestore();
+      authIdentity.privileges = previousPrivileges;
+      vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
+    }
+  });
+
   it.each(["cluster.approve", "cluster.upgrade.approve"])(
     "allows an independent reviewer with %s to review the submitted request",
     async (privilege) => {
