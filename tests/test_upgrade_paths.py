@@ -41,7 +41,7 @@ def service():
     return ScopedEksUpgradePlans(repo, access,"test",Discovery(eks))
 
 def payload(scope="CLUSTER",**changes):
-    return {"upgradeScope":scope,"targetVersion":"1.37" if scope=="CLUSTER" else None,"changeReason":"Apply supported upgrade",**changes}
+    return {"upgradeScope":scope,"targetVersion":"1.37" if scope in {"CLUSTER","CONTROL_PLANE"} else None,"changeReason":"Apply supported upgrade",**changes}
 
 def row(service, body=None):
     captured={}
@@ -69,6 +69,20 @@ def test_draft_stores_complete_path_without_calling_update_api(service):
     assert all([o["kind"] for o in s["operations"]]==["CONTROL_PLANE","NODEGROUP"] for s in p["plan_spec"]["steps"])
     assert service.discovery.eks.writes==[]
     assert "readinessEvidence" not in service.present(p)
+
+def test_control_plane_only_scope_never_adds_node_groups_or_addons(service):
+    p=row(service,payload("CONTROL_PLANE",targetVersion="1.35"))
+    assert p["plan_spec"]["scope"]=="CONTROL_PLANE"
+    assert p["plan_spec"]["nodeGroups"]==[]
+    assert p["plan_spec"]["addonNames"]==[]
+    assert [o["kind"] for o in p["plan_spec"]["steps"][0]["operations"]]==["CONTROL_PLANE"]
+    assert service.discovery.eks.writes==[]
+
+def test_control_plane_only_blocks_incompatible_installed_addon(service):
+    service.discovery.eks.versions["1.35"]=["v1.1.0"]
+    with pytest.raises(ApiError,match="managed add-on plan"):
+        row(service,payload("CONTROL_PLANE",targetVersion="1.35"))
+    assert service.discovery.eks.writes==[]
 
 def test_node_only_scope_catches_up_without_control_plane_update(service):
     service.discovery.eks.version="1.35"
