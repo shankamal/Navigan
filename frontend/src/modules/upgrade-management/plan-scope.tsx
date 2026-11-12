@@ -47,7 +47,10 @@ export function planTypeLabel(plan: EksUpgradePlan): string {
         : "Full platform upgrade";
 }
 export function planVersionLabel(plan: EksUpgradePlan): string {
-  if (!plan.planSpec || ["CLUSTER", "CONTROL_PLANE"].includes(plan.planSpec.scope))
+  if (
+    !plan.planSpec ||
+    ["CLUSTER", "CONTROL_PLANE"].includes(plan.planSpec.scope)
+  )
     return `${plan.currentVersion} → ${plan.targetVersion}`;
   const ops = plan.planSpec.steps.flatMap((s) => s.operations);
   return ops.length === 1
