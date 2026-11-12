@@ -134,224 +134,167 @@ export function LiveUpgradeCentre({
   return (
     <div className="upgrade-centre upgrade-context-workbench">
       {view === "plans" && (
-        <ComponentPlanMetrics
-          plans={data.rows.map((r) => r.plan)}
-          loading={data.pending}
-          unavailable={data.errors.length > 0}
-          selected={type}
-          onSelect={setType}
-        />
-      )}
-      {data.errors.length > 0 && (
-        <div role="alert" className="upgrade-blocker-notice">
-          Some plan records are unavailable. Totals may be incomplete.
-          <Button variant="secondary" onClick={data.refresh}>
-            Retry plans
-          </Button>
-        </div>
-      )}
-      {!!overdue.length && (
-        <div className="upgrade-attention-strip">
-          <AlertTriangle size={18} />
-          <strong>
-            {overdue.length} maintenance{" "}
-            {overdue.length === 1 ? "request needs" : "requests need"} a new
-            time
-          </strong>
-          <Button
-            variant="secondary"
-            onClick={() => onReview(overdue[0].plan.planId, true)}
-          >
-            Review & reschedule
-          </Button>
-        </div>
-      )}
-      <nav
-        className="upgrade-centre-tabs"
-        aria-label="Upgrade Centre views"
-        role="tablist"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "plans"}
-          className={view === "plans" ? "active" : ""}
-          onClick={() => setView("plans")}
-        >
-          Saved upgrade plans
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "available"}
-          className={view === "available" ? "active" : ""}
-          onClick={() => setView("available")}
-        >
-          Available cluster upgrades
-        </button>
-      </nav>
-      {view === "plans" && (
         <section aria-label="Upgrade requests">
-            <header className="upgrade-centre-section-heading">
-          <div>
-            <h2>Saved upgrade plans</h2>
-            <p className="upgrade-section-help">
-              Only created plans appear here. All active clusters are listed
-              below.
-            </p>
-          </div>
-          <div className="upgrade-action-group">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                data.refresh();
-                evidence.forEach((q) => void q.refetch());
-              }}
-            >
-              <RefreshCw size={15} />
-              Refresh inventory
-            </Button>
-          </div>
+          <header className="upgrade-centre-section-heading">
+            <div>
+              <h2>Saved upgrade plans</h2>
+              <p className="upgrade-section-help">
+                Only created plans appear here. All active clusters are listed
+                below.
+              </p>
+            </div>
+            <div className="upgrade-action-group">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  data.refresh();
+                  evidence.forEach((q) => void q.refetch());
+                }}
+              >
+                <RefreshCw size={15} />
+                Refresh inventory
+              </Button>
+            </div>
           </header>
           <div className="upgrade-centre-filters">
-          <input
-            aria-label="Search upgrade plans"
-            placeholder="Search plans, clusters, components…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select
-            aria-label="Upgrade type"
-            value={type}
-            onChange={(e) => setType(e.target.value as PlanScope | "all")}
-          >
-            <option value="all">All types</option>
-            {scopeTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Customer filter"
-            value={customer}
-            onChange={(e) => setCustomer(e.target.value)}
-          >
-            <option value="all">All customers</option>
-            {customers.map(([id, name]) => (
-              <option value={id} key={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Environment filter"
-            value={environment}
-            onChange={(e) => setEnvironment(e.target.value)}
-          >
-            <option value="all">All environments</option>
-            {environments.map(([id, name]) => (
-              <option value={id} key={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Plan status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            <option value="all">All statuses</option>
-            {[
-              "Draft",
-              "Awaiting approval",
-              "Approved",
-              "Scheduled",
-              "Running",
-              "Overdue",
-              "History",
-            ].map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
+            <input
+              aria-label="Search upgrade plans"
+              placeholder="Search plans, clusters, components…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <select
+              aria-label="Upgrade type"
+              value={type}
+              onChange={(e) => setType(e.target.value as PlanScope | "all")}
+            >
+              <option value="all">All types</option>
+              {scopeTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Customer filter"
+              value={customer}
+              onChange={(e) => setCustomer(e.target.value)}
+            >
+              <option value="all">All customers</option>
+              {customers.map(([id, name]) => (
+                <option value={id} key={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Environment filter"
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value)}
+            >
+              <option value="all">All environments</option>
+              {environments.map(([id, name]) => (
+                <option value={id} key={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Plan status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              <option value="all">All statuses</option>
+              {[
+                "Draft",
+                "Awaiting approval",
+                "Approved",
+                "Scheduled",
+                "Running",
+                "Overdue",
+                "History",
+              ].map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
           </div>
           <div className="table-scroll">
-          <table className="upgrade-request-table">
-            <caption className="sr-only">
-              Upgrade plans across component types
-            </caption>
-            <thead>
-              <tr>
-                <th>Plan / scope</th>
-                <th>Customer / environment</th>
-                <th>Version change</th>
-                <th>Status / requested time</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ plan, cluster, clusterName, environment }) => (
-                <tr key={plan.planId}>
-                  <td>
-                    <strong title={plan.planId}>
-                      {plan.planId.slice(0, 12)}
-                    </strong>
-                    <span className="upgrade-plan-cluster">
-                      <PlatformIdentity
-                        identity={containerIdentity(cluster.platform)}
-                        kind="platform"
-                      />
-                      {clusterName}
-                    </span>
-                    <PlanScopeLabel plan={plan} />
-                  </td>
-                  <td>
-                    {cluster.customerName ?? cluster.customerId}
-                    <small>{environment}</small>
-                  </td>
-                  <td>{planVersionLabel(plan)}</td>
-                  <td>
-                    <span
-                      className="upgrade-plan-status"
-                      data-status={planStage(plan, now)}
-                    >
-                      {planStage(plan, now) === "History"
-                        ? plan.status
-                        : planStage(plan, now)}
-                    </span>
-                    <small>
-                      {plan.scheduledFor
-                        ? new Date(plan.scheduledFor).toLocaleString()
-                        : "No time requested"}
-                    </small>
-                  </td>
-                  <td>
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        onReview(
-                          plan.planId,
-                          planStage(plan, now) === "Overdue",
-                        )
-                      }
-                    >
-                      {planStage(plan, now) === "Overdue"
-                        ? "Review & reschedule"
-                        : "View plan"}
-                    </Button>
-                  </td>
+            <table className="upgrade-request-table">
+              <caption className="sr-only">
+                Upgrade plans across component types
+              </caption>
+              <thead>
+                <tr>
+                  <th>Plan / scope</th>
+                  <th>Customer / environment</th>
+                  <th>Version change</th>
+                  <th>Status / requested time</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map(({ plan, cluster, clusterName, environment }) => (
+                  <tr key={plan.planId}>
+                    <td>
+                      <strong title={plan.planId}>
+                        {plan.planId.slice(0, 12)}
+                      </strong>
+                      <span className="upgrade-plan-cluster">
+                        <PlatformIdentity
+                          identity={containerIdentity(cluster.platform)}
+                          kind="platform"
+                        />
+                        {clusterName}
+                      </span>
+                      <PlanScopeLabel plan={plan} />
+                    </td>
+                    <td>
+                      {cluster.customerName ?? cluster.customerId}
+                      <small>{environment}</small>
+                    </td>
+                    <td>{planVersionLabel(plan)}</td>
+                    <td>
+                      <span
+                        className="upgrade-plan-status"
+                        data-status={planStage(plan, now)}
+                      >
+                        {planStage(plan, now) === "History"
+                          ? plan.status
+                          : planStage(plan, now)}
+                      </span>
+                      <small>
+                        {plan.scheduledFor
+                          ? new Date(plan.scheduledFor).toLocaleString()
+                          : "No time requested"}
+                      </small>
+                    </td>
+                    <td>
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          onReview(
+                            plan.planId,
+                            planStage(plan, now) === "Overdue",
+                          )
+                        }
+                      >
+                        {planStage(plan, now) === "Overdue"
+                          ? "Review & reschedule"
+                          : "View plan"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           {!rows.length && (
-          <p role="status" className="upgrade-empty-state">
-            {data.pending
-              ? "Loading upgrade requests…"
-              : "No upgrade requests match these filters."}
-          </p>
-            )}
+            <p role="status" className="upgrade-empty-state">
+              {data.pending
+                ? "Loading upgrade requests…"
+                : "No upgrade requests match these filters."}
+            </p>
+          )}
         </section>
       )}
       {view === "available" && (
@@ -360,114 +303,114 @@ export function LiveUpgradeCentre({
           tabIndex={-1}
           aria-label="Available cluster upgrades"
         >
-        <header className="upgrade-centre-section-heading">
-          <div>
-            <h2>Available cluster upgrades</h2>
-            <p>
-              Only managed clusters with a control-plane, node-group, or
-              EKS-managed add-on upgrade opportunity are shown.
-            </p>
-          </div>
+          <header className="upgrade-centre-section-heading">
+            <div>
+              <h2>Available cluster upgrades</h2>
+              <p>
+                Only managed clusters with a control-plane, node-group, or
+                EKS-managed add-on upgrade opportunity are shown.
+              </p>
+            </div>
           </header>
           <div className="table-scroll">
-          <table className="upgrade-request-table">
-            <caption className="sr-only">
-              Registered active clusters and upgrade readiness
-            </caption>
-            <thead>
-              <tr>
-                <th>Cluster / context</th>
-                <th>Distribution</th>
-                <th>Version change</th>
-                <th>Readiness</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map((cluster, i) => {
-                const q = evidence[i],
-                  e = q.data;
-                if (!hasClusterUpgradeOpportunity(e)) return null;
-                const existing = data.rows.find(
-                  (r) =>
-                    r.plan.kind !== "UTILITY" &&
-                    r.plan.clusterId === cluster.clusterId &&
-                    [
-                      "DRAFT",
-                      "SUBMITTED",
-                      "APPROVED",
-                      "SCHEDULED",
-                      "EXECUTING",
-                    ].includes(r.plan.status),
-                )?.plan;
-                const state = data.stateForCluster(cluster.clusterId);
-                const blocked = planningBlockReason(data.identity, e, {
-                  readinessPending: q.isFetching,
-                  readinessError: q.isError,
-                  planPending: state.pending,
-                  planError: state.error,
-                  activePlan: existing,
-                });
-                return (
-                  <tr key={cluster.clusterId}>
-                    <td>
-                      <strong>{cluster.clusterName}</strong>
-                      <small>
-                        {cluster.customerName ?? cluster.customerId} ·{" "}
-                        {cluster.environmentName}
-                      </small>
-                    </td>
-                    <td>
-                      <PlatformIdentity
-                        identity={containerIdentity(cluster.platform)}
-                        kind="platform"
-                      />
-                    </td>
-                    <td>
-                      {e?.controlPlane.version ?? "Not reported"} →{" "}
-                      {e?.recommendedTarget?.version ?? "No target reported"}
-                    </td>
-                    <td>
-                      {q.isError
-                        ? "Evidence unavailable"
-                        : q.isPending
-                          ? "Checking…"
-                          : (e?.readiness.status ?? "Not reported")}
-                    </td>
-                    <td>
-                      {existing ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => onReview(existing.planId)}
-                        >
-                          Review existing plan
-                        </Button>
-                      ) : (
-                        <>
+            <table className="upgrade-request-table">
+              <caption className="sr-only">
+                Registered active clusters and upgrade readiness
+              </caption>
+              <thead>
+                <tr>
+                  <th>Cluster / context</th>
+                  <th>Distribution</th>
+                  <th>Version change</th>
+                  <th>Readiness</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {active.map((cluster, i) => {
+                  const q = evidence[i],
+                    e = q.data;
+                  if (!hasClusterUpgradeOpportunity(e)) return null;
+                  const existing = data.rows.find(
+                    (r) =>
+                      r.plan.kind !== "UTILITY" &&
+                      r.plan.clusterId === cluster.clusterId &&
+                      [
+                        "DRAFT",
+                        "SUBMITTED",
+                        "APPROVED",
+                        "SCHEDULED",
+                        "EXECUTING",
+                      ].includes(r.plan.status),
+                  )?.plan;
+                  const state = data.stateForCluster(cluster.clusterId);
+                  const blocked = planningBlockReason(data.identity, e, {
+                    readinessPending: q.isFetching,
+                    readinessError: q.isError,
+                    planPending: state.pending,
+                    planError: state.error,
+                    activePlan: existing,
+                  });
+                  return (
+                    <tr key={cluster.clusterId}>
+                      <td>
+                        <strong>{cluster.clusterName}</strong>
+                        <small>
+                          {cluster.customerName ?? cluster.customerId} ·{" "}
+                          {cluster.environmentName}
+                        </small>
+                      </td>
+                      <td>
+                        <PlatformIdentity
+                          identity={containerIdentity(cluster.platform)}
+                          kind="platform"
+                        />
+                      </td>
+                      <td>
+                        {e?.controlPlane.version ?? "Not reported"} →{" "}
+                        {e?.recommendedTarget?.version ?? "No target reported"}
+                      </td>
+                      <td>
+                        {q.isError
+                          ? "Evidence unavailable"
+                          : q.isPending
+                            ? "Checking…"
+                            : (e?.readiness.status ?? "Not reported")}
+                      </td>
+                      <td>
+                        {existing ? (
                           <Button
-                            disabled={!!blocked}
-                            onClick={() => onPlan(liveCluster(cluster, e))}
+                            variant="secondary"
+                            onClick={() => onReview(existing.planId)}
                           >
-                            Create upgrade plan
+                            Review existing plan
                           </Button>
-                          {blocked && <small>{blocked}</small>}
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        ) : (
+                          <>
+                            <Button
+                              disabled={!!blocked}
+                              onClick={() => onPlan(liveCluster(cluster, e))}
+                            >
+                              Create upgrade plan
+                            </Button>
+                            {blocked && <small>{blocked}</small>}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
           {!evidence.some((q) => q.isFetching) &&
-          !active.some((_, i) =>
-            hasClusterUpgradeOpportunity(evidence[i]?.data),
-          ) && (
-            <p role="status" className="upgrade-empty-state">
-              No managed cluster upgrades are currently available.
-            </p>
-          )}
+            !active.some((_, i) =>
+              hasClusterUpgradeOpportunity(evidence[i]?.data),
+            ) && (
+              <p role="status" className="upgrade-empty-state">
+                No managed cluster upgrades are currently available.
+              </p>
+            )}
         </section>
       )}
     </div>
