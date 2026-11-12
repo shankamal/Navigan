@@ -114,21 +114,58 @@ def test_maker_permission_cannot_execute_and_expired_windows_never_call_aws(serv
     with pytest.raises(ApiError) as error: service._execute(p)
     assert error.value.status==403
 
-def test_one_hop_advances_components_then_waits_for_next_window(service):
+def test_full_platform_pauses_at_health_gates_before_next_stage(service):
     p=approve(row(service),utcnow()-timedelta(minutes=1))
     saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
     service._execute(p);p=saved[-1]
     assert service.discovery.eks.writes[-1][0]=="CONTROL_PLANE"
     service.discovery.eks.version="1.35"
     service._refresh(p);p=saved[-1]
+    assert p["status"]=="EXECUTING"
+    assert p["execution"]["phase"]=="AWAITING_CONTROL_PLANE_HEALTH"
+    assert p["execution"]["gate"]["nextStage"]=="DATA_PLANE"
+    assert len(service.discovery.eks.writes)==1
+    with pytest.raises(ApiError,match="explicitly continue"):
+        service._refresh(p)
+    service._continue(p);p=saved[-1]
     assert service.discovery.eks.writes[-1][0]=="NODEGROUP"
     assert service.discovery.eks.writes[-1][1].get("force") is None
+    assert p["execution"]["gateHistory"][0]["afterStage"]=="CONTROL_PLANE"
     service.discovery.eks.nodes[0]["version"]="1.35"
     service._refresh(p);p=saved[-1]
+    assert p["execution"]["phase"]=="AWAITING_DATA_PLANE_HEALTH"
+    assert p["execution"]["gate"]["nextStage"]=="POST_VALIDATION"
+    assert len(service.discovery.eks.writes)==2
+    service._continue(p);p=saved[-1]
     assert p["status"]=="SCHEDULED" and p["execution"]["hopIndex"]==1
     assert len(p["execution"]["results"])==2
+    assert len(p["execution"]["gateHistory"])==2
     with pytest.raises(ApiError,match="not started"):service._execute(p)
     assert len(service.discovery.eks.writes)==2
+
+def test_health_gate_rechecks_live_state_before_continuing(service):
+    p=approve(row(service,payload(targetVersion="1.35")),utcnow()-timedelta(minutes=1))
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p);p=saved[-1]
+    service.discovery.eks.version="1.35"
+    service._refresh(p);p=saved[-1]
+    service.discovery.eks.nodes[0]["status"]="DEGRADED"
+    with pytest.raises(ApiError,match="must be healthy"):
+        service._continue(p)
+    assert len(service.discovery.eks.writes)==1
+
+def test_component_only_plans_do_not_use_full_platform_gate(service):
+    service.discovery.eks.version="1.35"
+    p=approve(row(service,payload("NODES",nodeGroups=["system"])),utcnow()-timedelta(minutes=1))
+    service.discovery.eks.nodes[0]["version"]="1.34"
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p);p=saved[-1]
+    service.discovery.eks.nodes[0]["version"]="1.35"
+    service._refresh(p);p=saved[-1]
+    assert p["status"]=="SUCCEEDED"
+    assert p["execution"]["phase"]=="VALIDATION"
+    with pytest.raises(ApiError,match="full platform"):
+        service._continue({**p,"status":"EXECUTING"})
 
 def test_failed_stage_never_advances_to_node_update(service):
     p=approve(row(service),utcnow()-timedelta(minutes=1))
