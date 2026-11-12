@@ -122,6 +122,9 @@ def test_full_platform_pauses_at_health_gates_before_next_stage(service):
     service._execute(p);p=saved[-1]
     assert p["execution"]["startPreflight"]["status"]=="PASSED"
     assert p["execution"]["startPreflight"]["operatorId"]=="engineer"
+    assert p["execution"]["startPreflight"]["approvedBy"]=="architect"
+    assert p["execution"]["startPreflight"]["windowStartsAt"]==p["plan_spec"]["steps"][0]["window"]["scheduledFor"]
+    assert p["execution"]["startPreflight"]["windowEndsAt"] > p["execution"]["startPreflight"]["windowStartsAt"]
     assert p["execution"]["startPreflight"]["firstStage"]=="CONTROL_PLANE"
     assert p["execution"]["startPreflight"]["controlPlaneVersion"]=="1.34"
     assert p["execution"]["startPreflight"]["upgradeInsightsPassing"] is True
