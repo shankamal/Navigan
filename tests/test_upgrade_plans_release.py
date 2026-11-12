@@ -24,7 +24,7 @@ def test_release_guard_is_pinned_to_last_confirmed_deployed_backend():
     release = load_release()
     assert (
         release.DEPLOYED_PLAN_TREE
-        == "a58badfe1e9a866f65d8d41de401feab8dc36793"
+        == "a8d572439b8f5097a48a86c442955afafd19f097"
     )
 
 
@@ -142,7 +142,7 @@ def test_production_baseline_includes_both_rescheduling_handler_fixes():
         release.DEPLOYED_PLAN_TREE, "src/navigan/modules/cluster_management/handler.py"
     ))
     source = handler.decode()
-    assert '"execute", "refresh", "continue", "reschedule"}' in source
+    assert '"execute", "refresh", "continue", "reschedule", "reconcile", "refresh-reconciliation", "apply-reconciliation"}' in source
     assert 'if (create_upgrade_plan or upgrade_plan_action) and body.get("scheduledFor")' in source
     plans = baseline(release.DEPLOYED_PLAN_TREE, "src/navigan/modules/cluster_management/upgrade_plans.py").decode()
     assert 'if action == "reschedule":' in plans
