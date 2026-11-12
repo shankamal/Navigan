@@ -759,16 +759,16 @@ export function UpgradePlansWorkspace({
               </p>
             )}
             {gatePending && (
-                <div className="upgrade-blocker-notice" role="status">
-                  <strong>Stage health gate required</strong>
-                  <p>
-                    The previous stage completed successfully. Navigan will
-                    re-read live EKS health before starting the next approved
-                    stage. Confirm application health and maintenance coverage
-                    before continuing.
-                  </p>
-                </div>
-              )}
+              <div className="upgrade-blocker-notice" role="status">
+                <strong>Stage health gate required</strong>
+                <p>
+                  The previous stage completed successfully. Navigan will
+                  re-read live EKS health before starting the next approved
+                  stage. Confirm application health and maintenance coverage
+                  before continuing.
+                </p>
+              </div>
+            )}
             {!plan.planSpec &&
               plan.kind !== "UTILITY" &&
               ["APPROVED", "SCHEDULED"].includes(plan.status) && (
