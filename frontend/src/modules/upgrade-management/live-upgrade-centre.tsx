@@ -191,7 +191,7 @@ export function LiveUpgradeCentre({
         </button>
       </nav>
       {view === "plans" && (
-      <section aria-label="Upgrade requests">
+        <section aria-label="Upgrade requests">
         <header className="upgrade-centre-section-heading">
           <div>
             <h2>Saved upgrade plans</h2>
@@ -352,10 +352,10 @@ export function LiveUpgradeCentre({
               : "No upgrade requests match these filters."}
           </p>
         )}
-      </section>
+        </section>
       )}
       {view === "available" && (
-      <section
+        <section
         className="upgrade-opportunities"
         tabIndex={-1}
         aria-label="Available cluster upgrades"
@@ -468,7 +468,7 @@ export function LiveUpgradeCentre({
               No managed cluster upgrades are currently available.
             </p>
           )}
-      </section>
+        </section>
       )}
     </div>
   );
