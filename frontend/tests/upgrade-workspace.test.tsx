@@ -515,6 +515,119 @@ describe("Upgrade workspace", () => {
     }
   });
 
+  it("offers governed IaC reconciliation after successful provider validation", async () => {
+    const previousPrivileges = authIdentity.privileges;
+    const originalPlans = vi
+      .mocked(clusters.upgradePlans)
+      .getMockImplementation()!;
+    authIdentity.privileges = [
+      "cluster.upgrade.plan",
+      "cluster.upgrade.execute",
+    ];
+    const succeeded = {
+      planId: "UPG-success",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      kind: "CONTAINER",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status: "SUCCEEDED",
+      scheduledFor: "2027-01-01T12:00:00Z",
+      changeReason: "Upgrade and reconcile IaC",
+      version: 6,
+      createdBy: "engineer-maker",
+      submittedBy: "engineer-maker",
+      approvedBy: "architect-reviewer",
+      createdAt: "2026-12-30T10:00:00Z",
+      updatedBy: "engineer-maker",
+      updatedAt: "2027-01-01T13:00:00Z",
+      execution: {
+        phase: "POST_VALIDATION",
+        providerStatus: "Successful",
+        postValidation: { status: "PASSED" },
+      },
+      planSpec: {
+        format: 1,
+        scope: "CLUSTER",
+        sourceVersion: "1.34",
+        finalVersion: "1.35",
+        nodeGroups: ["system"],
+        addonNames: [],
+        validation: "Validate platform health.",
+        steps: [
+          {
+            fromVersion: "1.34",
+            targetVersion: "1.35",
+            window: {
+              scheduledFor: "2027-01-01T12:00:00Z",
+              durationMinutes: 120,
+            },
+            operations: [
+              {
+                kind: "CONTROL_PLANE",
+                stage: "CONTROL_PLANE",
+                name: "demo",
+                from: "1.34",
+                to: "1.35",
+              },
+              {
+                kind: "NODEGROUP",
+                stage: "DATA_PLANE",
+                name: "system",
+                from: "1.34",
+                to: "1.35",
+              },
+            ],
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [succeeded],
+    });
+    vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce({
+      ...succeeded,
+      version: 7,
+      execution: {
+        ...succeeded.execution,
+        iacReconciliation: {
+          status: "PLAN_RUNNING",
+          desiredVersionBefore: "1.34",
+          targetVersion: "1.35",
+        },
+      },
+    });
+    try {
+      mount();
+      fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Review plan" }),
+      );
+      const drawer = screen.getByRole("dialog", {
+        name: "Upgrade plan details",
+      });
+      fireEvent.click(
+        within(drawer).getByRole("button", { name: "Reconcile IaC" }),
+      );
+      await waitFor(() =>
+        expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+          "CLU-live",
+          "UPG-success",
+          "reconcile",
+          6,
+          undefined,
+        ),
+      );
+    } finally {
+      authIdentity.privileges = previousPrivileges;
+      vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
+    }
+  });
+
   it("requires two-step confirmation to start an approved plan inside its window", async () => {
     const previousPrivileges = authIdentity.privileges;
     const originalPlans = vi
