@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 # PROD backend was last reconciled and deployed from the reviewed release below.
 # Keep all deployed modules pinned together before replacing scoped plan code.
-DEPLOYED_PLAN_TREE = "a58badfe1e9a866f65d8d41de401feab8dc36793"
+DEPLOYED_PLAN_TREE = "a8d572439b8f5097a48a86c442955afafd19f097"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ClusterUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/upgrade-options",
