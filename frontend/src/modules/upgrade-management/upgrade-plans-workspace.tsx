@@ -235,6 +235,19 @@ export function UpgradePlansWorkspace({
     plan.execution.iacReconciliation !== null
       ? (plan.execution.iacReconciliation as Record<string, unknown>)
       : undefined;
+  const terraformActions =
+    iacReconciliation &&
+    typeof iacReconciliation.planSummary === "object" &&
+    iacReconciliation.planSummary !== null &&
+    typeof (
+      iacReconciliation.planSummary as Record<string, unknown>
+    ).actions === "object"
+      ? (
+          iacReconciliation.planSummary as {
+            actions: Record<string, unknown>;
+          }
+        ).actions
+      : undefined;
   const gate = plan?.execution.gate;
   const gatePending =
     typeof gate === "object" &&
@@ -821,24 +834,14 @@ export function UpgradePlansWorkspace({
                       {String(iacReconciliation.failureCode)}
                     </p>
                   )}
-                  {typeof iacReconciliation.planSummary === "object" &&
-                    iacReconciliation.planSummary !== null &&
-                    typeof (
-                      iacReconciliation.planSummary as Record<string, unknown>
-                    ).actions === "object" && (
-                      <p>
-                        Terraform actions:{" "}
-                        {Object.entries(
-                          (
-                            iacReconciliation.planSummary as {
-                              actions: Record<string, unknown>;
-                            }
-                          ).actions,
-                        )
-                          .map(([action, count]) => `${action}: ${String(count)}`)
-                          .join(", ")}
-                      </p>
-                    )}
+                  {terraformActions && (
+                    <p>
+                      Terraform actions:{" "}
+                      {Object.entries(terraformActions)
+                        .map(([action, count]) => `${action}: ${String(count)}`)
+                        .join(", ")}
+                    </p>
+                  )}
                 </div>
               )}
             {gatePending && (
