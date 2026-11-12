@@ -363,6 +363,17 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             )
         target = plan["plan_spec"]["finalVersion"]
         configuration = deepcopy(cluster.get("configuration") or {})
+        groups = [
+            deepcopy(item)
+            for item in configuration.get("nodeGroups", [])
+            if isinstance(item, dict)
+        ]
+        names = {item.get("name") for item in groups}
+        for item in self.repo.active_application_node_groups(cluster["cluster_id"]):
+            if item.get("name") not in names:
+                groups.append(deepcopy(item))
+                names.add(item.get("name"))
+        configuration["nodeGroups"] = groups
         configured = configuration.get("kubernetesVersion")
         allowed = {plan["plan_spec"]["sourceVersion"], target}
         if configured not in allowed:
