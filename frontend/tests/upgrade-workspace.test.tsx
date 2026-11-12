@@ -489,7 +489,9 @@ describe("Upgrade workspace", () => {
         .closest("tr");
       expect(nodeRow).not.toBeNull();
       expect(within(nodeRow!).getByText("Pending")).toBeInTheDocument();
-      expect(within(nodeRow!).queryByText("Successful")).not.toBeInTheDocument();
+      expect(
+        within(nodeRow!).queryByText("Successful"),
+      ).not.toBeInTheDocument();
       expect(
         within(drawer).queryByRole("button", { name: "Refresh execution" }),
       ).not.toBeInTheDocument();
