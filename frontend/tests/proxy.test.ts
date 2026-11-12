@@ -15,6 +15,18 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("Same-origin API proxy", () => {
+  it("forwards only POST for the governed health-gate continuation action", () => {
+    const path = [
+      "clusters",
+      "CLU-live",
+      "upgrade-plans",
+      `UPG-${"a".repeat(32)}`,
+      "continue",
+    ];
+    expect(isAllowedRoute("POST", path)).toBe(true);
+    expect(isAllowedRoute("GET", path)).toBe(false);
+  });
+
   it("forwards only POST for the governed reschedule action", () => {
     const path = [
       "clusters",
