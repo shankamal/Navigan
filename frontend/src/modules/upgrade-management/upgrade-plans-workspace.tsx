@@ -803,6 +803,15 @@ export function UpgradePlansWorkspace({
                   and maintenance windows before execution.
                 </p>
               )}
+            {plan.planSpec &&
+              plan.kind !== "UTILITY" &&
+              ["APPROVED", "SCHEDULED"].includes(plan.status) &&
+              !canExecute && (
+                <p role="status">
+                  Execution must be started by an authorized Cloud Engineer
+                  during the approved maintenance window.
+                </p>
+              )}
             <footer>
               <Button variant="secondary" onClick={closeDrawer}>
                 Close
