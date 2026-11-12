@@ -24,14 +24,16 @@ export function executionWindowState(
   now = Date.now(),
 ): ExecutionWindowState {
   const hopIndex = Number(plan.execution?.hopIndex ?? 0);
-  if (!["APPROVED", "SCHEDULED"].includes(plan.status) || !plan.planSpec)
+  if (!["APPROVED", "SCHEDULED"].includes(plan.status) || !plan.planSpec) {
     return { state: "UNSCHEDULED", hopIndex };
+  }
   const window = plan.planSpec.steps[hopIndex]?.window;
   if (!window) return { state: "UNSCHEDULED", hopIndex };
   const start = new Date(window.scheduledFor).getTime();
   const end = start + window.durationMinutes * 60_000;
-  if (!Number.isFinite(start))
+  if (!Number.isFinite(start)) {
     return { state: "UNSCHEDULED", hopIndex };
+  }
   return {
     state: now < start ? "UPCOMING" : now >= end ? "EXPIRED" : "READY",
     hopIndex,
@@ -41,8 +43,9 @@ export function executionWindowState(
 }
 
 export function scheduleOverdue(plan: PlanSchedule, now = Date.now()) {
-  if (plan.planSpec && ["APPROVED", "SCHEDULED"].includes(plan.status))
+  if (plan.planSpec && ["APPROVED", "SCHEDULED"].includes(plan.status)) {
     return executionWindowState(plan, now).state === "EXPIRED";
+  }
   return (
     ["DRAFT", "SUBMITTED"].includes(plan.status) &&
     Boolean(plan.scheduledFor) &&
