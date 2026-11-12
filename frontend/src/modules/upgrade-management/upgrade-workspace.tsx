@@ -206,7 +206,12 @@ export function UpgradeWorkspace() {
             }}
           />
         ) : tab === "readiness" ? (
-          <LiveUpgradeCentre onPlan={setPlanning} onReview={openPlan} />
+          <LiveUpgradeCentre
+            key={requestedDate ? "available" : "plans"}
+            initialView={requestedDate ? "available" : "plans"}
+            onPlan={setPlanning}
+            onReview={openPlan}
+          />
         ) : (
           <SupportingTab
             tab={tab}
