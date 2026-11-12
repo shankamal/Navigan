@@ -1,3 +1,17 @@
+## 12 November 2026 — Phase 2 staged EKS upgrade execution deployed to PROD
+
+Phase 2 is deployed in PROD from `feature/eks-upgrade-readiness`. Governed backend deployment completed successfully through a fresh guarded `deploy-eks-upgrade-plans-prod.py` prepare/execute cycle; the release helper explicitly reported: `PROD governed EKS upgrade-plan API deployed and verified. No EKS upgrade was started.` Database migrations 029–033 were validated only and were not rerun. Release guard is pinned to the last confirmed deployed backend baseline `1894355b5c90dd1bcd10aa3624b91106360f3d6b`.
+
+Frontend was prepared from source revision `0166ca0a65a717c92fe56bab12ad34379dfbd6b1` and deployed to ECS task definition `:57`. Rollback task is `:56`. Running immutable image verified as `905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:f1de366debef76a9c8407c0f1ab4a447c41f03ebf31b390168fd882cd7a5815d`. Release helper passed public `/healthz` and `/login` checks.
+
+Implemented Phase 2 behavior: explicit component scopes `CONTROL_PLANE`, legacy/full-platform `CLUSTER`, `NODES`, and `ADDONS`; new full-platform plans persist explicit operation stages `PREREQUISITE_COMPONENTS`, `CONTROL_PLANE`, `COMPATIBILITY_COMPONENTS`, and `DATA_PLANE`; full-platform execution pauses after control plane and data plane at explicit health gates; operator action `Validate health & continue` re-reads live EKS health before the next approved stage; gate history records operator/time; final success records provider post-validation. Application/SLO validation is still explicitly operator-verified and is not claimed automated. Component-only plans do not use full-platform gates. Existing legacy plans remain readable/backward-compatible.
+
+CI evidence: exact functional Phase 2 head `acb122f` passed Python/PostgreSQL, infrastructure/SAM, frontend verification and frontend container/Fargate workflows. Release-guard head `0166ca0` passed Python/PostgreSQL verification. No DEV rollout and no live EKS version/node/add-on mutation were performed as part of this deployment.
+
+Authenticated PROD acceptance is still pending. Safe next check: sign in to `navigan.click`, open Upgrades & Patching, verify scope labels Control plane only / Full platform upgrade / Node groups / Managed add-ons, inspect an existing plan’s explicit Stage vs Execution columns, and confirm no upgrade is started. Do not click Start approved upgrade or Validate health & continue merely for UI testing.
+
+---
+
 ## 11 November 2026 — PROD :52 findings and compact planner correction
 
 User confirmed PROD :52 deployed from359189c2; frontend image884ba3f250354c26261fd59b38c34a523ab626397746aea76fc4d68d3c3e1fdb. User screenshots: upgrade list only one saved plan; calendar plus seemed unresponsive; strategy dropdown disabled; planner metadata/version rows had huge blank areas. Explained counts are saved plans, not available clusters (one plan affects cluster and node scope). User explicitly requested Available upgrades always expanded, wording Create upgrade plan/Cluster upgrade, Platform Architect approval label, and compact consistent form.
