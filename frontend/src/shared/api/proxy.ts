@@ -51,6 +51,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
         "cancel",
         "execute",
         "refresh",
+        "continue",
         "reschedule",
       ].includes(path[4])
     )
