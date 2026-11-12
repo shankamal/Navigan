@@ -9,7 +9,11 @@ import { hasPermission } from "@/shared/auth/permissions";
 import { Button } from "@/shared/components/ui";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { PlanComponents, EvidenceChecks, PlanCheck } from "./plan-components";
-import { scheduleOverdue, useScheduleClock } from "./schedule-state";
+import {
+  executionWindowState,
+  scheduleOverdue,
+  useScheduleClock,
+} from "./schedule-state";
 import { ClusterContext } from "./cluster-context";
 import { MaintenanceCalendar } from "./maintenance-calendar";
 import { rescheduleBlockReason } from "./plan-availability";
@@ -213,6 +217,21 @@ export function UpgradePlansWorkspace({
     "status" in gate &&
     gate.status === "PENDING";
   const overdue = plan ? scheduleOverdue(plan, now) : false;
+  const executionWindow = plan
+    ? executionWindowState(plan, now)
+    : { state: "UNSCHEDULED" as const, hopIndex: 0 };
+  const currentStep =
+    plan?.planSpec?.steps[executionWindow.hopIndex] ?? plan?.planSpec?.steps[0];
+  const firstOperation = currentStep?.operations[0];
+  const firstStage = firstOperation?.stage
+    ? firstOperation.stage.replaceAll("_", " ").toLowerCase()
+    : firstOperation?.kind === "CONTROL_PLANE"
+      ? "control plane"
+      : firstOperation?.kind === "NODEGROUP"
+        ? "data plane"
+        : firstOperation?.kind === "ADDON"
+          ? "compatibility components"
+          : "approved component";
   const canReviewSelected = Boolean(
     plan &&
     plan.status === "SUBMITTED" &&
@@ -823,44 +842,62 @@ export function UpgradePlansWorkspace({
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                Boolean(plan.planSpec) &&
-                !overdue && (
+                Boolean(plan.planSpec) && (
                   <>
-                    {plan.scheduledFor &&
-                    new Date(plan.scheduledFor).getTime() > Date.now() ? (
-                      <p>
-                        Execution becomes available when the approved window
-                        starts.
+                    {executionWindow.state === "UPCOMING" && (
+                      <p role="status">
+                        Approved execution window opens{" "}
+                        {timeLabel(executionWindow.startsAt)} and closes{" "}
+                        {timeLabel(executionWindow.endsAt)}. No upgrade can start
+                        before this window.
                       </p>
-                    ) : confirmStart ? (
-                      <>
-                        <p>
-                          This starts the approved component operations for this
-                          step. Confirm application health and maintenance
-                          coverage before continuing. Recovery must follow the
-                          provider-supported procedure.
-                        </p>
-                        <Button
-                          disabled={action.isPending}
-                          onClick={() => run("execute")}
-                        >
-                          Confirm start upgrade
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => setConfirmStart(false)}
-                        >
-                          Go back
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        disabled={action.isPending}
-                        onClick={() => setConfirmStart(true)}
-                      >
-                        Start approved upgrade
-                      </Button>
                     )}
+                    {executionWindow.state === "EXPIRED" && (
+                      <div className="upgrade-blocker-notice" role="alert">
+                        <strong>Approved execution window expired</strong>
+                        <p>
+                          No new provider operation can start. Create a new
+                          maintenance schedule and obtain approval again.
+                        </p>
+                      </div>
+                    )}
+                    {executionWindow.state === "READY" &&
+                      (confirmStart ? (
+                        <>
+                          <p role="status">
+                            Execution window is open until{" "}
+                            {timeLabel(executionWindow.endsAt)}. Confirming starts
+                            the first approved stage: {firstStage}. Navigan will
+                            re-read live EKS health, versions, compatibility and
+                            upgrade insights before calling the provider.
+                          </p>
+                          <Button
+                            disabled={action.isPending}
+                            onClick={() => run("execute")}
+                          >
+                            Confirm start upgrade
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => setConfirmStart(false)}
+                          >
+                            Go back
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <p role="status">
+                            Approved execution window is open. Starting remains
+                            a manual Cloud Engineer action.
+                          </p>
+                          <Button
+                            disabled={action.isPending}
+                            onClick={() => setConfirmStart(true)}
+                          >
+                            Start approved upgrade
+                          </Button>
+                        </>
+                      ))}
                   </>
                 )}
               {plan.status === "EXECUTING" &&
