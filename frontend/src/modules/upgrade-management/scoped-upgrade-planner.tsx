@@ -272,7 +272,11 @@ export function ScopedUpgradePlanner({
             <div className="upgrade-scope-options">
               {(
                 [
-                  { id: "CONTROL_PLANE", label: "Control plane only", Icon: Cpu },
+                  {
+                    id: "CONTROL_PLANE",
+                    label: "Control plane only",
+                    Icon: Cpu,
+                  },
                   { id: "CLUSTER", label: "Full platform upgrade", Icon: Cpu },
                   { id: "NODES", label: "Node groups", Icon: Layers3 },
                   { id: "ADDONS", label: "Managed add-ons", Icon: Puzzle },
