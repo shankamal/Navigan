@@ -593,6 +593,11 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                     "status": "PASSED",
                     "observedAt": now.isoformat(),
                     "operatorId": self.access.user_id,
+                    "approvedBy": plan.get("approved_by"),
+                    "windowStartsAt": start.isoformat(),
+                    "windowEndsAt": (
+                        start + timedelta(minutes=step["window"]["durationMinutes"])
+                    ).isoformat(),
                     "fromVersion": step["fromVersion"],
                     "targetVersion": step["targetVersion"],
                     "firstStage": self._operation_stage(first_operation),
