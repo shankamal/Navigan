@@ -89,6 +89,36 @@
   color: var(--upgrade-ink);
   font-weight: 600;
 }
+.upgrade-centre-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 4px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: var(--navigan-radius);
+  background: var(--navigan-canvas);
+}
+.upgrade-centre-tabs button {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: calc(var(--navigan-radius) - 2px);
+  background: transparent;
+  color: var(--upgrade-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.upgrade-centre-tabs button:hover {
+  color: var(--upgrade-ink);
+  background: var(--navigan-surface);
+}
+.upgrade-centre-tabs button.active {
+  color: var(--upgrade-ink);
+  background: var(--navigan-surface);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--navigan-brand);
+}
 .upgrade-readiness-layout,
 .upgrade-live-capability,
 .upgrade-compact-card,
