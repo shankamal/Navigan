@@ -130,7 +130,9 @@ export function ScopedUpgradePlanner({
     queryFn: () => clusters.upgradeOptions(cluster.id),
     retry: false,
   });
-  const [scope, setScope] = useState<"CLUSTER" | "CONTROL_PLANE" | "NODES" | "ADDONS">("CONTROL_PLANE");
+  const [scope, setScope] = useState<
+    "CLUSTER" | "CONTROL_PLANE" | "NODES" | "ADDONS"
+  >("CONTROL_PLANE");
   const [target, setTarget] = useState("");
   const [nodes, setNodes] = useState<string[]>([]);
   const [addons, setAddons] = useState<Record<string, string>>({});
