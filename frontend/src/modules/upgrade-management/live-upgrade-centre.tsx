@@ -34,8 +34,7 @@ export function hasClusterUpgradeOpportunity(
     ) ||
     evidence.addons.some(
       (addon) =>
-        Boolean(addon.targetVersion) &&
-        addon.targetVersion !== addon.version,
+        Boolean(addon.targetVersion) && addon.targetVersion !== addon.version,
     )
   );
 }
