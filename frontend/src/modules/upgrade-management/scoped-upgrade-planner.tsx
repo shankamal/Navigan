@@ -46,6 +46,13 @@ export function UpgradePathDetails({
   const results = Array.isArray(execution.results)
     ? (execution.results as Record<string, unknown>[])
     : [];
+  const postValidation = execution.postValidation;
+  const postValidationStatus =
+    typeof postValidation === "object" &&
+    postValidation !== null &&
+    "status" in postValidation
+      ? String(postValidation.status)
+      : null;
   return (
     <section
       className="upgrade-path-details"
@@ -126,18 +133,14 @@ export function UpgradePathDetails({
         inside its approved window. Check application health before starting the
         next step.
       </p>
-      {execution.postValidation &&
-        typeof execution.postValidation === "object" &&
-        execution.postValidation !== null &&
-        "status" in execution.postValidation && (
-          <p role="status">
-            Provider post-validation:{" "}
-            {String(execution.postValidation.status)}
-            {" · "}
-            Application validation remains operator-confirmed until workload
-            health evidence is integrated.
-          </p>
-        )}
+      {postValidationStatus && (
+        <p role="status">
+          Provider post-validation: {postValidationStatus}
+          {" · "}
+          Application validation remains operator-confirmed until workload
+          health evidence is integrated.
+        </p>
+      )}
     </section>
   );
 }
