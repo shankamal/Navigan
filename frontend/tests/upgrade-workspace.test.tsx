@@ -483,6 +483,13 @@ describe("Upgrade workspace", () => {
       expect(
         within(drawer).getByText("Stage health gate required"),
       ).toBeInTheDocument();
+      const pathTable = within(drawer).getByRole("table");
+      const nodeRow = within(pathTable)
+        .getByText("Managed node group")
+        .closest("tr");
+      expect(nodeRow).not.toBeNull();
+      expect(within(nodeRow!).getByText("Pending")).toBeInTheDocument();
+      expect(within(nodeRow!).queryByText("Successful")).not.toBeInTheDocument();
       expect(
         within(drawer).queryByRole("button", { name: "Refresh execution" }),
       ).not.toBeInTheDocument();
