@@ -134,13 +134,69 @@ export function LiveUpgradeCentre({
   return (
     <div className="upgrade-centre upgrade-context-workbench">
       {view === "plans" && (
+        <ComponentPlanMetrics
+          plans={data.rows.map((r) => r.plan)}
+          loading={data.pending}
+          unavailable={data.errors.length > 0}
+          selected={type}
+          onSelect={setType}
+        />
+      )}
+      {data.errors.length > 0 && (
+        <div role="alert" className="upgrade-blocker-notice">
+          Some plan records are unavailable. Totals may be incomplete.
+          <Button variant="secondary" onClick={data.refresh}>
+            Retry plans
+          </Button>
+        </div>
+      )}
+      {!!overdue.length && (
+        <div className="upgrade-attention-strip">
+          <AlertTriangle size={18} />
+          <strong>
+            {overdue.length} maintenance{" "}
+            {overdue.length === 1 ? "request needs" : "requests need"} a new
+            time
+          </strong>
+          <Button
+            variant="secondary"
+            onClick={() => onReview(overdue[0].plan.planId, true)}
+          >
+            Review & reschedule
+          </Button>
+        </div>
+      )}
+      <nav
+        className="upgrade-centre-tabs"
+        aria-label="Upgrade Centre views"
+        role="tablist"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "plans"}
+          className={view === "plans" ? "active" : ""}
+          onClick={() => setView("plans")}
+        >
+          Saved upgrade plans
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "available"}
+          className={view === "available" ? "active" : ""}
+          onClick={() => setView("available")}
+        >
+          Available cluster upgrades
+        </button>
+      </nav>
+      {view === "plans" && (
         <section aria-label="Upgrade requests">
           <header className="upgrade-centre-section-heading">
             <div>
               <h2>Saved upgrade plans</h2>
               <p className="upgrade-section-help">
-                Only created plans appear here. All active clusters are listed
-                below.
+                Only created upgrade plans appear in this view.
               </p>
             </div>
             <div className="upgrade-action-group">
