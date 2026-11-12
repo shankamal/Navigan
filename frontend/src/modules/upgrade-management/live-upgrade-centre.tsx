@@ -192,7 +192,7 @@ export function LiveUpgradeCentre({
       </nav>
       {view === "plans" && (
         <section aria-label="Upgrade requests">
-        <header className="upgrade-centre-section-heading">
+            <header className="upgrade-centre-section-heading">
           <div>
             <h2>Saved upgrade plans</h2>
             <p className="upgrade-section-help">
@@ -212,8 +212,8 @@ export function LiveUpgradeCentre({
               Refresh inventory
             </Button>
           </div>
-        </header>
-        <div className="upgrade-centre-filters">
+          </header>
+          <div className="upgrade-centre-filters">
           <input
             aria-label="Search upgrade plans"
             placeholder="Search plans, clusters, components…"
@@ -274,8 +274,8 @@ export function LiveUpgradeCentre({
               <option key={s}>{s}</option>
             ))}
           </select>
-        </div>
-        <div className="table-scroll">
+          </div>
+          <div className="table-scroll">
           <table className="upgrade-request-table">
             <caption className="sr-only">
               Upgrade plans across component types
@@ -344,22 +344,22 @@ export function LiveUpgradeCentre({
               ))}
             </tbody>
           </table>
-        </div>
-        {!rows.length && (
+          </div>
+          {!rows.length && (
           <p role="status" className="upgrade-empty-state">
             {data.pending
               ? "Loading upgrade requests…"
               : "No upgrade requests match these filters."}
           </p>
-        )}
+            )}
         </section>
       )}
       {view === "available" && (
         <section
-        className="upgrade-opportunities"
-        tabIndex={-1}
-        aria-label="Available cluster upgrades"
-      >
+          className="upgrade-opportunities"
+          tabIndex={-1}
+          aria-label="Available cluster upgrades"
+        >
         <header className="upgrade-centre-section-heading">
           <div>
             <h2>Available cluster upgrades</h2>
@@ -368,8 +368,8 @@ export function LiveUpgradeCentre({
               EKS-managed add-on upgrade opportunity are shown.
             </p>
           </div>
-        </header>
-        <div className="table-scroll">
+          </header>
+          <div className="table-scroll">
           <table className="upgrade-request-table">
             <caption className="sr-only">
               Registered active clusters and upgrade readiness
@@ -459,8 +459,8 @@ export function LiveUpgradeCentre({
               })}
             </tbody>
           </table>
-        </div>
-        {!evidence.some((q) => q.isFetching) &&
+          </div>
+          {!evidence.some((q) => q.isFetching) &&
           !active.some((_, i) =>
             hasClusterUpgradeOpportunity(evidence[i]?.data),
           ) && (
