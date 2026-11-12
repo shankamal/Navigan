@@ -25,6 +25,36 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
     if (path.length === 3 && path[2] === "audit-log") return method === "GET";
     if (path.length === 3 && path[2] === "platform-components")
       return method === "GET";
+    if (path.length === 3 && path[2] === "utility-upgrade-options")
+      return method === "GET";
+    if (
+      path.length === 3 &&
+      ["upgrade-readiness", "upgrade-options"].includes(path[2])
+    )
+      return method === "GET";
+    if (path.length === 3 && path[2] === "upgrade-plans")
+      return ["GET", "POST"].includes(method);
+    if (
+      path.length === 4 &&
+      path[2] === "upgrade-plans" &&
+      /^UPG-[a-f0-9]{32}$/.test(path[3])
+    )
+      return method === "GET";
+    if (
+      path.length === 5 &&
+      path[2] === "upgrade-plans" &&
+      /^UPG-[a-f0-9]{32}$/.test(path[3]) &&
+      [
+        "submit",
+        "approve",
+        "reject",
+        "cancel",
+        "execute",
+        "refresh",
+        "reschedule",
+      ].includes(path[4])
+    )
+      return method === "POST";
     if (path.length === 3 && path[2] === "tools") return method === "GET";
     if (
       path.length === 5 &&

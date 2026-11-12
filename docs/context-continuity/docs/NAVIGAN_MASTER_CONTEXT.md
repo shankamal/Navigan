@@ -1,4 +1,16 @@
-# Current recovery override — 5 November 2026 (Asia/Kolkata)
+## Current override — 11 November 2026 end of session
+
+Use the final “consolidated end-of-session checkpoint” in docs/NAVIGAN_DAILY_CHECKPOINT.md and docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md (relative to the continuity-kit root). It consolidates UI, roles, component scopes/paths, calendar, names, user-authorized PA self-approval and rollout evidence. Backend 1894355b is confirmed deployed; frontend :56 is prepared with execution output unconfirmed. User says acceptable for now, with remaining findings deferred to tomorrow. Collect those findings before more work; historical blockers and independent-review-only policy are superseded. Keep utility execution disabled and do not start upgrades.
+
+---
+
+# Current recovery override — 7 November 2026 (Asia/Kolkata)
+
+Use `docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md`, the newest checkpoint and current user instructions. The rejected upgrade-module theme is being aligned with shared Navigan styles; banner/pale green fills are removed. This is a frontend-only source increment pending deployment and visual acceptance. User terminal output confirmed the `db1e9ff1` backend release, while frontend `:43` has only preparation evidence in this chat. Older references to read-only-only APIs, dummy Upgrade Centre data, task `:37`, main branch, and pending IAM/schema setup are historical. Do not repeat them. Preserve all local files, especially the unrelated modified AWS SAM ZIP.
+
+---
+
+# Historical recovery override — 5 November 2026 (Asia/Kolkata)
 
 Read `docs/NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md` first. This override supersedes older current-state labels, blockers, branch references, deployment revisions and next-task instructions below.
 

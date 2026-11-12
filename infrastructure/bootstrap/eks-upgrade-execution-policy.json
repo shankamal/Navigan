@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "NaviganApprovedEksControlPlaneUpgrade",
+      "Effect": "Allow",
+      "Action": "eks:UpdateClusterVersion",
+      "Resource": "arn:aws:eks:*:*:cluster/*"
+    },
+    {
+      "Sid": "NaviganApprovedEksAddonUpgrade",
+      "Effect": "Allow",
+      "Action": "eks:UpdateAddon",
+      "Resource": "arn:aws:eks:*:*:addon/*/*/*"
+    },
+    {
+      "Sid": "NaviganApprovedEksNodegroupUpgrade",
+      "Effect": "Allow",
+      "Action": "eks:UpdateNodegroupVersion",
+      "Resource": "arn:aws:eks:*:*:nodegroup/*/*/*"
+    }
+  ]
+}

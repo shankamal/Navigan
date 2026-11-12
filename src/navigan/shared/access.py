@@ -26,6 +26,8 @@ LEGACY_ROLE_PRIVILEGES = {
             "environment.history.view",
             "cluster.view",
             "cluster.create",
+            "cluster.upgrade.plan",
+            "cluster.upgrade.execute",
             "cluster.edit",
             "cluster.submit",
             "cluster.logs.view",

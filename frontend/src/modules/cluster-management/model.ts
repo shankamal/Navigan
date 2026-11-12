@@ -247,6 +247,255 @@ export const platformComponentInventorySchema = z.object({
   ),
   runtimeInventory: clusterRuntimeInventorySchema,
 });
+const eksHealthIssueSchema = z.object({
+  code: z.string().nullable().optional(),
+  message: z.string().nullable().optional(),
+  resourceIds: z.array(z.string()).default([]),
+});
+const eksVersionEvidenceSchema = z.object({
+  version: z.string(),
+  supportStatus: z.string(),
+  releaseDate: z.string().nullable(),
+  endOfStandardSupportDate: z.string().nullable(),
+  endOfExtendedSupportDate: z.string().nullable(),
+  defaultPlatformVersion: z.string().nullable().optional(),
+  kubernetesPatchVersion: z.string().nullable().optional(),
+});
+const eksReadinessFindingSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  insightId: z.string().nullable().optional(),
+});
+export const eksUpgradeReadinessSchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  provider: z.literal("EKS"),
+  region: z.string(),
+  source: z.literal("AWS_EKS_API"),
+  observedAt: z.string(),
+  controlPlane: z.object({
+    name: z.string(),
+    arn: z.string().nullable().optional(),
+    version: z.string(),
+    platformVersion: z.string().nullable().optional(),
+    status: z.string(),
+    support: eksVersionEvidenceSchema.nullable().optional(),
+  }),
+  recommendedTarget: eksVersionEvidenceSchema.nullable(),
+  nodeGroups: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string().nullable().optional(),
+      releaseVersion: z.string().nullable().optional(),
+      status: z.string(),
+      amiType: z.string().nullable().optional(),
+      capacityType: z.string().nullable().optional(),
+      healthIssues: z.array(eksHealthIssueSchema),
+    }),
+  ),
+  addons: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string().nullable().optional(),
+      status: z.string(),
+      serviceAccountRoleArn: z.string().nullable().optional(),
+      healthIssues: z.array(eksHealthIssueSchema),
+      targetVersion: z.string().nullable(),
+    }),
+  ),
+  insights: z.array(
+    z.object({
+      id: z.string().nullable().optional(),
+      name: z.string(),
+      category: z.string().nullable().optional(),
+      kubernetesVersion: z.string().nullable().optional(),
+      status: z.string(),
+      reason: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      recommendation: z.string().nullable().optional(),
+      lastRefreshTime: z.string().nullable(),
+      resources: z.array(
+        z.object({
+          arn: z.string().nullable().optional(),
+          kubernetesResourceUri: z.string().nullable().optional(),
+          status: z.string().nullable().optional(),
+          reason: z.string().nullable().optional(),
+        }),
+      ),
+    }),
+  ),
+  updates: z.array(
+    z.object({
+      id: z.string(),
+      type: z.string().nullable().optional(),
+      status: z.string(),
+      createdAt: z.string().nullable(),
+    }),
+  ),
+  readiness: z.object({
+    status: z.enum(["READY", "WARNING", "BLOCKED"]),
+    blockers: z.array(eksReadinessFindingSchema),
+    warnings: z.array(eksReadinessFindingSchema),
+    checks: z.object({
+      controlPlaneActive: z.boolean(),
+      nodeGroupsAligned: z.boolean(),
+      addonsHealthy: z.boolean(),
+      upgradeInsightsPassing: z.boolean(),
+      noUpdateInProgress: z.boolean(),
+    }),
+  }),
+});
+export const utilityUpgradeOptionsSchema = z.object({
+  utilityCode: z.string(),
+  label: z.string(),
+  chart: z.string().nullable(),
+  currentVersion: z.string().nullable(),
+  versions: z.array(z.string()),
+  blockReason: z.string().nullable(),
+  observedAt: z.string().nullable(),
+  source: z.string().optional(),
+  versionKind: z.string().optional(),
+  compatibility: z.string().optional(),
+});
+export const upgradeWindowSchema = z.object({
+  scheduledFor: z.string(),
+  durationMinutes: z.number(),
+});
+export const upgradeSpecSchema = z.object({
+  format: z.literal(1),
+  scope: z.enum(["CLUSTER", "NODES", "ADDONS"]),
+  sourceVersion: z.string(),
+  finalVersion: z.string(),
+  nodeGroups: z.array(z.string()),
+  addonNames: z.array(z.string()),
+  validation: z.string(),
+  steps: z.array(
+    z.object({
+      fromVersion: z.string(),
+      targetVersion: z.string(),
+      window: upgradeWindowSchema.nullable(),
+      operations: z.array(
+        z.object({
+          kind: z.enum(["CONTROL_PLANE", "NODEGROUP", "ADDON"]),
+          name: z.string(),
+          from: z.string(),
+          to: z.string(),
+          prerequisite: z.boolean().optional(),
+        }),
+      ),
+    }),
+  ),
+});
+export const upgradeOptionsSchema = z.object({
+  clusterId: z.string(),
+  provider: z.literal("EKS"),
+  region: z.string(),
+  currentVersion: z.string(),
+  status: z.string(),
+  targetVersions: z.array(z.string()),
+  observedAt: z.string(),
+  nodeUpgradeNote: z.string(),
+  nodeGroups: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string().nullable(),
+      status: z.string(),
+      amiType: z.string().nullable().optional(),
+    }),
+  ),
+  addons: z.array(
+    z.object({
+      name: z.string(),
+      version: z.string(),
+      status: z.string(),
+      versions: z.array(
+        z.object({ version: z.string(), recommended: z.boolean() }),
+      ),
+    }),
+  ),
+});
+export type UpgradeSpec = z.infer<typeof upgradeSpecSchema>;
+export type UpgradeWindow = z.infer<typeof upgradeWindowSchema>;
+export const eksUpgradePlanSchema = z
+  .object({
+    planId: z.string(),
+    clusterId: z.string(),
+    customerId: z.string(),
+    provider: z.literal("EKS"),
+    currentVersion: z.string(),
+    targetVersion: z.string(),
+    kind: z.enum(["CONTAINER", "UTILITY"]).default("CONTAINER"),
+    utilityCode: z.string().optional(),
+    managedGroup: z.string().optional(),
+    utilityEvidence: z
+      .object({
+        label: z.string(),
+        chart: z.string().nullable(),
+        currentVersion: z.string().nullable(),
+        versions: z.array(z.string()),
+        observedAt: z.string().nullable(),
+        source: z.string().optional(),
+        compatibility: z.string().optional(),
+      })
+      .optional(),
+    strategy: z.enum(["PROVIDER_MANAGED_ROLLING", "GITOPS_REVIEW"]),
+    status: z.enum([
+      "DRAFT",
+      "SUBMITTED",
+      "APPROVED",
+      "SCHEDULED",
+      "EXECUTING",
+      "SUCCEEDED",
+      "FAILED",
+      "REJECTED",
+      "CANCELLED",
+    ]),
+    scheduledFor: z.string().nullable().optional(),
+    changeReason: z.string(),
+    readinessEvidence: eksUpgradeReadinessSchema.optional(),
+    planSpec: upgradeSpecSchema.optional(),
+    execution: z.record(z.string(), z.unknown()),
+    version: z.number(),
+    submittedBy: z.string().nullable().optional(),
+    submittedByName: z.string().nullable().optional(),
+    createdByName: z.string().nullable().optional(),
+    approvedByName: z.string().nullable().optional(),
+    submittedAt: z.string().nullable().optional(),
+    approvedBy: z.string().nullable().optional(),
+    approvedAt: z.string().nullable().optional(),
+    createdBy: z.string(),
+    createdAt: z.string(),
+    updatedBy: z.string(),
+    updatedAt: z.string(),
+  })
+  .superRefine((plan, ctx) => {
+    if (plan.kind === "UTILITY") {
+      if (
+        !plan.utilityEvidence ||
+        !plan.utilityCode ||
+        !plan.managedGroup ||
+        plan.strategy !== "GITOPS_REVIEW"
+      )
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Utility plans require chart evidence and GitOps review strategy.",
+        });
+    } else if (
+      (!plan.readinessEvidence && !plan.planSpec) ||
+      plan.strategy !== "PROVIDER_MANAGED_ROLLING"
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Container plans require EKS readiness evidence and provider rolling strategy.",
+      });
+  });
+export const eksUpgradePlanListSchema = z.object({
+  clusterId: z.string(),
+  customerId: z.string(),
+  items: z.array(eksUpgradePlanSchema),
+});
 export const clusterToolAccessSchema = z.object({
   clusterId: z.string(),
   customerId: z.string(),
@@ -401,6 +650,8 @@ export type ClusterNamespaceInventory = z.infer<
   typeof clusterNamespaceInventorySchema
 >;
 export type ConnectorInstallation = z.infer<typeof connectorInstallationSchema>;
+export type EksUpgradeReadiness = z.infer<typeof eksUpgradeReadinessSchema>;
+export type EksUpgradePlan = z.infer<typeof eksUpgradePlanSchema>;
 export type ClusterToolAccess = z.infer<typeof clusterToolAccessSchema>;
 export type ClusterToolSession = z.infer<typeof clusterToolSessionSchema>;
 export type ClusterNodeGroupRequest = z.infer<

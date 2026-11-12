@@ -15,6 +15,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("Same-origin API proxy", () => {
+  it("forwards only POST for the governed reschedule action", () => {
+    const path = [
+      "clusters",
+      "CLU-live",
+      "upgrade-plans",
+      `UPG-${"a".repeat(32)}`,
+      "reschedule",
+    ];
+    expect(isAllowedRoute("POST", path)).toBe(true);
+    expect(isAllowedRoute("GET", path)).toBe(false);
+    expect(
+      isAllowedRoute("POST", [...path.slice(0, -1), "bypass-approval"]),
+    ).toBe(false);
+  });
   it("allows exactly the 19 documented routes", () => {
     const contract = JSON.parse(
       readFileSync(new URL("../../docs/openapi.json", import.meta.url), "utf8"),

@@ -3,6 +3,8 @@
 
 Default: read-only readiness check. --prepare exports committed frontend source,
 builds/pushes its image and registers a task revision without changing the service.
+Portable releases remain main-only unless --source-branch explicitly names the
+published feature/* branch being prepared for pre-merge production validation.
 --execute PLAN verifies the task diff and current baseline, then updates only the
 Navigan frontend service. Existing API/auth/network/IAM settings are preserved.
 """
@@ -22,6 +24,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import uuid
 
@@ -73,6 +76,25 @@ def stable(service):
     return (service.get("desiredCount", 0) > 0 and service.get("runningCount") == service["desiredCount"]
             and service.get("pendingCount", 0) == 0 and len(deployments) == 1
             and deployments[0].get("status") == "PRIMARY" and deployments[0].get("rolloutState") == "COMPLETED")
+
+
+def wait_for_retained_service(ecs, expected_task, *, attempts=24, delay=5):
+    """Wait through ECS event propagation until one completed expected deployment remains."""
+    current = None
+    for attempt in range(attempts):
+        current = read_service(ecs)
+        if stable(current):
+            require(current["taskDefinition"] == expected_task,
+                    "Service did not retain the requested revision; inspect rollout/rollback events")
+            return current
+        expected = next((item for item in current.get("deployments", [])
+                         if item.get("taskDefinition") == expected_task), None)
+        if expected and expected.get("rolloutState") == "FAILED":
+            reason = expected.get("rolloutStateReason") or "ECS reported a failed deployment"
+            raise RuntimeError("Service did not retain the requested revision: " + reason)
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    raise RuntimeError("Service did not reach one completed requested revision; inspect rollout events")
 
 
 def environment(container):
@@ -162,14 +184,27 @@ def portable_source():
     return (ROOT / "frontend/src/shared/config/public-config.ts").exists()
 
 
-def check_checkout():
+def check_checkout(source_branch=None):
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-    require(branch == ("main" if portable_source() else storage.BRANCH),
-            "Promote portable frontend source from main after validation and merge")
-    if portable_source():
+    portable = portable_source()
+    expected_branch = "main" if portable else storage.BRANCH
+    if source_branch is not None:
+        require(portable, "Feature-branch frontend releases require the portable frontend source")
+        require(bool(re.fullmatch(r"feature/[A-Za-z0-9][A-Za-z0-9._/-]*", source_branch))
+                and ".." not in source_branch and "//" not in source_branch,
+                "Source branch must be an explicit feature/* branch")
+        expected_branch = source_branch
+    require(branch == expected_branch,
+            f"Check out the exact release source branch {expected_branch}")
+    if portable:
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        remote = subprocess.check_output(["git", "rev-parse", "refs/remotes/origin/main"], cwd=ROOT, text=True).strip()
-        require(head == remote, "Fetch/push main first; local main must match origin/main")
+        remote_ref = f"refs/remotes/origin/{expected_branch}"
+        try:
+            remote = subprocess.check_output(["git", "rev-parse", remote_ref], cwd=ROOT, text=True).strip()
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Fetch the exact remote release branch origin/{expected_branch}") from exc
+        require(head == remote,
+                f"Fetch/push {expected_branch} first; local branch must match origin/{expected_branch}")
     # Build git archive, never the working tree: preserve generated next-env.d.ts and local files.
     paths = ["frontend/src", "frontend/public", "frontend/package.json", "frontend/package-lock.json", "frontend/Dockerfile",
              "frontend/.dockerignore", "frontend/next.config.ts", "frontend/tsconfig.json", "scripts/deploy-frontend-prod.py",
@@ -357,8 +392,7 @@ def execute(session, path):
     ecs.update_service(cluster=CLUSTER, service=SERVICE, taskDefinition=plan["nextTask"])
     print("Updating only Navigan frontend service; rollback task: " + plan["previousTask"], flush=True)
     ecs.get_waiter("services_stable").wait(cluster=CLUSTER, services=[SERVICE], WaiterConfig={"Delay": 15, "MaxAttempts": 80})
-    current = read_service(ecs)
-    require(stable(current) and current["taskDefinition"] == plan["nextTask"], "Service did not retain the requested revision; inspect rollout/rollback events")
+    current = wait_for_retained_service(ecs, plan["nextTask"])
     arns = ecs.list_tasks(cluster=CLUSTER, serviceName=SERVICE, desiredStatus="RUNNING")["taskArns"]
     require(bool(arns), "Frontend has no running tasks")
     tasks = ecs.describe_tasks(cluster=CLUSTER, tasks=arns)
@@ -386,15 +420,21 @@ def execute(session, path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
+    parser.add_argument(
+        "--source-branch",
+        help="Explicit published feature/* branch to prepare without changing the default main-only release rule",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--execute", type=Path, metavar="PLAN")
     args = parser.parse_args()
+    if args.execute and args.source_branch:
+        parser.error("--source-branch is valid only while checking or preparing a candidate")
     session = boto3.Session(profile_name=args.profile, region_name=REGION)
     if args.execute:
         execute(session, args.execute)
         return 0
-    revision = check_checkout()
+    revision = check_checkout(args.source_branch) if args.source_branch else check_checkout()
     portable = portable_source()
     service, described, original, public = readiness(session, check_dependencies=False) if portable else readiness(session)
     print("PROD frontend, API target and public Cognito configuration verified")
@@ -422,6 +462,8 @@ def main():
         "baselineSha256": hashlib.sha256(canonical(original)).hexdigest(), "image": image, "runtimeDigests": digests}
     if portable:
         plan["runtimePublicConfig"] = runtime_public_config(public)
+    if args.source_branch:
+        plan["sourceBranch"] = args.source_branch
     path = directory / "release-plan.json"
     path.write_text(json.dumps(plan, indent=2))
     print("Candidate registered: " + registered)

@@ -223,6 +223,25 @@ def test_stable_service_after_circuit_breaker_rollback_is_not_reported_as_succes
         release.execute(session, path)
 
 
+def test_final_service_check_waits_for_single_completed_deployment(monkeypatch):
+    transitioning = service(NEW)
+    transitioning["deployments"] = [
+        {"status": "PRIMARY", "rolloutState": "IN_PROGRESS", "taskDefinition": NEW},
+        {"status": "ACTIVE", "rolloutState": "COMPLETED", "taskDefinition": OLD},
+    ]
+    responses = iter([transitioning, service(NEW)])
+    ecs = SimpleNamespace(
+        describe_services=lambda **kw: {"services": [next(responses)]}
+    )
+    waits = []
+    monkeypatch.setattr(release.time, "sleep", lambda seconds: waits.append(seconds))
+
+    current = release.wait_for_retained_service(ecs, NEW, attempts=3, delay=2)
+
+    assert current["taskDefinition"] == NEW
+    assert waits == [2]
+
+
 def test_wrong_running_image_digest_is_not_reported_as_success(monkeypatch, tmp_path):
     ecs = ECS(digest="sha256:" + "f" * 64)
     session, path = setup_execute(monkeypatch, tmp_path, ecs)
@@ -444,8 +463,46 @@ def test_portable_checkout_requires_published_main(monkeypatch):
         if command[1] == "branch": return "feature/ui-migration-enhancements\n"
         return "a" * 40
     monkeypatch.setattr(release.subprocess, "check_output", output)
-    with pytest.raises(RuntimeError, match="from main"):
+    with pytest.raises(RuntimeError, match="exact release source branch main"):
         release.check_checkout()
+
+
+def test_portable_checkout_allows_only_an_explicit_published_feature_branch(monkeypatch):
+    monkeypatch.setattr(release, "portable_source", lambda: True)
+    branch = "feature/platform-architect-sidebar"
+
+    def output(command, **kw):
+        if command[1:3] == ["branch", "--show-current"]:
+            return branch + "\n"
+        if command[-1] in {"HEAD", f"refs/remotes/origin/{branch}"}:
+            return "a" * 40 + "\n"
+        if command[1:3] == ["status", "--porcelain"]:
+            return ""
+        raise AssertionError(command)
+
+    monkeypatch.setattr(release.subprocess, "check_output", output)
+    assert release.check_checkout(branch) == "a" * 40
+
+    with pytest.raises(RuntimeError, match=r"feature/\*"):
+        release.check_checkout("main")
+
+
+def test_feature_branch_checkout_rejects_an_unpublished_local_head(monkeypatch):
+    monkeypatch.setattr(release, "portable_source", lambda: True)
+    branch = "feature/platform-architect-sidebar"
+
+    def output(command, **kw):
+        if command[1:3] == ["branch", "--show-current"]:
+            return branch + "\n"
+        if command[-1] == "HEAD":
+            return "a" * 40 + "\n"
+        if command[-1] == f"refs/remotes/origin/{branch}":
+            return "b" * 40 + "\n"
+        raise AssertionError(command)
+
+    monkeypatch.setattr(release.subprocess, "check_output", output)
+    with pytest.raises(RuntimeError, match="must match origin"):
+        release.check_checkout(branch)
 
 
 def test_portable_rejects_public_setting_secret_binding_changes():

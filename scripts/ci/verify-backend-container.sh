@@ -43,6 +43,8 @@ docker run --rm --network "$task_network" \
     cp -a /input /tmp/source
     cd /tmp/source
     apt-get update -qq && apt-get install --yes --no-install-recommends git postgresql-client >/dev/null
+    # Only trust the isolated copy; cp -a retains the host checkout ownership.
+    git config --global --add safe.directory /tmp/source
     python -m pip install --disable-pip-version-check -e ".[dev]"
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v database_name=navigan_bootstrap_test -f database/bootstrap/create_database.sql
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v database_name=navigan_bootstrap_test -f database/bootstrap/create_database.sql

@@ -76,6 +76,7 @@ class AccessEvaluatorTest(unittest.TestCase):
         self.assertTrue(access.has("migration.edit"))
         self.assertTrue(access.has("migration.submit"))
         self.assertFalse(access.has("migration.review"))
+        self.assertFalse(access.has("cluster.upgrade.plan"))
 
     def test_dynamic_deny_overrides_migration_rollout_privilege(self):
         repository = MagicMock()
@@ -114,6 +115,9 @@ class AccessEvaluatorTest(unittest.TestCase):
         access = AccessEvaluator(repository).evaluate(principal())
 
         self.assertEqual(access.source, "LEGACY_CLAIMS")
+        self.assertTrue(access.has("cluster.upgrade.plan"))
+        self.assertFalse(access.has("cluster.upgrade.approve"))
+        self.assertFalse(access.has("cluster.apply"))
         self.assertTrue(access.has("customer.create"))
         self.assertTrue(access.can_access_customer("CUS-one"))
         self.assertTrue(access.can_access_customer("CUS-new", owner_id="user-1"))

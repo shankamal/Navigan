@@ -1,7 +1,7 @@
-import { CapabilityLanding } from "@/shared/components/capability-landing";
+import { UpgradeWorkspace } from "@/modules/upgrade-management/upgrade-workspace";
 
-export const metadata = { title: "Upgrades" };
+export const metadata = { title: "Upgrades & Patching" };
 
 export default function Page() {
-  return <CapabilityLanding capability="upgrades" />;
+  return <UpgradeWorkspace />;
 }

@@ -1,4 +1,16 @@
-## Latest checkpoint — 5 November 2026
+## Current override — 11 November 2026 end of session
+
+Use the final “consolidated end-of-session checkpoint” in docs/NAVIGAN_DAILY_CHECKPOINT.md and docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md (relative to the continuity-kit root). It consolidates UI, roles, component scopes/paths, calendar, names, user-authorized PA self-approval and rollout evidence. Backend 1894355b is confirmed deployed; frontend :56 is prepared with execution output unconfirmed. User says acceptable for now, with remaining findings deferred to tomorrow. Collect those findings before more work; historical blockers and independent-review-only policy are superseded. Keep utility execution disabled and do not start upgrades.
+
+---
+
+## Latest checkpoint — 7 November 2026
+
+Read [NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md](./docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md) first. It supersedes the historical entries below. The current increment aligns the upgrade workspace with the shared Navigan theme and removes the inventory banner/pale green fills. It is frontend-only, not deployed or visually accepted yet. The predecessor `db1e9ff1` backend deployment was confirmed by the user; frontend `:43` was prepared but execution output was not pasted.
+
+---
+
+## Historical checkpoint — 5 November 2026
 
 Read [NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md](./docs/NAVIGAN_SESSION_HANDOFF_2026-11-05_LATEST.md) first. It supersedes conflicting current-state claims in older entries below.
 

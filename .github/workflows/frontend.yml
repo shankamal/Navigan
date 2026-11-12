@@ -29,7 +29,9 @@ jobs:
       - run: npm test
       - run: npm run format:check
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      # Hosted Ubuntu already supplies Chromium runtime libraries; launch checks
+      # still fail for missing libraries without reinstalling optional font packages.
+      - run: npx playwright install chromium
       - name: Verify custom login in a browser
         run: |
           mkdir -p .next/standalone/.next

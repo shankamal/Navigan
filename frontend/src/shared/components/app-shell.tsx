@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,7 +24,6 @@ import {
   ChevronDown,
   CircleArrowUp,
   ClipboardCheck,
-  FolderPlus,
   Gauge,
   Info,
   Layers3,
@@ -52,34 +52,18 @@ import { prefetchWorkspaceData } from "@/shared/performance/prefetch-workspace-d
 interface NavigationItem {
   href: string;
   label: string;
-  icon: typeof FolderPlus;
+  icon: typeof Gauge;
   permission: PlatformPermission;
 }
 
+const DEFAULT_SIDEBAR_WIDTH = 232;
+const MIN_SIDEBAR_WIDTH = 220;
+const MAX_SIDEBAR_WIDTH = 300;
+const SIDEBAR_WIDTH_STORAGE_KEY = "navigan.sidebarWidth";
+
 // These informational landing pages use the existing platform overview entitlement.
 // Individual workflow permissions will be added with each capability's implementation.
-const lifecycleNavigationItems: readonly NavigationItem[] = [
-  {
-    href: "/app-transformation",
-    label: "App Transformation",
-    icon: Workflow,
-    permission: "dashboard.platform.view",
-  },
-  {
-    href: "/onboarding",
-    label: "Onboarding",
-    icon: PlugZap,
-    permission: "dashboard.platform.view",
-  },
-  {
-    href: "/upgrades",
-    label: "Upgrades",
-    icon: CircleArrowUp,
-    permission: "dashboard.platform.view",
-  },
-];
-
-const navigationGroups: ReadonlyArray<{
+const platformArchitectNavigationGroups: ReadonlyArray<{
   label: string;
   items: readonly NavigationItem[];
 }> = [
@@ -88,43 +72,32 @@ const navigationGroups: ReadonlyArray<{
     items: [
       {
         href: "/dashboard",
-        label: "Platform Dashboard",
+        label: "Platform Overview",
         icon: Gauge,
         permission: "dashboard.platform.view",
       },
     ],
   },
   {
-    label: "Customer Management",
+    label: "Manage",
     items: [
       {
         href: "/customers",
-        label: "Customer Directory",
+        label: "Customer Portfolio",
         icon: Building2,
         permission: "customer.view",
       },
       {
-        href: "/customers/new",
-        label: "Create Customer",
-        icon: FolderPlus,
-        permission: "customer.create",
+        href: "/clusters/reviews",
+        label: "Cluster Reviews",
+        icon: Settings2,
+        permission: "cluster.review",
       },
-    ],
-  },
-  {
-    label: "Environment Management",
-    items: [
       {
         href: "/environments",
-        label: "Environment Directory",
+        label: "Environment Portfolio",
         icon: Layers3,
         permission: "environment.view",
-      },
-      {
-        href: "/environments/new",
-        label: "Create Environment",
-        icon: FolderPlus,
-        permission: "environment.create",
       },
       {
         href: "/environments/reviews",
@@ -141,42 +114,49 @@ const navigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Cluster Management",
+    label: "Build & Onboard",
     items: [
       {
         href: "/clusters",
-        label: "Cluster Directory",
+        label: "Cluster Portfolio",
         icon: Network,
         permission: "cluster.view",
       },
       {
-        href: "/clusters/new",
-        label: "New Cluster Request",
-        icon: Rocket,
-        permission: "cluster.create",
-      },
-      {
-        href: "/clusters/reviews",
-        label: "Cluster Reviews",
-        icon: Settings2,
-        permission: "cluster.review",
+        href: "/onboarding",
+        label: "Cluster Onboarding",
+        icon: PlugZap,
+        permission: "dashboard.platform.view",
       },
     ],
   },
   {
-    label: "Migration",
+    label: "Migrate & Modernise",
     items: [
       {
         href: "/migrations",
-        label: "Migration Requests",
+        label: "Migration Portfolio",
         icon: ArrowRightLeft,
         permission: "migration.view",
+      },
+      {
+        href: "/app-transformation",
+        label: "Application Modernization",
+        icon: Workflow,
+        permission: "dashboard.platform.view",
       },
     ],
   },
   {
-    label: "Platform lifecycle",
-    items: lifecycleNavigationItems,
+    label: "Operate & Evolve",
+    items: [
+      {
+        href: "/upgrades",
+        label: "Upgrades & Patching",
+        icon: CircleArrowUp,
+        permission: "dashboard.platform.view",
+      },
+    ],
   },
 ];
 
@@ -185,7 +165,7 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
   items: readonly NavigationItem[];
 }> = [
   {
-    label: "Workspace",
+    label: "Overview",
     items: [
       {
         href: "/dashboard",
@@ -193,31 +173,74 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         icon: Gauge,
         permission: "dashboard.platform.view",
       },
+    ],
+  },
+  {
+    label: "Manage",
+    items: [
       {
         href: "/customers",
-        label: "Customer Management",
+        label: "Customers",
         icon: Building2,
         permission: "customer.view",
       },
       {
         href: "/environments",
-        label: "Environment Management",
+        label: "Environments",
         icon: Layers3,
         permission: "environment.view",
       },
       {
         href: "/clusters",
-        label: "Cluster Management",
+        label: "Clusters",
         icon: Network,
         permission: "cluster.view",
       },
+    ],
+  },
+  {
+    label: "Build & Onboard",
+    items: [
+      {
+        href: "/clusters/new",
+        label: "Create Cluster",
+        icon: Rocket,
+        permission: "cluster.create",
+      },
+      {
+        href: "/onboarding",
+        label: "Import Cluster",
+        icon: PlugZap,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Migrate & Modernise",
+    items: [
       {
         href: "/migrations",
-        label: "Migration",
+        label: "Migration Assessments",
         icon: ArrowRightLeft,
         permission: "migration.view",
       },
-      ...lifecycleNavigationItems,
+      {
+        href: "/app-transformation",
+        label: "Application Modernization",
+        icon: Workflow,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Operate & Evolve",
+    items: [
+      {
+        href: "/upgrades",
+        label: "Upgrades & Patching",
+        icon: CircleArrowUp,
+        permission: "dashboard.platform.view",
+      },
     ],
   },
 ];
@@ -304,9 +327,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const { identity } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [resizingSidebar, setResizingSidebar] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const activeNavigationGroups = isCloudEngineerOnly(identity)
     ? cloudEngineerNavigationGroups
-    : navigationGroups;
+    : platformArchitectNavigationGroups;
   const current = activeNavigationGroups
     .flatMap((group) => group.items)
     .filter((item) => canViewNavigation(identity, item.permission))
@@ -323,6 +348,39 @@ function AppShellContent({ children }: { children: ReactNode }) {
     },
     [queryClient],
   );
+  const updateSidebarWidth = useCallback((width: number) => {
+    const next = Math.min(
+      MAX_SIDEBAR_WIDTH,
+      Math.max(MIN_SIDEBAR_WIDTH, Math.round(width)),
+    );
+    setSidebarWidth(next);
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(next));
+  }, []);
+  useEffect(() => {
+    const saved = Number(
+      window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY),
+    );
+    if (Number.isFinite(saved) && saved >= MIN_SIDEBAR_WIDTH) {
+      setSidebarWidth(Math.min(MAX_SIDEBAR_WIDTH, saved));
+    }
+  }, []);
+  useEffect(() => {
+    if (!resizingSidebar) return;
+    const resize = (event: PointerEvent) => updateSidebarWidth(event.clientX);
+    const finish = () => setResizingSidebar(false);
+    const previousCursor = document.body.style.cursor;
+    const previousSelection = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", finish, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", finish);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousSelection;
+    };
+  }, [resizingSidebar, updateSidebarWidth]);
   useEffect(() => {
     if (
       pathname.startsWith("/migrations") ||
@@ -368,7 +426,12 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div
-      className={`app-shell ${pathname === "/about" ? "about-shell" : ""} ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""}`}
+      className={`app-shell ${pathname === "/about" ? "about-shell" : ""} ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""} ${resizingSidebar ? "navigation-resizing" : ""}`}
+      style={
+        {
+          "--workspace-sidebar-width": `${sidebarWidth}px`,
+        } as CSSProperties
+      }
     >
       <a className="skip-link" href="#main-content">
         Skip to content
@@ -421,7 +484,38 @@ function AppShellContent({ children }: { children: ReactNode }) {
           id="platform-navigation"
           className={`sidebar ${expanded ? "expanded" : ""}`}
         >
-          <div>
+          <div
+            className="sidebar-resize-handle"
+            role="separator"
+            aria-label="Resize navigation"
+            aria-orientation="vertical"
+            aria-valuemin={MIN_SIDEBAR_WIDTH}
+            aria-valuemax={MAX_SIDEBAR_WIDTH}
+            aria-valuenow={sidebarWidth}
+            tabIndex={collapsed ? -1 : 0}
+            onPointerDown={(event) => {
+              if (collapsed) return;
+              event.preventDefault();
+              setResizingSidebar(true);
+            }}
+            onDoubleClick={() => updateSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
+            onKeyDown={(event) => {
+              const next =
+                event.key === "ArrowLeft"
+                  ? sidebarWidth - 8
+                  : event.key === "ArrowRight"
+                    ? sidebarWidth + 8
+                    : event.key === "Home"
+                      ? MIN_SIDEBAR_WIDTH
+                      : event.key === "End"
+                        ? MAX_SIDEBAR_WIDTH
+                        : undefined;
+              if (next === undefined) return;
+              event.preventDefault();
+              updateSidebarWidth(next);
+            }}
+          />
+          <div className="sidebar-navigation">
             <div className="sidebar-brand-panel">
               <Link
                 href="/dashboard"
@@ -444,7 +538,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 <Menu size={18} />
               </button>
             </div>
-            <nav aria-label="Platform modules">
+            <nav className="sidebar-menu-scroll" aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
                   canViewNavigation(identity, item.permission),
