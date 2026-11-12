@@ -386,6 +386,17 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
         candidate["configuration"] = configuration
         return cluster, candidate
 
+    @staticmethod
+    def _reconciliation_candidate_fingerprint(candidate):
+        payload = {
+            "configuration": candidate.get("configuration") or {},
+            "terraformStateKey": candidate.get("terraform_state_key"),
+            "terraformModuleVersion": candidate.get("terraform_module_version"),
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
     def _verify_reconciliation_live_state(self, plan):
         cluster, environment, eks, _ = self._context(plan["cluster_id"])
         cp, nodes, addons = self._inventory(cluster, eks)
@@ -437,6 +448,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             )
         cluster, environment = self._verify_reconciliation_live_state(plan)
         _, candidate = self._reconciliation_candidate(plan)
+        candidate_fingerprint = self._reconciliation_candidate_fingerprint(candidate)
         build_id, prefix = self.provisioner.start("plan", candidate, environment)
         execution["iacReconciliation"] = {
             "status": "PLAN_RUNNING",
@@ -446,6 +458,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                 "kubernetesVersion"
             ),
             "targetVersion": plan["plan_spec"]["finalVersion"],
+            "candidateFingerprint": candidate_fingerprint,
             "planBuildId": build_id,
             "planArtifactPrefix": prefix,
         }
@@ -607,6 +620,14 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             )
         self._verify_reconciliation_live_state(plan)
         old_cluster, candidate = self._reconciliation_candidate(plan)
+        if (
+            reconciliation.get("candidateFingerprint")
+            != self._reconciliation_candidate_fingerprint(candidate)
+        ):
+            fail(
+                "IAC_RECONCILIATION_CANDIDATE_CHANGED",
+                "Cluster desired state changed while Terraform reconciliation was applying. Do not persist stale desired state.",
+            )
         target = plan["plan_spec"]["finalVersion"]
         candidate["version"] = old_cluster["version"] + 1
         candidate["updated_by"] = self.access.user_id
@@ -654,6 +675,14 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             )
         _, environment = self._verify_reconciliation_live_state(plan)
         _, candidate = self._reconciliation_candidate(plan)
+        if (
+            reconciliation.get("candidateFingerprint")
+            != self._reconciliation_candidate_fingerprint(candidate)
+        ):
+            fail(
+                "IAC_RECONCILIATION_CANDIDATE_CHANGED",
+                "Cluster desired state changed after the Terraform reconciliation plan was generated. Start reconciliation again.",
+            )
         candidate["plan_artifact_key"] = (
             reconciliation["planArtifactPrefix"] + "/terraform.tfplan"
         )
