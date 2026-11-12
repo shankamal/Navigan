@@ -1,3 +1,13 @@
+## Current override — 12 November 2026 execution readiness accepted
+
+Approved/scheduled EKS execution readiness is now deployed and authenticated in PROD. Frontend task definition is `:58` (rollback `:57`) with immutable digest `sha256:060075593be292d33069e6d93f0b3675101fa0a9b16db93e9d3187c988932c9f`. Backend guarded deployment completed successfully and explicitly reported that no EKS upgrade was started.
+
+Current accepted plan state: `New-dbs-demo-cluster` full-platform 1.36→1.37, created/submitted by Suhas and approved by Ashok Rajendran, approved maintenance window 14-Nov-2026 16:00–18:00 Asia/Calcutta. Control plane and managed node group both remain Pending. Authenticated Cloud Engineer UI correctly states that execution cannot start before the approved window and exposes no start/confirm/continue action early.
+
+Execution contract now implemented: UPCOMING / READY / EXPIRED window model; manual Cloud Engineer two-step start only while READY; backend independent approval/window/drift/health/compatibility/EKS-insights preflight; persisted start evidence binds operator, approver and exact reviewed window; one provider operation at a time; refresh/poll provider update; explicit full-platform stage health gates and manual continue; provider post-validation; no automatic scheduler. Utility execution remains disabled and application/SLO validation is still operator-confirmed. No live EKS mutation has occurred yet.
+
+---
+
 ## Current override — 12 November 2026 authenticated Phase 2 acceptance
 
 Phase 2 Upgrade & Patching is now **accepted in authenticated PROD**. User verified Control plane only, Full platform upgrade, Node groups and Managed add-ons. Full-platform plan details correctly show explicit Stage vs Execution, and Plans & Approvals shows the submitted Cloud Engineer plan awaiting Platform Architect review. No execution control was used during acceptance and no EKS upgrade was started. PROD frontend remains task `:57`, rollback `:56`; backend Phase 2 is deployed and verified. Treat Phase 2 as complete. Remaining known limits: utility execution disabled, no automatic scheduler, and application/SLO health evidence is still operator-confirmed rather than automatically collected.
