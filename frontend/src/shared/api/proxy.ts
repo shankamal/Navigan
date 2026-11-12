@@ -53,6 +53,9 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
         "refresh",
         "continue",
         "reschedule",
+        "reconcile",
+        "refresh-reconciliation",
+        "apply-reconciliation",
       ].includes(path[4])
     )
       return method === "POST";
