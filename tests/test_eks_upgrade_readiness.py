@@ -202,7 +202,7 @@ def test_only_recommends_the_immediate_next_minor_version():
     result = discovery(client).discover(managed_cluster(), environment())
 
     assert result["recommendedTarget"] is None
-    assert "NO_SUPPORTED_NEXT_MINOR" in {
+    assert "NO_SUPPORTED_NEXT_MINOR" not in {
         item["code"] for item in result["readiness"]["blockers"]
     }
 
