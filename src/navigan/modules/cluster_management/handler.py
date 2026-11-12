@@ -360,7 +360,7 @@ def execute(event, principal, correlation):
         and len(parts) == 4
         and parts[1] == "upgrade-plans"
         and re.fullmatch(r"UPG-[a-f0-9]{32}", parts[2] or "")
-        and parts[3] in {"submit", "approve", "reject", "cancel", "execute", "refresh", "reschedule"}
+        and parts[3] in {"submit", "approve", "reject", "cancel", "execute", "refresh", "continue", "reschedule"}
     )
     create_upgrade_plan = method == "POST" and upgrade_plans
     read_actions = {
@@ -657,7 +657,7 @@ def execute(event, principal, correlation):
             status = 201
         elif upgrade_plan_action:
             value = plan_service(repo, access, correlation, identifier, parts[2]).change(identifier, parts[2], parts[3], body)
-            status = 202 if parts[3] in {"execute", "refresh"} else 200
+            status = 202 if parts[3] in {"execute", "refresh", "continue"} else 200
         else:
             service = Service(repo, correlation)
             value = (
