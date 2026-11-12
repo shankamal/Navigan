@@ -81,6 +81,7 @@ export function LiveUpgradeCentre({
 }) {
   const data = useUpgradePlans(),
     now = useScheduleClock();
+  const [view, setView] = useState<"plans" | "available">("plans");
   const [type, setType] = useState<PlanScope | "all">("all");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -129,13 +130,15 @@ export function LiveUpgradeCentre({
   ];
   return (
     <div className="upgrade-centre upgrade-context-workbench">
-      <ComponentPlanMetrics
-        plans={data.rows.map((r) => r.plan)}
-        loading={data.pending}
-        unavailable={data.errors.length > 0}
-        selected={type}
-        onSelect={setType}
-      />
+      {view === "plans" && (
+        <ComponentPlanMetrics
+          plans={data.rows.map((r) => r.plan)}
+          loading={data.pending}
+          unavailable={data.errors.length > 0}
+          selected={type}
+          onSelect={setType}
+        />
+      )}
       {data.errors.length > 0 && (
         <div role="alert" className="upgrade-blocker-notice">
           Some plan records are unavailable. Totals may be incomplete.
@@ -160,6 +163,31 @@ export function LiveUpgradeCentre({
           </Button>
         </div>
       )}
+      <nav
+        className="upgrade-centre-tabs"
+        aria-label="Upgrade Centre views"
+        role="tablist"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "plans"}
+          className={view === "plans" ? "active" : ""}
+          onClick={() => setView("plans")}
+        >
+          Saved upgrade plans
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "available"}
+          className={view === "available" ? "active" : ""}
+          onClick={() => setView("available")}
+        >
+          Available cluster upgrades
+        </button>
+      </nav>
+      {view === "plans" && (
       <section aria-label="Upgrade requests">
         <header className="upgrade-centre-section-heading">
           <div>
@@ -322,6 +350,8 @@ export function LiveUpgradeCentre({
           </p>
         )}
       </section>
+      )}
+      {view === "available" && (
       <section
         className="upgrade-opportunities"
         tabIndex={-1}
@@ -436,6 +466,7 @@ export function LiveUpgradeCentre({
             </p>
           )}
       </section>
+      )}
     </div>
   );
 }
