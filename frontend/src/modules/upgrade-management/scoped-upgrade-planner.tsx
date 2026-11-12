@@ -20,6 +20,22 @@ const labels = {
   NODEGROUP: "Managed node group",
   ADDON: "Managed add-on",
 };
+const stageLabels = {
+  PREREQUISITE_COMPONENTS: "Prerequisite components",
+  CONTROL_PLANE: "Control plane",
+  COMPATIBILITY_COMPONENTS: "Compatibility components",
+  DATA_PLANE: "Data plane",
+};
+function operationStage(
+  operation: UpgradeSpec["steps"][number]["operations"][number],
+) {
+  if (operation.stage) return stageLabels[operation.stage];
+  if (operation.kind === "CONTROL_PLANE") return stageLabels.CONTROL_PLANE;
+  if (operation.kind === "NODEGROUP") return stageLabels.DATA_PLANE;
+  return operation.prerequisite
+    ? stageLabels.PREREQUISITE_COMPONENTS
+    : stageLabels.COMPATIBILITY_COMPONENTS;
+}
 export function UpgradePathDetails({
   spec,
   execution = {},
@@ -37,10 +53,12 @@ export function UpgradePathDetails({
     >
       <h3>
         {spec.scope === "CLUSTER"
-          ? "Cluster upgrade path"
-          : spec.scope === "NODES"
-            ? "Selected node group upgrades"
-            : "Selected managed add-on upgrades"}
+          ? "Full platform upgrade path"
+          : spec.scope === "CONTROL_PLANE"
+            ? "Control plane upgrade path"
+            : spec.scope === "NODES"
+              ? "Selected node group upgrades"
+              : "Selected managed add-on upgrades"}
       </h3>
       {spec.steps.map((step, index) => (
         <section key={index} className="upgrade-path-step">
@@ -62,6 +80,7 @@ export function UpgradePathDetails({
                   <th>Component</th>
                   <th>Version change</th>
                   <th>Stage</th>
+                  <th>Execution</th>
                 </tr>
               </thead>
               <tbody>
@@ -79,6 +98,7 @@ export function UpgradePathDetails({
                     <td>
                       {op.from} → {op.to}
                     </td>
+                    <td>{operationStage(op)}</td>
                     <td>
                       {results.some(
                         (r) =>
@@ -106,6 +126,18 @@ export function UpgradePathDetails({
         inside its approved window. Check application health before starting the
         next step.
       </p>
+      {execution.postValidation &&
+        typeof execution.postValidation === "object" &&
+        execution.postValidation !== null &&
+        "status" in execution.postValidation && (
+          <p role="status">
+            Provider post-validation:{" "}
+            {String(execution.postValidation.status)}
+            {" · "}
+            Application validation remains operator-confirmed until workload
+            health evidence is integrated.
+          </p>
+        )}
     </section>
   );
 }
