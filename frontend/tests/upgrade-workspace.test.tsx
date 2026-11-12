@@ -384,7 +384,9 @@ describe("Upgrade workspace", () => {
 
   it("requires an explicit health-gate continuation before the next full-platform stage", async () => {
     const previousPrivileges = authIdentity.privileges;
-    const originalPlans = vi.mocked(clusters.upgradePlans).getMockImplementation()!;
+    const originalPlans = vi
+      .mocked(clusters.upgradePlans)
+      .getMockImplementation()!;
     authIdentity.privileges = [
       "cluster.upgrade.plan",
       "cluster.approve",
