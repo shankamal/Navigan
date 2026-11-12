@@ -27,9 +27,9 @@ import boto3
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
-# PROD backend uses the reviewed maker/reviewer container/utility release.
+# PROD backend was last reconciled and deployed from the reviewed release below.
 # Keep all deployed modules pinned together before replacing scoped plan code.
-DEPLOYED_PLAN_TREE = "e2ac592242bf75419643874223400e9adefbd529"
+DEPLOYED_PLAN_TREE = "1894355b5c90dd1bcd10aa3624b91106360f3d6b"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 ROUTES = {
     "ClusterUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/upgrade-options",
