@@ -514,10 +514,7 @@ describe("Upgrade workspace", () => {
     const now = vi.spyOn(Date, "now").mockReturnValue(
       Date.parse("2027-01-01T12:30:00Z"),
     );
-    authIdentity.privileges = [
-      "cluster.upgrade.plan",
-      "cluster.upgrade.execute",
-    ];
+    authIdentity.privileges = ["cluster.upgrade.plan", "cluster.upgrade.execute"];
     const scheduled = {
       planId: "UPG-ready",
       clusterId: "CLU-live",
