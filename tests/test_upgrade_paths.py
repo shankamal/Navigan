@@ -165,7 +165,7 @@ def test_component_only_plans_do_not_use_full_platform_gate(service):
     service.discovery.eks.nodes[0]["version"]="1.35"
     service._refresh(p);p=saved[-1]
     assert p["status"]=="SUCCEEDED"
-    assert p["execution"]["phase"]=="VALIDATION"
+    assert p["execution"]["phase"]=="POST_VALIDATION"
     with pytest.raises(ApiError,match="full platform"):
         service._continue({**p,"status":"EXECUTING"})
 
