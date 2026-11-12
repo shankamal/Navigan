@@ -182,7 +182,10 @@ export function UpgradePlansWorkspace({
         | "execute"
         | "refresh"
         | "continue"
-        | "reschedule";
+        | "reschedule"
+        | "reconcile"
+        | "refresh-reconciliation"
+        | "apply-reconciliation";
     }) => {
       const row = data.rows.find((item) => item.plan.planId === planId)!;
       if (name === "reschedule")
