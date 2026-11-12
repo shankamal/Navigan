@@ -41,9 +41,9 @@ describe("requested maintenance schedule validity", () => {
       },
       execution: {},
     };
-    expect(
-      executionWindowState(plan, Date.parse(time) - 1).state,
-    ).toBe("UPCOMING");
+    expect(executionWindowState(plan, Date.parse(time) - 1).state).toBe(
+      "UPCOMING",
+    );
     expect(executionWindowState(plan, Date.parse(time)).state).toBe("READY");
     expect(
       executionWindowState(plan, Date.parse(time) + 120 * 60_000 - 1).state,
