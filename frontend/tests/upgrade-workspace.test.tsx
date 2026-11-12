@@ -382,6 +382,126 @@ describe("Upgrade workspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("requires an explicit health-gate continuation before the next full-platform stage", async () => {
+    const previousPrivileges = authIdentity.privileges;
+    const originalPlans = vi.mocked(clusters.upgradePlans).getMockImplementation()!;
+    authIdentity.privileges = [
+      "cluster.upgrade.plan",
+      "cluster.approve",
+      "cluster.upgrade.execute",
+    ];
+    const gatedPlan = {
+      planId: "UPG-gate",
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      provider: "EKS",
+      kind: "CONTAINER",
+      currentVersion: "1.34",
+      targetVersion: "1.35",
+      strategy: "PROVIDER_MANAGED_ROLLING",
+      status: "EXECUTING",
+      scheduledFor: "2027-01-01T12:00:00Z",
+      changeReason: "Upgrade the full platform",
+      version: 3,
+      createdBy: "engineer-maker",
+      createdAt: "2026-11-11T10:00:00Z",
+      updatedBy: "engineer-maker",
+      updatedAt: "2026-11-11T11:00:00Z",
+      execution: {
+        phase: "AWAITING_CONTROL_PLANE_HEALTH",
+        providerStatus: "Successful",
+        hopIndex: 0,
+        operationIndex: 1,
+        results: [
+          {
+            kind: "CONTROL_PLANE",
+            name: "New-dbs-demo-cluster",
+            from: "1.34",
+            to: "1.35",
+            hopIndex: 0,
+            status: "SUCCEEDED",
+          },
+        ],
+        gate: {
+          afterStage: "CONTROL_PLANE",
+          nextStage: "DATA_PLANE",
+          status: "PENDING",
+          requiredAt: "2026-11-11T11:00:00Z",
+        },
+      },
+      planSpec: {
+        format: 1,
+        scope: "CLUSTER",
+        sourceVersion: "1.34",
+        finalVersion: "1.35",
+        nodeGroups: ["system"],
+        addonNames: [],
+        validation: "Validate platform health.",
+        steps: [
+          {
+            fromVersion: "1.34",
+            targetVersion: "1.35",
+            window: {
+              scheduledFor: "2027-01-01T12:00:00Z",
+              durationMinutes: 120,
+            },
+            operations: [
+              {
+                kind: "CONTROL_PLANE",
+                name: "New-dbs-demo-cluster",
+                from: "1.34",
+                to: "1.35",
+              },
+              {
+                kind: "NODEGROUP",
+                name: "system",
+                from: "1.34",
+                to: "1.35",
+              },
+            ],
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof clusters.upgradePlan>>;
+    vi.mocked(clusters.upgradePlans).mockResolvedValue({
+      clusterId: "CLU-live",
+      customerId: "CUS-live",
+      items: [gatedPlan],
+    });
+    vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce(gatedPlan);
+    try {
+      mount();
+      fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Review plan" }),
+      );
+      const drawer = screen.getByRole("dialog", {
+        name: "Upgrade plan details",
+      });
+      expect(within(drawer).getByText("Stage health gate required")).toBeInTheDocument();
+      expect(
+        within(drawer).queryByRole("button", { name: "Refresh execution" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        within(drawer).getByRole("button", {
+          name: "Validate health & continue",
+        }),
+      );
+      await waitFor(() =>
+        expect(clusters.changeUpgradePlan).toHaveBeenCalledWith(
+          "CLU-live",
+          "UPG-gate",
+          "continue",
+          3,
+          undefined,
+        ),
+      );
+    } finally {
+      authIdentity.privileges = previousPrivileges;
+      vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
+    }
+  });
+
   it.each(["cluster.approve", "cluster.upgrade.approve"])(
     "allows an independent reviewer with %s to review the submitted request",
     async (privilege) => {
