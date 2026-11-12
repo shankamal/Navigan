@@ -117,7 +117,9 @@ export function UpgradePathDetails({
                         ? "Completed"
                         : execution.hopIndex === index &&
                             execution.operationIndex === i &&
-                            execution.phase !== "AWAITING_NEXT_WINDOW"
+                            !String(execution.phase ?? "").startsWith(
+                              "AWAITING_",
+                            )
                           ? String(execution.providerStatus ?? "Pending")
                           : "Pending"}
                     </td>
