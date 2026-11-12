@@ -22,6 +22,24 @@ import {
 import { planVersionLabel } from "./plan-scope";
 import { useScheduleClock } from "./schedule-state";
 import { clusterAccount } from "./cluster-context";
+export function hasClusterUpgradeOpportunity(
+  evidence?: EksUpgradeReadiness,
+): boolean {
+  if (!evidence) return false;
+  const controlPlane = evidence.controlPlane.version;
+  return (
+    Boolean(evidence.recommendedTarget?.version) ||
+    evidence.nodeGroups.some(
+      (node) => Boolean(node.version) && node.version !== controlPlane,
+    ) ||
+    evidence.addons.some(
+      (addon) =>
+        Boolean(addon.targetVersion) &&
+        addon.targetVersion !== addon.version,
+    )
+  );
+}
+
 function liveCluster(
   cluster: Cluster,
   evidence?: EksUpgradeReadiness,
@@ -313,7 +331,8 @@ export function LiveUpgradeCentre({
           <div>
             <h2>Available cluster upgrades</h2>
             <p>
-              All active managed clusters, their readiness and existing plans.
+              Only managed clusters with a control-plane, node-group, or
+              EKS-managed add-on upgrade opportunity are shown.
             </p>
           </div>
         </header>
@@ -335,6 +354,7 @@ export function LiveUpgradeCentre({
               {active.map((cluster, i) => {
                 const q = evidence[i],
                   e = q.data;
+                if (!hasClusterUpgradeOpportunity(e)) return null;
                 const existing = data.rows.find(
                   (r) =>
                     r.plan.kind !== "UTILITY" &&
@@ -407,6 +427,14 @@ export function LiveUpgradeCentre({
             </tbody>
           </table>
         </div>
+        {!evidence.some((q) => q.isFetching) &&
+          !active.some((_, i) =>
+            hasClusterUpgradeOpportunity(evidence[i]?.data),
+          ) && (
+            <p role="status" className="upgrade-empty-state">
+              No managed cluster upgrades are currently available.
+            </p>
+          )}
       </section>
     </div>
   );
