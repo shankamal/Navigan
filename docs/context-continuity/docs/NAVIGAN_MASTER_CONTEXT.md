@@ -1,3 +1,9 @@
+## Current override — 12 November 2026 Phase 2 PROD rollout
+
+Use the 12 November 2026 entry at the top of `NAVIGAN_DAILY_CHECKPOINT.md` as the authoritative Upgrade & Patching state. Phase 2 backend is deployed and verified in PROD; frontend is task definition `:57` with rollback `:56` and image digest `sha256:f1de366debef76a9c8407c0f1ab4a447c41f03ebf31b390168fd882cd7a5815d`. No EKS upgrade was started. Full-platform execution now has explicit stages, manual health gates after control plane and data plane, fresh EKS revalidation before continuation, audit gate history and provider post-validation. Application health/SLO evidence remains operator-confirmed, not automated. Migrations 029–033 must not be rerun. Utility execution and automatic scheduling remain disabled. Authenticated PROD UI acceptance is the remaining Phase 2 validation.
+
+---
+
 ## Current override — 11 November 2026 end of session
 
 Use the final “consolidated end-of-session checkpoint” in docs/NAVIGAN_DAILY_CHECKPOINT.md and docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md (relative to the continuity-kit root). It consolidates UI, roles, component scopes/paths, calendar, names, user-authorized PA self-approval and rollout evidence. Backend 1894355b is confirmed deployed; frontend :56 is prepared with execution output unconfirmed. User says acceptable for now, with remaining findings deferred to tomorrow. Collect those findings before more work; historical blockers and independent-review-only policy are superseded. Keep utility execution disabled and do not start upgrades.
