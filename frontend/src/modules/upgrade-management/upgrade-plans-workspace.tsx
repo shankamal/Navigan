@@ -42,7 +42,8 @@ function executionStageLabel(operation?: {
     | "COMPATIBILITY_COMPONENTS"
     | "DATA_PLANE";
 }) {
-  if (operation?.stage) return operation.stage.replaceAll("_", " ").toLowerCase();
+  if (operation?.stage)
+    return operation.stage.replaceAll("_", " ").toLowerCase();
   if (operation?.kind === "CONTROL_PLANE") return "control plane";
   if (operation?.kind === "NODEGROUP") return "data plane";
   if (operation?.kind === "ADDON") return "compatibility components";
