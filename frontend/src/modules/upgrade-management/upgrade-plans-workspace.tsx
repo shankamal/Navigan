@@ -206,6 +206,12 @@ export function UpgradePlansWorkspace({
     },
   });
   const plan = selected?.plan;
+  const gate = plan?.execution.gate;
+  const gatePending =
+    typeof gate === "object" &&
+    gate !== null &&
+    "status" in gate &&
+    gate.status === "PENDING";
   const overdue = plan ? scheduleOverdue(plan, now) : false;
   const canReviewSelected = Boolean(
     plan &&
@@ -226,6 +232,7 @@ export function UpgradePlansWorkspace({
       | "cancel"
       | "execute"
       | "refresh"
+      | "continue"
       | "reschedule",
   ) => {
     if (plan) action.mutate({ planId: plan.planId, name });
@@ -751,10 +758,7 @@ export function UpgradePlansWorkspace({
                 {String(plan.execution.providerStatus ?? "")}
               </p>
             )}
-            {plan.execution.gate &&
-              typeof plan.execution.gate === "object" &&
-              "status" in plan.execution.gate &&
-              plan.execution.gate.status === "PENDING" && (
+            {gatePending && (
                 <div className="upgrade-blocker-notice" role="status">
                   <strong>Stage health gate required</strong>
                   <p>
@@ -862,10 +866,7 @@ export function UpgradePlansWorkspace({
               {plan.status === "EXECUTING" &&
                 canExecute &&
                 plan.kind !== "UTILITY" &&
-                plan.execution.gate &&
-                typeof plan.execution.gate === "object" &&
-                "status" in plan.execution.gate &&
-                plan.execution.gate.status === "PENDING" ? (
+                gatePending ? (
                   <Button
                     disabled={action.isPending}
                     onClick={() => run("continue")}
