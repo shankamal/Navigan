@@ -204,6 +204,7 @@ export const clusters = {
       | "cancel"
       | "execute"
       | "refresh"
+      | "continue"
       | "reschedule",
     version: number,
     reason?: string,
