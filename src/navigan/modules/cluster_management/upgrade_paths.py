@@ -323,6 +323,8 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             execution = deepcopy(plan.get("execution") or {})
             execution["cancellationReason"] = body.get("reason")
             return self._transition(plan, "CANCELLED", "ScopedEksUpgradeCancelled", {"execution": execution})
+        if action == "continue":
+            return self._continue(plan)
         if action == "reschedule":
             self.access.require("cluster.upgrade.plan")
             self._require_status(plan, {"DRAFT", "SUBMITTED"})
@@ -346,6 +348,164 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             fail("NODE_ALIGNMENT_REQUIRED", "Align managed node groups with the control plane before starting this version transition.")
         if any(u.get("status") in {"InProgress", "Pending"} for u in EksUpgradeDiscovery._updates(eks, name)):
             fail("EKS_UPDATE_IN_PROGRESS", "An EKS update is already in progress.")
+
+    @staticmethod
+    def _operation_stage(operation):
+        if operation["kind"] == "CONTROL_PLANE":
+            return "CONTROL_PLANE"
+        if operation["kind"] == "NODEGROUP":
+            return "DATA_PLANE"
+        if operation.get("prerequisite"):
+            return "PRECHECK"
+        return "PLATFORM_COMPONENTS"
+
+    @staticmethod
+    def _gate_phase(stage):
+        return f"AWAITING_{stage}_HEALTH"
+
+    def _complete_step(self, plan, execution):
+        execution["completedHops"] = execution["hopIndex"] + 1
+        if execution["completedHops"] < len(plan["plan_spec"]["steps"]):
+            execution["hopIndex"] += 1
+            execution["operationIndex"] = 0
+            execution["phase"] = "AWAITING_NEXT_WINDOW"
+            execution.pop("gate", None)
+            next_window = plan["plan_spec"]["steps"][execution["hopIndex"]]["window"]
+            return self._transition(
+                plan,
+                "SCHEDULED",
+                "ScopedEksUpgradeHopCompleted",
+                {
+                    "execution": execution,
+                    "scheduled_for": timestamp(next_window["scheduledFor"]),
+                },
+            )
+        execution.update(
+            {
+                "phase": "VALIDATION",
+                "completedAt": utcnow().isoformat(),
+            }
+        )
+        execution.pop("gate", None)
+        return self._transition(
+            plan,
+            "SUCCEEDED",
+            "ScopedEksUpgradeSucceeded",
+            {"execution": execution},
+        )
+
+    def _pause_for_gate(self, plan, execution, after_stage, next_stage):
+        observed = utcnow().isoformat()
+        execution.update(
+            {
+                "phase": self._gate_phase(after_stage),
+                "providerStatus": "Successful",
+                "gate": {
+                    "afterStage": after_stage,
+                    "nextStage": next_stage,
+                    "status": "PENDING",
+                    "requiredAt": observed,
+                },
+            }
+        )
+        return self._transition(
+            plan,
+            "EXECUTING",
+            "ScopedEksUpgradeHealthGateRequired",
+            {"execution": execution},
+        )
+
+    def _continue(self, plan):
+        self._compatibility_cache = {}
+        self.access.require("cluster.upgrade.execute")
+        self._require_status(plan, {"EXECUTING"})
+        spec = plan.get("plan_spec")
+        if not spec or spec.get("scope") != "CLUSTER":
+            fail(
+                "UPGRADE_HEALTH_GATE_UNAVAILABLE",
+                "Explicit stage continuation is only used by full platform upgrade plans.",
+            )
+        execution = deepcopy(plan.get("execution") or {})
+        gate = execution.get("gate")
+        if not isinstance(gate, dict) or gate.get("status") != "PENDING":
+            fail(
+                "UPGRADE_HEALTH_GATE_NOT_READY",
+                "No staged health gate is awaiting confirmation.",
+            )
+        expected_phase = self._gate_phase(gate.get("afterStage"))
+        if execution.get("phase") != expected_phase:
+            fail(
+                "UPGRADE_HEALTH_GATE_NOT_READY",
+                "Refresh the execution state before continuing.",
+            )
+        cluster, _, eks, _ = self._context(plan["cluster_id"])
+        cp, nodes, addons = self._inventory(cluster, eks)
+        self._healthy(
+            cp,
+            nodes,
+            addons,
+            eks,
+            cluster["cluster_name"],
+            require_aligned=False,
+        )
+        step = spec["steps"][execution["hopIndex"]]
+        after_stage = gate["afterStage"]
+        if after_stage == "CONTROL_PLANE":
+            if cp["version"] != step["targetVersion"]:
+                fail(
+                    "UPGRADE_HEALTH_GATE_FAILED",
+                    "The control plane has not reached the approved target version.",
+                )
+            incompatible = [
+                addon["name"]
+                for addon in addons
+                if addon.get("version")
+                not in {
+                    item["version"]
+                    for item in self._compatible(
+                        eks, addon["name"], step["targetVersion"]
+                    )
+                }
+            ]
+            if incompatible:
+                fail(
+                    "UPGRADE_HEALTH_GATE_FAILED",
+                    "Managed add-ons are not compatible with the upgraded control plane.",
+                )
+        elif after_stage == "DATA_PLANE":
+            selected = set(spec.get("nodeGroups") or [])
+            lagging = [
+                node["name"]
+                for node in nodes
+                if node["name"] in selected
+                and node.get("version") != step["targetVersion"]
+            ]
+            if lagging:
+                fail(
+                    "UPGRADE_HEALTH_GATE_FAILED",
+                    "Managed node groups have not all reached the approved target version.",
+                )
+        else:
+            fail(
+                "UPGRADE_HEALTH_GATE_NOT_READY",
+                "This execution stage does not require an operator continuation.",
+            )
+        gate.update(
+            {
+                "status": "PASSED",
+                "confirmedAt": utcnow().isoformat(),
+                "confirmedBy": self.access.user_id,
+            }
+        )
+        execution["gate"] = gate
+        history = list(execution.get("gateHistory") or [])
+        history.append(deepcopy(gate))
+        execution["gateHistory"] = history
+        execution.pop("gate", None)
+        if execution["operationIndex"] < len(step["operations"]):
+            execution["phase"] = "STARTING_NEXT_STAGE"
+            return self._start_operation(plan, execution, eks, cluster)
+        return self._complete_step(plan, execution)
 
     def _execute(self, plan):
         self._compatibility_cache = {}
@@ -422,6 +582,11 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             fail("UPGRADE_PLAN_REVISION_REQUIRED", "This legacy plan cannot use the component executor.")
         cluster, _, eks, _ = self._context(plan["cluster_id"])
         execution = deepcopy(plan["execution"])
+        if str(execution.get("phase", "")).startswith("AWAITING_") and execution.get("gate"):
+            fail(
+                "UPGRADE_HEALTH_GATE_REQUIRED",
+                "Validate the live stage health and explicitly continue before starting the next stage.",
+            )
         step = plan["plan_spec"]["steps"][execution["hopIndex"]]
         operation = step["operations"][execution["operationIndex"]]
         request = {"name": cluster["cluster_name"], "updateId": execution["updateId"]}
@@ -450,13 +615,16 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             return self._transition(plan, "FAILED", "ScopedEksUpgradeValidationFailed", {"execution": execution})
         execution["results"].append({**operation, "hopIndex": execution["hopIndex"], "status": "SUCCEEDED", "completedAt": utcnow().isoformat()})
         execution["operationIndex"] += 1
-        if execution["operationIndex"] < len(step["operations"]):
+        scope = plan["plan_spec"]["scope"]
+        stage = self._operation_stage(operation)
+        next_operation = (
+            step["operations"][execution["operationIndex"]]
+            if execution["operationIndex"] < len(step["operations"])
+            else None
+        )
+        next_stage = self._operation_stage(next_operation) if next_operation else "POST_VALIDATION"
+        if scope == "CLUSTER" and stage in {"CONTROL_PLANE", "DATA_PLANE"} and stage != next_stage:
+            return self._pause_for_gate(plan, execution, stage, next_stage)
+        if next_operation:
             return self._start_operation(plan, execution, eks, cluster)
-        execution["completedHops"] = execution["hopIndex"] + 1
-        if execution["completedHops"] < len(plan["plan_spec"]["steps"]):
-            execution["hopIndex"] += 1
-            execution["phase"] = "AWAITING_NEXT_WINDOW"
-            next_window = plan["plan_spec"]["steps"][execution["hopIndex"]]["window"]
-            return self._transition(plan, "SCHEDULED", "ScopedEksUpgradeHopCompleted", {"execution": execution, "scheduled_for": timestamp(next_window["scheduledFor"])})
-        execution.update({"phase": "VALIDATION", "completedAt": utcnow().isoformat()})
-        return self._transition(plan, "SUCCEEDED", "ScopedEksUpgradeSucceeded", {"execution": execution})
+        return self._complete_step(plan, execution)
