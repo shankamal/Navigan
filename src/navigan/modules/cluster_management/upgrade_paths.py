@@ -238,7 +238,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                     if desired != installed:
                         previous = installed
                         for version in addon_path(installed, desired, choices):
-                            after.append({"kind": "ADDON", "name": name, "from": previous, "to": version})
+                            after.append({"kind": "ADDON", "stage": "COMPATIBILITY_COMPONENTS", "name": name, "from": previous, "to": version})
                             previous = version
                 elif scope == "CONTROL_PLANE" and installed not in valid:
                     fail("ADDON_PREREQUISITE_REQUIRED", f"Managed add-on {name} at {installed} is not compatible with Kubernetes {target}. Create and approve a managed add-on plan before the control-plane upgrade.")
@@ -250,7 +250,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                         fail("ADDON_BRIDGE_UNAVAILABLE", f"Add-on {name} has no provider-reported version compatible with both {current} and {target}. Remediate it before this upgrade.")
                     previous = installed
                     for version in addon_path(installed, bridge, self._compatible(eks, name, current)):
-                        before.append({"kind": "ADDON", "name": name, "from": previous, "to": version, "prerequisite": True})
+                        before.append({"kind": "ADDON", "stage": "PREREQUISITE_COMPONENTS", "name": name, "from": previous, "to": version, "prerequisite": True})
                         previous = version
                     desired = bridge
                 else:
@@ -258,11 +258,11 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                 addon_versions[name] = desired
             operations.extend(before)
             if scope in {"CLUSTER", "CONTROL_PLANE"}:
-                operations.append({"kind": "CONTROL_PLANE", "name": cluster["cluster_name"], "from": current, "to": target})
+                operations.append({"kind": "CONTROL_PLANE", "stage": "CONTROL_PLANE", "name": cluster["cluster_name"], "from": current, "to": target})
             operations.extend(after)
             for name in selected:
                 if node_versions[name] != target:
-                    operations.append({"kind": "NODEGROUP", "name": name, "from": node_versions[name], "to": target})
+                    operations.append({"kind": "NODEGROUP", "stage": "DATA_PLANE", "name": name, "from": node_versions[name], "to": target})
                     node_versions[name] = target
             if not operations:
                 fail("NO_UPGRADE_CHANGES", "Selected components are already at the requested versions. Same-version AMI patching is not included in this adapter.")
@@ -351,13 +351,16 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
 
     @staticmethod
     def _operation_stage(operation):
+        explicit = operation.get("stage")
+        if explicit:
+            return explicit
         if operation["kind"] == "CONTROL_PLANE":
             return "CONTROL_PLANE"
         if operation["kind"] == "NODEGROUP":
             return "DATA_PLANE"
         if operation.get("prerequisite"):
-            return "PRECHECK"
-        return "PLATFORM_COMPONENTS"
+            return "PREREQUISITE_COMPONENTS"
+        return "COMPATIBILITY_COMPONENTS"
 
     @staticmethod
     def _gate_phase(stage):
@@ -380,10 +383,50 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                     "scheduled_for": timestamp(next_window["scheduledFor"]),
                 },
             )
+        cluster, _, eks, _ = self._context(plan["cluster_id"])
+        cp, nodes, addons = self._inventory(cluster, eks)
+        self._healthy(
+            cp,
+            nodes,
+            addons,
+            eks,
+            cluster["cluster_name"],
+            require_aligned=False,
+        )
+        final_target = plan["plan_spec"]["finalVersion"]
+        selected = set(plan["plan_spec"].get("nodeGroups") or [])
+        if cp["version"] != final_target:
+            fail(
+                "UPGRADE_POST_VALIDATION_FAILED",
+                "The control plane does not match the approved final target.",
+            )
+        if any(
+            node["name"] in selected and node.get("version") != final_target
+            for node in nodes
+        ):
+            fail(
+                "UPGRADE_POST_VALIDATION_FAILED",
+                "Managed node groups have not all reached the approved final target.",
+            )
+        observed = utcnow().isoformat()
         execution.update(
             {
-                "phase": "VALIDATION",
-                "completedAt": utcnow().isoformat(),
+                "phase": "POST_VALIDATION",
+                "completedAt": observed,
+                "postValidation": {
+                    "status": "PASSED",
+                    "observedAt": observed,
+                    "controlPlaneVersion": cp["version"],
+                    "nodeGroupsHealthy": all(
+                        node.get("status") == "ACTIVE" and not node.get("healthIssues")
+                        for node in nodes
+                    ),
+                    "addonsHealthy": all(
+                        addon.get("status") == "ACTIVE" and not addon.get("healthIssues")
+                        for addon in addons
+                    ),
+                    "applicationValidation": "OPERATOR_VERIFICATION_REQUIRED",
+                },
             }
         )
         execution.pop("gate", None)
