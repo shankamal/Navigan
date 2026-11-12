@@ -280,12 +280,23 @@ describe("Upgrade opportunity filtering", () => {
 describe("Upgrade workspace", () => {
   it("shows four distinct tabs and component metrics without cluster accordions", async () => {
     mount();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    const workspaceTabs = screen.getByRole("tablist", {
+      name: "Upgrade workspace",
+    });
+    expect(
+      within(workspaceTabs).getAllByRole("tab").map((t) => t.textContent),
+    ).toEqual([
       "Upgrade Centre",
       "System Utilities",
       "Plans & Approvals",
       "Maintenance Calendar",
     ]);
+    expect(
+      screen.getByRole("tab", { name: "Saved upgrade plans" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("tab", { name: "Available cluster upgrades" }),
+    ).toHaveAttribute("aria-selected", "false");
     expect(
       screen.queryByRole("tab", { name: "Container Upgrades" }),
     ).not.toBeInTheDocument();
@@ -301,6 +312,14 @@ describe("Upgrade workspace", () => {
     expect(
       screen.queryByRole("button", { name: "Hide opportunities" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("table", {
+        name: "Registered active clusters and upgrade readiness",
+      }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Available cluster upgrades" }),
+    );
     expect(
       await screen.findByRole("table", {
         name: "Registered active clusters and upgrade readiness",
@@ -320,6 +339,9 @@ describe("Upgrade workspace", () => {
     authIdentity.privileges = [];
     try {
       mount();
+      fireEvent.click(
+        screen.getByRole("tab", { name: "Available cluster upgrades" }),
+      );
       expect(
         await screen.findByText(
           "Your current account does not have permission to create upgrade plans.",
@@ -351,6 +373,9 @@ describe("Upgrade workspace", () => {
     expect(
       screen.queryByRole("button", { name: "Create plan" }),
     ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Available cluster upgrades" }),
+    );
     const create = await screen.findByRole("button", {
       name: "Create upgrade plan",
     });
