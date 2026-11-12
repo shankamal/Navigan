@@ -1,3 +1,9 @@
+## Current override — 12 November 2026 authenticated Phase 2 acceptance
+
+Phase 2 Upgrade & Patching is now **accepted in authenticated PROD**. User verified Control plane only, Full platform upgrade, Node groups and Managed add-ons. Full-platform plan details correctly show explicit Stage vs Execution, and Plans & Approvals shows the submitted Cloud Engineer plan awaiting Platform Architect review. No execution control was used during acceptance and no EKS upgrade was started. PROD frontend remains task `:57`, rollback `:56`; backend Phase 2 is deployed and verified. Treat Phase 2 as complete. Remaining known limits: utility execution disabled, no automatic scheduler, and application/SLO health evidence is still operator-confirmed rather than automatically collected.
+
+---
+
 ## Current override — 12 November 2026 Phase 2 PROD rollout
 
 Use the 12 November 2026 entry at the top of `NAVIGAN_DAILY_CHECKPOINT.md` as the authoritative Upgrade & Patching state. Phase 2 backend is deployed and verified in PROD; frontend is task definition `:57` with rollback `:56` and image digest `sha256:f1de366debef76a9c8407c0f1ab4a447c41f03ebf31b390168fd882cd7a5815d`. No EKS upgrade was started. Full-platform execution now has explicit stages, manual health gates after control plane and data plane, fresh EKS revalidation before continuation, audit gate history and provider post-validation. Application health/SLO evidence remains operator-confirmed, not automated. Migrations 029–033 must not be rerun. Utility execution and automatic scheduling remain disabled. Authenticated PROD UI acceptance is the remaining Phase 2 validation.
