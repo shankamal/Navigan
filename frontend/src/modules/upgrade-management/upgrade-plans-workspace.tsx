@@ -235,18 +235,17 @@ export function UpgradePlansWorkspace({
     plan.execution.iacReconciliation !== null
       ? (plan.execution.iacReconciliation as Record<string, unknown>)
       : undefined;
-  const terraformActions =
+  const planSummary =
     iacReconciliation &&
     typeof iacReconciliation.planSummary === "object" &&
-    iacReconciliation.planSummary !== null &&
-    typeof (
-      iacReconciliation.planSummary as Record<string, unknown>
-    ).actions === "object"
-      ? (
-          iacReconciliation.planSummary as {
-            actions: Record<string, unknown>;
-          }
-        ).actions
+    iacReconciliation.planSummary !== null
+      ? (iacReconciliation.planSummary as Record<string, unknown>)
+      : undefined;
+  const terraformActions =
+    planSummary &&
+    typeof planSummary.actions === "object" &&
+    planSummary.actions !== null
+      ? (planSummary.actions as Record<string, unknown>)
       : undefined;
   const gate = plan?.execution.gate;
   const gatePending =
