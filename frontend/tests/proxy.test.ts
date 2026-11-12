@@ -30,13 +30,13 @@ describe("Same-origin API proxy", () => {
   it.each(["reconcile", "refresh-reconciliation", "apply-reconciliation"])(
     "forwards only POST for the governed %s action",
     (action) => {
-    const path = [
-      "clusters",
-      "CLU-live",
-      "upgrade-plans",
-      `UPG-${"a".repeat(32)}`,
-      action,
-    ];
+      const path = [
+        "clusters",
+        "CLU-live",
+        "upgrade-plans",
+        `UPG-${"a".repeat(32)}`,
+        action,
+      ];
       expect(isAllowedRoute("POST", path)).toBe(true);
       expect(isAllowedRoute("GET", path)).toBe(false);
     },
