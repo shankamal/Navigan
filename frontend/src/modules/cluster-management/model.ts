@@ -363,7 +363,7 @@ export const upgradeWindowSchema = z.object({
 });
 export const upgradeSpecSchema = z.object({
   format: z.literal(1),
-  scope: z.enum(["CLUSTER", "NODES", "ADDONS"]),
+  scope: z.enum(["CLUSTER", "CONTROL_PLANE", "NODES", "ADDONS"]),
   sourceVersion: z.string(),
   finalVersion: z.string(),
   nodeGroups: z.array(z.string()),
