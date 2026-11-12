@@ -233,10 +233,12 @@ def test_iac_reconciliation_starts_plan_only_after_provider_success(service):
 
 def test_iac_reconciliation_blocks_any_non_noop_terraform_plan(service):
     p=successful_reconciliation_plan(service)
+    _, candidate=service._reconciliation_candidate(p)
     p["execution"]["iacReconciliation"]={
         "status":"PLAN_RUNNING","planBuildId":"build-1",
         "planArtifactPrefix":"executions/CUS-one/CLU-one/run-1",
         "targetVersion":"1.35","desiredVersionBefore":"1.34",
+        "candidateFingerprint":service._reconciliation_candidate_fingerprint(candidate),
     }
     service.provisioner.codebuild.batch_get_builds.return_value={
         "builds":[{"buildStatus":"SUCCEEDED"}]
@@ -259,10 +261,12 @@ def test_iac_reconciliation_blocks_any_non_noop_terraform_plan(service):
 
 def test_iac_reconciliation_certifies_noop_then_persists_only_after_apply(service):
     p=successful_reconciliation_plan(service)
+    _, candidate=service._reconciliation_candidate(p)
     p["execution"]["iacReconciliation"]={
         "status":"PLAN_RUNNING","planBuildId":"build-1",
         "planArtifactPrefix":"executions/CUS-one/CLU-one/run-1",
         "targetVersion":"1.35","desiredVersionBefore":"1.34",
+        "candidateFingerprint":service._reconciliation_candidate_fingerprint(candidate),
     }
     service.provisioner.codebuild.batch_get_builds.return_value={
         "builds":[{"buildStatus":"SUCCEEDED"}]
