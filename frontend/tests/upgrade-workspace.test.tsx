@@ -283,9 +283,10 @@ describe("Upgrade workspace", () => {
     const workspaceTabs = screen.getByRole("tablist", {
       name: "Upgrade workspace",
     });
-    expect(
-      within(workspaceTabs).getAllByRole("tab").map((t) => t.textContent),
-    ).toEqual([
+    const workspaceTabLabels = within(workspaceTabs)
+      .getAllByRole("tab")
+      .map((tab) => tab.textContent);
+    expect(workspaceTabLabels).toEqual([
       "Upgrade Centre",
       "System Utilities",
       "Plans & Approvals",
