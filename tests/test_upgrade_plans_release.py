@@ -139,7 +139,7 @@ def test_production_baseline_includes_both_rescheduling_handler_fixes():
         release.DEPLOYED_PLAN_TREE, "src/navigan/modules/cluster_management/handler.py"
     ))
     source = handler.decode()
-    assert '"refresh", "reschedule"}' in source
+    assert '"execute", "refresh", "continue", "reschedule"}' in source
     assert 'if (create_upgrade_plan or upgrade_plan_action) and body.get("scheduledFor")' in source
     plans = baseline(release.DEPLOYED_PLAN_TREE, "src/navigan/modules/cluster_management/upgrade_plans.py").decode()
     assert 'if action == "reschedule":' in plans
