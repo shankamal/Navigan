@@ -91,6 +91,44 @@ beforeEach(() => {
   mocks.privileges = ["cluster.upgrade.plan"];
 });
 describe("Scoped upgrade planner", () => {
+  it("creates a control-plane-only plan without node or add-on selections", async () => {
+    mount();
+    expect(
+      await screen.findByRole("radio", { name: "Control plane only" }),
+    ).toBeChecked();
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "3. Change reason" }),
+      { target: { value: "Upgrade only the managed control plane" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save draft & review" }),
+    );
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledWith(
+        "CLU-one",
+        expect.objectContaining({
+          upgradeScope: "CONTROL_PLANE",
+          targetVersion: "1.35",
+        }),
+      ),
+    );
+    expect(mocks.create.mock.calls[0][1]).not.toHaveProperty("nodeGroups");
+    expect(mocks.create.mock.calls[0][1]).not.toHaveProperty("addons");
+  });
+
+  it("labels the existing cluster scope as a full platform upgrade", async () => {
+    mount();
+    const full = await screen.findByRole("radio", {
+      name: "Full platform upgrade",
+    });
+    fireEvent.click(full);
+    expect(
+      screen.getByText(
+        /Full platform upgrade: control plane, managed node groups/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("permits node-only planning without a newer control-plane version", async () => {
     mocks.options.mockResolvedValue({ ...options, targetVersions: [] });
     mount();
@@ -172,7 +210,7 @@ describe("Scoped upgrade planner", () => {
   it("keeps dynamic denial authoritative even with the Cloud Engineer role label", async () => {
     mocks.privileges = [];
     mount();
-    await screen.findByRole("radio", { name: "Cluster version" });
+    await screen.findByRole("radio", { name: "Control plane only" });
     fireEvent.change(
       screen.getByRole("textbox", { name: "3. Change reason" }),
       { target: { value: "Upgrade the cluster" } },
