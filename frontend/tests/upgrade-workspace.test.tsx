@@ -280,7 +280,7 @@ describe("Upgrade workspace", () => {
     });
     await waitFor(() => expect(create).toBeEnabled());
     fireEvent.click(create);
-    const scope = await screen.findByRole("radio", { name: "Cluster version" });
+    const scope = await screen.findByRole("radio", { name: "Control plane only" });
     expect(scope).toBeChecked();
     expect(
       screen.getByRole("radio", { name: "Node groups" }),
