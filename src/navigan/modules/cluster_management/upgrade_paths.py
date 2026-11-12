@@ -575,12 +575,43 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
         if cp["version"] != step["fromVersion"]:
             fail("UPGRADE_EVIDENCE_CHANGED", "The live control-plane version differs from the approved upgrade step.")
         self._healthy(cp, nodes, addons, eks, cluster["cluster_name"], require_aligned=spec["scope"] in {"CLUSTER", "CONTROL_PLANE"})
+        insights = []
         if spec["scope"] in {"CLUSTER", "CONTROL_PLANE"}:
             sequential_path(cp["version"], step["targetVersion"], self.discovery._versions(eks))
             insights = self.discovery._insights(eks, cluster["cluster_name"], step["targetVersion"])
             if any(i.get("status") != "PASSING" for i in insights):
                 fail("UPGRADE_INSIGHTS_REQUIRED", "Resolve fresh EKS upgrade insights before executing this step.")
-        execution.update({"hopIndex": index, "operationIndex": 0, "phase": "STARTING", "startedAt": now.isoformat(), "results": execution.get("results", [])})
+        first_operation = step["operations"][0]
+        execution.update(
+            {
+                "hopIndex": index,
+                "operationIndex": 0,
+                "phase": "STARTING",
+                "startedAt": now.isoformat(),
+                "results": execution.get("results", []),
+                "startPreflight": {
+                    "status": "PASSED",
+                    "observedAt": now.isoformat(),
+                    "operatorId": self.access.user_id,
+                    "fromVersion": step["fromVersion"],
+                    "targetVersion": step["targetVersion"],
+                    "firstStage": self._operation_stage(first_operation),
+                    "controlPlaneVersion": cp["version"],
+                    "nodeGroupsHealthy": all(
+                        node.get("status") == "ACTIVE" and not node.get("healthIssues")
+                        for node in nodes
+                    ),
+                    "addonsHealthy": all(
+                        addon.get("status") == "ACTIVE" and not addon.get("healthIssues")
+                        for addon in addons
+                    ),
+                    "upgradeInsightsPassing": all(
+                        insight.get("status") == "PASSING" for insight in insights
+                    ),
+                    "applicationValidation": "OPERATOR_CONFIRMED_BEFORE_START",
+                },
+            }
+        )
         return self._start_operation(plan, execution, eks, cluster)
 
     def _start_operation(self, plan, execution, eks, cluster):
