@@ -821,6 +821,24 @@ export function UpgradePlansWorkspace({
                       {String(iacReconciliation.failureCode)}
                     </p>
                   )}
+                  {typeof iacReconciliation.planSummary === "object" &&
+                    iacReconciliation.planSummary !== null &&
+                    typeof (
+                      iacReconciliation.planSummary as Record<string, unknown>
+                    ).actions === "object" && (
+                      <p>
+                        Terraform actions:{" "}
+                        {Object.entries(
+                          (
+                            iacReconciliation.planSummary as {
+                              actions: Record<string, unknown>;
+                            }
+                          ).actions,
+                        )
+                          .map(([action, count]) => `${action}: ${String(count)}`)
+                          .join(", ")}
+                      </p>
+                    )}
                 </div>
               )}
             {gatePending && (
