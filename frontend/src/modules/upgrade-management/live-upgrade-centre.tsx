@@ -75,13 +75,15 @@ function liveCluster(
 export function LiveUpgradeCentre({
   onPlan,
   onReview,
+  initialView = "plans",
 }: {
   onPlan: (cluster: UpgradeCluster) => void;
   onReview: (id: string | null, reschedule?: boolean) => void;
+  initialView?: "plans" | "available";
 }) {
   const data = useUpgradePlans(),
     now = useScheduleClock();
-  const [view, setView] = useState<"plans" | "available">("plans");
+  const [view, setView] = useState<"plans" | "available">(initialView);
   const [type, setType] = useState<PlanScope | "all">("all");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -94,6 +96,7 @@ export function LiveUpgradeCentre({
       queryFn: () => clusters.upgradeReadiness(c.clusterId),
       staleTime: 30000,
       retry: false,
+      enabled: view === "available",
     })),
   });
   const rows = data.rows.filter(
