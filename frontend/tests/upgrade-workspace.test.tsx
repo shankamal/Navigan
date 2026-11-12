@@ -354,7 +354,7 @@ describe("Upgrade workspace", () => {
     expect(clusters.createScopedUpgradePlan).toHaveBeenCalledWith(
       "CLU-live",
       expect.objectContaining({
-        upgradeScope: "CLUSTER",
+        upgradeScope: "CONTROL_PLANE",
         targetVersion: "1.35",
         hopWindows: [
           {
