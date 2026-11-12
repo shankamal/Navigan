@@ -43,7 +43,7 @@ class HopWindow(Model):
 
 
 class CreateScopedUpgradePlan(Model):
-    upgradeScope: str = Field(pattern=r"^(CLUSTER|NODES|ADDONS)$")
+    upgradeScope: str = Field(pattern=r"^(CLUSTER|CONTROL_PLANE|NODES|ADDONS)$")
     targetVersion: str | None = Field(default=None, pattern=r"^1\.[0-9]{2}$")
     nodeGroups: list[str] = Field(default_factory=list, max_length=100)
     addons: dict[str, str] = Field(default_factory=dict)
@@ -53,7 +53,7 @@ class CreateScopedUpgradePlan(Model):
 
     @model_validator(mode="after")
     def valid_scope(self):
-        if self.upgradeScope == "CLUSTER" and not self.targetVersion:
+        if self.upgradeScope in {"CLUSTER", "CONTROL_PLANE"} and not self.targetVersion:
             raise ValueError("Choose a final Kubernetes target.")
         if self.upgradeScope == "NODES" and not self.nodeGroups:
             raise ValueError("Select at least one managed node group.")
@@ -199,12 +199,12 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
 
     def _specification(self, cluster, eks, body):
         cp, nodes, addons = self._inventory(cluster, eks)
-        self._healthy(cp, nodes, addons, eks, cluster["cluster_name"], require_aligned=body["upgradeScope"] == "CLUSTER")
+        self._healthy(cp, nodes, addons, eks, cluster["cluster_name"], require_aligned=body["upgradeScope"] in {"CLUSTER", "CONTROL_PLANE"})
         scope, current = body["upgradeScope"], cp["version"]
-        targets = sequential_path(current, body["targetVersion"], self.discovery._versions(eks)) if scope == "CLUSTER" else [current]
+        targets = sequential_path(current, body["targetVersion"], self.discovery._versions(eks)) if scope in {"CLUSTER", "CONTROL_PLANE"} else [current]
         if scope == "NODES" and body.get("targetVersion") not in {None, current}:
             fail("NODE_TARGET_INVALID", "Node-only plans must target the current control-plane version.")
-        if (scope == "CLUSTER" and (body.get("nodeGroups") or body.get("addons"))) or (scope == "NODES" and body.get("addons")) or (scope == "ADDONS" and body.get("nodeGroups")):
+        if (scope in {"CLUSTER", "CONTROL_PLANE"} and (body.get("nodeGroups") or body.get("addons"))) or (scope == "NODES" and body.get("addons")) or (scope == "ADDONS" and body.get("nodeGroups")):
             fail("UPGRADE_SCOPE_INVALID", "Use the components belonging to the selected upgrade scope.")
         if scope == "ADDONS" and body.get("targetVersion") not in {None, current}:
             fail("ADDON_TARGET_INVALID", "Add-on-only plans use the current control-plane version.")
@@ -225,7 +225,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
         addon_versions = {name: a["version"] for name, a in addon_by_name.items()}
         for index, target in enumerate(targets):
             operations = []
-            names = list(addon_by_name) if scope == "CLUSTER" else list(body.get("addons", {})) if scope == "ADDONS" else []
+            names = list(addon_by_name) if scope in {"CLUSTER", "CONTROL_PLANE"} else list(body.get("addons", {})) if scope == "ADDONS" else []
             before, after = [], []
             for name in names:
                 installed = addon_versions[name]
@@ -240,6 +240,8 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                         for version in addon_path(installed, desired, choices):
                             after.append({"kind": "ADDON", "name": name, "from": previous, "to": version})
                             previous = version
+                elif scope == "CONTROL_PLANE" and installed not in valid:
+                    fail("ADDON_PREREQUISITE_REQUIRED", f"Managed add-on {name} at {installed} is not compatible with Kubernetes {target}. Create and approve a managed add-on plan before the control-plane upgrade.")
                 elif installed not in valid:
                     source_choices = {c["version"] for c in self._compatible(eks, name, current)}
                     bridge = next((c["version"] for c in choices if c["recommended"] and c["version"] in source_choices), None)
@@ -255,7 +257,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                     desired = installed
                 addon_versions[name] = desired
             operations.extend(before)
-            if scope == "CLUSTER":
+            if scope in {"CLUSTER", "CONTROL_PLANE"}:
                 operations.append({"kind": "CONTROL_PLANE", "name": cluster["cluster_name"], "from": current, "to": target})
             operations.extend(after)
             for name in selected:
@@ -269,7 +271,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             current = target
         validate_windows(steps, future=True)
         return {"format": 1, "scope": scope, "sourceVersion": cp["version"], "finalVersion": targets[-1],
-                "steps": steps, "nodeGroups": selected, "addonNames": list(addon_by_name) if scope == "CLUSTER" else list(body.get("addons", {})),
+                "steps": steps, "nodeGroups": selected, "addonNames": list(addon_by_name) if scope == "CLUSTER" else list(body.get("addons", {})) if scope == "ADDONS" else [],
                 "validation": "Only discovered EKS-managed components are included. Self-managed nodes and utilities require separate plans. Application checks require operator verification."}
 
     @provider_read
@@ -369,8 +371,8 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             fail("UPGRADE_COMPONENT_DRIFT", "Managed component membership changed after approval. Create a fresh plan.")
         if cp["version"] != step["fromVersion"]:
             fail("UPGRADE_EVIDENCE_CHANGED", "The live control-plane version differs from the approved upgrade step.")
-        self._healthy(cp, nodes, addons, eks, cluster["cluster_name"], require_aligned=spec["scope"] == "CLUSTER")
-        if spec["scope"] == "CLUSTER":
+        self._healthy(cp, nodes, addons, eks, cluster["cluster_name"], require_aligned=spec["scope"] in {"CLUSTER", "CONTROL_PLANE"})
+        if spec["scope"] in {"CLUSTER", "CONTROL_PLANE"}:
             sequential_path(cp["version"], step["targetVersion"], self.discovery._versions(eks))
             insights = self.discovery._insights(eks, cluster["cluster_name"], step["targetVersion"])
             if any(i.get("status") != "PASSING" for i in insights):
