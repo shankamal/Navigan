@@ -377,6 +377,14 @@ export const upgradeSpecSchema = z.object({
       operations: z.array(
         z.object({
           kind: z.enum(["CONTROL_PLANE", "NODEGROUP", "ADDON"]),
+          stage: z
+            .enum([
+              "PREREQUISITE_COMPONENTS",
+              "CONTROL_PLANE",
+              "COMPATIBILITY_COMPONENTS",
+              "DATA_PLANE",
+            ])
+            .optional(),
           name: z.string(),
           from: z.string(),
           to: z.string(),
