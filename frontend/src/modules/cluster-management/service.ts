@@ -205,7 +205,10 @@ export const clusters = {
       | "execute"
       | "refresh"
       | "continue"
-      | "reschedule",
+      | "reschedule"
+      | "reconcile"
+      | "refresh-reconciliation"
+      | "apply-reconciliation",
     version: number,
     reason?: string,
     scheduledFor?: string,
