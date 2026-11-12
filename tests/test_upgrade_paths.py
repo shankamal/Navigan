@@ -67,6 +67,7 @@ def test_draft_stores_complete_path_without_calling_update_api(service):
     p=row(service)
     assert [s["targetVersion"] for s in p["plan_spec"]["steps"]]==["1.35","1.36","1.37"]
     assert all([o["kind"] for o in s["operations"]]==["CONTROL_PLANE","NODEGROUP"] for s in p["plan_spec"]["steps"])
+    assert all([o["stage"] for o in s["operations"]]==["CONTROL_PLANE","DATA_PLANE"] for s in p["plan_spec"]["steps"])
     assert service.discovery.eks.writes==[]
     assert "readinessEvidence" not in service.present(p)
 
@@ -101,6 +102,7 @@ def test_incompatible_addon_becomes_prerequisite_before_control_plane(service):
     service.discovery.eks.versions["1.35"]=["v1.1.0"]
     p=row(service,payload(targetVersion="1.35"))
     assert [o["kind"] for o in p["plan_spec"]["steps"][0]["operations"]]==["ADDON","CONTROL_PLANE","NODEGROUP"]
+    assert [o["stage"] for o in p["plan_spec"]["steps"][0]["operations"]]==["PREREQUISITE_COMPONENTS","CONTROL_PLANE","DATA_PLANE"]
     service.discovery.eks.versions["1.35"]=["v2.0.0"]
     with pytest.raises(ApiError,match="compatible with both"):
         row(service,payload(targetVersion="1.35"))
@@ -166,6 +168,20 @@ def test_component_only_plans_do_not_use_full_platform_gate(service):
     assert p["execution"]["phase"]=="VALIDATION"
     with pytest.raises(ApiError,match="full platform"):
         service._continue({**p,"status":"EXECUTING"})
+
+def test_final_success_records_provider_post_validation(service):
+    service.discovery.eks.version="1.35"
+    p=approve(row(service,payload("NODES",nodeGroups=["system"])),utcnow()-timedelta(minutes=1))
+    service.discovery.eks.nodes[0]["version"]="1.34"
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._execute(p);p=saved[-1]
+    service.discovery.eks.nodes[0]["version"]="1.35"
+    service._refresh(p);p=saved[-1]
+    assert p["status"]=="SUCCEEDED"
+    assert p["execution"]["phase"]=="POST_VALIDATION"
+    assert p["execution"]["postValidation"]["status"]=="PASSED"
+    assert p["execution"]["postValidation"]["controlPlaneVersion"]=="1.35"
+    assert p["execution"]["postValidation"]["applicationValidation"]=="OPERATOR_VERIFICATION_REQUIRED"
 
 def test_failed_stage_never_advances_to_node_update(service):
     p=approve(row(service),utcnow()-timedelta(minutes=1))
