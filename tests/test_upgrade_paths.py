@@ -195,16 +195,20 @@ def test_addon_minor_path_and_downgrade_guard(service):
     with pytest.raises(ApiError,match="newer"):
         row(service,payload("ADDONS",addons={"cni":"v1.0.0"}))
 
-def test_expired_window_stops_between_components(service):
+def test_expired_window_stops_before_next_stage_after_health_gate(service):
     p=approve(row(service,payload(targetVersion="1.35")),utcnow()-timedelta(minutes=1))
     saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
     service._execute(p);p=saved[-1]
     service.discovery.eks.version="1.35"
     p["plan_spec"]["steps"][0]["window"]["scheduledFor"]=(utcnow()-timedelta(hours=3)).isoformat()
-    service._refresh(p)
+    service._refresh(p);p=saved[-1]
+    assert p["status"]=="EXECUTING"
+    assert p["execution"]["phase"]=="AWAITING_CONTROL_PLANE_HEALTH"
+    assert len(service.discovery.eks.writes)==1
+    assert p["execution"]["results"][0]["status"]=="SUCCEEDED"
+    service._continue(p)
     assert saved[-1]["status"]=="FAILED"
     assert len(service.discovery.eks.writes)==1
-    assert saved[-1]["execution"]["results"][0]["status"]=="SUCCEEDED"
 
 def test_drift_or_bad_insights_never_starts_provider_update(service):
     p=approve(row(service),utcnow()-timedelta(minutes=1))
