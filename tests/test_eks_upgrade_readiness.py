@@ -207,6 +207,49 @@ def test_only_recommends_the_immediate_next_minor_version():
     }
 
 
+def test_latest_control_plane_still_discovers_component_upgrade_opportunities():
+    client = eks_client()
+    client.describe_cluster.return_value["cluster"]["version"] = "1.35"
+    client.describe_cluster_versions.return_value["clusterVersions"] = [
+        {
+            "clusterVersion": "1.35",
+            "versionStatus": "STANDARD_SUPPORT",
+        }
+    ]
+    client.describe_nodegroup.return_value["nodegroup"]["version"] = "1.34"
+    client.describe_addon_versions.return_value = {
+        "addons": [
+            {
+                "addonName": "coredns",
+                "addonVersions": [
+                    {
+                        "addonVersion": "v1.12.3-eksbuild.1",
+                        "compatibilities": [
+                            {"clusterVersion": "1.35", "defaultVersion": True}
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = discovery(client).discover(managed_cluster(), environment())
+
+    assert result["recommendedTarget"] is None
+    assert result["addons"][0]["targetVersion"] == "v1.12.3-eksbuild.1"
+    assert "NO_SUPPORTED_NEXT_MINOR" not in {
+        item["code"] for item in result["readiness"]["blockers"]
+    }
+    assert "NODE_GROUP_VERSION_SKEW" in {
+        item["code"] for item in result["readiness"]["blockers"]
+    }
+    client.describe_addon_versions.assert_called_with(
+        kubernetesVersion="1.35",
+        addonName="coredns",
+        maxResults=100,
+    )
+
+
 def test_discovery_never_calls_an_eks_mutation_api():
     client = eks_client()
 
