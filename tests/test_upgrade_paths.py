@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 from datetime import timedelta
 from unittest.mock import MagicMock
@@ -34,11 +35,20 @@ class Discovery:
 @pytest.fixture
 def service():
     eks=Eks(); repo=MagicMock()
-    repo.get.return_value={"cluster_id":"CLU-one","cluster_name":"demo","customer_id":"CUS-one","environment_id":"ENV-one","environment_approved_version":1}
-    repo.pinned_environment_snapshot.return_value=({}, {})
+    repo.get.return_value={
+        "cluster_id":"CLU-one","cluster_name":"demo","customer_id":"CUS-one",
+        "environment_id":"ENV-one","environment_approved_version":1,
+        "configuration":{"kubernetesVersion":"1.34","nodeGroups":[]},
+        "terraform_state_key":"customers/CUS-one/clusters/demo/terraform.tfstate",
+        "terraform_module_version":"1.0.0","version":7,"status":"ACTIVE",
+    }
+    repo.pinned_environment_snapshot.return_value=({}, {"configuration":{}})
     repo.db.execute.return_value.fetchone.return_value=None
+    provisioner=MagicMock()
+    provisioner.bucket="artifacts"
+    provisioner.start.return_value=("build-1","executions/CUS-one/CLU-one/run-1")
     access=EffectiveAccess("engineer","Engineer",0,frozenset({"cluster.upgrade.plan","cluster.upgrade.execute"}),(Scope("PLATFORM"),))
-    return ScopedEksUpgradePlans(repo, access,"test",Discovery(eks))
+    return ScopedEksUpgradePlans(repo, access,"test",Discovery(eks),provisioner)
 
 def payload(scope="CLUSTER",**changes):
     return {"upgradeScope":scope,"targetVersion":"1.37" if scope in {"CLUSTER","CONTROL_PLANE"} else None,"changeReason":"Apply supported upgrade",**changes}
@@ -191,6 +201,106 @@ def test_final_success_records_provider_post_validation(service):
     assert p["execution"]["postValidation"]["status"]=="PASSED"
     assert p["execution"]["postValidation"]["controlPlaneVersion"]=="1.35"
     assert p["execution"]["postValidation"]["applicationValidation"]=="OPERATOR_VERIFICATION_REQUIRED"
+
+def successful_reconciliation_plan(service):
+    p=row(service,payload(targetVersion="1.35"))
+    p.update(
+        status="SUCCEEDED",
+        execution={
+            "phase":"POST_VALIDATION",
+            "postValidation":{"status":"PASSED"},
+        },
+    )
+    service.discovery.eks.version="1.35"
+    service.discovery.eks.nodes[0]["version"]="1.35"
+    return p
+
+
+def test_iac_reconciliation_starts_plan_only_after_provider_success(service):
+    p=successful_reconciliation_plan(service)
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._start_iac_reconciliation(p)
+    result=saved[-1]["execution"]["iacReconciliation"]
+    assert result["status"]=="PLAN_RUNNING"
+    assert result["desiredVersionBefore"]=="1.34"
+    assert result["targetVersion"]=="1.35"
+    candidate=service.provisioner.start.call_args.args[1]
+    assert service.provisioner.start.call_args.args[0]=="plan"
+    assert candidate["configuration"]["kubernetesVersion"]=="1.35"
+    assert service.repo.get.return_value["configuration"]["kubernetesVersion"]=="1.34"
+    service.repo.save.assert_not_called()
+
+
+def test_iac_reconciliation_blocks_any_non_noop_terraform_plan(service):
+    p=successful_reconciliation_plan(service)
+    p["execution"]["iacReconciliation"]={
+        "status":"PLAN_RUNNING","planBuildId":"build-1",
+        "planArtifactPrefix":"executions/CUS-one/CLU-one/run-1",
+        "targetVersion":"1.35","desiredVersionBefore":"1.34",
+    }
+    service.provisioner.codebuild.batch_get_builds.return_value={
+        "builds":[{"buildStatus":"SUCCEEDED"}]
+    }
+    body=MagicMock()
+    body.read.return_value=json.dumps({
+        "success":True,"planSha256":"abc",
+        "planSummary":{"actions":{"update":1}},
+        "certification":{"status":"PASSED"},
+        "securityScan":{"status":"PASSED"},
+    }).encode()
+    service.provisioner.s3.get_object.return_value={"Body":body}
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._refresh_iac_reconciliation(p)
+    reconciliation=saved[-1]["execution"]["iacReconciliation"]
+    assert reconciliation["status"]=="BLOCKED"
+    assert reconciliation["failureCode"]=="UNEXPECTED_TERRAFORM_CHANGES"
+    service.repo.save.assert_not_called()
+
+
+def test_iac_reconciliation_certifies_noop_then_persists_only_after_apply(service):
+    p=successful_reconciliation_plan(service)
+    p["execution"]["iacReconciliation"]={
+        "status":"PLAN_RUNNING","planBuildId":"build-1",
+        "planArtifactPrefix":"executions/CUS-one/CLU-one/run-1",
+        "targetVersion":"1.35","desiredVersionBefore":"1.34",
+    }
+    service.provisioner.codebuild.batch_get_builds.return_value={
+        "builds":[{"buildStatus":"SUCCEEDED"}]
+    }
+    plan_body=MagicMock()
+    plan_body.read.return_value=json.dumps({
+        "success":True,"planSha256":"plan-sha",
+        "planSummary":{"actions":{"no-op":4}},
+        "certification":{"status":"PASSED"},
+        "securityScan":{"status":"PASSED"},
+    }).encode()
+    service.provisioner.s3.get_object.return_value={"Body":plan_body}
+    saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
+    service._refresh_iac_reconciliation(p);p=saved[-1]
+    assert p["execution"]["iacReconciliation"]["status"]=="PLAN_READY"
+    service.repo.save.assert_not_called()
+
+    service.provisioner.start.return_value=("apply-1","executions/CUS-one/CLU-one/apply-1")
+    service._apply_iac_reconciliation(p);p=saved[-1]
+    assert p["execution"]["iacReconciliation"]["status"]=="APPLYING"
+    candidate=service.provisioner.start.call_args.args[1]
+    assert service.provisioner.start.call_args.args[0]=="apply"
+    assert candidate["plan_artifact_key"].endswith("/terraform.tfplan")
+    assert candidate["plan_sha256"]=="plan-sha"
+    service.repo.save.assert_not_called()
+
+    apply_body=MagicMock()
+    apply_body.read.return_value=json.dumps({"success":True,"mode":"apply","outputs":{}}).encode()
+    service.provisioner.s3.get_object.return_value={"Body":apply_body}
+    service._refresh_iac_reconciliation(p)
+    final=saved[-1]
+    assert final["execution"]["phase"]=="IAC_SYNCHRONIZED"
+    assert final["execution"]["iacReconciliation"]["status"]=="SYNCHRONIZED"
+    reconciled=service.repo.save.call_args.args[0]
+    assert reconciled["configuration"]["kubernetesVersion"]=="1.35"
+    assert reconciled["version"]==8
+    service.repo.record.assert_called_once()
+
 
 def test_failed_stage_never_advances_to_node_update(service):
     p=approve(row(service),utcnow()-timedelta(minutes=1))
