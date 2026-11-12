@@ -24,7 +24,7 @@ def test_release_guard_is_pinned_to_last_confirmed_deployed_backend():
     release = load_release()
     assert (
         release.DEPLOYED_PLAN_TREE
-        == "0166ca0a65a717c92fe56bab12ad34379dfbd6b1"
+        == "a58badfe1e9a866f65d8d41de401feab8dc36793"
     )
 
 
