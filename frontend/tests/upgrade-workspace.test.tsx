@@ -8,6 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { UpgradeWorkspace } from "../src/modules/upgrade-management/upgrade-workspace";
+import { hasClusterUpgradeOpportunity } from "../src/modules/upgrade-management/live-upgrade-centre";
 import { clusters } from "@/modules/cluster-management/service";
 
 const { authIdentity } = vi.hoisted(() => ({
@@ -200,6 +201,81 @@ function mount() {
     </QueryClientProvider>,
   );
 }
+
+describe("Upgrade opportunity filtering", () => {
+  const baseEvidence = {
+    clusterId: "CLU-live",
+    customerId: "CUS-live",
+    provider: "EKS",
+    region: "ap-south-1",
+    source: "AWS_EKS_API",
+    observedAt: "2026-11-12T10:00:00Z",
+    controlPlane: {
+      name: "demo",
+      version: "1.37",
+      status: "ACTIVE",
+    },
+    recommendedTarget: null,
+    nodeGroups: [
+      {
+        name: "system",
+        version: "1.37",
+        status: "ACTIVE",
+        healthIssues: [],
+      },
+    ],
+    addons: [
+      {
+        name: "coredns",
+        version: "v1.12.3-eksbuild.1",
+        status: "ACTIVE",
+        healthIssues: [],
+        targetVersion: "v1.12.3-eksbuild.1",
+      },
+    ],
+    insights: [],
+    updates: [],
+    readiness: {
+      status: "READY",
+      blockers: [],
+      warnings: [],
+      checks: {
+        controlPlaneActive: true,
+        nodeGroupsAligned: true,
+        addonsHealthy: true,
+        upgradeInsightsPassing: true,
+        noUpdateInProgress: true,
+      },
+    },
+  } as Awaited<ReturnType<typeof clusters.upgradeReadiness>>;
+
+  it("hides a fully current cluster with no component upgrade", () => {
+    expect(hasClusterUpgradeOpportunity(baseEvidence)).toBe(false);
+  });
+
+  it("keeps a cluster when a node group needs catch-up", () => {
+    expect(
+      hasClusterUpgradeOpportunity({
+        ...baseEvidence,
+        nodeGroups: [{ ...baseEvidence.nodeGroups[0], version: "1.36" }],
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps a cluster when a managed add-on has an upgrade", () => {
+    expect(
+      hasClusterUpgradeOpportunity({
+        ...baseEvidence,
+        addons: [
+          {
+            ...baseEvidence.addons[0],
+            targetVersion: "v1.13.0-eksbuild.1",
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+});
 
 describe("Upgrade workspace", () => {
   it("shows four distinct tabs and component metrics without cluster accordions", async () => {
