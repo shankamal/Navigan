@@ -161,7 +161,7 @@ export const clusters = {
   createScopedUpgradePlan: async (
     id: string,
     input: {
-      upgradeScope: "CLUSTER" | "NODES" | "ADDONS";
+      upgradeScope: "CLUSTER" | "CONTROL_PLANE" | "NODES" | "ADDONS";
       targetVersion?: string;
       nodeGroups?: string[];
       addons?: Record<string, string>;
