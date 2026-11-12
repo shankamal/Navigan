@@ -2,7 +2,7 @@ import { Cpu, Layers3, Puzzle, Wrench } from "lucide-react";
 import type { EksUpgradePlan } from "@/modules/cluster-management/model";
 
 export const scopeTypes = [
-  { id: "cluster", label: "Cluster upgrades", Icon: Cpu },
+  { id: "cluster", label: "Control plane upgrades", Icon: Cpu },
   { id: "nodes", label: "Node group upgrades", Icon: Layers3 },
   { id: "addons", label: "Managed add-ons", Icon: Puzzle },
   { id: "utilities", label: "System utilities", Icon: Wrench },
@@ -42,10 +42,12 @@ export function planTypeLabel(plan: EksUpgradePlan): string {
     ? "Node group upgrade"
     : plan.planSpec?.scope === "ADDONS"
       ? "Managed add-on upgrade"
-      : "Cluster upgrade";
+      : plan.planSpec?.scope === "CONTROL_PLANE"
+        ? "Control plane upgrade"
+        : "Full platform upgrade";
 }
 export function planVersionLabel(plan: EksUpgradePlan): string {
-  if (!plan.planSpec || plan.planSpec.scope === "CLUSTER")
+  if (!plan.planSpec || ["CLUSTER", "CONTROL_PLANE"].includes(plan.planSpec.scope))
     return `${plan.currentVersion} → ${plan.targetVersion}`;
   const ops = plan.planSpec.steps.flatMap((s) => s.operations);
   return ops.length === 1
