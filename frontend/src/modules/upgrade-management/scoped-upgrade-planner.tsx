@@ -130,7 +130,7 @@ export function ScopedUpgradePlanner({
     queryFn: () => clusters.upgradeOptions(cluster.id),
     retry: false,
   });
-  const [scope, setScope] = useState<"CLUSTER" | "NODES" | "ADDONS">("CLUSTER");
+  const [scope, setScope] = useState<"CLUSTER" | "CONTROL_PLANE" | "NODES" | "ADDONS">("CONTROL_PLANE");
   const [target, setTarget] = useState("");
   const [nodes, setNodes] = useState<string[]>([]);
   const [addons, setAddons] = useState<Record<string, string>>({});
@@ -142,7 +142,7 @@ export function ScopedUpgradePlanner({
   const data = options.data,
     finalTarget = target || data?.targetVersions[0] || "";
   const count =
-    scope === "CLUSTER" && data && finalTarget
+    ["CLUSTER", "CONTROL_PLANE"].includes(scope) && data && finalTarget
       ? Number(finalTarget.split(".")[1]) -
         Number(data.currentVersion.split(".")[1])
       : 1;
@@ -168,7 +168,7 @@ export function ScopedUpgradePlanner({
       ? "Load live component options before saving."
       : reason.trim().length < 8
         ? "Enter a change reason of at least 8 characters."
-        : scope === "CLUSTER" && !finalTarget
+        : ["CLUSTER", "CONTROL_PLANE"].includes(scope) && !finalTarget
           ? "No supported cluster upgrade path is available. You can still select a component-only scope."
           : scope === "NODES" && !nodes.length
             ? "Select a node group that needs a Kubernetes version update."
@@ -188,7 +188,7 @@ export function ScopedUpgradePlanner({
     mutationFn: async () => {
       const plan = await clusters.createScopedUpgradePlan(cluster.id, {
         upgradeScope: scope,
-        ...(scope === "CLUSTER"
+        ...(["CLUSTER", "CONTROL_PLANE"].includes(scope)
           ? { targetVersion: finalTarget }
           : scope === "NODES"
             ? { nodeGroups: nodes }
@@ -270,7 +270,8 @@ export function ScopedUpgradePlanner({
             <div className="upgrade-scope-options">
               {(
                 [
-                  { id: "CLUSTER", label: "Cluster version", Icon: Cpu },
+                  { id: "CONTROL_PLANE", label: "Control plane only", Icon: Cpu },
+                  { id: "CLUSTER", label: "Full platform upgrade", Icon: Cpu },
                   { id: "NODES", label: "Node groups", Icon: Layers3 },
                   { id: "ADDONS", label: "Managed add-ons", Icon: Puzzle },
                 ] as const
@@ -302,7 +303,7 @@ export function ScopedUpgradePlanner({
                 {data.region}
               </span>
             </div>
-            {scope === "CLUSTER" ? (
+            {["CLUSTER", "CONTROL_PLANE"].includes(scope) ? (
               <>
                 <label className="upgrade-live-field">
                   <span>Final Kubernetes target</span>
@@ -335,9 +336,10 @@ export function ScopedUpgradePlanner({
                   ].join(" → ")}
                 </p>
                 <p>
-                  Includes the control plane, managed node groups and any add-on
-                  changes required for compatibility. Versions cannot be
-                  skipped. Future steps are checked again before execution.
+                  {scope === "CONTROL_PLANE"
+                    ? "Changes only the managed Kubernetes control plane. Node groups and add-ons stay unchanged; installed add-ons must already be compatible with every target version."
+                    : "Full platform upgrade: control plane, managed node groups and any add-on changes required for compatibility. Versions cannot be skipped."}{" "}
+                  Future steps are checked again before execution.
                 </p>
               </>
             ) : scope === "NODES" ? (
