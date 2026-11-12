@@ -120,6 +120,12 @@ def test_full_platform_pauses_at_health_gates_before_next_stage(service):
     p=approve(row(service),utcnow()-timedelta(minutes=1))
     saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
     service._execute(p);p=saved[-1]
+    assert p["execution"]["startPreflight"]["status"]=="PASSED"
+    assert p["execution"]["startPreflight"]["operatorId"]=="engineer"
+    assert p["execution"]["startPreflight"]["firstStage"]=="CONTROL_PLANE"
+    assert p["execution"]["startPreflight"]["controlPlaneVersion"]=="1.34"
+    assert p["execution"]["startPreflight"]["upgradeInsightsPassing"] is True
+    assert p["execution"]["startPreflight"]["applicationValidation"]=="OPERATOR_CONFIRMED_BEFORE_START"
     assert service.discovery.eks.writes[-1][0]=="CONTROL_PLANE"
     service.discovery.eks.version="1.35"
     service._refresh(p);p=saved[-1]
