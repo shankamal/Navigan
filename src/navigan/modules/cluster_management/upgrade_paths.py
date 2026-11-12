@@ -6,6 +6,7 @@ its approved window. Refresh advances only a healthy, already started hop.
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
+import json
 import re
 from functools import wraps
 import uuid
@@ -15,6 +16,7 @@ from pydantic import Field, model_validator
 
 from navigan.shared.errors import ApiError
 from .models import Model
+from .provisioning import Provisioner
 from .upgrade_plans import EksUpgradePlans, ACTIVE, UpgradePlanAction, utcnow
 from .upgrade_readiness import minor_tuple, EksUpgradeDiscovery
 
@@ -133,6 +135,10 @@ def addon_path(installed, desired, catalogue):
 
 
 class ScopedEksUpgradePlans(EksUpgradePlans):
+    def __init__(self, repo, access, correlation, discovery=None, provisioner=None):
+        super().__init__(repo, access, correlation, discovery)
+        self.provisioner = provisioner or Provisioner()
+
     def present(self, row):
         result = super().present(row)
         if not row.get("plan_spec"):
@@ -325,6 +331,12 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             return self._transition(plan, "CANCELLED", "ScopedEksUpgradeCancelled", {"execution": execution})
         if action == "continue":
             return self._continue(plan)
+        if action == "reconcile":
+            return self._start_iac_reconciliation(plan)
+        if action == "refresh-reconciliation":
+            return self._refresh_iac_reconciliation(plan)
+        if action == "apply-reconciliation":
+            return self._apply_iac_reconciliation(plan)
         if action == "reschedule":
             self.access.require("cluster.upgrade.plan")
             self._require_status(plan, {"DRAFT", "SUBMITTED"})
@@ -339,6 +351,319 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             validate_windows(spec["steps"], require_all=True, future=True)
             return self._transition(plan, "DRAFT", "ScopedEksUpgradePlanRescheduled", {"plan_spec": spec, "scheduled_for": timestamp(windows[0]["scheduledFor"]), "submitted_by": None, "submitted_at": None, "approved_by": None, "approved_at": None})
         return super().change(cluster_id, plan_id, action, body)
+
+    def _reconciliation_candidate(self, plan):
+        cluster = self.repo.get(plan["cluster_id"], lock=True)
+        if not cluster.get("terraform_state_key") or not cluster.get(
+            "terraform_module_version"
+        ):
+            fail(
+                "IAC_RECONCILIATION_UNAVAILABLE",
+                "This cluster does not have a Navigan Terraform state binding.",
+            )
+        target = plan["plan_spec"]["finalVersion"]
+        configuration = deepcopy(cluster.get("configuration") or {})
+        configured = configuration.get("kubernetesVersion")
+        allowed = {plan["plan_spec"]["sourceVersion"], target}
+        if configured not in allowed:
+            fail(
+                "IAC_DESIRED_STATE_CHANGED",
+                "Cluster Management desired state changed after this upgrade. Review the current cluster configuration before reconciling.",
+            )
+        candidate = deepcopy(cluster)
+        configuration["kubernetesVersion"] = target
+        candidate["configuration"] = configuration
+        return cluster, candidate
+
+    def _verify_reconciliation_live_state(self, plan):
+        cluster, environment, eks, _ = self._context(plan["cluster_id"])
+        cp, nodes, addons = self._inventory(cluster, eks)
+        self._healthy(
+            cp,
+            nodes,
+            addons,
+            eks,
+            cluster["cluster_name"],
+            require_aligned=False,
+        )
+        target = plan["plan_spec"]["finalVersion"]
+        if cp["version"] != target:
+            fail(
+                "IAC_RECONCILIATION_LIVE_DRIFT",
+                "The live EKS control plane no longer matches the successfully validated upgrade target.",
+            )
+        selected = set(plan["plan_spec"].get("nodeGroups") or [])
+        if any(
+            node["name"] in selected and node.get("version") != target
+            for node in nodes
+        ):
+            fail(
+                "IAC_RECONCILIATION_LIVE_DRIFT",
+                "A managed node group no longer matches the successfully validated upgrade target.",
+            )
+        return cluster, environment
+
+    def _start_iac_reconciliation(self, plan):
+        self.access.require("cluster.upgrade.execute")
+        self._require_status(plan, {"SUCCEEDED"})
+        if not plan.get("plan_spec") or plan["plan_spec"].get("scope") == "ADDONS":
+            fail(
+                "IAC_RECONCILIATION_UNAVAILABLE",
+                "This upgrade plan does not change Terraform-managed Kubernetes version state.",
+            )
+        post = (plan.get("execution") or {}).get("postValidation") or {}
+        if post.get("status") != "PASSED":
+            fail(
+                "IAC_RECONCILIATION_NOT_READY",
+                "Provider post-validation must pass before Terraform reconciliation.",
+            )
+        execution = deepcopy(plan.get("execution") or {})
+        current = execution.get("iacReconciliation") or {}
+        if current.get("status") in {"PLAN_RUNNING", "PLAN_READY", "APPLYING", "SYNCHRONIZED"}:
+            fail(
+                "IAC_RECONCILIATION_STATE_CONFLICT",
+                "Refresh the current Terraform reconciliation before starting another.",
+            )
+        cluster, environment = self._verify_reconciliation_live_state(plan)
+        _, candidate = self._reconciliation_candidate(plan)
+        build_id, prefix = self.provisioner.start("plan", candidate, environment)
+        execution["iacReconciliation"] = {
+            "status": "PLAN_RUNNING",
+            "requestedAt": utcnow().isoformat(),
+            "requestedBy": self.access.user_id,
+            "desiredVersionBefore": (cluster.get("configuration") or {}).get(
+                "kubernetesVersion"
+            ),
+            "targetVersion": plan["plan_spec"]["finalVersion"],
+            "planBuildId": build_id,
+            "planArtifactPrefix": prefix,
+        }
+        return self._transition(
+            plan,
+            "SUCCEEDED",
+            "ScopedEksUpgradeIaCPlanStarted",
+            {"execution": execution},
+        )
+
+    def _read_reconciliation_result(self, prefix):
+        try:
+            response = self.provisioner.s3.get_object(
+                Bucket=self.provisioner.bucket,
+                Key=prefix + "/result.json",
+            )
+            return json.loads(response["Body"].read())
+        except (ClientError, BotoCoreError, ValueError, KeyError, TypeError) as error:
+            raise ApiError(
+                502,
+                "IAC_RECONCILIATION_RESULT_UNAVAILABLE",
+                "Terraform reconciliation result evidence is unavailable.",
+            ) from error
+
+    def _reconciliation_build(self, build_id):
+        try:
+            builds = self.provisioner.codebuild.batch_get_builds(ids=[build_id]).get(
+                "builds", []
+            )
+        except (ClientError, BotoCoreError) as error:
+            raise ApiError(
+                502,
+                "IAC_RECONCILIATION_STATUS_UNAVAILABLE",
+                "Terraform reconciliation status is unavailable.",
+            ) from error
+        if not builds:
+            raise ApiError(
+                502,
+                "IAC_RECONCILIATION_STATUS_UNAVAILABLE",
+                "Terraform reconciliation build could not be found.",
+            )
+        return builds[0]
+
+    @staticmethod
+    def _unexpected_plan_actions(result):
+        actions = ((result.get("planSummary") or {}).get("actions") or {})
+        return {
+            str(action): int(count)
+            for action, count in actions.items()
+            if action != "no-op" and isinstance(count, int) and count > 0
+        }
+
+    def _refresh_iac_reconciliation(self, plan):
+        self.access.require("cluster.upgrade.execute")
+        self._require_status(plan, {"SUCCEEDED"})
+        execution = deepcopy(plan.get("execution") or {})
+        reconciliation = deepcopy(execution.get("iacReconciliation") or {})
+        status = reconciliation.get("status")
+        if status not in {"PLAN_RUNNING", "APPLYING"}:
+            fail(
+                "IAC_RECONCILIATION_NOT_RUNNING",
+                "No Terraform reconciliation build is currently running.",
+            )
+        applying = status == "APPLYING"
+        build_id = (
+            reconciliation.get("applyBuildId")
+            if applying
+            else reconciliation.get("planBuildId")
+        )
+        prefix = (
+            reconciliation.get("applyArtifactPrefix")
+            if applying
+            else reconciliation.get("planArtifactPrefix")
+        )
+        build = self._reconciliation_build(build_id)
+        build_status = build.get("buildStatus")
+        reconciliation["lastCheckedAt"] = utcnow().isoformat()
+        reconciliation["buildStatus"] = build_status
+        if build_status in {"IN_PROGRESS"}:
+            execution["iacReconciliation"] = reconciliation
+            return self._transition(
+                plan,
+                "SUCCEEDED",
+                "ScopedEksUpgradeIaCChecked",
+                {"execution": execution},
+            )
+        if build_status != "SUCCEEDED":
+            reconciliation.update(
+                {
+                    "status": "FAILED",
+                    "failureCode": build_status or "UNKNOWN",
+                }
+            )
+            execution["iacReconciliation"] = reconciliation
+            return self._transition(
+                plan,
+                "SUCCEEDED",
+                "ScopedEksUpgradeIaCFailed",
+                {"execution": execution},
+            )
+        result = self._read_reconciliation_result(prefix)
+        if result.get("success") is not True:
+            reconciliation.update(
+                {
+                    "status": "FAILED",
+                    "failureCode": result.get("errorCode")
+                    or "TERRAFORM_RECONCILIATION_FAILED",
+                }
+            )
+            execution["iacReconciliation"] = reconciliation
+            return self._transition(
+                plan,
+                "SUCCEEDED",
+                "ScopedEksUpgradeIaCFailed",
+                {"execution": execution},
+            )
+        if not applying:
+            unexpected = self._unexpected_plan_actions(result)
+            certification = result.get("certification") or {}
+            security = result.get("securityScan") or {}
+            reconciliation.update(
+                {
+                    "planSha256": result.get("planSha256"),
+                    "planSummary": result.get("planSummary") or {},
+                    "certification": certification,
+                    "securityScan": security,
+                }
+            )
+            if (
+                not reconciliation.get("planSha256")
+                or certification.get("status") != "PASSED"
+                or security.get("status") != "PASSED"
+                or unexpected
+            ):
+                reconciliation.update(
+                    {
+                        "status": "BLOCKED",
+                        "unexpectedActions": unexpected,
+                        "failureCode": "UNEXPECTED_TERRAFORM_CHANGES"
+                        if unexpected
+                        else "TERRAFORM_CERTIFICATION_FAILED",
+                    }
+                )
+                execution["iacReconciliation"] = reconciliation
+                return self._transition(
+                    plan,
+                    "SUCCEEDED",
+                    "ScopedEksUpgradeIaCPlanBlocked",
+                    {"execution": execution},
+                )
+            reconciliation["status"] = "PLAN_READY"
+            reconciliation["planReadyAt"] = utcnow().isoformat()
+            execution["iacReconciliation"] = reconciliation
+            return self._transition(
+                plan,
+                "SUCCEEDED",
+                "ScopedEksUpgradeIaCPlanReady",
+                {"execution": execution},
+            )
+        self._verify_reconciliation_live_state(plan)
+        old_cluster, candidate = self._reconciliation_candidate(plan)
+        target = plan["plan_spec"]["finalVersion"]
+        candidate["version"] = old_cluster["version"] + 1
+        candidate["updated_by"] = self.access.user_id
+        candidate["updated_at"] = utcnow()
+        self.repo.save(candidate)
+        self.repo.record(
+            old_cluster,
+            candidate,
+            "ClusterKubernetesVersionIaCReconciled",
+            {
+                "reason": (
+                    f"Upgrade plan {plan['plan_id']} Terraform reconciliation "
+                    f"to Kubernetes {target}"
+                )
+            },
+            self.correlation,
+        )
+        reconciliation.update(
+            {
+                "status": "SYNCHRONIZED",
+                "synchronizedAt": utcnow().isoformat(),
+                "synchronizedBy": self.access.user_id,
+                "clusterRecordVersion": candidate["version"],
+            }
+        )
+        execution["iacReconciliation"] = reconciliation
+        execution["phase"] = "IAC_SYNCHRONIZED"
+        execution["providerStatus"] = "Successful"
+        return self._transition(
+            plan,
+            "SUCCEEDED",
+            "ScopedEksUpgradeIaCSynchronized",
+            {"execution": execution},
+        )
+
+    def _apply_iac_reconciliation(self, plan):
+        self.access.require("cluster.upgrade.execute")
+        self._require_status(plan, {"SUCCEEDED"})
+        execution = deepcopy(plan.get("execution") or {})
+        reconciliation = deepcopy(execution.get("iacReconciliation") or {})
+        if reconciliation.get("status") != "PLAN_READY":
+            fail(
+                "IAC_RECONCILIATION_NOT_READY",
+                "A certified no-change Terraform reconciliation plan is required before apply.",
+            )
+        _, environment = self._verify_reconciliation_live_state(plan)
+        _, candidate = self._reconciliation_candidate(plan)
+        candidate["plan_artifact_key"] = (
+            reconciliation["planArtifactPrefix"] + "/terraform.tfplan"
+        )
+        candidate["plan_sha256"] = reconciliation["planSha256"]
+        build_id, prefix = self.provisioner.start("apply", candidate, environment)
+        reconciliation.update(
+            {
+                "status": "APPLYING",
+                "applyBuildId": build_id,
+                "applyArtifactPrefix": prefix,
+                "applyStartedAt": utcnow().isoformat(),
+                "applyStartedBy": self.access.user_id,
+            }
+        )
+        execution["iacReconciliation"] = reconciliation
+        return self._transition(
+            plan,
+            "SUCCEEDED",
+            "ScopedEksUpgradeIaCApplyStarted",
+            {"execution": execution},
+        )
 
     @staticmethod
     def _healthy(cp, nodes, addons, eks, name, require_aligned):
