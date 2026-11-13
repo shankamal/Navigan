@@ -23,11 +23,33 @@ class Provisioner:
                 "PROVISIONER_NOT_CONFIGURED",
                 "Terraform state backend is not configured.",
             )
-        return {
+        current = {
             "bucket": self.bucket,
             "key": cluster["terraform_state_key"],
             "region": region,
             "kmsKeyArn": kms,
+            "useLockfile": True,
+        }
+        pinned = (cluster.get("workflow") or {}).get("terraformBackend")
+        if not pinned:
+            return current
+        if pinned.get("key") != cluster["terraform_state_key"]:
+            raise ApiError(
+                409,
+                "TERRAFORM_BACKEND_BINDING_INVALID",
+                "The pinned Terraform backend key does not match the cluster state binding.",
+            )
+        if pinned.get("bucket") != self.bucket:
+            raise ApiError(
+                409,
+                "TERRAFORM_BACKEND_MIGRATION_REQUIRED",
+                "The platform Terraform backend changed after this cluster was created. Migrate and rebind the authoritative state before running Terraform.",
+            )
+        return {
+            "bucket": pinned["bucket"],
+            "key": pinned["key"],
+            "region": pinned.get("region") or region,
+            "kmsKeyArn": pinned.get("kmsKeyArn") or kms,
             "useLockfile": True,
         }
 
