@@ -404,7 +404,129 @@ def validate_child_preview(session, plan):
     )
 
 
-def validate_change_set(session, plan):
+def stack_stamp(stack):
+    return str(stack.get("LastUpdatedTime") or stack["CreationTime"])
+
+
+def validate_parent_sibling_noop(session, plan, logical, resource):
+    allowed = {
+        "SharedPlatform",
+        "AccessManagement",
+        "CustomerManagement",
+        "EnvironmentManagement",
+        "MigrationManagement",
+    }
+    require(logical in allowed, "Unexpected parent sibling change: " + str(logical))
+    require(
+        resource.get("ResourceType") == "AWS::CloudFormation::Stack"
+        and resource.get("Action") == "Modify"
+        and resource.get("Replacement") == "False"
+        and not resource.get("ChangeSetId"),
+        "Sibling stack change is not an in-place parent dependency: " + logical,
+    )
+    details = resource.get("Details") or []
+    require(details, "Sibling parent change details are missing: " + logical)
+    require(
+        all(
+            detail.get("Target", {}).get("Attribute") == "Properties"
+            and detail.get("Target", {}).get("RequiresRecreation") == "Never"
+            and detail.get("Evaluation") == "Dynamic"
+            for detail in details
+        ),
+        "Sibling parent change is not dynamic/non-recreating: " + logical,
+    )
+
+    cfn = session.client("cloudformation")
+    before_root = processed_template(cfn, plan["baseline"]["rootId"])
+    after_root = processed_template(
+        cfn, plan["baseline"]["rootId"], plan["changeSet"]
+    )
+    require(
+        before_root.get("Resources", {}).get(logical)
+        == after_root.get("Resources", {}).get(logical),
+        "Sibling parent definition changed: " + logical,
+    )
+
+    physical = cfn.describe_stack_resource(
+        StackName=plan["baseline"]["rootId"],
+        LogicalResourceId=logical,
+    )["StackResourceDetail"]["PhysicalResourceId"]
+    stack = cfn.describe_stacks(StackName=physical)["Stacks"][0]
+    current_template = processed_template(cfn, physical)
+    current_parameters = stack_parameters(stack)
+    proof = {
+        "logicalId": logical,
+        "stackId": physical,
+        "stamp": stack_stamp(stack),
+        "templateHash": fingerprint(current_template),
+        "parameters": current_parameters,
+    }
+
+    request = {
+        "StackName": physical,
+        "ChangeSetName": "navigan-runner-noop-" + logical.lower() + "-" + uuid.uuid4().hex[:10],
+        "ChangeSetType": "UPDATE",
+        "UsePreviousTemplate": True,
+        "IncludeNestedStacks": False,
+        "Capabilities": ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],
+        "Parameters": [
+            {"ParameterKey": item["ParameterKey"], "UsePreviousValue": True}
+            for item in stack.get("Parameters", [])
+        ],
+    }
+    if stack.get("RoleARN"):
+        request["RoleARN"] = stack["RoleARN"]
+    preview = cfn.create_change_set(**request)["Id"]
+    print("  Verifying sibling no-op: " + logical, flush=True)
+    try:
+        cfn.get_waiter("change_set_create_complete").wait(
+            ChangeSetName=preview,
+            WaiterConfig={"Delay": 5, "MaxAttempts": 180},
+        )
+    except Exception:
+        pass
+    meta = cfn.describe_change_set(ChangeSetName=preview)
+    require(meta.get("StackId") == physical, "Sibling no-op preview targets another stack.")
+    if meta.get("Status") == "FAILED":
+        reason = str(meta.get("StatusReason", "")).lower()
+        require(
+            reason.startswith("the submitted information didn't contain changes")
+            or reason.startswith("no updates are to be performed"),
+            "Sibling no-op preview failed for another reason: " + logical,
+        )
+    else:
+        require(
+            meta.get("Status") == "CREATE_COMPLETE"
+            and meta.get("ExecutionStatus") == "AVAILABLE"
+            and not list_changes(cfn, preview),
+            "Sibling no-op preview contains actual changes: " + logical,
+        )
+        desired = processed_template(cfn, physical, preview)
+        require(
+            fingerprint(desired) == proof["templateHash"],
+            "Sibling no-op preview changes its template: " + logical,
+        )
+    proof["preview"] = preview
+    return proof
+
+
+def verify_sibling_proof(session, proof):
+    cfn = session.client("cloudformation")
+    physical = cfn.describe_stack_resource(
+        StackName=PARENT,
+        LogicalResourceId=proof["logicalId"],
+    )["StackResourceDetail"]["PhysicalResourceId"]
+    require(physical == proof["stackId"], "Sibling stack identity changed: " + proof["logicalId"])
+    stack = cfn.describe_stacks(StackName=physical)["Stacks"][0]
+    require(
+        stack_stamp(stack) == proof["stamp"]
+        and stack_parameters(stack) == proof["parameters"]
+        and fingerprint(processed_template(cfn, physical)) == proof["templateHash"],
+        "Sibling stack changed after preparation: " + proof["logicalId"],
+    )
+
+
+def validate_change_set(session, plan, *, create_sibling_proofs=False):
     cfn = session.client("cloudformation")
     parent = cfn.describe_change_set(ChangeSetName=plan["changeSet"])
     require(parent["StackId"] == plan["baseline"]["rootId"], "Wrong parent stack.")
@@ -428,21 +550,93 @@ def validate_change_set(session, plan):
         ),
         "An unrelated parent parameter changed.",
     )
-    parent_changes = list_changes(cfn, plan["changeSet"])
+
+    seen = set()
+    sibling_proofs = []
+    existing = {
+        item["logicalId"]: item
+        for item in plan.get("siblingProofs", [])
+    }
+    for entry in list_changes(cfn, plan["changeSet"]):
+        resource = entry["ResourceChange"]
+        logical = resource.get("LogicalResourceId")
+        require(logical not in seen, "Duplicate parent resource change: " + str(logical))
+        seen.add(logical)
+        print(
+            "  Parent preview: "
+            + str(logical)
+            + " "
+            + str(resource.get("Action"))
+            + " replacement="
+            + str(resource.get("Replacement")),
+            flush=True,
+        )
+        if logical == "ClusterManagement":
+            require(
+                resource.get("ResourceType") == "AWS::CloudFormation::Stack"
+                and resource.get("Action") == "Modify"
+                and resource.get("Replacement") == "False"
+                and not resource.get("ChangeSetId"),
+                "Unexpected ClusterManagement parent change.",
+            )
+        else:
+            if create_sibling_proofs:
+                sibling_proofs.append(
+                    validate_parent_sibling_noop(session, plan, logical, resource)
+                )
+            else:
+                require(logical in existing, "Sibling proof missing: " + str(logical))
+                validate_parent_sibling_noop_contract(session, plan, logical, resource)
+                verify_sibling_proof(session, existing[logical])
+
+    require("ClusterManagement" in seen, "ClusterManagement change is missing.")
     require(
-        len(parent_changes) == 1,
-        "Only ClusterManagement may change in the parent execution plan.",
-    )
-    change = parent_changes[0]["ResourceChange"]
-    require(
-        change["LogicalResourceId"] == "ClusterManagement"
-        and change["ResourceType"] == "AWS::CloudFormation::Stack"
-        and change["Action"] == "Modify"
-        and change.get("Replacement") == "False"
-        and not change.get("ChangeSetId"),
-        "Unexpected parent change.",
+        set(existing) == (seen - {"ClusterManagement"})
+        if not create_sibling_proofs
+        else True,
+        "Prepared sibling proof set differs from the parent plan.",
     )
     validate_child_preview(session, plan)
+    return sibling_proofs
+
+
+def validate_parent_sibling_noop_contract(session, plan, logical, resource):
+    allowed = {
+        "SharedPlatform",
+        "AccessManagement",
+        "CustomerManagement",
+        "EnvironmentManagement",
+        "MigrationManagement",
+    }
+    require(logical in allowed, "Unexpected parent sibling change: " + str(logical))
+    require(
+        resource.get("ResourceType") == "AWS::CloudFormation::Stack"
+        and resource.get("Action") == "Modify"
+        and resource.get("Replacement") == "False"
+        and not resource.get("ChangeSetId"),
+        "Sibling stack change is not an in-place parent dependency: " + logical,
+    )
+    details = resource.get("Details") or []
+    require(
+        details
+        and all(
+            detail.get("Target", {}).get("Attribute") == "Properties"
+            and detail.get("Target", {}).get("RequiresRecreation") == "Never"
+            and detail.get("Evaluation") == "Dynamic"
+            for detail in details
+        ),
+        "Sibling parent change is not dynamic/non-recreating: " + logical,
+    )
+    cfn = session.client("cloudformation")
+    before_root = processed_template(cfn, plan["baseline"]["rootId"])
+    after_root = processed_template(
+        cfn, plan["baseline"]["rootId"], plan["changeSet"]
+    )
+    require(
+        before_root.get("Resources", {}).get(logical)
+        == after_root.get("Resources", {}).get(logical),
+        "Sibling parent definition changed: " + logical,
+    )
 
 def prepare(session, revision):
     require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Wrong AWS account.")
@@ -524,7 +718,9 @@ def prepare(session, revision):
         "preparedAt": datetime.now(timezone.utc).isoformat(),
     }
     try:
-        validate_change_set(session, plan)
+        plan["siblingProofs"] = validate_change_set(
+            session, plan, create_sibling_proofs=True
+        )
     except Exception:
         for rejected in (change_set, child_preview):
             try:
@@ -568,6 +764,8 @@ def execute(session, path):
         == plan["baseline"]["projectStableFingerprint"],
         "Unexpected CodeBuild project change detected.",
     )
+    for proof in plan.get("siblingProofs", []):
+        verify_sibling_proof(session, proof)
     verification = {
         "format": FORMAT,
         "sourceRevision": plan["sourceRevision"],
