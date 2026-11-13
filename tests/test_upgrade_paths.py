@@ -216,8 +216,19 @@ def successful_reconciliation_plan(service):
     return p
 
 
+def test_iac_reconciliation_blocks_missing_backend_state_before_plan(service):
+    p=successful_reconciliation_plan(service)
+    service.provisioner.state_exists.return_value=False
+    with pytest.raises(ApiError) as error:
+        service._start_iac_reconciliation(p)
+    assert error.value.code=="TERRAFORM_STATE_NOT_FOUND"
+    service.provisioner.start.assert_not_called()
+    service.repo.save.assert_not_called()
+
+
 def test_iac_reconciliation_starts_plan_only_after_provider_success(service):
     p=successful_reconciliation_plan(service)
+    service.provisioner.state_exists.return_value=True
     saved=[];service._save=lambda value,create=False:saved.append(deepcopy(value))
     service._start_iac_reconciliation(p)
     result=saved[-1]["execution"]["iacReconciliation"]
