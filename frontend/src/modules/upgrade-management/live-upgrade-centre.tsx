@@ -425,6 +425,7 @@ export function LiveUpgradeCentre({
               key={item.id}
               type="button"
               role="tab"
+              aria-label={item.label}
               aria-selected={view === "plans" && lifecycle === item.id}
               className={view === "plans" && lifecycle === item.id ? "active" : ""}
               onClick={() => {
@@ -434,7 +435,7 @@ export function LiveUpgradeCentre({
               }}
             >
               {item.label}
-              <span>{lifecycleCounts[item.id]}</span>
+              <span aria-hidden="true">{lifecycleCounts[item.id]}</span>
             </button>
           ))}
         </nav>
