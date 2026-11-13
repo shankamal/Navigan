@@ -248,6 +248,21 @@ class Service:
             "tags": body.get("tags", {}),
         }
         now = datetime.now(timezone.utc)
+        terraform_state_key = (
+            f"customers/{environment['customer_id']}/environments/"
+            f"{environment['environment_id']}/clusters/{body['clusterName']}/terraform.tfstate"
+        )
+        terraform_backend = {
+            "bucket": os.environ.get("TERRAFORM_ARTIFACT_BUCKET"),
+            "key": terraform_state_key,
+            "region": os.environ.get("AWS_REGION"),
+            "kmsKeyArn": os.environ.get("TERRAFORM_STATE_KMS_KEY_ARN"),
+        }
+        terraform_backend = (
+            terraform_backend
+            if all(terraform_backend.values())
+            else None
+        )
         row = {
             "cluster_id": "CLU-" + uuid.uuid4().hex,
             "customer_id": environment["customer_id"],
@@ -260,13 +275,15 @@ class Service:
             "provisioning_role_arn": body["provisioningRoleArn"],
             "external_id_secret_arn": body["externalIdSecretArn"],
             "terraform_module_version": "1.0.0",
-            "terraform_state_key": (
-                f"customers/{environment['customer_id']}/environments/"
-                f"{environment['environment_id']}/clusters/{body['clusterName']}/terraform.tfstate"
-            ),
+            "terraform_state_key": terraform_state_key,
             "status": "DRAFT", "version": 1, "plan_artifact_key": None,
             "plan_sha256": None, "provider_execution_id": None,
-            "execution_artifact_prefix": None, "outputs": {}, "workflow": {},
+            "execution_artifact_prefix": None, "outputs": {},
+            "workflow": (
+                {"terraformBackend": terraform_backend}
+                if terraform_backend
+                else {}
+            ),
             "created_by": self.principal.user_id, "created_at": now,
             "updated_by": self.principal.user_id, "updated_at": now,
         }
