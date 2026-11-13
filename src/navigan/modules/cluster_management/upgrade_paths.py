@@ -447,6 +447,11 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
                 "Refresh the current Terraform reconciliation before starting another.",
             )
         cluster, environment = self._verify_reconciliation_live_state(plan)
+        if not self.provisioner.state_exists(cluster):
+            fail(
+                "TERRAFORM_STATE_NOT_FOUND",
+                "The cluster Terraform state is not present in the configured backend. Restore or migrate the authoritative state before reconciliation.",
+            )
         _, candidate = self._reconciliation_candidate(plan)
         candidate_fingerprint = self._reconciliation_candidate_fingerprint(candidate)
         build_id, prefix = self.provisioner.start("plan", candidate, environment)
