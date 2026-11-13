@@ -1000,7 +1000,7 @@ describe("Upgrade workspace", () => {
           target: { value: "UPG-submitted-handoff" },
         });
         fireEvent.click(
-          await screen.findByRole("button", { name: "View plan" }),
+          await screen.findByRole("button", { name: "View Plan" }),
         );
         const drawer = screen.getByRole("dialog", {
           name: "Upgrade plan details",
@@ -1084,11 +1084,8 @@ describe("Upgrade workspace", () => {
       expect(
         await screen.findByText("1 maintenance request needs a new time"),
       ).toBeInTheDocument();
-      const fleet = screen.getByRole("table", {
-        name: "Upgrade plans across managed clusters",
-      });
       fireEvent.click(
-        within(fleet).getByRole("button", { name: "Review & reschedule" }),
+        await screen.findByRole("button", { name: "View Plan" }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
@@ -1169,13 +1166,8 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
-      const fleet = await screen.findByRole("table", {
-        name: "Upgrade plans across managed clusters",
-      });
       fireEvent.click(
-        await within(fleet).findByRole("button", {
-          name: "Review & reschedule",
-        }),
+        await screen.findByRole("button", { name: "View Plan" }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
@@ -1378,7 +1370,7 @@ it.each([
     });
     try {
       mount();
-      fireEvent.click(await screen.findByRole("button", { name: "View plan" }));
+      fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
       const drawer = screen.getByRole("dialog", {
         name:
           status === "SUBMITTED"
