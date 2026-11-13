@@ -308,6 +308,26 @@ export function LiveUpgradeCentre({
     ).entries(),
   ];
 
+  const currentRows = useMemo(() => {
+    const byCluster = new Map<string, (typeof data.rows)[number]>();
+    for (const row of data.rows) {
+      if (row.plan.kind === "UTILITY") continue;
+      const current = byCluster.get(row.cluster.clusterId);
+      if (
+        !current ||
+        Date.parse(row.plan.updatedAt) > Date.parse(current.plan.updatedAt) ||
+        (row.plan.updatedAt === current.plan.updatedAt &&
+          row.plan.version > current.plan.version)
+      ) {
+        byCluster.set(row.cluster.clusterId, row);
+      }
+    }
+    return [...byCluster.values()].sort(
+      (left, right) =>
+        Date.parse(right.plan.updatedAt) - Date.parse(left.plan.updatedAt),
+    );
+  }, [data.rows]);
+
   const lifecycleCounts = useMemo(() => {
     const result: Record<Lifecycle, number> = {
       active: 0,
@@ -317,17 +337,15 @@ export function LiveUpgradeCentre({
       attention: 0,
       upgraded: 0,
     };
-    for (const row of data.rows) {
-      if (row.plan.kind === "UTILITY") continue;
+    for (const row of currentRows) {
       const value = lifecycleFor(row.plan, now);
       result[value] += 1;
       if (value !== "upgraded") result.active += value === "active" ? 0 : 1;
     }
     return result;
-  }, [data.rows, now]);
+  }, [currentRows, now]);
 
-  const planRows = data.rows.filter((row) => {
-    if (row.plan.kind === "UTILITY") return false;
+  const planRows = currentRows.filter((row) => {
     const planLifecycle = lifecycleFor(row.plan, now);
     const lifecycleMatch =
       lifecycle === "active"
@@ -354,9 +372,19 @@ export function LiveUpgradeCentre({
     planRows.find((row) => row.plan.planId === selectedId) ?? planRows[0];
   const selectedProgress = selected ? progressFor(selected.plan) : 0;
   const selectedWorkflow = selected ? workflow(selected.plan) : [];
+  const selectedExecution =
+    selected?.plan.execution &&
+    typeof selected.plan.execution === "object" &&
+    !Array.isArray(selected.plan.execution)
+      ? (selected.plan.execution as Record<string, unknown>)
+      : undefined;
+  const selectedStartedAt =
+    typeof selectedExecution?.startedAt === "string"
+      ? selectedExecution.startedAt
+      : undefined;
 
-  const overdue = data.rows.filter(
-    (row) => row.plan.kind !== "UTILITY" && planStage(row.plan, now) === "Overdue",
+  const overdue = currentRows.filter(
+    (row) => planStage(row.plan, now) === "Overdue",
   );
 
   return (
@@ -489,10 +517,11 @@ export function LiveUpgradeCentre({
                 <thead>
                   <tr>
                     <th>Cluster</th>
+                    <th>Environment</th>
                     <th>Current → target</th>
+                    <th>Plan ID</th>
                     <th>Status</th>
                     <th>Progress</th>
-                    <th>Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -516,13 +545,21 @@ export function LiveUpgradeCentre({
                             }}
                           >
                             <strong>{row.clusterName}</strong>
-                            <span>
-                              {row.environment} · {row.plan.planId.slice(0, 12)}
-                            </span>
+                            <span>{row.cluster.clusterId}</span>
                           </button>
                         </td>
                         <td>
+                          <span className="upgrade-environment-chip">
+                            {row.environment}
+                          </span>
+                        </td>
+                        <td>
                           {row.plan.currentVersion} → {row.plan.targetVersion}
+                        </td>
+                        <td>
+                          <span className="upgrade-plan-id">
+                            {row.plan.planId.slice(0, 14)}
+                          </span>
                         </td>
                         <td>
                           <span
@@ -540,7 +577,6 @@ export function LiveUpgradeCentre({
                             </span>
                           </div>
                         </td>
-                        <td>{new Date(row.plan.updatedAt).toLocaleString()}</td>
                       </tr>
                     );
                   })}
@@ -572,8 +608,8 @@ export function LiveUpgradeCentre({
                   <div>
                     <strong>{selected.clusterName}</strong>
                     <span>
-                      {selected.environment} · {selected.plan.currentVersion} →{" "}
-                      {selected.plan.targetVersion}
+                      {selected.cluster.clusterId} · Plan: {selected.plan.planId.slice(0, 14)} · EKS{" "}
+                      {selected.plan.currentVersion} → {selected.plan.targetVersion}
                     </span>
                   </div>
                   <Button
@@ -590,11 +626,12 @@ export function LiveUpgradeCentre({
                 </header>
 
                 <section className="upgrade-selected-progress">
-                  <div>
+                  <div className="upgrade-progress-donut">
                     <Doughnut
                       total={100}
-                      label={isUpgraded(selected.plan) ? "Upgraded" : "In progress"}
+                      label={isUpgraded(selected.plan) ? "Upgraded" : planStatus(selected.plan, now)}
                       centerValue={selectedProgress + "%"}
+                      showLegend={false}
                       slices={[
                         {
                           label: "Complete",
@@ -609,26 +646,44 @@ export function LiveUpgradeCentre({
                       ]}
                     />
                   </div>
-                  <div>
-                    <span>Upgrade progress</span>
-                    <strong>{selectedProgress}%</strong>
-                    <p>
-                      {
-                        selectedWorkflow.filter((step) => step.done).length
-                      }{" "}
-                      of {selectedWorkflow.length} stages complete
-                    </p>
+                  <div className="upgrade-stage-summary">
+                    <strong>
+                      {selectedWorkflow.filter((step) => step.done).length} of{" "}
+                      {selectedWorkflow.length}
+                    </strong>
+                    <span>stages completed</span>
                   </div>
                   <div className="upgrade-selected-time">
                     <span>
-                      <CalendarClock size={15} />
-                      {selected.plan.scheduledFor
-                        ? new Date(selected.plan.scheduledFor).toLocaleString()
-                        : "Maintenance window not requested"}
+                      <Clock3 size={15} aria-hidden="true" />
+                      <span>
+                        <small>Started</small>
+                        <strong>
+                          {selectedStartedAt
+                            ? new Date(selectedStartedAt).toLocaleString()
+                            : "Not started"}
+                        </strong>
+                      </span>
                     </span>
                     <span>
-                      <Clock3 size={15} />
-                      Updated {new Date(selected.plan.updatedAt).toLocaleString()}
+                      <CalendarClock size={15} aria-hidden="true" />
+                      <span>
+                        <small>Maintenance window</small>
+                        <strong>
+                          {selected.plan.scheduledFor
+                            ? new Date(selected.plan.scheduledFor).toLocaleString()
+                            : "Not requested"}
+                        </strong>
+                      </span>
+                    </span>
+                    <span>
+                      <RefreshCw size={15} aria-hidden="true" />
+                      <span>
+                        <small>Last updated</small>
+                        <strong>
+                          {new Date(selected.plan.updatedAt).toLocaleString()}
+                        </strong>
+                      </span>
                     </span>
                   </div>
                 </section>
@@ -656,23 +711,57 @@ export function LiveUpgradeCentre({
                   </ol>
                 </section>
 
-                <section className="upgrade-advisor-card">
-                  <header>
-                    <Sparkles size={18} aria-hidden="true" />
-                    <div>
-                      <h3>Navigan AI Upgrade Advisor</h3>
-                      <span>Preview · deterministic guidance for now</span>
-                    </div>
-                  </header>
-                  <ul>
-                    {recommendationText(selected.plan).map((item) => (
-                      <li key={item}>
-                        <CheckCircle2 size={16} aria-hidden="true" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+                <div className="upgrade-selected-lower">
+                  <section className="upgrade-advisor-card">
+                    <header>
+                      <Sparkles size={18} aria-hidden="true" />
+                      <div>
+                        <h3>AI Upgrade Advisor</h3>
+                        <span>Deterministic guidance from current plan evidence</span>
+                      </div>
+                    </header>
+                    <ul>
+                      {recommendationText(selected.plan).map((item) => (
+                        <li key={item}>
+                          <CheckCircle2 size={16} aria-hidden="true" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="upgrade-plan-summary-card">
+                    <h3>Plan Summary</h3>
+                    <dl>
+                      <div>
+                        <dt>Plan ID</dt>
+                        <dd>{selected.plan.planId}</dd>
+                      </div>
+                      <div>
+                        <dt>Upgrade path</dt>
+                        <dd>
+                          EKS {selected.plan.currentVersion} → {selected.plan.targetVersion}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Maintenance window</dt>
+                        <dd>
+                          {selected.plan.scheduledFor
+                            ? new Date(selected.plan.scheduledFor).toLocaleString()
+                            : "Not requested"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Strategy</dt>
+                        <dd>Provider-managed rolling</dd>
+                      </div>
+                      <div>
+                        <dt>IaC reconciliation</dt>
+                        <dd>{reconciliationStatus(selected.plan) ?? "Pending"}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                </div>
               </>
             ) : (
               <div className="upgrade-empty-state">
@@ -725,9 +814,8 @@ export function LiveUpgradeCentre({
                 {activeClusters.map((cluster, index) => {
                   const query = evidence[index];
                   const readiness = query.data;
-                  const existing = data.rows.find(
+                  const existing = currentRows.find(
                     (row) =>
-                      row.plan.kind !== "UTILITY" &&
                       row.plan.clusterId === cluster.clusterId &&
                       [
                         "DRAFT",
