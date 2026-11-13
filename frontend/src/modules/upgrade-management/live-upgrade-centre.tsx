@@ -137,10 +137,16 @@ function workflow(plan: EksUpgradePlan): WorkflowStep[] {
     : [];
   const resultDone = (kind: string) =>
     results.some((item) => item.kind === kind && item.status === "SUCCEEDED");
-  const gateHistory = Array.isArray(plan.execution.gateHistory)
-    ? (plan.execution.gateHistory as Array<Record<string, unknown>>)
-    : [];
-  const gatePassed = gateHistory.some((item) => item.status === "PASSED");
+
+  const currentGate =
+    plan.execution.gate &&
+    typeof plan.execution.gate === "object" &&
+    !Array.isArray(plan.execution.gate)
+      ? (plan.execution.gate as Record<string, unknown>)
+      : undefined;
+  const gatePendingAfter = (stage: string) =>
+    currentGate?.status === "PENDING" && currentGate.afterStage === stage;
+
   const postValidation =
     plan.execution.postValidation &&
     typeof plan.execution.postValidation === "object" &&
@@ -150,26 +156,45 @@ function workflow(plan: EksUpgradePlan): WorkflowStep[] {
       : false;
   const iac = reconciliationStatus(plan) === "SYNCHRONIZED";
   const upgraded = isUpgraded(plan);
+  const readiness = Boolean(plan.readinessEvidence || plan.planSpec);
   const approved = Boolean(plan.approvedBy);
   const window = Boolean(plan.scheduledFor);
   const phase = String(plan.execution.phase ?? "");
+  const controlDone = resultDone("CONTROL_PLANE");
   const addonNeeded =
     plan.planSpec?.steps.some((step) =>
       step.operations.some((operation) => operation.kind === "ADDON"),
     ) ?? false;
+  const addonDone = addonNeeded ? resultDone("ADDON") : controlDone;
   const nodeNeeded =
     plan.planSpec?.steps.some((step) =>
       step.operations.some((operation) => operation.kind === "NODEGROUP"),
     ) ?? false;
+  const nodeDone = nodeNeeded ? resultDone("NODEGROUP") : addonDone;
+  const controlHealthDone =
+    controlDone &&
+    !gatePendingAfter("CONTROL_PLANE") &&
+    (addonDone ||
+      nodeDone ||
+      postValidation ||
+      iac ||
+      upgraded ||
+      phase.includes("DATA_PLANE"));
+  const nodeHealthDone =
+    nodeDone &&
+    !gatePendingAfter("DATA_PLANE") &&
+    (postValidation || iac || upgraded || phase.includes("POST_VALIDATION"));
 
   const definitions = [
+    ["readiness", "Readiness", readiness],
     ["plan", "Plan", true],
     ["approval", "Approval", approved],
     ["window", "Maintenance Window", window],
-    ["control", "Control Plane", resultDone("CONTROL_PLANE")],
-    ["gate", "Health Gate", gatePassed],
-    ["addons", "Add-ons", !addonNeeded || resultDone("ADDON")],
-    ["nodes", "Node Groups", !nodeNeeded || resultDone("NODEGROUP")],
+    ["control", "Control Plane", controlDone],
+    ["control-gate", "Health Gate", controlHealthDone],
+    ["addons", "Add-ons", addonDone],
+    ["nodes", "Node Groups", nodeDone],
+    ["node-gate", "Health Gate", nodeHealthDone],
     ["validation", "Post Validation", postValidation],
     ["iac", "IaC Sync", iac],
     ["upgraded", "Upgraded", upgraded],
@@ -184,7 +209,10 @@ function workflow(plan: EksUpgradePlan): WorkflowStep[] {
       !upgraded &&
       (index === firstPending ||
         (id === "control" && phase.includes("CONTROL_PLANE")) ||
+        (id === "control-gate" &&
+          phase.includes("AWAITING_CONTROL_PLANE_HEALTH")) ||
         (id === "nodes" && phase.includes("DATA_PLANE")) ||
+        (id === "node-gate" && phase.includes("AWAITING_DATA_PLANE_HEALTH")) ||
         (id === "validation" && phase.includes("POST_VALIDATION")) ||
         (id === "iac" && phase.includes("IAC_"))),
   }));
@@ -410,16 +438,6 @@ export function LiveUpgradeCentre({
             </button>
           ))}
         </nav>
-        <button
-          type="button"
-          className={view === "available" ? "upgrade-available-link active" : "upgrade-available-link"}
-          onClick={() => {
-            setView("available");
-            setSelectedId(undefined);
-          }}
-        >
-          Create / available upgrades
-        </button>
       </div>
 
       {view === "plans" ? (
@@ -677,6 +695,15 @@ export function LiveUpgradeCentre({
                 available.
               </p>
             </div>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setView("plans");
+                setLifecycle("active");
+              }}
+            >
+              Back to Upgrade Centre
+            </Button>
           </header>
 
           <div className="table-scroll">
