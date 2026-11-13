@@ -296,8 +296,8 @@ describe("Upgrade workspace", () => {
       screen.getByRole("tab", { name: "Active" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("button", { name: "Create / available upgrades" }),
-    ).not.toHaveClass("active");
+      screen.getByRole("button", { name: "Create Upgrade Plan" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "Container Upgrades" }),
     ).not.toBeInTheDocument();
@@ -319,7 +319,7 @@ describe("Upgrade workspace", () => {
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Create / available upgrades" }),
+      screen.getByRole("button", { name: "Create Upgrade Plan" }),
     );
     expect(
       await screen.findByRole("table", {
@@ -341,7 +341,7 @@ describe("Upgrade workspace", () => {
     try {
       mount();
       fireEvent.click(
-        screen.getByRole("tab", { name: "Available cluster upgrades" }),
+        screen.getByRole("button", { name: "Create Upgrade Plan" }),
       );
       expect(
         await screen.findByText(
@@ -379,7 +379,7 @@ describe("Upgrade workspace", () => {
       screen.queryByRole("button", { name: "Create plan" }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("tab", { name: "Available cluster upgrades" }),
+      screen.getByRole("button", { name: "Create Upgrade Plan" }),
     );
     const create = await screen.findByRole("button", {
       name: "Create upgrade plan",
