@@ -135,11 +135,21 @@ def repository(role, value=None, user="engineer", missing_cluster=False):
     return repo
 
 
-def test_create_pins_active_environment_approved_version():
+def test_create_pins_active_environment_approved_version(monkeypatch):
+    monkeypatch.setenv("TERRAFORM_ARTIFACT_BUCKET", "state-bucket")
+    monkeypatch.setenv("TERRAFORM_STATE_KMS_KEY_ARN", "arn:aws:kms:ap-south-1:123456789012:key/test")
+    monkeypatch.setenv("AWS_REGION", "ap-south-1")
     repo = repository("CLOUD_ENGINEER")
     created = Service(repo, "correlation", MagicMock()).create(request())
     assert created["environmentApprovedVersion"] == 7
     assert created["terraformStateKey"].endswith("navigan-dev-01/terraform.tfstate")
+    saved = repo.save.call_args.args[0]
+    assert saved["workflow"]["terraformBackend"] == {
+        "bucket": "state-bucket",
+        "key": saved["terraform_state_key"],
+        "region": "ap-south-1",
+        "kmsKeyArn": "arn:aws:kms:ap-south-1:123456789012:key/test",
+    }
     repo.active_environment_snapshot.assert_called_once_with("ENV-test", 7)
     repo.save.assert_called_once()
     repo.create_system_repository.assert_called_once_with(
