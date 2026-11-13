@@ -2973,11 +2973,11 @@
 }
 .upgrade-workflow-track li.active > span {
   border-color: var(--navigan-brand);
-  box-shadow: 0 0 0 4px rgba(38, 137, 13, 0.12);
+  outline: 2px solid var(--navigan-brand);\n  outline-offset: 2px;
 }
 @keyframes upgrade-stage-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(38, 137, 13, 0.08); }
-  50% { box-shadow: 0 0 0 7px rgba(38, 137, 13, 0.14); }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
 }
 .upgrade-workflow-track li.active > span {
   animation: upgrade-stage-pulse 1.8s ease-in-out infinite;
