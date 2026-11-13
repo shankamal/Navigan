@@ -259,6 +259,75 @@ def list_changes(cfn, change_set):
             return result
 
 
+def processed_template(cfn, stack_id, change_set=None):
+    args = {"StackName": stack_id, "TemplateStage": "Processed"}
+    if change_set:
+        args["ChangeSetName"] = change_set
+    body = cfn.get_template(**args)["TemplateBody"]
+    if isinstance(body, str):
+        import yaml
+        body = yaml.safe_load(body)
+    require(isinstance(body, dict), "Processed CloudFormation template is invalid.")
+    return body
+
+
+def validate_dependency_change(resource, before, after):
+    logical = resource.get("LogicalResourceId")
+    require(
+        logical in {"BuildStateRule", "BuildStatePermission"},
+        "Unexpected dependent child resource: " + str(logical),
+    )
+    require(
+        before.get(logical) == after.get(logical),
+        "Dependent resource definition changed: " + logical,
+    )
+    require(
+        resource.get("Action") == "Modify"
+        and not resource.get("ChangeSetId")
+        and resource.get("Details"),
+        "Dependent resource is not an in-place dynamic modification: " + logical,
+    )
+    details = resource["Details"]
+    require(
+        all(detail.get("Target", {}).get("Attribute") == "Properties" for detail in details),
+        "Dependent resource has a non-property change: " + logical,
+    )
+    if logical == "BuildStateRule":
+        require(
+            resource.get("ResourceType") == "AWS::Events::Rule"
+            and resource.get("Replacement") == "False",
+            "BuildStateRule replacement is not allowed.",
+        )
+        require(
+            all(
+                detail.get("Target", {}).get("Name") == "EventPattern"
+                and detail.get("Target", {}).get("RequiresRecreation") == "Never"
+                and detail.get("Evaluation") == "Dynamic"
+                and detail.get("ChangeSource") == "ResourceReference"
+                and detail.get("CausingEntity") == "TerraformProject"
+                for detail in details
+            ),
+            "BuildStateRule change is not the verified TerraformProject Ref dependency.",
+        )
+    else:
+        require(
+            resource.get("ResourceType") == "AWS::Lambda::Permission"
+            and resource.get("Replacement") == "Conditional",
+            "BuildStatePermission replacement contract changed.",
+        )
+        require(
+            all(
+                detail.get("Target", {}).get("Name") == "SourceArn"
+                and detail.get("Target", {}).get("RequiresRecreation") == "Always"
+                and detail.get("Evaluation") == "Dynamic"
+                and detail.get("ChangeSource") == "ResourceAttribute"
+                and detail.get("CausingEntity") == "BuildStateRule.Arn"
+                for detail in details
+            ),
+            "BuildStatePermission change is not the verified BuildStateRule ARN dependency.",
+        )
+
+
 def validate_change_set(session, plan):
     cfn = session.client("cloudformation")
     parent = cfn.describe_change_set(ChangeSetName=plan["changeSet"])
@@ -293,25 +362,60 @@ def validate_change_set(session, plan):
     child_id = change["ChangeSetId"]
     child_meta = cfn.describe_change_set(ChangeSetName=child_id)
     require(child_meta["StackId"] == plan["baseline"]["childId"], "Wrong nested stack.")
-    child_changes = list_changes(cfn, child_id)
-    require(len(child_changes) == 1, "Only TerraformProject may change.")
-    resource = child_changes[0]["ResourceChange"]
+
+    before_template = processed_template(cfn, plan["baseline"]["childId"])
+    after_template = processed_template(cfn, plan["baseline"]["childId"], child_id)
     require(
-        resource["LogicalResourceId"] == "TerraformProject"
-        and resource["ResourceType"] == "AWS::CodeBuild::Project"
-        and resource["Action"] == "Modify"
-        and resource.get("Replacement") == "False"
-        and not resource.get("ChangeSetId"),
-        "Unexpected TerraformProject change.",
+        fingerprint(before_template) == fingerprint(after_template),
+        "Cluster Management template changed; runner-only release is blocked.",
     )
+    before_resources = before_template.get("Resources", {})
+    after_resources = after_template.get("Resources", {})
+
+    child_changes = list_changes(cfn, child_id)
+    seen = set()
+    for entry in child_changes:
+        resource = entry["ResourceChange"]
+        logical = resource.get("LogicalResourceId")
+        require(logical not in seen, "Duplicate child resource change: " + str(logical))
+        seen.add(logical)
+        print(
+            "  Child preview: "
+            + str(logical)
+            + " "
+            + str(resource.get("Action"))
+            + " replacement="
+            + str(resource.get("Replacement")),
+            flush=True,
+        )
+        if logical == "TerraformProject":
+            require(
+                resource["ResourceType"] == "AWS::CodeBuild::Project"
+                and resource["Action"] == "Modify"
+                and resource.get("Replacement") == "False"
+                and not resource.get("ChangeSetId"),
+                "Unexpected TerraformProject change.",
+            )
+            require(
+                resource.get("Details")
+                and all(
+                    detail.get("Target", {}).get("Attribute") == "Properties"
+                    and detail.get("Target", {}).get("Name") == "Environment"
+                    and detail.get("Target", {}).get("RequiresRecreation") == "Never"
+                    for detail in resource["Details"]
+                ),
+                "Only the CodeBuild Environment image may change.",
+            )
+        else:
+            validate_dependency_change(
+                resource,
+                before_resources,
+                after_resources,
+            )
+    require("TerraformProject" in seen, "TerraformProject change is missing.")
     require(
-        resource.get("Details")
-        and all(
-            detail.get("Target", {}).get("Attribute") == "Properties"
-            and detail.get("Target", {}).get("Name") == "Environment"
-            for detail in resource["Details"]
-        ),
-        "Only the CodeBuild Environment image may change.",
+        seen <= {"TerraformProject", "BuildStateRule", "BuildStatePermission"},
+        "Unexpected child resource change set.",
     )
     return child_id
 
@@ -365,7 +469,14 @@ def prepare(session, revision):
         "baseline": baseline,
         "preparedAt": datetime.now(timezone.utc).isoformat(),
     }
-    validate_change_set(session, plan)
+    try:
+        validate_change_set(session, plan)
+    except Exception:
+        try:
+            cfn.delete_change_set(ChangeSetName=change_set)
+        except Exception:
+            pass
+        raise
     path = directory / "release-plan.json"
     write(path, plan)
     print("Canonical runner prepared and scope-checked:", image)
