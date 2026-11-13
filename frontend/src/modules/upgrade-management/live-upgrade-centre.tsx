@@ -575,6 +575,7 @@ export function LiveUpgradeCentre({
                     <Doughnut
                       total={100}
                       label={isUpgraded(selected.plan) ? "Upgraded" : "In progress"}
+                      centerValue={selectedProgress + "%"}
                       slices={[
                         {
                           label: "Complete",
