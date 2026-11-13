@@ -39,7 +39,10 @@ class Provisioner:
                 "TERRAFORM_BACKEND_BINDING_INVALID",
                 "The pinned Terraform backend key does not match the cluster state binding.",
             )
-        if pinned.get("bucket") != self.bucket:
+        if (
+            pinned.get("bucket") != self.bucket
+            or (pinned.get("kmsKeyArn") and pinned.get("kmsKeyArn") != kms)
+        ):
             raise ApiError(
                 409,
                 "TERRAFORM_BACKEND_MIGRATION_REQUIRED",
