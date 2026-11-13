@@ -302,7 +302,7 @@ describe("Upgrade workspace", () => {
       screen.queryByRole("tab", { name: "Container Upgrades" }),
     ).not.toBeInTheDocument();
     expect(
-      await screen.findByRole("region", { name: "Upgrade plans by component" }),
+      await screen.findByRole("region", { name: "Upgrade overview" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Expand .*cluster/ }),
@@ -1085,7 +1085,7 @@ describe("Upgrade workspace", () => {
         await screen.findByText("1 maintenance request needs a new time"),
       ).toBeInTheDocument();
       const fleet = screen.getByRole("table", {
-        name: "Upgrade plans across component types",
+        name: "Upgrade plans across managed clusters",
       });
       fireEvent.click(
         within(fleet).getByRole("button", { name: "Review & reschedule" }),
@@ -1170,7 +1170,7 @@ describe("Upgrade workspace", () => {
     try {
       mount();
       const fleet = await screen.findByRole("table", {
-        name: "Upgrade plans across component types",
+        name: "Upgrade plans across managed clusters",
       });
       fireEvent.click(
         await within(fleet).findByRole("button", {
