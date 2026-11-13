@@ -3347,3 +3347,216 @@
     padding-left: 0;
   }
 }
+
+
+/* Upgrade Centre layout contract — approved desktop composition.
+   Keep list compact, give execution detail priority, and keep all workflow stages visible. */
+@container (min-width: 1081px) {
+  .upgrade-centre-dashboard {
+    grid-template-columns: minmax(480px, 0.84fr) minmax(650px, 1.16fr);
+    gap: 12px;
+  }
+
+  .upgrade-plan-list {
+    align-self: start;
+  }
+
+  .upgrade-centre-filters {
+    grid-template-columns:
+      minmax(150px, 1.35fr)
+      minmax(92px, 0.72fr)
+      minmax(102px, 0.78fr)
+      auto;
+    gap: 7px;
+    padding: 10px;
+  }
+
+  .upgrade-centre-filters :is(input, select) {
+    min-width: 0;
+    min-height: 32px;
+    padding: 5px 8px;
+  }
+
+  .upgrade-dashboard-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .upgrade-dashboard-table th,
+  .upgrade-dashboard-table td {
+    min-width: 0;
+    padding: 8px 7px;
+    overflow: hidden;
+  }
+
+  .upgrade-dashboard-table th:nth-child(1),
+  .upgrade-dashboard-table td:nth-child(1) { width: 25%; }
+  .upgrade-dashboard-table th:nth-child(2),
+  .upgrade-dashboard-table td:nth-child(2) { width: 14%; }
+  .upgrade-dashboard-table th:nth-child(3),
+  .upgrade-dashboard-table td:nth-child(3) { width: 16%; }
+  .upgrade-dashboard-table th:nth-child(4),
+  .upgrade-dashboard-table td:nth-child(4) { width: 17%; }
+  .upgrade-dashboard-table th:nth-child(5),
+  .upgrade-dashboard-table td:nth-child(5) { width: 16%; }
+  .upgrade-dashboard-table th:nth-child(6),
+  .upgrade-dashboard-table td:nth-child(6) { width: 12%; }
+
+  .upgrade-cluster-link,
+  .upgrade-cluster-link strong,
+  .upgrade-cluster-link span,
+  .upgrade-plan-id,
+  .upgrade-dashboard-table td:nth-child(3) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .upgrade-cluster-link strong,
+  .upgrade-cluster-link span,
+  .upgrade-plan-id,
+  .upgrade-dashboard-table td:nth-child(3) {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .upgrade-cluster-link span {
+    margin-top: 3px;
+  }
+
+  .upgrade-environment-chip {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .upgrade-row-progress {
+    min-width: 0;
+  }
+
+  .upgrade-selected-header {
+    padding: 12px 14px;
+  }
+
+  .upgrade-selected-header strong {
+    font-size: 15px;
+  }
+
+  .upgrade-selected-header span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .upgrade-selected-progress {
+    grid-template-columns: 122px 126px minmax(0, 1fr);
+    min-height: 134px;
+    padding: 12px 14px;
+  }
+
+  .upgrade-progress-donut .upgrade-doughnut {
+    width: 104px;
+    height: 104px;
+  }
+
+  .upgrade-progress-donut .upgrade-doughnut-total strong {
+    font-size: 20px;
+  }
+
+  .upgrade-stage-summary {
+    min-height: 88px;
+    padding: 0 12px;
+  }
+
+  .upgrade-stage-summary strong {
+    font-size: 18px;
+  }
+
+  .upgrade-selected-time {
+    gap: 8px;
+    padding-left: 14px;
+  }
+
+  .upgrade-workflow-card {
+    padding: 12px 14px 14px;
+  }
+
+  .upgrade-workflow-track {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+    width: 100%;
+    overflow: visible;
+    padding-top: 14px;
+  }
+
+  .upgrade-workflow-track li {
+    min-width: 0;
+    width: auto;
+    flex: none;
+    gap: 6px;
+  }
+
+  .upgrade-workflow-track li::before {
+    top: 11px;
+  }
+
+  .upgrade-workflow-track li > span {
+    width: 23px;
+    height: 23px;
+  }
+
+  .upgrade-workflow-track li small {
+    width: 100%;
+    max-width: none;
+    padding: 0 2px;
+    font-size: 9px;
+    line-height: 1.12;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .upgrade-selected-lower {
+    grid-template-columns: minmax(0, 1.28fr) minmax(230px, 0.82fr);
+  }
+
+  .upgrade-advisor-card,
+  .upgrade-plan-summary-card {
+    padding: 13px 14px;
+  }
+
+  .upgrade-advisor-card ul {
+    gap: 7px;
+    margin-top: 11px;
+  }
+
+  .upgrade-advisor-card li {
+    font-size: var(--navigan-font-label);
+    line-height: 1.35;
+  }
+
+  .upgrade-plan-summary-card h3 {
+    margin-bottom: 8px;
+  }
+
+  .upgrade-plan-summary-card dl > div {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 8px;
+    padding: 7px 0;
+  }
+
+  .upgrade-plan-summary-card dd {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Only collapse the two-column centre when the actual content area is narrow. */
+@container (min-width: 1081px) and (max-width: 1180px) {
+  .upgrade-centre-dashboard {
+    grid-template-columns: minmax(455px, 0.82fr) minmax(610px, 1.18fr);
+  }
+}
