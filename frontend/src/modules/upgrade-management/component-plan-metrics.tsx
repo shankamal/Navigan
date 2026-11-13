@@ -19,8 +19,8 @@ export const planStage = (p: EksUpgradePlan, now: number) =>
 export const stageColors: Record<string, string> = {
   Draft: "#8795a5",
   "Awaiting approval": "#b87a14",
-  Approved: "#426fa1",
-  Scheduled: "#426fa1",
+  Approved: "#26890d",
+  Scheduled: "#26890d",
   Running: "#347535",
   Overdue: "#b14c45",
 };
