@@ -179,10 +179,23 @@ export function UpgradeWorkspace() {
     >
       <header className="upgrade-page-heading">
         <div className="upgrade-page-heading-copy">
-          <h1>Upgrade &amp; Patching</h1>
+          <h1>
+            {planning || tab === "readiness"
+              ? "Upgrade Centre"
+              : tab === "utilities"
+                ? "System Utilities"
+                : tab === "patching"
+                  ? "Patching"
+                  : "Maintenance Calendar"}
+          </h1>
           <p>
-            Plan, approve and execute governed EKS upgrades, same-version
-            patching and utility lifecycle actions.
+            {planning || tab === "readiness"
+              ? "Plan, approve and execute governed EKS upgrades with safety gates and IaC synchronization."
+              : tab === "utilities"
+                ? "Manage governed lifecycle upgrades for platform system utilities."
+                : tab === "patching"
+                  ? "Manage same-version node, AMI, security and runtime patching."
+                  : "Plan and review approved maintenance windows across upgrade activities."}
           </p>
         </div>
         <div className="upgrade-heading-actions">
