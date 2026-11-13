@@ -2189,7 +2189,7 @@
 }
 .upgrade-calendar-plan[data-status="Scheduled"],
 .upgrade-week-event[data-status="Scheduled"] {
-  border-left-color: #426fa1;
+  border-left-color: var(--navigan-brand);
 }
 .upgrade-calendar-plan[data-status="Awaiting approval"],
 .upgrade-week-event[data-status="Awaiting approval"] {
@@ -2355,7 +2355,7 @@
 .upgrade-calendar-day .upgrade-calendar-plan:focus-visible,
 .upgrade-component-metric-grid > button:focus-visible,
 .upgrade-week-event:focus-visible {
-  outline: 2px solid #426fa1;
+  outline: 2px solid var(--navigan-brand);
   outline-offset: 2px;
 }
 .upgrade-plan-overlay-host {
@@ -2973,7 +2973,8 @@
 }
 .upgrade-workflow-track li.active > span {
   border-color: var(--navigan-brand);
-  outline: 2px solid var(--navigan-brand);\n  outline-offset: 2px;
+  outline: 2px solid var(--navigan-brand);
+  outline-offset: 2px;
 }
 @keyframes upgrade-stage-pulse {
   0%, 100% { transform: scale(1); }
