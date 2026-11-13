@@ -10,15 +10,10 @@ import {
 export function PatchingWorkspace() {
   return (
     <section className="upgrade-patching-workspace" aria-label="Patching">
-      <header className="upgrade-centre-section-heading">
-        <div>
-          <h2>Patching</h2>
-          <p className="upgrade-section-help">
-            Same-version node, AMI and security remediation is managed separately
-            from Kubernetes minor-version upgrades.
-          </p>
-        </div>
-      </header>
+      <p className="upgrade-section-help upgrade-patching-intro-copy">
+        Same-version node, AMI and security remediation is managed separately
+        from Kubernetes minor-version upgrades.
+      </p>
 
       <div className="upgrade-patch-intro">
         <article>
