@@ -5,10 +5,12 @@ export function Doughnut({
   slices,
   total,
   label,
+  centerValue,
 }: {
   slices: Slice[];
   total: number;
   label: string;
+  centerValue?: string;
 }) {
   let offset = 0;
   return (
@@ -51,7 +53,7 @@ export function Doughnut({
             })}
         </svg>
         <div className="upgrade-doughnut-total">
-          <strong>{total}</strong>
+          <strong>{centerValue ?? total}</strong>
           <span>{label}</span>
         </div>
       </div>
