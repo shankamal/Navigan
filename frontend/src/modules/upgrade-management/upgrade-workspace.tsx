@@ -1,23 +1,26 @@
 "use client";
 
-import { ScopedUpgradePlanner } from "./scoped-upgrade-planner";
-import { useUpgradePlans } from "./upgrade-plan-data";
-import { containerIdentity, PlatformIdentity } from "./platform-identity";
 import { useState } from "react";
 import {
   CalendarDays,
   CircleArrowUp,
-  History,
-  ShieldAlert,
+  PackageCheck,
+  Plus,
   Wrench,
 } from "lucide-react";
 import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
+import { Button } from "@/shared/components/ui";
+import { ScopedUpgradePlanner } from "./scoped-upgrade-planner";
+import { useUpgradePlans } from "./upgrade-plan-data";
+import { containerIdentity, PlatformIdentity } from "./platform-identity";
 import { LiveUpgradeInventory } from "./live-upgrade-inventory";
 import { LiveUpgradeCentre } from "./live-upgrade-centre";
 import { UpgradePlansWorkspace } from "./upgrade-plans-workspace";
+import { PatchingWorkspace } from "./patching-workspace";
 import "./upgrade-workspace.css";
 
-type WorkspaceTab = "readiness" | "utilities" | "schedule" | "history";
+type WorkspaceTab = "readiness" | "utilities" | "patching" | "schedule";
+type CentreView = "plans" | "available";
 
 type Readiness = "READY" | "WARNING" | "BLOCKED";
 
@@ -42,9 +45,9 @@ const tabs: ReadonlyArray<{
   label: string;
   icon: typeof CircleArrowUp;
 }> = [
-  { id: "readiness", label: "Upgrade Centre", icon: ShieldAlert },
+  { id: "readiness", label: "Upgrade Centre", icon: CircleArrowUp },
   { id: "utilities", label: "System Utilities", icon: Wrench },
-  { id: "history", label: "Plans & Approvals", icon: History },
+  { id: "patching", label: "Patching", icon: PackageCheck },
   { id: "schedule", label: "Maintenance Calendar", icon: CalendarDays },
 ];
 
@@ -99,8 +102,6 @@ function UpgradeTabs({
 function SupportingTab({
   tab,
   onPlan,
-  reviewPlanId,
-  rescheduleRequested,
   onReview,
   onCreate,
   requestedDate,
@@ -108,28 +109,27 @@ function SupportingTab({
   onCreate: (kind: "containers" | "utilities", date: string) => void;
   requestedDate?: string;
   tab: Exclude<WorkspaceTab, "readiness">;
-  reviewPlanId?: string;
-  rescheduleRequested?: boolean;
   onReview: (planId: string | null, reschedule?: boolean) => void;
   onPlan: (cluster: UpgradeCluster) => void;
 }) {
   if (tab === "utilities") {
     return (
       <LiveUpgradeInventory
-        mode={tab}
+        mode="utilities"
         onPlan={onPlan}
         onReview={onReview}
         requestedDate={requestedDate}
       />
     );
   }
+
+  if (tab === "patching") return <PatchingWorkspace />;
+
   return (
     <UpgradePlansWorkspace
-      key={(reviewPlanId ?? tab) + (rescheduleRequested ? "-reschedule" : "")}
-      mode={tab}
+      mode="schedule"
       onCreate={onCreate}
-      initialPlanId={reviewPlanId}
-      rescheduleRequested={rescheduleRequested}
+      rescheduleRequested={false}
     />
   );
 }
@@ -141,14 +141,34 @@ export function UpgradeWorkspace() {
   ];
   const [requestedDate, setRequestedDate] = useState<string>();
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
+  const [centreView, setCentreView] = useState<CentreView>("plans");
   const [reviewPlanId, setReviewPlanId] = useState<string>();
   const [rescheduleRequested, setRescheduleRequested] = useState(false);
   const [plannerOrigin, setPlannerOrigin] = useState<WorkspaceTab>("readiness");
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
+
   const openPlan = (planId: string | null, reschedule = false) => {
     setReviewPlanId(planId ?? undefined);
     setRescheduleRequested(reschedule);
     setPlanning(null);
+  };
+
+  const changeTab = (value: WorkspaceTab) => {
+    setRequestedDate(undefined);
+    setPlanning(null);
+    setReviewPlanId(undefined);
+    setRescheduleRequested(false);
+    setCentreView("plans");
+    setTab(value);
+  };
+
+  const openAvailableUpgrades = () => {
+    setRequestedDate(undefined);
+    setPlanning(null);
+    setReviewPlanId(undefined);
+    setRescheduleRequested(false);
+    setCentreView("available");
+    setTab("readiness");
   };
 
   return (
@@ -159,35 +179,37 @@ export function UpgradeWorkspace() {
     >
       <header className="upgrade-page-heading">
         <div className="upgrade-page-heading-copy">
-          <h1>Upgrades &amp; Patching</h1>
+          <h1>Upgrade &amp; Patching</h1>
           <p>
-            Review available upgrades, assess readiness and manage maintenance
-            plans.
+            Plan, approve and execute governed EKS upgrades, same-version
+            patching and utility lifecycle actions.
           </p>
         </div>
-        <div
-          className="upgrade-provider-scope"
-          aria-label="Managed cloud providers"
-        >
-          {providers.map((provider) => (
-            <PlatformIdentity
-              key={provider}
-              identity={containerIdentity(provider)}
-              kind="cloud"
-            />
-          ))}
+        <div className="upgrade-heading-actions">
+          <div
+            className="upgrade-provider-scope"
+            aria-label="Managed cloud providers"
+          >
+            {providers.map((provider) => (
+              <PlatformIdentity
+                key={provider}
+                identity={containerIdentity(provider)}
+                kind="cloud"
+              />
+            ))}
+          </div>
+          <Button onClick={openAvailableUpgrades}>
+            <Plus size={16} aria-hidden="true" />
+            Create Upgrade Plan
+          </Button>
         </div>
       </header>
+
       <UpgradeTabs
         active={planning ? "readiness" : tab}
-        onChange={(value) => {
-          setRequestedDate(undefined);
-          setPlanning(null);
-          setReviewPlanId(undefined);
-          setRescheduleRequested(false);
-          setTab(value);
-        }}
+        onChange={changeTab}
       />
+
       <div
         role="tabpanel"
         id="upgrade-tabpanel"
@@ -207,8 +229,8 @@ export function UpgradeWorkspace() {
           />
         ) : tab === "readiness" ? (
           <LiveUpgradeCentre
-            key={requestedDate ? "available" : "plans"}
-            initialView={requestedDate ? "available" : "plans"}
+            key={centreView + (requestedDate ?? "")}
+            initialView={centreView}
             onPlan={setPlanning}
             onReview={openPlan}
           />
@@ -222,15 +244,15 @@ export function UpgradeWorkspace() {
               setRequestedDate(date);
               setReviewPlanId(undefined);
               setRescheduleRequested(false);
+              setCentreView(kind === "containers" ? "available" : "plans");
               setTab(kind === "containers" ? "readiness" : "utilities");
             }}
             onPlan={setPlanning}
-            reviewPlanId={undefined}
-            rescheduleRequested={false}
             onReview={openPlan}
           />
         )}
       </div>
+
       {reviewPlanId && (
         <UpgradePlansWorkspace
           key={reviewPlanId}
