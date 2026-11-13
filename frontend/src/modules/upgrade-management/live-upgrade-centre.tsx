@@ -735,7 +735,9 @@ export function LiveUpgradeCentre({
                     <dl>
                       <div>
                         <dt>Plan ID</dt>
-                        <dd>{selected.plan.planId}</dd>
+                        <dd title={selected.plan.planId}>
+                          {selected.plan.planId.slice(0, 16)}
+                        </dd>
                       </div>
                       <div>
                         <dt>Upgrade path</dt>
@@ -753,11 +755,15 @@ export function LiveUpgradeCentre({
                       </div>
                       <div>
                         <dt>Strategy</dt>
-                        <dd>Provider-managed rolling</dd>
+                        <dd title="Provider-managed rolling">Rolling</dd>
                       </div>
                       <div>
                         <dt>IaC reconciliation</dt>
-                        <dd>{reconciliationStatus(selected.plan) ?? "Pending"}</dd>
+                        <dd>
+                          {reconciliationStatus(selected.plan) === "SYNCHRONIZED"
+                            ? "Synchronized"
+                            : "Pending"}
+                        </dd>
                       </div>
                     </dl>
                   </section>
