@@ -6,15 +6,23 @@ export function Doughnut({
   total,
   label,
   centerValue,
+  showLegend = true,
 }: {
   slices: Slice[];
   total: number;
   label: string;
   centerValue?: string;
+  showLegend?: boolean;
 }) {
   let offset = 0;
   return (
-    <div className="upgrade-doughnut-layout">
+    <div
+      className={
+        showLegend
+          ? "upgrade-doughnut-layout"
+          : "upgrade-doughnut-layout upgrade-doughnut-no-legend"
+      }
+    >
       <div className="upgrade-doughnut">
         <svg
           viewBox="0 0 120 120"
@@ -57,15 +65,17 @@ export function Doughnut({
           <span>{label}</span>
         </div>
       </div>
-      <ul className="upgrade-doughnut-legend">
-        {slices.map((s) => (
-          <li key={s.label}>
-            <i style={{ background: s.color }} />
-            <span>{s.label}</span>
-            <strong>{s.count}</strong>
-          </li>
-        ))}
-      </ul>
+      {showLegend && (
+        <ul className="upgrade-doughnut-legend">
+          {slices.map((s) => (
+            <li key={s.label}>
+              <i style={{ background: s.color }} />
+              <span>{s.label}</span>
+              <strong>{s.count}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
