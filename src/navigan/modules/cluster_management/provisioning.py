@@ -3,6 +3,7 @@ import json
 import os
 import uuid
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from navigan.shared.errors import ApiError
 
 
@@ -13,9 +14,49 @@ class Provisioner:
         self.s3 = s3 or boto3.client("s3")
         self.codebuild = codebuild or boto3.client("codebuild")
 
+    def state_binding(self, cluster):
+        kms = os.environ.get("TERRAFORM_STATE_KMS_KEY_ARN", "")
+        region = os.environ.get("AWS_REGION", "")
+        if not self.bucket or not kms or not region:
+            raise ApiError(
+                503,
+                "PROVISIONER_NOT_CONFIGURED",
+                "Terraform state backend is not configured.",
+            )
+        return {
+            "bucket": self.bucket,
+            "key": cluster["terraform_state_key"],
+            "region": region,
+            "kmsKeyArn": kms,
+            "useLockfile": True,
+        }
+
+    def state_exists(self, cluster):
+        state = self.state_binding(cluster)
+        try:
+            self.s3.head_object(Bucket=state["bucket"], Key=state["key"])
+            return True
+        except ClientError as error:
+            code = str(error.response.get("Error", {}).get("Code", ""))
+            status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            if code in {"404", "NoSuchKey", "NotFound"} or status == 404:
+                return False
+            raise ApiError(
+                502,
+                "TERRAFORM_STATE_CHECK_FAILED",
+                "Terraform state availability could not be verified.",
+            ) from error
+        except BotoCoreError as error:
+            raise ApiError(
+                502,
+                "TERRAFORM_STATE_CHECK_FAILED",
+                "Terraform state availability could not be verified.",
+            ) from error
+
     def start(self, mode, cluster, environment_snapshot):
         if not self.bucket or not self.project:
             raise ApiError(503, "PROVISIONER_NOT_CONFIGURED", "Terraform runner is not configured.")
+        state = self.state_binding(cluster)
         execution_id = str(uuid.uuid4())
         prefix = f"executions/{cluster['customer_id']}/{cluster['cluster_id']}/{execution_id}"
         payload = {
@@ -33,21 +74,17 @@ class Provisioner:
             "provisioningRoleArn": cluster["provisioning_role_arn"],
             "externalIdSecretArn": cluster["external_id_secret_arn"],
             "terraformModuleVersion": cluster["terraform_module_version"],
-            "state": {
-                "bucket": self.bucket,
-                "key": cluster["terraform_state_key"],
-                "region": os.environ.get("AWS_REGION", ""),
-                "kmsKeyArn": os.environ.get("TERRAFORM_STATE_KMS_KEY_ARN", ""),
-                "useLockfile": True,
-            },
+            "state": state,
             "artifactPrefix": prefix,
-            "approvedPlanArtifactKey": cluster.get("plan_artifact_key"),
-            "approvedPlanSha256": cluster.get("plan_sha256"),
+            "approvedPlanArtifactKey": (
+                cluster.get("plan_artifact_key") if mode == "apply" else None
+            ),
+            "approvedPlanSha256": (
+                cluster.get("plan_sha256") if mode == "apply" else None
+            ),
         }
         raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        kms = os.environ.get("TERRAFORM_STATE_KMS_KEY_ARN")
-        if not kms:
-            raise ApiError(503, "PROVISIONER_NOT_CONFIGURED", "Terraform state KMS key is not configured.")
+        kms = state["kmsKeyArn"]
         self.s3.put_object(
             Bucket=self.bucket,
             Key=prefix + "/input.json",
