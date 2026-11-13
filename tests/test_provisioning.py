@@ -77,3 +77,35 @@ def test_apply_payload_keeps_exact_certified_plan(monkeypatch):
     body = json.loads(s3.put_object.call_args.kwargs["Body"])
     assert body["approvedPlanArtifactKey"] == "executions/old/terraform.tfplan"
     assert body["approvedPlanSha256"] == "stale-sha"
+
+
+def test_pinned_backend_rejects_silent_bucket_change(monkeypatch):
+    provisioner, _, _ = configured(monkeypatch)
+    value = cluster()
+    value["workflow"] = {
+        "terraformBackend": {
+            "bucket": "old-state-bucket",
+            "key": value["terraform_state_key"],
+            "region": "ap-south-1",
+            "kmsKeyArn": "arn:aws:kms:ap-south-1:123456789012:key/old",
+        }
+    }
+    try:
+        provisioner.state_binding(value)
+        assert False, "expected backend migration guard"
+    except Exception as error:
+        assert getattr(error, "code", None) == "TERRAFORM_BACKEND_MIGRATION_REQUIRED"
+
+
+def test_pinned_backend_is_used_when_it_matches_current_runtime(monkeypatch):
+    provisioner, _, _ = configured(monkeypatch)
+    value = cluster()
+    value["workflow"] = {
+        "terraformBackend": {
+            "bucket": "state-bucket",
+            "key": value["terraform_state_key"],
+            "region": "ap-south-1",
+            "kmsKeyArn": "arn:aws:kms:ap-south-1:123456789012:key/test",
+        }
+    }
+    assert provisioner.state_binding(value)["bucket"] == "state-bucket"
