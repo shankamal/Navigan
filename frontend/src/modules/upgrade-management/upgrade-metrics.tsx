@@ -119,7 +119,7 @@ export function UpgradeMetrics({
     {
       label: "Executing",
       count: valid.filter((p) => p.status === "EXECUTING").length,
-      color: "#426fa1",
+      color: "#26890d",
     },
     { label: "Overdue / inactive", count: overdue, color: "#b14c45" },
   ];
