@@ -18,15 +18,16 @@ export function useUpgradePlans() {
       }
       return items;
     },
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
   const items = fleet.data ?? [];
   const queries = useQueries({
     queries: items.map((cluster) => ({
       queryKey: ["eks-upgrade-plans", ...actor, cluster.clusterId],
       queryFn: () => clusters.upgradePlans(cluster.clusterId),
-      staleTime: 0,
+      staleTime: 30_000,
       retry: false,
+      refetchOnWindowFocus: false,
     })),
   });
   return {
