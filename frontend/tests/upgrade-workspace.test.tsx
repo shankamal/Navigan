@@ -289,15 +289,15 @@ describe("Upgrade workspace", () => {
     expect(workspaceTabLabels).toEqual([
       "Upgrade Centre",
       "System Utilities",
-      "Plans & Approvals",
+      "Patching",
       "Maintenance Calendar",
     ]);
     expect(
-      screen.getByRole("tab", { name: "Saved upgrade plans" }),
+      screen.getByRole("tab", { name: "Active" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("tab", { name: "Available cluster upgrades" }),
-    ).toHaveAttribute("aria-selected", "false");
+      screen.getByRole("button", { name: "Create / available upgrades" }),
+    ).not.toHaveClass("active");
     expect(
       screen.queryByRole("tab", { name: "Container Upgrades" }),
     ).not.toBeInTheDocument();
@@ -319,7 +319,7 @@ describe("Upgrade workspace", () => {
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("tab", { name: "Available cluster upgrades" }),
+      screen.getByRole("button", { name: "Create / available upgrades" }),
     );
     expect(
       await screen.findByRole("table", {
@@ -366,6 +366,10 @@ describe("Upgrade workspace", () => {
     ).toHaveAttribute("aria-selected", "true");
     expect(
       await screen.findByRole("heading", { name: "System utility upgrades" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Patching" }));
+    expect(
+      screen.getByRole("heading", { name: "Patching" }),
     ).toBeInTheDocument();
   });
 
@@ -575,9 +579,9 @@ describe("Upgrade workspace", () => {
     vi.mocked(clusters.changeUpgradePlan).mockResolvedValueOnce(gatedPlan);
     try {
       mount();
-      fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
+      fireEvent.click(screen.getByRole("tab", { name: "In Progress" }));
       fireEvent.click(
-        await screen.findByRole("button", { name: "Review plan" }),
+        await screen.findByRole("button", { name: "View Plan" }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
@@ -705,9 +709,8 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
-      fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
       fireEvent.click(
-        await screen.findByRole("button", { name: "Review plan" }),
+        await screen.findByRole("button", { name: "View Plan" }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
@@ -815,9 +818,9 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
-      fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Scheduled" }));
       fireEvent.click(
-        await screen.findByRole("button", { name: "Review plan" }),
+        await screen.findByRole("button", { name: "View Plan" }),
       );
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
@@ -894,12 +897,11 @@ describe("Upgrade workspace", () => {
           (await screen.findAllByText(/Awaiting approval/)).length,
         ).toBeGreaterThan(0);
         expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole("tab", { name: /Plans & Approvals/ }));
         fireEvent.click(
-          await screen.findByRole("button", { name: "Awaiting my review (1)" }),
+          screen.getByRole("tab", { name: "Awaiting Approval" }),
         );
         fireEvent.click(
-          await screen.findByRole("button", { name: "Review plan" }),
+          await screen.findByRole("button", { name: "View Plan" }),
         );
         const drawer = screen.getByRole("dialog", {
           name: "Review upgrade plan",
@@ -1454,11 +1456,10 @@ it("allows an authorized Platform Architect to approve their own submitted plan"
   });
   try {
     mount();
-    fireEvent.click(screen.getByRole("tab", { name: "Plans & Approvals" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Awaiting my review (1)" }),
+      screen.getByRole("tab", { name: "Awaiting Approval" }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Review plan" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
     const drawer = screen.getByRole("dialog", { name: "Review upgrade plan" });
     expect(
       within(drawer).getByText(
