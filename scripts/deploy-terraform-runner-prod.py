@@ -209,6 +209,13 @@ def stack_parameters(stack):
     }
 
 
+def stable_project_fingerprint(project):
+    value = copy.deepcopy(project)
+    value.pop("lastModified", None)
+    value["environment"]["image"] = "<RUNNER_IMAGE>"
+    return fingerprint(value)
+
+
 def snapshot(session):
     cfn = session.client("cloudformation")
     root = cfn.describe_stacks(StackName=PARENT)["Stacks"][0]
@@ -234,6 +241,7 @@ def snapshot(session):
         "rootParameters": stack_parameters(root),
         "childParameters": stack_parameters(child),
         "projectFingerprint": fingerprint(project),
+        "projectStableFingerprint": stable_project_fingerprint(project),
     }
 
 
@@ -387,20 +395,9 @@ def execute(session, path):
     )
     after = snapshot(session)
     require(after["currentImage"] == plan["newImage"], "Runner image deployment verification failed.")
-
-    project = session.client("codebuild").batch_get_projects(
-        names=[after["projectName"]]
-    )["projects"][0]
-    expected = copy.deepcopy(project)
-    expected["environment"]["image"] = plan["baseline"]["currentImage"]
-    expected.pop("lastModified", None)
-    baseline_project = session.client("codebuild").batch_get_projects(
-        names=[after["projectName"]]
-    )["projects"][0]
-    baseline_project["environment"]["image"] = plan["baseline"]["currentImage"]
-    baseline_project.pop("lastModified", None)
     require(
-        fingerprint(expected) == fingerprint(baseline_project),
+        after["projectStableFingerprint"]
+        == plan["baseline"]["projectStableFingerprint"],
         "Unexpected CodeBuild project change detected.",
     )
     verification = {
