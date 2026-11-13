@@ -328,16 +328,22 @@ def validate_dependency_change(resource, before, after):
         )
 
 
-def validate_change_set(session, plan):
+def validate_child_preview(session, plan):
     cfn = session.client("cloudformation")
-    parent = cfn.describe_change_set(ChangeSetName=plan["changeSet"])
-    require(parent["StackId"] == plan["baseline"]["rootId"], "Wrong parent stack.")
-    require(parent["Status"] == "CREATE_COMPLETE", "Change set is not ready.")
-    chosen = stack_parameters(parent)
-    before = plan["baseline"]["rootParameters"]
+    preview = plan["childPreview"]
+    meta = cfn.describe_change_set(ChangeSetName=preview)
+    require(
+        meta["StackId"] == plan["baseline"]["childId"]
+        and meta["Status"] == "CREATE_COMPLETE"
+        and meta["ExecutionStatus"] == "AVAILABLE"
+        and not meta.get("ParentChangeSetId"),
+        "Direct ClusterManagement preview is unavailable or targets another stack.",
+    )
+    chosen = stack_parameters(meta)
+    before = plan["baseline"]["childParameters"]
     require(
         chosen.get("TerraformRunnerImageUri") == plan["newImage"],
-        "Prepared runner parameter changed.",
+        "Direct child preview runner parameter changed.",
     )
     require(
         set(chosen) == set(before)
@@ -346,41 +352,24 @@ def validate_change_set(session, plan):
             for key, value in before.items()
             if key != "TerraformRunnerImageUri"
         ),
-        "An unrelated parent parameter changed.",
+        "Direct child preview changes unrelated parameters.",
     )
-    parent_changes = list_changes(cfn, plan["changeSet"])
-    require(len(parent_changes) == 1, "Only ClusterManagement may change.")
-    change = parent_changes[0]["ResourceChange"]
-    require(
-        change["LogicalResourceId"] == "ClusterManagement"
-        and change["ResourceType"] == "AWS::CloudFormation::Stack"
-        and change["Action"] == "Modify"
-        and change.get("Replacement") == "False"
-        and change.get("ChangeSetId"),
-        "Unexpected parent change.",
-    )
-    child_id = change["ChangeSetId"]
-    child_meta = cfn.describe_change_set(ChangeSetName=child_id)
-    require(child_meta["StackId"] == plan["baseline"]["childId"], "Wrong nested stack.")
-
     before_template = processed_template(cfn, plan["baseline"]["childId"])
-    after_template = processed_template(cfn, plan["baseline"]["childId"], child_id)
+    after_template = processed_template(cfn, plan["baseline"]["childId"], preview)
     require(
         fingerprint(before_template) == fingerprint(after_template),
         "Cluster Management template changed; runner-only release is blocked.",
     )
     before_resources = before_template.get("Resources", {})
     after_resources = after_template.get("Resources", {})
-
-    child_changes = list_changes(cfn, child_id)
     seen = set()
-    for entry in child_changes:
+    for entry in list_changes(cfn, preview):
         resource = entry["ResourceChange"]
         logical = resource.get("LogicalResourceId")
-        require(logical not in seen, "Duplicate child resource change: " + str(logical))
+        require(logical not in seen, "Duplicate child preview resource: " + str(logical))
         seen.add(logical)
         print(
-            "  Child preview: "
+            "  Direct child preview: "
             + str(logical)
             + " "
             + str(resource.get("Action"))
@@ -407,18 +396,53 @@ def validate_change_set(session, plan):
                 "Only the CodeBuild Environment image may change.",
             )
         else:
-            validate_dependency_change(
-                resource,
-                before_resources,
-                after_resources,
-            )
+            validate_dependency_change(resource, before_resources, after_resources)
     require("TerraformProject" in seen, "TerraformProject change is missing.")
     require(
         seen <= {"TerraformProject", "BuildStateRule", "BuildStatePermission"},
-        "Unexpected child resource change set.",
+        "Unexpected direct child resource change set.",
     )
-    return child_id
 
+
+def validate_change_set(session, plan):
+    cfn = session.client("cloudformation")
+    parent = cfn.describe_change_set(ChangeSetName=plan["changeSet"])
+    require(parent["StackId"] == plan["baseline"]["rootId"], "Wrong parent stack.")
+    require(parent["Status"] == "CREATE_COMPLETE", "Change set is not ready.")
+    require(
+        parent.get("IncludeNestedStacks") is False,
+        "Parent execution plan must not contain precomputed nested child plans.",
+    )
+    chosen = stack_parameters(parent)
+    before = plan["baseline"]["rootParameters"]
+    require(
+        chosen.get("TerraformRunnerImageUri") == plan["newImage"],
+        "Prepared runner parameter changed.",
+    )
+    require(
+        set(chosen) == set(before)
+        and all(
+            chosen[key] == value
+            for key, value in before.items()
+            if key != "TerraformRunnerImageUri"
+        ),
+        "An unrelated parent parameter changed.",
+    )
+    parent_changes = list_changes(cfn, plan["changeSet"])
+    require(
+        len(parent_changes) == 1,
+        "Only ClusterManagement may change in the parent execution plan.",
+    )
+    change = parent_changes[0]["ResourceChange"]
+    require(
+        change["LogicalResourceId"] == "ClusterManagement"
+        and change["ResourceType"] == "AWS::CloudFormation::Stack"
+        and change["Action"] == "Modify"
+        and change.get("Replacement") == "False"
+        and not change.get("ChangeSetId"),
+        "Unexpected parent change.",
+    )
+    validate_child_preview(session, plan)
 
 def prepare(session, revision):
     require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Wrong AWS account.")
@@ -433,6 +457,35 @@ def prepare(session, revision):
 
     cfn = session.client("cloudformation")
     root = cfn.describe_stacks(StackName=PARENT)["Stacks"][0]
+    child = cfn.describe_stacks(StackName=baseline["childId"])["Stacks"][0]
+
+    child_parameters = []
+    for item in child.get("Parameters", []):
+        child_parameters.append({
+            "ParameterKey": item["ParameterKey"],
+            **(
+                {"ParameterValue": image}
+                if item["ParameterKey"] == "TerraformRunnerImageUri"
+                else {"UsePreviousValue": True}
+            ),
+        })
+    child_request = {
+        "StackName": baseline["childId"],
+        "ChangeSetName": "navigan-terraform-runner-child-" + uuid.uuid4().hex[:16],
+        "ChangeSetType": "UPDATE",
+        "UsePreviousTemplate": True,
+        "IncludeNestedStacks": False,
+        "Capabilities": ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],
+        "Parameters": child_parameters,
+    }
+    if child.get("RoleARN"):
+        child_request["RoleARN"] = child["RoleARN"]
+    child_preview = cfn.create_change_set(**child_request)["Id"]
+    cfn.get_waiter("change_set_create_complete").wait(
+        ChangeSetName=child_preview,
+        WaiterConfig={"Delay": 5, "MaxAttempts": 180},
+    )
+
     parameters = []
     for item in root.get("Parameters", []):
         parameters.append({
@@ -448,7 +501,7 @@ def prepare(session, revision):
         "ChangeSetName": "navigan-terraform-runner-" + uuid.uuid4().hex[:16],
         "ChangeSetType": "UPDATE",
         "UsePreviousTemplate": True,
-        "IncludeNestedStacks": True,
+        "IncludeNestedStacks": False,
         "Capabilities": ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],
         "Parameters": parameters,
     }
@@ -465,6 +518,7 @@ def prepare(session, revision):
         "parent": PARENT,
         "sourceRevision": exact,
         "newImage": image,
+        "childPreview": child_preview,
         "changeSet": change_set,
         "baseline": baseline,
         "preparedAt": datetime.now(timezone.utc).isoformat(),
@@ -472,14 +526,17 @@ def prepare(session, revision):
     try:
         validate_change_set(session, plan)
     except Exception:
-        try:
-            cfn.delete_change_set(ChangeSetName=change_set)
-        except Exception:
-            pass
+        for rejected in (change_set, child_preview):
+            try:
+                cfn.delete_change_set(ChangeSetName=rejected)
+            except Exception:
+                pass
         raise
     path = directory / "release-plan.json"
     write(path, plan)
     print("Canonical runner prepared and scope-checked:", image)
+    print("Direct child preview:", child_preview)
+    print("Parent execution change set:", change_set)
     print("Release plan:", path)
     print("No production change has been executed.")
     return path
@@ -515,6 +572,7 @@ def execute(session, path):
         "format": FORMAT,
         "sourceRevision": plan["sourceRevision"],
         "runnerImage": plan["newImage"],
+        "childPreview": plan["childPreview"],
         "verifiedAt": datetime.now(timezone.utc).isoformat(),
         "deploymentPerformed": True,
     }
