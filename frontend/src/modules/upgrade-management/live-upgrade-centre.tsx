@@ -634,10 +634,6 @@ export function LiveUpgradeCentre({
                   </select>
                 </>
               )}
-              <Button variant="secondary" onClick={data.refresh}>
-                <RefreshCw size={15} aria-hidden="true" />
-                Refresh
-              </Button>
             </div>
 
             {lifecycle === "active" ? (
