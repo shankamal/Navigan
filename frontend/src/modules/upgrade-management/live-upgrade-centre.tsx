@@ -337,13 +337,26 @@ export function LiveUpgradeCentre({
     const currentPlan = currentRows.find(
       (row) => row.cluster.clusterId === cluster.clusterId,
     );
+    const openPlan =
+      currentPlan &&
+      [
+        "DRAFT",
+        "SUBMITTED",
+        "APPROVED",
+        "SCHEDULED",
+        "EXECUTING",
+        "FAILED",
+        "REJECTED",
+      ].includes(currentPlan.plan.status)
+        ? currentPlan.plan
+        : undefined;
     return [
       {
         cluster,
         clusterName: cluster.clusterName,
         environment: cluster.environmentName ?? "Environment",
         readiness,
-        plan: currentPlan?.plan,
+        plan: openPlan,
       },
     ];
   });
