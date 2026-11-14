@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Circle,
   Clock3,
+  Info,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -287,7 +288,9 @@ export function LiveUpgradeCentre({
       staleTime: 30_000,
       retry: false,
       refetchOnWindowFocus: false,
-      enabled: view === "available",
+      enabled:
+        view === "available" ||
+        (view === "plans" && lifecycle === "active"),
     })),
   });
 
@@ -328,6 +331,41 @@ export function LiveUpgradeCentre({
     );
   }, [data.rows]);
 
+  const candidateRows = activeClusters.flatMap((cluster, index) => {
+    const readiness = evidence[index]?.data;
+    if (!readiness || !hasClusterUpgradeOpportunity(readiness)) return [];
+    const currentPlan = currentRows.find(
+      (row) => row.cluster.clusterId === cluster.clusterId,
+    );
+    return [
+      {
+        cluster,
+        clusterName: cluster.clusterName,
+        environment: cluster.environmentName ?? "Environment",
+        readiness,
+        plan: currentPlan?.plan,
+      },
+    ];
+  });
+
+  const filteredCandidates = candidateRows.filter((row) => {
+    return (
+      (customer === "all" || row.cluster.customerId === customer) &&
+      (environment === "all" || row.cluster.environmentId === environment) &&
+      [
+        row.cluster.clusterId,
+        row.clusterName,
+        row.cluster.customerName,
+        row.environment,
+        row.plan?.planId,
+        clusterAccount(row.cluster),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    );
+  });
+
   const lifecycleCounts = useMemo(() => {
     const result: Record<Lifecycle, number> = {
       active: 0,
@@ -340,19 +378,16 @@ export function LiveUpgradeCentre({
     for (const row of currentRows) {
       const value = lifecycleFor(row.plan, now);
       result[value] += 1;
-      if (value !== "upgraded") result.active += value === "active" ? 0 : 1;
     }
+    result.active = candidateRows.length;
     return result;
-  }, [currentRows, now]);
+  }, [candidateRows.length, currentRows, now]);
 
   const planRows = currentRows.filter((row) => {
+    if (lifecycle === "active") return false;
     const planLifecycle = lifecycleFor(row.plan, now);
-    const lifecycleMatch =
-      lifecycle === "active"
-        ? planLifecycle !== "upgraded"
-        : planLifecycle === lifecycle;
     return (
-      lifecycleMatch &&
+      planLifecycle === lifecycle &&
       (customer === "all" || row.cluster.customerId === customer) &&
       (environment === "all" || row.cluster.environmentId === environment) &&
       [
@@ -368,8 +403,20 @@ export function LiveUpgradeCentre({
     );
   });
 
+  const selectedCandidate =
+    lifecycle === "active"
+      ? filteredCandidates.find(
+          (row) => row.cluster.clusterId === selectedId,
+        ) ?? filteredCandidates[0]
+      : undefined;
   const selected =
-    planRows.find((row) => row.plan.planId === selectedId) ?? planRows[0];
+    lifecycle === "active"
+      ? selectedCandidate?.plan
+        ? currentRows.find(
+            (row) => row.plan.planId === selectedCandidate.plan?.planId,
+          )
+        : undefined
+      : planRows.find((row) => row.plan.planId === selectedId) ?? planRows[0];
   const selectedProgress = selected ? progressFor(selected.plan) : 0;
   const selectedWorkflow = selected ? workflow(selected.plan) : [];
   const selectedExecution =
@@ -395,6 +442,10 @@ export function LiveUpgradeCentre({
           <strong>{data.fleet.length}</strong>
         </div>
         <div>
+          <span>Candidate upgrades</span>
+          <strong>{candidateRows.length}</strong>
+        </div>
+        <div>
           <span>Awaiting approval</span>
           <strong>{lifecycleCounts.approval}</strong>
         </div>
@@ -405,10 +456,6 @@ export function LiveUpgradeCentre({
         <div>
           <span>In progress</span>
           <strong>{lifecycleCounts.running}</strong>
-        </div>
-        <div>
-          <span>Needs attention</span>
-          <strong>{lifecycleCounts.attention}</strong>
         </div>
         <div>
           <span>Upgraded</span>
@@ -469,6 +516,16 @@ export function LiveUpgradeCentre({
         </nav>
       </div>
 
+      {view === "plans" && lifecycle === "active" && (
+        <div className="upgrade-candidate-note" role="status">
+          <Info size={15} aria-hidden="true" />
+          <span>
+            Showing candidate upgrades only — clusters with a verified upgrade
+            opportunity from current readiness evidence.
+          </span>
+        </div>
+      )}
+
       {view === "plans" ? (
         <div className="upgrade-centre-dashboard">
           <section className="upgrade-plan-list" aria-label="Upgrade requests">
@@ -510,81 +567,190 @@ export function LiveUpgradeCentre({
             </div>
 
             <div className="table-scroll">
-              <table className="upgrade-dashboard-table">
-                <caption className="sr-only">
-                  Upgrade plans across managed clusters
-                </caption>
-                <thead>
-                  <tr>
-                    <th>Cluster</th>
-                    <th>Environment</th>
-                    <th>Current → target</th>
-                    <th>Plan ID</th>
-                    <th>Status</th>
-                    <th>Progress</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {planRows.map((row) => {
-                    const progress = progressFor(row.plan);
-                    const status = planStatus(row.plan, now);
-                    return (
-                      <tr
-                        key={row.plan.planId}
-                        className={selected?.plan.planId === row.plan.planId ? "selected" : ""}
-                        onClick={() => setSelectedId(row.plan.planId)}
-                      >
-                        <td>
-                          <button
-                            type="button"
-                            className="upgrade-cluster-link"
-                            aria-pressed={selected?.plan.planId === row.plan.planId}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedId(row.plan.planId);
-                            }}
-                          >
-                            <strong>{row.clusterName}</strong>
-                            <span>{row.cluster.clusterId}</span>
-                          </button>
-                        </td>
-                        <td>
-                          <span className="upgrade-environment-chip">
-                            {row.environment}
-                          </span>
-                        </td>
-                        <td>
-                          {row.plan.currentVersion} → {row.plan.targetVersion}
-                        </td>
-                        <td>
-                          <span className="upgrade-plan-id">
-                            {row.plan.planId.slice(0, 14)}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className="upgrade-plan-status"
-                            data-status={status}
-                          >
-                            {status}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="upgrade-row-progress">
-                            <strong>{progress}%</strong>
-                            <span>
-                              <i style={{ width: progress + "%" }} />
+              {lifecycle === "active" ? (
+                <table className="upgrade-dashboard-table upgrade-candidate-table">
+                  <caption className="sr-only">
+                    Candidate clusters requiring upgrade
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th>Cluster</th>
+                      <th>Environment</th>
+                      <th>Current → target</th>
+                      <th>Readiness / status</th>
+                      <th>Last assessed</th>
+                      <th aria-label="Selection" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCandidates.map((row) => {
+                      const status = row.plan
+                        ? planStatus(row.plan, now)
+                        : row.readiness.readiness.status === "READY"
+                          ? "Ready for plan"
+                          : row.readiness.readiness.status === "BLOCKED"
+                            ? "Needs Attention"
+                            : "Review Required";
+                      const current = row.readiness.controlPlane.version;
+                      const target =
+                        row.readiness.recommendedTarget?.version ??
+                        "Component update";
+                      return (
+                        <tr
+                          key={row.cluster.clusterId}
+                          className={
+                            selectedCandidate?.cluster.clusterId ===
+                            row.cluster.clusterId
+                              ? "selected"
+                              : ""
+                          }
+                          onClick={() =>
+                            setSelectedId(row.cluster.clusterId)
+                          }
+                        >
+                          <td>
+                            <button
+                              type="button"
+                              className="upgrade-cluster-link"
+                              aria-pressed={
+                                selectedCandidate?.cluster.clusterId ===
+                                row.cluster.clusterId
+                              }
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedId(row.cluster.clusterId);
+                              }}
+                            >
+                              <strong>{row.clusterName}</strong>
+                              <span>{row.cluster.clusterId}</span>
+                            </button>
+                          </td>
+                          <td>
+                            <span className="upgrade-environment-chip">
+                              {row.environment}
                             </span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td>
+                            {current} → {target}
+                          </td>
+                          <td>
+                            <span
+                              className="upgrade-plan-status"
+                              data-status={status}
+                            >
+                              {status}
+                            </span>
+                          </td>
+                          <td>
+                            {new Date(
+                              row.readiness.observedAt,
+                            ).toLocaleString()}
+                          </td>
+                          <td className="upgrade-candidate-select">
+                            <span aria-hidden="true">›</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="upgrade-dashboard-table">
+                  <caption className="sr-only">
+                    Upgrade plans across managed clusters
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th>Cluster</th>
+                      <th>Environment</th>
+                      <th>Current → target</th>
+                      <th>Plan ID</th>
+                      <th>Status</th>
+                      <th>Progress</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planRows.map((row) => {
+                      const progress = progressFor(row.plan);
+                      const status = planStatus(row.plan, now);
+                      return (
+                        <tr
+                          key={row.plan.planId}
+                          className={
+                            selected?.plan.planId === row.plan.planId
+                              ? "selected"
+                              : ""
+                          }
+                          onClick={() => setSelectedId(row.plan.planId)}
+                        >
+                          <td>
+                            <button
+                              type="button"
+                              className="upgrade-cluster-link"
+                              aria-pressed={
+                                selected?.plan.planId === row.plan.planId
+                              }
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedId(row.plan.planId);
+                              }}
+                            >
+                              <strong>{row.clusterName}</strong>
+                              <span>{row.cluster.clusterId}</span>
+                            </button>
+                          </td>
+                          <td>
+                            <span className="upgrade-environment-chip">
+                              {row.environment}
+                            </span>
+                          </td>
+                          <td>
+                            {row.plan.currentVersion} → {row.plan.targetVersion}
+                          </td>
+                          <td>
+                            <span className="upgrade-plan-id">
+                              {row.plan.planId.slice(0, 14)}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="upgrade-plan-status"
+                              data-status={status}
+                            >
+                              {status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="upgrade-row-progress">
+                              <strong>{progress}%</strong>
+                              <span>
+                                <i style={{ width: progress + "%" }} />
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
 
-            {!planRows.length && (
+            {lifecycle === "active" && !filteredCandidates.length && (
+              <div className="upgrade-empty-state" role="status">
+                {evidence.some((query) => query.isFetching) ? (
+                  <>
+                    <div className="upgrade-skeleton-line" />
+                    <div className="upgrade-skeleton-line short" />
+                    Checking cluster readiness…
+                  </>
+                ) : (
+                  "No managed clusters currently require an upgrade."
+                )}
+              </div>
+            )}
+
+            {lifecycle !== "active" && !planRows.length && (
               <div className="upgrade-empty-state" role="status">
                 {data.pending ? (
                   <>
@@ -769,9 +935,77 @@ export function LiveUpgradeCentre({
                   </section>
                 </div>
               </>
+            ) : selectedCandidate ? (
+              <>
+                <header className="upgrade-selected-header">
+                  <div>
+                    <strong>{selectedCandidate.clusterName}</strong>
+                    <span>
+                      {selectedCandidate.cluster.clusterId} ·{" "}
+                      {selectedCandidate.environment} · EKS{" "}
+                      {selectedCandidate.readiness.controlPlane.version} →{" "}
+                      {selectedCandidate.readiness.recommendedTarget?.version ??
+                        "Component update"}
+                    </span>
+                  </div>
+                  <Button
+                    onClick={() =>
+                      onPlan(
+                        liveCluster(
+                          selectedCandidate.cluster,
+                          selectedCandidate.readiness,
+                        ),
+                      )
+                    }
+                  >
+                    Create Plan
+                  </Button>
+                </header>
+
+                <section className="upgrade-candidate-summary">
+                  <div>
+                    <span>Readiness</span>
+                    <strong>
+                      {selectedCandidate.readiness.readiness.status}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Current version</span>
+                    <strong>
+                      {selectedCandidate.readiness.controlPlane.version}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Recommended target</span>
+                    <strong>
+                      {selectedCandidate.readiness.recommendedTarget?.version ??
+                        "Component update"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Evidence observed</span>
+                    <strong>
+                      {new Date(
+                        selectedCandidate.readiness.observedAt,
+                      ).toLocaleString()}
+                    </strong>
+                  </div>
+                </section>
+
+                <section className="upgrade-candidate-guidance">
+                  <h3>Candidate upgrade</h3>
+                  <p>
+                    This cluster is shown because current readiness evidence
+                    reports an upgrade opportunity. Create a governed plan to
+                    review scope, maintenance window and approval requirements.
+                  </p>
+                </section>
+              </>
             ) : (
               <div className="upgrade-empty-state">
-                Select an upgrade plan to view progress and workflow.
+                {lifecycle === "active"
+                  ? "Select a candidate cluster to review its upgrade evidence."
+                  : "Select an upgrade plan to view progress and workflow."}
               </div>
             )}
           </aside>
