@@ -335,6 +335,25 @@ describe("Upgrade workspace", () => {
     await waitFor(() => expect(create).toBeEnabled());
   });
 
+  it("shows only verified candidate upgrades in Active", async () => {
+    mount();
+
+    expect(
+      await screen.findByRole("table", {
+        name: "Candidate clusters requiring upgrade",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Showing candidate upgrades only/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Active" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByText("New-dbs-demo-cluster"),
+    ).toBeInTheDocument();
+  });
+
   it("retains the permission guard on the container planning entry point", async () => {
     const previous = authIdentity.privileges;
     authIdentity.privileges = [];
