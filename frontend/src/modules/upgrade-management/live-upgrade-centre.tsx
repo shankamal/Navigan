@@ -552,7 +552,6 @@ export function LiveUpgradeCentre({
               onClick={() => {
                 setView("plans");
                 setLifecycle(item.id);
-                setSelectedId(undefined);
               }}
             >
               {item.label}
@@ -561,16 +560,6 @@ export function LiveUpgradeCentre({
           ))}
         </nav>
       </div>
-
-      {view === "plans" && lifecycle === "active" && (
-        <div className="upgrade-candidate-note" role="status">
-          <Info size={15} aria-hidden="true" />
-          <span>
-            Showing candidate upgrades only — clusters with a verified upgrade
-            opportunity from current readiness evidence.
-          </span>
-        </div>
-      )}
 
       {view === "plans" ? (
         <div className="upgrade-centre-dashboard upgrade-centre-approved">
@@ -734,7 +723,9 @@ export function LiveUpgradeCentre({
                                 {status}
                               </span>
                             </td>
-                            <td>{new Date(row.readiness.observedAt).toLocaleString()}</td>
+                            <td>
+                              {new Date(row.readiness.observedAt).toLocaleString()}
+                            </td>
                             <td>
                               {row.plan ? (
                                 <Button
@@ -889,7 +880,9 @@ export function LiveUpgradeCentre({
                                 </span>
                               </div>
                             </td>
-                            <td>{new Date(row.plan.updatedAt).toLocaleString()}</td>
+                            <td>
+                              {new Date(row.plan.updatedAt).toLocaleString()}
+                            </td>
                             <td>
                               <Button
                                 variant="secondary"
