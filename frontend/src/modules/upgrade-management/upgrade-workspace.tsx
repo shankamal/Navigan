@@ -5,14 +5,13 @@ import {
   CalendarDays,
   CircleArrowUp,
   PackageCheck,
-  Plus,
+  RefreshCw,
   Wrench,
 } from "lucide-react";
 import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import { ScopedUpgradePlanner } from "./scoped-upgrade-planner";
 import { useUpgradePlans } from "./upgrade-plan-data";
-import { containerIdentity, PlatformIdentity } from "./platform-identity";
 import { LiveUpgradeInventory } from "./live-upgrade-inventory";
 import { LiveUpgradeCentre } from "./live-upgrade-centre";
 import { UpgradePlansWorkspace } from "./upgrade-plans-workspace";
@@ -136,9 +135,6 @@ function SupportingTab({
 
 export function UpgradeWorkspace() {
   const fleetData = useUpgradePlans();
-  const providers = [
-    ...new Set(fleetData.fleet.map((cluster) => cluster.platform)),
-  ];
   const [requestedDate, setRequestedDate] = useState<string>();
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [centreView, setCentreView] = useState<CentreView>("plans");
@@ -162,15 +158,6 @@ export function UpgradeWorkspace() {
     setTab(value);
   };
 
-  const openAvailableUpgrades = () => {
-    setRequestedDate(undefined);
-    setPlanning(null);
-    setReviewPlanId(undefined);
-    setRescheduleRequested(false);
-    setCentreView("available");
-    setTab("readiness");
-  };
-
   return (
     <div
       className={
@@ -190,7 +177,7 @@ export function UpgradeWorkspace() {
           </h1>
           <p>
             {planning || tab === "readiness"
-              ? "Plan, approve and execute governed EKS upgrades with safety gates and IaC synchronization."
+              ? "Plan, approve and execute governed Kubernetes upgrades with safety gates and IaC synchronization."
               : tab === "utilities"
                 ? "Manage governed lifecycle upgrades for platform system utilities."
                 : tab === "patching"
@@ -198,24 +185,14 @@ export function UpgradeWorkspace() {
                   : "Plan and review approved maintenance windows across upgrade activities."}
           </p>
         </div>
-        <div className="upgrade-heading-actions">
-          <div
-            className="upgrade-provider-scope"
-            aria-label="Managed cloud providers"
-          >
-            {providers.map((provider) => (
-              <PlatformIdentity
-                key={provider}
-                identity={containerIdentity(provider)}
-                kind="cloud"
-              />
-            ))}
+        {!planning && tab === "readiness" && (
+          <div className="upgrade-heading-actions">
+            <Button variant="secondary" onClick={fleetData.refresh}>
+              <RefreshCw size={16} aria-hidden="true" />
+              Refresh
+            </Button>
           </div>
-          <Button onClick={openAvailableUpgrades}>
-            <Plus size={16} aria-hidden="true" />
-            Create Upgrade Plan
-          </Button>
-        </div>
+        )}
       </header>
 
       <UpgradeTabs
