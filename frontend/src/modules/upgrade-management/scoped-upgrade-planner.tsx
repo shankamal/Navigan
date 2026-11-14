@@ -1,7 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Cpu, Layers3, Puzzle } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  CheckCircle2,
+  Cpu,
+  Layers3,
+  Puzzle,
+  ShieldCheck,
+  Target,
+} from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import type {
   EksUpgradePlan,
@@ -263,262 +272,528 @@ export function ScopedUpgradePlanner({
     },
   });
   const locked = Boolean(created) || mutation.isPending;
+  const scopeLabel =
+    scope === "CONTROL_PLANE"
+      ? "Control plane only"
+      : scope === "CLUSTER"
+        ? "Full platform upgrade"
+        : scope === "NODES"
+          ? "Node groups"
+          : "Managed add-ons";
+  const selectedComponents =
+    scope === "NODES"
+      ? nodes.length
+      : scope === "ADDONS"
+        ? Object.keys(addons).length
+        : 1;
+  const planTarget =
+    ["CLUSTER", "CONTROL_PLANE"].includes(scope)
+      ? finalTarget || "Not available"
+      : scope === "NODES"
+        ? data?.currentVersion ?? cluster.currentVersion
+        : selectedComponents + " selected";
+  const windowSummary =
+    supplied === 0
+      ? "Draft / unscheduled"
+      : supplied === dates.length
+        ? supplied + " of " + dates.length + " scheduled"
+        : supplied + " of " + dates.length + " selected";
   return (
-    <section className="upgrade-scoped-planner">
-      <button type="button" className="upgrade-back-link" onClick={onClose}>
-        <ArrowLeft size={16} /> Back to Upgrade Centre
-      </button>
-      <header className="upgrade-planner-heading">
-        <h2>Create upgrade plan</h2>
-        <p>
-          Select a component scope, review the provider-supported path and
-          request a maintenance window for each step.
-        </p>
+    <section className="upgrade-scoped-planner upgrade-scoped-planner-v2">
+      <header className="upgrade-planner-topbar">
+        <button type="button" className="upgrade-back-link" onClick={onClose}>
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back to Upgrade Centre
+        </button>
+        <div className="upgrade-planner-heading">
+          <h2>Create upgrade plan</h2>
+          <p>
+            Define the upgrade scope, supported target, maintenance window and
+            change reason before saving a governed draft.
+          </p>
+        </div>
       </header>
-      <ClusterContext
-        cluster={{
-          clusterId: cluster.id,
-          clusterName: cluster.name,
-          environmentName: cluster.environment,
-        }}
-      />
+
+      <section className="upgrade-planner-context-card" aria-label="Selected cluster">
+        <ClusterContext
+          cluster={{
+            clusterId: cluster.id,
+            clusterName: cluster.name,
+            environmentName: cluster.environment,
+          }}
+        />
+        {data && (
+          <div className="upgrade-planner-context-meta">
+            <PlatformIdentity
+              identity={containerIdentity("EKS")}
+              kind="platform"
+            />
+            <span>
+              Current Kubernetes <strong>{data.currentVersion}</strong>
+            </span>
+            <span>
+              Recommended target{" "}
+              <strong>{data.targetVersions[0] ?? "Not available"}</strong>
+            </span>
+            <span>
+              Region <strong>{data.region}</strong>
+            </span>
+          </div>
+        )}
+      </section>
+
       {options.isPending && (
-        <p role="status">Loading live component versions and compatibility…</p>
+        <div className="upgrade-planner-loading" role="status">
+          Loading live component versions and compatibility…
+        </div>
       )}
       {options.isError && (
-        <div role="alert">
-          {options.error.message}{" "}
+        <div role="alert" className="upgrade-planner-alert">
+          <span>{options.error.message}</span>
           <Button variant="secondary" onClick={() => void options.refetch()}>
             Retry discovery
           </Button>
         </div>
       )}
+
       {created ? (
-        <>
-          <p role="status">
-            {created.status === "SUBMITTED"
-              ? "Submitted for Platform Architect approval."
-              : "Draft saved. Review the exact operations below before submitting."}
-          </p>
+        <section className="upgrade-planner-created">
+          <div className="upgrade-planner-created-status" role="status">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            <span>
+              {created.status === "SUBMITTED"
+                ? "Submitted for Platform Architect approval."
+                : "Draft saved. Review the exact operations below before submitting."}
+            </span>
+          </div>
           {created.planSpec && <UpgradePathDetails spec={created.planSpec} />}
-        </>
+        </section>
       ) : (
         data && (
-          <fieldset disabled={locked}>
-            <legend>1. Upgrade scope</legend>
-            <div className="upgrade-scope-options">
-              {(
-                [
-                  {
-                    id: "CONTROL_PLANE",
-                    label: "Control plane only",
-                    Icon: Cpu,
-                  },
-                  { id: "CLUSTER", label: "Full platform upgrade", Icon: Cpu },
-                  { id: "NODES", label: "Node groups", Icon: Layers3 },
-                  { id: "ADDONS", label: "Managed add-ons", Icon: Puzzle },
-                ] as const
-              ).map((s) => (
-                <label key={s.id}>
-                  <input
-                    type="radio"
-                    name="upgradeScope"
-                    checked={scope === s.id}
-                    onChange={() => {
-                      setScope(s.id);
-                      setWindows([
-                        { start: calendarSchedule(initialDate), duration: 120 },
-                      ]);
-                    }}
-                  />
-                  <s.Icon size={18} />
-                  {s.label}
-                </label>
-              ))}
-            </div>
-            <div className="upgrade-scoped-version">
-              <PlatformIdentity
-                identity={containerIdentity("EKS")}
-                kind="platform"
-              />
-              <span>
-                Control plane: <strong>{data.currentVersion}</strong> ·{" "}
-                {data.region}
-              </span>
-            </div>
-            {["CLUSTER", "CONTROL_PLANE"].includes(scope) ? (
-              <>
-                <label className="upgrade-live-field">
-                  <span>Final Kubernetes target</span>
-                  <select
-                    value={finalTarget}
-                    onChange={(e) => {
-                      setTarget(e.target.value);
-                      setWindows([
-                        { start: calendarSchedule(initialDate), duration: 120 },
-                      ]);
-                    }}
-                  >
-                    {!data.targetVersions.length && (
-                      <option value="">No supported target</option>
-                    )}
-                    {data.targetVersions.map((v) => (
-                      <option key={v}>{v}</option>
+          <fieldset
+            disabled={locked}
+            className="upgrade-planner-fieldset upgrade-planner-v2-fieldset"
+          >
+            <legend className="sr-only">Create upgrade plan inputs</legend>
+
+            <div className="upgrade-planner-v2-layout">
+              <div className="upgrade-planner-v2-main">
+                <section className="upgrade-planner-step-card">
+                  <header className="upgrade-planner-step-heading">
+                    <span className="upgrade-planner-step-number">1</span>
+                    <div>
+                      <h3>Upgrade scope</h3>
+                      <p>
+                        Choose exactly which Kubernetes components this plan
+                        is allowed to change.
+                      </p>
+                    </div>
+                  </header>
+
+                  <div className="upgrade-scope-options upgrade-scope-options-v2">
+                    {(
+                      [
+                        {
+                          id: "CONTROL_PLANE",
+                          label: "Control plane only",
+                          description:
+                            "Upgrade the managed Kubernetes control plane only.",
+                          Icon: Cpu,
+                        },
+                        {
+                          id: "CLUSTER",
+                          label: "Full platform upgrade",
+                          description:
+                            "Control plane, required add-ons and managed node groups.",
+                          Icon: Layers3,
+                        },
+                        {
+                          id: "NODES",
+                          label: "Node groups",
+                          description:
+                            "Upgrade selected managed node groups to the control-plane version.",
+                          Icon: Layers3,
+                        },
+                        {
+                          id: "ADDONS",
+                          label: "Managed add-ons",
+                          description:
+                            "Upgrade selected provider-managed Kubernetes add-ons.",
+                          Icon: Puzzle,
+                        },
+                      ] as const
+                    ).map((item) => (
+                      <label
+                        key={item.id}
+                        className={scope === item.id ? "selected" : ""}
+                      >
+                        <input
+                          type="radio"
+                          name="upgradeScope"
+                          checked={scope === item.id}
+                          onChange={() => {
+                            setScope(item.id);
+                            setWindows([
+                              {
+                                start: calendarSchedule(initialDate),
+                                duration: 120,
+                              },
+                            ]);
+                          }}
+                        />
+                        <item.Icon size={18} aria-hidden="true" />
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.description}</small>
+                        </span>
+                      </label>
                     ))}
-                  </select>
-                </label>
-                <p>
-                  Upgrade path:{" "}
-                  {[
-                    data.currentVersion,
-                    ...Array.from(
-                      { length: Math.max(0, count) },
-                      (_, i) =>
-                        `1.${Number(data.currentVersion.split(".")[1]) + i + 1}`,
-                    ),
-                  ].join(" → ")}
-                </p>
-                <p>
-                  {scope === "CONTROL_PLANE"
-                    ? "Changes only the managed Kubernetes control plane. Node groups and add-ons stay unchanged; installed add-ons must already be compatible with every target version."
-                    : "Full platform upgrade: control plane, managed node groups and any add-on changes required for compatibility. Versions cannot be skipped."}{" "}
-                  Future steps are checked again before execution.
-                </p>
-              </>
-            ) : scope === "NODES" ? (
-              <>
-                <p>
-                  {data.nodeUpgradeNote} Same-version AMI patching is not
-                  included.
-                </p>
-                {data.nodeGroups.map((n) => (
-                  <label key={n.name} className="upgrade-node-selection">
-                    <input
-                      type="checkbox"
-                      checked={nodes.includes(n.name)}
-                      disabled={
-                        n.version === data.currentVersion ||
-                        n.amiType === "CUSTOM"
-                      }
-                      onChange={(e) =>
-                        setNodes(
-                          e.target.checked
-                            ? [...nodes, n.name]
-                            : nodes.filter((v) => v !== n.name),
-                        )
-                      }
+                  </div>
+                </section>
+
+                <section className="upgrade-planner-step-card">
+                  <header className="upgrade-planner-step-heading">
+                    <span className="upgrade-planner-step-number">2</span>
+                    <div>
+                      <h3>Target & components</h3>
+                      <p>
+                        Review the live version evidence and select the exact
+                        component change for this plan.
+                      </p>
+                    </div>
+                  </header>
+
+                  <div className="upgrade-scoped-version upgrade-scoped-version-v2">
+                    <PlatformIdentity
+                      identity={containerIdentity("EKS")}
+                      kind="platform"
                     />
-                    {n.name} · {n.version ?? "Unknown"} → {data.currentVersion}
-                    {n.version === data.currentVersion
-                      ? " · Already aligned"
-                      : n.amiType === "CUSTOM"
-                        ? " · Custom AMI requires a separate workflow"
-                        : ""}
-                  </label>
-                ))}
-                {!data.nodeGroups.length && (
-                  <p>No managed node groups discovered.</p>
-                )}
-              </>
-            ) : (
-              <>
-                {data.addons.map((a) => (
-                  <label key={a.name} className="upgrade-live-field">
                     <span>
-                      {a.name} · Installed {a.version}
+                      Control plane <strong>{data.currentVersion}</strong>
                     </span>
-                    <select
-                      value={addons[a.name] || ""}
-                      onChange={(e) =>
-                        setAddons((prev) => {
-                          const next = { ...prev };
-                          if (e.target.value) next[a.name] = e.target.value;
-                          else delete next[a.name];
-                          return next;
-                        })
-                      }
-                    >
-                      <option value="">Keep installed version</option>
-                      {a.versions
-                        .filter((v) => v.version !== a.version)
-                        .map((v) => (
-                          <option key={v.version} value={v.version}>
-                            {v.version}
-                            {v.recommended ? " · Provider recommended" : ""}
-                          </option>
+                    <span>
+                      Scope <strong>{scopeLabel}</strong>
+                    </span>
+                  </div>
+
+                  {["CLUSTER", "CONTROL_PLANE"].includes(scope) ? (
+                    <div className="upgrade-target-panel">
+                      <label className="upgrade-live-field">
+                        <span>Final Kubernetes target</span>
+                        <select
+                          value={finalTarget}
+                          onChange={(e) => {
+                            setTarget(e.target.value);
+                            setWindows([
+                              {
+                                start: calendarSchedule(initialDate),
+                                duration: 120,
+                              },
+                            ]);
+                          }}
+                        >
+                          {!data.targetVersions.length && (
+                            <option value="">No supported target</option>
+                          )}
+                          {data.targetVersions.map((version) => (
+                            <option key={version}>{version}</option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <div className="upgrade-path-summary">
+                        <Target size={17} aria-hidden="true" />
+                        <div>
+                          <span>Upgrade path</span>
+                          <strong>
+                            {[
+                              data.currentVersion,
+                              ...Array.from(
+                                { length: Math.max(0, count) },
+                                (_, i) =>
+                                  "1." +
+                                  (Number(data.currentVersion.split(".")[1]) +
+                                    i +
+                                    1),
+                              ),
+                            ].join(" → ")}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <p className="upgrade-planner-guidance">
+                        {scope === "CONTROL_PLANE"
+                          ? "Changes only the managed Kubernetes control plane. Node groups and add-ons stay unchanged; installed add-ons must already be compatible with every target version."
+                          : "Full platform upgrade includes the control plane, managed node groups and add-on changes required for compatibility. Kubernetes minor versions cannot be skipped."}{" "}
+                        Future steps are checked again before execution.
+                      </p>
+                    </div>
+                  ) : scope === "NODES" ? (
+                    <div className="upgrade-component-selection-panel">
+                      <p className="upgrade-planner-guidance">
+                        {data.nodeUpgradeNote} Same-version AMI patching is not
+                        included.
+                      </p>
+                      <div className="upgrade-component-selection-list">
+                        {data.nodeGroups.map((node) => (
+                          <label
+                            key={node.name}
+                            className="upgrade-node-selection upgrade-component-choice"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={nodes.includes(node.name)}
+                              disabled={
+                                node.version === data.currentVersion ||
+                                node.amiType === "CUSTOM"
+                              }
+                              onChange={(e) =>
+                                setNodes(
+                                  e.target.checked
+                                    ? [...nodes, node.name]
+                                    : nodes.filter((value) => value !== node.name),
+                                )
+                              }
+                            />
+                            <Layers3 size={17} aria-hidden="true" />
+                            <span>
+                              <strong>{node.name}</strong>
+                              <small>
+                                {node.version ?? "Unknown"} → {data.currentVersion}
+                                {node.version === data.currentVersion
+                                  ? " · Already aligned"
+                                  : node.amiType === "CUSTOM"
+                                    ? " · Custom AMI requires a separate workflow"
+                                    : ""}
+                              </small>
+                            </span>
+                          </label>
                         ))}
-                    </select>
+                      </div>
+                      {!data.nodeGroups.length && (
+                        <p>No managed node groups discovered.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="upgrade-component-selection-panel">
+                      <div className="upgrade-addon-selection-list">
+                        {data.addons.map((addon) => (
+                          <label
+                            key={addon.name}
+                            className="upgrade-live-field upgrade-addon-choice"
+                          >
+                            <span>
+                              <strong>{addon.name}</strong>
+                              <small>Installed {addon.version}</small>
+                            </span>
+                            <select
+                              value={addons[addon.name] || ""}
+                              onChange={(e) =>
+                                setAddons((previous) => {
+                                  const next = { ...previous };
+                                  if (e.target.value)
+                                    next[addon.name] = e.target.value;
+                                  else delete next[addon.name];
+                                  return next;
+                                })
+                              }
+                            >
+                              <option value="">Keep installed version</option>
+                              {addon.versions
+                                .filter(
+                                  (version) => version.version !== addon.version,
+                                )
+                                .map((version) => (
+                                  <option
+                                    key={version.version}
+                                    value={version.version}
+                                  >
+                                    {version.version}
+                                    {version.recommended
+                                      ? " · Provider recommended"
+                                      : ""}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="upgrade-planner-guidance">
+                        Only provider-compatible releases are listed. Saving
+                        validates that each selected target is newer and that
+                        required intermediate releases are available.
+                      </p>
+                    </div>
+                  )}
+                </section>
+
+                <section className="upgrade-planner-step-card">
+                  <header className="upgrade-planner-step-heading">
+                    <span className="upgrade-planner-step-number">3</span>
+                    <div>
+                      <h3>Maintenance window</h3>
+                      <p>
+                        Schedule each Kubernetes version step independently so
+                        health checks can complete before the next step.
+                      </p>
+                    </div>
+                  </header>
+
+                  <div className="upgrade-maintenance-note">
+                    <CalendarClock size={17} aria-hidden="true" />
+                    <span>
+                      Times shown in{" "}
+                      {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+                      Leave every date empty to save an unscheduled draft.
+                    </span>
+                  </div>
+
+                  <div className="upgrade-maintenance-windows">
+                    {dates.map((window, index) => (
+                      <div key={index} className="upgrade-window-fields">
+                        <label className="upgrade-live-field">
+                          <span>Step {index + 1} maintenance start</span>
+                          <input
+                            type="datetime-local"
+                            aria-label={"Step " + (index + 1) + " maintenance start"}
+                            value={window.start}
+                            onChange={(e) =>
+                              setWindows(
+                                dates.map((date, dateIndex) =>
+                                  dateIndex === index
+                                    ? { ...date, start: e.target.value }
+                                    : date,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="upgrade-live-field">
+                          <span>Duration (minutes)</span>
+                          <input
+                            type="number"
+                            min={30}
+                            max={1440}
+                            step={30}
+                            value={window.duration}
+                            onChange={(e) =>
+                              setWindows(
+                                dates.map((date, dateIndex) =>
+                                  dateIndex === index
+                                    ? {
+                                        ...date,
+                                        duration: Number(e.target.value),
+                                      }
+                                    : date,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="upgrade-planner-step-card">
+                  <header className="upgrade-planner-step-heading">
+                    <span className="upgrade-planner-step-number">4</span>
+                    <div>
+                      <h3>Change reason</h3>
+                      <p>
+                        Record the operational reason that reviewers should use
+                        when evaluating this change.
+                      </p>
+                    </div>
+                  </header>
+                  <label className="upgrade-live-field upgrade-change-reason">
+                    <span>Change reason</span>
+                    <textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      maxLength={2000}
+                      placeholder="Describe why this upgrade is required…"
+                    />
+                    <small>{reason.length} / 2000 characters</small>
                   </label>
-                ))}
-                <p>
-                  Only provider-compatible releases are listed. Saving validates
-                  that each selected target is newer and that intermediate minor
-                  releases are available.
-                </p>
-              </>
-            )}
-            <h3>2. Maintenance windows</h3>
-            <p>
-              Separate windows allow application checks between Kubernetes
-              version steps. Times shown in{" "}
-              {Intl.DateTimeFormat().resolvedOptions().timeZone}. Leave all
-              dates empty to save an unscheduled draft.
-            </p>
-            {dates.map((w, i) => (
-              <div key={i} className="upgrade-window-fields">
-                <label className="upgrade-live-field">
-                  <span>Step {i + 1} maintenance start</span>
-                  <input
-                    type="datetime-local"
-                    aria-label={`Step ${i + 1} maintenance start`}
-                    value={w.start}
-                    onChange={(e) =>
-                      setWindows(
-                        dates.map((d, j) =>
-                          j === i ? { ...d, start: e.target.value } : d,
-                        ),
-                      )
-                    }
-                  />
-                </label>
-                <label className="upgrade-live-field">
-                  <span>Duration (minutes)</span>
-                  <input
-                    type="number"
-                    min={30}
-                    max={1440}
-                    step={30}
-                    value={w.duration}
-                    onChange={(e) =>
-                      setWindows(
-                        dates.map((d, j) =>
-                          j === i
-                            ? { ...d, duration: Number(e.target.value) }
-                            : d,
-                        ),
-                      )
-                    }
-                  />
-                </label>
+                </section>
               </div>
-            ))}
-            <label className="upgrade-live-field">
-              <span>3. Change reason</span>
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                maxLength={2000}
-              />
-            </label>
+
+              <aside className="upgrade-planner-review-panel">
+                <section className="upgrade-planner-review-card">
+                  <header>
+                    <ShieldCheck size={18} aria-hidden="true" />
+                    <div>
+                      <h3>Plan Summary</h3>
+                      <p>Review before saving the governed draft.</p>
+                    </div>
+                  </header>
+
+                  <dl className="upgrade-planner-review-list">
+                    <div>
+                      <dt>Cluster</dt>
+                      <dd>{cluster.name}</dd>
+                    </div>
+                    <div>
+                      <dt>Environment</dt>
+                      <dd>{cluster.environment}</dd>
+                    </div>
+                    <div>
+                      <dt>Scope</dt>
+                      <dd>{scopeLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>Current version</dt>
+                      <dd>{data.currentVersion}</dd>
+                    </div>
+                    <div>
+                      <dt>Target / selection</dt>
+                      <dd>{planTarget}</dd>
+                    </div>
+                    <div>
+                      <dt>Maintenance</dt>
+                      <dd>{windowSummary}</dd>
+                    </div>
+                    <div>
+                      <dt>Approval</dt>
+                      <dd>Platform Architect</dd>
+                    </div>
+                  </dl>
+
+                  <div className="upgrade-planner-review-checks">
+                    <div>
+                      <CheckCircle2 size={15} aria-hidden="true" />
+                      <span>Live upgrade options loaded</span>
+                    </div>
+                    <div>
+                      <CheckCircle2 size={15} aria-hidden="true" />
+                      <span>Provider-supported path enforced</span>
+                    </div>
+                    <div className={missing ? "pending" : ""}>
+                      {missing ? (
+                        <span className="upgrade-review-dot" aria-hidden="true" />
+                      ) : (
+                        <CheckCircle2 size={15} aria-hidden="true" />
+                      )}
+                      <span>
+                        {missing || "Required planning inputs are complete"}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              </aside>
+            </div>
           </fieldset>
         )
       )}
+
       {(mutation.isError || submit.isError) && (
-        <div role="alert">
+        <div role="alert" className="upgrade-planner-alert">
           {mutation.error?.message || submit.error?.message}
         </div>
       )}
-      <footer className="upgrade-scoped-actions">
+
+      <footer className="upgrade-scoped-actions upgrade-scoped-actions-v2">
         <Button variant="secondary" onClick={onClose}>
           Close
         </Button>
@@ -536,14 +811,14 @@ export function ScopedUpgradePlanner({
           created.status === "DRAFT" && (
             <>
               <span>
-                {created.planSpec?.steps.some((s) => !s.window)
+                {created.planSpec?.steps.some((step) => !step.window)
                   ? "Add all maintenance windows from the plan details before submission."
                   : "Saving and approval do not start an upgrade."}
               </span>
               <Button
                 disabled={
                   submit.isPending ||
-                  created.planSpec?.steps.some((s) => !s.window)
+                  created.planSpec?.steps.some((step) => !step.window)
                 }
                 onClick={() => submit.mutate()}
               >
