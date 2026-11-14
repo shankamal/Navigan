@@ -4161,3 +4161,51 @@
     grid-column: auto;
   }
 }
+
+
+/* Upgrade Centre final layout guard: full-width operational workspace. */
+.upgrade-centre-dashboard.upgrade-centre-approved {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: 100%;
+  min-width: 0;
+  gap: 12px;
+  align-items: stretch;
+}
+.upgrade-centre-dashboard.upgrade-centre-approved > .upgrade-centre-main,
+.upgrade-centre-dashboard.upgrade-centre-approved > .upgrade-centre-insights {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+.upgrade-centre-dashboard.upgrade-centre-approved > .upgrade-centre-main {
+  display: flex;
+  flex-direction: column;
+}
+.upgrade-centre-dashboard.upgrade-centre-approved .upgrade-opportunity-heading {
+  order: 1;
+}
+.upgrade-centre-dashboard.upgrade-centre-approved .upgrade-centre-filters-approved {
+  order: 2;
+  width: 100%;
+  grid-template-columns:
+    minmax(220px, 1.5fr)
+    minmax(120px, .8fr)
+    minmax(130px, .9fr)
+    minmax(110px, .75fr)
+    minmax(110px, .75fr)
+    minmax(120px, .8fr);
+}
+.upgrade-centre-dashboard.upgrade-centre-approved .upgrade-opportunity-table-wrap {
+  order: 3;
+  width: 100%;
+  max-width: 100%;
+}
+.upgrade-centre-dashboard.upgrade-centre-approved .upgrade-centre-empty {
+  order: 4;
+}
+@container (min-width: 1081px) {
+  .upgrade-centre-dashboard.upgrade-centre-approved {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
