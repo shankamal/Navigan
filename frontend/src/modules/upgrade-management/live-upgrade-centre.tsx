@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
-  Clock3,
   Layers3,
   RefreshCw,
 } from "lucide-react";
@@ -472,12 +471,10 @@ export function LiveUpgradeCentre({
   const overdue = currentRows.filter(
     (row) => planStage(row.plan, now) === "Overdue",
   );
-  const upToDateCount = Math.max(data.fleet.length - candidateRows.length, 0);
   const latestEvidenceAt = candidateRows
     .map((row) => Date.parse(row.readiness.observedAt))
     .filter(Number.isFinite)
     .sort((left, right) => right - left)[0];
-  const recentActivity = currentRows.slice(0, 3);
 
 
   return (
@@ -917,95 +914,6 @@ export function LiveUpgradeCentre({
             )}
           </section>
 
-          <section className="upgrade-centre-insights" aria-label="Upgrade insights">
-            <article className="upgrade-insight-card">
-              <header>
-                <Layers3 size={17} aria-hidden="true" />
-                <h3>Fleet Readiness</h3>
-              </header>
-              <div className="upgrade-readiness-summary">
-                <div
-                  className="upgrade-readiness-ring"
-                  style={{
-                    "--upgrade-ready-angle":
-                      data.fleet.length
-                        ? `${Math.round((upToDateCount / data.fleet.length) * 360)}deg`
-                        : "0deg",
-                  } as CSSProperties}
-                >
-                  <span>
-                    <strong>
-                      {data.fleet.length
-                        ? Math.round((upToDateCount / data.fleet.length) * 100)
-                        : 0}
-                      %
-                    </strong>
-                    <small>Up to date</small>
-                  </span>
-                </div>
-                <dl>
-                  <div>
-                    <dt>{upToDateCount} of {data.fleet.length} clusters</dt>
-                    <dd>on current versions</dd>
-                  </div>
-                  <div>
-                    <dt>{candidateRows.length} upgrade {candidateRows.length === 1 ? "opportunity" : "opportunities"}</dt>
-                    <dd>{candidateRows.length ? "requires action" : "currently identified"}</dd>
-                  </div>
-                </dl>
-              </div>
-            </article>
-
-            <article className="upgrade-insight-card attention">
-              <header>
-                <AlertTriangle size={18} aria-hidden="true" />
-                <h3>Attention Required</h3>
-              </header>
-              <div className="upgrade-attention-summary">
-                <strong>{overdue.length}</strong>
-                <span>
-                  maintenance {overdue.length === 1 ? "request needs" : "requests need"} a new time.
-                </span>
-                {overdue.length > 0 && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => onReview(overdue[0].plan.planId, true)}
-                  >
-                    <CalendarClock size={15} aria-hidden="true" />
-                    Review & Reschedule
-                  </Button>
-                )}
-              </div>
-            </article>
-
-            <article className="upgrade-insight-card">
-              <header>
-                <Clock3 size={17} aria-hidden="true" />
-                <h3>Recent Upgrade Activity</h3>
-              </header>
-              {recentActivity.length ? (
-                <ul className="upgrade-activity-list">
-                  {recentActivity.map((row) => (
-                    <li key={row.plan.planId}>
-                      <CheckCircle2 size={15} aria-hidden="true" />
-                      <span>
-                        <strong>{row.clusterName}</strong>
-                        <small>
-                          {planStatus(row.plan, now)} ·{" "}
-                          {row.plan.currentVersion} → {row.plan.targetVersion}
-                        </small>
-                      </span>
-                      <time dateTime={row.plan.updatedAt}>
-                        {new Date(row.plan.updatedAt).toLocaleDateString()}
-                      </time>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="upgrade-no-activity">No upgrade activity recorded yet.</p>
-              )}
-            </article>
-          </section>
         </div>
       ) : (
         <section
