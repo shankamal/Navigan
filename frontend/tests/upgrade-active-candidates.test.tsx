@@ -166,7 +166,7 @@ describe("Upgrade Centre Active candidate inventory", () => {
     ).not.toBeInTheDocument();
 
     expect(
-      screen.getByText(/Showing candidate upgrades only/),
+      screen.getByRole("heading", { name: "Verified Upgrade Opportunities" }),
     ).toBeInTheDocument();
 
     expect(
