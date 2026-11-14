@@ -4209,3 +4209,371 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+
+/* Create Upgrade Plan v2 — governed workflow, aligned to Navigan theme. */
+.upgrade-scoped-planner-v2 {
+  display: grid;
+  gap: 12px;
+}
+.upgrade-planner-topbar {
+  display: grid;
+  gap: 8px;
+}
+.upgrade-planner-v2 .upgrade-planner-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.upgrade-planner-v2 .upgrade-planner-heading p {
+  margin: 4px 0 0;
+  color: var(--upgrade-muted);
+}
+.upgrade-planner-context-card {
+  border: 1px solid var(--upgrade-line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.upgrade-planner-context-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--upgrade-line);
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-label);
+}
+.upgrade-planner-context-meta strong {
+  color: var(--upgrade-ink);
+}
+.upgrade-planner-loading,
+.upgrade-planner-alert,
+.upgrade-planner-created-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 7px;
+  background: #fff;
+}
+.upgrade-planner-alert {
+  justify-content: space-between;
+}
+.upgrade-planner-created-status svg {
+  color: var(--navigan-action);
+}
+.upgrade-planner-v2-fieldset {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.upgrade-planner-v2-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr);
+  gap: 12px;
+  align-items: start;
+}
+.upgrade-planner-v2-main {
+  display: grid;
+  gap: 12px;
+}
+.upgrade-planner-step-card,
+.upgrade-planner-review-card {
+  border: 1px solid var(--upgrade-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.upgrade-planner-step-card {
+  padding: 14px;
+}
+.upgrade-planner-step-heading {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+.upgrade-planner-step-number {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--upgrade-ink);
+  font-weight: 700;
+}
+.upgrade-planner-step-heading h3 {
+  margin: 1px 0 0;
+  font-size: 14px;
+}
+.upgrade-planner-step-heading p {
+  margin: 3px 0 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-label);
+}
+.upgrade-scope-options-v2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.upgrade-scope-options-v2 label {
+  display: grid;
+  grid-template-columns: auto auto minmax(0,1fr);
+  align-items: start;
+  gap: 8px;
+  min-height: 76px;
+  padding: 11px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+.upgrade-scope-options-v2 label.selected {
+  border-color: var(--navigan-brand);
+  box-shadow: inset 3px 0 0 var(--navigan-brand);
+}
+.upgrade-scope-options-v2 label > svg {
+  color: var(--upgrade-muted);
+  margin-top: 1px;
+}
+.upgrade-scope-options-v2 label.selected > svg {
+  color: var(--navigan-action);
+}
+.upgrade-scope-options-v2 label > span {
+  min-width: 0;
+}
+.upgrade-scope-options-v2 strong,
+.upgrade-scope-options-v2 small {
+  display: block;
+}
+.upgrade-scope-options-v2 strong {
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-body);
+}
+.upgrade-scope-options-v2 small {
+  margin-top: 4px;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+  line-height: 1.4;
+}
+.upgrade-scoped-version-v2 {
+  padding: 9px 10px;
+  margin: 0 0 12px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  background: #f7f8f9;
+}
+.upgrade-target-panel,
+.upgrade-component-selection-panel,
+.upgrade-maintenance-windows {
+  display: grid;
+  gap: 10px;
+}
+.upgrade-path-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  background: #fff;
+}
+.upgrade-path-summary > svg {
+  color: var(--upgrade-muted);
+}
+.upgrade-path-summary span,
+.upgrade-path-summary strong {
+  display: block;
+}
+.upgrade-path-summary span {
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-path-summary strong {
+  margin-top: 2px;
+  color: var(--upgrade-ink);
+}
+.upgrade-planner-guidance {
+  margin: 0 !important;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--upgrade-line);
+  line-height: 1.5;
+}
+.upgrade-component-selection-list,
+.upgrade-addon-selection-list {
+  display: grid;
+  gap: 8px;
+}
+.upgrade-component-choice,
+.upgrade-addon-choice {
+  padding: 10px 11px !important;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  background: #fff;
+}
+.upgrade-component-choice {
+  display: grid;
+  grid-template-columns: auto auto minmax(0,1fr);
+  align-items: start;
+}
+.upgrade-component-choice > span,
+.upgrade-addon-choice > span {
+  min-width: 0;
+}
+.upgrade-component-choice strong,
+.upgrade-component-choice small,
+.upgrade-addon-choice strong,
+.upgrade-addon-choice small {
+  display: block;
+}
+.upgrade-component-choice small,
+.upgrade-addon-choice small {
+  margin-top: 3px;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-addon-choice {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(220px,.8fr);
+  gap: 12px;
+  align-items: center;
+}
+.upgrade-maintenance-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-label);
+}
+.upgrade-maintenance-note svg {
+  flex-shrink: 0;
+  color: var(--upgrade-muted);
+}
+.upgrade-planner-v2 .upgrade-window-fields {
+  max-width: none;
+  grid-template-columns: minmax(0, 1.5fr) minmax(130px,.6fr);
+}
+.upgrade-change-reason textarea {
+  min-height: 92px;
+}
+.upgrade-change-reason small {
+  display: block;
+  margin-top: 4px;
+  color: var(--upgrade-muted);
+  text-align: right;
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-planner-review-panel {
+  position: sticky;
+  top: 10px;
+}
+.upgrade-planner-review-card {
+  overflow: hidden;
+}
+.upgrade-planner-review-card > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--upgrade-line);
+}
+.upgrade-planner-review-card > header svg {
+  color: var(--upgrade-muted);
+}
+.upgrade-planner-review-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.upgrade-planner-review-card header p {
+  margin: 3px 0 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-planner-review-list {
+  margin: 0;
+}
+.upgrade-planner-review-list > div {
+  display: grid;
+  grid-template-columns: minmax(110px,.8fr) minmax(0,1fr);
+  gap: 10px;
+  padding: 9px 14px;
+}
+.upgrade-planner-review-list > div + div {
+  border-top: 1px solid var(--upgrade-line);
+}
+.upgrade-planner-review-list dt {
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-planner-review-list dd {
+  margin: 0;
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-label);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.upgrade-planner-review-checks {
+  display: grid;
+  gap: 0;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--upgrade-line);
+}
+.upgrade-planner-review-checks > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-planner-review-checks svg {
+  color: var(--navigan-action);
+  flex-shrink: 0;
+}
+.upgrade-planner-review-checks > div.pending {
+  color: #805200;
+}
+.upgrade-review-dot {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #d6a74d;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.upgrade-scoped-actions-v2 {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 7px;
+  background: #fff;
+}
+.upgrade-scoped-actions-v2 > span {
+  color: var(--upgrade-muted);
+}
+@container (max-width: 960px) {
+  .upgrade-planner-v2-layout {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-planner-review-panel {
+    position: static;
+  }
+}
+@container (max-width: 640px) {
+  .upgrade-scope-options-v2 {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-addon-choice,
+  .upgrade-planner-v2 .upgrade-window-fields {
+    grid-template-columns: 1fr;
+  }
+}
