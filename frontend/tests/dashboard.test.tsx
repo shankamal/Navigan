@@ -88,7 +88,7 @@ describe("Dashboard navigation and freshness", () => {
     render(<PlatformDashboard />);
 
     expect(
-      screen.getByRole("heading", { name: "Platform command center" }),
+      screen.getByRole("heading", { name: "Platform Command Centre" }),
     ).toBeInTheDocument();
     expect(mocks.environmentFilters).not.toHaveLength(0);
     expect(mocks.environmentFilters).toEqual(
