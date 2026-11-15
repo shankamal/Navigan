@@ -405,15 +405,19 @@ describe("Upgrade workspace", () => {
     });
     await waitFor(() => expect(create).toBeEnabled());
     fireEvent.click(create);
-    const scope = await screen.findByRole("radio", {
+    expect(
+      await screen.findByRole("radio", { name: "Full Upgrade" }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    const scope = screen.getByRole("radio", {
       name: "Control plane only",
     });
     expect(scope).toBeChecked();
     expect(
-      screen.getByRole("radio", { name: "Node groups" }),
+      screen.getByRole("radio", { name: "Node Groups" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", { name: "Managed add-ons" }),
+      screen.getByRole("radio", { name: "Managed Add-ons" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Save draft & review" }),
