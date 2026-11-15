@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  CircleArrowUp,
   Layers3,
   RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import type {
@@ -16,6 +19,7 @@ import type {
   EksUpgradeReadiness,
 } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
+import { useAuth } from "@/shared/auth/auth-provider";
 import type { UpgradeCluster } from "./upgrade-workspace";
 import { useUpgradePlans } from "./upgrade-plan-data";
 import { containerIdentity, PlatformIdentity } from "./platform-identity";
@@ -286,6 +290,8 @@ export function LiveUpgradeCentre({
   initialView?: CentreView;
 }) {
   const data = useUpgradePlans();
+  const cache = useQueryClient();
+  const { identity } = useAuth();
   const now = useScheduleClock();
   const [view, setView] = useState<CentreView>(initialView);
   const [lifecycle, setLifecycle] = useState<Lifecycle>("active");
@@ -377,6 +383,34 @@ export function LiveUpgradeCentre({
       },
     ];
   });
+
+  const candidatePrefetchKey = candidateRows
+    .map((row) => row.cluster.clusterId)
+    .join("|");
+
+  const warmUpgradeOptions = (clusterId: string) =>
+    cache.prefetchQuery({
+      queryKey: [
+        "eks-upgrade-options",
+        clusterId,
+        identity?.subject,
+        identity?.authorizationRevision,
+      ],
+      queryFn: () => clusters.upgradeOptions(clusterId),
+      staleTime: 60_000,
+    });
+
+  useEffect(() => {
+    if (!candidatePrefetchKey) return;
+    candidateRows.slice(0, 10).forEach((row) => {
+      void warmUpgradeOptions(row.cluster.clusterId);
+    });
+  }, [
+    cache,
+    candidatePrefetchKey,
+    identity?.subject,
+    identity?.authorizationRevision,
+  ]);
 
   const versions = [
     ...new Set(
@@ -480,28 +514,46 @@ export function LiveUpgradeCentre({
   return (
     <div className="upgrade-centre upgrade-context-workbench">
       <section className="upgrade-overview-strip" aria-label="Upgrade overview">
-        <div>
-          <span>Total clusters</span>
+        <div className="upgrade-kpi-card">
+          <span className="upgrade-kpi-label">
+            <Layers3 size={16} aria-hidden="true" />
+            Total clusters
+          </span>
           <strong>{data.fleet.length}</strong>
         </div>
-        <div>
-          <span>Candidate upgrades</span>
+        <div className="upgrade-kpi-card">
+          <span className="upgrade-kpi-label">
+            <CircleArrowUp size={16} aria-hidden="true" />
+            Candidate upgrades
+          </span>
           <strong>{candidateRows.length}</strong>
         </div>
-        <div>
-          <span>Awaiting approval</span>
+        <div className="upgrade-kpi-card">
+          <span className="upgrade-kpi-label">
+            <ShieldCheck size={16} aria-hidden="true" />
+            Awaiting approval
+          </span>
           <strong>{lifecycleCounts.approval}</strong>
         </div>
-        <div>
-          <span>Scheduled</span>
+        <div className="upgrade-kpi-card">
+          <span className="upgrade-kpi-label">
+            <CalendarClock size={16} aria-hidden="true" />
+            Scheduled
+          </span>
           <strong>{lifecycleCounts.scheduled}</strong>
         </div>
-        <div>
-          <span>In progress</span>
+        <div className="upgrade-kpi-card">
+          <span className="upgrade-kpi-label">
+            <Activity size={16} aria-hidden="true" />
+            In progress
+          </span>
           <strong>{lifecycleCounts.running}</strong>
         </div>
-        <div>
-          <span>Upgraded</span>
+        <div className="upgrade-kpi-card">
+          <span className="upgrade-kpi-label">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            Upgraded
+          </span>
           <strong>{lifecycleCounts.upgraded}</strong>
         </div>
       </section>
@@ -734,6 +786,12 @@ export function LiveUpgradeCentre({
                                 </Button>
                               ) : (
                                 <Button
+                                  onMouseEnter={() =>
+                                    void warmUpgradeOptions(row.cluster.clusterId)
+                                  }
+                                  onFocus={() =>
+                                    void warmUpgradeOptions(row.cluster.clusterId)
+                                  }
                                   onClick={() =>
                                     onPlan(liveCluster(row.cluster, row.readiness))
                                   }
