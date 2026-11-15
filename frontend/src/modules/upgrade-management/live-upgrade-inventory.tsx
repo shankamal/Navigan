@@ -162,6 +162,8 @@ function ContainerInventory({
       id: selected.clusterId,
       name: selected.clusterName,
       environment: selected.environmentName ?? "Environment",
+      customerId: selected.customerId,
+      customerName: selected.customerName,
       provider: "EKS",
       providerLabel: "Amazon EKS",
       currentVersion: evidence.controlPlane.version,
