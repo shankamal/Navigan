@@ -521,17 +521,19 @@ export function ScopedUpgradePlanner({
 
                   {isFullUpgrade ? (
                     <div className="upgrade-plan-included-scope">
-                      {[
-                        ["Control Plane", Cpu],
-                        ["Node Groups", Server],
-                        ["Managed Add-ons", Puzzle],
-                        ["Validation", ShieldCheck],
-                        ["IaC Reconciliation", GitBranch],
-                      ].map(([label, Icon]) => (
-                        <div key={String(label)}>
+                      {(
+                        [
+                          { label: "Control Plane", Icon: Cpu },
+                          { label: "Node Groups", Icon: Server },
+                          { label: "Managed Add-ons", Icon: Puzzle },
+                          { label: "Validation", Icon: ShieldCheck },
+                          { label: "IaC Reconciliation", Icon: GitBranch },
+                        ] as const
+                      ).map(({ label, Icon }) => (
+                        <div key={label}>
                           <CheckCircle2 size={16} aria-hidden="true" />
                           <Icon size={16} aria-hidden="true" />
-                          <span>{String(label)}</span>
+                          <span>{label}</span>
                         </div>
                       ))}
                     </div>
