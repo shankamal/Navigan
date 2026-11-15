@@ -477,7 +477,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
           aria-expanded={!collapsed}
           onClick={() => {
-            if (window.matchMedia("(max-width: 1024px)").matches) {
+            if (window.matchMedia?.("(max-width: 1024px)").matches) {
               setExpanded((current) => !current);
             } else {
               setCollapsed((current) => !current);
