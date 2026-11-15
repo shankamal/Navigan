@@ -305,6 +305,42 @@ describe("Application shell permissions", () => {
     expect(signOut).toHaveBeenCalledOnce();
   });
 
+  it("shows route-aware breadcrumbs for deep capability workflows", () => {
+    pathname = "/migrations/MIG-123/discovery";
+    render(<AppShell>Content</AppShell>);
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Migrations" }),
+    ).toHaveAttribute("href", "/migrations");
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Assessment MIG-123" }),
+    ).toHaveAttribute("href", "/migrations/MIG-123");
+    expect(within(breadcrumb).getByText("Source Discovery")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("shows explicit creation breadcrumbs instead of generic module labels", () => {
+    pathname = "/clusters/new";
+    render(<AppShell>Content</AppShell>);
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByRole("link", { name: "Clusters" })).toHaveAttribute(
+      "href",
+      "/clusters",
+    );
+    expect(within(breadcrumb).getByText("Create Cluster")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   it("selects only Environment Reviews on its dedicated route", () => {
     identity = architect;
     pathname = "/environments/reviews";
