@@ -384,6 +384,43 @@ export function LiveUpgradeCentre({
     ];
   });
 
+  const pendingReadinessRows = activeClusters
+    .flatMap((cluster, index) => {
+      const query = evidence[index];
+      if (!query || query.data || (!query.isPending && !query.isFetching)) return [];
+      const configured =
+        cluster.configuration?.kubernetesVersion ??
+        cluster.outputs?.kubernetesVersion;
+      return [
+        {
+          cluster,
+          clusterName: cluster.clusterName,
+          environment: cluster.environmentName ?? "Environment",
+          currentVersion:
+            typeof configured === "string" ? configured : "Checking",
+        },
+      ];
+    })
+    .filter((row) => {
+      if (version !== "all" || readinessFilter !== "all") return false;
+      return (
+        (customer === "all" || row.cluster.customerId === customer) &&
+        (environment === "all" || row.cluster.environmentId === environment) &&
+        (platform === "all" || row.cluster.platform === platform) &&
+        [
+          row.cluster.clusterId,
+          row.clusterName,
+          row.cluster.customerName,
+          row.environment,
+          row.cluster.platform,
+          clusterAccount(row.cluster),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      );
+    });
+
   const candidatePrefetchKey = candidateRows
     .map((row) => row.cluster.clusterId)
     .join("|");
@@ -526,7 +563,11 @@ export function LiveUpgradeCentre({
             <CircleArrowUp size={16} aria-hidden="true" />
             Candidate upgrades
           </span>
-          <strong>{candidateRows.length}</strong>
+          <strong>
+            {pendingReadinessRows.length && !candidateRows.length
+              ? "…"
+              : candidateRows.length}
+          </strong>
         </div>
         <div className="upgrade-kpi-card">
           <span className="upgrade-kpi-label">
@@ -725,6 +766,69 @@ export function LiveUpgradeCentre({
                       </tr>
                     </thead>
                     <tbody>
+                      {pendingReadinessRows.map((row) => (
+                        <tr
+                          key={"checking-" + row.cluster.clusterId}
+                          className="upgrade-readiness-pending-row"
+                        >
+                          <td>
+                            <div className="upgrade-cluster-identity">
+                              <Layers3 size={17} aria-hidden="true" />
+                              <span>
+                                <strong>{row.clusterName}</strong>
+                                <small>{row.cluster.clusterId}</small>
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            {row.cluster.customerName ?? row.cluster.customerId}
+                          </td>
+                          <td>
+                            <span className="upgrade-environment-chip">
+                              {row.environment}
+                            </span>
+                          </td>
+                          <td>
+                            <PlatformIdentity
+                              identity={containerIdentity(row.cluster.platform)}
+                              kind="platform"
+                            />
+                          </td>
+                          <td className="upgrade-version-cell">
+                            <strong>{row.currentVersion}</strong>
+                            <span>→</span>
+                            <span className="upgrade-pending-value">Checking…</span>
+                          </td>
+                          <td>
+                            <span className="upgrade-pending-value">
+                              Checking…
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="upgrade-plan-status"
+                              data-status="Checking Readiness"
+                            >
+                              <RefreshCw
+                                size={13}
+                                aria-hidden="true"
+                                className="upgrade-spin"
+                              />
+                              Checking readiness
+                            </span>
+                          </td>
+                          <td>
+                            <span className="upgrade-pending-value">
+                              Collecting live evidence
+                            </span>
+                          </td>
+                          <td>
+                            <Button variant="secondary" disabled>
+                              Checking…
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
                       {filteredCandidates.map((row) => {
                         const status = candidateStatus(row);
                         const current = row.readiness.controlPlane.version;
@@ -807,7 +911,7 @@ export function LiveUpgradeCentre({
                   </table>
                 </div>
 
-                {!filteredCandidates.length && (
+                {!filteredCandidates.length && !pendingReadinessRows.length && (
                   <div className="upgrade-centre-empty" role="status">
                     {evidence.some((query) => query.isFetching) ? (
                       <>
