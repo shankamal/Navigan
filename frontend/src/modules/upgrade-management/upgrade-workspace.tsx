@@ -27,6 +27,8 @@ export interface UpgradeCluster {
   id: string;
   name: string;
   environment: string;
+  customerId?: string;
+  customerName?: string;
   provider: "EKS" | "AKS" | "GKE" | "OPENSHIFT";
   providerLabel: string;
   currentVersion: string;
@@ -164,41 +166,42 @@ export function UpgradeWorkspace() {
         planning ? "upgrade-workspace is-planning" : "upgrade-workspace"
       }
     >
-      <header className="upgrade-page-heading">
-        <div className="upgrade-page-heading-copy">
-          <h1>
-            {planning || tab === "readiness"
-              ? "Upgrade Centre"
-              : tab === "utilities"
-                ? "System Utilities"
-                : tab === "patching"
-                  ? "Patching"
-                  : "Maintenance Calendar"}
-          </h1>
-          <p>
-            {planning || tab === "readiness"
-              ? "Plan, approve and execute governed Kubernetes upgrades with safety gates and IaC synchronization."
-              : tab === "utilities"
-                ? "Manage governed lifecycle upgrades for platform system utilities."
-                : tab === "patching"
-                  ? "Manage same-version node, AMI, security and runtime patching."
-                  : "Plan and review approved maintenance windows across upgrade activities."}
-          </p>
-        </div>
-        {!planning && tab === "readiness" && (
-          <div className="upgrade-heading-actions">
-            <Button variant="secondary" onClick={fleetData.refresh}>
-              <RefreshCw size={16} aria-hidden="true" />
-              Refresh
-            </Button>
-          </div>
-        )}
-      </header>
+      {!planning && (
+        <>
+          <header className="upgrade-page-heading">
+            <div className="upgrade-page-heading-copy">
+              <h1>
+                {tab === "readiness"
+                  ? "Upgrade Centre"
+                  : tab === "utilities"
+                    ? "System Utilities"
+                    : tab === "patching"
+                      ? "Patching"
+                      : "Maintenance Calendar"}
+              </h1>
+              <p>
+                {tab === "readiness"
+                  ? "Plan, approve and execute governed Kubernetes upgrades with safety gates and IaC synchronization."
+                  : tab === "utilities"
+                    ? "Manage governed lifecycle upgrades for platform system utilities."
+                    : tab === "patching"
+                      ? "Manage same-version node, AMI, security and runtime patching."
+                      : "Plan and review approved maintenance windows across upgrade activities."}
+              </p>
+            </div>
+            {tab === "readiness" && (
+              <div className="upgrade-heading-actions">
+                <Button variant="secondary" onClick={fleetData.refresh}>
+                  <RefreshCw size={16} aria-hidden="true" />
+                  Refresh
+                </Button>
+              </div>
+            )}
+          </header>
 
-      <UpgradeTabs
-        active={planning ? "readiness" : tab}
-        onChange={changeTab}
-      />
+          <UpgradeTabs active={tab} onChange={changeTab} />
+        </>
+      )}
 
       <div
         role="tabpanel"
