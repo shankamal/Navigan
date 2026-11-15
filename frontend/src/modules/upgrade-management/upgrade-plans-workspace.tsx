@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { UpgradePathDetails } from "./scoped-upgrade-planner";
-import { X, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleDot,
+  Clock3,
+  RefreshCw,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import { hasPermission } from "@/shared/auth/permissions";
 import { Button } from "@/shared/components/ui";
@@ -48,6 +56,305 @@ function executionStageLabel(operation?: {
   if (operation?.kind === "NODEGROUP") return "data plane";
   if (operation?.kind === "ADDON") return "compatibility components";
   return "approved component";
+}
+
+type ExecutionTrackerState =
+  | "complete"
+  | "active"
+  | "pending"
+  | "attention"
+  | "skipped";
+
+type ExecutionTrackerItem = {
+  id: string;
+  label: string;
+  state: ExecutionTrackerState;
+  detail?: string;
+};
+
+function completedOperationKinds(plan: NonNullable<ReturnType<typeof useUpgradePlans>["rows"][number]["plan"]>) {
+  const results = Array.isArray(plan.execution.results)
+    ? (plan.execution.results as Record<string, unknown>[])
+    : [];
+  return new Set(
+    results
+      .filter((result) => result.status === "SUCCEEDED")
+      .map((result) => String(result.kind ?? "")),
+  );
+}
+
+function executionTracker(plan: NonNullable<ReturnType<typeof useUpgradePlans>["rows"][number]["plan"]>): ExecutionTrackerItem[] {
+  const scope = plan.planSpec?.scope;
+  const execution = plan.execution as Record<string, unknown>;
+  const phase = String(execution.phase ?? "");
+  const completedKinds = completedOperationKinds(plan);
+  const gate = execution.gate;
+  const gatePending =
+    typeof gate === "object" &&
+    gate !== null &&
+    "status" in gate &&
+    (gate as Record<string, unknown>).status === "PENDING";
+  const gateHistory = Array.isArray(execution.gateHistory)
+    ? (execution.gateHistory as Record<string, unknown>[])
+    : [];
+  const gatePassed = (afterStage: string) =>
+    gateHistory.some(
+      (item) =>
+        item.afterStage === afterStage &&
+        item.status === "PASSED",
+    );
+
+  const isFailed =
+    plan.status === "FAILED" ||
+    plan.status === "REJECTED" ||
+    phase.includes("FAILED");
+  const isApproved =
+    ["APPROVED", "SCHEDULED", "EXECUTING", "SUCCEEDED"].includes(plan.status) ||
+    Boolean(plan.approvedAt);
+  const windowReached =
+    ["SCHEDULED", "EXECUTING", "SUCCEEDED"].includes(plan.status) ||
+    Boolean(plan.execution.startedAt);
+  const postValidationPassed =
+    typeof execution.postValidation === "object" &&
+    execution.postValidation !== null &&
+    (execution.postValidation as Record<string, unknown>).status === "PASSED";
+  const iac =
+    typeof execution.iacReconciliation === "object" &&
+    execution.iacReconciliation !== null
+      ? (execution.iacReconciliation as Record<string, unknown>)
+      : undefined;
+  const iacStatus = String(iac?.status ?? "");
+  const iacComplete =
+    phase === "IAC_SYNCHRONIZED" ||
+    iacStatus === "SYNCHRONIZED" ||
+    iacStatus === "APPLIED";
+  const fullyUpgraded =
+    plan.status === "SUCCEEDED" &&
+    (scope === "ADDONS" || iacComplete);
+
+  const operationActive = (kind: string) =>
+    plan.status === "EXECUTING" &&
+    phase.startsWith(kind + ":");
+  const operationState = (
+    kind: "CONTROL_PLANE" | "ADDON" | "NODEGROUP",
+    applicable: boolean,
+  ): ExecutionTrackerState => {
+    if (!applicable) return "skipped";
+    if (completedKinds.has(kind)) return "complete";
+    if (operationActive(kind)) return isFailed ? "attention" : "active";
+    if (isFailed) return "attention";
+    return "pending";
+  };
+
+  const controlApplicable = scope === "CLUSTER" || scope === "CONTROL_PLANE";
+  const addonApplicable = scope === "CLUSTER" || scope === "ADDONS";
+  const nodesApplicable = scope === "CLUSTER" || scope === "NODES";
+  const iacApplicable = scope !== "ADDONS";
+
+  const controlState = operationState("CONTROL_PLANE", controlApplicable);
+  const addonState = operationState("ADDON", addonApplicable);
+  const nodeState = operationState("NODEGROUP", nodesApplicable);
+
+  const controlGateState: ExecutionTrackerState =
+    scope !== "CLUSTER"
+      ? "skipped"
+      : gatePassed("CONTROL_PLANE")
+        ? "complete"
+        : gatePending && phase === "AWAITING_CONTROL_PLANE_HEALTH"
+          ? "active"
+          : isFailed && phase.includes("CONTROL_PLANE")
+            ? "attention"
+            : "pending";
+
+  const nodeGateState: ExecutionTrackerState =
+    scope !== "CLUSTER"
+      ? "skipped"
+      : gatePassed("DATA_PLANE")
+        ? "complete"
+        : gatePending && phase === "AWAITING_DATA_PLANE_HEALTH"
+          ? "active"
+          : isFailed && phase.includes("DATA_PLANE")
+            ? "attention"
+            : "pending";
+
+  const postValidationState: ExecutionTrackerState = postValidationPassed
+    ? "complete"
+    : plan.status === "SUCCEEDED" || phase === "POST_VALIDATION"
+      ? "active"
+      : isFailed
+        ? "attention"
+        : "pending";
+
+  const iacState: ExecutionTrackerState = !iacApplicable
+    ? "skipped"
+    : iacComplete
+      ? "complete"
+      : plan.status === "SUCCEEDED"
+        ? iacStatus === "FAILED" || iacStatus === "BLOCKED"
+          ? "attention"
+          : "active"
+        : "pending";
+
+  return [
+    {
+      id: "readiness",
+      label: "Readiness",
+      state: "complete",
+      detail: "Provider evidence captured",
+    },
+    {
+      id: "plan",
+      label: "Plan",
+      state: plan.status === "DRAFT" ? "active" : "complete",
+      detail: scope === "CLUSTER" ? "Full Upgrade" : "Targeted Upgrade",
+    },
+    {
+      id: "approval",
+      label: "Approval",
+      state:
+        plan.status === "REJECTED"
+          ? "attention"
+          : isApproved
+            ? "complete"
+            : plan.status === "SUBMITTED"
+              ? "active"
+              : "pending",
+      detail:
+        plan.status === "SUBMITTED"
+          ? "Awaiting Platform Architect"
+          : plan.approvedAt
+            ? "Approved"
+            : undefined,
+    },
+    {
+      id: "window",
+      label: "Maintenance Window",
+      state: windowReached
+        ? "complete"
+        : isApproved
+          ? "active"
+          : "pending",
+      detail: plan.scheduledFor ? timeLabel(plan.scheduledFor) : "Not scheduled",
+    },
+    {
+      id: "control",
+      label: "Control Plane",
+      state: controlState,
+    },
+    {
+      id: "control-gate",
+      label: "Health Gate",
+      state: controlGateState,
+      detail:
+        phase === "AWAITING_CONTROL_PLANE_HEALTH"
+          ? "Operator validation required"
+          : undefined,
+    },
+    {
+      id: "addons",
+      label: "Add-ons",
+      state: addonState,
+    },
+    {
+      id: "nodes",
+      label: "Node Groups",
+      state: nodeState,
+    },
+    {
+      id: "node-gate",
+      label: "Health Gate",
+      state: nodeGateState,
+      detail:
+        phase === "AWAITING_DATA_PLANE_HEALTH"
+          ? "Operator validation required"
+          : undefined,
+    },
+    {
+      id: "validation",
+      label: "Post Validation",
+      state: postValidationState,
+    },
+    {
+      id: "iac",
+      label: "IaC Sync",
+      state: iacState,
+      detail:
+        iacState === "active"
+          ? iacStatus || "Reconciliation required"
+          : iacState === "attention"
+            ? iacStatus || "Reconciliation needs attention"
+            : undefined,
+    },
+    {
+      id: "upgraded",
+      label: "Upgraded",
+      state: fullyUpgraded
+        ? "complete"
+        : isFailed
+          ? "attention"
+          : "pending",
+    },
+  ];
+}
+
+function ExecutionTracker({ plan }: { plan: NonNullable<ReturnType<typeof useUpgradePlans>["rows"][number]["plan"]> }) {
+  const items = executionTracker(plan);
+  const active = items.find((item) => item.state === "active");
+  return (
+    <section className="upgrade-execution-tracker" aria-label="Upgrade execution progress">
+      <header>
+        <div>
+          <h3>Execution Progress</h3>
+          <p>
+            Governed lifecycle progress from live plan and execution evidence.
+          </p>
+        </div>
+        {active && (
+          <span className="upgrade-execution-current">
+            <CircleDot size={14} aria-hidden="true" />
+            {active.label}
+          </span>
+        )}
+      </header>
+      <ol className="upgrade-execution-stage-grid">
+        {items.map((item, index) => (
+          <li key={item.id} data-state={item.state}>
+            <div className="upgrade-execution-stage-marker" aria-hidden="true">
+              {item.state === "complete" ? (
+                <CheckCircle2 size={17} />
+              ) : item.state === "attention" ? (
+                <AlertTriangle size={17} />
+              ) : item.state === "active" ? (
+                <RefreshCw size={16} className="spin" />
+              ) : item.state === "skipped" ? (
+                <span>—</span>
+              ) : (
+                <Clock3 size={16} />
+              )}
+            </div>
+            <div>
+              <span className="upgrade-execution-stage-index">
+                {index + 1}
+              </span>
+              <strong>{item.label}</strong>
+              <small>
+                {item.detail ??
+                  (item.state === "complete"
+                    ? "Completed"
+                    : item.state === "active"
+                      ? "In progress"
+                      : item.state === "attention"
+                        ? "Needs attention"
+                        : item.state === "skipped"
+                          ? "Not applicable"
+                          : "Pending")}
+              </small>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }
 
 export function UpgradePlansWorkspace({
@@ -526,6 +833,9 @@ export function UpgradePlansWorkspace({
               kind="platform"
             />
             <ClusterContext cluster={selected.cluster} />
+            {plan.kind !== "UTILITY" && plan.planSpec && (
+              <ExecutionTracker plan={plan} />
+            )}
             <dl className="upgrade-scope-list">
               <div>
                 <dt>Plan</dt>
