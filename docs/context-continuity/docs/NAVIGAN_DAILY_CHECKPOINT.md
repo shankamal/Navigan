@@ -1,3 +1,36 @@
+## 15 November 2026 — global shell and platform-wide capability header standard accepted as working baseline
+
+Authoritative recovery file: `NAVIGAN_SESSION_HANDOFF_2026-11-15_LATEST.md`.
+
+Frontend work moved to branch `feature/upgrade-patching-ui-approved`. Latest product-code head before continuity-only documentation updates is `19ea59c57208b6ee0f81d65c6e635bb5abc9deba`.
+
+Implemented since the 12 November checkpoint:
+- refined Create Upgrade Plan UX with **Full Upgrade** vs **Targeted Upgrade**, compact context strip, neutral white selection cards and the 12-stage governed workflow preview;
+- added View Plan **Execution Progress** based on actual backend execution/IaC evidence, without fabricated percentages or ETA;
+- replaced the old workspace header with a single-line graphite **Navigan** top bar;
+- added persisted Customer/Environment global workspace scope with customer→environment cascading;
+- kept search/notification controls visual only for now; effective-role switching is not yet implemented;
+- replaced repeated graphite capability title bands with the user-approved **Option 3 cloud-white sticky capability header**;
+- added a sticky route-aware breadcrumb row between the global header and capability header;
+- standardized header behavior across Dashboard, Customers, Environments, Clusters, Migration, Application Modernization/capability landings and Upgrades & Patching;
+- Dashboard title is now **Platform Command Centre**.
+
+Navigation contract is now: Sidebar = capabilities, Breadcrumb = location, Page title = current task, Tabs/Stepper = workflow progression.
+
+Validation:
+- earlier Upgrade focused set: 38/38;
+- global top bar + Upgrade combined set: 52/52;
+- final platform-wide header/breadcrumb regression: **6 files / 60 tests passed**;
+- TypeScript `tsc --noEmit` completed without reported errors.
+
+Release evidence:
+- candidate `:72` prepared for the new global top bar, digest `sha256:d33cea1543871438969e90b725e09cabd27f82b0c389c14c48d54436875dea17`; user later showed the new bar in PROD and said “ok looks good”, but retained execute output is absent.
+- candidate `:73` prepared from `19ea59c`, digest `sha256:7be364b70e460a3d5281fc2d091bbca65afc939ed2512d1a2e6102277e1f4bdb`; prepare said frontend service unchanged. Retained execute/stabilization output is absent. User visually said “much better, but still we need few changes, will continue in the morning.”
+
+Next session should refine spacing/sticky offsets/breadcrumb wording/action alignment across representative capabilities without undoing the accepted shell or Upgrade governance behavior. Do not merge to main or sync DEV unless explicitly asked.
+
+---
+
 ## 12 November 2026 — approved/scheduled execution readiness accepted in authenticated PROD
 
 Execution-readiness increment is deployed and authenticated in PROD. Backend guarded release completed successfully from the current feature branch and the release helper explicitly verified: `PROD governed EKS upgrade-plan API deployed and verified. No EKS upgrade was started.` Frontend is now ECS task definition `:58`, rollback `:57`, running immutable image `905418045935.dkr.ecr.ap-south-1.amazonaws.com/navigan/frontend@sha256:060075593be292d33069e6d93f0b3675101fa0a9b16db93e9d3187c988932c9f`; public health/login checks passed.
