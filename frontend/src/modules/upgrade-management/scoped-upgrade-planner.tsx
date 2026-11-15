@@ -401,12 +401,21 @@ export function ScopedUpgradePlanner({
       )}
 
       {options.isError && (
-        <div role="alert" className="upgrade-planner-alert">
-          <span>{options.error.message}</span>
-          <Button variant="secondary" onClick={() => void options.refetch()}>
-            Retry discovery
-          </Button>
-        </div>
+        <>
+          <div role="alert" className="upgrade-planner-alert">
+            <span>{options.error.message}</span>
+            <Button variant="secondary" onClick={() => void options.refetch()}>
+              Retry discovery
+            </Button>
+          </div>
+          <footer className="upgrade-plan-console-actions">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <span>Load live component options before saving.</span>
+            <Button disabled>Save draft &amp; review</Button>
+          </footer>
+        </>
       )}
 
       {created ? (
