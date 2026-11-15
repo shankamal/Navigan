@@ -11,7 +11,6 @@ import {
   Puzzle,
   Server,
   ShieldCheck,
-  UserRound,
 } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
 import type {
@@ -343,14 +342,15 @@ export function ScopedUpgradePlanner({
   return (
     <section className="upgrade-scoped-planner upgrade-plan-console">
       <header className="upgrade-plan-console-header">
-        <button type="button" className="upgrade-back-link" onClick={onClose}>
+        <button
+          type="button"
+          className="upgrade-back-link upgrade-plan-back"
+          onClick={onClose}
+        >
           <ArrowLeft size={16} aria-hidden="true" />
-          Back to Upgrade Centre
+          <span>Back to Upgrade Centre</span>
         </button>
         <div className="upgrade-plan-console-title">
-          <div className="upgrade-plan-title-icon" aria-hidden="true">
-            <Layers3 size={22} />
-          </div>
           <div>
             <h2>Create Upgrade Plan</h2>
             <p>
@@ -487,16 +487,16 @@ export function ScopedUpgradePlanner({
                       <input
                         type="radio"
                         name="planType"
-                        aria-label="Cluster Upgrade"
+                        aria-label="Targeted Upgrade"
                         checked={!isFullUpgrade}
                         onChange={() => selectPlanType("SCOPED")}
                       />
                       <Server size={22} aria-hidden="true" />
                       <span>
-                        <strong>Cluster Upgrade</strong>
+                        <strong>Targeted Upgrade</strong>
                         <small>
-                          Upgrade a selected Kubernetes component scope with
-                          governed safety gates.
+                          Upgrade a selected control plane, node group or
+                          managed add-on scope with governed safety gates.
                         </small>
                       </span>
                     </label>
@@ -884,13 +884,6 @@ export function ScopedUpgradePlanner({
                       />
                     </label>
 
-                    <div className="upgrade-plan-approval">
-                      <UserRound size={17} aria-hidden="true" />
-                      <span>
-                        Plan approval
-                        <strong>Platform Architect</strong>
-                      </span>
-                    </div>
                   </div>
                 </section>
               </div>
@@ -904,7 +897,7 @@ export function ScopedUpgradePlanner({
                   <dl>
                     <div>
                       <dt>Plan Type</dt>
-                      <dd>{isFullUpgrade ? "Full Upgrade" : "Cluster Upgrade"}</dd>
+                      <dd>{isFullUpgrade ? "Full Upgrade" : "Targeted Upgrade"}</dd>
                     </div>
                     <div>
                       <dt>Cluster</dt>
@@ -946,22 +939,25 @@ export function ScopedUpgradePlanner({
                     <GitBranch size={18} aria-hidden="true" />
                     <h3>Workflow Preview</h3>
                   </header>
-                  <ol className="upgrade-plan-workflow-list">
-                    <li>Plan creation</li>
-                    <li>Platform Architect approval</li>
-                    <li>Maintenance window</li>
-                    {scope === "CLUSTER" && (
-                      <>
-                        <li>Control plane</li>
-                        <li>Managed add-ons</li>
-                        <li>Managed node groups</li>
-                      </>
-                    )}
-                    {scope === "CONTROL_PLANE" && <li>Control plane</li>}
-                    {scope === "NODES" && <li>Managed node groups</li>}
-                    {scope === "ADDONS" && <li>Managed add-ons</li>}
-                    <li>Health gates &amp; post validation</li>
-                    <li>IaC sync &amp; reconciliation</li>
+                  <ol className="upgrade-plan-workflow-list upgrade-plan-workflow-12">
+                    <li>Readiness</li>
+                    <li>Plan</li>
+                    <li>Approval</li>
+                    <li>Maintenance Window</li>
+                    <li data-applicable={scope === "CLUSTER" || scope === "CONTROL_PLANE"}>
+                      Control Plane
+                    </li>
+                    <li data-applicable={scope === "CLUSTER"}>Health Gate</li>
+                    <li data-applicable={scope === "CLUSTER" || scope === "ADDONS"}>
+                      Add-ons
+                    </li>
+                    <li data-applicable={scope === "CLUSTER" || scope === "NODES"}>
+                      Node Groups
+                    </li>
+                    <li data-applicable={scope === "CLUSTER"}>Health Gate</li>
+                    <li>Post Validation</li>
+                    <li data-applicable={scope !== "ADDONS"}>IaC Sync</li>
+                    <li>Upgraded</li>
                   </ol>
                 </section>
 
