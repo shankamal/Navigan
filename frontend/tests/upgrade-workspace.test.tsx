@@ -278,7 +278,7 @@ describe("Upgrade opportunity filtering", () => {
 });
 
 describe("Upgrade workspace", () => {
-  it("shows four distinct tabs and component metrics without cluster accordions", async () => {
+  it("shows four distinct tabs and row-level planning without cluster accordions", async () => {
     mount();
     const workspaceTabs = screen.getByRole("tablist", {
       name: "Upgrade workspace",
@@ -296,8 +296,8 @@ describe("Upgrade workspace", () => {
       screen.getByRole("tab", { name: "Active" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("button", { name: "Create Upgrade Plan" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Create Upgrade Plan" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "Container Upgrades" }),
     ).not.toBeInTheDocument();
@@ -307,32 +307,8 @@ describe("Upgrade workspace", () => {
     expect(
       screen.queryByRole("button", { name: /Expand .*cluster/ }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Explore opportunities" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Hide opportunities" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("table", {
-        name: "Registered active clusters and upgrade readiness",
-      }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create Upgrade Plan" }),
-    );
-    expect(
-      await screen.findByRole("table", {
-        name: "Registered active clusters and upgrade readiness",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Create plan" }),
-    ).not.toBeInTheDocument();
-    const create = await screen.findByRole("button", {
-      name: "Create upgrade plan",
-    });
-    await waitFor(() => expect(create).toBeEnabled());
+    const create = await screen.findByRole("button", { name: "Create Plan" });
+    expect(create).toBeEnabled();
   });
 
   it("shows only verified candidate upgrades in Active", async () => {
@@ -344,7 +320,9 @@ describe("Upgrade workspace", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText(/Showing candidate upgrades only/),
+      await screen.findByRole("heading", {
+        name: "Verified Upgrade Opportunities",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("tab", { name: "Active" }),
@@ -354,22 +332,19 @@ describe("Upgrade workspace", () => {
     ).toBeInTheDocument();
   });
 
-  it("retains the permission guard on the container planning entry point", async () => {
+  it("retains the permission guard on the row-level planning entry point", async () => {
     const previous = authIdentity.privileges;
     authIdentity.privileges = [];
     try {
       mount();
-      fireEvent.click(
-        screen.getByRole("button", { name: "Create Upgrade Plan" }),
-      );
       expect(
         await screen.findByText(
           "Your current account does not have permission to create upgrade plans.",
         ),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Create upgrade plan" }),
-      ).toBeDisabled();
+        screen.queryByRole("button", { name: "Create Plan" }),
+      ).not.toBeInTheDocument();
     } finally {
       authIdentity.privileges = previous;
     }
@@ -394,16 +369,7 @@ describe("Upgrade workspace", () => {
 
   it("saves a scoped draft for operation review before submission", async () => {
     mount();
-    expect(
-      screen.queryByRole("button", { name: "Create plan" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create Upgrade Plan" }),
-    );
-    const create = await screen.findByRole("button", {
-      name: "Create upgrade plan",
-    });
-    await waitFor(() => expect(create).toBeEnabled());
+    const create = await screen.findByRole("button", { name: "Create Plan" });
     fireEvent.click(create);
     expect(
       await screen.findByRole("radio", { name: "Full Upgrade" }),
@@ -732,6 +698,7 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
+      fireEvent.click(screen.getByRole("tab", { name: "In Progress" }));
       fireEvent.click(
         await screen.findByRole("button", { name: "View Plan" }),
       );
