@@ -327,9 +327,14 @@ describe("Upgrade workspace", () => {
     expect(
       screen.getByRole("tab", { name: "Active" }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(
-      await screen.findByText("New-dbs-demo-cluster"),
-    ).toBeInTheDocument();
+    const candidates = screen.getByRole("table", {
+      name: "Candidate clusters requiring upgrade",
+    });
+    await waitFor(() =>
+      expect(
+        within(candidates).getByText("New-dbs-demo-cluster"),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("retains the permission guard on the row-level planning entry point", async () => {
