@@ -183,16 +183,18 @@ describe("Application shell permissions", () => {
     pathname = "/environments/new";
     render(<AppShell>Content</AppShell>);
 
-    expect(screen.getByRole("link", { name: "Environments" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Customers" })).not.toHaveAttribute(
-      "aria-current",
-    );
-    expect(screen.getByRole("link", { name: "Clusters" })).not.toHaveAttribute(
-      "aria-current",
-    );
+    const navigation = screen.getByRole("navigation", {
+      name: "Platform modules",
+    });
+    expect(
+      within(navigation).getByRole("link", { name: "Environments" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(navigation).getByRole("link", { name: "Customers" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(navigation).getByRole("link", { name: "Clusters" }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("shows review tools and hides create tools for a Platform Architect", () => {
