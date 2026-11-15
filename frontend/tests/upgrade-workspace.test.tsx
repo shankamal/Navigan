@@ -379,7 +379,7 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByRole("radio", { name: "Full Upgrade" }),
     ).toBeChecked();
-    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Targeted Upgrade" }));
     const scope = screen.getByRole("radio", {
       name: "Control plane only",
     });
@@ -580,6 +580,16 @@ describe("Upgrade workspace", () => {
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
+      const progress = within(drawer).getByRole("region", {
+        name: "Upgrade execution progress",
+      });
+      expect(
+        within(progress).getByRole("heading", { name: "Execution Progress" }),
+      ).toBeInTheDocument();
+      expect(within(progress).getByText("Control Plane")).toBeInTheDocument();
+      expect(
+        within(progress).getByText("Operator validation required"),
+      ).toBeInTheDocument();
       expect(
         within(drawer).getByText("Stage health gate required"),
       ).toBeInTheDocument();
