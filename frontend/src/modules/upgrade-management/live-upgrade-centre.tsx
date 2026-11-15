@@ -140,7 +140,7 @@ function lifecycleFor(plan: EksUpgradePlan, now: number): Lifecycle {
   )
     return "attention";
   if (plan.status === "SUBMITTED") return "approval";
-  if (plan.status === "EXECUTING") return "running";
+  if (plan.status === "EXECUTING" || plan.status === "SUCCEEDED") return "running";
   if (["APPROVED", "SCHEDULED"].includes(plan.status)) return "scheduled";
   return "active";
 }
