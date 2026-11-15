@@ -837,6 +837,20 @@ export function LiveUpgradeCentre({
                         const target =
                           row.readiness.recommendedTarget?.version ??
                           "Component update";
+                        const state = data.stateForCluster(
+                          row.cluster.clusterId,
+                        );
+                        const blocked = planningBlockReason(
+                          data.identity,
+                          row.readiness,
+                          {
+                            readinessPending: false,
+                            readinessError: false,
+                            planPending: state.pending,
+                            planError: state.error,
+                            activePlan: row.plan,
+                          },
+                        );
                         return (
                           <tr key={row.cluster.clusterId}>
                             <td>
@@ -891,19 +905,35 @@ export function LiveUpgradeCentre({
                                   View Plan
                                 </Button>
                               ) : (
-                                <Button
-                                  onMouseEnter={() =>
-                                    void warmUpgradeOptions(row.cluster.clusterId)
-                                  }
-                                  onFocus={() =>
-                                    void warmUpgradeOptions(row.cluster.clusterId)
-                                  }
-                                  onClick={() =>
-                                    onPlan(liveCluster(row.cluster, row.readiness))
-                                  }
-                                >
-                                  Create Plan
-                                </Button>
+                                <div className="upgrade-plan-row-action">
+                                  <Button
+                                    disabled={Boolean(blocked)}
+                                    onMouseEnter={() => {
+                                      if (!blocked)
+                                        void warmUpgradeOptions(
+                                          row.cluster.clusterId,
+                                        );
+                                    }}
+                                    onFocus={() => {
+                                      if (!blocked)
+                                        void warmUpgradeOptions(
+                                          row.cluster.clusterId,
+                                        );
+                                    }}
+                                    onClick={() => {
+                                      if (!blocked)
+                                        onPlan(
+                                          liveCluster(
+                                            row.cluster,
+                                            row.readiness,
+                                          ),
+                                        );
+                                    }}
+                                  >
+                                    Create Plan
+                                  </Button>
+                                  {blocked && <small>{blocked}</small>}
+                                </div>
                               )}
                             </td>
                           </tr>
