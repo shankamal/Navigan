@@ -97,6 +97,8 @@ function liveCluster(
     id: cluster.clusterId,
     name: cluster.clusterName,
     environment: cluster.environmentName ?? "Environment",
+    customerId: cluster.customerId,
+    customerName: cluster.customerName,
     provider: "EKS",
     providerLabel: "Amazon EKS",
     currentVersion: current,
