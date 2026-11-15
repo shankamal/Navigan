@@ -1,3 +1,37 @@
+## Current resume instruction — 15 November 2026 UI standardization checkpoint
+
+Read `NAVIGAN_SESSION_HANDOFF_2026-11-15_LATEST.md` first, then the newest entries in `NAVIGAN_DAILY_CHECKPOINT.md` and `NAVIGAN_MASTER_CONTEXT.md`. This supersedes older frontend/UI resume instructions.
+
+Repository: `shankamal/Navigan`
+Local checkout: `/mnt/b/Langchain_Ai/Navigan-migration-test`
+Active branch: `feature/upgrade-patching-ui-approved`
+Latest product-code head before continuity-only documentation updates: `19ea59c57208b6ee0f81d65c6e635bb5abc9deba`.
+
+Current accepted frontend baseline:
+- single-line graphite Navigan global top bar with green circular first N;
+- Customer and Environment selectors in the same row;
+- persisted workspace scope;
+- route-aware sticky breadcrumb;
+- cloud-white sticky capability header below the breadcrumb;
+- role-specific sidebar;
+- shared header standard across major capabilities;
+- Dashboard title `Platform Command Centre`;
+- Upgrade & Patching Create Plan uses Full Upgrade vs Targeted Upgrade;
+- View Plan has real-evidence Execution Progress;
+- final regression: 6 files / 60 tests passed.
+
+Latest frontend candidate prepared: task definition `:73`, digest `sha256:7be364b70e460a3d5281fc2d091bbca65afc939ed2512d1a2e6102277e1f4bdb`, source `19ea59c`. Prepare said frontend service unchanged. The retained chat does not include the execute/stabilization output, so do not assert `:73` is the confirmed running revision unless fresh ECS evidence is collected. User visually reviewed the new direction and said it is “much better” but wants a few refinements in the morning.
+
+Resume by inspecting the current UI and fixing only the reported/visible refinements: sticky offsets/overlap, breadcrumb wording/depth, title/description/action alignment, density, or capability-specific CSS conflicts. Do not redesign the shell from scratch. Do not merge to main or sync DEV unless explicitly asked. Preserve all unrelated local files and all existing Upgrade governance behavior.
+
+Important limits:
+- global Customer/Environment scope exists, but not every page query/filter consumes it yet;
+- search and notification controls are shell UI only;
+- effective role switching is not yet implemented;
+- exact live ECS revision after candidate `:73` is unverified from retained terminal output.
+
+---
+
 ## Current resume instruction — 11 November 2026 end of session
 
 Read the final consolidated end-of-session checkpoint in NAVIGAN_DAILY_CHECKPOINT.md and NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md before older instructions. It covers all upgrade work since the previous checkpoint. User accepted the current result for now and deferred remaining findings to tomorrow: wait for those findings, then reproduce and fix them. Authorized Platform Architect self-approval supersedes the earlier independent-review restriction; effective approval privilege and scope still required. Names were populated by the user (Ashok Rajendran, Suhas); do not repeat the profile updates. Backend 1894355b execution is confirmed. Frontend :56 digest 17ea535563d60ab334b3afac21a693575b04e002b285a6e221a6c58b557e1007 was prepared and execute command supplied; final execution output was not pasted. Do not automatically redeploy. No upgrade was started; utility execution and agentic scheduling remain disabled. Legacy plans require explicit scope/windows before execution. Preserve all unrelated local work and private continuity records.
