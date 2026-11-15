@@ -9,7 +9,6 @@ import {
   CircleDot,
   Clock3,
   RefreshCw,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { clusters } from "@/modules/cluster-management/service";
@@ -58,6 +57,8 @@ function executionStageLabel(operation?: {
   return "approved component";
 }
 
+type UpgradePlanRecord = ReturnType<typeof useUpgradePlans>["rows"][number]["plan"];
+
 type ExecutionTrackerState =
   | "complete"
   | "active"
@@ -72,7 +73,7 @@ type ExecutionTrackerItem = {
   detail?: string;
 };
 
-function completedOperationKinds(plan: NonNullable<ReturnType<typeof useUpgradePlans>["rows"][number]["plan"]>) {
+function completedOperationKinds(plan: UpgradePlanRecord) {
   const results = Array.isArray(plan.execution.results)
     ? (plan.execution.results as Record<string, unknown>[])
     : [];
@@ -83,7 +84,7 @@ function completedOperationKinds(plan: NonNullable<ReturnType<typeof useUpgradeP
   );
 }
 
-function executionTracker(plan: NonNullable<ReturnType<typeof useUpgradePlans>["rows"][number]["plan"]>): ExecutionTrackerItem[] {
+function executionTracker(plan: UpgradePlanRecord): ExecutionTrackerItem[] {
   const scope = plan.planSpec?.scope;
   const execution = plan.execution as Record<string, unknown>;
   const phase = String(execution.phase ?? "");
@@ -297,7 +298,7 @@ function executionTracker(plan: NonNullable<ReturnType<typeof useUpgradePlans>["
   ];
 }
 
-function ExecutionTracker({ plan }: { plan: NonNullable<ReturnType<typeof useUpgradePlans>["rows"][number]["plan"]> }) {
+function ExecutionTracker({ plan }: { plan: UpgradePlanRecord }) {
   const items = executionTracker(plan);
   const active = items.find((item) => item.state === "active");
   return (
