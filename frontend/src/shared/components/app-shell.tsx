@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCustomers } from "@/modules/customer-management/hooks/queries";
+import { useEnvironments } from "@/modules/environment-management/hooks/queries";
 import { IntentLink as Link } from "@/shared/components/intent-link";
 import {
   WorkspacePageProvider,
@@ -18,6 +20,10 @@ import {
 import { usePathname } from "next/navigation";
 import { NaviganMark } from "./navigan-mark";
 import {
+  WorkspaceScopeProvider,
+  useWorkspaceScope,
+} from "./workspace-scope-context";
+import {
   ArrowRightLeft,
   Building2,
   ChevronRight,
@@ -25,6 +31,9 @@ import {
   CircleArrowUp,
   ClipboardCheck,
   Gauge,
+  Bell,
+  Building2 as CustomerIcon,
+  Search,
   Info,
   Layers3,
   LogOut,
@@ -315,9 +324,11 @@ function AccountMenu() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <WorkspacePageProvider>
-      <AppShellContent>{children}</AppShellContent>
-    </WorkspacePageProvider>
+    <WorkspaceScopeProvider>
+      <WorkspacePageProvider>
+        <AppShellContent>{children}</AppShellContent>
+      </WorkspacePageProvider>
+    </WorkspaceScopeProvider>
   );
 }
 function AppShellContent({ children }: { children: ReactNode }) {
@@ -325,6 +336,31 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const { label: pageLabel } = useWorkspacePage();
   const pathname = usePathname();
   const { identity } = useAuth();
+  const scope = useWorkspaceScope();
+  const [searchText, setSearchText] = useState("");
+  const customersQuery = useCustomers({
+    page: 0,
+    pageSize: 100,
+    status: "ACTIVE",
+    sort: "name,asc",
+  });
+  const environmentsQuery = useEnvironments({
+    page: 0,
+    pageSize: 100,
+    status: "ACTIVE",
+    sort: "environmentName,asc",
+    ...(scope.customerId !== "all" ? { customerId: scope.customerId } : {}),
+  });
+  const customers = customersQuery.data?.items ?? [];
+  const environments = (environmentsQuery.data?.items ?? []).filter(
+    (environment) =>
+      scope.customerId === "all" || environment.customerId === scope.customerId,
+  );
+  const selectedEnvironmentValid =
+    scope.environmentId === "all" ||
+    environments.some(
+      (environment) => environment.environmentId === scope.environmentId,
+    );
   const [expanded, setExpanded] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [resizingSidebar, setResizingSidebar] = useState(false);
@@ -382,6 +418,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
     };
   }, [resizingSidebar, updateSidebarWidth]);
   useEffect(() => {
+    if (!selectedEnvironmentValid) scope.setEnvironmentId("all");
+  }, [scope, selectedEnvironmentValid]);
+  useEffect(() => {
     if (
       pathname.startsWith("/migrations") ||
       !canViewNavigation(identity, "migration.view")
@@ -398,7 +437,6 @@ function AppShellContent({ children }: { children: ReactNode }) {
       ["localhost", "127.0.0.1"].includes(window.location.hostname),
     );
   }, []);
-  const logo = runtimeConfig().corporateLogoUrl;
   useEffect(() => {
     const header = document.querySelector<HTMLElement>(
       ".app-shell > header.topbar",
@@ -436,28 +474,104 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="topbar">
-        <Button
-          variant="ghost"
-          className="mobile-menu"
-          aria-label={expanded ? "Close navigation" : "Open navigation"}
-          aria-expanded={expanded}
-          aria-controls="platform-navigation"
-          onClick={() => setExpanded(!expanded)}
+      <header className="topbar navigan-global-topbar">
+        <button
+          type="button"
+          className="navigan-menu-toggle"
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          onClick={() => {
+            if (window.matchMedia("(max-width: 1024px)").matches) {
+              setExpanded((current) => !current);
+            } else {
+              setCollapsed((current) => !current);
+            }
+          }}
         >
-          {expanded ? <X /> : <Menu />}
-        </Button>
-        <Link href="/dashboard" className="brand" aria-label="Deloitte home">
-          {logo ? (
-            <img src={logo} alt="Corporate logo" className="corporate-logo" />
-          ) : (
-            <span className="corporate-wordmark" aria-label="Deloitte">
-              Deloitte<span aria-hidden="true">.</span>
-            </span>
-          )}
+          <Menu size={19} aria-hidden="true" />
+        </button>
+
+        <Link href="/dashboard" className="navigan-topbar-brand" aria-label="Navigan home">
+          <span className="navigan-wordmark">
+            <span className="navigan-wordmark-n">N</span>
+            <span>avigan</span>
+          </span>
         </Link>
-        <span className="brand-divider" />
-        <span className="platform-title">Container Management Platform</span>
+
+        <span className="navigan-topbar-divider" aria-hidden="true" />
+        <span className="platform-title">Container Platform Management</span>
+
+        <div className="navigan-topbar-scope" aria-label="Workspace scope">
+          <label>
+            <span>Customer</span>
+            <div className="navigan-topbar-select">
+              <CustomerIcon size={15} aria-hidden="true" />
+              <select
+                aria-label="Global customer scope"
+                value={scope.customerId}
+                onChange={(event) => {
+                  scope.setCustomerId(event.target.value);
+                  scope.setEnvironmentId("all");
+                }}
+              >
+                <option value="all">All Customers</option>
+                {customers.map((customer) => (
+                  <option key={customer.customerId} value={customer.customerId}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+
+          <span className="navigan-topbar-divider scope-divider" aria-hidden="true" />
+
+          <label>
+            <span>Environment</span>
+            <div className="navigan-topbar-select">
+              <Layers3 size={15} aria-hidden="true" />
+              <select
+                aria-label="Global environment scope"
+                value={selectedEnvironmentValid ? scope.environmentId : "all"}
+                onChange={(event) => scope.setEnvironmentId(event.target.value)}
+              >
+                <option value="all">All Environments</option>
+                {environments.map((environment) => (
+                  <option
+                    key={environment.environmentId}
+                    value={environment.environmentId}
+                  >
+                    {environment.environmentName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+        </div>
+
+        <div className="navigan-global-search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Search Navigan"
+            placeholder="Search customers, environments, clusters, plans..."
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+          />
+          <span className="navigan-search-shortcut" aria-hidden="true">
+            ⌘ K
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="navigan-notification-button"
+          aria-label="Notifications"
+          title="Notifications"
+        >
+          <Bell size={18} aria-hidden="true" />
+        </button>
+
         <div className="topbar-account">
           <div className="signed-in-user">
             <strong>{identity?.displayName ?? "Secure access"}</strong>
@@ -516,28 +630,6 @@ function AppShellContent({ children }: { children: ReactNode }) {
             }}
           />
           <div className="sidebar-navigation">
-            <div className="sidebar-brand-panel">
-              <Link
-                href="/dashboard"
-                className="sidebar-brand"
-                aria-label="Navigan home"
-                title="Navigan home"
-              >
-                <NaviganMark compact />
-                <span className="sidebar-brand-name">Navigan</span>
-              </Link>
-              <button
-                type="button"
-                className="sidebar-collapse"
-                aria-label={
-                  collapsed ? "Expand navigation" : "Collapse navigation"
-                }
-                aria-expanded={!collapsed}
-                onClick={() => setCollapsed(!collapsed)}
-              >
-                <Menu size={18} />
-              </button>
-            </div>
             <nav className="sidebar-menu-scroll" aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
