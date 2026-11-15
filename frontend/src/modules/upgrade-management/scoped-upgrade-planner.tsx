@@ -21,7 +21,6 @@ import type {
 import { Button } from "@/shared/components/ui";
 import { useAuth } from "@/shared/auth/auth-provider";
 import { hasPermission } from "@/shared/auth/permissions";
-import { ClusterContext } from "./cluster-context";
 import { PlatformIdentity, containerIdentity } from "./platform-identity";
 import { calendarSchedule } from "./schedule-state";
 import type { UpgradeCluster } from "./upgrade-workspace";
@@ -288,18 +287,6 @@ export function ScopedUpgradePlanner({
         : scope === "NODES"
           ? "Node Groups"
           : "Managed Add-ons";
-  const selectedComponents =
-    scope === "NODES"
-      ? nodes.length
-      : scope === "ADDONS"
-        ? Object.keys(addons).length
-        : 1;
-  const planTarget =
-    ["CLUSTER", "CONTROL_PLANE"].includes(scope)
-      ? finalTarget || "Not available"
-      : scope === "NODES"
-        ? data?.currentVersion ?? cluster.currentVersion
-        : selectedComponents + " selected";
   const windowSummary =
     supplied === 0
       ? "Draft / unscheduled"
