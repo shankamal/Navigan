@@ -1,3 +1,32 @@
+## Current override — 15 November 2026 frontend shell / navigation / capability-header baseline
+
+Use `NAVIGAN_SESSION_HANDOFF_2026-11-15_LATEST.md` as the authoritative frontend/UI recovery point.
+
+Branch: `feature/upgrade-patching-ui-approved`.
+Latest product-code head before continuity-only documentation updates: `19ea59c57208b6ee0f81d65c6e635bb5abc9deba`.
+
+Accepted working frontend baseline:
+- single-line graphite Navigan global top bar with green circular first N;
+- Customer and Environment selectors in the same row with persisted workspace scope;
+- graphite sidebar remains role-specific;
+- route-aware sticky breadcrumb immediately below the global bar;
+- cloud-white sticky capability header below the breadcrumb;
+- no repeated graphite capability title bands;
+- compact neutral enterprise styling, green only as restrained primary/active/status accent;
+- Platform Dashboard title: **Platform Command Centre**;
+- shared header standard applied across major capabilities;
+- final frontend regression: **60/60 tests passed across 6 files**.
+
+Global Customer/Environment scope is centrally stored but not yet wired into every capability query/filter. Search and notification controls are not backed by complete product workflows yet. Effective-role switching is still conceptual, not implemented.
+
+Upgrade & Patching retains the governed backend/execution model from the 12 November checkpoint and adds the new frontend presentation: Full Upgrade vs Targeted Upgrade, compact plan creation hierarchy, and real-evidence Execution Progress. Do not fabricate progress/ETA and do not alter backend governance merely for UI alignment.
+
+Latest prepared frontend candidate is ECS task definition `:73`, immutable digest `sha256:7be364b70e460a3d5281fc2d091bbca65afc939ed2512d1a2e6102277e1f4bdb`, from source `19ea59c`. Prepare explicitly stated frontend service unchanged. The retained conversation does not include the execute/stabilization terminal output, so the exact running ECS revision must be verified before asserting `:73` as live. The user visually accepted the new direction as “much better” but wants a few refinements next morning.
+
+Resume by inspecting/refining the current UI, not by redesigning from scratch. Do not merge to main or sync DEV without explicit instruction.
+
+---
+
 ## Current override — 12 November 2026 execution readiness accepted
 
 Approved/scheduled EKS execution readiness is now deployed and authenticated in PROD. Frontend task definition is `:58` (rollback `:57`) with immutable digest `sha256:060075593be292d33069e6d93f0b3675101fa0a9b16db93e9d3187c988932c9f`. Backend guarded deployment completed successfully and explicitly reported that no EKS upgrade was started.
