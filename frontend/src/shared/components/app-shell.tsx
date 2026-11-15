@@ -14,10 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCustomers } from "@/modules/customer-management/hooks/queries";
 import { useEnvironments } from "@/modules/environment-management/hooks/queries";
 import { IntentLink as Link } from "@/shared/components/intent-link";
-import {
-  WorkspacePageProvider,
-  useWorkspacePage,
-} from "./workspace-page-context";
+import { WorkspacePageProvider } from "./workspace-page-context";
 import { usePathname } from "next/navigation";
 import {
   WorkspaceScopeProvider,
@@ -265,6 +262,104 @@ function canViewNavigation(
   );
 }
 
+type BreadcrumbEntry = {
+  label: string;
+  href?: string;
+};
+
+function humanizeIdentifier(value: string) {
+  return decodeURIComponent(value).replaceAll("-", " ");
+}
+
+function workspaceBreadcrumbs(pathname: string): BreadcrumbEntry[] {
+  const parts = pathname.split("/").filter(Boolean);
+  const [root, id, leaf] = parts;
+  const crumbs: BreadcrumbEntry[] = [{ label: "Home", href: "/dashboard" }];
+
+  if (!root || root === "dashboard") {
+    return [...crumbs, { label: "Platform Dashboard" }];
+  }
+
+  const rootLabels: Record<string, string> = {
+    customers: "Customers",
+    environments: "Environments",
+    clusters: "Clusters",
+    onboarding: "Cluster Onboarding",
+    migrations: "Migrations",
+    "app-transformation": "Application Modernization",
+    upgrades: "Upgrades & Patching",
+    "operational-health": "Operational Health",
+    approvals: "Approvals",
+    about: "About Navigan",
+  };
+  const rootLabel = rootLabels[root] ?? humanizeIdentifier(root);
+  crumbs.push({ label: rootLabel, href: `/${root}` });
+
+  if (!id) return crumbs.map((crumb, index) =>
+    index === crumbs.length - 1 ? { label: crumb.label } : crumb
+  );
+
+  const staticSecondLevel: Record<string, Record<string, string>> = {
+    customers: {
+      new: "New Customer",
+    },
+    environments: {
+      new: "New Environment",
+      reviews: "Environment Reviews",
+      remediations: "Bootstrap Remediation",
+    },
+    clusters: {
+      new: "Create Cluster",
+      reviews: "Cluster Reviews",
+      operations: "Cluster Operations",
+    },
+    migrations: {
+      new: "New Migration Assessment",
+    },
+  };
+
+  const staticLabel = staticSecondLevel[root]?.[id];
+  if (staticLabel) {
+    crumbs.push({ label: staticLabel });
+    return crumbs;
+  }
+
+  const objectLabel =
+    root === "customers"
+      ? "Customer " + id
+      : root === "environments"
+        ? "Environment " + id
+        : root === "clusters"
+          ? "Cluster " + id
+          : root === "migrations"
+            ? "Assessment " + id
+            : humanizeIdentifier(id);
+
+  crumbs.push({
+    label: objectLabel,
+    href: leaf ? `/${root}/${id}` : undefined,
+  });
+
+  if (!leaf) return crumbs;
+
+  const leafLabels: Record<string, string> = {
+    edit: "Edit",
+    review: "Review",
+    discovery: "Source Discovery",
+    "source-access": "Source Access",
+    plan: "Migration Workspace",
+    scope: "Select Scope",
+    target: "Target Selection",
+    compatibility: "Compatibility Assessment",
+    execute: "Execution",
+    access: "Access",
+    operations: "Operations",
+    components: "Platform Components",
+  };
+  crumbs.push({ label: leafLabels[leaf] ?? humanizeIdentifier(leaf) });
+  return crumbs;
+}
+
 function AccountMenu() {
   const { identity } = useAuth();
   const [open, setOpen] = useState(false);
@@ -329,7 +424,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 function AppShellContent({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { label: pageLabel } = useWorkspacePage();
   const pathname = usePathname();
   const { identity } = useAuth();
   const scope = useWorkspaceScope();
@@ -373,6 +467,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
         pathname === item.href ||
         (item.href !== "/" && pathname.startsWith(item.href + "/")),
     );
+  const breadcrumbs = workspaceBreadcrumbs(pathname);
   const [isLocalDev, setIsLocalDev] = useState(false);
   const warmWorkspace = useCallback(
     (href: string) => {
@@ -675,44 +770,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
         <div className="content-column">
           {pathname !== "/about" && (
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/dashboard">Home</Link>
-              <ChevronRight size={14} />
-              <Link
-                aria-label={`Back to ${(pathname === "/about" ? "About Navigan" : current?.label) ?? "dashboard"}`}
-                href={
-                  pathname === "/about"
-                    ? "/about"
-                    : (current?.href ?? "/dashboard")
-                }
-              >
-                {pathname === "/about"
-                  ? "About Navigan"
-                  : (current?.label ?? "Access")}
-              </Link>
-              {pathname.endsWith("/plan") && pageLabel && (
-                <>
-                  <ChevronRight size={14} />
-                  <span aria-current="page">{pageLabel}</span>
-                </>
-              )}
-              {/^\/clusters\/CLU-[A-Za-z0-9-]+$/.test(pathname) && (
-                <>
-                  <ChevronRight size={14} />
-                  <span>Cluster request details</span>
-                </>
-              )}
-              {pathname.includes("/customers/") && (
-                <>
-                  <ChevronRight size={14} />
-                  <span>
-                    {pathname.endsWith("/new")
-                      ? "New customer"
-                      : pathname.endsWith("/edit")
-                        ? "Edit customer"
-                        : "Customer details"}
-                  </span>
-                </>
-              )}
+              {breadcrumbs.map((crumb, index) => (
+                <span className="breadcrumb-segment" key={crumb.label + index}>
+                  {index > 0 && <ChevronRight size={14} aria-hidden="true" />}
+                  {crumb.href ? (
+                    <Link href={crumb.href}>{crumb.label}</Link>
+                  ) : (
+                    <span aria-current="page">{crumb.label}</span>
+                  )}
+                </span>
+              ))}
             </nav>
           )}
           <main id="main-content" tabIndex={-1}>
