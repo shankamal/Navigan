@@ -1,3 +1,23 @@
+## Current override — 15 November 2026 UI standardization checkpoint
+
+Read `docs/NAVIGAN_SESSION_HANDOFF_2026-11-15_LATEST.md` first. This is now the authoritative frontend/UI recovery point after the 12 November Upgrade & Patching checkpoint.
+
+Current frontend baseline:
+- branch `feature/upgrade-patching-ui-approved`
+- latest product-code head before continuity-only documentation updates: `19ea59c57208b6ee0f81d65c6e635bb5abc9deba`
+- single-line graphite Navigan global top bar
+- real persisted Customer/Environment workspace scope
+- route-aware sticky breadcrumb hierarchy
+- cloud-white sticky capability headers across the shared workspace
+- governed Upgrade & Patching UI refinements, including Full Upgrade vs Targeted Upgrade and real-evidence Execution Progress
+- final frontend regression: 6 files / 60 tests passed
+
+PROD candidate `:73` was prepared from `19ea59c` with immutable digest `sha256:7be364b70e460a3d5281fc2d091bbca65afc939ed2512d1a2e6102277e1f4bdb`; prepare explicitly reported the frontend service unchanged. The retained conversation does not include the execute/stabilization output, so do not assert `:73` as the confirmed running ECS revision without fresh service evidence. User visually reviewed the new direction and said “much better, but still we need few changes, will continue in the morning.”
+
+Do not merge to main or sync DEV unless explicitly instructed. Do not redesign from scratch; resume from the accepted global top bar + white sticky breadcrumb/header baseline.
+
+---
+
 ## Current override — 11 November 2026 end of session
 
 Use the final “consolidated end-of-session checkpoint” in docs/NAVIGAN_DAILY_CHECKPOINT.md and docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md (relative to the continuity-kit root). It consolidates UI, roles, component scopes/paths, calendar, names, user-authorized PA self-approval and rollout evidence. Backend 1894355b is confirmed deployed; frontend :56 is prepared with execution output unconfirmed. User says acceptable for now, with remaining findings deferred to tomorrow. Collect those findings before more work; historical blockers and independent-review-only policy are superseded. Keep utility execution disabled and do not start upgrades.
