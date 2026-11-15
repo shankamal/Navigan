@@ -26,6 +26,41 @@ vi.mock("@/shared/auth/auth-provider", () => ({
 vi.mock("@/shared/auth/session", () => ({
   signOut: () => signOut(),
 }));
+vi.mock("@/modules/customer-management/hooks/queries", () => ({
+  useCustomers: () => ({
+    data: {
+      items: [
+        {
+          customerId: "CUS-dbs",
+          name: "DB Schenker",
+          status: "ACTIVE",
+          version: 1,
+          cloudProviders: ["AWS"],
+        },
+      ],
+    },
+  }),
+}));
+vi.mock("@/modules/environment-management/hooks/queries", () => ({
+  useEnvironments: () => ({
+    data: {
+      items: [
+        {
+          environmentId: "ENV-dbs",
+          customerId: "CUS-dbs",
+          customerName: "DB Schenker",
+          cloudProvider: "AWS",
+          kubernetesDistribution: "EKS",
+          environmentName: "DEV2-DBS-LCO",
+          environmentType: "DEV",
+          status: "ACTIVE",
+          version: 1,
+          createdAt: "2026-11-01T00:00:00Z",
+        },
+      ],
+    },
+  }),
+}));
 
 describe("Application shell permissions", () => {
   beforeEach(() => {
@@ -35,6 +70,37 @@ describe("Application shell permissions", () => {
     prefetchQuery.mockClear();
     window.localStorage.clear();
     installRuntimeConfig({ ...runtimeConfig(), migrationUiPreview: false });
+  });
+
+  it("renders the approved single-line Navigan global top bar", () => {
+    const { container } = render(<AppShell>Content</AppShell>);
+
+    const header = container.querySelector("header.navigan-global-topbar");
+    expect(header).toBeInTheDocument();
+    expect(
+      within(header as HTMLElement).getByRole("link", { name: "Navigan home" }),
+    ).toHaveTextContent("Navigan");
+    expect(
+      within(header as HTMLElement).getByRole("combobox", {
+        name: "Global customer scope",
+      }),
+    ).toHaveValue("all");
+    expect(
+      within(header as HTMLElement).getByRole("combobox", {
+        name: "Global environment scope",
+      }),
+    ).toHaveValue("all");
+    expect(
+      within(header as HTMLElement).getByRole("searchbox", {
+        name: "Search Navigan",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(header as HTMLElement).getByRole("button", {
+        name: "Collapse navigation",
+      }),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".sidebar-brand-panel")).not.toBeInTheDocument();
   });
 
   it("allows a desktop user to resize and reset the navigation width", () => {
