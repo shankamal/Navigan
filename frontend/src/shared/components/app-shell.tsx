@@ -1,6 +1,7 @@
 "use client";
 import "./workspace-navigation.css";
 import "./workspace-backdrop.css";
+import "./global-topbar.css";
 import {
   useCallback,
   useEffect,
@@ -18,7 +19,6 @@ import {
   useWorkspacePage,
 } from "./workspace-page-context";
 import { usePathname } from "next/navigation";
-import { NaviganMark } from "./navigan-mark";
 import {
   WorkspaceScopeProvider,
   useWorkspaceScope,
@@ -32,7 +32,6 @@ import {
   ClipboardCheck,
   Gauge,
   Bell,
-  Building2 as CustomerIcon,
   Search,
   Info,
   Layers3,
@@ -43,7 +42,6 @@ import {
   Rocket,
   Settings2,
   ShieldAlert,
-  ShieldCheck,
   Workflow,
   X,
 } from "lucide-react";
@@ -54,8 +52,6 @@ import {
   type PlatformPermission,
 } from "@/shared/auth/permissions";
 import { signOut } from "@/shared/auth/session";
-import { runtimeConfig } from "@/shared/config/runtime-config";
-import { Button } from "./ui";
 import { prefetchWorkspaceData } from "@/shared/performance/prefetch-workspace-data";
 
 interface NavigationItem {
@@ -505,7 +501,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <label>
             <span>Customer</span>
             <div className="navigan-topbar-select">
-              <CustomerIcon size={15} aria-hidden="true" />
+              <Building2 size={15} aria-hidden="true" />
               <select
                 aria-label="Global customer scope"
                 value={scope.customerId}
