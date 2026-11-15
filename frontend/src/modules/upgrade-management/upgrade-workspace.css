@@ -4657,3 +4657,522 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Final Create Upgrade Plan console — approved Navigan visual baseline.
+   White/neutral surfaces only; green is reserved for status, selection controls and primary actions. */
+.upgrade-workspace.is-planning {
+  padding-top: 0;
+}
+.upgrade-plan-console {
+  display: grid;
+  gap: 12px;
+  color: var(--upgrade-ink);
+}
+.upgrade-plan-console-header {
+  display: grid;
+  gap: 8px;
+}
+.upgrade-plan-console-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.upgrade-plan-title-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--upgrade-ink);
+  flex: 0 0 auto;
+}
+.upgrade-plan-console-title h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+.upgrade-plan-console-title p {
+  margin: 4px 0 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-label);
+}
+.upgrade-plan-context {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1.3fr)
+    minmax(130px, .75fr)
+    minmax(145px, .85fr)
+    minmax(150px, .9fr)
+    minmax(180px, 1fr);
+  align-items: stretch;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.upgrade-plan-context > div {
+  min-width: 0;
+  padding: 11px 13px;
+}
+.upgrade-plan-context > div + div {
+  border-left: 1px solid var(--upgrade-line);
+}
+.upgrade-plan-context-primary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.upgrade-plan-context span,
+.upgrade-plan-context strong {
+  display: block;
+}
+.upgrade-plan-context span {
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-context strong {
+  margin-top: 2px;
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upgrade-plan-context-version {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.upgrade-plan-context-version span,
+.upgrade-plan-context-version strong {
+  margin: 0;
+}
+.upgrade-plan-context-version b {
+  color: var(--upgrade-muted);
+}
+.upgrade-plan-console-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.upgrade-plan-console-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(285px, .31fr);
+  gap: 12px;
+  align-items: start;
+}
+.upgrade-plan-console-main,
+.upgrade-plan-console-side {
+  display: grid;
+  gap: 10px;
+}
+.upgrade-plan-console-side {
+  position: sticky;
+  top: 10px;
+}
+.upgrade-plan-section,
+.upgrade-plan-side-card {
+  border: 1px solid var(--upgrade-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.upgrade-plan-section {
+  padding: 12px;
+}
+.upgrade-plan-section > header {
+  margin-bottom: 10px;
+}
+.upgrade-plan-section > header h3,
+.upgrade-plan-side-card h3 {
+  margin: 0;
+  color: var(--upgrade-ink);
+  font-size: 14px;
+}
+.upgrade-plan-section > header h3 span {
+  color: #b42318;
+}
+.upgrade-plan-section > header p {
+  margin: 3px 0 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-type-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.upgrade-plan-type-options label,
+.upgrade-plan-scope-options label {
+  display: grid;
+  align-items: start;
+  background: #fff;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.upgrade-plan-type-options label {
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 9px;
+  min-height: 74px;
+  padding: 11px;
+}
+.upgrade-plan-type-options input[type="radio"],
+.upgrade-plan-scope-options input[type="radio"] {
+  margin: 2px 0 0;
+  accent-color: var(--navigan-brand);
+}
+.upgrade-plan-type-options label:has(input:checked),
+.upgrade-plan-scope-options label:has(input:checked) {
+  border-color: var(--upgrade-line);
+  box-shadow: none;
+  background: #fff;
+}
+.upgrade-plan-type-options label:has(input:checked) > svg,
+.upgrade-plan-scope-options label:has(input:checked) > svg {
+  color: var(--navigan-action);
+}
+.upgrade-plan-type-options strong,
+.upgrade-plan-type-options small,
+.upgrade-plan-scope-options strong,
+.upgrade-plan-scope-options small {
+  display: block;
+}
+.upgrade-plan-type-options strong,
+.upgrade-plan-scope-options strong {
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-body);
+}
+.upgrade-plan-type-options small,
+.upgrade-plan-scope-options small {
+  margin-top: 3px;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+  line-height: 1.35;
+}
+.upgrade-plan-included-scope {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+}
+.upgrade-plan-included-scope > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  background: #fff;
+  font-size: var(--navigan-font-label);
+}
+.upgrade-plan-included-scope > div > svg:first-child {
+  color: var(--navigan-action);
+}
+.upgrade-plan-included-scope span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upgrade-plan-scope-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.upgrade-plan-scope-options label {
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
+}
+.upgrade-plan-target-row {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+.upgrade-plan-target-row > div {
+  padding: 8px 10px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  background: #fff;
+}
+.upgrade-plan-target-row > div span,
+.upgrade-plan-target-row > div strong {
+  display: block;
+}
+.upgrade-plan-target-row > div span {
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-target-row > div strong {
+  margin-top: 2px;
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-label);
+}
+.upgrade-plan-component-table-wrap {
+  overflow-x: auto;
+}
+.upgrade-plan-component-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.upgrade-plan-component-table th {
+  padding: 7px 8px;
+  background: #eef1f4;
+  color: #39495a;
+  font-size: var(--navigan-font-caption);
+  font-weight: 600;
+  text-align: left;
+}
+.upgrade-plan-component-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--upgrade-line);
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-label);
+  vertical-align: middle;
+}
+.upgrade-plan-component-table th:nth-child(1) { width: 42%; }
+.upgrade-plan-component-table th:nth-child(2) { width: 18%; }
+.upgrade-plan-component-table th:nth-child(3) { width: 25%; }
+.upgrade-plan-component-table th:nth-child(4) { width: 15%; }
+.upgrade-plan-component-table select {
+  width: 100%;
+  min-height: 30px;
+}
+.upgrade-plan-component-name,
+.upgrade-plan-component-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.upgrade-plan-component-check input {
+  accent-color: var(--navigan-brand);
+}
+.upgrade-plan-action-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 1px solid var(--navigan-brand);
+  border-radius: 999px;
+  color: var(--navigan-action);
+  background: #fff;
+  font-size: var(--navigan-font-caption);
+  font-weight: 600;
+}
+.upgrade-plan-inline-guidance {
+  margin: 9px 0 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-maintenance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 1fr) minmax(175px, .6fr);
+  gap: 10px;
+  align-items: end;
+}
+.upgrade-plan-window-list {
+  display: grid;
+  gap: 7px;
+}
+.upgrade-plan-window-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(125px, .45fr);
+  gap: 7px;
+}
+.upgrade-plan-reason textarea {
+  min-height: 58px;
+}
+.upgrade-plan-approval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--upgrade-line);
+  border-radius: 6px;
+  background: #fff;
+}
+.upgrade-plan-approval span,
+.upgrade-plan-approval strong {
+  display: block;
+}
+.upgrade-plan-approval span {
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-approval strong {
+  margin-top: 2px;
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-label);
+}
+.upgrade-plan-side-card {
+  overflow: hidden;
+}
+.upgrade-plan-side-card > header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--upgrade-line);
+}
+.upgrade-plan-side-card > header svg {
+  color: var(--navigan-action);
+}
+.upgrade-plan-side-card dl {
+  margin: 0;
+}
+.upgrade-plan-side-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(95px, .8fr) minmax(0, 1.2fr);
+  gap: 8px;
+  padding: 7px 12px;
+}
+.upgrade-plan-side-card dl > div + div {
+  border-top: 1px solid var(--upgrade-line);
+}
+.upgrade-plan-side-card dt {
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-side-card dd {
+  margin: 0;
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-caption);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.upgrade-plan-workflow-list {
+  list-style: none;
+  margin: 0;
+  padding: 9px 12px 10px 28px;
+  position: relative;
+}
+.upgrade-plan-workflow-list::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 16px;
+  bottom: 16px;
+  width: 1px;
+  background: var(--upgrade-line);
+}
+.upgrade-plan-workflow-list li {
+  position: relative;
+  padding: 5px 0;
+  color: var(--upgrade-ink);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-workflow-list li::before {
+  content: "";
+  position: absolute;
+  left: -15px;
+  top: 10px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--navigan-brand);
+  border-radius: 50%;
+  background: #fff;
+}
+.upgrade-plan-readiness-list {
+  display: grid;
+  gap: 0;
+  padding: 7px 12px 10px;
+}
+.upgrade-plan-readiness-list > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 5px 0;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-readiness-list > div[data-complete="true"] svg {
+  color: var(--navigan-action);
+}
+.upgrade-plan-readiness-list > div[data-complete="false"] {
+  color: #805200;
+}
+.upgrade-plan-readiness-dot {
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+  border: 1px solid #d6a74d;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.upgrade-plan-console-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--upgrade-line);
+  background: #fff;
+}
+.upgrade-plan-console-actions > span {
+  margin-right: auto;
+  color: var(--upgrade-muted);
+  font-size: var(--navigan-font-caption);
+}
+.upgrade-plan-loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--upgrade-line);
+  border-top-color: var(--navigan-brand);
+  border-radius: 50%;
+  animation: upgrade-spin 1s linear infinite;
+}
+@keyframes upgrade-spin {
+  to { transform: rotate(360deg); }
+}
+@container (max-width: 1100px) {
+  .upgrade-plan-console-layout {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-plan-console-side {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .upgrade-plan-maintenance-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .upgrade-plan-approval {
+    grid-column: 1 / -1;
+  }
+}
+@container (max-width: 800px) {
+  .upgrade-plan-context {
+    grid-template-columns: 1fr 1fr;
+  }
+  .upgrade-plan-context > div + div {
+    border-left: 0;
+  }
+  .upgrade-plan-context > div {
+    border-bottom: 1px solid var(--upgrade-line);
+  }
+  .upgrade-plan-context-version {
+    grid-column: 1 / -1;
+  }
+  .upgrade-plan-type-options,
+  .upgrade-plan-scope-options,
+  .upgrade-plan-included-scope,
+  .upgrade-plan-console-side,
+  .upgrade-plan-maintenance-grid {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-plan-target-row,
+  .upgrade-plan-window-row {
+    grid-template-columns: 1fr;
+  }
+  .upgrade-plan-component-table {
+    min-width: 700px;
+  }
+}
