@@ -343,9 +343,29 @@ export function ScopedUpgradePlanner({
       </section>
 
       {options.isPending && (
-        <div className="upgrade-planner-loading" role="status">
-          Loading live component versions and compatibility…
-        </div>
+        <>
+          <div className="upgrade-planner-loading" role="status">
+            Loading live component versions and compatibility…
+          </div>
+          <div className="upgrade-planner-loading-shell" aria-hidden="true">
+            <div className="upgrade-planner-loading-main">
+              {[0, 1, 2].map((item) => (
+                <section key={item} className="upgrade-planner-skeleton-card">
+                  <div className="upgrade-skeleton-line short" />
+                  <div className="upgrade-skeleton-line long" />
+                  <div className="upgrade-skeleton-line medium" />
+                </section>
+              ))}
+            </div>
+            <aside className="upgrade-planner-skeleton-summary">
+              <div className="upgrade-skeleton-line medium" />
+              <div className="upgrade-skeleton-line long" />
+              <div className="upgrade-skeleton-line long" />
+              <div className="upgrade-skeleton-line medium" />
+              <div className="upgrade-skeleton-line long" />
+            </aside>
+          </div>
+        </>
       )}
       {options.isError && (
         <div role="alert" className="upgrade-planner-alert">
