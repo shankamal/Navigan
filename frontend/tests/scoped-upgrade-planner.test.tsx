@@ -96,7 +96,7 @@ describe("Scoped upgrade planner", () => {
     expect(
       await screen.findByRole("radio", { name: "Full Upgrade" }),
     ).toBeChecked();
-    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Targeted Upgrade" }));
     const controlPlane = screen.getByRole("radio", {
       name: "Control plane only",
     });
@@ -134,7 +134,7 @@ describe("Scoped upgrade planner", () => {
     mocks.options.mockResolvedValue({ ...options, targetVersions: [] });
     mount();
     await screen.findByRole("radio", { name: "Full Upgrade" });
-    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Targeted Upgrade" }));
     fireEvent.click(screen.getByRole("radio", { name: "Node Groups" }));
     expect(screen.getByLabelText(/aligned · 1.34/)).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/lagging · 1.33/));
@@ -158,7 +158,7 @@ describe("Scoped upgrade planner", () => {
   it("sends only selected add-ons and compatible targets", async () => {
     mount();
     await screen.findByRole("radio", { name: "Full Upgrade" });
-    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Targeted Upgrade" }));
     fireEvent.click(
       screen.getByRole("radio", { name: "Managed Add-ons" }),
     );
