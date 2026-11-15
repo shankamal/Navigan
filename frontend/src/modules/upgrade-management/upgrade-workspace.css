@@ -4577,3 +4577,83 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Upgrade Centre refinement — improve scanability and protect the environment column. */
+.upgrade-kpi-label {
+  display: flex !important;
+  align-items: center;
+  gap: 7px;
+}
+.upgrade-kpi-label > svg {
+  flex: 0 0 auto;
+  color: var(--upgrade-muted);
+}
+.upgrade-kpi-card strong {
+  margin-top: 7px;
+}
+
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(3),
+.upgrade-centre-approved .upgrade-opportunity-table td:nth-child(3),
+.upgrade-centre-approved .upgrade-plan-stage-table th:nth-child(3),
+.upgrade-centre-approved .upgrade-plan-stage-table td:nth-child(3) {
+  display: table-cell !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+.upgrade-centre-approved .upgrade-environment-chip {
+  display: inline-flex !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(1) { width: 16%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(2) { width: 10%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(3) { width: 13%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(4) { width: 9%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(5) { width: 11%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(6) { width: 13%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(7) { width: 13%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(8) { width: 9%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(9) { width: 9%; }
+
+/* Create Plan loading shell — render the final page structure immediately while live options warm. */
+.upgrade-planner-loading-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr);
+  gap: 12px;
+  align-items: start;
+}
+.upgrade-planner-loading-main {
+  display: grid;
+  gap: 12px;
+}
+.upgrade-planner-skeleton-card,
+.upgrade-planner-skeleton-summary {
+  border: 1px solid var(--upgrade-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px;
+}
+.upgrade-planner-skeleton-card {
+  min-height: 118px;
+}
+.upgrade-planner-skeleton-summary {
+  min-height: 260px;
+}
+.upgrade-skeleton-line {
+  height: 10px;
+  margin: 9px 0;
+  border-radius: 999px;
+  background: #e9edf0;
+}
+.upgrade-skeleton-line.short { width: 34%; }
+.upgrade-skeleton-line.medium { width: 58%; }
+.upgrade-skeleton-line.long { width: 86%; }
+@container (max-width: 960px) {
+  .upgrade-planner-loading-shell {
+    grid-template-columns: 1fr;
+  }
+}
