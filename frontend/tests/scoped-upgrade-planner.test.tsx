@@ -94,8 +94,13 @@ describe("Scoped upgrade planner", () => {
   it("creates a control-plane-only plan without node or add-on selections", async () => {
     mount();
     expect(
-      await screen.findByRole("radio", { name: "Control plane only" }),
+      await screen.findByRole("radio", { name: "Full Upgrade" }),
     ).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    const controlPlane = screen.getByRole("radio", {
+      name: "Control plane only",
+    });
+    expect(controlPlane).toBeChecked();
     fireEvent.change(
       screen.getByRole("textbox", { name: "3. Change reason" }),
       { target: { value: "Upgrade only the managed control plane" } },
@@ -116,23 +121,21 @@ describe("Scoped upgrade planner", () => {
     expect(mocks.create.mock.calls[0][1]).not.toHaveProperty("addons");
   });
 
-  it("labels the existing cluster scope as a full platform upgrade", async () => {
+  it("uses the existing cluster scope as the default Full Upgrade", async () => {
     mount();
     const full = await screen.findByRole("radio", {
-      name: "Full platform upgrade",
+      name: "Full Upgrade",
     });
-    fireEvent.click(full);
-    expect(
-      screen.getByText(
-        /Full platform upgrade: control plane, managed node groups/,
-      ),
-    ).toBeInTheDocument();
+    expect(full).toBeChecked();
+    expect(screen.getByText("IaC Reconciliation")).toBeInTheDocument();
   });
 
   it("permits node-only planning without a newer control-plane version", async () => {
     mocks.options.mockResolvedValue({ ...options, targetVersions: [] });
     mount();
-    fireEvent.click(await screen.findByRole("radio", { name: "Node groups" }));
+    await screen.findByRole("radio", { name: "Full Upgrade" });
+    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Node Groups" }));
     expect(screen.getByLabelText(/aligned · 1.34/)).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/lagging · 1.33/));
     fireEvent.change(
@@ -154,8 +157,10 @@ describe("Scoped upgrade planner", () => {
   });
   it("sends only selected add-ons and compatible targets", async () => {
     mount();
+    await screen.findByRole("radio", { name: "Full Upgrade" });
+    fireEvent.click(screen.getByRole("radio", { name: "Cluster Upgrade" }));
     fireEvent.click(
-      await screen.findByRole("radio", { name: "Managed add-ons" }),
+      screen.getByRole("radio", { name: "Managed Add-ons" }),
     );
     fireEvent.change(screen.getByRole("combobox", { name: /cni/ }), {
       target: { value: "v1.2.0" },
@@ -184,7 +189,7 @@ describe("Scoped upgrade planner", () => {
       { target: { value: "1.37" } },
     );
     expect(
-      screen.getByText("Upgrade path: 1.34 → 1.35 → 1.36 → 1.37"),
+      screen.getByText("1.34 → 1.35 → 1.36 → 1.37"),
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText("Step 3 maintenance start"),
@@ -210,7 +215,7 @@ describe("Scoped upgrade planner", () => {
   it("keeps dynamic denial authoritative even with the Cloud Engineer role label", async () => {
     mocks.privileges = [];
     mount();
-    await screen.findByRole("radio", { name: "Control plane only" });
+    await screen.findByRole("radio", { name: "Full Upgrade" });
     fireEvent.change(
       screen.getByRole("textbox", { name: "3. Change reason" }),
       { target: { value: "Upgrade the cluster" } },
