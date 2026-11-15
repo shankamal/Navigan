@@ -343,8 +343,8 @@ describe("Upgrade workspace", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: "Create Plan" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Create Plan" }),
+      ).toBeDisabled();
     } finally {
       authIdentity.privileges = previous;
     }
