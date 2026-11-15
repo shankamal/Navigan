@@ -348,8 +348,8 @@ export function PlatformDashboard() {
     <div className="platform-dashboard command-dashboard">
       <PageHeading
         icon={<LayoutGrid />}
-        title="Platform command center"
-        className={layout.frozenHeading}
+        title="Platform Command Centre"
+        className={`${layout.frozenHeading} dashboard-capability-heading`}
         description="Live governance, provisioning, and lifecycle status across the Navigan-managed Kubernetes estate."
         action={
           <>
