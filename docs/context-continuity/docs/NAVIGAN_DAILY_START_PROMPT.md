@@ -1,3 +1,15 @@
+## Current override — 16 November 2026 System Utilities continuation
+
+User accepted the capability-wide UI from c4ce9fb (prepared frontend task :79, digest sha256:43c81e59cb3acca4a37eb5b337e54ac7583371a25b0094f20face8fb065d0beb; exact service revision remains unverified) and requested System Utilities upgrade continuation.
+
+First implementation increment: Headlamp draft creation now reads applications/30-headlamp.yaml from the selected cluster's registered active system repository/default branch using the existing repository-scoped GitHub App read token. It validates the supported Application identity, destination, official chart source and registered values repository/branch, and requires desired chart version to match fresh installed-version evidence. Invalid manifests, drift and GitHub failures block saving. Successful read-only evidence is persisted in utilityEvidence.gitOps and shown in the reviewer panel. Existing plans without this optional evidence remain readable. This snapshot does not establish chart compatibility or guarantee the repository has not changed afterward.
+
+No repository write, PR creation/merge, Argo sync, backend deployment or cluster mutation occurred. Utility execute/refresh remain explicitly blocked. Next implementation: compatibility evidence and an authorized, concurrency-safe GitOps PR workflow, then rollout/health observation; revalidate repository and live versions at those stages. Monitoring remains one shared Grafana/Prometheus chart. Do not treat approval as deployment or dispatch utility plans to the EKS executor.
+
+Checks: 42 backend utility/GitOps/upgrade-plan tests passed. TypeScript passed; 29 frontend upgrade/role tests passed, with the 27-test upgrade workspace suite rerun after adding the repository-evidence assertion. Ruff passed for the new adapter/tests; git diff --check passed. Branch remains feature/upgrade-patching-ui-approved; no main merge or DEV sync. This increment includes backend code and must not be presented as deployed by a frontend-only release.
+
+---
+
 ## Current override — 16 November 2026 Dashboard theme pilot
 
 Read `NAVIGAN_SESSION_HANDOFF_2026-11-16_LATEST.md` first (under `docs/` from the kit README). Branch remains `feature/upgrade-patching-ui-approved`. Login intro bypass and scope-selector alignment are global; IBM Plex Sans/white-sidebar/neutral-panel theme and left-aligned title are Dashboard-only for review. No deployment, main merge, DEV sync or backend changes. Refresh frontend dependencies for the new bundled font. Preserve 15-Nov history and Upgrade governance.

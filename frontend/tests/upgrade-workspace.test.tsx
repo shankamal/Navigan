@@ -1268,6 +1268,14 @@ describe("Upgrade workspace", () => {
         currentVersion: "0.45.0",
         versions: ["0.46.0"],
         observedAt: "2026-11-07T10:00:00Z",
+        gitOps: {
+          status: "VERIFIED",
+          path: "applications/30-headlamp.yaml",
+          repositoryUrl: "https://github.com/customer-org/cluster-system.git",
+          branch: "main",
+          currentVersion: "0.45.0",
+          application: "navigan-dashboard",
+        },
       },
     } as Awaited<ReturnType<typeof clusters.createUtilityUpgradePlan>>;
     vi.mocked(clusters.createUtilityUpgradePlan).mockImplementationOnce(
@@ -1309,6 +1317,9 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByRole("dialog", { name: "Upgrade plan details" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/Repository checked when drafted/)).toHaveTextContent(
+      "applications/30-headlamp.yaml",
+    );
     fireEvent.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
     );

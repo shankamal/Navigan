@@ -66,9 +66,10 @@ class CreateUtilityUpgradePlan(Model):
 class UtilityUpgradePlans(EksUpgradePlans):
     table = "cluster_management.utility_upgrade_plans"
 
-    def __init__(self, repo, access, correlation, releases=None):
+    def __init__(self, repo, access, correlation, releases=None, github=None):
         self.repo, self.access, self.correlation = repo, access, correlation
         self.releases = releases or upstream_releases
+        self.github = github
 
     def present(self, row):
         result = super().present(row)
@@ -121,7 +122,10 @@ class UtilityUpgradePlans(EksUpgradePlans):
             raise ApiError(409, "UTILITY_EVIDENCE_REQUIRED", evidence["blockReason"])
         if body["targetVersion"] not in evidence["versions"]:
             raise ApiError(409, "UTILITY_TARGET_UNAVAILABLE", "Select a current stable release from the official chart catalogue.")
-        self.repo.system_repository_access(cluster_id)  # never accept an arbitrary Git repository
+        repository = self.repo.system_repository_access(cluster_id)
+        if code == "headlamp":
+            from .utility_gitops import headlamp_preflight
+            evidence["gitOps"] = headlamp_preflight(repository, evidence["currentVersion"], self.github)
         group = evidence["chart"]
         active = self.repo.db.execute(
             f"SELECT plan_id FROM {self.table} WHERE cluster_id=%s AND managed_group=%s AND status=ANY(%s)",

@@ -444,6 +444,16 @@ export const eksUpgradePlanSchema = z
         observedAt: z.string().nullable(),
         source: z.string().optional(),
         compatibility: z.string().optional(),
+        gitOps: z
+          .object({
+            status: z.literal("VERIFIED"),
+            path: z.string(),
+            repositoryUrl: z.string(),
+            branch: z.string(),
+            currentVersion: z.string(),
+            application: z.string(),
+          })
+          .optional(),
       })
       .optional(),
     strategy: z.enum(["PROVIDER_MANAGED_ROLLING", "GITOPS_REVIEW"]),

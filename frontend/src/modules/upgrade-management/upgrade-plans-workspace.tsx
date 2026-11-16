@@ -57,14 +57,12 @@ function executionStageLabel(operation?: {
   return "approved component";
 }
 
-type UpgradePlanRecord = ReturnType<typeof useUpgradePlans>["rows"][number]["plan"];
+type UpgradePlanRecord = ReturnType<
+  typeof useUpgradePlans
+>["rows"][number]["plan"];
 
 type ExecutionTrackerState =
-  | "complete"
-  | "active"
-  | "pending"
-  | "attention"
-  | "skipped";
+  "complete" | "active" | "pending" | "attention" | "skipped";
 
 type ExecutionTrackerItem = {
   id: string;
@@ -100,9 +98,7 @@ function executionTracker(plan: UpgradePlanRecord): ExecutionTrackerItem[] {
     : [];
   const gatePassed = (afterStage: string) =>
     gateHistory.some(
-      (item) =>
-        item.afterStage === afterStage &&
-        item.status === "PASSED",
+      (item) => item.afterStage === afterStage && item.status === "PASSED",
     );
 
   const isFailed =
@@ -130,12 +126,10 @@ function executionTracker(plan: UpgradePlanRecord): ExecutionTrackerItem[] {
     iacStatus === "SYNCHRONIZED" ||
     iacStatus === "APPLIED";
   const fullyUpgraded =
-    plan.status === "SUCCEEDED" &&
-    (scope === "ADDONS" || iacComplete);
+    plan.status === "SUCCEEDED" && (scope === "ADDONS" || iacComplete);
 
   const operationActive = (kind: string) =>
-    plan.status === "EXECUTING" &&
-    phase.startsWith(kind + ":");
+    plan.status === "EXECUTING" && phase.startsWith(kind + ":");
   const operationState = (
     kind: "CONTROL_PLANE" | "ADDON" | "NODEGROUP",
     applicable: boolean,
@@ -230,12 +224,10 @@ function executionTracker(plan: UpgradePlanRecord): ExecutionTrackerItem[] {
     {
       id: "window",
       label: "Maintenance Window",
-      state: windowReached
-        ? "complete"
-        : isApproved
-          ? "active"
-          : "pending",
-      detail: plan.scheduledFor ? timeLabel(plan.scheduledFor) : "Not scheduled",
+      state: windowReached ? "complete" : isApproved ? "active" : "pending",
+      detail: plan.scheduledFor
+        ? timeLabel(plan.scheduledFor)
+        : "Not scheduled",
     },
     {
       id: "control",
@@ -289,11 +281,7 @@ function executionTracker(plan: UpgradePlanRecord): ExecutionTrackerItem[] {
     {
       id: "upgraded",
       label: "Upgraded",
-      state: fullyUpgraded
-        ? "complete"
-        : isFailed
-          ? "attention"
-          : "pending",
+      state: fullyUpgraded ? "complete" : isFailed ? "attention" : "pending",
     },
   ];
 }
@@ -302,7 +290,10 @@ function ExecutionTracker({ plan }: { plan: UpgradePlanRecord }) {
   const items = executionTracker(plan);
   const active = items.find((item) => item.state === "active");
   return (
-    <section className="upgrade-execution-tracker" aria-label="Upgrade execution progress">
+    <section
+      className="upgrade-execution-tracker"
+      aria-label="Upgrade execution progress"
+    >
       <header>
         <div>
           <h3>Execution Progress</h3>
@@ -334,9 +325,7 @@ function ExecutionTracker({ plan }: { plan: UpgradePlanRecord }) {
               )}
             </div>
             <div>
-              <span className="upgrade-execution-stage-index">
-                {index + 1}
-              </span>
+              <span className="upgrade-execution-stage-index">{index + 1}</span>
               <strong>{item.label}</strong>
               <small>
                 {item.detail ??
@@ -1030,6 +1019,17 @@ export function UpgradePlansWorkspace({
                   Approval records the reviewed request. Chart compatibility and
                   GitOps execution are not enabled in this release.
                 </p>
+                {plan.utilityEvidence?.gitOps && (
+                  <p>
+                    Repository checked when drafted:{" "}
+                    {plan.utilityEvidence.gitOps.path}
+                    {" · "}
+                    {plan.utilityEvidence.gitOps.branch}
+                    {" · "}Chart {plan.utilityEvidence.gitOps.currentVersion}{" "}
+                    matched the installed version. This check does not verify
+                    compatibility or deploy the upgrade.
+                  </p>
+                )}
               </section>
             ) : plan.planSpec ? (
               <UpgradePathDetails

@@ -1,5 +1,6 @@
 from datetime import timedelta
 from unittest.mock import MagicMock
+from pathlib import Path
 import pytest
 from navigan.modules.cluster_management.utility_upgrades import UtilityUpgradePlans, CreateUtilityUpgradePlan, upstream_releases
 from navigan.modules.cluster_management.upgrade_plans import EksUpgradePlans, utcnow
@@ -16,7 +17,15 @@ def service(code='headlamp',status='READY',version='0.45.0',age=0):
     repo.get.return_value={'cluster_id':'CLU-live','customer_id':'CUS-live'}
     repo.platform_components.return_value={'components':[{'componentCode':code,'status':status,'version':version,'syncStatus':'Synced','observedAt':(utcnow()-timedelta(seconds=age)).isoformat()}]}
     repo.db.execute.return_value.fetchone.return_value=None
-    plans=UtilityUpgradePlans(repo,access(),'test',releases=lambda _:['0.46.0','0.45.0'])
+    repo.system_repository_access.return_value = {
+        'installation_id': 123, 'organization_login': 'customer-org',
+        'repository_name': 'cluster-system', 'default_branch': 'main',
+        'repository_url': 'https://github.com/customer-org/cluster-system.git',
+    }
+    github = MagicMock()
+    template = Path('src/navigan/modules/cluster_management/system_repo_template/applications/30-headlamp.yaml').read_text()
+    github.read_repository_file.return_value = template.replace('__SYSTEM_REPO_URL__', repo.system_repository_access.return_value['repository_url']).replace('__SYSTEM_REPO_REVISION__', 'main')
+    plans=UtilityUpgradePlans(repo,access(),'test',releases=lambda _:['0.46.0','0.45.0'],github=github)
     return plans,repo
 
 
@@ -45,6 +54,7 @@ def test_create_utility_draft_is_persisted_audited_and_does_not_execute():
     result=plans.create('CLU-live',{'utilityCode':'headlamp','targetVersion':'0.46.0','changeReason':'Upgrade dashboard chart'})
     assert result['kind']=='UTILITY' and result['status']=='DRAFT'
     assert result['utilityEvidence']['chart']=='headlamp'
+    assert result['utilityEvidence']['gitOps']['status']=='VERIFIED'
     assert 'readinessEvidence' not in result
     repo.system_repository_access.assert_called_once_with('CLU-live')
     assert any('INSERT INTO cluster_management.utility_upgrade_plans' in c.args[0] for c in repo.db.execute.call_args_list)
