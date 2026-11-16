@@ -20,6 +20,7 @@ import { UtilityInventory } from "./live-upgrade-inventory";
 import { useScheduleClock } from "./schedule-state";
 import { utilityCatalogue, utilityRows } from "./utility-catalogue";
 import { falcoHealthEvidence } from "./utility-health-evidence";
+import { activeUtilityPlan } from "./utility-plan-actions";
 import "./system-utilities.css";
 
 const views = [
@@ -152,6 +153,40 @@ export function SystemUtilitiesWorkspace({
     time && Number.isFinite(Date.parse(time))
       ? new Date(time).toLocaleString()
       : "Not reported";
+
+  const upgradeAction = (
+    code: string,
+    reported: boolean,
+    supported: boolean,
+  ) => {
+    const active = activeUtilityPlan(plans, selectedId, code);
+    if (active)
+      return (
+        <Button onClick={() => onReview(active.planId)}>Review plan</Button>
+      );
+    if (!supported)
+      return (
+        <span className="utility-secondary">Upgrade not available yet</span>
+      );
+    if (pending || state.error)
+      return (
+        <Button disabled>
+          {pending ? "Checking plans…" : "Plans unavailable"}
+        </Button>
+      );
+    if (upToDateFor(code))
+      return (
+        <span className="utility-secondary">Up to date — no action needed</span>
+      );
+    return (
+      <Button
+        disabled={!canPlan || !reported}
+        onClick={() => setPlanning(code)}
+      >
+        Plan upgrade
+      </Button>
+    );
+  };
 
   if (planning && selected)
     return (
@@ -370,22 +405,7 @@ export function SystemUtilitiesWorkspace({
                         )}
                       </td>
                       <td>
-                        {upToDateFor(row.code) ? (
-                          <span className="utility-secondary">
-                            Up to date — no action needed
-                          </span>
-                        ) : row.planning ? (
-                          <Button
-                            disabled={!canPlan || !row.reported}
-                            onClick={() => setPlanning(row.code)}
-                          >
-                            Plan upgrade
-                          </Button>
-                        ) : (
-                          <span className="utility-secondary">
-                            Upgrade not available yet
-                          </span>
-                        )}
+                        {upgradeAction(row.code, row.reported, row.planning)}
                       </td>
                     </tr>
                   ))}
@@ -537,17 +557,10 @@ export function SystemUtilitiesWorkspace({
                 ? "Create an upgrade draft for an installed utility, then submit it for review. Compatibility and execution remain gated."
                 : "Upgrades for this component are not available from System Utilities yet."}
             </p>
-            {upToDateFor(entry.code) ? (
-              <p>Up to date — no action needed.</p>
-            ) : (
-              entry.planning && (
-                <Button
-                  disabled={!canPlan || !selectedUtility?.reported}
-                  onClick={() => setPlanning(entry.code)}
-                >
-                  Plan upgrade
-                </Button>
-              )
+            {upgradeAction(
+              entry.code,
+              Boolean(selectedUtility?.reported),
+              entry.planning,
             )}
             <p className="utility-install-note">
               New utility registration and installation are not enabled in this
