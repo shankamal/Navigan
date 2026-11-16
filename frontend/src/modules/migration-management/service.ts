@@ -269,12 +269,12 @@ export const migrations = {
       )
     ).data,
 
-  list: async (signal?: AbortSignal) =>
+  list: async (signal?: AbortSignal, page = 0) =>
     parseResponse(
       migrationListSchema,
       (
         await apiClient.get(base, {
-          params: { page: 0, pageSize: 100 },
+          params: { page, pageSize: 100 },
           signal,
         })
       ).data,

@@ -1,137 +1,161 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlatformDashboard } from "@/modules/dashboard/platform-dashboard";
-import { architect } from "./fixtures";
-const mocks = vi.hoisted(() => ({
-  refresh: vi.fn(),
-  countPending: false,
-  environmentFilters: [] as unknown[],
+import { useDashboardData } from "@/modules/dashboard/dashboard-data";
+import {
+  WorkspacePageProvider,
+  useWorkspacePage,
+} from "@/shared/components/workspace-page-context";
+import { engineer } from "./fixtures";
+vi.mock("@/modules/dashboard/dashboard-data", async (original) => ({
+  ...(await original<typeof import("@/modules/dashboard/dashboard-data")>()),
+  useDashboardData: vi.fn(),
 }));
-vi.mock("@tanstack/react-query", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQueryClient: () => ({ refetchQueries: mocks.refresh }),
-}));
-const query = (data: unknown) => ({
-  data,
-  isPending: false,
-  isFetching: false,
-  error: null,
-  dataUpdatedAt: 1791519000000,
-  refetch: mocks.refresh,
+const refresh = vi.fn();
+let data: ReturnType<typeof useDashboardData>;
+function HeaderHost() {
+  const { setHeaderTarget } = useWorkspacePage();
+  return (
+    <header aria-label="Unified header">
+      <nav aria-label="Breadcrumb">Home / Platform Dashboard</nav>
+      <div ref={setHeaderTarget} />
+    </header>
+  );
+}
+beforeEach(() => {
+  refresh.mockReset().mockResolvedValue([]);
+  data = {
+    identity: engineer,
+    scope: { customerId: "all", environmentId: "all" },
+    customers: [{ customerId: "CUS-1", name: "DB Schenker", status: "ACTIVE" }],
+    environments: [
+      {
+        environmentId: "ENV-1",
+        customerId: "CUS-1",
+        environmentName: "Production",
+        cloudProvider: "AWS",
+        status: "ACTIVE",
+      },
+    ],
+    fleet: [
+      {
+        clusterId: "CLU-1",
+        clusterName: "demo-cluster",
+        customerId: "CUS-1",
+        customerName: "DB Schenker",
+        environmentId: "ENV-1",
+        environmentName: "Production",
+        status: "ACTIVE",
+        configuration: { kubernetesVersion: "1.30" },
+      },
+    ],
+    migrations: [
+      {
+        migrationId: "MIG-1",
+        customerName: "DB Schenker",
+        name: "Payments migration",
+        status: "DISCOVERY_IN_PROGRESS",
+      },
+    ],
+    planRows: [],
+    inventories: new Map(),
+    plansComplete: true,
+    inventoriesComplete: false,
+    pending: false,
+    refreshing: false,
+    errors: 0,
+    updatedAt: Date.now(),
+    refresh,
+  } as unknown as ReturnType<typeof useDashboardData>;
+  vi.mocked(useDashboardData).mockImplementation(() => data);
 });
-vi.mock("@/shared/auth/auth-provider", () => ({
-  useAuth: () => ({ identity: architect }),
-}));
-vi.mock("@/modules/customer-management/hooks/queries", () => ({
-  useCustomerCount: (s?: string) => ({
-    ...query(s === "ACTIVE" ? 6 : s ? 0 : 18),
-    isPending: mocks.countPending,
-  }),
-  useCustomers: () => query({ items: [] }),
-}));
-vi.mock("@/modules/environment-management/hooks/queries", () => ({
-  useEnvironmentCount: (s?: string) => query(s === "ACTIVE" ? 4 : s ? 0 : 6),
-  useEnvironmentSummary: () =>
-    query({
-      total: 6,
-      byStatus: { ACTIVE: 4 },
-      byProvider: { AWS: 3, AZURE: 2, GCP: 1, OCI: 0 },
-    }),
-  useEnvironments: (filters: unknown) => {
-    mocks.environmentFilters.push(filters);
-    return query({ items: [] });
-  },
-}));
-vi.mock("@/modules/cluster-management/hooks/queries", () => ({
-  useClusterCount: (s?: string) => query(s === "ACTIVE" ? 2 : s ? 0 : 4),
-  useClusters: () => query({ items: [] }),
-}));
-describe("Dashboard navigation and freshness", () => {
-  beforeEach(() => {
-    mocks.refresh.mockReset().mockResolvedValue({ data: {} });
-    mocks.countPending = false;
-    mocks.environmentFilters.length = 0;
-  });
-  it("places overview charts before compact estate and operation summaries", () => {
+describe("Operational platform dashboard", () => {
+  it("puts eight capability KPIs first, with planned capabilities explicit", () => {
     render(<PlatformDashboard />);
-    const charts = screen.getByRole("region", {
-      name: "Platform overview charts",
-    });
-    const summaries = screen.getByRole("region", {
-      name: "Navigan platform KPIs",
-    });
-    expect(
-      charts.compareDocumentPosition(summaries) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const kpis = screen.getByRole("region", { name: "Navigan platform KPIs" });
+    expect(within(kpis).getAllByRole("link")).toHaveLength(8);
+    expect(within(kpis).getAllByText("Planned")).toHaveLength(2);
     for (const name of [
-      "Cloud footprint",
-      "Active record coverage",
-      "Cluster workflow state",
-    ]) {
-      expect(
-        screen.getByRole("button", { name: `About ${name}` }),
-      ).toBeInTheDocument();
-    }
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+      "Customers",
+      "Environments",
+      "Clusters",
+      "Migrations",
+      "Cluster Onboarding",
+      "App Modernization",
+      "Upgrades & Patching",
+      "System Utilities",
+    ])
+      expect(within(kpis).getByRole("heading", { name })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Capability coverage" }),
+    ).not.toBeInTheDocument();
+  });
+  it("uses separate provider and health donuts and never infers health from ACTIVE", () => {
+    render(<PlatformDashboard />);
     expect(
       screen.getByRole("img", {
         name: "Environment profiles by cloud provider",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("3", { selector: ".pd-provider-legend strong" }),
-    ).toBeInTheDocument();
+    const health = screen.getByRole("region", { name: "Estate health" });
+    expect(within(health).getByText("Unverified")).toBeInTheDocument();
+    const landscape = screen.getByRole("region", {
+      name: "Cluster & environment landscape",
+    });
+    expect(within(landscape).getByText("Unverified")).toBeInTheDocument();
+    expect(within(landscape).queryByText("Ready")).not.toBeInTheDocument();
   });
-  it("renders progressively and avoids the redundant 100-environment request", () => {
-    mocks.countPending = true;
-    render(<PlatformDashboard />);
-
-    expect(
-      screen.getByRole("heading", { name: "Platform Command Centre" }),
-    ).toBeInTheDocument();
-    expect(mocks.environmentFilters).not.toHaveLength(0);
-    expect(mocks.environmentFilters).toEqual(
-      expect.arrayContaining([
-        {
-          page: 0,
-          pageSize: 3,
-          status: "SUBMITTED",
-          sort: "updatedAt,desc",
-        },
-      ]),
+  it("renders breadcrumbs and title inside the same header target", () => {
+    render(
+      <WorkspacePageProvider>
+        <HeaderHost />
+        <PlatformDashboard />
+      </WorkspacePageProvider>,
     );
-    expect(mocks.environmentFilters).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ pageSize: 100 })]),
+    const header = screen.getByRole("banner", { name: "Unified header" });
+    expect(
+      within(header).getByRole("navigation", { name: "Breadcrumb" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByRole("heading", { name: "Platform Command Centre" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Platform Command Centre" }),
+    ).toHaveLength(1);
+  });
+  it("shows unavailable totals instead of misleading zero after a source failure", () => {
+    data = { ...data, customers: undefined, plansComplete: false, errors: 1 };
+    render(<PlatformDashboard />);
+    const kpis = screen.getByRole("region", { name: "Navigan platform KPIs" });
+    expect(within(kpis).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Some data unavailable",
     );
+    expect(
+      screen.getByRole("region", { name: "Upcoming Maintenance & Changes" }),
+    ).toHaveTextContent("incomplete or unavailable");
   });
-  it("opens exact filters for active records and failed operations", () => {
+  it("opens exact request, cluster and migration links without write actions", () => {
     render(<PlatformDashboard />);
+    expect(screen.getByRole("link", { name: "View cluster" })).toHaveAttribute(
+      "href",
+      "/clusters/CLU-1",
+    );
     expect(
-      screen.getByRole("link", { name: /Onboarded customers/ }),
-    ).toHaveAttribute("href", "/customers?status=ACTIVE");
+      screen.getByRole("link", { name: "Discovery in progress" }),
+    ).toHaveAttribute("href", "/migrations/MIG-1");
     expect(
-      screen.getByRole("link", { name: /Governed environments/ }),
-    ).toHaveAttribute("href", "/environments?status=ACTIVE");
-    expect(
-      screen.getByRole("link", { name: /Active clusters/ }),
-    ).toHaveAttribute("href", "/clusters?status=ACTIVE");
-    expect(
-      screen.getByRole("link", { name: /Failed operations/ }),
-    ).toHaveAttribute("href", "/clusters?status=FAILED");
-    expect(
-      screen.getByRole("link", { name: /Awaiting action/ }),
-    ).toHaveAttribute("href", "#dashboard-attention");
-    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+      screen.getByRole("link", { name: "View maintenance calendar" }),
+    ).toHaveAttribute("href", "/upgrades?tab=schedule");
   });
-  it("refreshes counts and supporting sections together", async () => {
-    render(<PlatformDashboard />);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(5));
-    expect(screen.getByRole("status")).toHaveTextContent("Updated");
-  });
-  it("announces failed refreshes instead of implying all data is current", async () => {
-    mocks.refresh.mockRejectedValue(new Error("Network unavailable"));
+  it("refreshes every source and announces refresh failure", async () => {
+    refresh.mockRejectedValue(Error("offline"));
     render(<PlatformDashboard />);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() =>
@@ -139,21 +163,47 @@ describe("Dashboard navigation and freshness", () => {
         "Some data unavailable",
       ),
     );
+    expect(refresh).toHaveBeenCalledOnce();
   });
-  it("renders the cluster workflow donut and preserves the workflow shortcuts", () => {
+  it("keeps environment-level migration count unavailable when association is unknown", () => {
+    data = {
+      ...data,
+      scope: { ...data.scope, environmentId: "ENV-1" },
+      migrations: undefined,
+    };
     render(<PlatformDashboard />);
     expect(
-      screen.getByRole("img", {
-        name: "Cluster workflow state: 4 total requests",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Plan ready/ })).toHaveAttribute(
-      "href",
-      "/clusters?status=PLAN_READY",
-    );
-    expect(screen.getByRole("link", { name: /^Applying/ })).toHaveAttribute(
-      "href",
-      "/clusters?status=APPLYING",
-    );
+      screen.getAllByText("Environment-level migration totals unavailable")
+        .length,
+    ).toBeGreaterThan(0);
+  });
+  it("includes scheduled changes but preserves submitted approval state", () => {
+    data = {
+      ...data,
+      planRows: [
+        {
+          cluster: data.fleet![0],
+          plan: {
+            planId: "P-1",
+            kind: "CONTAINER",
+            status: "SUBMITTED",
+            scheduledFor: new Date(Date.now() + 86400000).toISOString(),
+            execution: {},
+          },
+        },
+      ] as ReturnType<typeof useDashboardData>["planRows"],
+    };
+    render(<PlatformDashboard />);
+    const maintenance = screen.getByRole("region", {
+      name: "Upcoming Maintenance & Changes",
+    });
+    expect(within(maintenance).getByText("Submitted")).toBeInTheDocument();
+    expect(within(maintenance).queryByText("Approved")).not.toBeInTheDocument();
+    expect(
+      within(maintenance).getByRole("link", { name: "Cluster upgrade" }),
+    ).toHaveAttribute("href", "/upgrades?plan=P-1");
+    expect(
+      within(maintenance).queryByRole("button", { name: /execute|start/i }),
+    ).not.toBeInTheDocument();
   });
 });

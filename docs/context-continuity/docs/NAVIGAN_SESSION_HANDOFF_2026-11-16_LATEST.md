@@ -1,3 +1,31 @@
+## Current follow-up — approved operational Dashboard and fixed sidebar anchors
+
+This supersedes earlier 16-Nov visual directions below. User approved the Action-first Dashboard sample, then selected calmer colors and IBM Plex Sans matching devopsailab.in. User explicitly requested both sidebar fixes and Dashboard implementation, no visible sidebar scrollbar, and breadcrumb/title merged together.
+
+### Implemented
+- Fixed Workspace heading above the menu, no duplicate WORKSPACE group label. Fixed footer displays real application version from frontend/package.json and links to About Navigan; no information-i footer icon. Default width 248px while retained user resizing is respected. Compact menu spacing; visible scrollbar hidden, wheel/touch/keyboard scrolling preserved on short viewports so links are not clipped.
+- Dashboard breadcrumb and title/actions render in ONE sticky white header owned by shell. Dashboard heading uses a portal into that header; mobile header stacks normally. No detached title panel, separate sticky breadcrumb strip, or extra title icon.
+- Dashboard uses eight capability KPI cards: Customers, Environments, Clusters, Migrations, Cluster Onboarding, App Modernization, Upgrades & Patching, System Utilities. Planned workflows are explicit, and unavailable/incomplete totals are em dashes rather than zero. Cluster count is labelled records, not a fabricated imported/managed split.
+- Action-first content: Requires attention; Cluster & environment landscape; provider-colored cloud donut; runtime-evidence health donut; Pending approvals; Migrations in progress; Upcoming Maintenance & Changes with 7/30-day horizon, at most 5 recorded windows and real plan/calendar links. No bar charts, Capability Coverage strip, fabricated trends or made-up operational data.
+- Typography: IBM Plex Sans, 22px/600 page title, 14px/600 section headings, 13px body/table, restrained medium-weight KPIs. White cards, subtle dividers, quiet row text links, soft status badges, solid green only for primary action. Provider colors retain AWS orange/Azure blue/GCP green/OCI red with softer chroma; health uses separate semantic colors.
+- Actor-scoped React Query read model loads all pages for Customer/Environment/Cluster/Migration lists; failed pagination never yields a misleading first-page total. Customer/Environment workspace filtering applies to data. Migration summaries lack environment association, so environment-scoped migrations show unavailable explicitly.
+- Reuses stored per-cluster upgrade plans and platform-components/runtime inventory. No provider upgrade, verification scan, source mutation or automatic execution is triggered by viewing Dashboard. Cached reads are progressive; fleet plan/inventory fan-out remains a performance consideration at scale.
+- Runtime health is Ready/Degraded only with fresh observedAt, valid unexpired expiresAt and max 5-minute age; otherwise Unverified. STOPPED/verified zero-node is Paused. Draft requests are excluded from the runtime-health denominator. Missing/stale node counts are not invented.
+- Utility KPI uses recorded open utility plans; fresh component inventory is summarized separately. Upgrade candidates and version availability are not fabricated from plan counts. Standalone patch inventory is not exposed by current APIs; KPI supporting text identifies recorded plans.
+- Maintenance comes from actual plan scheduledFor or stage windows, excludes terminal/cancelled/rejected/failed plans, retains Submitted/Draft approval state, and uses browser timezone (hydration-safe). No assumed duration or dates. Environment/migration/standalone-patching calendars are not exposed by current APIs and are disclosed.
+- Upgrade workspace accepts read-only `?plan=<id>` and `?tab=schedule` links. All existing approval/execution gates remain intact.
+- Removed obsolete Dashboard styles/layout module and obsolete summary-query hover prefetch to prevent stale override conflicts/redundant work.
+
+### Checks / rollout
+- TypeScript passed; 81 tests across 10 files passed, including scope/pagination, stale/expired/invalid/future health evidence, zero-node behavior, maintenance sorting/windows/approval state, unified header portal, shell, login and governed Upgrade regressions.
+- Production `next build --webpack` passed without warnings after correcting the version JSON import. Focused shell/dashboard regression was also rerun after the final presentation fixes.
+- Authenticated visual verification remains pending. Cloud Browser previously could not reach this workspace's local preview; do not claim this implementation is visually accepted in PROD.
+- Latest user-prepared earlier candidate :77 was from 297a6e6 with digest sha256:f3d2607aa74792aea2311056821a63161553d4bd45cfdd075b5650415355d6ee, plan /var/tmp/navigan-prod-frontend-u1t1frpu/release-plan.json. User subsequently showed the light sidebar and requested this next refinement, but no execute/stabilization output was provided. Do not assert exact running revision without service evidence.
+- This follow-up requires a NEW candidate after fetching the published branch with an explicit remote-tracking refspec. Verify HEAD and origin/feature/upgrade-patching-ui-approved match before --prepare; do not reuse older :75/:76/:77 plans.
+- No main merge, DEV sync, backend deployment or EKS execution authorized by this UI increment.
+
+---
+
 ## Follow-up — sidebar recovery, new menu and full-width Dashboard header
 
 This follow-up supersedes the Dashboard-only sidebar trial below. User supplied PROD screenshot with dark sidebar and requested a new sidebar IA, followed by a full-width white console title strip instead of a card/panel.

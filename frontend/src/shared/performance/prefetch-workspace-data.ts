@@ -18,37 +18,9 @@ export function prefetchWorkspaceData(queryClient: QueryClient, href: string) {
     });
   }
 
-  if (path === "/dashboard") {
-    return Promise.all([
-      queryClient.prefetchQuery({
-        queryKey: ["customers", "summary"],
-        queryFn: async ({ signal }) => {
-          const { customersService } =
-            await import("@/modules/customer-management/services/customers");
-          return customersService.summary(signal);
-        },
-        staleTime,
-      }),
-      queryClient.prefetchQuery({
-        queryKey: ["environment-count", "summary"],
-        queryFn: async ({ signal }) => {
-          const { environments } =
-            await import("@/modules/environment-management/services/environments");
-          return environments.summary(signal);
-        },
-        staleTime,
-      }),
-      queryClient.prefetchQuery({
-        queryKey: ["cluster-count", "summary"],
-        queryFn: async ({ signal }) => {
-          const { clusters } =
-            await import("@/modules/cluster-management/service");
-          return clusters.summary(signal);
-        },
-        staleTime,
-      }),
-    ]);
-  }
+  // Dashboard loads its own actor-scoped, paginated read model progressively.
+  // Do not warm the obsolete unscoped summary queries on pointer hover.
+  if (path === "/dashboard") return Promise.resolve();
 
   if (path === "/customers") {
     const filters = { page: 0, pageSize: 5, sort: "createdAt,desc" } as const;

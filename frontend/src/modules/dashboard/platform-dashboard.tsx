@@ -1,921 +1,701 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { IntentLink as Link } from "@/shared/components/intent-link";
-import { HelpTip } from "@/shared/components/help-tip";
-import { SummaryDonut } from "@/shared/components/summary-donut";
-import layout from "./dashboard-layout.module.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
-  AlertTriangle,
-  ArrowRight,
-  ArrowUpRight,
-  Boxes,
-  Bell,
-  Settings2,
-  LayoutGrid,
-  FileText,
   Building2,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  Cloud,
-  Container,
-  Gauge,
   Layers3,
-  Plus,
-  RefreshCw,
-  ServerCog,
-  ShieldCheck,
+  Boxes,
+  ArrowRightLeft,
+  PlugZap,
   Workflow,
+  CircleArrowUp,
   Wrench,
+  ArrowRight,
+  RefreshCw,
+  Plus,
 } from "lucide-react";
-import { useAuth } from "@/shared/auth/auth-provider";
+import { IntentLink as Link } from "@/shared/components/intent-link";
+import { useWorkspacePage } from "@/shared/components/workspace-page-context";
+import { SummaryDonut } from "@/shared/components/summary-donut";
 import { hasPermission } from "@/shared/auth/permissions";
 import {
-  Button,
-  ErrorNotice,
-  Loading,
-  PageHeading,
-  formatDateTime,
-} from "@/shared/components/ui";
-import {
-  useCustomerCount,
-  useCustomers,
-} from "@/modules/customer-management/hooks/queries";
-import {
-  useEnvironmentCount,
-  useEnvironmentSummary,
-  useEnvironments,
-} from "@/modules/environment-management/hooks/queries";
-import {
-  useClusterCount,
-  useClusters,
-} from "@/modules/cluster-management/hooks/queries";
-import "./platform-dashboard.css";
+  activeMigration,
+  openPlan,
+  runtimeState,
+  scheduledChanges,
+  useDashboardData,
+} from "./dashboard-data";
+import styles from "./dashboard.module.css";
 
-type Provider = "AWS" | "AZURE" | "GCP" | "OCI";
-
-const display = (value?: number) => value ?? "—";
-const sum = (...values: Array<number | undefined>) =>
-  values.reduce<number>((total, value) => total + (value ?? 0), 0);
-const percent = (value?: number, total?: number) =>
-  total ? Math.round(((value ?? 0) / total) * 100) : 0;
-
-function ProviderLogo({
-  provider,
-  label = true,
-}: {
-  provider: Provider;
-  label?: boolean;
-}) {
-  const names: Record<Provider, string> = {
-    AWS: "AWS",
-    AZURE: "Azure",
-    GCP: "Google Cloud",
-    OCI: "OCI",
-  };
-
-  const assets: Record<Provider, string> = {
-    AWS: "amazonwebservices",
-    AZURE: "microsoftazure",
-    GCP: "googlecloud",
-    OCI: "oracle",
-  };
+const providerColors = ["#E5A044", "#4D8FC7", "#63A477", "#C96863"];
+const providers = ["AWS", "AZURE", "GCP", "OCI"];
+const providerLabels = ["AWS", "Azure", "GCP", "OCI"];
+const states = ["Ready", "Degraded", "Paused", "Unverified"];
+const healthColors = ["#6D957B", "#C4A064", "#D9DEE3", "#7A8998"];
+const label = (s: string) =>
+  s
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/^./, (c) => c.toUpperCase());
+const num = <T,>(items?: T[], predicate?: (item: T) => boolean) =>
+  items ? (predicate ? items.filter(predicate).length : items.length) : "—";
+function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className={`pd-provider pd-provider-${provider.toLowerCase()}`}>
-      <img
-        className="pd-brand-logo"
-        src={`/logos/${assets[provider]}.svg`}
-        alt={label ? "" : names[provider]}
-      />
-      {label && <span>{names[provider]}</span>}
+    <span className={styles.badge} data-tone={String(children).toLowerCase()}>
+      {children}
     </span>
   );
 }
+function Panel({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className={styles.card} aria-label={title}>
+      <header>
+        <h2>{title}</h2>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+function Action({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link className={styles.action} href={href}>
+      {children}
+      <ArrowRight size={13} aria-hidden="true" />
+    </Link>
+  );
+}
+function Empty({ children }: { children: ReactNode }) {
+  return <p className={styles.empty}>{children}</p>;
+}
 
 export function PlatformDashboard() {
-  const queryClient = useQueryClient();
-  const { identity } = useAuth();
-  const [refreshError, setRefreshError] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState("");
-
-  const totalCustomers = useCustomerCount();
-  const activeCustomers = useCustomerCount("ACTIVE");
-  const submittedCustomers = useCustomerCount("SUBMITTED");
-  const reviewCustomers = useCustomerCount("UNDER_REVIEW");
-  const totalEnvironments = useEnvironmentCount();
-  const activeEnvironments = useEnvironmentCount("ACTIVE");
-  const submittedEnvironments = useEnvironmentCount("SUBMITTED");
-  const reviewEnvironments = useEnvironmentCount("UNDER_REVIEW");
-  const totalClusters = useClusterCount();
-  const activeClusters = useClusterCount("ACTIVE");
-  const submittedClusters = useClusterCount("SUBMITTED");
-  const reviewClusters = useClusterCount("UNDER_REVIEW");
-  const planReadyClusters = useClusterCount("PLAN_READY");
-  const applyingClusters = useClusterCount("APPLYING");
-  const failedClusters = useClusterCount("FAILED");
-  const environmentSummary = useEnvironmentSummary();
-  const pendingCustomers = useCustomers({
-    page: 0,
-    pageSize: 3,
-    status: "SUBMITTED",
-    sort: "updatedAt,desc",
-  });
-  const pendingEnvironments = useEnvironments({
-    page: 0,
-    pageSize: 3,
-    status: "SUBMITTED",
-    sort: "updatedAt,desc",
-  });
-  const pendingClusters = useClusters({
-    page: 0,
-    pageSize: 3,
-    status: "SUBMITTED",
-  });
-  const recentClusters = useClusters({ page: 0, pageSize: 3 });
-
-  const countQueries = [
-    totalCustomers,
-    activeCustomers,
-    submittedCustomers,
-    reviewCustomers,
-    totalEnvironments,
-    activeEnvironments,
-    submittedEnvironments,
-    reviewEnvironments,
-    totalClusters,
-    activeClusters,
-    submittedClusters,
-    reviewClusters,
-    planReadyClusters,
-    applyingClusters,
-    failedClusters,
-  ];
-  const dashboardQueries = [
-    ...countQueries,
-    environmentSummary,
-    pendingCustomers,
-    pendingEnvironments,
-    pendingClusters,
-    recentClusters,
-  ];
-  const countsPending = countQueries.some((query) => query.isPending);
-  const clusterCountsPending = totalClusters.isPending;
-  const refreshing = dashboardQueries.some((query) => query.isFetching);
-  const hasPartialError = dashboardQueries.some((query) => query.error);
-  const oldestUpdate = Math.min(
-    ...dashboardQueries.map((query) => query.dataUpdatedAt || 0),
-  );
+  const d = useDashboardData();
+  const { headerTarget } = useWorkspacePage();
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const [days, setDays] = useState(7);
+  const [now, setNow] = useState(() => Date.now());
+  const [timezone, setTimezone] = useState("local time");
   useEffect(() => {
-    setLastUpdated(
-      oldestUpdate
-        ? new Date(oldestUpdate).toLocaleTimeString("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          })
-        : "",
-    );
-  }, [oldestUpdate]);
-  async function refreshDashboard() {
-    setRefreshError(false);
-    const results = await Promise.allSettled(
-      [
-        "customers",
-        "environment-count",
-        "environments",
-        "cluster-count",
-        "clusters",
-      ].map((key) =>
-        queryClient.refetchQueries(
-          { queryKey: [key], type: "active" },
-          { throwOnError: true },
-        ),
-      ),
-    );
-    setRefreshError(results.some((result) => result.status === "rejected"));
-  }
-  const awaitingAction = sum(
-    submittedCustomers.data,
-    reviewCustomers.data,
-    submittedEnvironments.data,
-    reviewEnvironments.data,
-    submittedClusters.data,
-    reviewClusters.data,
-  );
-  const provisioningNow = sum(planReadyClusters.data, applyingClusters.data);
-  const providerCounts = environmentSummary.data?.byProvider ?? {};
-  const providerTotal = Object.values(providerCounts).reduce(
-    (total, value) => total + value,
-    0,
-  );
-  const providerOrder: Provider[] = ["AWS", "AZURE", "GCP", "OCI"];
-  const providerColors: Record<Provider, string> = {
-    AWS: "#f59e0b",
-    AZURE: "#1689d4",
-    GCP: "#4f7fe9",
-    OCI: "#d43b2f",
-  };
-  const customerHealth = percent(activeCustomers.data, totalCustomers.data);
-  const environmentHealth = percent(
-    activeEnvironments.data,
-    totalEnvironments.data,
-  );
-  const clusterHealth = percent(activeClusters.data, totalClusters.data);
-  const postureValues = [
-    totalCustomers.data ? customerHealth : undefined,
-    totalEnvironments.data ? environmentHealth : undefined,
-    totalClusters.data ? clusterHealth : undefined,
-  ].filter((value): value is number => value !== undefined);
-  const overallPosture = postureValues.length
-    ? Math.round(
-        postureValues.reduce((total, value) => total + value, 0) /
-          postureValues.length,
-      )
-    : 0;
-  const workflowInProgress = sum(
-    submittedClusters.data,
-    reviewClusters.data,
-    planReadyClusters.data,
-    applyingClusters.data,
-  );
-  const workflowKnown = sum(
-    activeClusters.data,
-    workflowInProgress,
-    failedClusters.data,
-  );
-  const workflowOther = Math.max(0, (totalClusters.data ?? 0) - workflowKnown);
-  const workflowTotal = totalClusters.data ?? 0;
-  const canCreateEnvironment = hasPermission(identity, "environment.create");
-  const canCreateCluster = hasPermission(identity, "cluster.create");
-  const canReview =
-    hasPermission(identity, "customer.review") ||
-    hasPermission(identity, "environment.review") ||
-    hasPermission(identity, "cluster.review");
-
-  const attentionItems = [
-    ...(pendingCustomers.data?.items ?? []).map((customer) => ({
-      id: customer.customerId,
-      title: customer.name,
-      meta: `Customer onboarding · ${customer.status.replaceAll("_", " ")}`,
-      href: `/customers/${customer.customerId}`,
-      icon: Building2,
-      tone: "info",
-    })),
-    ...(pendingEnvironments.data?.items ?? []).map((environment) => ({
-      id: environment.environmentId,
-      title: environment.environmentName,
-      meta: `${environment.cloudProvider} environment · ${environment.status.replaceAll("_", " ")}`,
-      href: `/environments/${environment.environmentId}`,
-      icon: Layers3,
-      tone: "warning",
-    })),
-    ...(pendingClusters.data?.items ?? []).map((cluster) => ({
-      id: cluster.clusterId,
-      title: cluster.clusterName,
-      meta: `${cluster.customerName ?? "Customer"} · cluster request · ${cluster.status.replaceAll("_", " ")}`,
-      href: `/clusters/${cluster.clusterId}`,
-      icon: ServerCog,
-      tone: "success",
-    })),
-  ].slice(0, 2);
-
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const cs = d.customers,
+    es = d.environments,
+    fleet = d.fleet,
+    ms = d.migrations;
+  const plans = d.planRows.filter((r) => openPlan(r.plan));
+  const upgradePlans = plans.filter((r) => r.plan.kind !== "UTILITY");
+  const utilityPlans = plans.filter((r) => r.plan.kind === "UTILITY");
+  const migrationUnavailable =
+    d.scope.environmentId !== "all"
+      ? "Environment-level migration totals unavailable"
+      : "Data unavailable";
   const kpis = [
     {
-      label: "Onboarded customers",
-      total: totalCustomers.data,
-      value: activeCustomers.data,
-      detail: `${display(totalCustomers.data)} total in your scope`,
-      note: `${sum(submittedCustomers.data, reviewCustomers.data)} in onboarding`,
+      title: "Customers",
+      value: num(cs, (c) => c.status === "ACTIVE"),
+      suffix: "active",
+      detail: cs
+        ? `${cs.length} total · ${cs.filter((c) => ["SUBMITTED", "UNDER_REVIEW"].includes(c.status)).length} awaiting review`
+        : "Data unavailable",
       icon: Building2,
-      href: "/customers?status=ACTIVE",
-      tone: "green",
+      href: "/customers",
     },
     {
-      label: "Governed environments",
-      total: totalEnvironments.data,
-      value: activeEnvironments.data,
-      detail: `${display(totalEnvironments.data)} environment profiles`,
-      note: `${providerTotal} mapped to cloud providers`,
+      title: "Environments",
+      value: num(es, (e) => e.status === "ACTIVE"),
+      suffix: "active",
+      detail: es
+        ? `${es.length} total · ${es.filter((e) => ["SUBMITTED", "UNDER_REVIEW"].includes(e.status)).length} awaiting review`
+        : "Data unavailable",
       icon: Layers3,
-      href: "/environments?status=ACTIVE",
-      tone: "blue",
+      href: "/environments",
     },
     {
-      label: "Active clusters",
-      total: totalClusters.data,
-      value: activeClusters.data,
-      detail: `${display(totalClusters.data)} cluster requests`,
-      note: `${clusterHealth}% active estate`,
-      icon: ServerCog,
-      href: "/clusters?status=ACTIVE",
-      tone: "green",
+      title: "Clusters",
+      value: num(fleet),
+      suffix: "records",
+      detail: fleet
+        ? `${fleet.filter((c) => c.status === "ACTIVE").length} active records · ${fleet.filter((c) => c.status === "APPLYING").length} applying`
+        : "Data unavailable",
+      icon: Boxes,
+      href: "/clusters",
     },
     {
-      label: "Provisioning now",
-      total: undefined,
-      value: provisioningNow,
-      detail: `${display(planReadyClusters.data)} plan ready`,
-      note: `${display(applyingClusters.data)} Terraform applies`,
+      title: "Migrations",
+      value: num(ms, (m) => activeMigration(m.status)),
+      suffix: "active",
+      detail: ms
+        ? `${ms.filter((m) => /BLOCK|FAIL/.test(m.status)).length} blocked / failed · ${ms.filter((m) => m.status === "DRAFT").length} draft`
+        : migrationUnavailable,
+      icon: ArrowRightLeft,
+      href: "/migrations",
+    },
+    {
+      title: "Cluster Onboarding",
+      value: "Planned",
+      suffix: "",
+      detail: "Workflow not available",
+      icon: PlugZap,
+      href: "/onboarding",
+    },
+    {
+      title: "App Modernization",
+      value: "Planned",
+      suffix: "",
+      detail: "Workflow not available",
       icon: Workflow,
-      href: "#dashboard-provisioning",
-      tone: "violet",
+      href: "/app-transformation",
     },
     {
-      label: "Awaiting action",
-      total: undefined,
-      value: awaitingAction,
-      detail: "Submitted or under review",
-      note: "Across governed workflows",
-      icon: ShieldCheck,
-      href: "#dashboard-attention",
-      tone: "teal",
+      title: "Upgrades & Patching",
+      value: d.plansComplete ? upgradePlans.length : "—",
+      suffix: "open plans",
+      detail: d.plansComplete
+        ? `${upgradePlans.filter((r) => ["APPROVED", "SCHEDULED"].includes(r.plan.status)).length} approved / scheduled · ${upgradePlans.filter((r) => r.plan.status === "SUBMITTED").length} awaiting approval`
+        : "Plan data incomplete or unavailable",
+      icon: CircleArrowUp,
+      href: "/upgrades",
     },
     {
-      label: "Failed operations",
-      total: undefined,
-      value: failedClusters.data,
-      detail: "Cluster workflows requiring action",
-      note: failedClusters.data ? "Remediation required" : "No active failures",
-      icon: AlertTriangle,
-      href: "/clusters?status=FAILED",
-      tone: "orange",
+      title: "System Utilities",
+      value: d.plansComplete ? utilityPlans.length : "—",
+      suffix: "open plans",
+      detail: "Recorded utility plans · inventory below",
+      icon: Wrench,
+      href: "/upgrades/utilities",
     },
-  ] as const;
-
-  return (
-    <div className="platform-dashboard command-dashboard">
-      <PageHeading
-        icon={<LayoutGrid />}
-        title="Platform Command Centre"
-        className={`${layout.frozenHeading} dashboard-capability-heading`}
-        description="Live governance, provisioning, and lifecycle status across the Navigan-managed Kubernetes estate."
-        action={
-          <>
-            <span
-              className="page-heading-meta"
-              role="status"
-              aria-live="polite"
-            >
-              {refreshing
-                ? "Refreshing…"
-                : refreshError || hasPartialError
-                  ? "Some data unavailable"
-                  : lastUpdated
-                    ? `Updated ${lastUpdated}`
-                    : "Loading data…"}
-            </span>
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => void refreshDashboard()}
-              disabled={refreshing}
-            >
-              <RefreshCw size={15} />
-              Refresh
-            </Button>
-            {canCreateEnvironment && (
-              <Link
-                className="button button-secondary"
-                href="/environments/new"
-              >
-                <Plus size={16} />
-                New environment
-              </Link>
-            )}
-            {canCreateCluster && (
-              <Link className="button button-primary" href="/clusters/new">
-                <Plus size={16} />
-                New cluster request
-              </Link>
-            )}
-            {canReview && !canCreateCluster && (
-              <Link className="button button-primary" href="/clusters/reviews">
-                Open review queue
-              </Link>
-            )}
-          </>
-        }
-      />
-
-      <section className={layout.charts} aria-label="Platform overview charts">
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <Cloud size={19} />
-              </span>
-              <div>
-                <h2>
-                  Cloud footprint{" "}
-                  <HelpTip label="Cloud footprint">
-                    Environment profiles by cloud provider.
-                  </HelpTip>
-                </h2>
-              </div>
-            </div>
-          </header>
-          {environmentSummary.isPending ? (
-            <Loading label="Loading cloud footprint…" />
-          ) : environmentSummary.error ? (
-            <ErrorNotice
-              error={environmentSummary.error}
-              onRetry={() => environmentSummary.refetch()}
-            />
-          ) : providerTotal === 0 ? (
-            <p className="pd-empty">No environment profiles are available.</p>
-          ) : (
-            <div className="pd-footprint">
-              <SummaryDonut
-                label="Environment profiles by cloud provider"
-                total={providerTotal}
-                center={String(providerTotal)}
-                caption="environments"
-                values={providerOrder.map(
-                  (provider) => providerCounts[provider] ?? 0,
-                )}
-                colors={providerOrder.map(
-                  (provider) => providerColors[provider],
-                )}
-              />
-              <div className="pd-legend pd-provider-legend">
-                {providerOrder.map((provider) => (
-                  <div key={provider}>
-                    <ProviderLogo provider={provider} />
-                    <strong>{providerCounts[provider] ?? 0}</strong>
-                    <span>
-                      {percent(providerCounts[provider], providerTotal)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <Link
-            className="pd-card-link pd-card-footer-link"
-            href="/environments"
-          >
-            View environment directory <ArrowRight size={15} />
+  ];
+  const approvals = [
+    ...(cs ?? [])
+      .filter((c) => ["SUBMITTED", "UNDER_REVIEW"].includes(c.status))
+      .map((c) => ({
+        id: c.customerId,
+        title: c.name,
+        kind: "Customer",
+        status: c.status,
+        href: `/customers/${c.customerId}`,
+      })),
+    ...(es ?? [])
+      .filter((e) => ["SUBMITTED", "UNDER_REVIEW"].includes(e.status))
+      .map((e) => ({
+        id: e.environmentId,
+        title: e.environmentName,
+        kind: "Environment",
+        status: e.status,
+        href: `/environments/${e.environmentId}`,
+      })),
+    ...(fleet ?? [])
+      .filter((c) => ["SUBMITTED", "UNDER_REVIEW"].includes(c.status))
+      .map((c) => ({
+        id: c.clusterId,
+        title: c.clusterName,
+        kind: "Cluster",
+        status: c.status,
+        href: `/clusters/${c.clusterId}`,
+      })),
+    ...plans
+      .filter((r) => r.plan.status === "SUBMITTED")
+      .map((r) => ({
+        id: r.plan.planId,
+        title: r.cluster.clusterName,
+        kind: r.plan.kind === "UTILITY" ? "Utility plan" : "Upgrade plan",
+        status: r.plan.status,
+        href: `/upgrades?plan=${encodeURIComponent(r.plan.planId)}`,
+      })),
+  ];
+  const attention = [
+    ...(fleet ?? [])
+      .filter((c) => /FAILED/.test(c.status))
+      .map((c) => ({
+        id: c.clusterId,
+        priority: "High",
+        finding: "Cluster workflow failed",
+        context: `${c.customerName ?? c.customerId} / ${c.clusterName}`,
+        href: `/clusters/${c.clusterId}`,
+        action: "Inspect workflow",
+      })),
+    ...(ms ?? [])
+      .filter((m) => /BLOCK|FAIL/.test(m.status))
+      .map((m) => ({
+        id: m.migrationId,
+        priority: "High",
+        finding: `Migration ${label(m.status)}`,
+        context: `${m.customerName} / ${m.name}`,
+        href: `/migrations/${m.migrationId}`,
+        action: "Review assessment",
+      })),
+    ...plans
+      .filter((r) => r.plan.status === "FAILED")
+      .map((r) => ({
+        id: r.plan.planId,
+        priority: "High",
+        finding: "Change execution failed",
+        context: `${r.cluster.customerName ?? r.cluster.customerId} / ${r.cluster.clusterName}`,
+        href: `/upgrades?plan=${encodeURIComponent(r.plan.planId)}`,
+        action: "Review plan",
+      })),
+    ...(fleet ?? [])
+      .filter(
+        (c) =>
+          c.status === "ACTIVE" &&
+          runtimeState(c, d.inventories.get(c.clusterId), now) === "Degraded",
+      )
+      .map((c) => ({
+        id: `health-${c.clusterId}`,
+        priority: "Medium",
+        finding: "Runtime inventory reports degradation",
+        context: `${c.customerName ?? c.customerId} / ${c.clusterName}`,
+        href: `/clusters/${c.clusterId}`,
+        action: "Inspect inventory",
+      })),
+  ];
+  const environmentCounts = providers.map(
+    (p) => es?.filter((e) => e.cloudProvider === p).length ?? 0,
+  );
+  const unmapped = es
+    ? es.length - environmentCounts.reduce((a, b) => a + b, 0)
+    : 0;
+  const runtimeFleet = fleet?.filter((c) =>
+    ["ACTIVE", "STOPPED", "BOOTSTRAPPING", "BOOTSTRAP_FAILED"].includes(
+      c.status,
+    ),
+  );
+  const healthCounts = states.map(
+    (s) =>
+      runtimeFleet?.filter(
+        (c) => runtimeState(c, d.inventories.get(c.clusterId), now) === s,
+      ).length ?? 0,
+  );
+  const schedule = scheduledChanges(d.planRows, days, now);
+  const activeMigrations = (ms ?? []).filter((m) => activeMigration(m.status));
+  const freshComponents = [...d.inventories.values()]
+    .filter(
+      (i) =>
+        i?.runtimeInventory.expiresAt &&
+        Date.parse(i.runtimeInventory.expiresAt) > now &&
+        i.observedAt &&
+        now - Date.parse(i.observedAt) <= 300000,
+    )
+    .flatMap((i) => i?.components ?? [])
+    .filter(
+      (c) =>
+        c.observedAt &&
+        Number.isFinite(Date.parse(c.observedAt)) &&
+        Date.parse(c.observedAt) <= now &&
+        now - Date.parse(c.observedAt) <= 300000,
+    );
+  const heading = (
+    <div className={styles.heading}>
+      <div>
+        <h1>Platform Command Centre</h1>
+        <p>Estate, delivery, and changes requiring attention</p>
+      </div>
+      <div className={styles.headingActions}>
+        <span role="status" aria-live="polite">
+          {d.refreshing
+            ? "Refreshing…"
+            : refreshFailed || d.errors
+              ? "Some data unavailable"
+              : d.updatedAt
+                ? `Updated ${new Date(d.updatedAt).toLocaleTimeString("en-GB")}`
+                : "Loading available data…"}
+        </span>
+        <button
+          onClick={async () => {
+            setRefreshFailed(false);
+            setNow(Date.now());
+            try {
+              await d.refresh();
+            } catch {
+              setRefreshFailed(true);
+            }
+          }}
+          disabled={d.refreshing}
+        >
+          <RefreshCw size={14} />
+          Refresh
+        </button>
+        {hasPermission(d.identity, "environment.create") && (
+          <Link className={styles.secondary} href="/environments/new">
+            <Plus size={14} />
+            New environment
           </Link>
-        </article>
-
-        <article className="pd-card">
-          <header className="pd-card-heading">
+        )}
+        {hasPermission(d.identity, "cluster.create") && (
+          <Link className={styles.primary} href="/clusters/new">
+            <Plus size={14} />
+            New cluster request
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+  return (
+    <div className={`${styles.dashboard} platform-dashboard command-dashboard`}>
+      {headerTarget ? createPortal(heading, headerTarget) : heading}
+      {d.errors > 0 && (
+        <p className={styles.notice}>
+          Some sources could not be loaded. Missing totals are shown as —;
+          loaded records remain available.
+        </p>
+      )}
+      <section className={styles.kpis} aria-label="Navigan platform KPIs">
+        {kpis.map((k) => (
+          <Link key={k.title} href={k.href} className={styles.kpi}>
+            <k.icon size={19} />
             <div>
-              <span className="pd-card-icon">
-                <Gauge size={19} />
-              </span>
-              <div>
-                <h2>
-                  Active record coverage{" "}
-                  <HelpTip label="Active record coverage">
-                    Average active-record percentage across customers,
-                    environments and clusters. This is not runtime health.
-                  </HelpTip>
-                </h2>
-              </div>
+              <h2>{k.title}</h2>
+              <strong>
+                {k.value}
+                {typeof k.value === "number" && <small> {k.suffix}</small>}
+              </strong>
+              <p>{k.detail}</p>
             </div>
-            <span className="pd-data-label">Current records</span>
-          </header>
-          {countsPending ? (
-            <Loading label="Loading active record coverage…" />
-          ) : (
-            <>
-              <div className="pd-posture">
-                <SummaryDonut
-                  label={`Average active record coverage ${overallPosture}%`}
-                  total={100}
-                  center={`${overallPosture}%`}
-                  caption="Active"
-                  values={[overallPosture, Math.max(0, 100 - overallPosture)]}
-                  colors={["#79aa27", "#e9eee7"]}
-                />
-                <div className="pd-posture-metrics">
-                  <div>
-                    <span>
-                      <i className="pd-dot-green" />
-                      Customers
-                    </span>
-                    <strong>{customerHealth}%</strong>
-                    <small>Active onboarding records</small>
-                  </div>
-                  <div>
-                    <span>
-                      <i className="pd-dot-blue" />
-                      Environments
-                    </span>
-                    <strong>{environmentHealth}%</strong>
-                    <small>Active governed profiles</small>
-                  </div>
-                  <div>
-                    <span>
-                      <i className="pd-dot-teal" />
-                      Clusters
-                    </span>
-                    <strong>{clusterHealth}%</strong>
-                    <small>Active cluster records</small>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`pd-signal ${(failedClusters.data ?? 0) > 0 ? "pd-signal-warning" : ""}`}
-              >
-                {(failedClusters.data ?? 0) > 0 ? (
-                  <AlertTriangle size={17} />
-                ) : (
-                  <CheckCircle2 size={17} />
-                )}
-                <span>
-                  {(failedClusters.data ?? 0) > 0
-                    ? `${failedClusters.data} failed cluster operation${failedClusters.data === 1 ? "" : "s"} require remediation.`
-                    : "No failed cluster operations are active in your access scope."}
-                </span>
-              </div>
-            </>
-          )}
-        </article>
-
-        <article className="pd-card">
-          <header className="pd-card-heading">
-            <div>
-              <span className="pd-card-icon">
-                <Workflow size={19} />
-              </span>
-              <div>
-                <h2 id="dashboard-provisioning">
-                  Cluster workflow state{" "}
-                  <HelpTip label="Cluster workflow state">
-                    Current lifecycle position of Navigan cluster requests.
-                  </HelpTip>
-                </h2>
-              </div>
-            </div>
-          </header>
-          <div className="pd-provisioning-links">
-            <Link href="/clusters?status=PLAN_READY">
-              Plan ready {display(planReadyClusters.data)}
-            </Link>
-            <Link href="/clusters?status=APPLYING">
-              Applying {display(applyingClusters.data)}
-            </Link>
-          </div>
-          {clusterCountsPending ? (
-            <Loading label="Loading cluster workflow state…" />
-          ) : workflowTotal === 0 ? (
-            <p className="pd-empty">No cluster requests are available.</p>
-          ) : (
-            <div className="pd-workflow pd-workflow-donut">
-              <SummaryDonut
-                values={[
-                  activeClusters.data ?? 0,
-                  workflowInProgress,
-                  failedClusters.data ?? 0,
-                  workflowOther,
-                ]}
-                total={workflowTotal}
-                center={String(workflowTotal)}
-                caption="Requests"
-                label={`Cluster workflow state: ${workflowTotal} total requests`}
-                colors={["#65a449", "#237448", "#c84835", "#94a3b8"]}
-              />
-              <div className="pd-legend pd-workflow-legend">
-                <div>
-                  <span>
-                    <i className="pd-legend-active" />
-                    Active
-                  </span>
-                  <strong>{display(activeClusters.data)}</strong>
-                  <small>{percent(activeClusters.data, workflowTotal)}%</small>
-                </div>
-                <div>
-                  <span>
-                    <i className="pd-legend-progress" />
-                    In delivery
-                  </span>
-                  <strong>{workflowInProgress}</strong>
-                  <small>{percent(workflowInProgress, workflowTotal)}%</small>
-                </div>
-                <div>
-                  <span>
-                    <i className="pd-legend-failed" />
-                    Failed
-                  </span>
-                  <strong>{display(failedClusters.data)}</strong>
-                  <small>{percent(failedClusters.data, workflowTotal)}%</small>
-                </div>
-                <div>
-                  <span>
-                    <i className="pd-legend-other" />
-                    Other states
-                  </span>
-                  <strong>{workflowOther}</strong>
-                  <small>{percent(workflowOther, workflowTotal)}%</small>
-                </div>
-              </div>
-            </div>
-          )}
-        </article>
-      </section>
-
-      <section
-        className={layout.coverageGroups}
-        aria-label="Navigan platform KPIs"
-      >
-        {[
-          {
-            title: "Estate coverage",
-            description:
-              "Active customer, environment and cluster records in your access scope.",
-            icon: LayoutGrid,
-            items: kpis.slice(0, 3),
-            estate: true,
-          },
-          {
-            title: "Operations",
-            description: "Current activity and governed workflow status.",
-            icon: Settings2,
-            items: kpis.slice(3),
-            estate: false,
-          },
-        ].map((group) => (
-          <article className={layout.coveragePanel} key={group.title}>
-            <header className={layout.coverageHeading}>
-              <group.icon size={18} aria-hidden="true" />
-              <h2>{group.title}</h2>
-              <HelpTip label={group.title}>{group.description}</HelpTip>
-            </header>
-            <div className={layout.metrics}>
-              {group.items.map((kpi) => (
-                <div className={layout.metric} key={kpi.label}>
-                  <Link className={layout.metricLink} href={kpi.href}>
-                    <span>{kpi.label}</span>
-                    <strong>{display(kpi.value)}</strong>
-                    {group.estate && (
-                      <small>of {display(kpi.total)} records</small>
-                    )}
-                  </Link>
-                  <HelpTip className={layout.metricHelp} label={kpi.label}>
-                    {kpi.detail} {kpi.note}
-                  </HelpTip>
-                </div>
-              ))}
-            </div>
-          </article>
+          </Link>
         ))}
       </section>
-
-      <section className="pd-card" id="dashboard-attention">
-        <header className="pd-card-heading">
-          <div>
-            <span className="pd-card-icon pd-attention-icon">
-              <Bell size={21} />
-            </span>
-            <div>
-              <h2>
-                Needs your attention{" "}
-                <span className="pd-count">{awaitingAction}</span>
-                <HelpTip label="Needs your attention">
-                  Navigan approvals, provisioning exceptions and requests
-                  requiring action.
-                </HelpTip>
-              </h2>
-            </div>
-          </div>
-          {canReview && (
-            <Link className="pd-card-link" href="/customers">
-              Customer directory <ChevronRight size={15} />
-            </Link>
-          )}
-        </header>
-        <div className="pd-attention-workspace">
-          <section
-            className="pd-pending-module"
-            aria-labelledby="pd-pending-title"
-          >
-            <h3 id="pd-pending-title">Pending by module</h3>
-            <table className="pd-pending-table">
-              <thead>
-                <tr>
-                  <th scope="col">Module</th>
-                  <th scope="col">Submitted</th>
-                  <th scope="col">Under review</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  {
-                    label: "Customers",
-                    path: "/customers",
-                    submitted: submittedCustomers.data,
-                    reviewing: reviewCustomers.data,
-                  },
-                  {
-                    label: "Environments",
-                    path: "/environments",
-                    submitted: submittedEnvironments.data,
-                    reviewing: reviewEnvironments.data,
-                  },
-                  {
-                    label: "Clusters",
-                    path: "/clusters",
-                    submitted: submittedClusters.data,
-                    reviewing: reviewClusters.data,
-                  },
-                ].map((item) => (
-                  <tr key={item.path}>
-                    <th scope="row">
-                      <Link href={item.path}>{item.label}</Link>
-                    </th>
-                    <td>
-                      <Link
-                        aria-label={`${item.label}: ${display(item.submitted)} submitted`}
-                        href={`${item.path}?status=SUBMITTED`}
-                      >
-                        {display(item.submitted)}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link
-                        aria-label={`${item.label}: ${display(item.reviewing)} under review`}
-                        href={`${item.path}?status=UNDER_REVIEW`}
-                      >
-                        {display(item.reviewing)}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-          <div className="pd-submitted-queue">
-            <p className="pd-preview-count">
-              Showing {attentionItems.length} submitted requests.{" "}
-              {awaitingAction} records are submitted or under review.
-            </p>
-            <div className="pd-attention-list">
-              {pendingCustomers.isPending ||
-              pendingEnvironments.isPending ||
-              pendingClusters.isPending ? (
-                <Loading label="Loading attention queue…" />
-              ) : attentionItems.length ? (
-                attentionItems.map((item) => (
-                  <Link
-                    className="pd-attention-row"
-                    href={item.href}
-                    key={`${item.id}-${item.href}`}
-                  >
-                    <span
-                      className={`pd-attention-row-icon pd-attention-${item.tone}`}
-                    >
-                      <item.icon size={17} />
-                    </span>
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>{item.meta}</small>
-                    </span>
-                    <span className="pd-review-action">
-                      View request <ArrowRight size={16} />
-                    </span>
-                  </Link>
-                ))
-              ) : (
-                <div className="pd-empty pd-empty-success">
-                  <CheckCircle2 size={20} />
-                  No newly submitted requests require attention.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="pd-card">
-        <header className="pd-card-heading">
-          <div>
-            <span className="pd-card-icon">
-              <Clock3 size={19} />
-            </span>
-            <div>
-              <h2>
-                Recent cluster activity{" "}
-                <HelpTip label="Recent cluster activity">
-                  Latest Kubernetes cluster requests in your access scope.
-                </HelpTip>
-              </h2>
-            </div>
-          </div>
-          <Link className="pd-card-link" href="/clusters">
-            View cluster directory <ChevronRight size={15} />
-          </Link>
-        </header>
-        {recentClusters.isPending ? (
-          <Loading label="Loading cluster activity…" />
-        ) : recentClusters.error ? (
-          <ErrorNotice
-            error={recentClusters.error}
-            onRetry={() => recentClusters.refetch()}
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="pd-activity-table">
-              <thead>
-                <tr>
-                  <th>Cluster</th>
-                  <th>Customer</th>
-                  <th>Platform</th>
-                  <th>State</th>
-                  <th>Updated</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(recentClusters.data?.items ?? []).map((cluster) => (
-                  <tr key={cluster.clusterId}>
-                    <td>
-                      <span className="pd-resource">
-                        <Container size={15} />
-                        {cluster.clusterName}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>
-                        {cluster.customerName ?? cluster.customerId}
-                      </strong>
-                    </td>
-                    <td>
-                      <span className="pd-platform">
-                        <ProviderLogo provider="AWS" label={false} />
-                        EKS
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={`pd-status pd-status-${cluster.status.toLowerCase()}`}
-                      >
-                        {cluster.status.replaceAll("_", " ")}
-                      </span>
-                    </td>
-                    <td>{formatDateTime(cluster.updatedAt)}</td>
-                    <td>
-                      <Link
-                        className="pd-row-action"
-                        href={`/clusters/${cluster.clusterId}`}
-                      >
-                        View cluster <ArrowUpRight size={14} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-                {!(recentClusters.data?.items.length ?? 0) && (
+      <div className={styles.columns}>
+        <div className={styles.mainColumn}>
+          <Panel title="Requires attention">
+            <div className={styles.tableScroll}>
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan={6} className="pd-empty">
-                      No cluster requests are available.
-                    </td>
+                    <th>Priority</th>
+                    <th>Finding</th>
+                    <th>Customer / cluster</th>
+                    <th>Next action</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section
-        className="pd-tool-strip"
-        aria-label="Navigan platform toolchain"
-      >
-        <div>
-          <span className="pd-card-icon">
-            <Wrench size={18} />
-          </span>
-          <div>
-            <strong>Platform toolchain</strong>
-            <p>Capabilities managed through Navigan cluster operations.</p>
-          </div>
+                </thead>
+                <tbody>
+                  {attention.slice(0, 5).map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <Badge>{a.priority}</Badge>
+                      </td>
+                      <td>{a.finding}</td>
+                      <td>{a.context}</td>
+                      <td>
+                        <Action href={a.href}>{a.action}</Action>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!attention.length && (
+              <Empty>
+                {d.pending
+                  ? "Loading recorded findings…"
+                  : d.errors
+                    ? "No findings in loaded sources; some sources are unavailable."
+                    : "No blocking findings in loaded records. Unverified telemetry is not a health pass."}
+              </Empty>
+            )}
+          </Panel>
+          <Panel
+            title="Cluster & environment landscape"
+            action={<Action href="/clusters">View all</Action>}
+          >
+            <div className={styles.tableScroll}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Cluster</th>
+                    <th>Customer / environment</th>
+                    <th>Version</th>
+                    <th>Nodes</th>
+                    <th>Health</th>
+                    <th>Next action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(fleet ?? []).slice(0, 5).map((c) => {
+                    const i = d.inventories.get(c.clusterId);
+                    const state = runtimeState(c, i, now);
+                    const nodes = i?.runtimeInventory.resources.filter(
+                      (r) => r.kind === "Node",
+                    );
+                    const freshNodes =
+                      i?.runtimeInventory.expiresAt &&
+                      Date.parse(i.runtimeInventory.expiresAt) > now &&
+                      i.runtimeInventory.observedAt &&
+                      now - Date.parse(i.runtimeInventory.observedAt) <= 300000;
+                    return (
+                      <tr key={c.clusterId}>
+                        <td>
+                          {c.clusterName}
+                          <small>{label(c.status)}</small>
+                        </td>
+                        <td>
+                          {c.customerName ?? c.customerId}
+                          <small>{c.environmentName ?? c.environmentId}</small>
+                        </td>
+                        <td>
+                          {String(c.configuration?.kubernetesVersion ?? "—")}
+                        </td>
+                        <td>
+                          {state !== "Unverified" && freshNodes && nodes
+                            ? `${nodes.filter((n) => n.ready > 0).length}/${i?.runtimeInventory.metrics.nodeCount ?? nodes.length}`
+                            : "—"}
+                        </td>
+                        <td>
+                          <Badge>{state}</Badge>
+                        </td>
+                        <td>
+                          <Action href={`/clusters/${c.clusterId}`}>
+                            View cluster
+                          </Action>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {!fleet?.length && (
+              <Empty>
+                {fleet
+                  ? "No clusters in the selected scope."
+                  : "Cluster inventory unavailable."}
+              </Empty>
+            )}
+            <p className={styles.note}>
+              Showing {Math.min(fleet?.length ?? 0, 5)} of{" "}
+              {fleet?.length ?? "—"} records. Health requires fresh runtime
+              evidence.
+            </p>
+          </Panel>
         </div>
-        <div className="pd-tools">
-          {[
-            ["terraform", "Terraform"],
-            ["kubernetes", "Kubernetes"],
-            ["docker", "Containers"],
-            ["prometheus", "Prometheus"],
-            ["grafana", "Grafana"],
-            ["argo", "Argo CD"],
-          ].map(([asset, name]) => (
-            <span key={asset}>
-              <img
-                className="pd-brand-logo"
-                src={`/logos/${asset}.svg`}
-                alt=""
-              />
-              {name}
-            </span>
+        <div className={styles.sideColumn}>
+          <Panel title="Cloud distribution">
+            {es?.length ? (
+              <>
+                <div className={styles.chart}>
+                  <SummaryDonut
+                    label="Environment profiles by cloud provider"
+                    total={es.length}
+                    center={String(es.length)}
+                    caption="environments"
+                    values={[...environmentCounts, unmapped]}
+                    colors={[...providerColors, "#CBD2D9"]}
+                  />
+                  <ul>
+                    {[
+                      ...providerLabels,
+                      ...(unmapped ? ["Other / unverified"] : []),
+                    ].map((p, i) => (
+                      <li key={p}>
+                        <i
+                          style={{
+                            background: [...providerColors, "#CBD2D9"][i],
+                          }}
+                        />
+                        {p}
+                        <strong>{[...environmentCounts, unmapped][i]}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p className={styles.note}>
+                  All environment profiles in the selected scope.
+                </p>
+              </>
+            ) : (
+              <Empty>
+                {es
+                  ? "No environments in this scope."
+                  : "Cloud distribution unavailable."}
+              </Empty>
+            )}
+          </Panel>
+          <Panel title="Estate health">
+            {runtimeFleet?.length ? (
+              <>
+                <div className={styles.chart}>
+                  <SummaryDonut
+                    label="Estate health from runtime evidence"
+                    total={runtimeFleet.length}
+                    center={String(runtimeFleet.length)}
+                    caption="clusters"
+                    values={healthCounts}
+                    colors={healthColors}
+                  />
+                  <ul>
+                    {states.map((s, i) => (
+                      <li key={s}>
+                        <i style={{ background: healthColors[i] }} />
+                        {s}
+                        <strong>{healthCounts[i]}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p className={styles.note}>
+                  Provisioned records only. Stale telemetry is Unverified;
+                  stopped or verified zero-node clusters are Paused.
+                </p>
+              </>
+            ) : (
+              <Empty>
+                {fleet
+                  ? "No provisioned cluster records in this scope."
+                  : "Health inventory unavailable."}
+              </Empty>
+            )}
+          </Panel>
+        </div>
+      </div>
+      <div className={styles.twoColumns}>
+        <Panel
+          title="Pending approvals"
+          action={<Action href="/my-work">My Work</Action>}
+        >
+          <p className={styles.approvalCount}>
+            {approvals.length} recorded
+            {(!cs || !es || !fleet || !d.plansComplete) &&
+              " · partial coverage"}
+          </p>
+          {approvals.slice(0, 4).map((a) => (
+            <div className={styles.listRow} key={a.id}>
+              <div>
+                <strong>{a.title}</strong>
+                <small>
+                  {a.kind} · {label(a.status)}
+                </small>
+              </div>
+              <Action href={a.href}>View request</Action>
+            </div>
           ))}
+          {!approvals.length && (
+            <Empty>No pending requests in the loaded sources.</Empty>
+          )}
+        </Panel>
+        <Panel
+          title="Migrations in progress"
+          action={<Action href="/migrations">View all</Action>}
+        >
+          {activeMigrations.slice(0, 4).map((m) => (
+            <div className={styles.listRow} key={m.migrationId}>
+              <div>
+                <strong>{m.name}</strong>
+                <small>{m.customerName}</small>
+              </div>
+              <Action href={`/migrations/${m.migrationId}`}>
+                {label(m.status)}
+              </Action>
+            </div>
+          ))}
+          {!activeMigrations.length && (
+            <Empty>
+              {ms
+                ? "No active migration assessments in this scope."
+                : migrationUnavailable}
+            </Empty>
+          )}
+        </Panel>
+      </div>
+      <Panel
+        title="Upcoming Maintenance & Changes"
+        action={
+          <div className={styles.scheduleActions}>
+            <select
+              aria-label="Maintenance horizon"
+              value={days}
+              onChange={(e) => {
+                setDays(Number(e.target.value));
+                setNow(Date.now());
+              }}
+            >
+              <option value={7}>Next 7 days</option>
+              <option value={30}>Next 30 days</option>
+            </select>
+            <Action href="/upgrades?tab=schedule">
+              View maintenance calendar
+            </Action>
+          </div>
+        }
+      >
+        <div className={styles.tableScroll}>
+          <table>
+            <thead>
+              <tr>
+                <th>Change</th>
+                <th>Customer / environment</th>
+                <th>Cluster / application</th>
+                <th>Scheduled window</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.slice(0, 5).map((r) => (
+                <tr key={`${r.plan.planId}-${r.scheduledFor}-${r.step}`}>
+                  <td>
+                    <Link
+                      href={`/upgrades?plan=${encodeURIComponent(r.plan.planId)}`}
+                    >
+                      {r.plan.kind === "UTILITY"
+                        ? `${r.plan.utilityEvidence?.label ?? "Utility"} upgrade`
+                        : `${label(r.plan.planSpec?.scope ?? "CLUSTER")} upgrade`}
+                      {r.step ? ` · stage ${r.step}` : ""}
+                    </Link>
+                  </td>
+                  <td>
+                    {r.cluster.customerName ?? r.cluster.customerId}
+                    <small>
+                      {r.cluster.environmentName ?? r.cluster.environmentId}
+                    </small>
+                  </td>
+                  <td>{r.cluster.clusterName}</td>
+                  <td>
+                    {new Date(r.scheduledFor).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                    {r.durationMinutes ? ` · ${r.durationMinutes} min` : ""}
+                  </td>
+                  <td>
+                    <Badge>{label(r.plan.status)}</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <Link href="/clusters" aria-label="Open cluster operations">
-          <ArrowUpRight size={18} />
-        </Link>
-      </section>
+        {!schedule.length && (
+          <Empty>
+            {d.plansComplete
+              ? `No recorded changes scheduled in the next ${days} days.`
+              : "Schedule data is incomplete or unavailable."}
+          </Empty>
+        )}
+        <p className={styles.note}>
+          Times use your browser timezone ({timezone}). Up to 5 recorded plan
+          windows; approvals and execution gates remain enforced. Environment,
+          migration and standalone patch schedules are not exposed by the
+          current APIs.
+        </p>
+      </Panel>
+      <p className={styles.note}>
+        System utilities:{" "}
+        {d.inventoriesComplete
+          ? `${freshComponents.length} components with recent inventory; ${freshComponents.filter((c) => ["DEGRADED", "MISSING"].includes(c.status)).length} require review.`
+          : "Component inventory incomplete or unavailable."}{" "}
+        Cluster onboarding and application modernization remain planned
+        capabilities.
+      </p>
     </div>
   );
 }

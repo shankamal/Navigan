@@ -15,143 +15,44 @@
   font-family: var(--navigan-font-family);
   font-size: 14px;
 }
-.app-shell.dashboard-shell[class] :is(button, input, select, textarea) {
-  font-family: var(--navigan-font-family);
-}
-.app-shell.dashboard-shell[class] :is(.shell-body, .content-column) {
-  background: #f4f5f7;
-}
-.app-shell.dashboard-shell[class] main#main-content .command-dashboard {
-  max-width: none;
-  gap: 16px;
-}
-.app-shell.dashboard-shell[class]
-  main#main-content
-  .dashboard-capability-heading {
-  padding: 10px 14px !important;
-  box-shadow: none !important;
-  background: #fff !important;
-}
-/* The requested title starts at the panel's left inset, with no icon gutter. */
-.app-shell.dashboard-shell[class]
-  main#main-content
-  .dashboard-capability-heading
-  .page-heading-symbol {
-  display: none !important;
-}
-.app-shell.dashboard-shell[class]
-  main#main-content
-  .dashboard-capability-heading
-  .page-heading-copy {
-  display: block !important;
-  padding-left: 0 !important;
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-.app-shell.dashboard-shell[class]
-  main#main-content
-  .dashboard-capability-heading
-  h1 {
-  display: block;
-  margin: 0 !important;
-  font-size: 22px !important;
-  font-weight: 600 !important;
-  letter-spacing: -0.02em !important;
-}
-.app-shell.dashboard-shell[class]
-  main#main-content
-  .dashboard-capability-heading
-  .muted {
-  margin: 3px 0 0 !important;
-  font-size: 12px !important;
-  line-height: 1.45;
-}
-.app-shell.dashboard-shell[class]
-  .content-column
-  :is(.panel, .pd-card, .pd-kpi) {
+
+/* This header owns both breadcrumb and the Dashboard title portal. */
+.app-shell.dashboard-shell[class] .workspace-capability-header {
+  position: sticky;
+  top: var(--workspace-topbar-height, 60px);
+  z-index: 26;
   background: #fff;
-  border-color: #e2e5e9;
-  border-radius: 6px;
+  border-bottom: 1px solid #e2e5e9;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
+}
+.app-shell.dashboard-shell[class] .workspace-capability-header .breadcrumb {
+  position: static;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 20px;
+  background: transparent;
+  border: 0;
   box-shadow: none;
-}
-.app-shell.dashboard-shell[class]
-  .content-column
-  :is(.panel, .pd-card, .pd-kpi)
-  h2 {
-  font-size: 14px;
-  font-weight: 600;
-}
-.app-shell.dashboard-shell[class]
-  main#main-content
-  :is(.pd-card-heading, thead) {
-  background: #f8f9fb;
-}
-.app-shell.dashboard-shell[class] .content-column :is(.button, table) {
-  font-size: 13px;
-}
-.app-shell.dashboard-shell[class] .content-column .button {
-  border-radius: 4px;
-  box-shadow: none;
-}
-.app-shell.dashboard-shell[class] .content-column .button-primary {
-  background: #238408;
-  border-color: #238408;
-}
-.app-shell.dashboard-shell[class]
-  .content-column
-  .button-primary:hover:not(:disabled) {
-  background: #1b6b05;
-  border-color: #1b6b05;
-}
-.app-shell.dashboard-shell[class] .content-column > .breadcrumb {
-  background: #fff;
-  box-shadow: none;
-}
-.app-shell.dashboard-shell[class] .breadcrumb a {
-  color: #69717d;
+  backdrop-filter: none;
   font-size: 12px;
+}
+.app-shell.dashboard-shell[class] .workspace-capability-header .breadcrumb a {
+  min-height: 22px;
+  padding-block: 0;
   font-weight: 400;
   text-decoration: none;
 }
-
-/* Full-width console header. Only operational content has a canvas gutter. */
-.app-shell.dashboard-shell[class] .content-column > .breadcrumb {
-  height: 34px;
-  min-height: 34px;
-  padding: 4px 20px;
-  border-bottom: 0;
-  background: #fff;
-  box-sizing: border-box;
-}
-.app-shell.dashboard-shell[class] .breadcrumb a {
-  min-height: 24px;
-  padding-block: 0;
-}
 .app-shell.dashboard-shell[class] .content-column main#main-content {
-  padding: 0 20px 24px !important;
+  padding: 14px 20px 24px !important;
 }
-.app-shell.dashboard-shell[class]
-  main#main-content
-  .dashboard-capability-heading {
-  top: calc(var(--workspace-topbar-height, 60px) + 34px) !important;
-  width: calc(100% + 40px) !important;
-  margin: 0 -20px !important;
-  padding: 6px 20px 12px !important;
-  min-height: 60px !important;
-  border: 0 !important;
-  border-bottom: 1px solid #e2e5e9 !important;
-  border-radius: 0 !important;
-  background: #fff !important;
-  box-shadow: none !important;
-  backdrop-filter: none;
+.app-shell.dashboard-shell[class] :is(.shell-body, .content-column) {
+  background: #f4f5f7 !important;
 }
 @media (max-width: 760px) {
-  .app-shell.dashboard-shell[class] .content-column > .breadcrumb {
-    height: auto;
+  .app-shell.dashboard-shell[class] .workspace-capability-header {
     position: static;
   }
-  .app-shell.dashboard-shell[class]
-    main#main-content
-    .dashboard-capability-heading {
-    position: static !important;
+  .app-shell.dashboard-shell[class] .content-column main#main-content {
+    padding-inline: 12px !important;
   }
 }

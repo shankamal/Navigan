@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarDays,
   CircleArrowUp,
@@ -154,6 +154,19 @@ export function UpgradeWorkspace({
     setRescheduleRequested(reschedule);
     setPlanning(null);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedPlan = params.get("plan");
+    if (requestedPlan) setReviewPlanId(requestedPlan);
+    const requestedTab = params.get("tab");
+    if (
+      ["readiness", "utilities", "patching", "schedule"].includes(
+        requestedTab ?? "",
+      )
+    )
+      setTab(requestedTab as WorkspaceTab);
+  }, []);
 
   const changeTab = (value: WorkspaceTab) => {
     setRequestedDate(undefined);

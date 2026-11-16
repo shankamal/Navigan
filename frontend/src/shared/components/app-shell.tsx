@@ -2,6 +2,7 @@
 import "./workspace-navigation.css";
 import "./workspace-backdrop.css";
 import "./global-topbar.css";
+import packageInfo from "../../../package.json";
 import {
   useCallback,
   useEffect,
@@ -14,7 +15,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCustomers } from "@/modules/customer-management/hooks/queries";
 import { useEnvironments } from "@/modules/environment-management/hooks/queries";
 import { IntentLink as Link } from "@/shared/components/intent-link";
-import { WorkspacePageProvider } from "./workspace-page-context";
+import {
+  useWorkspacePage,
+  WorkspacePageProvider,
+} from "./workspace-page-context";
 import { usePathname } from "next/navigation";
 import {
   WorkspaceScopeProvider,
@@ -29,7 +33,7 @@ import {
   Gauge,
   Bell,
   Search,
-  Info,
+  LayoutGrid,
   Layers3,
   LogOut,
   Menu,
@@ -52,6 +56,8 @@ import {
 import { signOut } from "@/shared/auth/session";
 import { prefetchWorkspaceData } from "@/shared/performance/prefetch-workspace-data";
 
+const appVersion = packageInfo.version;
+
 interface NavigationItem {
   href: string;
   label: string;
@@ -61,7 +67,7 @@ interface NavigationItem {
   additionalPermissions?: readonly PlatformPermission[];
 }
 
-const DEFAULT_SIDEBAR_WIDTH = 232;
+const DEFAULT_SIDEBAR_WIDTH = 248;
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 300;
 const SIDEBAR_WIDTH_STORAGE_KEY = "navigan.sidebarWidth";
@@ -380,6 +386,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { identity } = useAuth();
   const scope = useWorkspaceScope();
+  const { setHeaderTarget } = useWorkspacePage();
   const [searchText, setSearchText] = useState("");
   const customersQuery = useCustomers({
     page: 0,
@@ -678,8 +685,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
               updateSidebarWidth(next);
             }}
           />
+          <div className="sidebar-heading">
+            <LayoutGrid size={17} aria-hidden="true" />
+            <span>Workspace</span>
+          </div>
           <div className="sidebar-navigation">
-            <nav className="sidebar-menu-scroll" aria-label="Platform modules">
+            <nav
+              className="sidebar-menu-scroll"
+              aria-label="Platform modules"
+              tabIndex={0}
+            >
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
                   canViewItem(identity, item),
@@ -687,7 +702,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 if (!items.length) return null;
                 return (
                   <div className="clustered-nav-group" key={group.label}>
-                    <p className="nav-section">{group.label}</p>
+                    {group.label !== "Workspace" && (
+                      <p className="nav-section">{group.label}</p>
+                    )}
                     {items.map((item) => {
                       const selected = current === item;
                       if (item.unavailable)
@@ -730,29 +747,62 @@ function AppShellContent({ children }: { children: ReactNode }) {
               href="/about"
               className="sidebar-about"
               aria-label="About Navigan"
-              title="About Navigan"
+              title={`About Navigan · application version ${appVersion}`}
               aria-current={pathname === "/about" ? "page" : undefined}
               onClick={() => setExpanded(false)}
             >
-              <Info size={20} aria-hidden="true" />
+              <span className="sidebar-version-full">
+                Navigan · v{appVersion}
+              </span>
+              <span className="sidebar-version-compact" aria-hidden="true">
+                v{appVersion}
+              </span>
             </Link>
           </div>
         </aside>
         <div className="content-column">
-          {pathname !== "/about" && (
-            <nav className="breadcrumb" aria-label="Breadcrumb">
-              {breadcrumbs.map((crumb, index) => (
-                <span className="breadcrumb-segment" key={crumb.label + index}>
-                  {index > 0 && <ChevronRight size={14} aria-hidden="true" />}
-                  {crumb.href ? (
-                    <Link href={crumb.href}>{crumb.label}</Link>
-                  ) : (
-                    <span aria-current="page">{crumb.label}</span>
-                  )}
-                </span>
-              ))}
-            </nav>
-          )}
+          {pathname !== "/about" &&
+            (pathname === "/dashboard" ? (
+              <header
+                className="workspace-capability-header"
+                aria-label="Dashboard header"
+              >
+                <nav className="breadcrumb" aria-label="Breadcrumb">
+                  {breadcrumbs.map((crumb, index) => (
+                    <span
+                      className="breadcrumb-segment"
+                      key={crumb.label + index}
+                    >
+                      {index > 0 && (
+                        <ChevronRight size={14} aria-hidden="true" />
+                      )}
+                      {crumb.href ? (
+                        <Link href={crumb.href}>{crumb.label}</Link>
+                      ) : (
+                        <span aria-current="page">{crumb.label}</span>
+                      )}
+                    </span>
+                  ))}
+                </nav>
+                <div ref={setHeaderTarget} className="workspace-heading-slot" />
+              </header>
+            ) : (
+              <nav className="breadcrumb" aria-label="Breadcrumb">
+                {breadcrumbs.map((crumb, index) => (
+                  <span
+                    className="breadcrumb-segment"
+                    key={crumb.label + index}
+                  >
+                    {index > 0 && <ChevronRight size={14} aria-hidden="true" />}
+                    {crumb.href ? (
+                      <Link href={crumb.href}>{crumb.label}</Link>
+                    ) : (
+                      <span aria-current="page">{crumb.label}</span>
+                    )}
+                  </span>
+                ))}
+              </nav>
+            ))}
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>

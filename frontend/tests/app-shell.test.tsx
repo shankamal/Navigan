@@ -114,13 +114,13 @@ describe("Application shell permissions", () => {
 
     fireEvent.keyDown(resize, { key: "ArrowRight" });
     expect(shell?.style.getPropertyValue("--workspace-sidebar-width")).toBe(
-      "240px",
+      "256px",
     );
-    expect(window.localStorage.getItem("navigan.sidebarWidth")).toBe("240");
+    expect(window.localStorage.getItem("navigan.sidebarWidth")).toBe("256");
 
     fireEvent.doubleClick(resize);
     expect(shell?.style.getPropertyValue("--workspace-sidebar-width")).toBe(
-      "232px",
+      "248px",
     );
   });
 
@@ -141,7 +141,6 @@ describe("Application shell permissions", () => {
         (section) => section.textContent,
       ),
     ).toEqual([
-      "Workspace",
       "Resource Management",
       "Migration & Modernization",
       "Platform Maintenance",
@@ -216,7 +215,6 @@ describe("Application shell permissions", () => {
         (section) => section.textContent,
       ),
     ).toEqual([
-      "Workspace",
       "Resource Management",
       "Migration & Modernization",
       "Platform Maintenance",
@@ -400,7 +398,10 @@ describe("Application shell permissions", () => {
     expect(about).toHaveAttribute("href", "/about");
     expect(about.closest(".sidebar-utilities")).not.toBeNull();
     expect(about.closest('nav[aria-label="Platform modules"]')).toBeNull();
-    expect(about.textContent).toBe("");
+    expect(about).toHaveTextContent("Navigan · v");
+    expect(
+      screen.getByText("Workspace").closest(".sidebar-heading"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("navigation", { name: "Breadcrumb" }),
     ).not.toBeInTheDocument();
