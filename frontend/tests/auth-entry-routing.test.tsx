@@ -79,7 +79,8 @@ describe("Navigan authentication entry routing", () => {
     );
   });
 
-  it("renders authenticated workspace content without navigation", () => {
+  it("opens the workspace immediately even with a legacy pending lifecycle intro", () => {
+    sessionStorage.setItem("navigan.lifecycle-intro.pending.v1", "1");
     navigation.pathname = "/dashboard";
     vi.mocked(useAuth).mockReturnValue({
       identity: {} as NonNullable<ReturnType<typeof useAuth>["identity"]>,
@@ -89,6 +90,10 @@ describe("Navigan authentication entry routing", () => {
     render(<AuthGate>Private workspace</AuthGate>);
     expect(screen.getByText("Private workspace")).toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
+    expect(
+      screen.queryByLabelText("Welcome to Navigan"),
+    ).not.toBeInTheDocument();
+    sessionStorage.removeItem("navigan.lifecycle-intro.pending.v1");
   });
 
   it("waits for session resolution before redirecting", () => {

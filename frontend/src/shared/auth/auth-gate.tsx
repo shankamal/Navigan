@@ -1,5 +1,4 @@
 "use client";
-import { PostLoginIntro } from "./post-login-intro";
 import { useAuth } from "./auth-provider";
 import dynamic from "next/dynamic";
 import { useEffect, type ReactNode } from "react";
@@ -30,7 +29,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (identity && onLoginPage) {
     return <Loading label="Opening your dashboard…" />;
   }
-  if (identity)
-    return <PostLoginIntro key={identity.subject}>{children}</PostLoginIntro>;
+  if (identity) return <>{children}</>;
   return <SignInScreen configured={configured} />;
 }

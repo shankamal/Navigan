@@ -1,0 +1,175 @@
+/* Prototype-inspired trial, deliberately limited to /dashboard by dashboard-shell.
+   Keep other capabilities on their accepted theme until the pilot is reviewed. */
+.app-shell.dashboard-shell[class] {
+  --navigan-font-family: "IBM Plex Sans", Arial, sans-serif;
+  --navigan-canvas: #f4f5f7;
+  --navigan-text: #1b1e23;
+  --navigan-secondary-text: #69717d;
+  --navigan-panel-border: #e2e5e9;
+  --navigan-font-body: 13px;
+  --navigan-font-section-title: 14px;
+  --navigan-font-label: 12px;
+  --navigan-font-caption: 11px;
+  --navigan-font-table: 13px;
+  --navigan-font-control: 13px;
+  font-family: var(--navigan-font-family);
+  font-size: 14px;
+}
+.app-shell.dashboard-shell[class] :is(button, input, select, textarea) {
+  font-family: var(--navigan-font-family);
+}
+.app-shell.dashboard-shell[class] :is(.shell-body, .content-column) {
+  background: #f4f5f7;
+}
+.app-shell.dashboard-shell[class] .sidebar {
+  color: #2c3138;
+  background: #fff;
+  border-color: #e2e5e9;
+}
+.app-shell.dashboard-shell[class] .sidebar .nav-section {
+  color: #69717d;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.app-shell.dashboard-shell[class] .sidebar :is(.nav-item, .nav-subitem) {
+  min-height: 34px;
+  padding: 6px 10px;
+  color: #2c3138;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  border-radius: 5px;
+}
+.app-shell.dashboard-shell[class] .sidebar :is(.nav-item, .nav-subitem) svg {
+  color: #69717d;
+  width: 16px;
+  height: 16px;
+}
+.app-shell.dashboard-shell[class]
+  .sidebar
+  :is(.nav-item, .nav-subitem).selected {
+  color: #fff;
+  background: #238408;
+  border-left-color: transparent;
+  box-shadow: none;
+  font-weight: 600;
+}
+.app-shell.dashboard-shell[class]
+  .sidebar
+  :is(.nav-item, .nav-subitem).selected
+  svg {
+  color: #fff;
+}
+.app-shell.dashboard-shell[class]
+  .sidebar
+  :is(.nav-item, .nav-subitem):hover:not(.selected) {
+  color: #1b1e23;
+  background: #f1f2f4;
+}
+.app-shell.dashboard-shell[class] .sidebar .sidebar-footer {
+  border-color: #e2e5e9;
+}
+.app-shell.dashboard-shell[class] .sidebar-about {
+  color: #69717d;
+}
+.app-shell.dashboard-shell[class] .sidebar-about:hover {
+  color: #1b1e23;
+  background: #f1f2f4;
+}
+.app-shell.dashboard-shell[class] main#main-content .command-dashboard {
+  max-width: none;
+  gap: 16px;
+}
+.app-shell.dashboard-shell[class]
+  main#main-content
+  .dashboard-capability-heading {
+  padding: 10px 14px !important;
+  box-shadow: none !important;
+  background: #fff !important;
+}
+/* The requested title starts at the panel's left inset, with no icon gutter. */
+.app-shell.dashboard-shell[class]
+  main#main-content
+  .dashboard-capability-heading
+  .page-heading-symbol {
+  display: none !important;
+}
+.app-shell.dashboard-shell[class]
+  main#main-content
+  .dashboard-capability-heading
+  .page-heading-copy {
+  display: block !important;
+  padding-left: 0 !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.app-shell.dashboard-shell[class]
+  main#main-content
+  .dashboard-capability-heading
+  h1 {
+  display: block;
+  margin: 0 !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+}
+.app-shell.dashboard-shell[class]
+  main#main-content
+  .dashboard-capability-heading
+  .muted {
+  margin: 3px 0 0 !important;
+  font-size: 12px !important;
+  line-height: 1.45;
+}
+.app-shell.dashboard-shell[class]
+  .content-column
+  :is(.panel, .pd-card, .pd-kpi) {
+  background: #fff;
+  border-color: #e2e5e9;
+  border-radius: 6px;
+  box-shadow: none;
+}
+.app-shell.dashboard-shell[class]
+  .content-column
+  :is(.panel, .pd-card, .pd-kpi)
+  h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.app-shell.dashboard-shell[class]
+  main#main-content
+  :is(.pd-card-heading, thead) {
+  background: #f8f9fb;
+}
+.app-shell.dashboard-shell[class] .content-column :is(.button, table) {
+  font-size: 13px;
+}
+.app-shell.dashboard-shell[class] .content-column .button {
+  border-radius: 4px;
+  box-shadow: none;
+}
+.app-shell.dashboard-shell[class] .content-column .button-primary {
+  background: #238408;
+  border-color: #238408;
+}
+.app-shell.dashboard-shell[class]
+  .content-column
+  .button-primary:hover:not(:disabled) {
+  background: #1b6b05;
+  border-color: #1b6b05;
+}
+.app-shell.dashboard-shell[class] .content-column > .breadcrumb {
+  background: #fff;
+  box-shadow: none;
+}
+.app-shell.dashboard-shell[class] .breadcrumb a {
+  color: #69717d;
+  font-size: 12px;
+  font-weight: 400;
+  text-decoration: none;
+}
+@media (forced-colors: active) {
+  .app-shell.dashboard-shell[class] .sidebar .nav-item.selected {
+    outline: 2px solid Highlight;
+  }
+}

@@ -1,3 +1,9 @@
+## Current override — 16 November 2026 Dashboard theme pilot
+
+Read `NAVIGAN_SESSION_HANDOFF_2026-11-16_LATEST.md` first (under `docs/` from the kit README). Branch remains `feature/upgrade-patching-ui-approved`. Login intro bypass and scope-selector alignment are global; IBM Plex Sans/white-sidebar/neutral-panel theme and left-aligned title are Dashboard-only for review. No deployment, main merge, DEV sync or backend changes. Refresh frontend dependencies for the new bundled font. Preserve 15-Nov history and Upgrade governance.
+
+---
+
 ## 15 November 2026 — global shell and platform-wide capability header standard accepted as working baseline
 
 Authoritative recovery file: `NAVIGAN_SESSION_HANDOFF_2026-11-15_LATEST.md`.
