@@ -281,12 +281,11 @@ describe("Upgrade workspace", () => {
   it("opens the existing System Utilities workspace from its sidebar route", async () => {
     mount("utilities");
     expect(
-      screen.getByRole("tab", { name: "System Utilities" }),
-    ).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Upgrade Centre" })).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
+      screen.getByRole("heading", { name: "System Utilities" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tablist", { name: "Upgrade workspace" }),
+    ).not.toBeInTheDocument();
     await screen.findByText("New-dbs-demo-cluster");
   });
   it("shows four distinct tabs and row-level planning without cluster accordions", async () => {
@@ -377,7 +376,7 @@ describe("Upgrade workspace", () => {
       screen.getByRole("tab", { name: "System Utilities" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      await screen.findByRole("heading", { name: "System utility upgrades" }),
+      await screen.findByRole("heading", { name: "Installed utilities" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Patching" }));
     expect(
@@ -1290,6 +1289,9 @@ describe("Upgrade workspace", () => {
     );
     mount();
     fireEvent.click(screen.getByRole("tab", { name: "System Utilities" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Plan upgrade" }),
+    );
     const targets = await screen.findByRole("combobox", {
       name: "Requested target version",
     });
@@ -1317,9 +1319,9 @@ describe("Upgrade workspace", () => {
     expect(
       await screen.findByRole("dialog", { name: "Upgrade plan details" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Repository checked when drafted/)).toHaveTextContent(
-      "applications/30-headlamp.yaml",
-    );
+    expect(
+      screen.getByText(/Repository checked when drafted/),
+    ).toHaveTextContent("applications/30-headlamp.yaml");
     fireEvent.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
     );
@@ -1327,6 +1329,77 @@ describe("Upgrade workspace", () => {
       screen.getByRole("tab", { name: "System Utilities" }),
     ).toHaveAttribute("aria-selected", "true");
     vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
+  });
+
+  it("opens the dedicated utility inventory and searchable catalogue without advertising installation", async () => {
+    mount("utilities");
+    expect(
+      await screen.findByRole("heading", { name: "Installed utilities" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Unverified")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Upgrade Centre" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Browse catalogue" }));
+    expect(
+      screen.getByRole("heading", { name: "Utility catalogue" }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search utility catalogue"), {
+      target: { value: "Falco" },
+    });
+    fireEvent.click(screen.getByText("Falco").closest("button")!);
+    expect(
+      within(
+        screen.getByRole("complementary", { name: "Utility details" }),
+      ).getByRole("heading", { name: "Falco" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /New utility registration and installation are not enabled/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plan upgrade" })).toBeDisabled();
+    expect(clusters.createUtilityUpgradePlan).not.toHaveBeenCalled();
+  });
+
+  it("keeps utility planning unavailable without its dedicated permission", async () => {
+    const previous = authIdentity.privileges;
+    authIdentity.privileges = ["cluster.approve"];
+    try {
+      mount("utilities");
+      expect(
+        await screen.findByRole("button", { name: "Plan upgrade" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(/Upgrade planning permission is required/),
+      ).toBeInTheDocument();
+      expect(clusters.createUtilityUpgradePlan).not.toHaveBeenCalled();
+    } finally {
+      authIdentity.privileges = previous;
+    }
+  });
+
+  it("shows failed inventory as unavailable rather than a zero utility total", async () => {
+    const original = vi
+      .mocked(clusters.platformComponents)
+      .getMockImplementation()!;
+    vi.mocked(clusters.platformComponents).mockRejectedValue(
+      new Error("Inventory unavailable"),
+    );
+    try {
+      mount("utilities");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Utility inventory could not be loaded",
+      );
+      expect(
+        screen.queryByRole("button", { name: "Plan upgrade" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Utilities tracked").parentElement,
+      ).toHaveTextContent("—");
+    } finally {
+      vi.mocked(clusters.platformComponents).mockImplementation(original);
+    }
   });
 
   it("keeps maintenance separate from plans and exposes both calendar views", async () => {

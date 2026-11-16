@@ -56,6 +56,12 @@ export function WorkspaceScopeProvider({ children }: { children: ReactNode }) {
 export function useWorkspaceScope() {
   const value = useContext(WorkspaceScopeContext);
   if (!value)
-    throw new Error("useWorkspaceScope must be used inside WorkspaceScopeProvider");
+    throw new Error(
+      "useWorkspaceScope must be used inside WorkspaceScopeProvider",
+    );
   return value;
+}
+
+export function useOptionalWorkspaceScope() {
+  return useContext(WorkspaceScopeContext);
 }

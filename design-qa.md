@@ -1,3 +1,13 @@
+# System Utilities workspace — 16 November 2026
+
+final result: blocked
+
+Target: first displayed System Utilities mock, Operations workspace, user accepted 16 November. Main implementation follows its inventory-first table, compact context/metrics, light surfaces and utility subnavigation while retaining the existing app shell. Samples are design references, never production data. Browse catalogue replaces Install utility because installation endpoints do not exist yet. Catalogue lists current adapters rather than unimplemented approved templates. Application versions are Not reported because the API supplies only chart versions.
+
+Visual verification attempted through sites-preview and Cloud Browser at terminal.local:4173. Browser displayed upstream connect error / connection termination; no rendered utility screen was visible. Therefore no desktop/mobile visual comparison or browser interaction verification is claimed. Functional checks are recorded in the current continuity handoff. Authenticated production visual review remains required before rollout acceptance. Existing historical QA below is preserved and does not apply to this increment.
+
+---
+
 # Customer onboarding design QA — 28 October 2026
 
 final result: passed

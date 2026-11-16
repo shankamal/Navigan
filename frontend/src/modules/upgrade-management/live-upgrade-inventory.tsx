@@ -363,7 +363,8 @@ function ContainerInventory({
   );
 }
 
-function UtilityInventory({
+export function UtilityInventory({
+  initialCode = "",
   requestedDate,
   onReview,
   fleet,
@@ -371,6 +372,7 @@ function UtilityInventory({
   selectedId,
   onSelect,
 }: {
+  initialCode?: string;
   onReview?: (planId: string | null, reschedule?: boolean) => void;
   requestedDate?: string;
   fleet: Cluster[];
@@ -385,18 +387,25 @@ function UtilityInventory({
   const [scheduledFor, setScheduledFor] = useState(() =>
     calendarSchedule(requestedDate),
   );
-  const [componentCode, setComponentCode] = useState("");
+  const [componentCode, setComponentCode] = useState(initialCode);
   const [targetVersion, setTargetVersion] = useState("");
   const inventory = useQuery({
-    queryKey: ["upgrade-utility-inventory", selectedId],
+    queryKey: [
+      "upgrade-utility-inventory",
+      identity?.subject,
+      identity?.authorizationRevision,
+      selectedId,
+    ],
     queryFn: () => clusters.platformComponents(selectedId),
     enabled: Boolean(selectedId),
     staleTime: 30_000,
   });
   const components = inventory.data?.components ?? [];
   const selectedComponent =
-    components.find((item) => item.componentCode === componentCode) ??
-    components[0];
+    components.find(
+      (item) =>
+        item.componentCode.toLowerCase() === componentCode.toLowerCase(),
+    ) ?? components[0];
   const effectiveCode = selectedComponent?.componentCode ?? "";
   const reported = components.filter((item) => item.version).length;
   const ready = components.filter(
@@ -406,6 +415,7 @@ function UtilityInventory({
     queryKey: [
       "utility-upgrade-options",
       identity?.subject,
+      identity?.authorizationRevision,
       selectedId,
       effectiveCode,
     ],

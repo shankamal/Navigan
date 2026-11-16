@@ -13,7 +13,7 @@ import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import { ScopedUpgradePlanner } from "./scoped-upgrade-planner";
 import { useUpgradePlans } from "./upgrade-plan-data";
-import { LiveUpgradeInventory } from "./live-upgrade-inventory";
+import { SystemUtilitiesWorkspace } from "./system-utilities-workspace";
 import { LiveUpgradeCentre } from "./live-upgrade-centre";
 import { UpgradePlansWorkspace } from "./upgrade-plans-workspace";
 import { PatchingWorkspace } from "./patching-workspace";
@@ -116,9 +116,7 @@ function SupportingTab({
 }) {
   if (tab === "utilities") {
     return (
-      <LiveUpgradeInventory
-        mode="utilities"
-        onPlan={onPlan}
+      <SystemUtilitiesWorkspace
         onReview={onReview}
         requestedDate={requestedDate}
       />
@@ -202,7 +200,7 @@ export function UpgradeWorkspace({
                   {tab === "readiness"
                     ? "Plan, approve and execute governed Kubernetes upgrades with safety gates and IaC synchronization."
                     : tab === "utilities"
-                      ? "Manage governed lifecycle upgrades for platform system utilities."
+                      ? "Review installed services, plan upgrades and track utility changes."
                       : tab === "patching"
                         ? "Manage same-version node, AMI, security and runtime patching."
                         : "Plan and review approved maintenance windows across upgrade activities."}
@@ -219,14 +217,23 @@ export function UpgradeWorkspace({
             </header>
           </WorkspaceHeading>
 
-          <UpgradeTabs active={tab} onChange={changeTab} />
+          {initialTab !== "utilities" && (
+            <UpgradeTabs active={tab} onChange={changeTab} />
+          )}
         </>
       )}
 
       <div
-        role="tabpanel"
+        role={initialTab === "utilities" ? "region" : "tabpanel"}
+        aria-label={
+          initialTab === "utilities" ? "System Utilities content" : undefined
+        }
         id="upgrade-tabpanel"
-        aria-labelledby={"upgrade-tab-" + (planning ? "readiness" : tab)}
+        aria-labelledby={
+          initialTab === "utilities"
+            ? undefined
+            : "upgrade-tab-" + (planning ? "readiness" : tab)
+        }
       >
         {planning ? (
           <ScopedUpgradePlanner

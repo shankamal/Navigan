@@ -1,3 +1,15 @@
+## Current follow-up — approved System Utilities workspace
+
+User accepted the first generated System Utilities Installed Utilities sample and asked to implement it. This is an existing-repository production UI task, not a separate Sites prototype.
+
+Implemented: dedicated /upgrades/utilities route uses the shared merged header, existing white sidebar and IBM Plex Sans, without unrelated Upgrade Centre/Patching tabs. Four utility views: Installed utilities, Catalogue, Change plans, Maintenance & history. Actor-keyed live inventory, complete authorized fleet list reused from upgrade-plan read model, global customer/environment filtering, cluster selection, search, real recorded metrics, grouped Grafana/Prometheus chart, fresh-evidence health (15 minutes), stale/future/missing evidence Unverified, explicit application-version Not reported. Existing installed-utility draft/review/approval forms and maintenance-date entry points are retained. Catalogue describes current adapters only, with category/search/detail and supported upgrade planning. Argo/connector/unknown utility maintenance is not advertised as a generic upgrade adapter. New registration/installation and execution remain explicitly unavailable; no fake Install/Register buttons or sample live metrics. Change plans show active utility plans; history includes terminal records. Actual plan maintenance starts populate upcoming changes.
+
+Strategy and target architecture: NAVIGAN_SYSTEM_UTILITIES_STRATEGY.md. Future catalogue persistence/registration, installation plans, compatibility/recovery checks and maintenance-gated GitOps execution need separate backend implementation; this source increment does not claim them complete. Prior Headlamp preflight source checkpoint is published as 2d487519410457b5201858fc4730c76a4ede2f71 (same tree as local 4665515), not deployed. Do not rebuild/deploy backend merely for this UI change.
+
+Validation: TypeScript passed; 72 tests across seven frontend suites passed (utility evidence, upgrade workspace/roles/calendar, shared headers, shell and shortcuts); Next production build --webpack passed; git diff --check passed. Fresh health requires READY, Synced, Healthy and a consistent reported chart version. Local fixture preview attempted with real UI components and intercepted services; cloud browser returned upstream connection termination, so visual QA is BLOCKED. Do not call the preview verified or this increment production-ready. No deployment, system-repository write, utility upgrade, main merge or DEV sync.
+
+---
+
 ## Current override — 16 November 2026 System Utilities continuation
 
 User accepted the capability-wide UI from c4ce9fb (prepared frontend task :79, digest sha256:43c81e59cb3acca4a37eb5b337e54ac7583371a25b0094f20face8fb065d0beb; exact service revision remains unverified) and requested System Utilities upgrade continuation.
