@@ -276,6 +276,8 @@ def utilities_baseline(path):
     contents['navigan/shared/untouched.py'] = b'# unrelated deployed module\n'
     contents[prefix + '__pycache__/upgrade_paths.cpython-312.pyc'] = b'preserve live cache'
     contents[prefix + '__pycache__/utility_upgrades.cpython-312.pyc'] = b'remove replaced cache'
+    contents[prefix + '__pycache__/handler.cpython-312.pyc'] = b'remove patched handler cache'
+    contents['navigan/modules/customer_management/__pycache__/handler.cpython-312.pyc'] = b'preserve other handler cache'
     with zipfile.ZipFile(path, 'w') as archive:
         for name, data in contents.items(): archive.writestr(name, data)
     return contents
@@ -289,11 +291,13 @@ def test_utilities_only_preserves_live_recovery_and_all_unrelated_bytes(tmp_path
     prefix = 'navigan/modules/cluster_management/'
     with zipfile.ZipFile(target) as archive:
         for name, data in original.items():
-            if name == prefix+'utility_upgrades.py' or '/utility_upgrades.' in name: continue
+            if name in {prefix+'utility_upgrades.py', prefix+'handler.py', prefix+'__pycache__/handler.cpython-312.pyc'} or '/utility_upgrades.' in name: continue
             assert archive.read(name) == data
+        assert archive.read(prefix+'handler.py') == release.utility_query_handler(original[prefix+'handler.py'])
         for module in ('utility_upgrades', 'utility_gitops'):
             assert archive.read(prefix+module+'.py') == (ROOT/'src'/prefix/(module+'.py')).read_bytes()
         assert prefix+'__pycache__/utility_upgrades.cpython-312.pyc' not in archive.namelist()
+        assert prefix+'__pycache__/handler.cpython-312.pyc' not in archive.namelist()
 
 
 @pytest.mark.parametrize('change', ['handler', 'utility', 'missing_yaml', 'missing_github_method'])
@@ -324,9 +328,36 @@ def test_utilities_only_adds_yaml_without_replacing_production_helpers(tmp_path)
     release.package(source,target,utilities_only=True,yaml_dependency=dependency)
     with zipfile.ZipFile(target) as archive:
         for name,data in contents.items():
-            if name.endswith('utility_upgrades.py') or '/utility_upgrades.' in name:continue
+            if name in {'navigan/modules/cluster_management/handler.py', 'navigan/modules/cluster_management/__pycache__/handler.cpython-312.pyc'} or name.endswith('utility_upgrades.py') or '/utility_upgrades.' in name:continue
             assert archive.read(name)==data
         for name,data in dependency.items():assert archive.read(name)==data
+
+
+def test_utility_query_patch_accepts_confirmed_release_and_preserves_recovery(tmp_path):
+    release = load_release()
+    source, target = tmp_path/'old.zip', tmp_path/'new.zip'
+    contents = utilities_baseline(source)
+    prefix = 'navigan/modules/cluster_management/'
+    contents[prefix+'utility_upgrades.py'] = baseline(release.DEPLOYED_UTILITY_TREE, 'src/'+prefix+'utility_upgrades.py')
+    with zipfile.ZipFile(source, 'w') as archive:
+        for name, data in contents.items(): archive.writestr(name, data)
+    release.package(source, target, utilities_only=True)
+    with zipfile.ZipFile(target) as archive:
+        handler = archive.read(prefix+'handler.py')
+        assert release.utility_query_handler(handler) == handler
+        assert b'allow_utility=True' in handler
+        assert archive.read(prefix+'upgrade_paths.py') == contents[prefix+'upgrade_paths.py']
+
+
+def test_utility_query_patch_handles_canonical_production_formatting():
+    import ast
+    release = load_release()
+    path = 'src/navigan/modules/cluster_management/handler.py'
+    live = release.retry_response_handler(release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE, path)))
+    canonical = ast.unparse(ast.parse(live)).encode()
+    fixed = release.utility_query_handler(canonical)
+    assert b'allow_utility=True' in fixed
+    assert release.utility_query_handler(fixed) == fixed
 
 
 def test_yaml_dependency_rejects_wrong_checksum():

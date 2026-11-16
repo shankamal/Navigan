@@ -31,6 +31,7 @@ BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 # PROD backend was last reconciled and deployed from the reviewed release below.
 # Keep all deployed modules pinned together before replacing scoped plan code.
 DEPLOYED_PLAN_TREE = "a8d572439b8f5097a48a86c442955afafd19f097"
+DEPLOYED_UTILITY_TREE = "82deeec6bc0e2663420537462712bfe850b358bd"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 UTILITY_YAML_URL = "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 UTILITY_YAML_SHA = "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476"
@@ -104,6 +105,40 @@ def retry_response_handler(source):
 def replace_once(source, before, after, label):
     require(source.count(before) == 1, "Unexpected " + label + " contract")
     return source.replace(before, after, 1)
+
+
+def utility_query_handler(source):
+    """Patch only the reviewed query parser and utility-options call in live code."""
+    prefix = "src/navigan/modules/cluster_management/handler.py"
+    original = git_source(DEPLOYED_UTILITY_TREE, prefix)
+    current = (ROOT / prefix).read_bytes()
+    old_tree, new_tree = ast.parse(original), ast.parse(current)
+    old_query = next(n for n in old_tree.body if isinstance(n, ast.FunctionDef) and n.name == "query_of")
+    new_query = next(n for n in new_tree.body if isinstance(n, ast.FunctionDef) and n.name == "query_of")
+    old_function = ast.get_source_segment(original.decode(), old_query)
+    new_function = ast.get_source_segment(current.decode(), new_query)
+    old_call = 'query_of(event).get("utility", "").lower()'
+    new_call = 'query_of(event, allow_utility=True).get("utility", "").lower()'
+    # Accept the canonical formatting used in the user's live-module comparisons.
+    source_text = source.decode()
+    live_tree = ast.parse(source_text)
+    live_query = next(n for n in live_tree.body if isinstance(n, ast.FunctionDef) and n.name == "query_of")
+    if ast.dump(live_query) == ast.dump(new_query):
+        require(new_call in source_text or ast.unparse(ast.parse(new_call)) in source_text,
+                "Utility query call is not patched")
+        return source
+    require(ast.dump(live_query) == ast.dump(old_query), "Unreviewed query validator")
+    source_text = source_text.replace(ast.get_source_segment(source_text, live_query), new_function, 1)
+    # Locate the call semantically so production quote/layout differences are safe.
+    expected_call = ast.dump(ast.parse(old_call, mode="eval").body)
+    matches = [n for n in ast.walk(ast.parse(source_text)) if isinstance(n, ast.Call) and ast.dump(n) == expected_call]
+    require(len(matches) == 1, "Unexpected utility options query call")
+    old_segment = ast.get_source_segment(source_text, matches[0])
+    result = source_text.replace(old_segment, new_call, 1).encode()
+    # Reverse only these two edits and check every unrelated AST node.
+    reversed_text = result.decode().replace(new_function, old_function, 1).replace(new_call, old_call, 1)
+    require(semantic(reversed_text.encode()) == semantic(source), "Unrelated handler change rejected")
+    return result
 
 
 def deployed_handler_baseline(source):
@@ -296,20 +331,32 @@ def utility_yaml_dependency(fetch=None):
 
 
 def package_utilities(original, destination, yaml_dependency=None):
-    """Replace only utility planning modules; preserve production EKS behavior."""
+    """Replace utility modules and fix the scoped query; preserve EKS behavior."""
     prefix = "navigan/modules/cluster_management/"
-    replacements = {prefix + name for name in ("utility_upgrades.py", "utility_gitops.py")}
+    replacements = {prefix + name: (ROOT / "src" / prefix / name).read_bytes()
+                    for name in ("utility_upgrades.py", "utility_gitops.py")}
     def replaced_cache(name):
-        return name.endswith(".pyc") and any(f"/{module}." in name for module in ("utility_upgrades", "utility_gitops"))
+        return (
+            str(Path(name).parent) in {prefix.rstrip("/"), prefix + "__pycache__"}
+            and name.endswith(".pyc")
+            and any(f"/{module}." in name for module in ("handler", "utility_upgrades", "utility_gitops"))
+        )
     with zipfile.ZipFile(original) as old:
         names = old.namelist()
         require(len(names) == len(set(names)), "Duplicate ZIP members rejected")
         for module in ("handler", "upgrade_readiness", "upgrade_plans", "upgrade_paths", "upgrade_actors", "utility_upgrades", "github_app", "repository"):
             require(prefix + module + ".py" in names, "Utilities-only baseline dependency missing: " + module)
         handler = scoped_handler_target(git_source(DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py"))
-        require(semantic(old.read(prefix + "handler.py")) in {semantic(handler), semantic(retry_response_handler(handler))}, "Unreviewed utility routing contract")
+        handlers = [handler, retry_response_handler(handler)]
+        require(semantic(old.read(prefix + "handler.py")) in {
+            semantic(version) for candidate in handlers for version in (candidate, utility_query_handler(candidate))
+        }, "Unreviewed utility routing contract")
+        replacements[prefix + "handler.py"] = utility_query_handler(old.read(prefix + "handler.py"))
         for module in ("upgrade_plans", "utility_upgrades"):
-            require(normalized_semantic(old.read(prefix + module + ".py")) == normalized_semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + prefix + module + ".py")), "Unreviewed utility dependency: " + module)
+            reviewed_trees = (DEPLOYED_PLAN_TREE, DEPLOYED_UTILITY_TREE) if module == "utility_upgrades" else (DEPLOYED_PLAN_TREE,)
+            require(normalized_semantic(old.read(prefix + module + ".py")) in {
+                normalized_semantic(git_source(tree, "src/" + prefix + module + ".py")) for tree in reviewed_trees
+            }, "Unreviewed utility dependency: " + module)
         for module, class_name, method in (("github_app", "GitHubApp", "repository_token"), ("github_app", "GitHubApp", "_request"), ("repository", "Repository", "system_repository_access")):
             tree = ast.parse(old.read(prefix + module + ".py"))
             require(any(isinstance(node, ast.ClassDef) and node.name == class_name and any(isinstance(child, ast.FunctionDef) and child.name == method for child in node.body) for node in tree.body), "Required utility dependency unavailable: " + method)
@@ -323,11 +370,11 @@ def package_utilities(original, destination, yaml_dependency=None):
                 if entry.filename not in replacements and not replaced_cache(entry.filename):
                     new.writestr(entry, old.read(entry.filename))
             for name in sorted(replacements):
-                new.writestr(name, (ROOT / "src" / name).read_bytes())
+                new.writestr(name, replacements[name])
             for name, content in sorted(dependencies.items()):
                 new.writestr(name, content)
     with zipfile.ZipFile(destination) as new:
-        require(set(new.namelist()) == set(preserved) | replacements | set(dependencies), "Unexpected utility package members")
+        require(set(new.namelist()) == set(preserved) | set(replacements) | set(dependencies), "Unexpected utility package members")
         require(all(digest(new.read(name)) == sha for name, sha in preserved.items()), "Unrelated production module changed")
         require(sum(item.file_size for item in new.infolist()) <= 250 * 1024 * 1024, "Updated ClusterFunction package is too large")
     return destination

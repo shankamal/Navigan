@@ -376,7 +376,6 @@ export function SystemUtilitiesWorkspace({
                           </span>
                         ) : row.planning ? (
                           <Button
-                            variant="secondary"
                             disabled={!canPlan || !row.reported}
                             onClick={() => setPlanning(row.code)}
                           >

@@ -79,9 +79,11 @@ def body_of(event):
     return value
 
 
-def query_of(event):
+def query_of(event, *, allow_utility=False):
     raw = dict(event.get("queryStringParameters") or {})
     allowed = {"page", "pageSize", "status", "environmentId", "customerId", "platform", "search"}
+    if allow_utility:
+        allowed.add("utility")
     if set(raw) - allowed:
         raise ApiError(400, "INVALID_QUERY", "Unknown query parameter.")
     try:
@@ -509,7 +511,7 @@ def execute(event, principal, correlation):
                 elif action == "upgrade-options":
                     value = ScopedEksUpgradePlans(repo, access, correlation).options(identifier)
                 elif action == "utility-upgrade-options":
-                    value = UtilityUpgradePlans(repo, access, correlation).options(identifier, query_of(event).get("utility", "").lower())
+                    value = UtilityUpgradePlans(repo, access, correlation).options(identifier, query_of(event, allow_utility=True).get("utility", "").lower())
                 elif upgrade_plans:
                     value = ScopedEksUpgradePlans(repo, access, correlation).list(identifier)
                     value["items"].extend(UtilityUpgradePlans(repo, access, correlation).list(identifier)["items"])

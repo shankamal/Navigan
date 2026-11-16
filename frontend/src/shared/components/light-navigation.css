@@ -46,9 +46,9 @@
 .app-shell.light-navigation[class]
   .sidebar
   :is(.nav-item, .nav-subitem).selected {
-  color: #202e40;
-  background: #e8f0fd !important;
-  border-left-color: #26a544;
+  color: #fff;
+  background: var(--action-green, #2f6b2d) !important;
+  border-left-color: var(--action-green, #2f6b2d);
   box-shadow: none;
   font-weight: 600;
 }
@@ -56,7 +56,7 @@
   .sidebar
   :is(.nav-item, .nav-subitem).selected
   svg {
-  color: #354861;
+  color: #fff;
 }
 .app-shell.light-navigation[class]
   .sidebar
