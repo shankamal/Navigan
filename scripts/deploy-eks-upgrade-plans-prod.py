@@ -275,7 +275,42 @@ def check_checkout(expected_branch):
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
 
-def package(original, destination):
+def package_utilities(original, destination):
+    """Replace only utility planning modules; preserve production EKS behavior."""
+    prefix = "navigan/modules/cluster_management/"
+    replacements = {prefix + name for name in ("utility_upgrades.py", "utility_gitops.py")}
+    def replaced_cache(name):
+        return name.endswith(".pyc") and any(f"/{module}." in name for module in ("utility_upgrades", "utility_gitops"))
+    with zipfile.ZipFile(original) as old:
+        names = old.namelist()
+        require(len(names) == len(set(names)), "Duplicate ZIP members rejected")
+        for module in ("handler", "upgrade_readiness", "upgrade_plans", "upgrade_paths", "upgrade_actors", "utility_upgrades", "github_app", "repository"):
+            require(prefix + module + ".py" in names, "Utilities-only baseline dependency missing: " + module)
+        handler = scoped_handler_target(git_source(DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py"))
+        require(semantic(old.read(prefix + "handler.py")) in {semantic(handler), semantic(retry_response_handler(handler))}, "Unreviewed utility routing contract")
+        for module in ("upgrade_plans", "utility_upgrades"):
+            require(normalized_semantic(old.read(prefix + module + ".py")) == normalized_semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + prefix + module + ".py")), "Unreviewed utility dependency: " + module)
+        for module, class_name, method in (("github_app", "GitHubApp", "read_repository_file"), ("repository", "Repository", "system_repository_access")):
+            tree = ast.parse(old.read(prefix + module + ".py"))
+            require(any(isinstance(node, ast.ClassDef) and node.name == class_name and any(isinstance(child, ast.FunctionDef) and child.name == method for child in node.body) for node in tree.body), "Required utility dependency unavailable: " + method)
+        require("yaml/__init__.py" in names, "Utilities-only package requires the deployed PyYAML dependency")
+        preserved = {name: digest(old.read(name)) for name in names if name not in replacements and not replaced_cache(name)}
+        with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
+            for entry in old.infolist():
+                if entry.filename not in replacements and not replaced_cache(entry.filename):
+                    new.writestr(entry, old.read(entry.filename))
+            for name in sorted(replacements):
+                new.writestr(name, (ROOT / "src" / name).read_bytes())
+    with zipfile.ZipFile(destination) as new:
+        require(set(new.namelist()) == set(preserved) | replacements, "Unexpected utility package members")
+        require(all(digest(new.read(name)) == sha for name, sha in preserved.items()), "Unrelated production module changed")
+        require(sum(item.file_size for item in new.infolist()) <= 250 * 1024 * 1024, "Updated ClusterFunction package is too large")
+    return destination
+
+
+def package(original, destination, *, utilities_only=False):
+    if utilities_only:
+        return package_utilities(original, destination)
     prefix = "navigan/modules/cluster_management/"
     handler = prefix + "handler.py"
     readiness = prefix + "upgrade_readiness.py"
@@ -532,7 +567,7 @@ def signature(record):
     }
 
 
-def prepare(session, revision):
+def prepare(session, revision, *, utilities_only=False):
     parent, root, record = preflight(session)
     workspace = support.storage.verify_storage(session, "artifact-workspace")
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-eks-plans-"))
@@ -549,7 +584,9 @@ def prepare(session, revision):
     require(
         code_hash(original.read_bytes()) == record["oldSha"], "Original ClusterFunction checksum mismatch"
     )
-    updated = package(original, directory / "ClusterFunction-updated.zip")
+    if utilities_only:
+        require(all(record["planRoutePresence"].values()), "Utilities-only release requires existing protected upgrade routes")
+    updated = package(original, directory / "ClusterFunction-updated.zip", utilities_only=utilities_only)
     code, _ = support.upload(session, workspace, directory, "eks-upgrade-plans.zip", updated.read_bytes())
     child = proposed_child(record, code)
     _, child_url = support.upload(
@@ -597,6 +634,7 @@ def prepare(session, revision):
             "account": ACCOUNT,
             "region": REGION,
             "revision": revision,
+            "releaseScope": "UTILITIES_ONLY" if utilities_only else "EKS_PLANS",
             "parentStamp": base.stamp(parent),
             "changeSet": identifier,
             "release": saved,
@@ -613,6 +651,9 @@ def execute(session, plan_path):
     )
     parent, _, current = preflight(session)
     saved = plan["release"]
+    require(plan.get("releaseScope", "EKS_PLANS") in {"EKS_PLANS", "UTILITIES_ONLY"}, "Unknown backend release scope")
+    if plan.get("releaseScope") == "UTILITIES_ONLY":
+        require(all(saved["planRoutePresence"].values()), "Utilities-only release cannot add routes")
     require(base.stamp(parent) == plan["parentStamp"], "Production parent stack changed; prepare again")
     require(
         signature(current) == {key: saved[key] for key in signature(current)},
@@ -635,6 +676,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--source-branch", default="feature/eks-upgrade-readiness")
+    parser.add_argument("--utilities-only", action="store_true", help="Preserve deployed EKS modules; replace only utility planning modules")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--execute", type=Path, metavar="PLAN")
@@ -642,7 +684,8 @@ def main():
     revision = check_checkout(args.source_branch)
     session = boto3.Session(profile_name=args.profile, region_name=REGION)
     require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Wrong AWS account")
-    execute(session, args.execute) if args.execute else prepare(session, revision)
+    require(not (args.execute and args.utilities_only), "Execution uses the scope saved in the release plan; omit --utilities-only")
+    execute(session, args.execute) if args.execute else prepare(session, revision, utilities_only=args.utilities_only)
 
 
 if __name__ == "__main__":

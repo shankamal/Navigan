@@ -261,3 +261,51 @@ def test_normalization_never_accepts_unreviewed_readiness_behavior(tmp_path):
         archive.writestr(prefix+"upgrade_plans.py",baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"upgrade_plans.py"))
     with pytest.raises(RuntimeError,match="Deployed upgrade-readiness module differs"):
         release.package(original,tmp_path/"rejected.zip")
+
+
+def utilities_baseline(path):
+    release = load_release()
+    prefix = 'navigan/modules/cluster_management/'
+    contents = {prefix + name + '.py': baseline(release.DEPLOYED_PLAN_TREE, 'src/' + prefix + name + '.py') for name in ('upgrade_plans', 'utility_upgrades', 'upgrade_actors')}
+    contents[prefix + 'handler.py'] = release.retry_response_handler(release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE, 'src/' + prefix + 'handler.py')))
+    contents[prefix + 'upgrade_readiness.py'] = (ROOT / 'src' / prefix / 'upgrade_readiness.py').read_bytes()
+    contents[prefix + 'upgrade_paths.py'] = baseline(release.DEPLOYED_PLAN_TREE, 'src/' + prefix + 'upgrade_paths.py') + b"\ndef production_recovery_guard(): return 'preserve'\n"
+    for name in ('github_app', 'repository'):
+        contents[prefix + name + '.py'] = (ROOT / 'src' / prefix / (name + '.py')).read_bytes()
+    contents['yaml/__init__.py'] = b'# deployed dependency\n'
+    contents['navigan/shared/untouched.py'] = b'# unrelated deployed module\n'
+    contents[prefix + '__pycache__/upgrade_paths.cpython-312.pyc'] = b'preserve live cache'
+    contents[prefix + '__pycache__/utility_upgrades.cpython-312.pyc'] = b'remove replaced cache'
+    with zipfile.ZipFile(path, 'w') as archive:
+        for name, data in contents.items(): archive.writestr(name, data)
+    return contents
+
+
+def test_utilities_only_preserves_live_recovery_and_all_unrelated_bytes(tmp_path):
+    release = load_release()
+    source, target = tmp_path/'old.zip', tmp_path/'new.zip'
+    original = utilities_baseline(source)
+    release.package(source, target, utilities_only=True)
+    prefix = 'navigan/modules/cluster_management/'
+    with zipfile.ZipFile(target) as archive:
+        for name, data in original.items():
+            if name == prefix+'utility_upgrades.py' or '/utility_upgrades.' in name: continue
+            assert archive.read(name) == data
+        for module in ('utility_upgrades', 'utility_gitops'):
+            assert archive.read(prefix+module+'.py') == (ROOT/'src'/prefix/(module+'.py')).read_bytes()
+        assert prefix+'__pycache__/utility_upgrades.cpython-312.pyc' not in archive.namelist()
+
+
+@pytest.mark.parametrize('change', ['handler', 'utility', 'missing_yaml', 'missing_github_method'])
+def test_utilities_only_keeps_dependency_and_routing_guards(tmp_path, change):
+    release = load_release()
+    source, target = tmp_path/'old.zip', tmp_path/'new.zip'
+    contents = utilities_baseline(source)
+    prefix = 'navigan/modules/cluster_management/'
+    if change == 'handler': contents[prefix+'handler.py'] += b'\ndef unreviewed_route(): pass\n'
+    if change == 'utility': contents[prefix+'utility_upgrades.py'] += b'\ndef unreviewed_utility(): pass\n'
+    if change == 'missing_yaml': del contents['yaml/__init__.py']
+    if change == 'missing_github_method': contents[prefix+'github_app.py'] = b'class GitHubApp: pass\n'
+    with zipfile.ZipFile(source, 'w') as archive:
+        for name, data in contents.items(): archive.writestr(name, data)
+    with pytest.raises(RuntimeError): release.package(source, target, utilities_only=True)
