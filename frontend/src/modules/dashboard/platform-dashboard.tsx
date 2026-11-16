@@ -28,11 +28,14 @@ import {
 } from "./dashboard-data";
 import styles from "./dashboard.module.css";
 
-const providerColors = ["#E5A044", "#4D8FC7", "#63A477", "#C96863"];
+import {
+  cloudColors as providerColors,
+  healthColors,
+} from "@/shared/components/chart-palette";
 const providers = ["AWS", "AZURE", "GCP", "OCI"];
 const providerLabels = ["AWS", "Azure", "GCP", "OCI"];
 const states = ["Ready", "Degraded", "Paused", "Unverified"];
-const healthColors = ["#6D957B", "#C4A064", "#D9DEE3", "#7A8998"];
+
 const label = (s: string) =>
   s
     .toLowerCase()

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: "Geist Sans", Arial, sans-serif;
+  --font-sans: "IBM Plex Sans", Arial, sans-serif;
   --color-brand: #86bc25;
   --color-ink: #202833;
 }
@@ -20,7 +20,7 @@
 }
 body {
   margin: 0;
-  font-family: "Geist Sans", Arial, sans-serif;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
   color: var(--text);
   background: var(--surface);
   font-size: 14px;
@@ -8957,7 +8957,7 @@ td {
 .app-shell {
   --action-green: #2f6b2d;
   --action-green-hover: #255624;
-  font-family: "Geist Sans", Arial, sans-serif;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
 }
 .app-shell .content-column .button-primary {
   background: var(--action-green);

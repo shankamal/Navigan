@@ -1,3 +1,4 @@
+import { chartColors } from "@/shared/components/chart-palette";
 import type { EksUpgradePlan } from "@/modules/cluster-management/model";
 import { scheduleOverdue, useScheduleClock } from "./schedule-state";
 type Slice = { label: string; count: number; color: string };
@@ -34,7 +35,7 @@ export function Doughnut({
             cy="60"
             r="46"
             fill="none"
-            stroke="#e6ebf0"
+            stroke={chartColors.track}
             strokeWidth="13"
           />
           {slices
@@ -104,34 +105,38 @@ export function UpgradeMetrics({
     valid = active.filter((p) => !scheduleOverdue(p, now)),
     overdue = active.length - valid.length;
   const readiness = [
-    { label: "Ready", count: ready, color: "#347535" },
-    { label: "Blocked", count: blocked, color: "#b14c45" },
-    { label: "Review required", count: review, color: "#c58b22" },
-    { label: "Evidence unavailable", count: unknown, color: "#8795a5" },
+    { label: "Ready", count: ready, color: chartColors.ready },
+    { label: "Blocked", count: blocked, color: chartColors.blocked },
+    { label: "Review required", count: review, color: chartColors.pending },
+    {
+      label: "Evidence unavailable",
+      count: unknown,
+      color: chartColors.unknown,
+    },
   ];
   const stages = [
     {
       label: "Draft",
       count: valid.filter((p) => p.status === "DRAFT").length,
-      color: "#73889b",
+      color: chartColors.draft,
     },
     {
       label: "Awaiting approval",
       count: valid.filter((p) => p.status === "SUBMITTED").length,
-      color: "#c58b22",
+      color: chartColors.pending,
     },
     {
       label: "Approved / scheduled",
       count: valid.filter((p) => ["APPROVED", "SCHEDULED"].includes(p.status))
         .length,
-      color: "#347535",
+      color: chartColors.ready,
     },
     {
       label: "Executing",
       count: valid.filter((p) => p.status === "EXECUTING").length,
-      color: "#26890d",
+      color: chartColors.running,
     },
-    { label: "Overdue / inactive", count: overdue, color: "#b14c45" },
+    { label: "Overdue / inactive", count: overdue, color: chartColors.blocked },
   ];
   return (
     <div

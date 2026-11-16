@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PageHeading } from "@/shared/components/ui";
 import { AppShell } from "@/shared/components/app-shell";
 import { PublicShell } from "@/shared/components/public-shell";
 import { architect, engineer } from "./fixtures";
@@ -412,6 +413,39 @@ describe("Application shell permissions", () => {
     expect(
       screen.getByRole("link", { name: "About Navigan" }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    "/customers",
+    "/environments",
+    "/clusters",
+    "/migrations",
+    "/upgrades",
+  ])("places a capability title with its breadcrumb at %s", (route) => {
+    pathname = route;
+    render(
+      <AppShell>
+        <PageHeading
+          title="Capability title"
+          action={<button>Page action</button>}
+        />
+      </AppShell>,
+    );
+    const header = screen.getByRole("banner", { name: "Capability header" });
+    expect(
+      within(header).getByRole("navigation", { name: "Breadcrumb" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByRole("heading", { name: "Capability title" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByRole("button", { name: "Page action" }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("main")).queryByRole("heading", {
+        name: "Capability title",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the public shell without workspace navigation", () => {

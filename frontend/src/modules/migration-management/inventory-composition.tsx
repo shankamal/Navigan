@@ -1,5 +1,5 @@
 import styles from "./migration-experience.module.css";
-const colors = ["#267245", "#168b98", "#7858b5", "#d18b28", "#687680"];
+import { categoryColors as colors } from "@/shared/components/chart-palette";
 export function InventoryComposition({ kinds }: { kinds: [string, number][] }) {
   const sorted = [...kinds].sort((a, b) => b[1] - a[1]);
   const groups: [string, number][] = sorted.slice(0, 4);

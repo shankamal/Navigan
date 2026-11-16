@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHeading } from "@/shared/components/workspace-heading";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -341,25 +342,27 @@ export function ScopedUpgradePlanner({
 
   return (
     <section className="upgrade-scoped-planner upgrade-plan-console">
-      <header className="upgrade-plan-console-header">
-        <button
-          type="button"
-          className="upgrade-back-link upgrade-plan-back"
-          onClick={onClose}
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-          <span>Back to Upgrade Centre</span>
-        </button>
-        <div className="upgrade-plan-console-title">
-          <div>
-            <h2>Create Upgrade Plan</h2>
-            <p>
-              Configure a governed Kubernetes upgrade with scope, versions,
-              maintenance windows and approval controls.
-            </p>
+      <WorkspaceHeading>
+        <header className="upgrade-plan-console-header">
+          <button
+            type="button"
+            className="upgrade-back-link upgrade-plan-back"
+            onClick={onClose}
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            <span>Back to Upgrade Centre</span>
+          </button>
+          <div className="upgrade-plan-console-title">
+            <div>
+              <h2>Create Upgrade Plan</h2>
+              <p>
+                Configure a governed Kubernetes upgrade with scope, versions,
+                maintenance windows and approval controls.
+              </p>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      </WorkspaceHeading>
 
       <section className="upgrade-plan-context" aria-label="Selected cluster">
         <div className="upgrade-plan-context-primary">
@@ -371,7 +374,9 @@ export function ScopedUpgradePlanner({
         </div>
         <div>
           <span>Customer</span>
-          <strong>{cluster.customerName ?? cluster.customerId ?? "Customer"}</strong>
+          <strong>
+            {cluster.customerName ?? cluster.customerId ?? "Customer"}
+          </strong>
         </div>
         <div>
           <span>Environment</span>
@@ -380,7 +385,9 @@ export function ScopedUpgradePlanner({
         <div>
           <span>Platform</span>
           <PlatformIdentity
-            identity={containerIdentity(cluster.providerLabel || cluster.provider)}
+            identity={containerIdentity(
+              cluster.providerLabel || cluster.provider,
+            )}
             kind="platform"
           />
         </div>
@@ -461,7 +468,9 @@ export function ScopedUpgradePlanner({
                 <section className="upgrade-plan-section">
                   <header>
                     <div>
-                      <h3>Plan Type <span aria-hidden="true">*</span></h3>
+                      <h3>
+                        Plan Type <span aria-hidden="true">*</span>
+                      </h3>
                       <p>Select the breadth of this upgrade plan.</p>
                     </div>
                   </header>
@@ -506,7 +515,9 @@ export function ScopedUpgradePlanner({
                 <section className="upgrade-plan-section">
                   <header>
                     <div>
-                      <h3>Upgrade Scope <span aria-hidden="true">*</span></h3>
+                      <h3>
+                        Upgrade Scope <span aria-hidden="true">*</span>
+                      </h3>
                       <p>
                         {isFullUpgrade
                           ? "The governed full-upgrade path includes all required platform stages."
@@ -540,7 +551,8 @@ export function ScopedUpgradePlanner({
                           {
                             id: "CONTROL_PLANE",
                             label: "Control Plane",
-                            description: "Managed Kubernetes control plane only.",
+                            description:
+                              "Managed Kubernetes control plane only.",
                             Icon: Cpu,
                           },
                           {
@@ -721,9 +733,7 @@ export function ScopedUpgradePlanner({
                                 </td>
                                 <td>{node.version ?? "Unknown"}</td>
                                 <td>{data.currentVersion}</td>
-                                <td>
-                                  {selectable ? "Upgrade" : "Keep"}
-                                </td>
+                                <td>{selectable ? "Upgrade" : "Keep"}</td>
                               </tr>
                             );
                           })}
@@ -883,7 +893,6 @@ export function ScopedUpgradePlanner({
                         placeholder="Describe why this upgrade is required…"
                       />
                     </label>
-
                   </div>
                 </section>
               </div>
@@ -897,7 +906,9 @@ export function ScopedUpgradePlanner({
                   <dl>
                     <div>
                       <dt>Plan Type</dt>
-                      <dd>{isFullUpgrade ? "Full Upgrade" : "Targeted Upgrade"}</dd>
+                      <dd>
+                        {isFullUpgrade ? "Full Upgrade" : "Targeted Upgrade"}
+                      </dd>
                     </div>
                     <div>
                       <dt>Cluster</dt>
@@ -944,14 +955,24 @@ export function ScopedUpgradePlanner({
                     <li>Plan</li>
                     <li>Approval</li>
                     <li>Maintenance Window</li>
-                    <li data-applicable={scope === "CLUSTER" || scope === "CONTROL_PLANE"}>
+                    <li
+                      data-applicable={
+                        scope === "CLUSTER" || scope === "CONTROL_PLANE"
+                      }
+                    >
                       Control Plane
                     </li>
                     <li data-applicable={scope === "CLUSTER"}>Health Gate</li>
-                    <li data-applicable={scope === "CLUSTER" || scope === "ADDONS"}>
+                    <li
+                      data-applicable={
+                        scope === "CLUSTER" || scope === "ADDONS"
+                      }
+                    >
                       Add-ons
                     </li>
-                    <li data-applicable={scope === "CLUSTER" || scope === "NODES"}>
+                    <li
+                      data-applicable={scope === "CLUSTER" || scope === "NODES"}
+                    >
                       Node Groups
                     </li>
                     <li data-applicable={scope === "CLUSTER"}>Health Gate</li>

@@ -1,3 +1,4 @@
+import { chartColors } from "@/shared/components/chart-palette";
 import Link from "next/link";
 import { Clock3, FileText, ShieldCheck, AlertTriangle } from "lucide-react";
 import { EnvironmentRing } from "@/modules/environment-management/components/environment-metrics";
@@ -32,26 +33,31 @@ export function ClusterMetrics({
     ? Math.max(0, total! - values.reduce<number>((sum, v) => sum + (v ?? 0), 0))
     : 0;
   const entries = [
-    { label: "Active", value: active, color: "#65a449" },
-    { label: "Draft", value: draft, color: "#94a3b8" },
-    { label: "Submitted", value: submitted, color: "#b68c45" },
-    { label: "Under review", value: review, color: "#64748b" },
-    { label: "Other stages", value: other, color: "#cbd5e1" },
+    { label: "Active", value: active, color: chartColors.active },
+    { label: "Draft", value: draft, color: chartColors.draft },
+    { label: "Submitted", value: submitted, color: chartColors.pending },
+    { label: "Under review", value: review, color: chartColors.review },
+    { label: "Other stages", value: other, color: chartColors.remainder },
   ];
   const provisioning = [
     {
       label: "Plan ready",
       status: "PLAN_READY",
       value: planReady ?? 0,
-      color: "#8298ae",
+      color: chartColors.review,
     },
     {
       label: "Applying",
       status: "APPLYING",
       value: applying ?? 0,
-      color: "#65a449",
+      color: chartColors.running,
     },
-    { label: "Failed", status: "FAILED", value: failed ?? 0, color: "#bf6666" },
+    {
+      label: "Failed",
+      status: "FAILED",
+      value: failed ?? 0,
+      color: chartColors.blocked,
+    },
   ];
   const provisioningTotal = provisioning.reduce(
     (sum, item) => sum + item.value,
@@ -107,13 +113,13 @@ export function ClusterMetrics({
                 center={`${total ? Math.round((active / total) * 100) : 0}%`}
                 caption="Active"
                 label={`Active cluster coverage: ${active} of ${total}`}
-                palette={["#65a449", "#cbd5e1"]}
+                palette={[chartColors.active, chartColors.remainder]}
               />
               <ul aria-label="Active cluster coverage">
                 <li>
                   <span
                     className="cluster-chart-dot"
-                    style={{ backgroundColor: "#65a449" }}
+                    style={{ backgroundColor: chartColors.active }}
                   />
                   <span>Active</span>
                   <strong>{active}</strong>
@@ -121,7 +127,7 @@ export function ClusterMetrics({
                 <li>
                   <span
                     className="cluster-chart-dot"
-                    style={{ backgroundColor: "#cbd5e1" }}
+                    style={{ backgroundColor: chartColors.remainder }}
                   />
                   <span>Not active</span>
                   <strong>{Math.max(0, total - active)}</strong>

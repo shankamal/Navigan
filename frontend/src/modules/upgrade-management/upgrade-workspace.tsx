@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHeading } from "@/shared/components/workspace-heading";
 
 import { useEffect, useState } from "react";
 import {
@@ -185,36 +186,38 @@ export function UpgradeWorkspace({
     >
       {!planning && (
         <>
-          <header className="upgrade-page-heading">
-            <div className="upgrade-page-heading-copy">
-              <h1>
-                {tab === "readiness"
-                  ? "Upgrade Centre"
-                  : tab === "utilities"
-                    ? "System Utilities"
-                    : tab === "patching"
-                      ? "Patching"
-                      : "Maintenance Calendar"}
-              </h1>
-              <p>
-                {tab === "readiness"
-                  ? "Plan, approve and execute governed Kubernetes upgrades with safety gates and IaC synchronization."
-                  : tab === "utilities"
-                    ? "Manage governed lifecycle upgrades for platform system utilities."
-                    : tab === "patching"
-                      ? "Manage same-version node, AMI, security and runtime patching."
-                      : "Plan and review approved maintenance windows across upgrade activities."}
-              </p>
-            </div>
-            {tab === "readiness" && (
-              <div className="upgrade-heading-actions">
-                <Button variant="secondary" onClick={fleetData.refresh}>
-                  <RefreshCw size={16} aria-hidden="true" />
-                  Refresh
-                </Button>
+          <WorkspaceHeading>
+            <header className="upgrade-page-heading">
+              <div className="upgrade-page-heading-copy">
+                <h1>
+                  {tab === "readiness"
+                    ? "Upgrade Centre"
+                    : tab === "utilities"
+                      ? "System Utilities"
+                      : tab === "patching"
+                        ? "Patching"
+                        : "Maintenance Calendar"}
+                </h1>
+                <p>
+                  {tab === "readiness"
+                    ? "Plan, approve and execute governed Kubernetes upgrades with safety gates and IaC synchronization."
+                    : tab === "utilities"
+                      ? "Manage governed lifecycle upgrades for platform system utilities."
+                      : tab === "patching"
+                        ? "Manage same-version node, AMI, security and runtime patching."
+                        : "Plan and review approved maintenance windows across upgrade activities."}
+                </p>
               </div>
-            )}
-          </header>
+              {tab === "readiness" && (
+                <div className="upgrade-heading-actions">
+                  <Button variant="secondary" onClick={fleetData.refresh}>
+                    <RefreshCw size={16} aria-hidden="true" />
+                    Refresh
+                  </Button>
+                </div>
+              )}
+            </header>
+          </WorkspaceHeading>
 
           <UpgradeTabs active={tab} onChange={changeTab} />
         </>

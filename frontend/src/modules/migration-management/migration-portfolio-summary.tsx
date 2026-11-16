@@ -1,3 +1,4 @@
+import { chartColors, categoryColors } from "@/shared/components/chart-palette";
 import { ArrowRight, CheckCircle2, Route, ChartPie } from "lucide-react";
 
 import { PlatformIcon } from "./platform-icon";
@@ -13,12 +14,12 @@ type Path = {
 };
 
 const colors: Record<string, string> = {
-  draft: "#77818b",
-  discovery: "#218b95",
-  assessment: "#c18a27",
-  review: "#8562b2",
-  approved: "#267245",
-  blocked: "#bf5555",
+  draft: chartColors.draft,
+  discovery: chartColors.teal,
+  assessment: chartColors.pending,
+  review: chartColors.review,
+  approved: chartColors.ready,
+  blocked: chartColors.blocked,
 };
 
 function Donut({
@@ -63,7 +64,7 @@ export function MigrationPortfolioSummary({
 }) {
   const segments = lifecycle.map((item) => ({
     ...item,
-    color: colors[item.tone] ?? "#77818b",
+    color: colors[item.tone] ?? chartColors.draft,
   }));
   // Preserve every returned status in the chart, including statuses outside the workflow board.
   const other = total - segments.reduce((sum, item) => sum + item.count, 0);
@@ -72,16 +73,9 @@ export function MigrationPortfolioSummary({
       label: "Other statuses",
       tone: "other",
       count: other,
-      color: "#48535e",
+      color: chartColors.unknown,
     });
-  const pathColors = [
-    "#218b95",
-    "#1689d4",
-    "#8562b2",
-    "#c18a27",
-    "#bf5555",
-    "#267245",
-  ];
+  const pathColors = categoryColors;
   const pathTotal = paths.reduce((sum, item) => sum + item.count, 0);
   const pathSegments = paths.map((item, index) => ({
     label: `${item.sourcePlatform} to ${item.targetPlatform}`,
@@ -148,11 +142,15 @@ export function MigrationPortfolioSummary({
               value={`${approvedPercent}%`}
               caption="approved"
               segments={[
-                { label: "Approved", count: approved, color: "#267245" },
+                {
+                  label: "Approved",
+                  count: approved,
+                  color: chartColors.ready,
+                },
                 {
                   label: "Not approved",
                   count: total - approved,
-                  color: "#d9dee2",
+                  color: chartColors.remainder,
                 },
               ]}
             />

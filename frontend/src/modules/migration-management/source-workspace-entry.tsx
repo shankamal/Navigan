@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PageHeading } from "@/shared/components/ui";
 import { SourceMigrationWorkspace } from "./source-migration-workspace";
 import { useSourceDiscoverySnapshot } from "./source-discovery-screen";
 import { sourceWorkspaceReady } from "./source-discovery-state";
@@ -16,11 +17,10 @@ export function SourceWorkspaceEntry({ migrationId }: { migrationId: string }) {
   )
     return (
       <section className="panel">
-        <h1>Complete Source Discovery & Assessment</h1>
-        <p>
-          A completed assessment with matching inventory evidence is required
-          before opening the workspace.
-        </p>
+        <PageHeading
+          title="Complete Source Discovery & Assessment"
+          description="A completed assessment with matching inventory evidence is required before opening the workspace."
+        />
         <Link href={`/migrations/${migrationId}/discovery`}>
           Return to source discovery
         </Link>

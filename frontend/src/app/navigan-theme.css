@@ -22,16 +22,16 @@
   --navigan-radius: 10px;
 
   /* Unified product typography */
-  --navigan-font-family: "Geist Sans", Arial, sans-serif;
-  --navigan-font-page-title: 18px;
-  --navigan-font-section-title: 13px;
+  --navigan-font-family: "IBM Plex Sans", Arial, sans-serif;
+  --navigan-font-page-title: 22px;
+  --navigan-font-section-title: 14px;
   --navigan-font-subsection-title: 12px;
-  --navigan-font-body: 12px;
-  --navigan-font-control: 12px;
-  --navigan-font-table: 12px;
+  --navigan-font-body: 13px;
+  --navigan-font-control: 13px;
+  --navigan-font-table: 13px;
   --navigan-font-label: 11px;
   --navigan-font-caption: 10.5px;
-  --navigan-font-metric: 18px;
+  --navigan-font-metric: 24px;
   --navigan-line-body: 1.45;
   --navigan-line-tight: 1.25;
 
@@ -47,7 +47,7 @@
 body {
   color: var(--navigan-text);
   background: var(--navigan-canvas);
-  font-family: "Geist Sans", Arial, sans-serif;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
   font-optical-sizing: auto;
   font-size: var(--navigan-font-body);
   line-height: var(--navigan-line-body);
@@ -63,7 +63,7 @@ body {
   --muted: var(--navigan-secondary-text);
   --border: var(--navigan-panel-border);
   --surface: var(--navigan-canvas);
-  font-family: "Geist Sans", Arial, sans-serif;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
   color: var(--navigan-text);
   background: var(--navigan-canvas);
 }

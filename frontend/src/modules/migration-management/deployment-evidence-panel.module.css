@@ -541,7 +541,7 @@
   inset: 0;
   z-index: 2000;
   color: #202833;
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: var(--navigan-font-family, "IBM Plex Sans"), Arial, sans-serif;
   font-size: 14px;
 }
 .drawerBackdrop {
@@ -908,7 +908,7 @@
 .drawer {
   top: var(--workspace-topbar-height, 68px);
   width: min(520px, 36vw);
-  font-family: "Geist Sans", Arial, sans-serif;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
 }
 .drawerHeader {
   padding: 22px 24px 18px;

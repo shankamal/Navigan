@@ -1,3 +1,4 @@
+import { chartColors } from "@/shared/components/chart-palette";
 import type { EksUpgradePlan } from "@/modules/cluster-management/model";
 import { Doughnut } from "./upgrade-metrics";
 import { planScopes, scopeTypes, type PlanScope } from "./plan-scope";
@@ -17,12 +18,12 @@ export const planStage = (p: EksUpgradePlan, now: number) =>
             ? "Draft"
             : "History";
 export const stageColors: Record<string, string> = {
-  Draft: "#8795a5",
-  "Awaiting approval": "#b87a14",
-  Approved: "#26890d",
-  Scheduled: "#26890d",
-  Running: "#347535",
-  Overdue: "#b14c45",
+  Draft: chartColors.draft,
+  "Awaiting approval": chartColors.pending,
+  Approved: chartColors.ready,
+  Scheduled: chartColors.ready,
+  Running: chartColors.running,
+  Overdue: chartColors.blocked,
 };
 export function ComponentPlanMetrics({
   plans,

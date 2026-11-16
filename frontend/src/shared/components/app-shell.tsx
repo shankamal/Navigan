@@ -761,32 +761,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
           </div>
         </aside>
         <div className="content-column">
-          {pathname !== "/about" &&
-            (pathname === "/dashboard" ? (
-              <header
-                className="workspace-capability-header"
-                aria-label="Dashboard header"
-              >
-                <nav className="breadcrumb" aria-label="Breadcrumb">
-                  {breadcrumbs.map((crumb, index) => (
-                    <span
-                      className="breadcrumb-segment"
-                      key={crumb.label + index}
-                    >
-                      {index > 0 && (
-                        <ChevronRight size={14} aria-hidden="true" />
-                      )}
-                      {crumb.href ? (
-                        <Link href={crumb.href}>{crumb.label}</Link>
-                      ) : (
-                        <span aria-current="page">{crumb.label}</span>
-                      )}
-                    </span>
-                  ))}
-                </nav>
-                <div ref={setHeaderTarget} className="workspace-heading-slot" />
-              </header>
-            ) : (
+          {pathname !== "/about" && (
+            <header
+              className="workspace-capability-header"
+              aria-label="Capability header"
+            >
               <nav className="breadcrumb" aria-label="Breadcrumb">
                 {breadcrumbs.map((crumb, index) => (
                   <span
@@ -802,7 +781,13 @@ function AppShellContent({ children }: { children: ReactNode }) {
                   </span>
                 ))}
               </nav>
-            ))}
+              <div
+                key={pathname}
+                ref={setHeaderTarget}
+                className="workspace-heading-slot"
+              />
+            </header>
+          )}
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>

@@ -1,3 +1,23 @@
+## Current follow-up — capability-wide header, typography and chart standard
+
+User visually accepted the operational Dashboard and requested the same merged sticky header and IBM Plex Sans across all capabilities, a subtle fixed Workspace heading highlight, larger version footer, and a consistent chart palette.
+
+Implemented:
+- Shell now owns ONE sticky white breadcrumb/title header for every workspace route except About. Shared PageHeading renders into it through WorkspaceHeading; title/action React context and handlers remain intact, with standalone fallback when no shell exists. Target resets on route changes.
+- Included custom headers: customer create/edit, migration source connection, Upgrade Centre/System Utilities/Patching/Maintenance Calendar, and Create Upgrade Plan. Existing shared-heading consumers cover customer/environment/cluster details/forms/reviews, migration discovery/access/planning/workspace, modernization, onboarding and shortcut pages. No duplicate title remains in page content. Mobile uses normal stacked/non-sticky layout.
+- Root font contract now IBM Plex Sans with 22px titles, 14px section headings, 13px body/table/control text. Removed Geist stylesheet imports and replaced legacy font overrides/fallbacks, retaining monospace where appropriate.
+- Fixed Workspace heading uses a subtle #F4F6F8 neutral surface, fine divider, restrained shadow and muted green left accent. Footer version is 13px/500, slightly taller, with a readable compact version in collapsed navigation. Existing no-visible-scrollbar behavior and keyboard/wheel/touch reachability retained.
+- Shared chart-palette.ts defines provider, lifecycle, health and categorical colors. AWS orange #E5A044; Azure blue #4D8FC7; GCP green #63A477; OCI red #C96863. Health/lifecycle use muted green/amber/slate/gray and muted red for blocked/failed. Provider colors never substitute for status semantics.
+- Applied shared palette to Dashboard, customer cloud/lifecycle/active charts, environment cloud/lifecycle/active charts, cluster lifecycle/provisioning charts, migration portfolio/readiness/resource/namespace composition/evidence rings, upgrade readiness/stage/component-plan charts. Chart legends use the same tokens as arcs/slices. Metrics and chart calculations are unchanged.
+
+Validation: TypeScript passed; 171 tests across 20 files passed for shared header, charts, shell, Dashboard, customer/environment forms, cluster workspace, source connection/migration/planning and governed upgrades. Added five route-level shared-header assertions afterward; focused 28-test set passed (176 retained tests across the combined set). Production next build --webpack passed. git diff --check passed. Authenticated cross-capability visual review remains pending; no new deployment was executed here.
+
+Release context: preceding product head was 553dd77; user prepared frontend :78 from it, digest sha256:11b48473fdb394c14b5fa4458d08ac24a979c258fb6129e1bd92abea78e20afa, plan /var/tmp/navigan-prod-frontend-7eo_7d5j/release-plan.json. User subsequently said Nice, accepting the displayed Dashboard direction. Execute/stabilization output is absent, so exact running ECS revision remains unverified from terminal evidence.
+
+Next: fetch published feature/upgrade-patching-ui-approved using explicit remote-tracking refspec, fast-forward, verify HEAD equals origin before preparing a NEW frontend candidate. Review Customers, Environments, Clusters, Migration connection/discovery/planning, Upgrade Centre/Create Plan and collapsed sidebar after deployment. Preserve all governance, API data limits, scope handling and previous Dashboard evidence rules. No main merge, DEV sync, backend or EKS mutation.
+
+---
+
 ## Current follow-up — approved operational Dashboard and fixed sidebar anchors
 
 This supersedes earlier 16-Nov visual directions below. User approved the Action-first Dashboard sample, then selected calmer colors and IBM Plex Sans matching devopsailab.in. User explicitly requested both sidebar fixes and Dashboard implementation, no visible sidebar scrollbar, and breadcrumb/title merged together.

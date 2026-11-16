@@ -1,0 +1,166 @@
+/* One shell-owned sticky header: breadcrumb and route title move together. */
+.app-shell[class] .workspace-capability-header {
+  position: sticky;
+  top: var(--workspace-topbar-height, 60px);
+  z-index: 26;
+  min-width: 0;
+  background: #fff;
+  border-bottom: 1px solid #e2e5e9;
+  font-family: var(--navigan-font-family);
+}
+.app-shell[class] .workspace-capability-header .breadcrumb {
+  position: static;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 20px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.app-shell[class] .workspace-capability-header .breadcrumb a {
+  min-height: 22px;
+  padding-block: 0;
+  font-weight: 400;
+  text-decoration: none;
+}
+.app-shell[class] .workspace-heading-slot {
+  min-width: 0;
+}
+.app-shell[class] .workspace-title-content > :is(.page-heading, header) {
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap;
+  gap: 12px 20px !important;
+  width: 100% !important;
+  min-height: 56px !important;
+  margin: 0 !important;
+  padding: 5px 20px 12px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  backdrop-filter: none;
+  box-sizing: border-box;
+  color: #26313e;
+}
+.app-shell[class] .workspace-title-content .page-heading-copy {
+  display: block !important;
+  flex: 1 1 350px;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-width: 0;
+}
+.app-shell[class] .workspace-title-content .page-heading-symbol {
+  display: none !important;
+}
+.app-shell[class]
+  .workspace-title-content
+  :is(h1, .upgrade-plan-console-header h2) {
+  display: block !important;
+  margin: 0 !important;
+  color: #26313e !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.02em;
+}
+.app-shell[class] .workspace-title-content :is(p, .muted) {
+  margin: 3px 0 0 !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: #697583 !important;
+  max-width: 90ch;
+}
+.app-shell[class] .workspace-title-content .eyebrow {
+  display: none;
+}
+.app-shell[class] .workspace-title-content .heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.app-shell[class]
+  .workspace-title-content
+  :is(.button-secondary, .button-ghost) {
+  background: #fff !important;
+  color: #344252 !important;
+  border-color: #d6dde4 !important;
+  box-shadow: none !important;
+}
+.app-shell[class] .workspace-title-content .button-primary {
+  background: #2f6b2d !important;
+  border-color: #2f6b2d !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.app-shell[class]
+  .workspace-title-content
+  :is(button, a, input, select, textarea) {
+  font-family: inherit;
+}
+.app-shell[class] .workspace-title-content .customer-create-heading {
+  align-items: flex-start !important;
+  flex-direction: column;
+  gap: 4px !important;
+}
+.app-shell[class] .workspace-title-content .upgrade-plan-console-header {
+  display: block !important;
+}
+.app-shell[class] .workspace-title-content .upgrade-plan-console-title {
+  margin-top: 6px;
+}
+/* The title lives in the shell now; no detached empty header wrappers. */
+.app-shell[class]
+  main#main-content
+  :is(.customer-page-header, .environment-portfolio-heading):empty {
+  display: none;
+}
+.app-shell[class] main#main-content {
+  padding-top: 14px;
+}
+.app-shell[class] :is(button, input, select, textarea) {
+  font-family: var(--navigan-font-family);
+}
+@media (max-width: 760px) {
+  .app-shell[class] .workspace-capability-header {
+    position: static;
+  }
+  .app-shell[class] .workspace-title-content > :is(.page-heading, header) {
+    align-items: flex-start !important;
+    flex-direction: column;
+    padding-inline: 12px !important;
+  }
+  .app-shell[class] .workspace-title-content .page-heading-copy {
+    flex-basis: auto;
+  }
+  .app-shell[class] .workspace-title-content .heading-actions {
+    justify-content: flex-start;
+  }
+  .app-shell[class] .workspace-capability-header .breadcrumb {
+    padding-inline: 12px;
+  }
+}
+@media print {
+  .app-shell[class] .workspace-capability-header {
+    position: static;
+  }
+}
+.app-shell[class]
+  .workspace-title-content
+  :is(.cluster-heading-actions, .upgrade-heading-actions) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-shell[class] .workspace-title-content .page-heading-meta {
+  font-size: 11px;
+  color: #697583;
+}

@@ -1,7 +1,6 @@
 import "./summary-donut.css";
 
-const lifecycleColors = ["#65a449", "#94a3b8", "#b68c45", "#64748b", "#cbd5e1"];
-const cloudColors = ["#f59e0b", "#1689d4", "#4f7fe9", "#d43b2f"];
+import { lifecycleColors, cloudColors, chartColors } from "./chart-palette";
 
 export function SummaryDonut({
   values,
@@ -27,7 +26,7 @@ export function SummaryDonut({
           cy="60"
           r="48"
           fill="none"
-          stroke="#e8ecf0"
+          stroke={chartColors.track}
           strokeWidth="13"
         />
         {values.map((value, index) => {

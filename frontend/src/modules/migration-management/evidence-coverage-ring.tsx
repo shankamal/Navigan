@@ -1,4 +1,5 @@
 "use client";
+import { chartColors } from "@/shared/components/chart-palette";
 
 import { useEffect, useRef } from "react";
 
@@ -26,12 +27,12 @@ export function EvidenceCoverageRing({
     element.height = 88 * scale;
     context.scale(scale, scale);
     context.lineWidth = 9;
-    context.strokeStyle = "#e6eaed";
+    context.strokeStyle = chartColors.track;
     context.beginPath();
     context.arc(44, 44, 37, 0, Math.PI * 2);
     context.stroke();
     if (total > 0 && value > 0) {
-      context.strokeStyle = "#32672c";
+      context.strokeStyle = chartColors.active;
       context.beginPath();
       context.arc(
         44,

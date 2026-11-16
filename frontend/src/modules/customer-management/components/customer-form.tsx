@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHeading } from "@/shared/components/workspace-heading";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -315,18 +316,20 @@ export function CustomerForm({
     ) : null;
   return (
     <div className="customer-create-workspace">
-      <header className="customer-create-heading">
-        <Link className="customer-back-link" href={returnUrl}>
-          <ArrowLeft size={16} aria-hidden="true" />
-          {customer ? "Back to customer" : "Back to customers"}
-        </Link>
-        <h1>{customer ? "Edit customer" : "New customer"}</h1>
-        <p>
-          {customer
-            ? "Update customer information and contacts."
-            : "Capture the business, clouds and people in one place."}
-        </p>
-      </header>
+      <WorkspaceHeading>
+        <header className="customer-create-heading">
+          <Link className="customer-back-link" href={returnUrl}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            {customer ? "Back to customer" : "Back to customers"}
+          </Link>
+          <h1>{customer ? "Edit customer" : "New customer"}</h1>
+          <p>
+            {customer
+              ? "Update customer information and contacts."
+              : "Capture the business, clouds and people in one place."}
+          </p>
+        </header>
+      </WorkspaceHeading>
       <form
         ref={formRef}
         onSubmit={submit}

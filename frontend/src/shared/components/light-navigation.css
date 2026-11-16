@@ -166,3 +166,33 @@
 .app-shell.light-navigation[class].navigation-collapsed .sidebar-about {
   justify-content: center;
 }
+
+/* A quiet visual anchor, without adding another heavy title band. */
+.app-shell.light-navigation[class] .sidebar-heading {
+  position: relative;
+  background: #f4f6f8;
+  border-bottom-color: #e1e6ec;
+  box-shadow: 0 1px 3px rgb(26 39 53 / 4%);
+}
+.app-shell.light-navigation[class] .sidebar-heading::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  background: #6d957b;
+  border-radius: 0 2px 2px 0;
+}
+.app-shell.light-navigation[class] .sidebar .sidebar-footer.sidebar-utilities {
+  flex-basis: 42px;
+}
+.app-shell.light-navigation[class] .sidebar-about {
+  font-size: 13px;
+  font-weight: 500;
+  height: 36px;
+}
+.app-shell.light-navigation[class].navigation-collapsed
+  .sidebar-version-compact {
+  font-size: 10px;
+}

@@ -1,3 +1,4 @@
+import { chartColors } from "@/shared/components/chart-palette";
 import {
   AlertOctagon,
   AlertTriangle,
@@ -70,28 +71,28 @@ const classifications = [
     code: "SEAMLESS" as const,
     label: "Ready",
     note: "Can migrate directly",
-    color: "#74b816",
+    color: chartColors.ready,
     icon: CheckCircle2,
   },
   {
     code: "AUTOMATED_CHANGE" as const,
     label: "Automated",
     note: "Navigan can translate",
-    color: "#3984d6",
+    color: chartColors.running,
     icon: WandSparkles,
   },
   {
     code: "MANUAL_CHANGE" as const,
     label: "Remediate",
     note: "Engineering action",
-    color: "#efa914",
+    color: chartColors.pending,
     icon: Wrench,
   },
   {
     code: "BLOCKER" as const,
     label: "Blocked",
     note: "Must resolve first",
-    color: "#df4a4a",
+    color: chartColors.blocked,
     icon: AlertOctagon,
   },
 ];
@@ -147,7 +148,7 @@ function pieGradient(
   segments: Array<{ value: number; color: string }>,
   total: number,
 ) {
-  if (total <= 0) return "conic-gradient(#e4e9e2 0 100%)";
+  if (total <= 0) return `conic-gradient(${chartColors.track} 0 100%)`;
 
   let cursor = 0;
   const stops = segments
@@ -990,11 +991,13 @@ export function AssessmentReportCard({
             [
               {
                 value: report.compatibilityScore,
-                color: hasCriticalFindings ? "#df4a4a" : "#74b816",
+                color: hasCriticalFindings
+                  ? chartColors.blocked
+                  : chartColors.ready,
               },
               {
                 value: 100 - report.compatibilityScore,
-                color: "#e5e9e4",
+                color: chartColors.remainder,
               },
             ],
             100,

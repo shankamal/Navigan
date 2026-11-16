@@ -3,7 +3,7 @@ import {
   CloudProviderChart,
 } from "@/shared/components/summary-donut";
 
-const colors = ["#65a449", "#94a3b8", "#b68c45", "#64748b", "#cbd5e1"];
+import { lifecycleColors as colors } from "@/shared/components/chart-palette";
 export function CustomerMetrics({
   total,
   active,

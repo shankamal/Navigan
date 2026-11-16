@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHeading } from "@/shared/components/workspace-heading";
 
 import { runtimeConfig } from "@/shared/config/runtime-config";
 
@@ -669,19 +670,21 @@ export function SourceConnectionScreen({
 
   return (
     <div className={styles.screen}>
-      <header className={styles.heading}>
-        <div className={styles.titleGroup}>
-          <Network size={25} aria-hidden="true" />
-          <div>
-            <h1>New Migration Assessment</h1>
-            <p>Connect a source cluster to begin.</p>
+      <WorkspaceHeading>
+        <header className={styles.heading}>
+          <div className={styles.titleGroup}>
+            <Network size={25} aria-hidden="true" />
+            <div>
+              <h1>New Migration Assessment</h1>
+              <p>Connect a source cluster to begin.</p>
+            </div>
           </div>
-        </div>
-        <Link href="/migrations" className={styles.back}>
-          <ArrowLeft size={15} />
-          Back to assessments
-        </Link>
-      </header>
+          <Link href="/migrations" className={styles.back}>
+            <ArrowLeft size={15} />
+            Back to assessments
+          </Link>
+        </header>
+      </WorkspaceHeading>
       <ol className={styles.journey} aria-label="Migration workflow">
         {journey.map((label, index) => (
           <li key={label} aria-current={index === 0 ? "step" : undefined}>

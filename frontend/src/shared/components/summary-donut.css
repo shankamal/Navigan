@@ -18,7 +18,7 @@
   pointer-events: none;
   gap: 2px;
   text-align: center;
-  font-family: var(--navigan-font-family, "Geist Sans", Arial, sans-serif);
+  font-family: var(--navigan-font-family, "IBM Plex Sans", Arial, sans-serif);
 }
 .summary-donut .summary-donut-center strong,
 .app-shell[class] main#main-content .summary-donut-center > strong {

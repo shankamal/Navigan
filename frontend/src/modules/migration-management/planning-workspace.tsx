@@ -1,4 +1,5 @@
 "use client";
+import { categoryColors, chartColors } from "@/shared/components/chart-palette";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -4808,13 +4809,7 @@ export function PlanningEditor({
                             .length,
                         }))
                         .sort((a, b) => b.count - a.count);
-                      const colors = [
-                        "#2c86df",
-                        "#86bc25",
-                        "#8664c9",
-                        "#f0ae32",
-                        "#7c91a8",
-                      ];
+                      const colors = categoryColors;
                       let offset = 0;
                       const stops = kinds.map((k, i) => {
                         const start = offset;
@@ -4829,7 +4824,7 @@ export function PlanningEditor({
                             style={{
                               background: sourceWorkloads.length
                                 ? `conic-gradient(${stops.join(",")})`
-                                : "#e4eaf0",
+                                : chartColors.track,
                             }}
                           >
                             <span>
@@ -4866,13 +4861,7 @@ export function PlanningEditor({
                         }))
                         .sort((a, b) => b.count - a.count);
                       const top = counts.slice(0, 5);
-                      const colors = [
-                        "#2c86df",
-                        "#86bc25",
-                        "#8664c9",
-                        "#f0ae32",
-                        "#7c91a8",
-                      ];
+                      const colors = categoryColors;
                       let offset = 0;
                       const stops = counts.map((k, i) => {
                         const start = offset;
@@ -4887,7 +4876,7 @@ export function PlanningEditor({
                             style={{
                               background: sourceWorkloads.length
                                 ? `conic-gradient(${stops.join(",")})`
-                                : "#e4eaf0",
+                                : chartColors.track,
                             }}
                           >
                             <span>

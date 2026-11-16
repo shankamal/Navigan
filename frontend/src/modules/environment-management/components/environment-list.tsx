@@ -1,4 +1,5 @@
 "use client";
+import { chartColors } from "@/shared/components/chart-palette";
 import "./environment-workspace.css";
 import { EnvironmentRing } from "./environment-metrics";
 import { CloudProviderChart } from "@/shared/components/summary-donut";
@@ -225,17 +226,25 @@ export function EnvironmentList({
                   />
                   <ul className="environment-chart-legend">
                     {[
-                      { label: "Active", value: active.data, color: "#65a449" },
-                      { label: "Draft", value: draft.data, color: "#94a3b8" },
+                      {
+                        label: "Active",
+                        value: active.data,
+                        color: chartColors.active,
+                      },
+                      {
+                        label: "Draft",
+                        value: draft.data,
+                        color: chartColors.draft,
+                      },
                       {
                         label: "Submitted",
                         value: submitted.data,
-                        color: "#b68c45",
+                        color: chartColors.pending,
                       },
                       {
                         label: "Under review",
                         value: review.data,
-                        color: "#64748b",
+                        color: chartColors.review,
                       },
                       {
                         label: "Other statuses",
@@ -247,7 +256,7 @@ export function EnvironmentList({
                             submitted.data! -
                             review.data!,
                         ),
-                        color: "#cbd5e1",
+                        color: chartColors.remainder,
                       },
                     ]
                       .filter(
@@ -311,7 +320,7 @@ export function EnvironmentList({
                       center={`${total.data ? Math.round((active.data / total.data) * 100) : 0}%`}
                       caption="Active"
                       label={`Active environment coverage: ${active.data} of ${total.data}`}
-                      palette={["#65a449", "#cbd5e1"]}
+                      palette={[chartColors.active, chartColors.remainder]}
                     />
                     <ul
                       className="environment-chart-legend"
@@ -320,7 +329,7 @@ export function EnvironmentList({
                       <li>
                         <span
                           className="environment-chart-dot"
-                          style={{ backgroundColor: "#65a449" }}
+                          style={{ backgroundColor: chartColors.active }}
                         />
                         <span>Active</span>
                         <strong>{active.data}</strong>
@@ -328,7 +337,7 @@ export function EnvironmentList({
                       <li>
                         <span
                           className="environment-chart-dot"
-                          style={{ backgroundColor: "#cbd5e1" }}
+                          style={{ backgroundColor: chartColors.remainder }}
                         />
                         <span>Not active</span>
                         <strong>{Math.max(0, total.data - active.data)}</strong>
