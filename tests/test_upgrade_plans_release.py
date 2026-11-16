@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import subprocess
 import zipfile
+import pytest
 
 
 ROOT = Path(__file__).parents[1]
@@ -98,13 +99,14 @@ def test_deployed_baseline_matches_observed_production_semantics():
     assert "summary" in normalized
 
 
-def test_release_updates_reviewed_installed_plans_without_duplicate_members(tmp_path):
+@pytest.mark.parametrize("retry_response", [False, True])
+def test_release_updates_reviewed_installed_plans_without_duplicate_members(tmp_path, retry_response):
     release = load_release()
     prefix = "navigan/modules/cluster_management/"
     source, target = tmp_path / "old.zip", tmp_path / "new.zip"
     with zipfile.ZipFile(source, "w") as package:
-        package.writestr(prefix + "handler.py", release.scoped_handler_target(
-            baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py")))
+        reviewed_handler = release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE, "src/" + prefix + "handler.py"))
+        package.writestr(prefix + "handler.py", release.retry_response_handler(reviewed_handler) if retry_response else reviewed_handler)
         package.writestr(prefix + "upgrade_readiness.py", baseline(
             release.DEPLOYED_PLAN_TREE, "src/" + prefix + "upgrade_readiness.py"))
         package.writestr(prefix + "upgrade_plans.py", baseline(
@@ -113,6 +115,21 @@ def test_release_updates_reviewed_installed_plans_without_duplicate_members(tmp_
     with zipfile.ZipFile(target) as package:
         assert package.namelist().count(prefix + "upgrade_plans.py") == 1
         assert package.read(prefix + "upgrade_plans.py") == (ROOT / "src" / prefix / "upgrade_plans.py").read_bytes()
+        assert 'status = 202 if parts[3] in {"execute", "refresh", "continue", "retry",' in package.read(prefix + "handler.py").decode()
+
+
+def test_release_rejects_extra_drift_even_when_retry_response_matches(tmp_path):
+    release=load_release()
+    prefix="navigan/modules/cluster_management/"
+    source,target=tmp_path/"old.zip",tmp_path/"new.zip"
+    handler=release.retry_response_handler(release.scoped_handler_target(baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"handler.py")))
+    handler=handler.replace(b"status = 202 if parts[3]", b"status = 203 if parts[3]")
+    with zipfile.ZipFile(source,"w") as package:
+        package.writestr(prefix+"handler.py",handler)
+        package.writestr(prefix+"upgrade_readiness.py",baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"upgrade_readiness.py"))
+        package.writestr(prefix+"upgrade_plans.py",baseline(release.DEPLOYED_PLAN_TREE,"src/"+prefix+"upgrade_plans.py"))
+    with pytest.raises(RuntimeError,match="Deployed handler differs"):
+        release.package(source,target)
 
 
 def test_release_rejects_an_unreviewed_live_handler(tmp_path):

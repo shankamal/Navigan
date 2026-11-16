@@ -83,6 +83,21 @@ def normalized_semantic(source):
     return semantic(canonical.encode("utf-8"))
 
 
+def retry_response_handler(source):
+    """Preserve the exact production-observed retry HTTP response classification.
+
+    This does not add retry to routing, validation or execution permissions.
+    Every other AST node is still checked against the pinned baseline.
+    """
+    original = b'status = 202 if parts[3] in {"execute", "refresh", "continue", "reconcile", "refresh-reconciliation", "apply-reconciliation"} else 200'
+    reviewed = b'status = 202 if parts[3] in {"execute", "refresh", "continue", "retry", "reconcile", "refresh-reconciliation", "apply-reconciliation"} else 200'
+    if source.count(reviewed) == 1 and original not in source:
+        return source
+    require(source.count(original) == 1 and reviewed not in source,
+            "Unexpected upgrade-action HTTP response contract")
+    return source.replace(original, reviewed, 1)
+
+
 def replace_once(source, before, after, label):
     require(source.count(before) == 1, "Unexpected " + label + " contract")
     return source.replace(before, after, 1)
@@ -282,7 +297,10 @@ def package(original, destination):
             if plans_installed else deployed_handler_baseline(reviewed_handler)
         )
         require(
-            semantic(old.read(handler)) == semantic(expected_handler),
+            semantic(old.read(handler)) in {
+                semantic(expected_handler),
+                semantic(retry_response_handler(expected_handler)) if plans_installed else semantic(expected_handler),
+            },
             "Deployed handler differs from the reviewed production baseline",
         )
         reviewed_readiness = git_source(

@@ -657,7 +657,7 @@ def execute(event, principal, correlation):
             status = 201
         elif upgrade_plan_action:
             value = plan_service(repo, access, correlation, identifier, parts[2]).change(identifier, parts[2], parts[3], body)
-            status = 202 if parts[3] in {"execute", "refresh", "continue", "reconcile", "refresh-reconciliation", "apply-reconciliation"} else 200
+            status = 202 if parts[3] in {"execute", "refresh", "continue", "retry", "reconcile", "refresh-reconciliation", "apply-reconciliation"} else 200
         else:
             service = Service(repo, correlation)
             value = (
