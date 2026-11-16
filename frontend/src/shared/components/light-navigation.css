@@ -1,0 +1,100 @@
+/* One explicit shell navigation theme. Override legacy important graphite fills,
+   and scope it to the sidebar so capability content keeps its accepted theme. */
+.app-shell.light-navigation[class] .sidebar {
+  --navigan-font-family: "IBM Plex Sans", Arial, sans-serif;
+  background: #fff !important;
+  color: #303b49;
+  border-right: 1px solid #e2e7ed;
+  box-shadow: none;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
+}
+.app-shell.light-navigation[class] .sidebar .clustered-nav-group {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e9edf2;
+}
+.app-shell.light-navigation[class] .sidebar .nav-section {
+  color: #66758a;
+  font-family: inherit;
+  font-size: 10px !important;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3 !important;
+}
+.app-shell.light-navigation[class] .sidebar :is(.nav-item, .nav-subitem) {
+  color: #303b49;
+  font-family: inherit;
+  font-size: 13px !important;
+  font-weight: 400;
+  line-height: 1.4 !important;
+  min-height: 34px;
+  padding: 6px 9px;
+  border-left: 3px solid transparent;
+  border-radius: 5px;
+  box-shadow: none;
+}
+.app-shell.light-navigation[class] .sidebar :is(.nav-item, .nav-subitem) svg {
+  width: 16px;
+  height: 16px;
+  color: #607087;
+  flex-shrink: 0;
+}
+.app-shell.light-navigation[class] .sidebar .nav-item span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.app-shell.light-navigation[class]
+  .sidebar
+  :is(.nav-item, .nav-subitem).selected {
+  color: #202e40;
+  background: #e8f0fd !important;
+  border-left-color: #26a544;
+  box-shadow: none;
+  font-weight: 600;
+}
+.app-shell.light-navigation[class]
+  .sidebar
+  :is(.nav-item, .nav-subitem).selected
+  svg {
+  color: #354861;
+}
+.app-shell.light-navigation[class]
+  .sidebar
+  .nav-item:hover:not(.selected):not(.nav-item-unavailable) {
+  color: #202e40;
+  background: #f2f5f9;
+}
+.app-shell.light-navigation[class] .sidebar .nav-item:focus-visible {
+  outline: 2px solid #26733f;
+  outline-offset: -2px;
+}
+.app-shell.light-navigation[class] .sidebar .nav-item-unavailable {
+  cursor: default;
+  color: #66758a;
+}
+.app-shell.light-navigation[class] .sidebar .nav-item-unavailable small {
+  margin-left: auto;
+  font-size: 9px;
+  color: #66758a;
+}
+.app-shell.light-navigation[class] .sidebar .sidebar-footer {
+  border-color: #e2e7ed;
+}
+.app-shell.light-navigation[class] .sidebar-about {
+  color: #607087;
+}
+.app-shell.light-navigation[class] .sidebar-about:hover {
+  background: #f2f5f9;
+  color: #202e40;
+}
+.app-shell.light-navigation[class].navigation-collapsed
+  .sidebar
+  .nav-item
+  :is(span, small) {
+  display: none;
+}
+@media (forced-colors: active) {
+  .app-shell.light-navigation[class] .sidebar .nav-item.selected {
+    outline: 2px solid Highlight;
+  }
+}

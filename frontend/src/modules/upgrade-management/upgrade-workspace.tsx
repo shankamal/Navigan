@@ -135,14 +135,18 @@ function SupportingTab({
   );
 }
 
-export function UpgradeWorkspace() {
+export function UpgradeWorkspace({
+  initialTab = "readiness",
+}: {
+  initialTab?: WorkspaceTab;
+}) {
   const fleetData = useUpgradePlans();
   const [requestedDate, setRequestedDate] = useState<string>();
-  const [tab, setTab] = useState<WorkspaceTab>("readiness");
+  const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [centreView, setCentreView] = useState<CentreView>("plans");
   const [reviewPlanId, setReviewPlanId] = useState<string>();
   const [rescheduleRequested, setRescheduleRequested] = useState(false);
-  const [plannerOrigin, setPlannerOrigin] = useState<WorkspaceTab>("readiness");
+  const [plannerOrigin, setPlannerOrigin] = useState<WorkspaceTab>(initialTab);
   const [planning, setPlanning] = useState<UpgradeCluster | null>(null);
 
   const openPlan = (planId: string | null, reschedule = false) => {

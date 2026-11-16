@@ -21,62 +21,6 @@
 .app-shell.dashboard-shell[class] :is(.shell-body, .content-column) {
   background: #f4f5f7;
 }
-.app-shell.dashboard-shell[class] .sidebar {
-  color: #2c3138;
-  background: #fff;
-  border-color: #e2e5e9;
-}
-.app-shell.dashboard-shell[class] .sidebar .nav-section {
-  color: #69717d;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
-.app-shell.dashboard-shell[class] .sidebar :is(.nav-item, .nav-subitem) {
-  min-height: 34px;
-  padding: 6px 10px;
-  color: #2c3138;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.4;
-  border-radius: 5px;
-}
-.app-shell.dashboard-shell[class] .sidebar :is(.nav-item, .nav-subitem) svg {
-  color: #69717d;
-  width: 16px;
-  height: 16px;
-}
-.app-shell.dashboard-shell[class]
-  .sidebar
-  :is(.nav-item, .nav-subitem).selected {
-  color: #fff;
-  background: #238408;
-  border-left-color: transparent;
-  box-shadow: none;
-  font-weight: 600;
-}
-.app-shell.dashboard-shell[class]
-  .sidebar
-  :is(.nav-item, .nav-subitem).selected
-  svg {
-  color: #fff;
-}
-.app-shell.dashboard-shell[class]
-  .sidebar
-  :is(.nav-item, .nav-subitem):hover:not(.selected) {
-  color: #1b1e23;
-  background: #f1f2f4;
-}
-.app-shell.dashboard-shell[class] .sidebar .sidebar-footer {
-  border-color: #e2e5e9;
-}
-.app-shell.dashboard-shell[class] .sidebar-about {
-  color: #69717d;
-}
-.app-shell.dashboard-shell[class] .sidebar-about:hover {
-  color: #1b1e23;
-  background: #f1f2f4;
-}
 .app-shell.dashboard-shell[class] main#main-content .command-dashboard {
   max-width: none;
   gap: 16px;
@@ -168,8 +112,46 @@
   font-weight: 400;
   text-decoration: none;
 }
-@media (forced-colors: active) {
-  .app-shell.dashboard-shell[class] .sidebar .nav-item.selected {
-    outline: 2px solid Highlight;
+
+/* Full-width console header. Only operational content has a canvas gutter. */
+.app-shell.dashboard-shell[class] .content-column > .breadcrumb {
+  height: 34px;
+  min-height: 34px;
+  padding: 4px 20px;
+  border-bottom: 0;
+  background: #fff;
+  box-sizing: border-box;
+}
+.app-shell.dashboard-shell[class] .breadcrumb a {
+  min-height: 24px;
+  padding-block: 0;
+}
+.app-shell.dashboard-shell[class] .content-column main#main-content {
+  padding: 0 20px 24px !important;
+}
+.app-shell.dashboard-shell[class]
+  main#main-content
+  .dashboard-capability-heading {
+  top: calc(var(--workspace-topbar-height, 60px) + 34px) !important;
+  width: calc(100% + 40px) !important;
+  margin: 0 -20px !important;
+  padding: 6px 20px 12px !important;
+  min-height: 60px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e2e5e9 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+}
+@media (max-width: 760px) {
+  .app-shell.dashboard-shell[class] .content-column > .breadcrumb {
+    height: auto;
+    position: static;
+  }
+  .app-shell.dashboard-shell[class]
+    main#main-content
+    .dashboard-capability-heading {
+    position: static !important;
   }
 }

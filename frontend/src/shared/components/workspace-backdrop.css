@@ -545,7 +545,7 @@
 .app-shell[class] .sidebar {
   width: 232px;
   flex: 0 0 232px;
-  background: #1c222b !important;
+  background: #1c222b;
   border-right: 1px solid #343f4c;
   box-shadow: 3px 0 12px rgb(23 31 40 / 10%);
 }
@@ -580,7 +580,7 @@
   height: 17px;
 }
 .app-shell[class] .sidebar .nav-item.selected {
-  background: #2a3440 !important;
+  background: #2a3440;
   box-shadow: inset 3px 0 #86bc25;
   color: #fff;
 }
@@ -660,7 +660,7 @@
 }
 @media (max-width: 900px) {
   .app-shell[class] .sidebar.expanded {
-    background: #1c222b !important;
+    background: #1c222b;
   }
 }
 

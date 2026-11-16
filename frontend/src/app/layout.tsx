@@ -10,6 +10,7 @@ import "./globals.css";
 import "./navigan-theme.css";
 import "./workspace-standards.css";
 import "./dashboard-theme-pilot.css";
+import "@/shared/components/light-navigation.css";
 import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: {

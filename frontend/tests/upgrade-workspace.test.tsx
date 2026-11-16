@@ -188,7 +188,7 @@ vi.mock("@/modules/cluster-management/service", () => ({
   },
 }));
 
-function mount() {
+function mount(initialTab?: "utilities") {
   return render(
     <QueryClientProvider
       client={
@@ -197,7 +197,7 @@ function mount() {
         })
       }
     >
-      <UpgradeWorkspace />
+      <UpgradeWorkspace initialTab={initialTab} />
     </QueryClientProvider>,
   );
 }
@@ -278,6 +278,17 @@ describe("Upgrade opportunity filtering", () => {
 });
 
 describe("Upgrade workspace", () => {
+  it("opens the existing System Utilities workspace from its sidebar route", async () => {
+    mount("utilities");
+    expect(
+      screen.getByRole("tab", { name: "System Utilities" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Upgrade Centre" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    await screen.findByText("New-dbs-demo-cluster");
+  });
   it("shows four distinct tabs and row-level planning without cluster accordions", async () => {
     mount();
     const workspaceTabs = screen.getByRole("tablist", {
@@ -292,9 +303,10 @@ describe("Upgrade workspace", () => {
       "Patching",
       "Maintenance Calendar",
     ]);
-    expect(
-      screen.getByRole("tab", { name: "Active" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Active" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(
       screen.queryByRole("button", { name: "Create Upgrade Plan" }),
     ).not.toBeInTheDocument();
@@ -324,9 +336,10 @@ describe("Upgrade workspace", () => {
         name: "Verified Upgrade Opportunities",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: "Active" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Active" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     const candidates = screen.getByRole("table", {
       name: "Candidate clusters requiring upgrade",
     });
@@ -574,9 +587,7 @@ describe("Upgrade workspace", () => {
     try {
       mount();
       fireEvent.click(screen.getByRole("tab", { name: "In Progress" }));
-      fireEvent.click(
-        await screen.findByRole("button", { name: "View Plan" }),
-      );
+      fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
@@ -714,9 +725,7 @@ describe("Upgrade workspace", () => {
     try {
       mount();
       fireEvent.click(screen.getByRole("tab", { name: "In Progress" }));
-      fireEvent.click(
-        await screen.findByRole("button", { name: "View Plan" }),
-      );
+      fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
@@ -824,9 +833,7 @@ describe("Upgrade workspace", () => {
     try {
       mount();
       fireEvent.click(screen.getByRole("tab", { name: "Scheduled" }));
-      fireEvent.click(
-        await screen.findByRole("button", { name: "View Plan" }),
-      );
+      fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
@@ -902,9 +909,7 @@ describe("Upgrade workspace", () => {
           (await screen.findAllByText(/Awaiting approval/)).length,
         ).toBeGreaterThan(0);
         expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
-        fireEvent.click(
-          screen.getByRole("tab", { name: "Awaiting Approval" }),
-        );
+        fireEvent.click(screen.getByRole("tab", { name: "Awaiting Approval" }));
         fireEvent.click(
           await screen.findByRole("button", { name: "View Plan" }),
         );
@@ -1089,9 +1094,7 @@ describe("Upgrade workspace", () => {
       expect(
         await screen.findByText("1 maintenance request needs a new time"),
       ).toBeInTheDocument();
-      fireEvent.click(
-        await screen.findByRole("button", { name: "View Plan" }),
-      );
+      fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
@@ -1171,9 +1174,7 @@ describe("Upgrade workspace", () => {
     });
     try {
       mount();
-      fireEvent.click(
-        await screen.findByRole("button", { name: "View Plan" }),
-      );
+      fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
       const drawer = screen.getByRole("dialog", {
         name: "Upgrade plan details",
       });
@@ -1453,9 +1454,7 @@ it("allows an authorized Platform Architect to approve their own submitted plan"
   });
   try {
     mount();
-    fireEvent.click(
-      screen.getByRole("tab", { name: "Awaiting Approval" }),
-    );
+    fireEvent.click(screen.getByRole("tab", { name: "Awaiting Approval" }));
     fireEvent.click(await screen.findByRole("button", { name: "View Plan" }));
     const drawer = screen.getByRole("dialog", { name: "Review upgrade plan" });
     expect(

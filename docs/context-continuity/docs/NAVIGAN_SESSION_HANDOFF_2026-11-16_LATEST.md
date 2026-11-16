@@ -1,3 +1,21 @@
+## Follow-up — sidebar recovery, new menu and full-width Dashboard header
+
+This follow-up supersedes the Dashboard-only sidebar trial below. User supplied PROD screenshot with dark sidebar and requested a new sidebar IA, followed by a full-width white console title strip instead of a card/panel.
+
+- Root cause: legacy `background: #1c222b !important` and selected-item important graphite fills beat the pilot styles. Removed those important legacy fills; a shared `light-navigation` shell class now owns sidebar styling across routes, including mobile expanded state.
+- Sidebar: white surface, IBM Plex Sans 13px labels, muted 10px uppercase group labels, pale blue selection and green left marker matching the newly supplied menu. Labels can wrap. Collapsed navigation, resizing, keyboard focus and role filtering remain supported.
+- New groups: Workspace (Overview, My Work), Resource Management (Customers, Environments, Clusters), Migration & Modernization (Migration, Application Modernization), Platform Maintenance (Upgrades & Patching, System Utilities), Operations & Observability (Monitoring & Health, Jobs & Activity), Settings (Settings & Help).
+- Monitoring & Health / Jobs & Activity are visible non-clickable Planned entries because corresponding capability workflows do not exist yet. Do not claim those features were implemented.
+- My Work is a permission-filtered shortcut page, not a new assignment/queue engine. Architect review links remain accessible there; engineers do not gain review permissions. Create/import links removed from permanent sidebar; existing capability routes remain intact. Cluster onboarding informational link remains under My Work.
+- System Utilities has `/upgrades/utilities`, opening the existing UpgradeWorkspace utilities tab; it has its own selected navigation state.
+- Settings & Help links to About and explains existing workspace preferences; no administrative settings backend added.
+- Dashboard breadcrumb/title form a full-width continuous white strip under the global bar. Body content retains 20px gutters. Header stays sticky on desktop, uses a subtle bottom divider without card border/shadow/rounded corners, and stacks normally on narrow viewports. Other capability content themes are unchanged.
+- Published pilot was `ff5ceb0` (same tree as local `4814ab3`). User prepared correct candidate `:75`, digest `sha256:01491906722e764d11764498efb7dc4474c734ccf77f2172607cfd50e7347dc0`, plan `/var/tmp/navigan-prod-frontend-tsce6op7/release-plan.json`. New screenshot proves updated title styling but execute/stabilization output remains absent; do not assert exact live ECS task.
+- Follow-up validation: TypeScript passed; prior 67-test set passed; 30 focused tests passed including permission-filtered My Work and direct utilities entry (71 retained tests total across the combined set). Production build passed. Local visual verification is still unavailable from Cloud Browser; authenticated visual acceptance awaits deployment.
+- Next: publish this follow-up, update WSL checkout, prepare a NEW frontend candidate from the new source commit and execute only its printed plan after checking source/digest. Do not reuse the older :75 plan for these changes. No main merge, DEV sync, backend or EKS changes.
+
+---
+
 # Navigan session handoff — 16 November 2026
 
 ## Current increment

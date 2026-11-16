@@ -26,7 +26,6 @@ import {
   ChevronRight,
   ChevronDown,
   CircleArrowUp,
-  ClipboardCheck,
   Gauge,
   Bell,
   Search,
@@ -35,12 +34,14 @@ import {
   LogOut,
   Menu,
   Network,
-  PlugZap,
-  Rocket,
-  Settings2,
-  ShieldAlert,
   Workflow,
   X,
+  House,
+  ListTodo,
+  Wrench,
+  Activity,
+  CalendarClock,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/shared/auth/auth-provider";
 import {
@@ -56,6 +57,8 @@ interface NavigationItem {
   label: string;
   icon: typeof Gauge;
   permission: PlatformPermission;
+  unavailable?: boolean;
+  additionalPermissions?: readonly PlatformPermission[];
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -63,122 +66,37 @@ const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 300;
 const SIDEBAR_WIDTH_STORAGE_KEY = "navigan.sidebarWidth";
 
-// These informational landing pages use the existing platform overview entitlement.
-// Individual workflow permissions will be added with each capability's implementation.
-const platformArchitectNavigationGroups: ReadonlyArray<{
+// Shared information architecture; permissions still determine the visible actions.
+const navigationGroups: ReadonlyArray<{
   label: string;
   items: readonly NavigationItem[];
 }> = [
   {
-    label: "Overview",
+    label: "Workspace",
     items: [
       {
         href: "/dashboard",
-        label: "Platform Overview",
-        icon: Gauge,
+        label: "Overview",
+        icon: House,
         permission: "dashboard.platform.view",
       },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
       {
-        href: "/customers",
-        label: "Customer Portfolio",
-        icon: Building2,
-        permission: "customer.view",
-      },
-      {
-        href: "/clusters/reviews",
-        label: "Cluster Reviews",
-        icon: Settings2,
-        permission: "cluster.review",
-      },
-      {
-        href: "/environments",
-        label: "Environment Portfolio",
-        icon: Layers3,
-        permission: "environment.view",
-      },
-      {
-        href: "/environments/reviews",
-        label: "Environment Reviews",
-        icon: ClipboardCheck,
-        permission: "environment.review",
-      },
-      {
-        href: "/environments/remediations",
-        label: "Bootstrap Approvals",
-        icon: ShieldAlert,
-        permission: "remediation.review",
+        href: "/my-work",
+        label: "My Work",
+        icon: ListTodo,
+        permission: "workqueue.own.view",
+        additionalPermissions: [
+          "customer.review",
+          "environment.review",
+          "cluster.review",
+          "remediation.review",
+          "cluster.upgrade.approve",
+        ],
       },
     ],
   },
   {
-    label: "Build & Onboard",
-    items: [
-      {
-        href: "/clusters",
-        label: "Cluster Portfolio",
-        icon: Network,
-        permission: "cluster.view",
-      },
-      {
-        href: "/onboarding",
-        label: "Cluster Onboarding",
-        icon: PlugZap,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Migrate & Modernise",
-    items: [
-      {
-        href: "/migrations",
-        label: "Migration Portfolio",
-        icon: ArrowRightLeft,
-        permission: "migration.view",
-      },
-      {
-        href: "/app-transformation",
-        label: "Application Modernization",
-        icon: Workflow,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Operate & Evolve",
-    items: [
-      {
-        href: "/upgrades",
-        label: "Upgrades & Patching",
-        icon: CircleArrowUp,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-];
-
-const cloudEngineerNavigationGroups: ReadonlyArray<{
-  label: string;
-  items: readonly NavigationItem[];
-}> = [
-  {
-    label: "Overview",
-    items: [
-      {
-        href: "/dashboard",
-        label: "Platform Dashboard",
-        icon: Gauge,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Manage",
+    label: "Resource Management",
     items: [
       {
         href: "/customers",
@@ -201,28 +119,11 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Build & Onboard",
-    items: [
-      {
-        href: "/clusters/new",
-        label: "Create Cluster",
-        icon: Rocket,
-        permission: "cluster.create",
-      },
-      {
-        href: "/onboarding",
-        label: "Import Cluster",
-        icon: PlugZap,
-        permission: "dashboard.platform.view",
-      },
-    ],
-  },
-  {
-    label: "Migrate & Modernise",
+    label: "Migration & Modernization",
     items: [
       {
         href: "/migrations",
-        label: "Migration Assessments",
+        label: "Migration",
         icon: ArrowRightLeft,
         permission: "migration.view",
       },
@@ -235,7 +136,7 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
     ],
   },
   {
-    label: "Operate & Evolve",
+    label: "Platform Maintenance",
     items: [
       {
         href: "/upgrades",
@@ -243,13 +144,56 @@ const cloudEngineerNavigationGroups: ReadonlyArray<{
         icon: CircleArrowUp,
         permission: "dashboard.platform.view",
       },
+      {
+        href: "/upgrades/utilities",
+        label: "System Utilities",
+        icon: Wrench,
+        permission: "dashboard.platform.view",
+      },
+    ],
+  },
+  {
+    label: "Operations & Observability",
+    items: [
+      {
+        href: "/monitoring",
+        label: "Monitoring & Health",
+        icon: Activity,
+        permission: "dashboard.platform.view",
+        unavailable: true,
+      },
+      {
+        href: "/jobs",
+        label: "Jobs & Activity",
+        icon: CalendarClock,
+        permission: "dashboard.platform.view",
+        unavailable: true,
+      },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      {
+        href: "/settings-help",
+        label: "Settings & Help",
+        icon: Settings,
+        permission: "dashboard.platform.view",
+      },
     ],
   },
 ];
 
-function isCloudEngineerOnly(identity: ReturnType<typeof useAuth>["identity"]) {
-  const humanRoles = identity?.roles.filter((role) => role !== "SERVICE") ?? [];
-  return humanRoles.length === 1 && humanRoles[0] === "CLOUD_ENGINEER";
+function canViewItem(
+  identity: ReturnType<typeof useAuth>["identity"],
+  item: NavigationItem,
+) {
+  return (
+    canViewNavigation(identity, item.permission) ||
+    item.additionalPermissions?.some((permission) =>
+      canViewNavigation(identity, permission),
+    )
+  );
 }
 
 function canViewNavigation(
@@ -275,12 +219,20 @@ function workspaceBreadcrumbs(pathname: string): BreadcrumbEntry[] {
   const parts = pathname.split("/").filter(Boolean);
   const [root, id, leaf] = parts;
   const crumbs: BreadcrumbEntry[] = [{ label: "Home", href: "/dashboard" }];
+  if (pathname === "/upgrades/utilities")
+    return [
+      ...crumbs,
+      { label: "Upgrades & Patching", href: "/upgrades" },
+      { label: "System Utilities" },
+    ];
 
   if (!root || root === "dashboard") {
     return [...crumbs, { label: "Platform Dashboard" }];
   }
 
   const rootLabels: Record<string, string> = {
+    "my-work": "My Work",
+    "settings-help": "Settings & Help",
     customers: "Customers",
     environments: "Environments",
     clusters: "Clusters",
@@ -295,9 +247,10 @@ function workspaceBreadcrumbs(pathname: string): BreadcrumbEntry[] {
   const rootLabel = rootLabels[root] ?? humanizeIdentifier(root);
   crumbs.push({ label: rootLabel, href: `/${root}` });
 
-  if (!id) return crumbs.map((crumb, index) =>
-    index === crumbs.length - 1 ? { label: crumb.label } : crumb
-  );
+  if (!id)
+    return crumbs.map((crumb, index) =>
+      index === crumbs.length - 1 ? { label: crumb.label } : crumb,
+    );
 
   const staticSecondLevel: Record<string, Record<string, string>> = {
     customers: {
@@ -455,12 +408,10 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [resizingSidebar, setResizingSidebar] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
-  const activeNavigationGroups = isCloudEngineerOnly(identity)
-    ? cloudEngineerNavigationGroups
-    : platformArchitectNavigationGroups;
+  const activeNavigationGroups = navigationGroups;
   const current = activeNavigationGroups
     .flatMap((group) => group.items)
-    .filter((item) => canViewNavigation(identity, item.permission))
+    .filter((item) => !item.unavailable && canViewItem(identity, item))
     .toSorted((left, right) => right.href.length - left.href.length)
     .find(
       (item) =>
@@ -555,7 +506,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div
-      className={`app-shell ${pathname === "/about" ? "about-shell" : ""} ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""} ${resizingSidebar ? "navigation-resizing" : ""}`}
+      className={`app-shell light-navigation ${pathname === "/about" ? "about-shell" : ""} ${pathname === "/dashboard" ? "dashboard-shell" : ""} ${collapsed ? "navigation-collapsed" : ""} ${resizingSidebar ? "navigation-resizing" : ""}`}
       style={
         {
           "--workspace-sidebar-width": `${sidebarWidth}px`,
@@ -582,7 +533,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <Menu size={19} aria-hidden="true" />
         </button>
 
-        <Link href="/dashboard" className="navigan-topbar-brand" aria-label="Navigan home">
+        <Link
+          href="/dashboard"
+          className="navigan-topbar-brand"
+          aria-label="Navigan home"
+        >
           <span className="navigan-wordmark">
             <span className="navigan-wordmark-n">N</span>
             <span>avigan</span>
@@ -615,7 +570,10 @@ function AppShellContent({ children }: { children: ReactNode }) {
             </div>
           </label>
 
-          <span className="navigan-topbar-divider scope-divider" aria-hidden="true" />
+          <span
+            className="navigan-topbar-divider scope-divider"
+            aria-hidden="true"
+          />
 
           <label>
             <span>Environment</span>
@@ -724,7 +682,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <nav className="sidebar-menu-scroll" aria-label="Platform modules">
               {activeNavigationGroups.map((group) => {
                 const items = group.items.filter((item) =>
-                  canViewNavigation(identity, item.permission),
+                  canViewItem(identity, item),
                 );
                 if (!items.length) return null;
                 return (
@@ -732,6 +690,19 @@ function AppShellContent({ children }: { children: ReactNode }) {
                     <p className="nav-section">{group.label}</p>
                     {items.map((item) => {
                       const selected = current === item;
+                      if (item.unavailable)
+                        return (
+                          <span
+                            key={item.href}
+                            className="nav-item nav-item-unavailable"
+                            aria-disabled="true"
+                            title={`${item.label} — not available yet`}
+                          >
+                            <item.icon size={19} aria-hidden="true" />
+                            <span>{item.label}</span>
+                            <small>Planned</small>
+                          </span>
+                        );
                       return (
                         <Link
                           key={`${group.label}-${item.label}`}

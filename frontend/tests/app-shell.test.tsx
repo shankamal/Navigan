@@ -100,7 +100,9 @@ describe("Application shell permissions", () => {
         name: "Collapse navigation",
       }),
     ).toBeInTheDocument();
-    expect(container.querySelector(".sidebar-brand-panel")).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".sidebar-brand-panel"),
+    ).not.toBeInTheDocument();
   });
 
   it("allows a desktop user to resize and reset the navigation width", () => {
@@ -139,11 +141,12 @@ describe("Application shell permissions", () => {
         (section) => section.textContent,
       ),
     ).toEqual([
-      "Overview",
-      "Manage",
-      "Build & Onboard",
-      "Migrate & Modernise",
-      "Operate & Evolve",
+      "Workspace",
+      "Resource Management",
+      "Migration & Modernization",
+      "Platform Maintenance",
+      "Operations & Observability",
+      "Settings",
     ]);
     expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
       "href",
@@ -158,14 +161,22 @@ describe("Application shell permissions", () => {
       "/clusters",
     );
     expect(
-      screen.getByRole("link", { name: "Create Cluster" }),
-    ).toHaveAttribute("href", "/clusters/new");
+      screen.queryByRole("link", { name: "Create Cluster" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Import Cluster" }),
-    ).toHaveAttribute("href", "/onboarding");
+      screen.queryByRole("link", { name: "Import Cluster" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "My Work" })).toHaveAttribute(
+      "href",
+      "/my-work",
+    );
     expect(
-      screen.getByRole("link", { name: "Migration Assessments" }),
-    ).toHaveAttribute("href", "/migrations");
+      screen.getByRole("link", { name: "System Utilities" }),
+    ).toHaveAttribute("href", "/upgrades/utilities");
+    expect(screen.getByRole("link", { name: "Migration" })).toHaveAttribute(
+      "href",
+      "/migrations",
+    );
     expect(
       screen.getByRole("link", { name: "Application Modernization" }),
     ).toHaveAttribute("href", "/app-transformation");
@@ -205,33 +216,33 @@ describe("Application shell permissions", () => {
         (section) => section.textContent,
       ),
     ).toEqual([
-      "Overview",
-      "Manage",
-      "Build & Onboard",
-      "Migrate & Modernise",
-      "Operate & Evolve",
+      "Workspace",
+      "Resource Management",
+      "Migration & Modernization",
+      "Platform Maintenance",
+      "Operations & Observability",
+      "Settings",
     ]);
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
+    expect(screen.getByRole("link", { name: "Customers" })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Platform Overview" }),
-    ).toHaveAttribute("href", "/dashboard");
-    expect(
-      screen.getByRole("link", { name: "Customer Portfolio" }),
+      screen.getByRole("link", { name: "Environments" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Environment Portfolio" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Cluster Portfolio" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Migration Portfolio" }),
-    ).toHaveAttribute("href", "/migrations");
+    expect(screen.getByRole("link", { name: "Clusters" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Migration" })).toHaveAttribute(
+      "href",
+      "/migrations",
+    );
     expect(
       screen.getByRole("link", { name: "Application Modernization" }),
     ).toHaveAttribute("href", "/app-transformation");
-    expect(
-      screen.getByRole("link", { name: "Cluster Onboarding" }),
-    ).toHaveAttribute("href", "/onboarding");
+    expect(screen.getByRole("link", { name: "My Work" })).toHaveAttribute(
+      "href",
+      "/my-work",
+    );
     expect(
       screen.getByRole("link", { name: "Upgrades & Patching" }),
     ).toHaveAttribute("href", "/upgrades");
@@ -246,17 +257,15 @@ describe("Application shell permissions", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("New Cluster Setup")).not.toBeInTheDocument();
-    expect(screen.getByText("Cluster Reviews")).toBeInTheDocument();
-    expect(screen.getByText("Bootstrap Approvals")).toBeInTheDocument();
+    expect(screen.queryByText("Cluster Reviews")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bootstrap Approvals")).not.toBeInTheDocument();
   });
 
   it("warms workspace data when a user approaches a navigation item", () => {
     identity = architect;
     render(<AppShell>Content</AppShell>);
 
-    fireEvent.mouseEnter(
-      screen.getByRole("link", { name: "Migration Portfolio" }),
-    );
+    fireEvent.mouseEnter(screen.getByRole("link", { name: "Migration" }));
 
     expect(prefetchQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["migrations"] }),
@@ -275,12 +284,10 @@ describe("Application shell permissions", () => {
       ],
     };
     render(<AppShell>Content</AppShell>);
-    expect(
-      screen.getByRole("link", { name: "Customer Portfolio" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Environment Reviews")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Customers" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "My Work" })).toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
-    expect(screen.queryByText("Cluster Portfolio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Clusters")).not.toBeInTheDocument();
   });
 
   it("supports an explicit non-production migration preview", () => {
@@ -295,7 +302,7 @@ describe("Application shell permissions", () => {
 
     expect(
       screen.getByRole("link", {
-        name: "Migration Portfolio",
+        name: "Migration",
       }),
     ).toHaveAttribute("href", "/migrations");
   });
@@ -312,10 +319,9 @@ describe("Application shell permissions", () => {
     render(<AppShell>Content</AppShell>);
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumb).getByRole("link", { name: "Home" })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Home" }),
+    ).toHaveAttribute("href", "/dashboard");
     expect(
       within(breadcrumb).getByRole("link", { name: "Migrations" }),
     ).toHaveAttribute("href", "/migrations");
@@ -333,27 +339,46 @@ describe("Application shell permissions", () => {
     render(<AppShell>Content</AppShell>);
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumb).getByRole("link", { name: "Clusters" })).toHaveAttribute(
-      "href",
-      "/clusters",
-    );
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Clusters" }),
+    ).toHaveAttribute("href", "/clusters");
     expect(within(breadcrumb).getByText("Create Cluster")).toHaveAttribute(
       "aria-current",
       "page",
     );
   });
 
-  it("selects only Environment Reviews on its dedicated route", () => {
+  it("keeps Environments selected on its review route", () => {
     identity = architect;
     pathname = "/environments/reviews";
     render(<AppShell>Content</AppShell>);
-
+    const nav = screen.getByRole("navigation", { name: "Platform modules" });
     expect(
-      screen.getByRole("link", { name: "Environment Reviews" }),
+      within(nav).getByRole("link", { name: "Environments" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      screen.getByRole("link", { name: "Environment Portfolio" }),
+      within(nav).queryByRole("link", { name: "Environment Reviews" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("selects System Utilities without also selecting Upgrades & Patching", () => {
+    pathname = "/upgrades/utilities";
+    render(<AppShell>Content</AppShell>);
+    const nav = screen.getByRole("navigation", { name: "Platform modules" });
+    expect(
+      within(nav).getByRole("link", { name: "System Utilities" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(nav).getByRole("link", { name: "Upgrades & Patching" }),
     ).not.toHaveAttribute("aria-current");
+    expect(
+      within(nav).queryByRole("link", { name: "Monitoring & Health" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav)
+        .getByText("Monitoring & Health")
+        .closest('[aria-disabled="true"]'),
+    ).toBeInTheDocument();
   });
 
   it("does not expose Cluster Operations in the sidebar", () => {
