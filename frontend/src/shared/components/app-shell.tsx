@@ -43,6 +43,7 @@ import {
   House,
   ListTodo,
   Wrench,
+  PackageCheck,
   Activity,
   CalendarClock,
   Settings,
@@ -146,8 +147,14 @@ const navigationGroups: ReadonlyArray<{
     items: [
       {
         href: "/upgrades",
-        label: "Upgrades & Patching",
+        label: "Upgrades",
         icon: CircleArrowUp,
+        permission: "dashboard.platform.view",
+      },
+      {
+        href: "/upgrades/patching",
+        label: "Patching",
+        icon: PackageCheck,
         permission: "dashboard.platform.view",
       },
       {
@@ -225,11 +232,13 @@ function workspaceBreadcrumbs(pathname: string): BreadcrumbEntry[] {
   const parts = pathname.split("/").filter(Boolean);
   const [root, id, leaf] = parts;
   const crumbs: BreadcrumbEntry[] = [{ label: "Home", href: "/dashboard" }];
-  if (pathname === "/upgrades/utilities")
+  if (["/upgrades/utilities", "/upgrades/patching"].includes(pathname))
     return [
       ...crumbs,
-      { label: "Upgrades & Patching", href: "/upgrades" },
-      { label: "System Utilities" },
+      { label: "Platform Maintenance" },
+      {
+        label: pathname.endsWith("patching") ? "Patching" : "System Utilities",
+      },
     ];
 
   if (!root || root === "dashboard") {
@@ -245,7 +254,7 @@ function workspaceBreadcrumbs(pathname: string): BreadcrumbEntry[] {
     onboarding: "Cluster Onboarding",
     migrations: "Migrations",
     "app-transformation": "Application Modernization",
-    upgrades: "Upgrades & Patching",
+    upgrades: "Upgrades",
     "operational-health": "Operational Health",
     approvals: "Approvals",
     about: "About Navigan",

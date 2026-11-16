@@ -346,6 +346,14 @@ export const eksUpgradeReadinessSchema = z.object({
   }),
 });
 export const utilityUpgradeOptionsSchema = z.object({
+  releaseStatus: z
+    .enum([
+      "UPDATE_AVAILABLE",
+      "UP_TO_DATE",
+      "UNAVAILABLE",
+      "INSTALLED_VERSION_UNVERIFIED",
+    ])
+    .optional(),
   utilityCode: z.string(),
   label: z.string(),
   chart: z.string().nullable(),

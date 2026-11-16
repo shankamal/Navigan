@@ -180,9 +180,14 @@ describe("Application shell permissions", () => {
     expect(
       screen.getByRole("link", { name: "Application Modernization" }),
     ).toHaveAttribute("href", "/app-transformation");
-    expect(
-      screen.getByRole("link", { name: "Upgrades & Patching" }),
-    ).toHaveAttribute("href", "/upgrades");
+    expect(screen.getByRole("link", { name: "Upgrades" })).toHaveAttribute(
+      "href",
+      "/upgrades",
+    );
+    expect(screen.getByRole("link", { name: "Patching" })).toHaveAttribute(
+      "href",
+      "/upgrades/patching",
+    );
     expect(screen.queryByText("Customer Directory")).not.toBeInTheDocument();
     expect(screen.queryByText("Create Environment")).not.toBeInTheDocument();
     expect(screen.queryByText("New Cluster Request")).not.toBeInTheDocument();
@@ -242,9 +247,10 @@ describe("Application shell permissions", () => {
       "href",
       "/my-work",
     );
-    expect(
-      screen.getByRole("link", { name: "Upgrades & Patching" }),
-    ).toHaveAttribute("href", "/upgrades");
+    expect(screen.getByRole("link", { name: "Upgrades" })).toHaveAttribute(
+      "href",
+      "/upgrades",
+    );
     expect(
       screen.queryByRole("link", { name: "Customer Management" }),
     ).not.toBeInTheDocument();
@@ -360,7 +366,7 @@ describe("Application shell permissions", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("selects System Utilities without also selecting Upgrades & Patching", () => {
+  it("selects System Utilities without also selecting Upgrades", () => {
     pathname = "/upgrades/utilities";
     render(<AppShell>Content</AppShell>);
     const nav = screen.getByRole("navigation", { name: "Platform modules" });
@@ -368,7 +374,7 @@ describe("Application shell permissions", () => {
       within(nav).getByRole("link", { name: "System Utilities" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      within(nav).getByRole("link", { name: "Upgrades & Patching" }),
+      within(nav).getByRole("link", { name: "Upgrades" }),
     ).not.toHaveAttribute("aria-current");
     expect(
       within(nav).queryByRole("link", { name: "Monitoring & Health" }),
@@ -378,6 +384,25 @@ describe("Application shell permissions", () => {
         .getByText("Monitoring & Health")
         .closest('[aria-disabled="true"]'),
     ).toBeInTheDocument();
+  });
+
+  it("selects Patching independently", () => {
+    pathname = "/upgrades/patching";
+    render(<AppShell>Content</AppShell>);
+    const nav = screen.getByRole("navigation", { name: "Platform modules" });
+    expect(within(nav).getByRole("link", { name: "Patching" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      within(nav).getByRole("link", { name: "Upgrades" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(nav).getByRole("link", { name: "System Utilities" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      screen.queryByRole("link", { name: "Upgrades & Patching" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not expose Cluster Operations in the sidebar", () => {

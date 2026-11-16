@@ -35,7 +35,7 @@ export const utilityCatalogue = [
     category: "Continuous delivery",
     chart: "argo-cd",
     description:
-      "GitOps reconciliation. Requires a dedicated upgrade procedure.",
+      "GitOps reconciliation. Upgrades are not available from this screen yet.",
     source: null,
     planning: false,
   },
@@ -45,7 +45,7 @@ export const utilityCatalogue = [
     category: "Platform integration",
     chart: "navigan-cluster-connector",
     description:
-      "Cluster observations and platform integration. Uses its dedicated connector workflow.",
+      "Cluster observations and platform integration. Upgrades are not available here yet.",
     source: null,
     planning: false,
   },

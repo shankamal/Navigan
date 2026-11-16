@@ -1,3 +1,37 @@
+## Follow-up — verified target versions, manual candidates and Falco evidence
+
+User approved publication of the pending buttons/navigation changes, then requested these fixes before publication. Publish the complete diff from origin/feature/upgrade-patching-ui-approved (b4efae4) through current HEAD, including all pending increments; do not publish just the newest commit.
+
+Version discovery now reads fixed official Helm chart indexes instead of the first 100 mixed GitHub releases. Transport is bounded to 12 MB/10-second socket timeout, with five-minute warm cache; parser materializes one chart entry at a time for the existing 256 MiB function. Live read-only checks succeeded for Headlamp (55 stable chart entries), monitoring (1190) and Falco (238); observed peak process memory 73.6 MiB in this environment, not an AWS memory measurement. Official chart source/network failure, missing installed version in catalogue, newer release and verified up-to-date are distinct. Empty/failed lookup never becomes Up to date. UI shows Up to date — no action needed for verified current charts and suppresses their upgrade action. Query keys include actor/revision/cluster/chart/installed version; failed or in-flight refresh cannot retain an Up to date claim.
+
+Manual target entry is an optional candidate input. Save is permitted only when the exact newer stable version is verified against the official catalogue; backend rechecks on create. Catalogue failure does not allow an unverified upgrade plan. Existing compatibility, approval and execution gates remain intact. This is not approval of arbitrary versions or user-supplied repository URLs.
+
+Falco Progressing originates in the connector's Argo CD application observation; no live cause or running-cluster configuration was verified here. UI now exposes Argo health plus fresh reported Falco DaemonSet readiness and matching warning events. Expired/stale/missing runtime evidence is explicit; 0 desired pods does not mean healthy. Source template uses modern_ebpf and platform-services node selection, which are investigation leads, not confirmed causes. No connector code/image, Falco values, node labels, driver or cluster setting was changed. Obtain the failing Argo resource/health message and live DaemonSet/pod evidence before remediation.
+
+Backend release packaging now includes utility_gitops.py (the earlier Headlamp preflight dependency) and excludes its stale bytecode. A guarded ClusterFunction backend release is required for the catalogue/status fix; a frontend-only release cannot deliver it. Existing deploy-eks-upgrade-plans-prod.py supports --profile navigan --source-branch feature/upgrade-patching-ui-approved --prepare, then its exact generated plan for execution after review. Do not bypass baseline guards or assume no backend drift. No AWS deployment, new routes/permissions, DB migration, utility execution, main merge or DEV sync occurred.
+
+Validation: 58 backend utility/preflight/plans/release-packaging tests passed with test AWS region configured and metadata lookup disabled; 78 tests across seven frontend suites passed; TypeScript passed during production build. Next production build --webpack completed successfully. git diff --check passed. Visual QA remains blocked by the previous local preview connection issue.
+
+---
+
+## Follow-up — separate Upgrades, Patching and System Utilities navigation
+
+User requested System Utilities removed from the combined Upgrades & Patching workspace, and separate Upgrades/Patching sidebar entries. Confirmed Upgrades has ONLY Upgrade Centre and Maintenance Calendar tabs. Sidebar now has Upgrades (/upgrades), Patching (/upgrades/patching), System Utilities (/upgrades/utilities), preserving existing permissions and longest-path active selection. Patching and Utilities use standalone shared capability headers with Platform Maintenance breadcrumbs and no upgrade tabs. Legacy /upgrades?tab=utilities|patching redirects preserve plan/date. Calendar utility creation navigates to the dedicated utility page with the date; cluster upgrade calendar entry remains in Upgrades. No backend or execution changes. Patching is still the existing UI foundation, not implemented patch execution. Utility label changed from Dedicated procedure to Upgrade not available yet, with explanatory copy.
+
+Includes the preceding locally committed Cancel/Save draft fix (0bbf481), which remains unpublished pending explicit approval of publication with continuity records after automatic approval review blocked it. Do not retry publication without that approval. New source checkpoint will include both increments. Visual QA remains blocked by the previously observed preview connection issue. No production deployment, main merge or DEV sync.
+
+Validation: 70 tests across six shell/upgrade/route/calendar/role/shortcut suites passed; TypeScript passed. Next production build --webpack passed, including standalone /upgrades/patching. git diff --check passed. Publication must include the complete diff from origin/feature/upgrade-patching-ui-approved (b4efae4) to local HEAD, including the preceding unpublished 0bbf481, not just this final navigation commit.
+
+---
+
+## Follow-up — utility Create Plan actions
+
+Added Cancel and Save draft to the utility upgrade form. Cancel returns to the previous utility view without calling the save API and discards unsaved form inputs. Save draft uses the existing validated DRAFT creation API and opens the saved plan for review; it does not submit, approve or execute. Both actions are disabled during the save request. Removed the redundant top Back button so it cannot leave the screen while saving. Regression checks cover cancel/no-write/reopen and the existing save/review path. No deployment performed by this change. Prior frontend :80 was prepared from b4efae4; execution/stability output remains absent.
+
+Validation: 31 upgrade workspace tests passed; TypeScript validation rerun after correcting test query types. Visual review remains pending from the previous preview connection blocker.
+
+---
+
 ## Current follow-up — approved System Utilities workspace
 
 User accepted the first generated System Utilities Installed Utilities sample and asked to implement it. This is an existing-repository production UI task, not a separate Sites prototype.

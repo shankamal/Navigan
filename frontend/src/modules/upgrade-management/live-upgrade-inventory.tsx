@@ -365,6 +365,7 @@ function ContainerInventory({
 
 export function UtilityInventory({
   initialCode = "",
+  onCancel,
   requestedDate,
   onReview,
   fleet,
@@ -373,6 +374,7 @@ export function UtilityInventory({
   onSelect,
 }: {
   initialCode?: string;
+  onCancel?: () => void;
   onReview?: (planId: string | null, reschedule?: boolean) => void;
   requestedDate?: string;
   fleet: Cluster[];
@@ -389,6 +391,7 @@ export function UtilityInventory({
   );
   const [componentCode, setComponentCode] = useState(initialCode);
   const [targetVersion, setTargetVersion] = useState("");
+  const [manualTarget, setManualTarget] = useState(false);
   const inventory = useQuery({
     queryKey: [
       "upgrade-utility-inventory",
@@ -418,6 +421,7 @@ export function UtilityInventory({
       identity?.authorizationRevision,
       selectedId,
       effectiveCode,
+      selectedComponent?.version,
     ],
     queryFn: () =>
       clusters.utilityUpgradeOptions(selectedId, effectiveCode.toLowerCase()),
@@ -435,9 +439,15 @@ export function UtilityInventory({
       ),
   )?.plan;
   const planState = planInventory.stateForCluster(selectedId);
-  const target = options.data?.versions.includes(targetVersion)
-    ? targetVersion
-    : (options.data?.versions[0] ?? "");
+  const upToDate =
+    !options.isError &&
+    !options.isFetching &&
+    options.data?.releaseStatus === "UP_TO_DATE";
+  const target = manualTarget
+    ? targetVersion.trim()
+    : options.data?.versions.includes(targetVersion)
+      ? targetVersion
+      : (options.data?.versions[0] ?? "");
   const create = useMutation({
     mutationFn: () =>
       clusters.createUtilityUpgradePlan(selectedId, {
@@ -481,19 +491,23 @@ export function UtilityInventory({
         ? "Checking existing utility plans…"
         : planState.error
           ? "Existing plans could not be checked. Refresh plans before creating another."
-          : options.isPending
+          : options.isFetching
             ? "Loading official chart releases…"
             : (options.error?.message ??
               options.data?.blockReason ??
-              (!target
-                ? "No supported release available."
-                : !reason.trim() || reason.trim().length < 8
-                  ? "Provide a change reason of at least 8 characters."
-                  : scheduledFor &&
-                      (!Number.isFinite(new Date(scheduledFor).getTime()) ||
-                        new Date(scheduledFor).getTime() <= Date.now())
-                    ? "Choose a future maintenance start."
-                    : undefined));
+              (manualTarget &&
+              target &&
+              !options.data?.versions.includes(target)
+                ? "This target version has not been verified in the official chart catalogue. Refresh versions before saving."
+                : !target
+                  ? "No supported release available."
+                  : !reason.trim() || reason.trim().length < 8
+                    ? "Provide a change reason of at least 8 characters."
+                    : scheduledFor &&
+                        (!Number.isFinite(new Date(scheduledFor).getTime()) ||
+                          new Date(scheduledFor).getTime() <= Date.now())
+                      ? "Choose a future maintenance start."
+                      : undefined));
 
   return (
     <section
@@ -568,6 +582,7 @@ export function UtilityInventory({
               onChange={(event) => {
                 setComponentCode(event.target.value);
                 setTargetVersion("");
+                setManualTarget(false);
               }}
             >
               {!components.length && <option>No utilities reported</option>}
@@ -590,30 +605,70 @@ export function UtilityInventory({
           </label>
           <label className="upgrade-live-field">
             <span>Requested target version</span>
-            <select
-              aria-label="Requested target version"
-              value={target}
-              onChange={(event) => setTargetVersion(event.target.value)}
-              disabled={options.isPending || !options.data?.versions.length}
-            >
-              {!options.data?.versions.length && (
-                <option value="">
-                  {options.isPending
-                    ? "Loading releases…"
-                    : "No verified target available"}
-                </option>
-              )}
-              {options.data?.versions.map((version) => (
-                <option key={version} value={version}>
-                  {version} · chart release
-                </option>
-              ))}
-            </select>
+            {manualTarget && !upToDate ? (
+              <input
+                aria-label="Requested target version"
+                placeholder="Enter chart version, e.g. 0.46.0"
+                value={targetVersion}
+                onChange={(event) => setTargetVersion(event.target.value)}
+                maxLength={40}
+                disabled={create.isPending}
+              />
+            ) : (
+              <select
+                aria-label="Requested target version"
+                value={target}
+                onChange={(event) => setTargetVersion(event.target.value)}
+                disabled={options.isFetching || !options.data?.versions.length}
+              >
+                {!options.data?.versions.length && (
+                  <option value="">
+                    {options.isFetching
+                      ? "Loading releases…"
+                      : upToDate
+                        ? "Up to date — no action needed"
+                        : "No verified target available"}
+                  </option>
+                )}
+                {options.data?.versions.map((version) => (
+                  <option key={version} value={version}>
+                    {version} · chart release
+                  </option>
+                ))}
+              </select>
+            )}
             <small>
               {options.data?.label}. Targets come from the official chart
               release catalogue. Chart and application versions can differ.
             </small>
           </label>
+          {!upToDate && (
+            <label className="upgrade-live-manual-target">
+              <input
+                type="checkbox"
+                checked={manualTarget}
+                disabled={create.isPending}
+                onChange={(event) => {
+                  setManualTarget(event.target.checked);
+                  setTargetVersion("");
+                }}
+              />
+              Enter target version manually
+            </label>
+          )}
+          {manualTarget && !upToDate && (
+            <small>
+              Manual entry must match a version verified in the official chart
+              catalogue. It does not bypass compatibility, approval or execution
+              checks.
+            </small>
+          )}
+          {upToDate && (
+            <p role="status">
+              Up to date — no upgrade is needed. Health findings, if any, still
+              require attention.
+            </p>
+          )}
           <div className="upgrade-live-selection-note">
             <Wrench />
             <p>
@@ -660,12 +715,23 @@ export function UtilityInventory({
           )}
           {blocked && <p role="status">{blocked}</p>}
           {create.error && <p role="alert">{create.error.message}</p>}
-          <Button
-            disabled={Boolean(blocked) || create.isPending}
-            onClick={() => create.mutate()}
-          >
-            Create utility upgrade plan
-          </Button>
+          <div className="upgrade-heading-actions">
+            {onCancel && (
+              <Button
+                variant="secondary"
+                disabled={create.isPending}
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+            )}
+            <Button
+              disabled={Boolean(blocked) || create.isPending}
+              onClick={() => create.mutate()}
+            >
+              {create.isPending ? "Saving draft…" : "Save draft"}
+            </Button>
+          </div>
           <small>
             Saves a governed draft. Approval does not deploy; GitOps execution
             is not enabled yet.

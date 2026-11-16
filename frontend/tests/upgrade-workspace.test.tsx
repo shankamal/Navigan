@@ -11,6 +11,9 @@ import { UpgradeWorkspace } from "../src/modules/upgrade-management/upgrade-work
 import { hasClusterUpgradeOpportunity } from "../src/modules/upgrade-management/live-upgrade-centre";
 import { clusters } from "@/modules/cluster-management/service";
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
 const { authIdentity } = vi.hoisted(() => ({
   authIdentity: {
     subject: "architect-reviewer",
@@ -188,7 +191,7 @@ vi.mock("@/modules/cluster-management/service", () => ({
   },
 }));
 
-function mount(initialTab?: "utilities") {
+function mount(initialTab?: "utilities" | "patching") {
   return render(
     <QueryClientProvider
       client={
@@ -288,7 +291,7 @@ describe("Upgrade workspace", () => {
     ).not.toBeInTheDocument();
     await screen.findByText("New-dbs-demo-cluster");
   });
-  it("shows four distinct tabs and row-level planning without cluster accordions", async () => {
+  it("shows only upgrade and maintenance tabs with row-level planning", async () => {
     mount();
     const workspaceTabs = screen.getByRole("tablist", {
       name: "Upgrade workspace",
@@ -298,8 +301,6 @@ describe("Upgrade workspace", () => {
       .map((tab) => tab.textContent);
     expect(workspaceTabLabels).toEqual([
       "Upgrade Centre",
-      "System Utilities",
-      "Patching",
       "Maintenance Calendar",
     ]);
     expect(screen.getByRole("tab", { name: "Active" })).toHaveAttribute(
@@ -320,6 +321,34 @@ describe("Upgrade workspace", () => {
     ).not.toBeInTheDocument();
     const create = await screen.findByRole("button", { name: "Create Plan" });
     expect(create).toBeEnabled();
+  });
+
+  it("opens Patching as a standalone capability", () => {
+    mount("patching");
+    expect(
+      screen.getByRole("heading", { name: "Patching" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tablist", { name: "Upgrade workspace" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "System Utilities" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("preserves a maintenance date on the dedicated utility route", async () => {
+    const future = new Date();
+    future.setDate(future.getDate() + 1);
+    const day = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`;
+    window.history.replaceState(null, "", `/upgrades/utilities?date=${day}`);
+    try {
+      mount("utilities");
+      expect(
+        await screen.findByLabelText("Utility maintenance start"),
+      ).toHaveValue(day + "T09:00");
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
   });
 
   it("shows only verified candidate upgrades in Active", async () => {
@@ -367,21 +396,28 @@ describe("Upgrade workspace", () => {
     }
   });
 
-  it("supports keyboard navigation between the four tabs", async () => {
+  it("supports keyboard navigation between Upgrade Centre and Maintenance Calendar", async () => {
     mount();
     fireEvent.keyDown(screen.getByRole("tab", { name: "Upgrade Centre" }), {
       key: "ArrowRight",
     });
     expect(
-      screen.getByRole("tab", { name: "System Utilities" }),
+      screen.getByRole("tab", { name: "Maintenance Calendar" }),
     ).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(
+      screen.getByRole("tab", { name: "Maintenance Calendar" }),
+      { key: "ArrowLeft" },
+    );
+    expect(screen.getByRole("tab", { name: "Upgrade Centre" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(
-      await screen.findByRole("heading", { name: "Installed utilities" }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Patching" }));
+      screen.queryByRole("tab", { name: "System Utilities" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Patching" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("tab", { name: "Patching" }),
+    ).not.toBeInTheDocument();
   });
 
   it("saves a scoped draft for operation review before submission", async () => {
@@ -1213,14 +1249,7 @@ describe("Upgrade workspace", () => {
         }),
       );
       if (kind === "utilities") {
-        await screen.findByRole("heading", { name: "System utility upgrades" });
-        expect(
-          (
-            screen.getByLabelText(
-              "Utility maintenance start",
-            ) as HTMLInputElement
-          ).value,
-        ).toBe(key + "T09:00");
+        expect(push).toHaveBeenCalledWith(`/upgrades/utilities?date=${key}`);
       } else {
         const button = await screen.findByRole("button", {
           name: "Create upgrade plan",
@@ -1287,8 +1316,7 @@ describe("Upgrade workspace", () => {
         return utilityPlan;
       },
     );
-    mount();
-    fireEvent.click(screen.getByRole("tab", { name: "System Utilities" }));
+    mount("utilities");
     fireEvent.click(
       await screen.findByRole("button", { name: "Plan upgrade" }),
     );
@@ -1303,9 +1331,7 @@ describe("Upgrade workspace", () => {
     fireEvent.change(screen.getByLabelText("Utility change reason"), {
       target: { value: "Upgrade dashboard chart" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create utility upgrade plan" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() =>
       expect(clusters.createUtilityUpgradePlan).toHaveBeenCalledWith(
         "CLU-live",
@@ -1326,9 +1352,95 @@ describe("Upgrade workspace", () => {
       within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
     );
     expect(
-      screen.getByRole("tab", { name: "System Utilities" }),
-    ).toHaveAttribute("aria-selected", "true");
+      screen.getByRole("button", { name: "Installed utilities" }),
+    ).toHaveAttribute("aria-current", "page");
     vi.mocked(clusters.upgradePlans).mockImplementation(originalPlans);
+  });
+
+  it("shows up to date instead of an empty target selector after a verified release check", async () => {
+    const original = vi
+      .mocked(clusters.utilityUpgradeOptions)
+      .getMockImplementation()!;
+    try {
+      mount("utilities");
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Plan upgrade" }),
+      );
+      await screen.findByRole("combobox", { name: "Requested target version" });
+      vi.mocked(clusters.utilityUpgradeOptions).mockResolvedValue({
+        utilityCode: "headlamp",
+        label: "Headlamp",
+        chart: "headlamp",
+        currentVersion: "0.45.0",
+        versions: [],
+        observedAt: new Date().toISOString(),
+        blockReason: "Up to date — no action needed.",
+        releaseStatus: "UP_TO_DATE",
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Refresh utilities" }),
+      );
+      expect(
+        await screen.findByRole("option", {
+          name: "Up to date — no action needed",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+      expect(
+        screen.queryByLabelText("Enter target version manually"),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(
+        await screen.findByText("Up to date — no action needed"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Plan upgrade" }),
+      ).not.toBeInTheDocument();
+      expect(clusters.createUtilityUpgradePlan).not.toHaveBeenCalled();
+    } finally {
+      vi.mocked(clusters.utilityUpgradeOptions).mockImplementation(original);
+    }
+  });
+
+  it("requires manual chart versions to be verified in the official catalogue", async () => {
+    mount("utilities");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Plan upgrade" }),
+    );
+    await screen.findByRole("combobox", { name: "Requested target version" });
+    fireEvent.click(screen.getByLabelText("Enter target version manually"));
+    const input = screen.getByRole("textbox", {
+      name: "Requested target version",
+    });
+    fireEvent.change(input, { target: { value: "99.99.99" } });
+    fireEvent.change(screen.getByLabelText("Utility change reason"), {
+      target: { value: "Reviewed chart upgrade" },
+    });
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(
+      screen.getByText(/This target version has not been verified/),
+    ).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "0.46.0" } });
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
+    expect(clusters.createUtilityUpgradePlan).not.toHaveBeenCalled();
+  });
+
+  it("cancels a utility draft without saving and clears unsaved inputs", async () => {
+    mount("utilities");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Plan upgrade" }),
+    );
+    const reason = await screen.findByLabelText("Utility change reason");
+    fireEvent.change(reason, { target: { value: "Unsaved utility change" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      await screen.findByRole("heading", { name: "Installed utilities" }),
+    ).toBeInTheDocument();
+    expect(clusters.createUtilityUpgradePlan).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Plan upgrade" }));
+    expect(await screen.findByLabelText("Utility change reason")).toHaveValue(
+      "",
+    );
   });
 
   it("opens the dedicated utility inventory and searchable catalogue without advertising installation", async () => {

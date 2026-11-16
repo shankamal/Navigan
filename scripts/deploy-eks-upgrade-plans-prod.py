@@ -250,6 +250,7 @@ def check_checkout(expected_branch):
         "src/navigan/modules/cluster_management/upgrade_readiness.py",
         "src/navigan/modules/cluster_management/upgrade_plans.py",
         "src/navigan/modules/cluster_management/utility_upgrades.py",
+        "src/navigan/modules/cluster_management/utility_gitops.py",
         "src/navigan/modules/cluster_management/upgrade_paths.py",
         "src/navigan/modules/cluster_management/upgrade_actors.py",
         "infrastructure/modules/cluster-management/template.yaml",
@@ -265,6 +266,7 @@ def package(original, destination):
     readiness = prefix + "upgrade_readiness.py"
     new_module = prefix + "upgrade_plans.py"
     utility_module = prefix + "utility_upgrades.py"
+    utility_gitops = prefix + "utility_gitops.py"
     paths_module = prefix + "upgrade_paths.py"
     actors_module = prefix + "upgrade_actors.py"
     with zipfile.ZipFile(original) as old:
@@ -307,17 +309,18 @@ def package(original, destination):
         )
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
-                if entry.filename in {new_module, utility_module, paths_module, readiness, actors_module}:
+                if entry.filename in {new_module, utility_module, utility_gitops, paths_module, readiness, actors_module}:
                     continue
                 if entry.filename.endswith(".pyc") and any(
                     f"/{name}." in entry.filename
-                    for name in ("handler", "upgrade_readiness", "upgrade_plans", "utility_upgrades", "upgrade_paths", "upgrade_actors")
+                    for name in ("handler", "upgrade_readiness", "upgrade_plans", "utility_upgrades", "utility_gitops", "upgrade_paths", "upgrade_actors")
                 ):
                     continue
                 new.writestr(entry, target_handler if entry.filename == handler else old.read(entry.filename))
             new.writestr(readiness, (ROOT / "src" / readiness).read_bytes())
             new.writestr(new_module, (ROOT / "src" / new_module).read_bytes())
             new.writestr(utility_module, (ROOT / "src" / utility_module).read_bytes())
+            new.writestr(utility_gitops, (ROOT / "src" / utility_gitops).read_bytes())
             new.writestr(paths_module, (ROOT / "src" / paths_module).read_bytes())
             new.writestr(actors_module, (ROOT / "src" / actors_module).read_bytes())
     with zipfile.ZipFile(destination) as updated:

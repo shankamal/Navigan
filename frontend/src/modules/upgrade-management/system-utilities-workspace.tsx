@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   CalendarDays,
   Monitor,
   RefreshCw,
@@ -20,6 +19,7 @@ import { useUpgradePlans } from "./upgrade-plan-data";
 import { UtilityInventory } from "./live-upgrade-inventory";
 import { useScheduleClock } from "./schedule-state";
 import { utilityCatalogue, utilityRows } from "./utility-catalogue";
+import { falcoHealthEvidence } from "./utility-health-evidence";
 import "./system-utilities.css";
 
 const views = [
@@ -75,6 +75,34 @@ export function SystemUtilitiesWorkspace({
     staleTime: 30_000,
   });
   const rows = utilityRows(inventory.data?.components ?? [], now);
+  const supportedRows = rows.filter((row) => row.planning && row.reported);
+  const releaseQueries = useQueries({
+    queries: supportedRows.map((row) => ({
+      queryKey: [
+        "utility-upgrade-options",
+        identity?.subject,
+        identity?.authorizationRevision,
+        selectedId,
+        row.code,
+        row.version,
+      ],
+      queryFn: () => clusters.utilityUpgradeOptions(selectedId, row.code),
+      enabled: Boolean(selectedId) && !inventory.isError,
+      staleTime: 60_000,
+      retry: false,
+    })),
+  });
+  const releasesFor = (code: string) =>
+    releaseQueries[supportedRows.findIndex((row) => row.code === code)];
+  const upToDateFor = (code: string) => {
+    const query = releasesFor(code);
+    return (
+      query &&
+      !query.isError &&
+      !query.isFetching &&
+      query.data?.releaseStatus === "UP_TO_DATE"
+    );
+  };
   const state = data.stateForCluster(selectedId);
   const plans = data.rows
     .filter(
@@ -128,13 +156,11 @@ export function SystemUtilitiesWorkspace({
   if (planning && selected)
     return (
       <div className="utility-planning-screen">
-        <Button variant="secondary" onClick={() => setPlanning(null)}>
-          <ArrowLeft size={16} /> Back to installed utilities
-        </Button>
         <UtilityInventory
           key={`${selectedId}-${planning}`}
           initialCode={planning}
           requestedDate={requestedDate}
+          onCancel={() => setPlanning(null)}
           fleet={fleet}
           selected={selected}
           selectedId={selectedId}
@@ -321,9 +347,34 @@ export function SystemUtilitiesWorkspace({
                         >
                           {row.status}
                         </span>
+                        {row.code === "falco" && !row.healthy && (
+                          <details className="utility-health-details">
+                            <summary>Why this status?</summary>
+                            <p>
+                              Argo CD:{" "}
+                              {inventory.data?.components.find(
+                                (item) =>
+                                  item.componentCode.toLowerCase() === "falco",
+                              )?.healthStatus ?? "Not reported"}
+                              . Navigan does not mark this healthy without
+                              supporting evidence.
+                            </p>
+                            <ul>
+                              {falcoHealthEvidence(inventory.data, now).map(
+                                (message, index) => (
+                                  <li key={index}>{message}</li>
+                                ),
+                              )}
+                            </ul>
+                          </details>
+                        )}
                       </td>
                       <td>
-                        {row.planning ? (
+                        {upToDateFor(row.code) ? (
+                          <span className="utility-secondary">
+                            Up to date — no action needed
+                          </span>
+                        ) : row.planning ? (
                           <Button
                             variant="secondary"
                             disabled={!canPlan || !row.reported}
@@ -333,7 +384,7 @@ export function SystemUtilitiesWorkspace({
                           </Button>
                         ) : (
                           <span className="utility-secondary">
-                            Dedicated procedure
+                            Upgrade not available yet
                           </span>
                         )}
                       </td>
@@ -449,7 +500,9 @@ export function SystemUtilitiesWorkspace({
                   <small>{item.description}</small>
                 </span>
                 <span>
-                  {item.planning ? "Upgrade planning" : "Dedicated procedure"}
+                  {item.planning
+                    ? "Upgrade planning"
+                    : "Upgrade not available yet"}
                 </span>
               </button>
             ))}
@@ -483,15 +536,19 @@ export function SystemUtilitiesWorkspace({
             <p>
               {entry.planning
                 ? "Create an upgrade draft for an installed utility, then submit it for review. Compatibility and execution remain gated."
-                : "This platform component uses a dedicated maintenance procedure."}
+                : "Upgrades for this component are not available from System Utilities yet."}
             </p>
-            {entry.planning && (
-              <Button
-                disabled={!canPlan || !selectedUtility?.reported}
-                onClick={() => setPlanning(entry.code)}
-              >
-                Plan upgrade
-              </Button>
+            {upToDateFor(entry.code) ? (
+              <p>Up to date — no action needed.</p>
+            ) : (
+              entry.planning && (
+                <Button
+                  disabled={!canPlan || !selectedUtility?.reported}
+                  onClick={() => setPlanning(entry.code)}
+                >
+                  Plan upgrade
+                </Button>
+              )
             )}
             <p className="utility-install-note">
               New utility registration and installation are not enabled in this

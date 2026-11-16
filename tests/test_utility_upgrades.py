@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 from pathlib import Path
 import pytest
-from navigan.modules.cluster_management.utility_upgrades import UtilityUpgradePlans, CreateUtilityUpgradePlan, upstream_releases
+from navigan.modules.cluster_management.utility_upgrades import UtilityUpgradePlans, CreateUtilityUpgradePlan, upstream_releases, chart_index_entries
 from navigan.modules.cluster_management.upgrade_plans import EksUpgradePlans, utcnow
 from navigan.shared.access import EffectiveAccess, Scope
 from navigan.shared.errors import ApiError
@@ -29,16 +29,69 @@ def service(code='headlamp',status='READY',version='0.45.0',age=0):
     return plans,repo
 
 
-def test_catalog_uses_fixed_upstream_and_only_stable_newer_chart_releases():
+def test_catalog_uses_official_chart_index_and_only_stable_package_versions():
     urls=[]
     def fetch(url):
         urls.append(url)
-        return [{'tag_name':'headlamp-helm-0.46.0'}, {'tag_name':'v0.47.0'},
-                {'tag_name':'headlamp-helm-0.47.0','prerelease':True}, {'tag_name':'headlamp-helm-0.44.0'}]
-    assert upstream_releases('headlamp',fetch)==['0.46.0','0.44.0']
-    assert urls==['https://api.github.com/repos/kubernetes-sigs/headlamp/releases?per_page=100']
+        return {'entries': {'headlamp': [
+            {'name':'headlamp','version':'0.46.0','urls':['headlamp-0.46.0.tgz']},
+            {'name':'headlamp','version':'0.47.0-rc.1','urls':['test']},
+            {'name':'headlamp','version':'0.47.0','deprecated':True,'urls':['test']},
+            {'name':'other-chart','version':'99.0.0','urls':['test']},
+            {'name':'headlamp','version':'0.45.0','urls':['headlamp-0.45.0.tgz']},
+        ]}}
+    assert upstream_releases('headlamp',fetch)==['0.46.0','0.45.0']
+    assert urls==['https://kubernetes-sigs.github.io/headlamp/index.yaml']
     plans,_=service()
     assert plans.options('CLU-live','headlamp')['versions']==['0.46.0']
+
+
+def test_chart_index_parser_selects_only_the_requested_package():
+    payload = b'''apiVersion: v1
+entries:
+  another-chart:
+  - name: another-chart
+    version: 99.0.0
+  headlamp:
+  - name: headlamp
+    version: 0.46.0
+    urls:
+    - https://example.test/headlamp-0.46.0.tgz
+  - name: headlamp
+    version: 0.45.0
+    urls: [https://example.test/headlamp-0.45.0.tgz]
+  next-chart:
+  - name: next-chart
+    version: 99.0.0
+generated: 2026-11-16
+'''
+    parsed=chart_index_entries(payload,'headlamp')
+    assert [item['version'] for item in parsed['entries']['headlamp']]==['0.46.0','0.45.0']
+    with pytest.raises(ValueError):chart_index_entries(payload,'missing')
+
+
+def test_up_to_date_requires_installed_version_in_verified_catalogue():
+    plans,_=service()
+    plans.releases=lambda _:['0.45.0','0.44.0']
+    assert plans.options('CLU-live','headlamp')['releaseStatus']=='UP_TO_DATE'
+    plans.releases=lambda _:['0.44.0']
+    assert plans.options('CLU-live','headlamp')['releaseStatus']=='INSTALLED_VERSION_UNVERIFIED'
+
+
+def test_catalogue_outage_is_not_up_to_date_and_cannot_save():
+    plans,_=service()
+    def fail(_):raise ApiError(502,'UTILITY_RELEASES_UNAVAILABLE','Unavailable')
+    plans.releases=fail
+    assert plans.options('CLU-live','headlamp')['releaseStatus']=='UNAVAILABLE'
+    plans._save=MagicMock()
+    with pytest.raises(ApiError):plans.create('CLU-live',{'utilityCode':'headlamp','targetVersion':'0.46.0','changeReason':'Upgrade chart'})
+    plans._save.assert_not_called()
+
+
+def test_empty_or_wrong_chart_catalogue_is_unavailable():
+    for index in [{}, {'entries':{'headlamp':[]}}, {'entries':{'another':[]}}]:
+        with pytest.raises(ApiError) as error:upstream_releases('headlamp',lambda _:index)
+        assert error.value.code=='UTILITY_RELEASES_UNAVAILABLE'
 
 
 def test_missing_adapter_version_stale_and_progressing_evidence_are_explained():

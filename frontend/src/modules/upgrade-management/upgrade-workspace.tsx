@@ -1,14 +1,9 @@
 "use client";
 import { WorkspaceHeading } from "@/shared/components/workspace-heading";
+import { useRouter } from "next/navigation";
 
 import { useEffect, useState } from "react";
-import {
-  CalendarDays,
-  CircleArrowUp,
-  PackageCheck,
-  RefreshCw,
-  Wrench,
-} from "lucide-react";
+import { CalendarDays, CircleArrowUp, RefreshCw } from "lucide-react";
 import type { EksUpgradeReadiness } from "@/modules/cluster-management/model";
 import { Button } from "@/shared/components/ui";
 import { ScopedUpgradePlanner } from "./scoped-upgrade-planner";
@@ -48,8 +43,6 @@ const tabs: ReadonlyArray<{
   icon: typeof CircleArrowUp;
 }> = [
   { id: "readiness", label: "Upgrade Centre", icon: CircleArrowUp },
-  { id: "utilities", label: "System Utilities", icon: Wrench },
-  { id: "patching", label: "Patching", icon: PackageCheck },
   { id: "schedule", label: "Maintenance Calendar", icon: CalendarDays },
 ];
 
@@ -140,6 +133,8 @@ export function UpgradeWorkspace({
   initialTab?: WorkspaceTab;
 }) {
   const fleetData = useUpgradePlans();
+  const router = useRouter();
+  const dedicated = initialTab === "utilities" || initialTab === "patching";
   const [requestedDate, setRequestedDate] = useState<string>();
   const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [centreView, setCentreView] = useState<CentreView>("plans");
@@ -159,13 +154,12 @@ export function UpgradeWorkspace({
     const requestedPlan = params.get("plan");
     if (requestedPlan) setReviewPlanId(requestedPlan);
     const requestedTab = params.get("tab");
-    if (
-      ["readiness", "utilities", "patching", "schedule"].includes(
-        requestedTab ?? "",
-      )
-    )
+    if (!dedicated && ["readiness", "schedule"].includes(requestedTab ?? ""))
       setTab(requestedTab as WorkspaceTab);
-  }, []);
+    const date = params.get("date");
+    if (initialTab === "utilities" && date && /^\d{4}-\d{2}-\d{2}$/.test(date))
+      setRequestedDate(date);
+  }, [dedicated, initialTab]);
 
   const changeTab = (value: WorkspaceTab) => {
     setRequestedDate(undefined);
@@ -217,20 +211,20 @@ export function UpgradeWorkspace({
             </header>
           </WorkspaceHeading>
 
-          {initialTab !== "utilities" && (
-            <UpgradeTabs active={tab} onChange={changeTab} />
-          )}
+          {!dedicated && <UpgradeTabs active={tab} onChange={changeTab} />}
         </>
       )}
 
       <div
-        role={initialTab === "utilities" ? "region" : "tabpanel"}
+        role={dedicated ? "region" : "tabpanel"}
         aria-label={
-          initialTab === "utilities" ? "System Utilities content" : undefined
+          dedicated
+            ? `${initialTab === "utilities" ? "System Utilities" : "Patching"} content`
+            : undefined
         }
         id="upgrade-tabpanel"
         aria-labelledby={
-          initialTab === "utilities"
+          dedicated
             ? undefined
             : "upgrade-tab-" + (planning ? "readiness" : tab)
         }
@@ -256,16 +250,23 @@ export function UpgradeWorkspace({
           />
         ) : (
           <SupportingTab
+            key={`${tab}-${requestedDate ?? ""}`}
             tab={tab}
             requestedDate={requestedDate}
             onCreate={(kind, date) => {
+              if (kind === "utilities") {
+                router.push(
+                  `/upgrades/utilities?date=${encodeURIComponent(date)}`,
+                );
+                return;
+              }
               setPlanning(null);
               setPlannerOrigin("schedule");
               setRequestedDate(date);
               setReviewPlanId(undefined);
               setRescheduleRequested(false);
-              setCentreView(kind === "containers" ? "available" : "plans");
-              setTab(kind === "containers" ? "readiness" : "utilities");
+              setCentreView("available");
+              setTab("readiness");
             }}
             onPlan={setPlanning}
             onReview={openPlan}
