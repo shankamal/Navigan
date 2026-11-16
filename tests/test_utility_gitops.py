@@ -65,3 +65,18 @@ def test_repository_read_failure_does_not_create_plan():
             {"utilityCode": "headlamp", "targetVersion": "0.46.0", "changeReason": "Upgrade dashboard chart"},
         )
     plans._save.assert_not_called()
+
+
+def test_legacy_github_client_uses_existing_repo_scoped_read_methods():
+    from types import SimpleNamespace
+    from base64 import b64encode
+    from navigan.modules.cluster_management.utility_gitops import read_utility_manifest
+    plans, repo = service()
+    token = MagicMock(return_value={'token':'test-only-token'})
+    request = MagicMock(return_value={'type':'file','encoding':'base64','content':b64encode(b'apiVersion: argoproj.io/v1alpha1\n').decode()+'\n'})
+    app = SimpleNamespace(repository_token=token, _request=request)
+    assert read_utility_manifest(app, repo.system_repository_access.return_value).startswith('apiVersion:')
+    token.assert_called_once_with(123,'cluster-system')
+    request.assert_called_once_with('GET','/repos/customer-org/cluster-system/contents/applications/30-headlamp.yaml?ref=main','test-only-token')
+    request.return_value={'type':'file','encoding':'base64','content':'not-base64'}
+    with pytest.raises(ApiError): read_utility_manifest(app,repo.system_repository_access.return_value)

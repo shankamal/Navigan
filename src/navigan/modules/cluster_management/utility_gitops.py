@@ -1,6 +1,8 @@
 """Read-only repository evidence for the Headlamp upgrade adapter."""
 
 import yaml
+from base64 import b64decode
+from urllib.parse import quote
 
 from navigan.shared.errors import ApiError
 from .github_app import GitHubApp
@@ -9,16 +11,39 @@ from .github_app import GitHubApp
 HEADLAMP_PATH = "applications/30-headlamp.yaml"
 
 
+def read_utility_manifest(app, repository):
+    """Use the existing production repo-scoped token without changing GitHubApp."""
+    if callable(getattr(app, "read_repository_file", None)):
+        return app.read_repository_file(
+            repository["installation_id"],
+            repository["organization_login"],
+            repository["repository_name"],
+            HEADLAMP_PATH,
+            branch=repository["default_branch"],
+        )
+    token = app.repository_token(repository["installation_id"], repository["repository_name"])["token"]
+    owner = quote(repository["organization_login"], safe="")
+    name = quote(repository["repository_name"], safe="")
+    branch = quote(repository["default_branch"], safe="")
+    result = app._request("GET", f"/repos/{owner}/{name}/contents/{HEADLAMP_PATH}?ref={branch}", token)
+    if result.get("type") != "file" or result.get("encoding") != "base64":
+        raise ApiError(
+            409,
+            "UTILITY_GITOPS_MANIFEST_INVALID",
+            "Headlamp requires a readable registered application manifest.",
+        )
+    try:
+        return b64decode("".join(result["content"].split()), validate=True).decode("utf-8")
+    except (KeyError, ValueError, UnicodeDecodeError, AttributeError, TypeError):
+        raise ApiError(
+            409, "UTILITY_GITOPS_MANIFEST_INVALID", "Headlamp manifest is not valid UTF-8/base64."
+        ) from None
+
+
 def headlamp_preflight(repository, current_version, github=None):
     """Validate the registered repository without committing or syncing anything."""
     app = github if github is not None else GitHubApp()
-    content = app.read_repository_file(
-        repository["installation_id"],
-        repository["organization_login"],
-        repository["repository_name"],
-        HEADLAMP_PATH,
-        branch=repository["default_branch"],
-    )
+    content = read_utility_manifest(app, repository)
     try:
         if len(content.encode("utf-8")) > 100_000:
             raise ValueError("Manifest exceeds limit")

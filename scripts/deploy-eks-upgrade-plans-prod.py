@@ -13,6 +13,7 @@ import ast
 import base64
 import copy
 import hashlib
+import io
 import importlib.util
 import json
 from pathlib import Path
@@ -31,6 +32,8 @@ BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 # Keep all deployed modules pinned together before replacing scoped plan code.
 DEPLOYED_PLAN_TREE = "a8d572439b8f5097a48a86c442955afafd19f097"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
+UTILITY_YAML_URL = "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+UTILITY_YAML_SHA = "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476"
 ROUTES = {
     "ClusterUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/upgrade-options",
     "ClusterUtilityUpgradeOptionsRoute": "GET /api/v1/clusters/{clusterId}/utility-upgrade-options",
@@ -275,7 +278,24 @@ def check_checkout(expected_branch):
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
 
-def package_utilities(original, destination):
+def utility_yaml_dependency(fetch=None):
+    """Pinned official PyPI wheel for the existing CPython 3.12 Linux x86_64 Lambda."""
+    if fetch:
+        payload = fetch(UTILITY_YAML_URL)
+    else:
+        with urllib.request.urlopen(UTILITY_YAML_URL, timeout=20) as response:
+            payload = response.read(2_000_001)
+    require(len(payload) <= 2_000_000 and digest(payload) == UTILITY_YAML_SHA, "PyYAML artifact checksum mismatch")
+    with zipfile.ZipFile(io.BytesIO(payload)) as wheel:
+        names = wheel.namelist()
+        require(len(names) == len(set(names)), "Duplicate dependency ZIP entries")
+        require(sum(entry.file_size for entry in wheel.infolist()) <= 20_000_000, "PyYAML artifact exceeds size limit")
+        require(all(name.startswith(("yaml/", "_yaml/", "PyYAML.libs/", "PyYAML-6.0.2.dist-info/")) and ".." not in name.split("/") and "\\" not in name for name in names), "Unexpected dependency artifact paths")
+        require("yaml/__init__.py" in names and "yaml/_yaml.cpython-312-x86_64-linux-gnu.so" in names, "Wrong PyYAML runtime artifact")
+        return {name: wheel.read(name) for name in names if not name.endswith("/")}
+
+
+def package_utilities(original, destination, yaml_dependency=None):
     """Replace only utility planning modules; preserve production EKS behavior."""
     prefix = "navigan/modules/cluster_management/"
     replacements = {prefix + name for name in ("utility_upgrades.py", "utility_gitops.py")}
@@ -290,10 +310,13 @@ def package_utilities(original, destination):
         require(semantic(old.read(prefix + "handler.py")) in {semantic(handler), semantic(retry_response_handler(handler))}, "Unreviewed utility routing contract")
         for module in ("upgrade_plans", "utility_upgrades"):
             require(normalized_semantic(old.read(prefix + module + ".py")) == normalized_semantic(git_source(DEPLOYED_PLAN_TREE, "src/" + prefix + module + ".py")), "Unreviewed utility dependency: " + module)
-        for module, class_name, method in (("github_app", "GitHubApp", "read_repository_file"), ("repository", "Repository", "system_repository_access")):
+        for module, class_name, method in (("github_app", "GitHubApp", "repository_token"), ("github_app", "GitHubApp", "_request"), ("repository", "Repository", "system_repository_access")):
             tree = ast.parse(old.read(prefix + module + ".py"))
             require(any(isinstance(node, ast.ClassDef) and node.name == class_name and any(isinstance(child, ast.FunctionDef) and child.name == method for child in node.body) for node in tree.body), "Required utility dependency unavailable: " + method)
-        require("yaml/__init__.py" in names, "Utilities-only package requires the deployed PyYAML dependency")
+        dependencies = {} if "yaml/__init__.py" in names else yaml_dependency
+        require(isinstance(dependencies, dict) and ("yaml/__init__.py" in names or "yaml/__init__.py" in dependencies), "Pinned PyYAML dependency is required")
+        require(all(name.startswith(("yaml/", "_yaml/", "PyYAML.libs/", "PyYAML-6.0.2.dist-info/")) and ".." not in name.split("/") and "\\" not in name for name in dependencies), "Unexpected utility dependency paths")
+        require(not set(dependencies).intersection(names), "Utility dependency would overwrite an existing file")
         preserved = {name: digest(old.read(name)) for name in names if name not in replacements and not replaced_cache(name)}
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
             for entry in old.infolist():
@@ -301,16 +324,18 @@ def package_utilities(original, destination):
                     new.writestr(entry, old.read(entry.filename))
             for name in sorted(replacements):
                 new.writestr(name, (ROOT / "src" / name).read_bytes())
+            for name, content in sorted(dependencies.items()):
+                new.writestr(name, content)
     with zipfile.ZipFile(destination) as new:
-        require(set(new.namelist()) == set(preserved) | replacements, "Unexpected utility package members")
+        require(set(new.namelist()) == set(preserved) | replacements | set(dependencies), "Unexpected utility package members")
         require(all(digest(new.read(name)) == sha for name, sha in preserved.items()), "Unrelated production module changed")
         require(sum(item.file_size for item in new.infolist()) <= 250 * 1024 * 1024, "Updated ClusterFunction package is too large")
     return destination
 
 
-def package(original, destination, *, utilities_only=False):
+def package(original, destination, *, utilities_only=False, yaml_dependency=None):
     if utilities_only:
-        return package_utilities(original, destination)
+        return package_utilities(original, destination, yaml_dependency)
     prefix = "navigan/modules/cluster_management/"
     handler = prefix + "handler.py"
     readiness = prefix + "upgrade_readiness.py"
@@ -586,7 +611,14 @@ def prepare(session, revision, *, utilities_only=False):
     )
     if utilities_only:
         require(all(record["planRoutePresence"].values()), "Utilities-only release requires existing protected upgrade routes")
-    updated = package(original, directory / "ClusterFunction-updated.zip", utilities_only=utilities_only)
+    yaml_dependency = None
+    with zipfile.ZipFile(original) as captured:
+        yaml_present = "yaml/__init__.py" in captured.namelist()
+    require(utilities_only or yaml_present, "Use --utilities-only to add the pinned utility dependency without replacing EKS modules")
+    if utilities_only and not yaml_present:
+        require(deployed["Configuration"].get("Runtime") == "python3.12" and deployed["Configuration"].get("Architectures", ["x86_64"]) == ["x86_64"], "Pinned utility dependency requires the reviewed Python 3.12 x86_64 Lambda")
+        yaml_dependency = utility_yaml_dependency()
+    updated = package(original, directory / "ClusterFunction-updated.zip", utilities_only=utilities_only, yaml_dependency=yaml_dependency)
     code, _ = support.upload(session, workspace, directory, "eks-upgrade-plans.zip", updated.read_bytes())
     child = proposed_child(record, code)
     _, child_url = support.upload(
@@ -635,12 +667,14 @@ def prepare(session, revision, *, utilities_only=False):
             "region": REGION,
             "revision": revision,
             "releaseScope": "UTILITIES_ONLY" if utilities_only else "EKS_PLANS",
+            "utilityDependencies": {"PyYAML": {"version": "6.0.2", "sha256": UTILITY_YAML_SHA}} if yaml_dependency else {},
             "parentStamp": base.stamp(parent),
             "changeSet": identifier,
             "release": saved,
         },
     )
-    print("Scoped PROD EKS plan API release prepared; NOT executed. Release plan: " + str(plan))
+    label = "Utilities-only PROD API release" if utilities_only else "Scoped PROD EKS plan API release"
+    print(label + " prepared; NOT executed. Release plan: " + str(plan))
 
 
 def execute(session, plan_path):
@@ -669,7 +703,10 @@ def execute(session, plan_path):
     _, _, deployed = preflight(session)
     require(deployed["oldSha"] == saved["newSha"], "Deployed ClusterFunction checksum differs")
     require(all(deployed["planRoutePresence"].values()), "Protected upgrade-plan routes were not deployed")
-    print("PROD governed EKS upgrade-plan API deployed and verified. No EKS upgrade was started.")
+    if plan.get("releaseScope") == "UTILITIES_ONLY":
+        print("PROD utility planning API deployed and verified. No utility upgrade was started.")
+    else:
+        print("PROD governed EKS upgrade-plan API deployed and verified. No EKS upgrade was started.")
 
 
 def main():

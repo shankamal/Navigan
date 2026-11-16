@@ -309,3 +309,27 @@ def test_utilities_only_keeps_dependency_and_routing_guards(tmp_path, change):
     with zipfile.ZipFile(source, 'w') as archive:
         for name, data in contents.items(): archive.writestr(name, data)
     with pytest.raises(RuntimeError): release.package(source, target, utilities_only=True)
+
+
+def test_utilities_only_adds_yaml_without_replacing_production_helpers(tmp_path):
+    release=load_release()
+    source,target=tmp_path/'old.zip',tmp_path/'new.zip'
+    contents=utilities_baseline(source)
+    del contents['yaml/__init__.py']
+    helper='navigan/modules/cluster_management/github_app.py'
+    contents[helper]=b'class GitHubApp:\n def repository_token(self,*args): pass\n def _request(self,*args): pass\n'
+    with zipfile.ZipFile(source,'w') as archive:
+        for name,data in contents.items():archive.writestr(name,data)
+    dependency={'yaml/__init__.py':b'# pinned package fixture\n','yaml/_yaml.cpython-312-x86_64-linux-gnu.so':b'pinned native extension fixture'}
+    release.package(source,target,utilities_only=True,yaml_dependency=dependency)
+    with zipfile.ZipFile(target) as archive:
+        for name,data in contents.items():
+            if name.endswith('utility_upgrades.py') or '/utility_upgrades.' in name:continue
+            assert archive.read(name)==data
+        for name,data in dependency.items():assert archive.read(name)==data
+
+
+def test_yaml_dependency_rejects_wrong_checksum():
+    release=load_release()
+    with pytest.raises(RuntimeError,match='checksum'):
+        release.utility_yaml_dependency(lambda _:b'not the pinned wheel')
