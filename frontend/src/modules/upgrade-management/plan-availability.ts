@@ -32,8 +32,14 @@ export function rescheduleBlockReason(
   identity: Identity | null,
   plan: EksUpgradePlan,
 ): string | undefined {
-  if (!["DRAFT", "SUBMITTED"].includes(plan.status))
-    return "Only a draft or pending request can be rescheduled. Cancel an approved plan and create a new request.";
+  const editableStatuses =
+    plan.kind === "UTILITY"
+      ? ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED"]
+      : ["DRAFT", "SUBMITTED"];
+  if (!editableStatuses.includes(plan.status))
+    return plan.kind === "UTILITY"
+      ? "Executing or closed utility plans cannot be rescheduled."
+      : "Only a draft or pending request can be rescheduled. Cancel an approved plan and create a new request.";
   if (!hasPermission(identity, "cluster.upgrade.plan"))
     return "An authorized Cloud Engineer must revise the requested maintenance time and resubmit this plan.";
   return undefined;

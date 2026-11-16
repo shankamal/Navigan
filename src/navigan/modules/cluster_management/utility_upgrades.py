@@ -1,6 +1,7 @@
 """Scoped utility release discovery and persisted, authorized review plans.
 
-Planning never changes the system repository or a Kubernetes resource.
+Drafting/review never deploys. The reviewed Headlamp adapter separates durable
+preparation, explicit publication and fresh post-deployment verification.
 """
 
 import re
@@ -8,9 +9,10 @@ import time
 import urllib.request
 import uuid
 import yaml
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import Field, field_validator
 from .models import Model
+from .utility_gitops import HeadlampGitOps
 from .upgrade_plans import EksUpgradePlans, CreateEksUpgradePlan, ACTIVE, utcnow
 from navigan.shared.errors import ApiError
 
@@ -288,7 +290,125 @@ class UtilityUpgradePlans(EksUpgradePlans):
         return self.present(row)
 
     def change(self, cluster_id, plan_id, action, body):
-        # Never dispatch a utility plan into the EKS execution adapter.
+        if action == "submit" and self.get(cluster_id, plan_id).get("utility_code") == "headlamp":
+            self.access.require("cluster.upgrade.plan")
+            plan = self.get(cluster_id, plan_id, lock=True)
+            self._checked_version(plan, body)
+            self._require_status(plan, {"DRAFT"})
+            if (plan["current_version"], plan["target_version"]) != ("0.45.0", HeadlampGitOps.TARGET):
+                return super().change(cluster_id, plan_id, action, body)
+            self._require_future_requested_time(plan)
+            if not plan.get("scheduled_for"):
+                raise ApiError(
+                    409,
+                    "UTILITY_WINDOW_REQUIRED",
+                    "Choose a maintenance start before submitting an executable Headlamp plan.",
+                )
+            options = self.options(cluster_id, "headlamp")
+            if (
+                options["blockReason"]
+                or plan["current_version"] != options["currentVersion"]
+                or plan["target_version"] not in options["versions"]
+            ):
+                raise ApiError(
+                    409,
+                    "UTILITY_EVIDENCE_REQUIRED",
+                    options["blockReason"] or "Installed or target version changed. Create a fresh plan.",
+                )
+            policy = self._headlamp_adapter(cluster_id).evidence(
+                plan["current_version"], plan["target_version"]
+            )
+            evidence = dict(plan["readiness_evidence"])
+            evidence["executionPolicy"] = policy
+            return self._transition(
+                plan,
+                "SUBMITTED",
+                "UtilityExecutionReviewRequested",
+                {
+                    "readiness_evidence": evidence,
+                    "submitted_by": self.access.user_id,
+                    "submitted_at": utcnow(),
+                },
+            )
+        if action == "approve":
+            candidate = self.get(cluster_id, plan_id)
+            policy = (candidate.get("readiness_evidence") or {}).get("executionPolicy")
+            if policy:
+                self.require_approval()
+                plan = self.get(cluster_id, plan_id, lock=True)
+                self._checked_version(plan, body)
+                self._require_status(plan, {"SUBMITTED"})
+                self._require_future_requested_time(plan)
+                if len((body.get("reason") or "").strip()) < 8:
+                    raise ApiError(
+                        422,
+                        "UTILITY_COMPATIBILITY_REVIEW_REQUIRED",
+                        "Record your compatibility and recovery review before approving Headlamp execution.",
+                    )
+                self_review = self.access.user_id in {plan["created_by"], plan.get("submitted_by")}
+                if self_review and not self.allows_self_approval():
+                    raise ApiError(
+                        409, "MAKER_CHECKER_REQUIRED", "An authorized independent reviewer is required."
+                    )
+                from .upgrade_plans import SELF_APPROVAL_POLICY
+
+                now = utcnow()
+                execution = dict(plan.get("execution") or {})
+                execution["approval"] = {
+                    "policy": SELF_APPROVAL_POLICY if self_review else "REVIEWER_APPROVAL_V1",
+                    "actorId": self.access.user_id,
+                    "selfApproved": self_review,
+                    "role": "PLATFORM_ARCHITECT" if self_review else "AUTHORIZED_REVIEWER",
+                    "planVersion": plan["version"],
+                    "approvedAt": now.isoformat(),
+                }
+                execution["compatibilityReview"] = {
+                    "actorId": self.access.user_id,
+                    "comment": body["reason"].strip(),
+                    "adapter": policy["adapter"],
+                }
+                return self._transition(
+                    plan,
+                    "SCHEDULED",
+                    "UtilityExecutionApproved",
+                    {"approved_by": self.access.user_id, "approved_at": now, "execution": execution},
+                )
+        if action == "reschedule":
+            self.access.require("cluster.upgrade.plan")
+            plan = self.get(cluster_id, plan_id, lock=True)
+            if plan["version"] != body["version"]:
+                raise ApiError(409, "VERSION_CONFLICT", "Refresh the upgrade plan and retry.")
+            self._require_status(plan, {"DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED"})
+            scheduled = body.get("scheduledFor")
+            if not scheduled or scheduled <= utcnow():
+                raise ApiError(422, "MAINTENANCE_WINDOW_INVALID", "Choose a future maintenance start.")
+            execution = dict(plan.get("execution") or {})
+            execution.pop("approval", None)
+            execution.pop("compatibilityReview", None)
+            evidence = dict(plan.get("readiness_evidence") or {})
+            evidence.pop("executionPolicy", None)
+            return self._transition(
+                plan,
+                "DRAFT",
+                "UtilityUpgradePlanRescheduled",
+                {
+                    "scheduled_for": scheduled,
+                    "submitted_by": None,
+                    "submitted_at": None,
+                    "submitted_by_name": None,
+                    "approved_by": None,
+                    "approved_at": None,
+                    "approved_by_name": None,
+                    "execution": execution,
+                    "readiness_evidence": evidence,
+                },
+            )
+        if (
+            action in {"execute", "refresh"}
+            and self.get(cluster_id, plan_id).get("utility_code") == "headlamp"
+        ):
+            return self._execute_headlamp(cluster_id, plan_id, action, body)
+        # Never dispatch any utility into the EKS execution adapter.
         if action in {"execute", "refresh"}:
             self.get(cluster_id, plan_id)
             raise ApiError(
@@ -297,6 +417,172 @@ class UtilityUpgradePlans(EksUpgradePlans):
                 "This release supports utility draft and approval. Compatibility validation and GitOps execution are not enabled; approval does not deploy the chart.",
             )
         return super().change(cluster_id, plan_id, action, body)
+
+    @staticmethod
+    def _checked_version(plan, body):
+        if plan["version"] != body["version"]:
+            raise ApiError(409, "VERSION_CONFLICT", "Refresh the upgrade plan and retry.")
+
+    def _headlamp_adapter(self, cluster_id):
+        return HeadlampGitOps(self.repo.system_repository_access(cluster_id), self.github)
+
+    @staticmethod
+    def _fresh(value, now, after=None):
+        try:
+            observed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return -60 <= (now - observed).total_seconds() <= 300 and (after is None or observed > after)
+        except (AttributeError, TypeError, ValueError):
+            return False
+
+    def _headlamp_health(self, cluster_id, version, after=None):
+        now = utcnow()
+        inventory = self.repo.platform_components(cluster_id)
+        component = next(
+            (item for item in inventory["components"] if item["componentCode"].lower() == "headlamp"), {}
+        )
+        runtime = inventory.get("runtimeInventory") or {}
+        workload = next(
+            (
+                item
+                for item in runtime.get("resources", [])
+                if item.get("kind") == "Deployment"
+                and item.get("namespace") == "navigan-dashboard"
+                and item.get("name") == "navigan-dashboard-headlamp"
+            ),
+            {},
+        )
+        try:
+            runtime_unexpired = datetime.fromisoformat(runtime["expiresAt"].replace("Z", "+00:00")) > now
+        except (KeyError, AttributeError, TypeError, ValueError):
+            runtime_unexpired = False
+        healthy = (
+            component.get("version") == version
+            and component.get("status") == "READY"
+            and component.get("syncStatus") == "Synced"
+            and component.get("healthStatus") == "Healthy"
+            and self._fresh(component.get("observedAt"), now, after)
+            and runtime_unexpired
+            and self._fresh(runtime.get("observedAt"), now, after)
+            and workload.get("desired", 0) > 0
+            and workload.get("ready") == workload.get("desired")
+        )
+        return healthy, component
+
+    def _execute_headlamp(self, cluster_id, plan_id, action, body):
+        self.access.require("cluster.upgrade.execute")
+        plan = self.get(cluster_id, plan_id, lock=True)
+        self._checked_version(plan, body)
+        policy = (plan.get("readiness_evidence") or {}).get("executionPolicy") or {}
+        execution = dict(plan.get("execution") or {})
+        review = execution.get("compatibilityReview") or {}
+        if (
+            policy.get("adapter") != HeadlampGitOps.ADAPTER
+            or not self.recorded_approval_valid(plan)
+            or review.get("actorId") != plan.get("approved_by")
+            or review.get("adapter") != HeadlampGitOps.ADAPTER
+        ):
+            raise ApiError(
+                409,
+                "UTILITY_EXECUTION_REVIEW_REQUIRED",
+                "Reschedule and submit this plan for the Headlamp execution review. Previous planning-only approval cannot start an upgrade.",
+            )
+        now = utcnow()
+        starts = plan.get("scheduled_for")
+        if not starts or policy.get("durationMinutes") != HeadlampGitOps.DURATION:
+            raise ApiError(
+                409, "UTILITY_WINDOW_REQUIRED", "A reviewed Headlamp maintenance window is required."
+            )
+        ends = starts + timedelta(minutes=HeadlampGitOps.DURATION)
+        adapter = self._headlamp_adapter(cluster_id)
+        if action == "execute":
+            self._require_status(plan, {"APPROVED", "SCHEDULED"})
+            if not starts <= now < ends:
+                raise ApiError(
+                    409,
+                    "UTILITY_WINDOW_CLOSED",
+                    "The approved utility maintenance window is not open. Reschedule an overdue plan.",
+                )
+            if self.repo.get(cluster_id).get("status") != "ACTIVE":
+                raise ApiError(409, "UTILITY_CLUSTER_NOT_ACTIVE", "The cluster must be active.")
+            healthy, component = self._headlamp_health(cluster_id, plan["current_version"])
+            if not healthy:
+                raise ApiError(
+                    409,
+                    "UTILITY_EVIDENCE_REQUIRED",
+                    "Fresh healthy Headlamp workload and Argo evidence is required before execution.",
+                )
+            intent = adapter.prepare(policy, plan["target_version"], plan_id + ":" + str(plan["version"]))
+            execution.update(
+                {
+                    "phase": "GITOPS_PREPARED",
+                    "intent": intent,
+                    "preparedAt": now.isoformat(),
+                    "startedBy": self.access.user_id,
+                    "sourceRevision": component.get("sourceRevision"),
+                    "windowEndsAt": ends.isoformat(),
+                }
+            )
+            return self._transition(plan, "EXECUTING", "UtilityGitOpsPrepared", {"execution": execution})
+        self._require_status(plan, {"EXECUTING"})
+        intent = execution.get("intent")
+        if not isinstance(intent, dict) or not all(
+            isinstance(intent.get(key), str) and intent[key]
+            for key in ("commit", "baseCommit", "targetManifestHash")
+        ):
+            raise ApiError(
+                409,
+                "UTILITY_EXECUTION_INTENT_MISSING",
+                "The saved execution intent is incomplete; do not republish without review.",
+            )
+        publication = adapter.publication_state(policy, intent)
+        if publication == "UNPUBLISHED":
+            if not starts <= now < ends:
+                execution.update({"phase": "PUBLICATION_EXPIRED", "lastCheckedAt": now.isoformat()})
+                return self._transition(plan, "FAILED", "UtilityGitOpsWindowMissed", {"execution": execution})
+            healthy, _ = self._headlamp_health(cluster_id, plan["current_version"])
+            if not healthy or self.repo.get(cluster_id).get("status") != "ACTIVE":
+                raise ApiError(
+                    409,
+                    "UTILITY_EVIDENCE_REQUIRED",
+                    "Fresh healthy evidence is required before publishing the prepared commit.",
+                )
+            adapter.publish(intent, ends)
+            # Persist this separately from success verification. A timed-out write is
+            # recovered by checking the exact saved commit, never creating another.
+            execution.update(
+                {
+                    "phase": "WAITING_FOR_ARGO",
+                    "publishedAt": now.isoformat(),
+                    "lastCheckedAt": now.isoformat(),
+                }
+            )
+            return self._transition(plan, "EXECUTING", "UtilityGitOpsPublished", {"execution": execution})
+        if not execution.get("publishedAt"):
+            execution.update(
+                {
+                    "phase": "WAITING_FOR_ARGO",
+                    "publishedAt": now.isoformat(),
+                    "lastCheckedAt": now.isoformat(),
+                }
+            )
+            return self._transition(
+                plan, "EXECUTING", "UtilityGitOpsPublicationRecovered", {"execution": execution}
+            )
+        published = datetime.fromisoformat(execution["publishedAt"])
+        healthy, component = self._headlamp_health(cluster_id, plan["target_version"], published)
+        execution["lastCheckedAt"] = now.isoformat()
+        if healthy:
+            execution.update(
+                {
+                    "phase": "VERIFIED",
+                    "completedAt": now.isoformat(),
+                    "verifiedChartVersion": component["version"],
+                    "verification": "Fresh Synced/Healthy Argo observation and ready Headlamp deployment",
+                }
+            )
+            return self._transition(plan, "SUCCEEDED", "UtilityUpgradeVerified", {"execution": execution})
+        execution["phase"] = "VALIDATION_REQUIRED" if now >= ends else "WAITING_FOR_ARGO"
+        return self._transition(plan, "EXECUTING", "UtilityUpgradeObserved", {"execution": execution})
 
 
 def plan_service(repo, access, correlation, cluster_id, plan_id):

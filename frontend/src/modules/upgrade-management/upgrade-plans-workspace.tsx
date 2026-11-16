@@ -526,6 +526,10 @@ export function UpgradePlansWorkspace({
     },
   });
   const plan = selected?.plan;
+  const utilityPolicy =
+    plan?.kind === "UTILITY"
+      ? plan.utilityEvidence?.executionPolicy
+      : undefined;
   const iacReconciliation =
     plan &&
     typeof plan.execution.iacReconciliation === "object" &&
@@ -887,50 +891,60 @@ export function UpgradePlansWorkspace({
             <p>
               Times shown in {Intl.DateTimeFormat().resolvedOptions().timeZone}.
             </p>
-            {overdue && !plan.planSpec && (
-              <div className="upgrade-overdue-notice" role="alert">
-                <strong>Past due · schedule inactive</strong>
-                <p>
-                  The requested start time has passed. Approval is blocked. An
-                  authorized Cloud Engineer must choose a future schedule and
-                  resubmit.
-                </p>
-                {rescheduleBlocked && (
-                  <p className="upgrade-access-explanation">
-                    {rescheduleBlocked}
-                  </p>
-                )}
-                <>
-                  <label className="upgrade-live-field">
-                    <span>New maintenance start</span>
-                    <input
-                      type="datetime-local"
-                      aria-label="New maintenance start"
-                      ref={rescheduleRef}
-                      disabled={Boolean(rescheduleBlocked)}
-                      value={newSchedule}
-                      onChange={(event) => setNewSchedule(event.target.value)}
-                    />
-                  </label>
-                  <Button
-                    disabled={
-                      Boolean(rescheduleBlocked) ||
-                      action.isPending ||
-                      !newSchedule ||
-                      !Number.isFinite(new Date(newSchedule).getTime()) ||
-                      new Date(newSchedule).getTime() <= now
-                    }
-                    onClick={() => run("reschedule")}
-                  >
-                    Save new schedule
-                  </Button>
+            {(overdue ||
+              (plan.kind === "UTILITY" &&
+                ["DRAFT", "SUBMITTED", "APPROVED", "SCHEDULED"].includes(
+                  plan.status,
+                ))) &&
+              !plan.planSpec && (
+                <div className="upgrade-overdue-notice" role="alert">
+                  <strong>
+                    {overdue
+                      ? "Past due · schedule inactive"
+                      : "Revise maintenance start"}
+                  </strong>
                   <p>
-                    Saving returns the plan to Draft and clears the previous
-                    submission. Submit it again for Platform Architect approval.
+                    {plan.kind === "UTILITY"
+                      ? "Choose a future schedule and submit the plan for approval again. Saving a new schedule clears the previous approval."
+                      : "The requested start time has passed. Approval is blocked. An authorized Cloud Engineer must choose a future schedule and resubmit."}
                   </p>
-                </>
-              </div>
-            )}
+                  {rescheduleBlocked && (
+                    <p className="upgrade-access-explanation">
+                      {rescheduleBlocked}
+                    </p>
+                  )}
+                  <>
+                    <label className="upgrade-live-field">
+                      <span>New maintenance start</span>
+                      <input
+                        type="datetime-local"
+                        aria-label="New maintenance start"
+                        ref={rescheduleRef}
+                        disabled={Boolean(rescheduleBlocked)}
+                        value={newSchedule}
+                        onChange={(event) => setNewSchedule(event.target.value)}
+                      />
+                    </label>
+                    <Button
+                      disabled={
+                        Boolean(rescheduleBlocked) ||
+                        action.isPending ||
+                        !newSchedule ||
+                        !Number.isFinite(new Date(newSchedule).getTime()) ||
+                        new Date(newSchedule).getTime() <= now
+                      }
+                      onClick={() => run("reschedule")}
+                    >
+                      Save new schedule
+                    </Button>
+                    <p>
+                      Saving returns the plan to Draft and clears the previous
+                      submission and approval. Submit it again for Platform
+                      Architect approval.
+                    </p>
+                  </>
+                </div>
+              )}
             {plan.planSpec && ["DRAFT", "SUBMITTED"].includes(plan.status) && (
               <section className="upgrade-path-step">
                 <h3>
@@ -1016,9 +1030,26 @@ export function UpgradePlansWorkspace({
                   {plan.targetVersion}
                 </p>
                 <p>
-                  Approval records the reviewed request. Chart compatibility and
-                  GitOps execution are not enabled in this release.
+                  {utilityPolicy
+                    ? "Headlamp execution uses the reviewed 120-minute maintenance window. Approval must include a compatibility and recovery review. Starting prepares a durable Git commit; Publish prepared upgrade updates the registered branch and Argo reconciles it."
+                    : "This plan has planning-only evidence. Headlamp plans must be rescheduled and submitted for execution review before starting; other utility execution adapters are not enabled."}
                 </p>
+                {utilityPolicy && (
+                  <>
+                    <p>
+                      Reviewed package: Headlamp{" "}
+                      {utilityPolicy.artifact.chartVersion} · SHA256{" "}
+                      {utilityPolicy.artifact.sha256}
+                    </p>
+                    <p>
+                      Git branch: {utilityPolicy.snapshot.branch} · Reviewed
+                      commit: {utilityPolicy.snapshot.baseCommit}. Compatibility
+                      sign-off must cover the target release, existing values,
+                      Kubernetes version and recovery through a reviewed Git
+                      revert. Automatic rollback is not provided.
+                    </p>
+                  </>
+                )}
                 {plan.utilityEvidence?.gitOps && (
                   <p>
                     Repository checked when drafted:{" "}
@@ -1090,7 +1121,9 @@ export function UpgradePlansWorkspace({
             {canReviewSelected && (
               <label className="upgrade-live-field">
                 <span>
-                  Review comment (optional for approval; required for rejection)
+                  {utilityPolicy
+                    ? "Compatibility and recovery review (required for approval)"
+                    : "Review comment (optional for approval; required for rejection)"}
                 </span>
                 <textarea
                   aria-label="Review comment"
@@ -1204,7 +1237,10 @@ export function UpgradePlansWorkspace({
                     Reject with reason
                   </Button>
                   <Button
-                    disabled={action.isPending}
+                    disabled={
+                      action.isPending ||
+                      Boolean(utilityPolicy && reason.trim().length < 8)
+                    }
                     onClick={() => run("approve")}
                   >
                     {plan.createdBy === subject || plan.submittedBy === subject
@@ -1224,6 +1260,70 @@ export function UpgradePlansWorkspace({
                   >
                     Cancel plan
                   </Button>
+                )}
+              {["APPROVED", "SCHEDULED"].includes(plan.status) &&
+                plan.kind === "UTILITY" &&
+                utilityPolicy &&
+                canExecute &&
+                (executionWindow.state === "READY" ? (
+                  <>
+                    <p>
+                      Approved window closes {timeLabel(executionWindow.endsAt)}
+                      . Preparing does not publish the change.
+                    </p>
+                    {!confirmStart ? (
+                      <Button
+                        disabled={action.isPending}
+                        onClick={() => setConfirmStart(true)}
+                      >
+                        Start approved Headlamp upgrade
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          disabled={action.isPending}
+                          onClick={() => run("execute")}
+                        >
+                          Confirm prepare Headlamp upgrade
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => setConfirmStart(false)}
+                        >
+                          Go back
+                        </Button>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <p>
+                    Headlamp execution window:{" "}
+                    {timeLabel(executionWindow.startsAt)} —{" "}
+                    {timeLabel(executionWindow.endsAt)}.{" "}
+                    {executionWindow.state === "EXPIRED"
+                      ? "Reschedule and obtain approval again."
+                      : "Wait until the approved start."}
+                  </p>
+                ))}
+              {plan.kind === "UTILITY" &&
+                plan.status === "EXECUTING" &&
+                canExecute && (
+                  <>
+                    <Button
+                      disabled={action.isPending}
+                      onClick={() => run("refresh")}
+                    >
+                      {plan.execution.phase === "GITOPS_PREPARED"
+                        ? "Publish prepared upgrade"
+                        : "Refresh upgrade status"}
+                    </Button>
+                    <p>
+                      Each refresh checks the saved commit and fresh cluster
+                      evidence. A Git commit alone does not mark the upgrade
+                      successful. If validation fails, investigate Argo and use
+                      a reviewed desired-state revert.
+                    </p>
+                  </>
                 )}
               {["APPROVED", "SCHEDULED"].includes(plan.status) &&
                 canExecute &&

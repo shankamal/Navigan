@@ -452,6 +452,26 @@ export const eksUpgradePlanSchema = z
         observedAt: z.string().nullable(),
         source: z.string().optional(),
         compatibility: z.string().optional(),
+        executionPolicy: z
+          .object({
+            adapter: z.literal("HEADLAMP_045_TO_046_V1"),
+            durationMinutes: z.literal(120),
+            snapshot: z.object({
+              repositoryUrl: z.string(),
+              branch: z.string(),
+              baseCommit: z.string(),
+              manifestSha: z.string(),
+              valuesSha: z.string(),
+              manifestHash: z.string(),
+              valuesHash: z.string(),
+            }),
+            artifact: z.object({
+              chartVersion: z.string(),
+              applicationVersion: z.string(),
+              sha256: z.string(),
+            }),
+          })
+          .optional(),
         gitOps: z
           .object({
             status: z.literal("VERIFIED"),

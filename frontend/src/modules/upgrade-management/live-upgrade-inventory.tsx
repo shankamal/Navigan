@@ -733,8 +733,10 @@ export function UtilityInventory({
             </Button>
           </div>
           <small>
-            Saves a governed draft. Approval does not deploy; GitOps execution
-            is not enabled yet.
+            Saves a governed draft. Approval does not deploy. Submitting a
+            Headlamp 0.45.0 → 0.46.0 request prepares an execution review with a
+            120-minute window; a Cloud Engineer starts and publishes it manually
+            within that window.
           </small>
         </div>
 
