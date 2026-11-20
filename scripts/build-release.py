@@ -232,6 +232,13 @@ def build_image(component, source, directory, session, account, region, recipe, 
     try:
         if component == "frontend":
             proof = image_runtime_check(image, directory, env)
+        elif component == "cluster-connector":
+            common.run(
+                ["docker", "run", "--rm", "--network", "none", "--read-only",
+                 "--entrypoint", "python", image, "-B", "-c",
+                 'import os, agent; assert os.geteuid() == 10001, "Expected connector UID 10001"'],
+                directory, directory / "cluster-connector-smoke.log", env=env,
+            )
         common.run(["docker", "push", image], source, directory / (component + "-push.log"), env=env)
     finally:
         subprocess.run(["docker", "logout", expected.split("/", 1)[0]], env=env,
