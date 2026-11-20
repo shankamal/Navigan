@@ -68,6 +68,17 @@ def snapshot(row):
     }
 
 
+def plan_state_metadata(plan):
+    # Terraform's apply checks the refreshed prior snapshot. The previous-run
+    # snapshot in tfstate-prev intentionally omits the backend lineage and serial.
+    with zipfile.ZipFile(io.BytesIO(plan)) as archive:
+        state = json.loads(archive.read("tfstate"))
+    lineage, serial = state.get("lineage"), state.get("serial")
+    require(bool(lineage) and isinstance(serial, int),
+            "Compatibility plan has no authoritative Terraform state metadata.")
+    return lineage, serial
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
@@ -109,8 +120,7 @@ def main():
     created = verify_created_resources(aws.client("logs"), new_build, args.node_group)
     plan = artifact("terraform.tfplan")
     require(hashlib.sha256(plan).hexdigest() == result["planSha256"], "Saved compatibility plan hash mismatch.")
-    with zipfile.ZipFile(io.BytesIO(plan)) as archive:
-        prior = json.loads(archive.read("tfstate-prev"))
+    prior_lineage, prior_serial = plan_state_metadata(plan)
 
     db_arn = aws.client("rds").describe_db_clusters(
         DBClusterIdentifier="aws-infra-platform-db",
@@ -172,8 +182,10 @@ def main():
                 "Current desired state or Terraform binding differs from the validated input.")
         live = json.loads(s3.get_object(Bucket=state["bucket"], Key=state["key"],
                                        ExpectedBucketOwner=ACCOUNT)["Body"].read())
-        require(prior["lineage"] and live["lineage"] == prior["lineage"] and live["serial"] == prior["serial"],
-                "Terraform state changed after the compatibility plan. Regenerate the compatibility plan.")
+        require(live["lineage"] == prior_lineage,
+                "Live state lineage differs from the compatibility plan. Review the state binding before regenerating.")
+        require(live["serial"] == prior_serial,
+                f"Terraform state serial changed from {prior_serial} to {live['serial']}. Regenerate the compatibility plan.")
         if args.commit:
             actor = "aws:" + hashlib.sha256(identity["Arn"].encode()).hexdigest()
             require(query("""
@@ -200,11 +212,11 @@ def main():
                   old_value=json.dumps({"terraformModuleVersion": "1.0.0", "version": cluster["version"]}),
                   new_value=json.dumps({"terraformModuleVersion": "1.1.0", "version": updated["version"],
                                         "compatibilityBuild": args.compatibility_build, "requestId": args.request_id,
-                                        "stateSerial": prior["serial"]}))
+                                        "stateSerial": prior_serial}))
             api.commit_transaction(**db, transactionId=transaction)
             committed = True
         print(json.dumps({
-            "cluster": args.cluster_name, "creates": created, "stateSerial": prior["serial"],
+            "cluster": args.cluster_name, "creates": created, "stateSerial": prior_serial,
             "binding": "1.1.0" if committed else "1.0.0", "verifiedCandidate": "1.1.0",
             "bindingCommitted": committed,
         }, indent=2))
