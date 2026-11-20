@@ -838,12 +838,29 @@ class Service:
                 {"PLATFORM_ARCHITECT", "PLATFORM_ADMINISTRATOR"}
             ):
                 raise ApiError(403, "FORBIDDEN", "This operation is not permitted for your role.")
-            if request["status"] != "FAILED":
+            workflow = request["workflow"]
+            certification_failed = (
+                request["status"] == "PLAN_READY"
+                and workflow.get("certification", {}).get("status") == "FAILED"
+            )
+            if request["status"] != "FAILED" and not certification_failed:
                 raise ApiError(
                     409,
                     "INVALID_STATUS_TRANSITION",
-                    "Only a failed node-group request can be retried.",
+                    "Only a failed node-group request or a plan that failed certification can be retried.",
                 )
+            if certification_failed:
+                approved_by = workflow.get("approved", {}).get("by")
+                if not approved_by or approved_by == request["created_by"]:
+                    raise ApiError(
+                        403, "INDEPENDENT_REVIEW_REQUIRED",
+                        "An independent approval must be recorded before regenerating this plan.",
+                    )
+                if cluster["status"] != "ACTIVE":
+                    raise ApiError(
+                        409, "CLUSTER_NOT_READY",
+                        "The cluster must be active before regenerating the plan.",
+                    )
             _, snapshot = self.repo.pinned_environment_snapshot(
                 cluster["environment_id"], cluster["environment_approved_version"]
             )
@@ -856,8 +873,8 @@ class Service:
             request["execution_artifact_prefix"] = prefix
             request["plan_artifact_key"] = prefix + "/terraform.tfplan"
             request["plan_sha256"] = None
-            request["workflow"]["certification"] = {"status": "PENDING"}
-            request["workflow"]["currentExecution"] = {
+            workflow["certification"] = {"status": "PENDING"}
+            workflow["currentExecution"] = {
                 "mode": "plan",
                 "buildId": build_id,
                 "startedBy": self.principal.user_id,

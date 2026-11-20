@@ -680,6 +680,70 @@ def test_node_group_approval_plans_existing_and_proposed_groups():
     repo.pinned_environment_snapshot.assert_called_once_with("ENV-test", 7)
 
 
+def test_node_group_regenerates_plan_after_failed_certification():
+    row_to_retry = node_group_request_row("PLAN_READY")
+    approval = {"by": "architect", "at": "now"}
+    row_to_retry["workflow"] = {"approved": approval, "certification": {"status": "FAILED"}}
+    row_to_retry.update(plan_sha256="old-hash", provider_execution_id="old-build")
+    repo = repository("PLATFORM_ARCHITECT", row("ACTIVE"), "architect")
+    repo.get_node_group_request.return_value = row_to_retry
+    provisioner = MagicMock()
+    provisioner.start.return_value = ("new-build", "executions/node-group")
+    service = Service(repo, "correlation", provisioner)
+
+    with pytest.raises(ApiError) as error:
+        service.change_node_group_request("CLU-test", row_to_retry["request_id"], "apply", {"version": 1})
+    assert error.value.code == "PLAN_NOT_CERTIFIED"
+    provisioner.start.assert_not_called()
+
+    updated = service.change_node_group_request(
+        "CLU-test", row_to_retry["request_id"], "retry", {"version": 1}
+    )
+
+    assert updated["status"] == "PLAN_RUNNING"
+    assert updated["version"] == 2
+    assert updated["planSha256"] is None
+    assert updated["workflow"]["certification"] == {"status": "PENDING"}
+    assert updated["workflow"]["approved"] == approval
+    assert updated["workflow"]["currentExecution"]["retryOf"] == "old-build"
+    provisioner.start.assert_called_once()
+    assert provisioner.start.call_args.args[0] == "plan"
+    repo.record_node_group_request.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("status", "certification", "approver", "cluster_status", "role", "error_code"),
+    [
+        ("PLAN_READY", "PASSED", "architect", "ACTIVE", "PLATFORM_ARCHITECT", "INVALID_STATUS_TRANSITION"),
+        ("PLAN_READY", None, "architect", "ACTIVE", "PLATFORM_ARCHITECT", "INVALID_STATUS_TRANSITION"),
+        ("PLAN_RUNNING", "FAILED", "architect", "ACTIVE", "PLATFORM_ARCHITECT", "INVALID_STATUS_TRANSITION"),
+        ("PLAN_READY", "FAILED", None, "ACTIVE", "PLATFORM_ARCHITECT", "INDEPENDENT_REVIEW_REQUIRED"),
+        ("PLAN_READY", "FAILED", "engineer", "ACTIVE", "PLATFORM_ARCHITECT", "INDEPENDENT_REVIEW_REQUIRED"),
+        ("PLAN_READY", "FAILED", "architect", "DELETING", "PLATFORM_ARCHITECT", "CLUSTER_NOT_READY"),
+        ("PLAN_READY", "FAILED", "architect", "ACTIVE", "CLOUD_ENGINEER", "FORBIDDEN"),
+    ],
+)
+def test_node_group_regenerate_rejects_ineligible_request(
+    status, certification, approver, cluster_status, role, error_code
+):
+    row_to_retry = node_group_request_row(status)
+    row_to_retry["workflow"] = {"certification": {"status": certification}}
+    if approver:
+        row_to_retry["workflow"]["approved"] = {"by": approver}
+    repo = repository(role, row(cluster_status), "reviewer")
+    repo.get_node_group_request.return_value = row_to_retry
+    provisioner = MagicMock()
+
+    with pytest.raises(ApiError) as error:
+        Service(repo, "correlation", provisioner).change_node_group_request(
+            "CLU-test", row_to_retry["request_id"], "retry", {"version": 1}
+        )
+
+    assert error.value.code == error_code
+    provisioner.start.assert_not_called()
+    repo.save_node_group_request.assert_not_called()
+
+
 def test_system_node_group_migration_preserves_application_groups():
     cluster = row("ACTIVE")
     cluster["configuration"]["nodeGroups"].append(

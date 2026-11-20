@@ -4708,53 +4708,50 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {nodeGroupRequests.data.items.map((request) => (
-                      <tr key={request.requestId}>
-                        <td>
-                          <strong>{request.nodeGroup.name}</strong>
-                          <span className="metadata">{request.reason}</span>
-                        </td>
-                        <td>
-                          {request.nodeGroup.instanceTypes.join(", ")}
-                          <span className="metadata">
-                            {request.nodeGroup.capacityType}
-                          </span>
-                        </td>
-                        <td>
-                          {request.nodeGroup.minSize} /{" "}
-                          {request.nodeGroup.desiredSize} /{" "}
-                          {request.nodeGroup.maxSize}
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              "status-badge status-" +
-                              request.status.toLowerCase()
-                            }
-                          >
-                            {request.status.replaceAll("_", " ")}
-                          </span>
-                        </td>
-                        <td>
-                          {canRequestNodeGroup &&
-                            ["DRAFT", "REJECTED"].includes(request.status) && (
-                              <Button
-                                type="button"
-                                disabled={busy}
-                                onClick={() =>
-                                  actOnNodeGroup(
-                                    request.requestId,
-                                    request.version,
-                                    "submit",
-                                  )
-                                }
-                              >
-                                Submit
-                              </Button>
-                            )}
-                          {canReviewNodeGroup &&
-                            request.status === "SUBMITTED" && (
-                              <div className="node-group-request-actions">
+                    {nodeGroupRequests.data.items.map((request) => {
+                      const approvedBy = objectValue(
+                        request.workflow.approved,
+                      ).by;
+                      const canRegeneratePlan =
+                        row.status === "ACTIVE" &&
+                        request.status === "PLAN_READY" &&
+                        objectValue(request.workflow.certification).status ===
+                          "FAILED" &&
+                        typeof approvedBy === "string" &&
+                        Boolean(approvedBy) &&
+                        approvedBy !== request.createdBy;
+                      return (
+                        <tr key={request.requestId}>
+                          <td>
+                            <strong>{request.nodeGroup.name}</strong>
+                            <span className="metadata">{request.reason}</span>
+                          </td>
+                          <td>
+                            {request.nodeGroup.instanceTypes.join(", ")}
+                            <span className="metadata">
+                              {request.nodeGroup.capacityType}
+                            </span>
+                          </td>
+                          <td>
+                            {request.nodeGroup.minSize} /{" "}
+                            {request.nodeGroup.desiredSize} /{" "}
+                            {request.nodeGroup.maxSize}
+                          </td>
+                          <td>
+                            <span
+                              className={
+                                "status-badge status-" +
+                                request.status.toLowerCase()
+                              }
+                            >
+                              {request.status.replaceAll("_", " ")}
+                            </span>
+                          </td>
+                          <td>
+                            {canRequestNodeGroup &&
+                              ["DRAFT", "REJECTED"].includes(
+                                request.status,
+                              ) && (
                                 <Button
                                   type="button"
                                   disabled={busy}
@@ -4762,67 +4759,88 @@ export function ClusterRequestPage({ id }: { id: string }) {
                                     actOnNodeGroup(
                                       request.requestId,
                                       request.version,
-                                      "approve",
+                                      "submit",
                                     )
                                   }
                                 >
-                                  Approve
+                                  Submit
                                 </Button>
+                              )}
+                            {canReviewNodeGroup &&
+                              request.status === "SUBMITTED" && (
+                                <div className="node-group-request-actions">
+                                  <Button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      actOnNodeGroup(
+                                        request.requestId,
+                                        request.version,
+                                        "approve",
+                                      )
+                                    }
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      actOnNodeGroup(
+                                        request.requestId,
+                                        request.version,
+                                        "reject",
+                                      )
+                                    }
+                                  >
+                                    Reject
+                                  </Button>
+                                </div>
+                              )}
+                            {canReviewNodeGroup &&
+                              request.status === "PLAN_READY" && (
                                 <Button
                                   type="button"
-                                  variant="secondary"
+                                  disabled={
+                                    busy ||
+                                    objectValue(request.workflow.certification)
+                                      .status !== "PASSED"
+                                  }
+                                  onClick={() =>
+                                    actOnNodeGroup(
+                                      request.requestId,
+                                      request.version,
+                                      "apply",
+                                    )
+                                  }
+                                >
+                                  Apply plan
+                                </Button>
+                              )}
+                            {canReviewNodeGroup &&
+                              (request.status === "FAILED" ||
+                                canRegeneratePlan) && (
+                                <Button
+                                  type="button"
                                   disabled={busy}
                                   onClick={() =>
                                     actOnNodeGroup(
                                       request.requestId,
                                       request.version,
-                                      "reject",
+                                      "retry",
                                     )
                                   }
                                 >
-                                  Reject
+                                  {canRegeneratePlan
+                                    ? "Regenerate plan"
+                                    : "Retry plan"}
                                 </Button>
-                              </div>
-                            )}
-                          {canReviewNodeGroup &&
-                            request.status === "PLAN_READY" && (
-                              <Button
-                                type="button"
-                                disabled={
-                                  busy ||
-                                  objectValue(request.workflow.certification)
-                                    .status !== "PASSED"
-                                }
-                                onClick={() =>
-                                  actOnNodeGroup(
-                                    request.requestId,
-                                    request.version,
-                                    "apply",
-                                  )
-                                }
-                              >
-                                Apply plan
-                              </Button>
-                            )}
-                          {canReviewNodeGroup &&
-                            request.status === "FAILED" && (
-                              <Button
-                                type="button"
-                                disabled={busy}
-                                onClick={() =>
-                                  actOnNodeGroup(
-                                    request.requestId,
-                                    request.version,
-                                    "retry",
-                                  )
-                                }
-                              >
-                                Retry plan
-                              </Button>
-                            )}
-                        </td>
-                      </tr>
-                    ))}
+                              )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

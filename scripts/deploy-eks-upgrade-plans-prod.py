@@ -32,6 +32,8 @@ BASELINE_TREE = "64be8680772f165939d738a0d7dd9abaf60341e4"
 # Keep all deployed modules pinned together before replacing scoped plan code.
 DEPLOYED_PLAN_TREE = "a8d572439b8f5097a48a86c442955afafd19f097"
 DEPLOYED_UTILITY_TREE = "82deeec6bc0e2663420537462712bfe850b358bd"
+NODE_GROUP_RETRY_BASELINE = "9b23deff8a42c06e3d7fb0589d9598b0a5a17213"
+CLUSTER_SERVICE = "navigan/modules/cluster_management/service.py"
 FORMAT = "navigan-eks-upgrade-plans-prod-v1"
 UTILITY_YAML_URL = "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 UTILITY_YAML_SHA = "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476"
@@ -293,7 +295,7 @@ def scoped_handler_target(source):
     return replace_once(source, repository_summary, deployed_summary, "target summary route order")
 
 
-def check_checkout(expected_branch):
+def check_checkout(expected_branch, *, node_group_retry_only=False):
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
     require(branch == expected_branch, f"Check out the exact release source branch {expected_branch}")
     paths = [
@@ -308,6 +310,8 @@ def check_checkout(expected_branch):
         "src/navigan/modules/cluster_management/upgrade_actors.py",
         "infrastructure/modules/cluster-management/template.yaml",
     ]
+    if node_group_retry_only:
+        paths = ["scripts/deploy-eks-upgrade-plans-prod.py", "src/" + CLUSTER_SERVICE]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
     require(not dirty.strip(), "Commit the reviewed EKS upgrade-plan release sources first")
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -376,6 +380,55 @@ def package_utilities(original, destination, yaml_dependency=None):
     with zipfile.ZipFile(destination) as new:
         require(set(new.namelist()) == set(preserved) | set(replacements) | set(dependencies), "Unexpected utility package members")
         require(all(digest(new.read(name)) == sha for name, sha in preserved.items()), "Unrelated production module changed")
+        require(sum(item.file_size for item in new.infolist()) <= 250 * 1024 * 1024, "Updated ClusterFunction package is too large")
+    return destination
+
+
+def node_group_request_method(source):
+    methods = [
+        method
+        for node in ast.parse(source).body
+        if isinstance(node, ast.ClassDef) and node.name == "Service"
+        for method in node.body
+        if isinstance(method, ast.FunctionDef) and method.name == "change_node_group_request"
+    ]
+    require(len(methods) == 1 and not methods[0].decorator_list, "Unexpected node-group service structure")
+    return methods[0]
+
+
+def package_node_group_retry(original, destination, revision):
+    """Replace the reviewed node-group method while retaining the live service module."""
+    path = "src/" + CLUSTER_SERVICE
+    baseline = node_group_request_method(git_source(NODE_GROUP_RETRY_BASELINE, path))
+    target = git_source(revision, path)
+    target_method = node_group_request_method(target)
+    require(ast.dump(target_method) != ast.dump(baseline), "Node-group retry source has no change")
+    with zipfile.ZipFile(original) as old:
+        names = old.namelist()
+        require(len(names) == len(set(names)), "Duplicate ZIP members rejected")
+        require(CLUSTER_SERVICE in names, "ClusterFunction service module is missing")
+        live = old.read(CLUSTER_SERVICE)
+        live_method = node_group_request_method(live)
+        require(ast.dump(live_method) == ast.dump(baseline), "Live node-group method differs from the reviewed baseline")
+        replacement = b"".join(target.splitlines(keepends=True)[target_method.lineno - 1 : target_method.end_lineno])
+        lines = live.splitlines(keepends=True)
+        updated = b"".join(lines[: live_method.lineno - 1]) + replacement + b"".join(lines[live_method.end_lineno :])
+        require(ast.dump(node_group_request_method(updated)) == ast.dump(target_method), "Node-group method transplant changed semantics")
+        direct_cache = str(Path(CLUSTER_SERVICE).with_suffix(".pyc"))
+        cache_prefix = str(Path(CLUSTER_SERVICE).parent / "__pycache__" / "service.")
+        retained = [
+            entry for entry in old.infolist()
+            if entry.filename not in {CLUSTER_SERVICE, direct_cache}
+            and not (entry.filename.startswith(cache_prefix) and entry.filename.endswith(".pyc"))
+        ]
+        preserved = {entry.filename: digest(old.read(entry)) for entry in retained}
+        with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as new:
+            for entry in retained:
+                new.writestr(entry, old.read(entry))
+            new.writestr(CLUSTER_SERVICE, updated)
+    with zipfile.ZipFile(destination) as new:
+        require(set(new.namelist()) == set(preserved) | {CLUSTER_SERVICE}, "Unexpected node-group package members")
+        require(all(digest(new.read(name)) == checksum for name, checksum in preserved.items()), "Unrelated production module changed")
         require(sum(item.file_size for item in new.infolist()) <= 250 * 1024 * 1024, "Updated ClusterFunction package is too large")
     return destination
 
@@ -639,7 +692,7 @@ def signature(record):
     }
 
 
-def prepare(session, revision, *, utilities_only=False):
+def prepare(session, revision, *, utilities_only=False, node_group_retry_only=False):
     parent, root, record = preflight(session)
     workspace = support.storage.verify_storage(session, "artifact-workspace")
     directory = Path(tempfile.mkdtemp(prefix="navigan-prod-eks-plans-"))
@@ -656,16 +709,24 @@ def prepare(session, revision, *, utilities_only=False):
     require(
         code_hash(original.read_bytes()) == record["oldSha"], "Original ClusterFunction checksum mismatch"
     )
-    if utilities_only:
-        require(all(record["planRoutePresence"].values()), "Utilities-only release requires existing protected upgrade routes")
+    if utilities_only or node_group_retry_only:
+        require(all(record["planRoutePresence"].values()), "Code-only release requires existing protected upgrade routes")
     yaml_dependency = None
-    with zipfile.ZipFile(original) as captured:
-        yaml_present = "yaml/__init__.py" in captured.namelist()
-    require(utilities_only or yaml_present, "Use --utilities-only to add the pinned utility dependency without replacing EKS modules")
-    if utilities_only and not yaml_present:
-        require(deployed["Configuration"].get("Runtime") == "python3.12" and deployed["Configuration"].get("Architectures", ["x86_64"]) == ["x86_64"], "Pinned utility dependency requires the reviewed Python 3.12 x86_64 Lambda")
-        yaml_dependency = utility_yaml_dependency()
-    updated = package(original, directory / "ClusterFunction-updated.zip", utilities_only=utilities_only, yaml_dependency=yaml_dependency)
+    destination = directory / "ClusterFunction-updated.zip"
+    if node_group_retry_only:
+        scope = "NODE_GROUP_RETRY_ONLY"
+        label = "Node-group retry PROD API release"
+        updated = package_node_group_retry(original, destination, revision)
+    else:
+        scope = "UTILITIES_ONLY" if utilities_only else "EKS_PLANS"
+        label = "Utilities-only PROD API release" if utilities_only else "Scoped PROD EKS plan API release"
+        with zipfile.ZipFile(original) as captured:
+            yaml_present = "yaml/__init__.py" in captured.namelist()
+        require(utilities_only or yaml_present, "Use --utilities-only to add the pinned utility dependency without replacing EKS modules")
+        if utilities_only and not yaml_present:
+            require(deployed["Configuration"].get("Runtime") == "python3.12" and deployed["Configuration"].get("Architectures", ["x86_64"]) == ["x86_64"], "Pinned utility dependency requires the reviewed Python 3.12 x86_64 Lambda")
+            yaml_dependency = utility_yaml_dependency()
+        updated = package(original, destination, utilities_only=utilities_only, yaml_dependency=yaml_dependency)
     code, _ = support.upload(session, workspace, directory, "eks-upgrade-plans.zip", updated.read_bytes())
     child = proposed_child(record, code)
     _, child_url = support.upload(
@@ -713,14 +774,13 @@ def prepare(session, revision, *, utilities_only=False):
             "account": ACCOUNT,
             "region": REGION,
             "revision": revision,
-            "releaseScope": "UTILITIES_ONLY" if utilities_only else "EKS_PLANS",
+            "releaseScope": scope,
             "utilityDependencies": {"PyYAML": {"version": "6.0.2", "sha256": UTILITY_YAML_SHA}} if yaml_dependency else {},
             "parentStamp": base.stamp(parent),
             "changeSet": identifier,
             "release": saved,
         },
     )
-    label = "Utilities-only PROD API release" if utilities_only else "Scoped PROD EKS plan API release"
     print(label + " prepared; NOT executed. Release plan: " + str(plan))
 
 
@@ -732,9 +792,10 @@ def execute(session, plan_path):
     )
     parent, _, current = preflight(session)
     saved = plan["release"]
-    require(plan.get("releaseScope", "EKS_PLANS") in {"EKS_PLANS", "UTILITIES_ONLY"}, "Unknown backend release scope")
-    if plan.get("releaseScope") == "UTILITIES_ONLY":
-        require(all(saved["planRoutePresence"].values()), "Utilities-only release cannot add routes")
+    scope = plan.get("releaseScope", "EKS_PLANS")
+    require(scope in {"EKS_PLANS", "UTILITIES_ONLY", "NODE_GROUP_RETRY_ONLY"}, "Unknown backend release scope")
+    if scope != "EKS_PLANS":
+        require(all(saved["planRoutePresence"].values()), "Code-only release cannot add routes")
     require(base.stamp(parent) == plan["parentStamp"], "Production parent stack changed; prepare again")
     require(
         signature(current) == {key: saved[key] for key in signature(current)},
@@ -750,7 +811,9 @@ def execute(session, plan_path):
     _, _, deployed = preflight(session)
     require(deployed["oldSha"] == saved["newSha"], "Deployed ClusterFunction checksum differs")
     require(all(deployed["planRoutePresence"].values()), "Protected upgrade-plan routes were not deployed")
-    if plan.get("releaseScope") == "UTILITIES_ONLY":
+    if scope == "NODE_GROUP_RETRY_ONLY":
+        print("PROD node-group retry API deployed and verified. No Terraform plan or apply was started.")
+    elif scope == "UTILITIES_ONLY":
         print("PROD utility planning API deployed and verified. No utility upgrade was started.")
     else:
         print("PROD governed EKS upgrade-plan API deployed and verified. No EKS upgrade was started.")
@@ -760,16 +823,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="navigan")
     parser.add_argument("--source-branch", default="feature/eks-upgrade-readiness")
-    parser.add_argument("--utilities-only", action="store_true", help="Preserve deployed EKS modules; replace only utility planning modules")
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument("--utilities-only", action="store_true", help="Replace only utility planning modules")
+    scope.add_argument("--node-group-retry-only", action="store_true", help="Replace only the node-group request method")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--execute", type=Path, metavar="PLAN")
     args = parser.parse_args()
-    revision = check_checkout(args.source_branch)
+    revision = check_checkout(args.source_branch, node_group_retry_only=args.node_group_retry_only)
     session = boto3.Session(profile_name=args.profile, region_name=REGION)
     require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Wrong AWS account")
-    require(not (args.execute and args.utilities_only), "Execution uses the scope saved in the release plan; omit --utilities-only")
-    execute(session, args.execute) if args.execute else prepare(session, revision, utilities_only=args.utilities_only)
+    require(not (args.execute and (args.utilities_only or args.node_group_retry_only)), "Execution uses the scope saved in the release plan; omit the scope flag")
+    if args.execute:
+        execute(session, args.execute)
+    else:
+        prepare(session, revision, utilities_only=args.utilities_only, node_group_retry_only=args.node_group_retry_only)
 
 
 if __name__ == "__main__":

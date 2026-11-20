@@ -1,4 +1,5 @@
 import importlib.util
+import ast
 import json
 from pathlib import Path
 import subprocess
@@ -27,6 +28,62 @@ def test_release_guard_is_pinned_to_last_confirmed_deployed_backend():
         release.DEPLOYED_PLAN_TREE
         == "a8d572439b8f5097a48a86c442955afafd19f097"
     )
+
+
+def test_node_group_retry_release_preserves_live_service_and_dependencies(tmp_path, monkeypatch):
+    release = load_release()
+    module = release.CLUSTER_SERVICE
+    service_path = "src/" + module
+    original_service = baseline(release.NODE_GROUP_RETRY_BASELINE, service_path)
+    deployed_service = original_service + b"\n# Production-only helper\ndef helper():\n    return 42\n"
+    target_method = (ROOT / service_path).read_bytes()
+    git_source = release.git_source
+    monkeypatch.setattr(
+        release, "git_source",
+        lambda revision, path: target_method if revision == "reviewed" and path == service_path else git_source(revision, path),
+    )
+    original = tmp_path / "old.zip"
+    destination = tmp_path / "new.zip"
+    prefix = module.rsplit("/", 1)[0] + "/"
+    with zipfile.ZipFile(original, "w") as package:
+        package.writestr(module, deployed_service)
+        package.writestr(prefix + "handler.py", b"# keep the live handler")
+        package.writestr(prefix + "__pycache__/service.cpython-312.pyc", b"old bytecode")
+        package.writestr(prefix + "__pycache__/handler.cpython-312.pyc", b"keep handler bytecode")
+
+    release.package_node_group_retry(original, destination, "reviewed")
+
+    with zipfile.ZipFile(destination) as package:
+        updated = package.read(module)
+        assert ast.dump(release.node_group_request_method(updated)) == ast.dump(
+            release.node_group_request_method(target_method)
+        )
+        start = release.node_group_request_method(deployed_service).lineno - 1
+        assert updated.splitlines()[:start] == deployed_service.splitlines()[:start]
+        assert updated.endswith(b"\n# Production-only helper\ndef helper():\n    return 42\n")
+        assert package.read(prefix + "handler.py") == b"# keep the live handler"
+        assert package.read(prefix + "__pycache__/handler.cpython-312.pyc") == b"keep handler bytecode"
+        assert prefix + "__pycache__/service.cpython-312.pyc" not in package.namelist()
+
+
+def test_node_group_retry_release_rejects_unreviewed_live_method(tmp_path, monkeypatch):
+    release = load_release()
+    module = release.CLUSTER_SERVICE
+    path = "src/" + module
+    original_service = baseline(release.NODE_GROUP_RETRY_BASELINE, path)
+    target_method = (ROOT / path).read_bytes()
+    monkeypatch.setattr(
+        release, "git_source",
+        lambda revision, _: target_method if revision == "reviewed" else original_service,
+    )
+    original = tmp_path / "old.zip"
+    with zipfile.ZipFile(original, "w") as package:
+        package.writestr(module, original_service.replace(
+            b"Only a failed node-group request can be retried.", b"A different live retry rule.",
+        ))
+
+    with pytest.raises(RuntimeError, match="Live node-group method differs"):
+        release.package_node_group_retry(original, tmp_path / "new.zip", "reviewed")
 
 
 def test_execution_policy_is_limited_to_required_eks_resources():
