@@ -636,7 +636,7 @@ def test_runtime_inventory_reports_bounded_cluster_health(monkeypatch):
     ]
     paths = []
 
-    def request(path):
+    def request(path, **_kwargs):
         paths.append(path)
         return responses.pop(0) if responses else {}
 
@@ -726,6 +726,8 @@ def test_runtime_inventory_reports_node_scheduling_observations(monkeypatch):
 
 def test_runtime_inventory_reports_only_verified_api_discovery(monkeypatch):
     def request(path, *_args, **_kwargs):
+        if path in {"/api", "/apis"}:
+            raise RuntimeError("API aggregation unavailable")
         if path == "/api/v1":
             return {"groupVersion": "v1", "resources": []}
         if path == "/apis/apps/v1":
@@ -736,6 +738,52 @@ def test_runtime_inventory_reports_only_verified_api_discovery(monkeypatch):
     metrics = agent.runtime_inventory()["metrics"]
     assert metrics["apiDiscoveryCoreV1"] == 1
     assert metrics["apiDiscoveryAppsV1"] == 0
+    assert not any(key.startswith(("apiVersion:", "apiKind:")) for key in metrics)
+
+
+def test_runtime_inventory_collects_current_aggregated_api_resources(monkeypatch):
+    def version(*resources, freshness="Current"):
+        return {"version": "v1", "freshness": freshness, "resources": list(resources)}
+
+    core = [{"metadata": {}, "versions": [version(
+        {"resource": "namespaces", "responseKind": {"version": "v1", "kind": "Namespace"}},
+    )]}]
+    grouped = [
+        {"metadata": {"name": "batch"}, "versions": [version(
+            {"resource": "cronjobs", "responseKind": {"group": "batch", "version": "v1", "kind": "CronJob"}},
+            {"resource": "cronjobs/status", "responseKind": {"kind": "Status"}},
+            {"resource": "misreported", "responseKind": {"group": "other", "kind": "Misreported"}},
+        )]},
+        {"metadata": {"name": "networking.k8s.io"}, "versions": [version(
+            {"resource": "ingresses", "responseKind": {"kind": "Ingress"}},
+        )]},
+        {"metadata": {"name": "workflows.example.com"}, "versions": [version(
+            {"resource": "pipelines", "responseKind": {"kind": "Pipeline"}},
+        )]},
+        {"metadata": {"name": "stale.example.com"}, "versions": [version(
+            {"resource": "oldthings", "responseKind": {"kind": "OldThing"}},
+            freshness="Stale",
+        )]},
+    ]
+
+    def request(path, **kwargs):
+        if path in {"/api", "/apis"}:
+            assert kwargs["accept"] == agent.AGGREGATED_DISCOVERY_TYPE
+            return {"kind": "APIGroupDiscoveryList", "apiVersion": "apidiscovery.k8s.io/v2",
+                    "items": core if path == "/api" else grouped}
+        return {"items": []}
+
+    monkeypatch.setattr(agent, "kubernetes_request", request)
+    metrics = agent.runtime_inventory()["metrics"]
+    assert {key for key in metrics if key.startswith(("apiVersion:", "apiKind:"))} == {
+        "apiVersion:v1", "apiKind:v1:Namespace",
+        "apiVersion:batch/v1", "apiKind:batch/v1:CronJob",
+        "apiVersion:networking.k8s.io/v1", "apiKind:networking.k8s.io/v1:Ingress",
+        "apiVersion:workflows.example.com/v1", "apiKind:workflows.example.com/v1:Pipeline",
+    }
+
+    monkeypatch.setattr(agent, "MAX_API_DISCOVERY_METRICS", 2)
+    assert set(agent.aggregated_api_discovery()) == {"apiVersion:v1", "apiKind:v1:Namespace"}
 
 
 def test_runtime_inventory_discovers_storage_resources_without_claiming_readiness(monkeypatch):
