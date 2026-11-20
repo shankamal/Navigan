@@ -166,6 +166,54 @@ def assumed_clients(request, baseline, external_id):
     }
 
 
+def addon_configuration_properties(schema, node):
+    reference = node.get("$ref", "")
+    if reference.startswith("#/"):
+        node = schema
+        for key in reference[2:].split("/"):
+            node = node.get(key, {})
+    return node.get("properties", {})
+
+
+def preflight_ebs_csi(request, baseline, clients, account_id):
+    ebs_csi = request["configuration"].get("ebsCsi")
+    if ebs_csi is None or request["mode"] not in {"plan", "apply"}:
+        return
+    approved = baseline.get("extensions", {}).get("provisioningContract", {}).get("ebsCsi") or {}
+    if ebs_csi != {**approved, "podIdentityAgentVersion": approved.get("podIdentityAgentVersion")}:
+        raise ValueError("EBS CSI configuration differs from the approved environment.")
+    role = ebs_csi["controllerRoleArn"]
+    reserved_roles = {baseline["iam"][key]["roleArn"] for key in ("clusterRole", "nodeRole")}
+    if f"::{account_id}:role/" not in role or role in reserved_roles | {request["provisioningRoleArn"]}:
+        raise ValueError("EBS CSI requires a dedicated controller role in the approved AWS account.")
+    observed_role = clients["iam"].get_role(RoleName=role.rsplit("/", 1)[-1])["Role"]["Arn"]
+    if observed_role != role:
+        raise ValueError("EBS CSI controller IAM role differs from the approved role.")
+    if ebs_csi["podIdentityAgentVersion"] is None:
+        agent = clients["eks"].describe_addon(
+            clusterName=request["clusterName"], addonName="eks-pod-identity-agent",
+        )["addon"]
+        if agent["status"] != "ACTIVE" or (agent.get("health", {}).get("issues") or []):
+            raise ValueError("The existing EKS Pod Identity Agent is not healthy.")
+    versions = clients["eks"].get_paginator("describe_addon_versions")
+    for addon, version in (
+        ("aws-ebs-csi-driver", ebs_csi["addonVersion"]),
+        ("eks-pod-identity-agent", ebs_csi["podIdentityAgentVersion"]),
+    ):
+        if version is None:
+            continue
+        pages = versions.paginate(addonName=addon, kubernetesVersion=request["configuration"]["kubernetesVersion"])
+        if not any(item["addonVersion"] == version for page in pages
+                   for found in page["addons"] for item in found["addonVersions"]):
+            raise ValueError(f"{addon} has no compatible approved add-on version.")
+    schema = json.loads(clients["eks"].describe_addon_configuration(
+        addonName="aws-ebs-csi-driver", addonVersion=ebs_csi["addonVersion"],
+    )["configurationSchema"])
+    controller = addon_configuration_properties(schema, schema).get("controller", {})
+    if "tolerations" not in addon_configuration_properties(schema, controller):
+        raise ValueError("The approved EBS CSI add-on version cannot tolerate the protected system node taint.")
+
+
 def preflight(request, baseline, external_id):
     clients = assumed_clients(request, baseline, external_id)
     account_id = clients["sts"].get_caller_identity()["Account"]
@@ -196,6 +244,7 @@ def preflight(request, baseline, external_id):
         raise ValueError("Approved security groups are unavailable or belong to another VPC.")
     for role in (baseline["iam"]["clusterRole"]["roleArn"], baseline["iam"]["nodeRole"]["roleArn"]):
         clients["iam"].get_role(RoleName=role.rsplit("/", 1)[-1])
+    preflight_ebs_csi(request, baseline, clients, account_id)
     for key_name in ("nodeVolumeKmsKey", "clusterSecretsKmsKey"):
         key_arn = baseline.get("encryption", {}).get(key_name, {}).get("keyArn")
         if key_arn:
@@ -204,14 +253,22 @@ def preflight(request, baseline, external_id):
                 raise ValueError("Approved KMS key is not enabled for encryption.")
 
 
+def verify_module_version(request, packaged_version):
+    requested_version = request["terraformModuleVersion"]
+    ebs_csi_enabled = request["configuration"].get("ebsCsi") is not None
+    if ebs_csi_enabled and (requested_version, packaged_version) != ("1.1.0", "1.1.0"):
+        raise ValueError("EBS CSI requires EKS Terraform module 1.1.0.")
+    if requested_version != packaged_version and (requested_version, packaged_version) != ("1.0.0", "1.1.0"):
+        raise ValueError("Requested Terraform module version is not packaged in this runner.")
+
+
 try:
     request = json.loads(s3.get_object(Bucket=bucket, Key=input_key)["Body"].read())
     normalize_request_identity(request)
     if request["platform"] != "EKS":
         raise ValueError("Only EKS is supported by this runner image.")
     packaged_version = pathlib.Path("/app/module-version").read_text().strip()
-    if request["terraformModuleVersion"] != packaged_version:
-        raise ValueError("Requested Terraform module version is not packaged in this runner.")
+    verify_module_version(request, packaged_version)
     source = pathlib.Path("/app/modules/aws-eks")
     for item in source.iterdir():
         (work / item.name).write_bytes(item.read_bytes())
@@ -267,6 +324,7 @@ try:
             }
             for index, group in enumerate(request["configuration"]["nodeGroups"])
         ],
+        "ebs_csi": request["configuration"].get("ebsCsi"),
         "tags": {
             **baseline["tags"], **request["configuration"].get("tags", {}),
             "ManagedBy": "Navigan", "NaviganClusterId": request["clusterId"],

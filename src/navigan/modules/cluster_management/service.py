@@ -5,7 +5,9 @@ import os
 import secrets
 import uuid
 from datetime import datetime, timezone
+from pydantic import ValidationError
 from navigan.shared.errors import ApiError
+from .models import EbsCsiConfiguration
 from .repository import serialize
 from .provisioning import Provisioner
 from .github_app import GitHubApp
@@ -78,6 +80,24 @@ class Service:
             if isinstance(baseline.get("extensions"), dict)
             else {}
         )
+        ebs_csi = None
+        if body.get("enableEbsCsi"):
+            try:
+                ebs_csi = EbsCsiConfiguration.model_validate(contract.get("ebsCsi"))
+            except ValidationError:
+                raise ApiError(422, "EBS_CSI_NOT_APPROVED",
+                               "The approved environment must define EBS CSI versions and a dedicated controller role.") from None
+            reserved_roles = {
+                baseline.get("iam", {}).get(key, {}).get("roleArn")
+                for key in ("clusterRole", "nodeRole")
+            } | {body["provisioningRoleArn"]}
+            if (f"::{account_id}:role/" not in ebs_csi.controllerRoleArn
+                    or ebs_csi.controllerRoleArn in reserved_roles):
+                raise ApiError(422, "EBS_CSI_CONTROLLER_ROLE_INVALID",
+                               "The EBS CSI controller needs a dedicated role in the approved AWS account.")
+            if ebs_csi.podIdentityAgentVersion is None:
+                raise ApiError(422, "EBS_CSI_POD_IDENTITY_AGENT_REQUIRED",
+                               "A new cluster requires an approved EKS Pod Identity Agent add-on version.")
         if len(default_blueprints) > 1 or (
             len(approved_blueprints) > 1 and not default_blueprints
         ):
@@ -207,6 +227,7 @@ class Service:
             "kubernetesVersion": body["kubernetesVersion"],
             "endpointAccess": body["endpointAccess"],
             "nodeGroups": [system_group],
+            **({"ebsCsi": ebs_csi.model_dump()} if ebs_csi is not None else {}),
             "platformBaseline": {
                 "status": "PENDING",
                 "installationMode": "AUTOMATIC",
@@ -259,7 +280,7 @@ class Service:
             "configuration": configuration,
             "provisioning_role_arn": body["provisioningRoleArn"],
             "external_id_secret_arn": body["externalIdSecretArn"],
-            "terraform_module_version": "1.0.0",
+            "terraform_module_version": "1.1.0" if ebs_csi is not None else "1.0.0",
             "terraform_state_key": (
                 f"customers/{environment['customer_id']}/environments/"
                 f"{environment['environment_id']}/clusters/{body['clusterName']}/terraform.tfstate"

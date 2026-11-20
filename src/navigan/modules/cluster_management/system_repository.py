@@ -36,6 +36,7 @@ def render_system_repository(
     api_base_url,
     tools_base_url="",
     revision="main",
+    enable_ebs_csi=False,
 ):
     registry, connector_repository, connector_digest = connector_artifact(
         connector_image
@@ -60,7 +61,11 @@ def render_system_repository(
     root = files(__package__).joinpath("system_repo_template")
     rendered = {}
     for resource in root.iterdir():
+        if resource.name == "storage-classes" and not enable_ebs_csi:
+            continue
         _render_tree(resource, resource.name, replacements, rendered)
+    if not enable_ebs_csi:
+        rendered.pop("applications/25-ebs-storage.yaml", None)
     return rendered
 
 
