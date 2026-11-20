@@ -45,6 +45,17 @@ class ClusterBlueprint(Model):
     provisioning: Provisioning
 
 
+class EbsCsiConfiguration(Model):
+    addonVersion: str = Field(pattern=r"^v[0-9]+\.[0-9]+\.[0-9]+-eksbuild\.[0-9]+$")
+    podIdentityAgentVersion: str | None = Field(
+        default=None, pattern=r"^v[0-9]+\.[0-9]+\.[0-9]+-eksbuild\.[0-9]+$",
+    )
+    controllerRoleArn: str = Field(
+        pattern=r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$",
+        max_length=2048,
+    )
+
+
 class CreateCluster(Model):
     environmentId: str = Field(pattern=r"^ENV-[A-Za-z0-9-]+$", max_length=50)
     environmentApprovedVersion: int | None = Field(default=None, gt=0)
@@ -53,6 +64,7 @@ class CreateCluster(Model):
     kubernetesVersion: str = Field(pattern=r"^1\.[0-9]{2}$")
     endpointAccess: Literal["PRIVATE", "PUBLIC_AND_PRIVATE"] = "PRIVATE"
     nodeGroups: list[NodeGroup] = Field(min_length=1, max_length=20)
+    enableEbsCsi: bool = False
     provisioningRoleArn: str = Field(
         pattern=r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*NaviganProvisioningRole$",
         max_length=2048,

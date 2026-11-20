@@ -478,6 +478,36 @@ def test_create_owns_configuration_and_provisioning_on_cluster_request():
     assert "connector" in created["configuration"]["platformBaseline"]["components"]
     assert created["provisioningRoleArn"].endswith("NaviganProvisioningRole")
     assert created["externalIdSecretArn"] == provisioning_configuration()["externalIdSecretArn"]
+    assert "ebsCsi" not in created["configuration"]
+
+
+@pytest.mark.parametrize("controller_role, expected_error", [
+    ("arn:aws:iam::123456789012:role/ApprovedEbsCsiController", None),
+    ("arn:aws:iam::999999999999:role/ApprovedEbsCsiController", "EBS_CSI_CONTROLLER_ROLE_INVALID"),
+    (provisioning_configuration()["roleArn"], "EBS_CSI_CONTROLLER_ROLE_INVALID"),
+    (None, "EBS_CSI_NOT_APPROVED"),
+])
+def test_cluster_storage_requires_an_explicit_approved_environment_capability(controller_role, expected_error):
+    repo = repository("CLOUD_ENGINEER")
+    _, approved = repo.active_environment_snapshot.return_value
+    if controller_role is not None:
+        approved["configuration"]["extensions"]["provisioningContract"]["ebsCsi"] = {
+            "addonVersion": "v1.61.0-eksbuild.1",
+            "podIdentityAgentVersion": "v1.3.10-eksbuild.1",
+            "controllerRoleArn": controller_role,
+        }
+    body = {**request(), "enableEbsCsi": True}
+    service = Service(repo, "correlation")
+    if expected_error:
+        with pytest.raises(ApiError) as error:
+            service.create(body)
+        assert error.value.code == expected_error
+    else:
+        created = service.create(body)
+        assert created["terraformModuleVersion"] == "1.1.0"
+        assert created["configuration"]["ebsCsi"] == (
+            approved["configuration"]["extensions"]["provisioningContract"]["ebsCsi"]
+        )
 
 
 def test_create_accepts_another_version_from_the_approved_contract():

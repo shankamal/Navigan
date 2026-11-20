@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && test "$(/out/terraform version | head -n 1)" = "Terraform v${TERRAFORM_VERSION}"
 
 FROM python:3.12-alpine3.23
-ARG MODULE_VERSION=1.0.0
+ARG MODULE_VERSION=1.1.0
 RUN apk upgrade --no-cache \
     && addgroup -S navigan \
     && adduser -S -G navigan navigan \

@@ -21,6 +21,8 @@ def test_system_repository_renders_gitops_baseline_without_secrets():
     assert "applications/20-falco.yaml" in rendered
     assert "applications/30-headlamp.yaml" in rendered
     assert "applications/31-headlamp-readonly.yaml" in rendered
+    assert "applications/25-ebs-storage.yaml" not in rendered
+    assert "storage-classes/ebs-gp3.yaml" not in rendered
     assert "charts/navigan-cluster-connector/templates/deployment.yaml" in rendered
     connector_rbac = rendered[
         "charts/navigan-cluster-connector/templates/rbac.yaml"
@@ -63,6 +65,29 @@ def test_system_repository_renders_gitops_baseline_without_secrets():
     project = rendered["applications/00-project.yaml"]
     assert "namespace: argocd" in project
     assert "namespace: kube-system" in project
+
+
+def test_enabled_ebs_storage_templates_are_non_default_and_encrypted():
+    import yaml
+
+    rendered = render_system_repository(
+        repository_url="https://github.com/customer/another-system",
+        connector_id="KCC-test", cluster_id="CLU-test",
+        connector_image="registry.example/connector@sha256:" + "a" * 64,
+        api_base_url="https://api.example.test/api/v1",
+        enable_ebs_csi=True,
+    )
+    application = yaml.safe_load(rendered["applications/25-ebs-storage.yaml"])
+    storage_class = yaml.safe_load(rendered["storage-classes/ebs-gp3.yaml"])
+    assert application["spec"]["source"]["path"] == "storage-classes"
+    assert application["spec"]["source"]["repoURL"] == "https://github.com/customer/another-system"
+    assert "prune" not in application["spec"]["syncPolicy"]["automated"]
+    assert storage_class["kind"] == "StorageClass"
+    assert storage_class["metadata"]["annotations"]["storageclass.kubernetes.io/is-default-class"] == "false"
+    assert storage_class["provisioner"] == "ebs.csi.aws.com"
+    assert storage_class["parameters"] == {"type": "gp3", "encrypted": "true"}
+    assert storage_class["volumeBindingMode"] == "WaitForFirstConsumer"
+    assert storage_class["reclaimPolicy"] == "Retain"
 
 
 def test_generated_falco_baseline_pins_verified_kernel_compatible_artifacts():

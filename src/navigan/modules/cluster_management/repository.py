@@ -740,6 +740,7 @@ class Repository:
             connector_image=connector_image,
             api_base_url=api_base_url,
             tools_base_url=tools_base_url,
+            enable_ebs_csi=bool(cluster.get("configuration", {}).get("ebsCsi")),
         )
         commit = app.commit_files(
             system_repository["installation_id"],
