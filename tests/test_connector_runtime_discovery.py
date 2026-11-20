@@ -19,7 +19,7 @@ def test_runtime_inventory_collects_node_labels_and_taints(monkeypatch):
                    "conditions": [{"type": "Ready", "status": "True"}]},
     }
 
-    def request(path):
+    def request(path, **_kwargs):
         if path == "/apis/networking.k8s.io/v1/ingresses":
             return {"items": [{"metadata": {"namespace": "apps", "name": "web"}}]}
         if path == "/api/v1/serviceaccounts":

@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import socket
 import ssl
 import struct
@@ -24,6 +25,10 @@ CONNECTOR_DEPLOYMENT = os.environ.get(
 )
 MAX_RUNTIME_RESOURCES_PER_KIND = 50
 MAX_WARNING_EVENTS = 50
+MAX_API_DISCOVERY_METRICS = 512
+AGGREGATED_DISCOVERY_TYPE = (
+    "application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList"
+)
 MAX_TUNNEL_MESSAGE_BYTES = 8 * 1024 * 1024
 DEFAULT_TOOL_SERVICES = {
     "headlamp": "http://navigan-dashboard-headlamp.navigan-dashboard.svc.cluster.local:80",
@@ -57,7 +62,10 @@ def read(path):
         return stream.read().strip()
 
 
-def kubernetes_request(path, method="GET", body=None, content_type="application/json"):
+def kubernetes_request(
+    path, method="GET", body=None, content_type="application/json",
+    *, accept="application/json", timeout=20,
+):
     token = read(f"{SERVICE_ACCOUNT}/token")
     context = ssl.create_default_context(cafile=f"{SERVICE_ACCOUNT}/ca.crt")
     request = urllib.request.Request(
@@ -66,12 +74,12 @@ def kubernetes_request(path, method="GET", body=None, content_type="application/
         method=method,
         headers={
             "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
+            "Accept": accept,
             "Content-Type": content_type,
         },
     )
     try:
-        with urllib.request.urlopen(request, context=context, timeout=20) as response:
+        with urllib.request.urlopen(request, context=context, timeout=timeout) as response:
             return json.load(response) if response.length != 0 else {}
     except urllib.error.HTTPError as error:
         detail = error.read(512).decode("utf-8", "replace")
@@ -562,6 +570,61 @@ def report_platform_components(
     )
 
 
+def aggregated_api_discovery():
+    """Collect current top-level API kinds without fetching any resource objects."""
+    metrics = {}
+    for path in ("/api", "/apis"):
+        try:
+            payload = kubernetes_request(path, accept=AGGREGATED_DISCOVERY_TYPE, timeout=5)
+        except (RuntimeError, ValueError, OSError):
+            continue
+        if (not isinstance(payload, dict)
+                or payload.get("apiVersion") != "apidiscovery.k8s.io/v2"
+                or payload.get("kind") != "APIGroupDiscoveryList"
+                or not isinstance(payload.get("items"), list)):
+            continue
+        for item in payload["items"]:
+            if not isinstance(item, dict) or not isinstance(item.get("metadata"), dict):
+                continue
+            group = item["metadata"].get("name", "")
+            versions = item.get("versions")
+            if (not isinstance(group, str) or len(group) > 253
+                    or (path == "/api" and group)
+                    or (path == "/apis" and not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", group))
+                    or not isinstance(versions, list)):
+                continue
+            for version in versions:
+                if not isinstance(version, dict) or version.get("freshness") != "Current":
+                    continue
+                name = version.get("version")
+                if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", name):
+                    continue
+                api_version = f"{group}/{name}" if group else name
+                if len(metrics) >= MAX_API_DISCOVERY_METRICS:
+                    return metrics
+                metrics[f"apiVersion:{api_version}"] = 1
+                resources = version.get("resources")
+                if not isinstance(resources, list):
+                    continue
+                for resource in resources:
+                    if not isinstance(resource, dict):
+                        continue
+                    response_kind = resource.get("responseKind")
+                    if not isinstance(response_kind, dict):
+                        continue
+                    resource_name = resource.get("resource")
+                    kind = response_kind.get("kind")
+                    if (not isinstance(resource_name, str) or not resource_name or "/" in resource_name
+                            or not isinstance(kind, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{0,127}", kind)
+                            or response_kind.get("group") not in (None, "", group)
+                            or response_kind.get("version") not in (None, "", name)):
+                        continue
+                    if len(metrics) >= MAX_API_DISCOVERY_METRICS:
+                        return metrics
+                    metrics[f"apiKind:{api_version}:{kind}"] = 1
+    return metrics
+
+
 def runtime_inventory():
     resources = []
 
@@ -799,6 +862,7 @@ def runtime_inventory():
         "metrics": {
             **api_discovery,
             **api_kinds,
+            **aggregated_api_discovery(),
             **storage_discovery,
             **supplementary_discovery,
             "nodeCount": len(nodes),
