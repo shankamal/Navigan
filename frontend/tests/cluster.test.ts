@@ -290,6 +290,61 @@ describe("Cluster API contract", () => {
     expect(result.runtimeInventory.status).toBe("NOT_REPORTED");
   });
 
+  it("accepts migration target discovery resources in the platform status response", () => {
+    const clusterId = "CLU-demo";
+    const customerId = "CUS-demo";
+    const observedAt = "2026-11-20T15:20:00Z";
+    const connectorId = "KCC-0123456789abcdef0123456789abcdef";
+    const sourceRevision = 123;
+    const kinds = [
+      "Node",
+      "StorageClass",
+      "CSIDriver",
+      "Ingress",
+      "NetworkPolicy",
+      "ServiceAccount",
+      "Role",
+      "RoleBinding",
+      "ClusterRole",
+      "ClusterRoleBinding",
+      "CustomResourceDefinition",
+    ];
+    const result = platformComponentInventorySchema.parse({
+      clusterId,
+      customerId,
+      status: "READY",
+      connectorId,
+      sourceRevision,
+      observedAt,
+      components: [],
+      runtimeInventory: {
+        clusterId,
+        customerId,
+        status: "READY",
+        connectorId,
+        sourceRevision,
+        observedAt,
+        expiresAt: "2026-11-20T15:30:00Z",
+        metrics: { nodeCount: 1, apiDiscoveryCoreV1: 1 },
+        resources: kinds.map((kind) => ({
+          kind,
+          namespace: null,
+          name: kind.toLowerCase(),
+          status: "Observed",
+          ready: 0,
+          desired: 0,
+          restarts: 0,
+        })),
+        warningEvents: [],
+      },
+    });
+
+    expect(result.runtimeInventory.resources.map(({ kind }) => kind)).toEqual(
+      kinds,
+    );
+    expect(result.runtimeInventory.metrics.apiDiscoveryCoreV1).toBe(1);
+  });
+
   it("accepts disabled tool access until the shared gateway is ready", () => {
     const result = clusterToolAccessSchema.parse({
       clusterId: "CLU-demo",

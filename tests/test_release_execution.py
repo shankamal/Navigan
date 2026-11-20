@@ -173,6 +173,47 @@ def test_build_dependency_closure(selected, retained, expected):
     assert build.dependency_closure(selected, {"components": retained}) == expected
 
 
+@pytest.mark.parametrize("import_succeeds", [True, False])
+def test_build_connector_imports_agent_before_publishing(monkeypatch, tmp_path, import_succeeds):
+    component = "cluster-connector"
+    repository = build.repository_uri(component, None, ACCOUNT, REGION)
+    digest = "sha256:" + "d" * 64
+    ecr = SimpleNamespace(
+        describe_repositories=lambda **kwargs: {"repositories": [{"repositoryUri": repository}]},
+        describe_images=lambda **kwargs: {"imageDetails": [{"imageDigest": digest}]},
+    )
+    commands = []
+
+    def run(command, _directory, logfile, **kwargs):
+        commands.append(command)
+        if command[1] == "run":
+            assert logfile == tmp_path / "cluster-connector-smoke.log"
+            if not import_succeeds:
+                raise common.ReleaseError("Connector agent import failed")
+
+    monkeypatch.setattr(build.common, "run", run)
+    monkeypatch.setattr(build, "docker_auth", lambda *args: {})
+    monkeypatch.setattr(build.subprocess, "run", lambda *args, **kwargs: None)
+    session = SimpleNamespace(client=lambda name: ecr)
+
+    if import_succeeds:
+        artifact = build.build_image(component, tmp_path, tmp_path, session, ACCOUNT, REGION, "c" * 64)
+        assert artifact["uri"] == f"{repository}@{digest}"
+        assert [command[1] for command in commands] == ["buildx", "run", "push"]
+    else:
+        with pytest.raises(common.ReleaseError, match="Connector agent import failed"):
+            build.build_image(component, tmp_path, tmp_path, session, ACCOUNT, REGION, "c" * 64)
+        assert [command[1] for command in commands] == ["buildx", "run"]
+
+    built_image = commands[0][commands[0].index("--tag") + 1]
+    assert commands[1][:11] == [
+        "docker", "run", "--rm", "--network", "none", "--read-only",
+        "--entrypoint", "python", built_image, "-B", "-c",
+    ]
+    assert "import os, agent" in commands[1][-1]
+    assert "os.geteuid() == 10001" in commands[1][-1]
+
+
 def test_build_cache_builds_only_once_and_keeps_unchanged_artifacts(monkeypatch, tmp_path):
     s3 = MemoryS3()
     built, checked = [], []
