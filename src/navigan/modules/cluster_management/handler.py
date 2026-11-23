@@ -659,6 +659,8 @@ def execute(event, principal, correlation):
             value = plan_service(repo, access, correlation, identifier, parts[2]).change(identifier, parts[2], parts[3], body)
             status = 202 if parts[3] in {"execute", "refresh"} else 200
         else:
+            if body.get("storageAction") or body.get("storagePlanSha256"):
+                access.require("cluster.apply")
             service = Service(repo, correlation)
             value = (
                 service.create(body)

@@ -164,3 +164,10 @@ def resolve_cluster_actions(cluster, access):
             }
         )
     return actions
+
+
+def storage_enrollment_blocks_changes(cluster):
+    enrollment = (cluster.get("workflow") or {}).get("ebsCsiEnrollment") or {}
+    return enrollment.get("status") in {"PLAN_RUNNING", "PLAN_READY", "APPLYING"} or (
+        enrollment.get("status") == "FAILED" and enrollment.get("applyAttempted") is True
+    )

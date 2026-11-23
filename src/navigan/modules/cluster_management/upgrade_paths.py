@@ -14,6 +14,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import Field, model_validator
 
 from navigan.shared.errors import ApiError
+from .capabilities import storage_enrollment_blocks_changes
 from .models import Model
 from .upgrade_plans import EksUpgradePlans, ACTIVE, UpgradePlanAction, utcnow
 from .upgrade_readiness import minor_tuple, EksUpgradeDiscovery
@@ -141,8 +142,10 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             result.pop("readinessEvidence", None)
         return result
 
-    def _context(self, cluster_id):
-        cluster = self.repo.get(cluster_id)
+    def _context(self, cluster_id, *, lock=False):
+        cluster = self.repo.get(cluster_id, lock=True) if lock else self.repo.get(cluster_id)
+        if lock and storage_enrollment_blocks_changes(cluster):
+            fail("EBS_CSI_CHANGE_IN_PROGRESS", "Resolve storage enrollment before upgrading this cluster.")
         _, environment = self.repo.pinned_environment_snapshot(cluster["environment_id"], cluster["environment_approved_version"])
         eks, region = self.discovery.client(cluster, environment)
         return cluster, environment, eks, region
@@ -363,7 +366,7 @@ class ScopedEksUpgradePlans(EksUpgradePlans):
             fail("MAINTENANCE_WINDOW_NOT_STARTED", "The approved upgrade-step window has not started.")
         if now >= start + timedelta(minutes=step["window"]["durationMinutes"]):
             fail("MAINTENANCE_SCHEDULE_OVERDUE", "The approved upgrade-step window has expired. Create a new reviewed plan.")
-        cluster, _, eks, _ = self._context(plan["cluster_id"])
+        cluster, _, eks, _ = self._context(plan["cluster_id"], lock=True)
         cp, nodes, addons = self._inventory(cluster, eks)
         if spec["scope"] == "CLUSTER" and (set(spec["nodeGroups"]) != {n["name"] for n in nodes} or set(spec["addonNames"]) != {a["name"] for a in addons}):
             fail("UPGRADE_COMPONENT_DRIFT", "Managed component membership changed after approval. Create a fresh plan.")

@@ -1,6 +1,5 @@
 import ast
 import json
-from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -146,3 +145,89 @@ def test_storage_preflight_rejects_unapproved_changes_and_incompatible_addon_ver
 
     request["mode"] = "start"
     check(request, baseline, {}, account)
+
+
+def storage_inputs():
+    role = "arn:aws:iam::123456789012:role/FixtureEbsController"
+    settings = {
+        "addonVersion": "v1.68.1-eksbuild.1",
+        "podIdentityAgentVersion": "v1.4.1-eksbuild.3",
+        "controllerRoleArn": role,
+    }
+    request = {
+        "mode": "storage-plan", "clusterName": "fixture",
+        "configuration": {"ebsCsi": settings},
+    }
+    plan = {"complete": True, "resource_changes": [
+        {
+            "address": f'aws_eks_addon.{address}["storage"]',
+            "mode": "managed", "type": "aws_eks_addon",
+            "change": {"actions": ["create"], "after": {
+                "cluster_name": "fixture", "addon_name": addon, "addon_version": version,
+                "resolve_conflicts_on_create": "NONE",
+                "pod_identity_association": association,
+            }},
+        }
+        for address, addon, version, association in (
+            ("ebs_csi", "aws-ebs-csi-driver", settings["addonVersion"],
+             [{"service_account": "ebs-csi-controller-sa", "role_arn": role}]),
+            ("storage_pod_identity_agent", "eks-pod-identity-agent", settings["podIdentityAgentVersion"], []),
+        )
+    ]}
+    return plan, request
+
+
+@pytest.mark.parametrize("reuse_agent", [True, False])
+def test_storage_plan_accepts_scoped_additions_or_an_existing_agent(reuse_agent):
+    plan, request = storage_inputs()
+    if reuse_agent:
+        request["configuration"]["ebsCsi"]["podIdentityAgentVersion"] = None
+        plan["resource_changes"].pop()
+    else:
+        plan["resource_changes"][1]["change"]["actions"] = ["no-op"]
+    plan["resource_changes"].append({
+        "address": "aws_eks_cluster.this", "mode": "managed", "change": {"actions": ["no-op"]},
+    })
+    assert functions()["security_scan"](plan, request)["status"] == "PASSED"
+
+
+@pytest.mark.parametrize("case", [
+    "unrelated update", "wrong cluster", "wrong version", "wrong role",
+    "conflict override", "import", "replacement", "incomplete", "missing driver",
+])
+def test_storage_plan_rejects_changes_outside_the_approved_scope(case):
+    plan, request = storage_inputs()
+    driver = plan["resource_changes"][0]["change"]
+    if case == "unrelated update":
+        plan["resource_changes"].append({
+            "address": 'aws_eks_node_group.this["system"]',
+            "mode": "managed", "change": {"actions": ["update"]},
+        })
+    elif case == "wrong cluster":
+        driver["after"]["cluster_name"] = "other-target"
+    elif case == "wrong version":
+        driver["after"]["addon_version"] = "unapproved"
+    elif case == "wrong role":
+        driver["after"]["pod_identity_association"][0]["role_arn"] = "unapproved"
+    elif case == "conflict override":
+        driver["after"]["resolve_conflicts_on_create"] = "OVERWRITE"
+    elif case == "import":
+        driver["importing"] = {"id": "fixture:aws-ebs-csi-driver"}
+    elif case == "replacement":
+        driver["actions"] = ["delete", "create"]
+    elif case == "incomplete":
+        plan["complete"] = False
+    elif case == "missing driver":
+        plan["resource_changes"].pop(0)
+    assert functions()["security_scan"](plan, request)["status"] == "FAILED"
+
+
+def test_existing_agent_is_reused_and_existing_unmanaged_driver_is_refused():
+    _, request = storage_inputs()
+    eks = Mock()
+    eks.describe_addon.return_value = {"addon": {"status": "ACTIVE"}}
+    resolve = functions()["resolve_storage_agent"]
+    with pytest.raises(ValueError, match="outside this cluster"):
+        resolve(request, eks, set())
+    resolve(request, eks, {'aws_eks_addon.ebs_csi["storage"]'})
+    assert request["configuration"]["ebsCsi"]["podIdentityAgentVersion"] is None

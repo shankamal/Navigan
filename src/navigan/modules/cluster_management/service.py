@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from pydantic import ValidationError
 from navigan.shared.errors import ApiError
+from .capabilities import storage_enrollment_blocks_changes
 from .models import EbsCsiConfiguration
 from .repository import serialize
 from .provisioning import Provisioner
@@ -431,6 +432,15 @@ class Service:
         row = self.repo.get(identifier, lock=True)
         if row["version"] != body["version"]:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
+        storage = row.get("workflow", {}).get("ebsCsiEnrollment", {})
+        if body.get("storageAction"):
+            if action != "plan":
+                raise ApiError(422, "INVALID_STORAGE_ACTION", "Storage enrollment starts from the plan action.")
+            return self.change_storage_enrollment(row, body)
+        if action == "apply" and storage.get("status") == "PLAN_READY":
+            return self.change_storage_enrollment(row, body)
+        if storage_enrollment_blocks_changes(row):
+            raise ApiError(409, "EBS_CSI_CHANGE_IN_PROGRESS", "Resolve the storage enrollment before other cluster changes.")
         old = copy.deepcopy(row)
         if action == "update":
             self.principal.require("CLOUD_ENGINEER")
@@ -535,9 +545,7 @@ class Service:
                         "PLAN_NOT_CERTIFIED",
                         "Terraform validation and security checks must pass before apply.",
                     )
-            _, snapshot = self.repo.pinned_environment_snapshot(
-                row["environment_id"], row["environment_approved_version"]
-            )
+            snapshot = self.provisioning_environment(row)
             if (
                 action == "plan"
                 and row["configuration"].get("systemNodeGroupMigration")
@@ -569,6 +577,130 @@ class Service:
         self.repo.save(row)
         self.repo.record(old, row, "Cluster" + action.title(), body, self.correlation)
         return serialize(row)
+
+    def provisioning_environment(self, cluster, storage_settings=None, storage_approval=None):
+        _, snapshot = self.repo.pinned_environment_snapshot(
+            cluster["environment_id"], cluster["environment_approved_version"]
+        )
+        if storage_settings is None:
+            enrollment = cluster.get("workflow", {}).get("ebsCsiEnrollment", {})
+            if enrollment.get("status") != "COMPLETE":
+                return snapshot
+            storage_settings = cluster["configuration"]["ebsCsi"]
+            _, storage_approval = self.repo.pinned_environment_snapshot(
+                cluster["environment_id"], enrollment["environmentApprovedVersion"]
+            )
+        baseline = snapshot["configuration"]
+        approved = storage_approval["configuration"]
+        if any(baseline.get(key, {}).get(field) != approved.get(key, {}).get(field)
+               for key, field in (("account", "accountId"), ("location", "region"))):
+            raise ApiError(409, "EBS_CSI_ENVIRONMENT_MISMATCH", "Storage approval must match the cluster account and region.")
+        settings = self.approved_storage_settings(approved)
+        if any(settings[key] != storage_settings[key] for key in ("addonVersion", "controllerRoleArn")) or (
+            storage_settings["podIdentityAgentVersion"] is not None
+            and settings["podIdentityAgentVersion"] != storage_settings["podIdentityAgentVersion"]
+        ):
+            raise ApiError(409, "EBS_CSI_APPROVAL_CHANGED", "Storage configuration differs from the approved environment.")
+        snapshot = copy.deepcopy(snapshot)
+        contract = snapshot["configuration"].setdefault("extensions", {}).setdefault("provisioningContract", {})
+        contract["ebsCsi"] = storage_settings
+        return snapshot
+
+    @staticmethod
+    def approved_storage_settings(baseline):
+        settings = (baseline.get("extensions") or {}).get("provisioningContract") or {}
+        try:
+            return EbsCsiConfiguration.model_validate(settings.get("ebsCsi")).model_dump()
+        except ValidationError:
+            raise ApiError(422, "EBS_CSI_NOT_APPROVED",
+                           "Approve an environment revision with EBS CSI settings first.") from None
+
+    def change_storage_enrollment(self, cluster, body):
+        self.principal.require("PLATFORM_ARCHITECT")
+        old = copy.deepcopy(cluster)
+        old_storage = cluster["workflow"].get("ebsCsiEnrollment", {})
+        now = datetime.now(timezone.utc)
+        requested = body.get("storageAction")
+        if requested == "cancel":
+            if (
+                old_storage.get("status") not in {"PLAN_READY", "FAILED"}
+                or old_storage.get("applyAttempted")
+            ):
+                raise ApiError(409, "EBS_CSI_CANCEL_UNAVAILABLE", "Only a storage plan that has never been applied can be cancelled.")
+            cluster["status"] = "ACTIVE"
+            cluster["workflow"]["ebsCsiEnrollment"] = {**old_storage, "status": "CANCELLED"}
+            cluster["workflow"].pop("certification", None)
+            cluster["plan_artifact_key"] = None
+            cluster["plan_sha256"] = None
+            event = "ClusterEbsCsiPlanCancelled"
+        else:
+            enrollment = copy.deepcopy(old_storage)
+            if requested == "enable":
+                if (
+                    cluster["status"] not in {"ACTIVE", "PLAN_READY"}
+                    or (cluster["status"] == "PLAN_READY" and old_storage.get("status") != "PLAN_READY")
+                    or cluster["platform"] != "EKS" or not cluster.get("terraform_state_key")
+                    or cluster["configuration"].get("ebsCsi")
+                ):
+                    raise ApiError(409, "EBS_CSI_ENROLLMENT_UNAVAILABLE", "Storage enrollment needs an eligible Terraform-managed EKS cluster.")
+                if self.repo.storage_enrollment_blocked(cluster["cluster_id"]):
+                    raise ApiError(409, "CLUSTER_CHANGE_IN_PROGRESS", "Complete the active node group or upgrade operation first.")
+                if not str(body.get("reason") or "").strip():
+                    raise ApiError(422, "REASON_REQUIRED", "Provide a reason for enabling storage.")
+                environment, approved = self.repo.active_environment_snapshot(cluster["environment_id"])
+                settings = self.approved_storage_settings(approved["configuration"])
+                for key in ("approvedBy", "approvedAt", "approvedPlanSha256", "addonsToCreate", "failedPhase"):
+                    enrollment.pop(key, None)
+                enrollment.update({
+                    "environmentApprovedVersion": environment["approved_version"],
+                    "configuration": settings,
+                    "requestedBy": self.principal.user_id,
+                    "requestedAt": now.isoformat(),
+                    "status": "PLAN_RUNNING",
+                })
+                mode, event = "storage-plan", "ClusterEbsCsiPlanRequested"
+            else:
+                certification = cluster["workflow"].get("certification", {})
+                digest = cluster.get("plan_sha256")
+                if (
+                    cluster["status"] != "PLAN_READY" or old_storage.get("status") != "PLAN_READY"
+                    or certification.get("status") != "PASSED" or not digest
+                    or certification.get("planSha256") != digest or body.get("storagePlanSha256") != digest
+                    or not cluster.get("plan_artifact_key")
+                ):
+                    raise ApiError(409, "PLAN_NOT_CERTIFIED", "A certified storage enrollment plan is required.")
+                _, approved = self.repo.active_environment_snapshot(
+                    cluster["environment_id"], enrollment["environmentApprovedVersion"]
+                )
+                settings = enrollment["configuration"]
+                enrollment.update({
+                    "status": "APPLYING", "applyAttempted": True,
+                    "approvedBy": self.principal.user_id, "approvedPlanSha256": digest,
+                    "approvedAt": now.isoformat(),
+                })
+                mode, event = "storage-apply", "ClusterEbsCsiApplyRequested"
+            snapshot = self.provisioning_environment(cluster, settings, approved)
+            execution = self.reconcile_active_application_node_groups(copy.deepcopy(cluster))
+            execution["configuration"]["ebsCsi"] = settings
+            execution["terraform_module_version"] = "1.1.0"
+            build_id, prefix = (self.provisioner or Provisioner()).start(mode, execution, snapshot)
+            cluster["status"] = enrollment["status"]
+            cluster["provider_execution_id"] = build_id
+            cluster["execution_artifact_prefix"] = prefix
+            cluster["workflow"]["ebsCsiEnrollment"] = enrollment
+            cluster["workflow"]["currentExecution"] = {
+                "mode": mode, "buildId": build_id,
+                "startedBy": self.principal.user_id, "startedAt": now.isoformat(),
+            }
+            if mode == "storage-plan":
+                cluster["workflow"]["certification"] = {"status": "PENDING"}
+                cluster["plan_artifact_key"] = prefix + "/terraform.tfplan"
+                cluster["plan_sha256"] = None
+        cluster["version"] += 1
+        cluster["updated_by"], cluster["updated_at"] = self.principal.user_id, now
+        self.repo.save(cluster)
+        self.repo.record(old, cluster, event, body, self.correlation)
+        return serialize(cluster)
 
     def create_node_group_request(self, cluster_id, body):
         if not self.principal.roles.intersection(
@@ -625,6 +757,8 @@ class Service:
         ):
             raise ApiError(403, "FORBIDDEN", "This operation is not permitted for your role.")
         cluster = self.repo.get(cluster_id, lock=True)
+        if storage_enrollment_blocks_changes(cluster):
+            raise ApiError(409, "EBS_CSI_CHANGE_IN_PROGRESS", "Resolve storage enrollment before changing node groups.")
         if cluster["version"] != body["version"]:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
         if cluster["status"] != "ACTIVE":
@@ -683,9 +817,7 @@ class Service:
         }
         old = copy.deepcopy(cluster)
         cluster["configuration"] = configuration
-        _, snapshot = self.repo.pinned_environment_snapshot(
-            cluster["environment_id"], cluster["environment_approved_version"]
-        )
+        snapshot = self.provisioning_environment(cluster)
         build_id, prefix = (self.provisioner or Provisioner()).start(
             "plan", cluster, snapshot
         )
@@ -729,6 +861,8 @@ class Service:
 
     def change_node_group_request(self, cluster_id, request_id, action, body):
         cluster = self.repo.get(cluster_id, lock=True)
+        if action in {"approve", "apply", "retry"} and storage_enrollment_blocks_changes(cluster):
+            raise ApiError(409, "EBS_CSI_CHANGE_IN_PROGRESS", "Resolve storage enrollment before changing node groups.")
         request = self.repo.get_node_group_request(cluster_id, request_id, lock=True)
         if request["version"] != body["version"]:
             raise ApiError(
@@ -766,9 +900,7 @@ class Service:
                     "INDEPENDENT_REVIEW_REQUIRED",
                     "The request author cannot approve it.",
                 )
-            _, snapshot = self.repo.pinned_environment_snapshot(
-                cluster["environment_id"], cluster["environment_approved_version"]
-            )
+            snapshot = self.provisioning_environment(cluster)
             execution_cluster = self.node_group_execution_cluster(cluster, request)
             build_id, prefix = (self.provisioner or Provisioner()).start(
                 "plan", execution_cluster, snapshot
@@ -821,9 +953,7 @@ class Service:
                     "PLAN_NOT_CERTIFIED",
                     "Terraform validation and security checks must pass before apply.",
                 )
-            _, snapshot = self.repo.pinned_environment_snapshot(
-                cluster["environment_id"], cluster["environment_approved_version"]
-            )
+            snapshot = self.provisioning_environment(cluster)
             execution_cluster = self.node_group_execution_cluster(cluster, request)
             build_id, prefix = (self.provisioner or Provisioner()).start(
                 "apply", execution_cluster, snapshot
@@ -848,9 +978,7 @@ class Service:
                     "INVALID_STATUS_TRANSITION",
                     "Only a failed node-group request can be retried.",
                 )
-            _, snapshot = self.repo.pinned_environment_snapshot(
-                cluster["environment_id"], cluster["environment_approved_version"]
-            )
+            snapshot = self.provisioning_environment(cluster)
             execution_cluster = self.node_group_execution_cluster(cluster, request)
             build_id, prefix = (self.provisioner or Provisioner()).start(
                 "plan", execution_cluster, snapshot
