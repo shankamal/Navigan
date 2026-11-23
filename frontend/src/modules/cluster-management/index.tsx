@@ -3115,6 +3115,21 @@ export function ClusterRequestPage({ id }: { id: string }) {
     ),
   ].sort();
   const workflow = objectValue(row.workflow);
+  const storageEnrollment = objectValue(workflow.ebsCsiEnrollment);
+  const storageStatus = textValue(storageEnrollment.status, "");
+  const storageConfiguration = objectValue(storageEnrollment.configuration);
+  const storagePlanReady = storageStatus === "PLAN_READY";
+  const canManageStorage =
+    canOperate && hasPermission(identity, "cluster.plan");
+  const showStorageExecution = [
+    "PLAN_READY",
+    "PLAN_RUNNING",
+    "APPLYING",
+    "FAILED",
+  ].includes(storageStatus);
+  const storageInFlight = ["PLAN_RUNNING", "APPLYING"].includes(storageStatus);
+  const storageApplyFailed =
+    storageStatus === "FAILED" && storageEnrollment.applyAttempted === true;
   const platformBootstrap = objectValue(workflow.platformBootstrap);
   const connectorReported =
     platformComponents.data?.components.some(
@@ -3339,6 +3354,20 @@ export function ClusterRequestPage({ id }: { id: string }) {
         "Terraform and AWS progress for this cluster provisioning operation.",
       steps: ["Plan certified", "Infrastructure applying", "Cluster active"],
     },
+    "storage-plan": {
+      eyebrow: "EKS STORAGE",
+      title: "Storage planning",
+      description:
+        "The plan checks the approved add-ons and rejects unrelated resource changes.",
+      steps: ["Storage requested", "Add-ons checked", "Plan certified"],
+    },
+    "storage-apply": {
+      eyebrow: "EKS STORAGE",
+      title: "Storage add-on installation",
+      description:
+        "The runner applies the reviewed plan and verifies both add-ons in EKS.",
+      steps: ["Plan certified", "Add-ons installing", "Add-ons healthy"],
+    },
     stop: {
       eyebrow: "CLUSTER LIFECYCLE",
       title: "Stop operation",
@@ -3373,6 +3402,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const executionTargetStatus: Record<string, string> = {
     plan: "PLAN_READY",
     apply: "ACTIVE",
+    "storage-plan": "PLAN_READY",
+    "storage-apply": storageStatus === "COMPLETE" ? "ACTIVE" : "",
     stop: "STOPPED",
     start: "ACTIVE",
     delete: "DELETED",
@@ -3406,14 +3437,25 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const planAvailable = ["PLAN_READY", "APPLYING", "ACTIVE"].includes(
     row.status,
   );
-  const actions = clusterLifecycleActions({
-    status: row.status,
-    canSubmit: canSubmitCluster,
-    canReview: canReviewCluster,
-    canOperate,
-    canDelete,
-    certificationPassed,
-  });
+  const actions = storagePlanReady
+    ? clusterLifecycleActions({
+        status: row.status,
+        canSubmit: false,
+        canReview: canManageStorage,
+        canOperate: false,
+        canDelete: false,
+        certificationPassed,
+      }).filter((action) => action === "apply")
+    : storageApplyFailed
+      ? []
+      : clusterLifecycleActions({
+          status: row.status,
+          canSubmit: canSubmitCluster,
+          canReview: canReviewCluster,
+          canOperate,
+          canDelete,
+          certificationPassed,
+        });
   const actionPanelTab = [
     "DRAFT",
     "REJECTED",
@@ -3454,8 +3496,36 @@ export function ClusterRequestPage({ id }: { id: string }) {
     setBusy(true);
     setError(undefined);
     try {
-      await clusters.action(id, action, row.version, comments);
+      await clusters.action(
+        id,
+        action,
+        row.version,
+        comments,
+        action === "apply" && storagePlanReady && row.planSha256
+          ? { storagePlanSha256: row.planSha256 }
+          : undefined,
+      );
       setActionComments("");
+      setPlanConfirmed(false);
+      await query.refetch();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const changeStoragePlan = async (storageAction: "enable" | "cancel") => {
+    const reason =
+      storageAction === "enable"
+        ? window.prompt("Why are you enabling EBS CSI on this cluster?")?.trim()
+        : "";
+    if (storageAction === "enable" && !reason) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await clusters.action(id, "plan", row.version, reason || "", {
+        storageAction,
+      });
       setPlanConfirmed(false);
       await query.refetch();
     } catch (caught) {
@@ -5307,6 +5377,102 @@ export function ClusterRequestPage({ id }: { id: string }) {
               </p>
             </section>
           )}
+          {row.platform === "EKS" &&
+            (storageStatus ||
+              (row.status === "ACTIVE" &&
+                canManageStorage &&
+                !configuration.ebsCsi)) && (
+              <section className="panel panel-padding cluster-tab-panel cluster-tab-operations">
+                <h2>EBS CSI storage</h2>
+                {storageStatus === "COMPLETE" ? (
+                  <p className="muted">
+                    EKS reports both add-ons healthy. Verify the StorageClass
+                    and mount a test volume before migrating workloads.
+                  </p>
+                ) : storagePlanReady ? (
+                  <>
+                    <p className="muted">
+                      {Array.isArray(storageEnrollment.addonsToCreate) &&
+                      storageEnrollment.addonsToCreate.length
+                        ? `Add-ons to install: ${storageEnrollment.addonsToCreate.join(", ")}.`
+                        : "The plan retains the add-ons already managed by this cluster."}
+                    </p>
+                    <dl className="details-grid">
+                      <div>
+                        <dt>Approved environment revision</dt>
+                        <dd>
+                          {String(storageEnrollment.environmentApprovedVersion)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>EBS CSI driver</dt>
+                        <dd>{textValue(storageConfiguration.addonVersion)}</dd>
+                      </div>
+                      <div>
+                        <dt>Pod Identity Agent</dt>
+                        <dd>
+                          {textValue(
+                            storageConfiguration.podIdentityAgentVersion,
+                            "Reuse existing agent",
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Controller role</dt>
+                        <dd className="plan-hash">
+                          {textValue(storageConfiguration.controllerRoleArn)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </>
+                ) : storageStatus === "FAILED" ? (
+                  <p className="muted">
+                    The storage operation did not complete. Review the execution
+                    log before requesting a new plan.
+                  </p>
+                ) : storageInFlight ? (
+                  <p className="muted">
+                    {storageStatus === "APPLYING"
+                      ? "Applying the reviewed storage plan."
+                      : "Checking add-ons and building a storage plan."}
+                  </p>
+                ) : (
+                  <p className="muted">
+                    Plan EBS CSI installation using the approved environment
+                    settings.
+                  </p>
+                )}
+                {canManageStorage &&
+                  !storageInFlight &&
+                  storageStatus !== "COMPLETE" && (
+                    <div className="cluster-actions">
+                      {(row.status === "ACTIVE" || storagePlanReady) && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={busy}
+                          onClick={() => changeStoragePlan("enable")}
+                        >
+                          {storagePlanReady || storageStatus === "FAILED"
+                            ? "Replan storage"
+                            : "Plan EBS CSI"}
+                        </Button>
+                      )}
+                      {(storagePlanReady || storageStatus === "FAILED") &&
+                        !storageEnrollment.applyAttempted && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() => changeStoragePlan("cancel")}
+                          >
+                            Discard storage plan
+                          </Button>
+                        )}
+                    </div>
+                  )}
+              </section>
+            )}
           {[
             "PLAN_RUNNING",
             "PLAN_READY",
@@ -5319,7 +5485,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
             "DELETING",
           ].includes(row.status) &&
             (!trackedNodeGroupRequest?.providerExecutionId ||
-              showSystemNodeGroupMigration) && (
+              showSystemNodeGroupMigration ||
+              showStorageExecution) && (
               <section className="panel panel-padding cluster-certification cluster-tab-panel cluster-tab-operations">
                 <div className="cluster-review-section-heading">
                   <div>
@@ -5424,7 +5591,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
             )}
           {showExecutionPanel &&
             (!trackedNodeGroupRequest?.providerExecutionId ||
-              showSystemNodeGroupMigration) && (
+              showSystemNodeGroupMigration ||
+              showStorageExecution) && (
               <section className="panel panel-padding execution-console cluster-tab-panel cluster-tab-operations">
                 <header>
                   <div>
@@ -5565,7 +5733,8 @@ export function ClusterRequestPage({ id }: { id: string }) {
         </main>
 
         {(!trackedNodeGroupRequest?.providerExecutionId ||
-          showSystemNodeGroupMigration) && (
+          showSystemNodeGroupMigration ||
+          storagePlanReady) && (
           <aside
             className={`cluster-review-aside cluster-tab-panel cluster-tab-${actionPanelTab}`}
           >

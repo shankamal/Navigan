@@ -394,6 +394,8 @@ export const clusters = {
       | "delete",
     version: number,
     comments = "",
+    storage?:
+      { storageAction: "enable" | "cancel" } | { storagePlanSha256: string },
   ) =>
     parseResponse(
       clusterSchema,
@@ -403,9 +405,11 @@ export const clusters = {
           {
             version,
             comments,
-            ...(["reject", "delete"].includes(action)
+            ...(["reject", "delete"].includes(action) ||
+            (storage && "storageAction" in storage)
               ? { reason: comments }
               : {}),
+            ...storage,
           },
           { headers: writeHeaders({ key: crypto.randomUUID(), version }) },
         )
