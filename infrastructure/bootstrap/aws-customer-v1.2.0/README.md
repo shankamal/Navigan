@@ -94,6 +94,36 @@ encrypted backend with locking and tightly controlled access. The External ID
 must never be stored in browser storage, logs, cluster records, tickets, or
 chat.
 
+## EBS CSI controller identity
+
+Set `ebs_csi_cluster_names` to the exact approved EKS cluster names in the
+bootstrap account and region. Use the existing customer bootstrap state and
+review the plan through the same approval process.
+
+```hcl
+ebs_csi_cluster_names = ["example-existing-cluster", "example-new-cluster"]
+```
+
+The bootstrap creates a dedicated controller role and attaches a storage add-on
+policy to the existing provisioning role. Use the
+`ebs_csi_controller_role_arn` output in the approved environment at
+`configuration.extensions.provisioningContract.ebsCsi.controllerRoleArn`.
+Pin a compatible EBS CSI add-on at driver 1.58.0 or newer in `addonVersion`
+and the approved Pod Identity Agent version in `podIdentityAgentVersion`
+when the workflow needs to install the agent.
+
+The EKS managed driver applies the cluster tag required by
+`AmazonEBSCSIDriverEKSClusterScopedPolicy` at driver 1.58.0 and later.
+The controller trust policy permits the approved clusters'
+`kube-system/ebs-csi-controller-sa` identities. The bootstrap sets up IAM.
+The cluster workflow installs the add-ons and the StorageClass.
+
+The provisioning role can create add-ons on the explicitly approved clusters.
+EKS authorizes add-on creation against the cluster ARN. Updates and deletion
+are scoped to the two storage add-on names and their cluster associations.
+Keep a cluster in the approved list until its Terraform-managed storage
+add-ons have been retired or transferred to another approved owner.
+
 ## Automatic setup governance
 
 Navigan must not create resources automatically from a read-only discovery

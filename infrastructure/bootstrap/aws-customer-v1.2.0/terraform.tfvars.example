@@ -32,6 +32,9 @@ eks_node_role_name      = "NaviganEksNodeRole-dev"
 create_eks_kms_key      = false
 recommended_kms_alias   = "alias/navigan-dev-eks"
 
+# Opt in to EBS CSI IAM for exact cluster names in this account and region.
+ebs_csi_cluster_names = []
+
 # Private-cluster GitOps bootstrap. A stable outbound-only installer security
 # group is created automatically.
 create_connector_installer = true
