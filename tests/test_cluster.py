@@ -1038,3 +1038,114 @@ def test_repository_list_excludes_archived_ownership_records():
     rows_sql = db.execute.call_args_list[1].args[0]
     assert "workflow->>'ownershipStatus'" in count_sql
     assert "workflow->>'ownershipStatus'" in rows_sql
+
+
+def storage_enrollment_case():
+    cluster = row("ACTIVE")
+    repo = repository("PLATFORM_ARCHITECT", cluster, user="architect")
+    approved = environment_snapshot()
+    settings = {
+        "addonVersion": "v1.68.1-eksbuild.1",
+        "podIdentityAgentVersion": "v1.4.1-eksbuild.3",
+        "controllerRoleArn": "arn:aws:iam::123456789012:role/EbsController",
+    }
+    approved["configuration"]["extensions"]["provisioningContract"]["ebsCsi"] = settings
+    approved["configuration"]["network"] = {"updated": True}
+    repo.active_environment_snapshot.return_value = ({"approved_version": 8}, approved)
+    repo.storage_enrollment_blocked.return_value = False
+    repo.pinned_environment_snapshot.return_value[1]["configuration"]["network"] = {"original": True}
+    provisioner = MagicMock()
+    provisioner.start.return_value = ("fixture:build", "executions/fixture")
+    return cluster, repo, settings, provisioner, Service(repo, "test", provisioner)
+
+
+def test_storage_uses_the_existing_state_and_only_pins_new_storage_settings():
+    cluster, repo, settings, provisioner, service = storage_enrollment_case()
+    service.change(cluster["cluster_id"], "plan", {
+        "version": 1, "storageAction": "enable", "reason": "Prepare block storage",
+    })
+
+    mode, execution, snapshot = provisioner.start.call_args.args
+    assert mode == "storage-plan"
+    assert execution["terraform_state_key"] == cluster["terraform_state_key"]
+    assert execution["terraform_module_version"] == "1.1.0"
+    assert execution["configuration"]["ebsCsi"] == settings
+    assert cluster["environment_approved_version"] == 7
+    assert cluster["workflow"]["ebsCsiEnrollment"]["environmentApprovedVersion"] == 8
+    assert "ebsCsi" not in cluster["configuration"]
+    assert snapshot["configuration"]["network"] == {"original": True}
+    assert snapshot["configuration"]["extensions"]["provisioningContract"]["ebsCsi"] == settings
+    assert "ebsCsi" not in repo.pinned_environment_snapshot.return_value[1]["configuration"]["extensions"]["provisioningContract"]
+
+    digest = "a" * 64
+    cluster["status"] = "PLAN_READY"
+    cluster["plan_sha256"] = digest
+    cluster["workflow"]["ebsCsiEnrollment"]["status"] = "PLAN_READY"
+    cluster["workflow"]["certification"] = {"status": "PASSED", "planSha256": digest}
+    with pytest.raises(ApiError) as error:
+        service.change(cluster["cluster_id"], "apply", {
+            "version": 2, "storagePlanSha256": "b" * 64,
+        })
+    assert error.value.code == "PLAN_NOT_CERTIFIED"
+    assert provisioner.start.call_count == 1
+    service.change(cluster["cluster_id"], "apply", {"version": 2, "storagePlanSha256": digest})
+    repo.active_environment_snapshot.assert_called_with("ENV-test", 8)
+    assert provisioner.start.call_args.args[0] == "storage-apply"
+    assert cluster["workflow"]["ebsCsiEnrollment"]["approvedPlanSha256"] == digest
+    assert cluster["workflow"]["ebsCsiEnrollment"]["approvedBy"] == "architect"
+
+
+def test_storage_rejects_cross_region_approval_and_conflicting_work():
+    cluster, repo, _, provisioner, service = storage_enrollment_case()
+    body = {"version": 1, "storageAction": "enable", "reason": "Prepare block storage"}
+    repo.active_environment_snapshot.return_value[1]["configuration"]["location"]["region"] = "eu-west-1"
+    with pytest.raises(ApiError) as error:
+        service.change(cluster["cluster_id"], "plan", body)
+    assert error.value.code == "EBS_CSI_ENVIRONMENT_MISMATCH"
+    repo.storage_enrollment_blocked.return_value = True
+    with pytest.raises(ApiError) as error:
+        service.change(cluster["cluster_id"], "plan", body)
+    assert error.value.code == "CLUSTER_CHANGE_IN_PROGRESS"
+    provisioner.start.assert_not_called()
+
+
+@pytest.mark.parametrize("success", [True, False])
+def test_storage_completion_preserves_cluster_outputs_and_connector(monkeypatch, success):
+    from contextlib import nullcontext
+    from io import BytesIO
+    import json
+
+    from navigan.modules.cluster_management import status_handler
+
+    cluster, _, settings, _, _ = storage_enrollment_case()
+    cluster["status"] = "APPLYING"
+    cluster["outputs"] = {"cluster_endpoint": {"value": "existing"}}
+    cluster["workflow"] = {
+        "currentExecution": {"mode": "storage-apply"},
+        "ebsCsiEnrollment": {"status": "APPLYING", "configuration": settings, "applyAttempted": True},
+    }
+    cluster["execution_artifact_prefix"] = "executions/fixture"
+    db = MagicMock()
+    db.execute.return_value.fetchone.return_value = cluster
+    monkeypatch.setattr(status_handler, "transaction", lambda: nullcontext(db))
+    s3 = MagicMock()
+    s3.get_object.return_value = {
+        "Body": BytesIO(json.dumps({"mode": "storage-apply", "success": success}).encode()),
+    }
+    monkeypatch.setattr(status_handler, "s3", s3)
+    monkeypatch.setenv("TERRAFORM_ARTIFACT_BUCKET", "fixture-bucket")
+    installer = MagicMock()
+    monkeypatch.setattr(status_handler, "ConnectorInstaller", installer)
+
+    result = status_handler.lambda_handler({
+        "detail": {"build-id": "fixture:build", "build-status": "SUCCEEDED"},
+    }, None)
+
+    assert result["status"] == "ACTIVE"
+    _, args = db.execute.call_args_list[1].args
+    assert json.loads(args[3]) == cluster["outputs"]
+    workflow, configuration = json.loads(args[4]), json.loads(args[5])
+    assert workflow["ebsCsiEnrollment"]["status"] == ("COMPLETE" if success else "FAILED")
+    assert configuration.get("ebsCsi") == (settings if success else None)
+    assert args[-2] == ("1.1.0" if success else "1.0.0")
+    installer.assert_not_called()

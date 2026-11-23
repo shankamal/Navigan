@@ -6,6 +6,7 @@ import subprocess
 import time
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 bucket = os.environ["TERRAFORM_ARTIFACT_BUCKET"]
 input_key = os.environ["NAVIGAN_INPUT_KEY"]
@@ -73,7 +74,69 @@ def system_node_findings(plan, request):
     return findings
 
 
+def storage_plan_findings(plan, request):
+    """Allow a saved plan to create only the approved storage add-ons."""
+    settings = request["configuration"]["ebsCsi"]
+    agent_address = 'aws_eks_addon.storage_pod_identity_agent["storage"]'
+    driver_address = 'aws_eks_addon.ebs_csi["storage"]'
+    expected = {driver_address: ("aws-ebs-csi-driver", settings["addonVersion"])}
+    if settings["podIdentityAgentVersion"] is not None:
+        expected[agent_address] = ("eks-pod-identity-agent", settings["podIdentityAgentVersion"])
+    problems = []
+    seen = set()
+    if plan.get("errored") or plan.get("complete") is not True or plan.get("action_invocations"):
+        problems.append("incomplete or unsupported Terraform plan")
+    for resource in plan.get("resource_changes", []):
+        change = resource.get("change", {})
+        address = resource.get("address", "")
+        actions = change.get("actions")
+        if resource.get("previous_address") or change.get("importing") or change.get("generated_config"):
+            problems.append(address)
+            continue
+        if address not in expected:
+            if actions != ["no-op"] and not (resource.get("mode") == "data" and actions == ["read"]):
+                problems.append(address)
+            continue
+        if address in seen:
+            problems.append(address)
+        seen.add(address)
+        addon, version = expected[address]
+        after = change.get("after") or {}
+        association = after.get("pod_identity_association") or []
+        expected_association = (
+            [{"role_arn": settings["controllerRoleArn"], "service_account": "ebs-csi-controller-sa"}]
+            if address == driver_address else []
+        )
+        if (
+            resource.get("mode") != "managed"
+            or resource.get("type") != "aws_eks_addon"
+            or actions not in (["create"], ["no-op"])
+            or after.get("cluster_name") != request["clusterName"]
+            or after.get("addon_name") != addon
+            or after.get("addon_version") != version
+            or after.get("resolve_conflicts_on_create") != "NONE"
+            or after.get("service_account_role_arn")
+            or association != expected_association
+        ):
+            problems.append(address)
+    problems.extend(sorted(expected.keys() - seen))
+    return [{
+        "severity": "HIGH",
+        "rule": "EKS_STORAGE_PLAN_SCOPE",
+        "message": "Storage enrollment can only create the approved add-ons on this cluster.",
+        "resources": list(dict.fromkeys(problems))[:25],
+    }] if problems else []
+
+
 def security_scan(plan, request):
+    if request.get("mode") in {"storage-plan", "storage-apply"}:
+        findings = storage_plan_findings(plan, request)
+        return {
+            "engine": "Navigan Terraform policy checks",
+            "status": "FAILED" if findings else "PASSED",
+            "blockingFindings": len(findings),
+            "findings": findings,
+        }
     findings = system_node_findings(plan, request)
     configuration = request["configuration"]
     if configuration.get("endpointAccess") != "PRIVATE":
@@ -175,12 +238,49 @@ def addon_configuration_properties(schema, node):
     return node.get("properties", {})
 
 
+def managed_eks_addon(eks, cluster_name, addon_name):
+    try:
+        return eks.describe_addon(clusterName=cluster_name, addonName=addon_name)["addon"]
+    except ClientError as error:
+        if error.response["Error"]["Code"] != "ResourceNotFoundException":
+            raise
+        return None
+
+
+def verify_storage_addons_ready(request, eks):
+    for name in ("eks-pod-identity-agent", "aws-ebs-csi-driver"):
+        addon = managed_eks_addon(eks, request["clusterName"], name)
+        if not addon or addon.get("status") != "ACTIVE" or addon.get("health", {}).get("issues"):
+            raise ValueError(f"{name} did not report healthy after storage apply.")
+
+
+def resolve_storage_agent(request, eks, state_addresses):
+    settings = request["configuration"]["ebsCsi"]
+    cluster = request["clusterName"]
+    agent = managed_eks_addon(eks, cluster, "eks-pod-identity-agent")
+    driver = managed_eks_addon(eks, cluster, "aws-ebs-csi-driver")
+    if driver and 'aws_eks_addon.ebs_csi["storage"]' not in state_addresses:
+        raise ValueError("The existing EBS CSI add-on is outside this cluster's Terraform state.")
+    agent_managed = 'aws_eks_addon.storage_pod_identity_agent["storage"]' in state_addresses
+    if agent and not agent_managed:
+        if request["mode"] == "storage-plan":
+            settings["podIdentityAgentVersion"] = None
+        elif settings["podIdentityAgentVersion"] is not None:
+            raise ValueError("An external Pod Identity Agent appeared after planning. Replan storage enrollment.")
+    if not agent and settings["podIdentityAgentVersion"] is None:
+        raise ValueError("The Pod Identity Agent is absent and no install version was approved.")
+
+
 def preflight_ebs_csi(request, baseline, clients, account_id):
     ebs_csi = request["configuration"].get("ebsCsi")
-    if ebs_csi is None or request["mode"] not in {"plan", "apply"}:
+    storage_mode = request["mode"] in {"storage-plan", "storage-apply"}
+    if ebs_csi is None or request["mode"] not in {"plan", "apply", "storage-plan", "storage-apply"}:
         return
     approved = baseline.get("extensions", {}).get("provisioningContract", {}).get("ebsCsi") or {}
-    if ebs_csi != {**approved, "podIdentityAgentVersion": approved.get("podIdentityAgentVersion")}:
+    approved = {**approved, "podIdentityAgentVersion": approved.get("podIdentityAgentVersion")}
+    if storage_mode and ebs_csi["podIdentityAgentVersion"] is None:
+        approved["podIdentityAgentVersion"] = None
+    if ebs_csi != approved:
         raise ValueError("EBS CSI configuration differs from the approved environment.")
     role = ebs_csi["controllerRoleArn"]
     reserved_roles = {baseline["iam"][key]["roleArn"] for key in ("clusterRole", "nodeRole")}
@@ -219,6 +319,23 @@ def preflight(request, baseline, external_id):
     account_id = clients["sts"].get_caller_identity()["Account"]
     if account_id != baseline["account"]["accountId"]:
         raise ValueError("Provisioning role account does not match the approved environment.")
+    if request["mode"] in {"storage-plan", "storage-apply"}:
+        eks = clients["eks"]
+        cluster = eks.describe_cluster(name=request["clusterName"])["cluster"]
+        if (
+            cluster.get("status") != "ACTIVE"
+            or cluster.get("version") != request["configuration"]["kubernetesVersion"]
+            or cluster.get("resourcesVpcConfig", {}).get("vpcId") != baseline["network"]["vpc"]["vpcId"]
+            or cluster.get("storageConfig", {}).get("blockStorage", {}).get("enabled") is True
+            or cluster.get("computeConfig", {}).get("enabled") is True
+        ):
+            raise ValueError("Storage enrollment requires the recorded active, standard EKS cluster.")
+        addresses = set(subprocess.check_output(["terraform", "state", "list"], cwd=work).decode().splitlines())
+        if "aws_eks_cluster.this" not in addresses:
+            raise ValueError("The existing cluster is missing from its Terraform state.")
+        resolve_storage_agent(request, eks, addresses)
+        preflight_ebs_csi(request, baseline, clients, account_id)
+        return
     network = baseline["network"]
     subnet_refs = network["clusterSubnets"] + network["nodeSubnets"]
     subnet_ids = sorted({item["subnetId"] for item in subnet_refs})
@@ -264,6 +381,8 @@ def verify_module_version(request, packaged_version):
 
 try:
     request = json.loads(s3.get_object(Bucket=bucket, Key=input_key)["Body"].read())
+    if request.get("mode") != mode:
+        raise ValueError("Execution mode differs from the recorded Terraform request.")
     normalize_request_identity(request)
     if request["platform"] != "EKS":
         raise ValueError("Only EKS is supported by this runner image.")
@@ -285,6 +404,9 @@ try:
     )
     baseline = request["environment"]["configuration"]
     external_id = secrets.get_secret_value(SecretId=request["externalIdSecretArn"])["SecretString"]
+    storage_mode = mode in {"storage-plan", "storage-apply"}
+    if storage_mode:
+        run("terraform", "init", "-input=false", "-backend-config=backend.hcl")
     # Destruction must remain possible when the original environment resources
     # are degraded or superseded. Terraform state and the recorded provider
     # identity are authoritative for decommissioning.
@@ -331,7 +453,8 @@ try:
         },
     }
     (work / "terraform.tfvars.json").write_text(json.dumps(variables))
-    run("terraform", "init", "-input=false", "-backend-config=backend.hcl")
+    if not storage_mode:
+        run("terraform", "init", "-input=false", "-backend-config=backend.hcl")
     run("terraform", "fmt", "-check", "-recursive")
     validation = run_json("terraform", "validate", "-json")
     if not validation.get("valid"):
@@ -342,7 +465,7 @@ try:
             "validation": validation,
         })
         raise ValueError("Terraform configuration validation failed.")
-    if mode == "plan":
+    if mode in {"plan", "storage-plan"}:
         run("terraform", "plan", "-input=false", "-out=terraform.tfplan")
         plan = (work / "terraform.tfplan").read_bytes()
         digest = hashlib.sha256(plan).hexdigest()
@@ -378,8 +501,15 @@ try:
             },
             "securityScan": scan,
             "certification": certification,
+            **({
+                "ebsCsi": request["configuration"]["ebsCsi"],
+                "storageAddonsToCreate": [
+                    item["change"]["after"]["addon_name"] for item in shown.get("resource_changes", [])
+                    if item.get("type") == "aws_eks_addon" and item["change"]["actions"] == ["create"]
+                ] if scan["status"] == "PASSED" else [],
+            } if storage_mode else {}),
         })
-    elif mode == "apply":
+    elif mode in {"apply", "storage-apply"}:
         plan_key = request.get("approvedPlanArtifactKey")
         expected = request.get("approvedPlanSha256")
         if not plan_key or not expected:
@@ -389,11 +519,17 @@ try:
             raise ValueError("Approved Terraform plan hash mismatch.")
         (work / "terraform.tfplan").write_bytes(plan)
         shown = run_json("terraform", "show", "-json", "terraform.tfplan")
-        if system_node_findings(shown, request):
+        if storage_mode and storage_plan_findings(shown, request):
+            raise ValueError("Approved plan contains changes outside the EKS storage scope.")
+        if not storage_mode and system_node_findings(shown, request):
             raise ValueError("Approved plan does not provision a protected system node group.")
         run("terraform", "apply", "-input=false", "-auto-approve", "terraform.tfplan")
-        raw = subprocess.check_output(["terraform", "output", "-json"], cwd=work)
-        put_result({"success": True, "mode": mode, "outputs": json.loads(raw)})
+        if storage_mode:
+            verify_storage_addons_ready(request, assumed_clients(request, baseline, external_id)["eks"])
+            put_result({"success": True, "mode": mode})
+        else:
+            raw = subprocess.check_output(["terraform", "output", "-json"], cwd=work)
+            put_result({"success": True, "mode": mode, "outputs": json.loads(raw)})
     elif mode in {"stop", "start"}:
         clients = assumed_clients(request, baseline, external_id)
         updates = []

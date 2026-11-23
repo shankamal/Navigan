@@ -599,6 +599,16 @@ class Repository:
             "items": [serialize(row) for row in rows],
         }
 
+    def storage_enrollment_blocked(self, identifier):
+        result = self.db.execute(
+            "SELECT EXISTS(SELECT 1 FROM cluster_management.cluster_node_group_requests "
+            "WHERE cluster_id=%s AND status IN ('PLAN_RUNNING','PLAN_READY','APPLYING')) "
+            "OR EXISTS(SELECT 1 FROM cluster_management.upgrade_plans "
+            "WHERE cluster_id=%s AND status='EXECUTING') AS blocked",
+            [identifier, identifier],
+        ).fetchone()
+        return result["blocked"]
+
     def active_application_node_groups(self, identifier):
         self.get(identifier)
         rows = self.db.execute(

@@ -9,6 +9,7 @@ from pydantic import Field, field_validator
 
 from navigan.modules.customer_management.repository import json_text
 from navigan.shared.errors import ApiError
+from .capabilities import storage_enrollment_blocks_changes
 from .models import Model
 from .upgrade_actors import UpgradeActorNames
 from .repository import serialize
@@ -306,7 +307,9 @@ class EksUpgradePlans:
                 "MAINTENANCE_WINDOW_NOT_STARTED",
                 "The approved maintenance window has not started.",
             )
-        cluster = self.repo.get(plan["cluster_id"])
+        cluster = self.repo.get(plan["cluster_id"], lock=True)
+        if storage_enrollment_blocks_changes(cluster):
+            raise ApiError(409, "EBS_CSI_CHANGE_IN_PROGRESS", "Resolve storage enrollment before upgrading this cluster.")
         _, environment = self.repo.pinned_environment_snapshot(
             cluster["environment_id"], cluster["environment_approved_version"]
         )

@@ -119,6 +119,8 @@ class Action(Model):
     version: int = Field(gt=0)
     reason: str | None = Field(default=None, max_length=2000)
     comments: str | None = Field(default=None, max_length=4000)
+    storageAction: Literal["enable", "cancel"] | None = None
+    storagePlanSha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class SystemNodeGroupMigration(Model):

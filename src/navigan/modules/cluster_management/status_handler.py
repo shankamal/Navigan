@@ -196,6 +196,20 @@ def lambda_handler(event, context):
                 build_status = "RESULT_UNAVAILABLE"
         success = build_status == "SUCCEEDED" and result.get("success") is True
         current_execution = dict(row["workflow"]).get("currentExecution", {})
+        execution_mode = current_execution.get("mode")
+        storage_mode = execution_mode in {"storage-plan", "storage-apply"}
+        if storage_mode:
+            success = success and result.get("mode") == execution_mode
+            if execution_mode == "storage-plan":
+                certification = result.get("certification") or {}
+                selected = result.get("ebsCsi")
+                approved = row["workflow"]["ebsCsiEnrollment"]["configuration"]
+                success = (
+                    success and certification.get("status") == "PASSED"
+                    and bool(result.get("planSha256"))
+                    and certification.get("planSha256") == result.get("planSha256")
+                    and selected in [approved, {**approved, "podIdentityAgentVersion": None}]
+                )
         migration_apply = (
             previous == "APPLYING"
             and current_execution.get("kind") == "SYSTEM_NODE_GROUP_MIGRATION"
@@ -208,6 +222,8 @@ def lambda_handler(event, context):
             "DELETING": "DELETED",
         }
         target = successful_targets[previous] if success else "FAILED"
+        if storage_mode and (execution_mode == "storage-apply" or not success):
+            target = "ACTIVE"
         version = row["version"] + 1
         now = datetime.now(timezone.utc)
         plan_sha = result.get("planSha256") if previous == "PLAN_RUNNING" and success else row["plan_sha256"]
@@ -215,7 +231,7 @@ def lambda_handler(event, context):
             {}
             if previous == "DELETING" and success
             else result.get("outputs", {})
-            if previous in {"APPLYING", "STARTING"} and success
+            if previous in {"APPLYING", "STARTING"} and success and not storage_mode
             else row["outputs"]
         )
         workflow = dict(row["workflow"])
@@ -225,12 +241,27 @@ def lambda_handler(event, context):
             "errorCode": result.get("errorCode") if not success else None,
         }
         workflow.pop("currentExecution", None)
-        if previous == "PLAN_RUNNING" and success:
+        if previous == "PLAN_RUNNING" and (success or storage_mode):
             workflow["planSummary"] = result.get("planSummary", {})
             workflow["validation"] = result.get("validation", {})
             workflow["securityScan"] = result.get("securityScan", {})
             workflow["certification"] = result.get("certification", {})
         configuration = dict(row["configuration"])
+        module_version = row.get("terraform_module_version")
+        if storage_mode:
+            enrollment = dict(workflow["ebsCsiEnrollment"])
+            if not success:
+                enrollment["status"] = "FAILED"
+                enrollment["failedPhase"] = execution_mode
+            elif execution_mode == "storage-plan":
+                enrollment.update({"status": "PLAN_READY", "configuration": result["ebsCsi"]})
+                enrollment["addonsToCreate"] = result.get("storageAddonsToCreate", [])
+                enrollment.pop("failedPhase", None)
+            else:
+                enrollment["status"] = "COMPLETE"
+                configuration["ebsCsi"] = enrollment["configuration"]
+                module_version = "1.1.0"
+            workflow["ebsCsiEnrollment"] = enrollment
         if migration_apply and success:
             migration = dict(configuration.get("systemNodeGroupMigration") or {})
             migration.update(
@@ -243,11 +274,12 @@ def lambda_handler(event, context):
         db.execute(
             "UPDATE cluster_management.clusters SET status=%s,version=%s,plan_sha256=%s,"
             "outputs=%s::jsonb,workflow=%s::jsonb,configuration=%s::jsonb,"
-            "updated_by=%s,updated_at=%s "
-            "WHERE cluster_id=%s",
+            "updated_by=%s,updated_at=%s"
+            + (",terraform_module_version=%s" if storage_mode else "")
+            + " WHERE cluster_id=%s",
             [target, version, plan_sha, json_text(outputs), json_text(workflow),
              json_text(configuration),
-             "terraform-runner", now, row["cluster_id"]],
+             "terraform-runner", now, *([module_version] if storage_mode else []), row["cluster_id"]],
         )
         db.execute(
             "INSERT INTO cluster_management.cluster_status_history"
@@ -267,6 +299,8 @@ def lambda_handler(event, context):
             "updated_by": "terraform-runner",
             "updated_at": now,
         })
+        if storage_mode:
+            snapshot["terraform_module_version"] = module_version
         snapshot = {
             key: value.isoformat() if hasattr(value, "isoformat") else value
             for key, value in snapshot.items()
@@ -283,7 +317,7 @@ def lambda_handler(event, context):
             [row["cluster_id"], "TerraformExecutionCompleted", "terraform-runner",
              event.get("id", "codebuild"), json_text(old_snapshot), json_text(snapshot)],
         )
-        if previous == "APPLYING" and success and not migration_apply:
+        if previous == "APPLYING" and success and not migration_apply and not storage_mode:
             principal = Principal(
                 user_id="platform-bootstrap",
                 roles=frozenset({"SERVICE"}),
