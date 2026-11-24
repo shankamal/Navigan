@@ -1,11 +1,13 @@
 from base64 import b64decode
 from hashlib import sha1
+import sqlite3
 from unittest.mock import Mock
 
 import pytest
 import yaml
 
 from navigan.modules.cluster_management.github_app import GitHubApp
+from navigan.modules.cluster_management.repository import Repository
 from navigan.modules.cluster_management.system_repository import (
     EBS_STORAGE_APPLICATION,
     EBS_STORAGE_DIRECTORY,
@@ -16,6 +18,32 @@ from navigan.shared.errors import ApiError
 
 def blob_sha(data):
     return sha1(f"blob {len(data)}\0".encode() + data, usedforsecurity=False).hexdigest()
+
+
+def test_repository_access_returns_the_github_connection_owner():
+    with sqlite3.connect(":memory:") as database:
+        database.row_factory = lambda cursor, values: dict(
+            zip((column[0] for column in cursor.description), values)
+        )
+        database.executescript("""
+            ATTACH DATABASE ':memory:' AS cluster_management;
+            CREATE TABLE cluster_management.cluster_system_repositories (
+                cluster_id TEXT, connection_id TEXT, status TEXT, repository_url TEXT
+            );
+            CREATE TABLE cluster_management.github_app_connections (
+                connection_id TEXT, installation_id INTEGER, status TEXT, customer_id TEXT
+            );
+            INSERT INTO cluster_management.cluster_system_repositories
+                VALUES ('CLU-example', 'GHC-example', 'ACTIVE', 'https://github.com/example/system');
+            INSERT INTO cluster_management.github_app_connections
+                VALUES ('GHC-example', 123, 'ACTIVE', 'CUS-owner');
+        """)
+        db = Mock()
+        db.execute.side_effect = lambda sql, values: database.execute(sql.replace("%s", "?"), values)
+        repository = Repository(db, Mock()).system_repository_access("CLU-example")
+
+    assert repository["customer_id"] == "CUS-owner"
+    assert repository["installation_id"] == 123
 
 
 @pytest.fixture
