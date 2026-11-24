@@ -1,20 +1,23 @@
-# Navigan session continuity
+# Navigan engineering and session continuity
 
-Before continuing project work, read these files in order:
+Navigan is an existing API-based container management platform. Preserve approved cloud-agnostic and container-distribution-agnostic architecture, established engineering patterns, security boundaries and backward compatibility. The latest authorized user scope governs work. Repository and verified runtime evidence take precedence over assumptions or chat memory.
 
-1. `docs/context-continuity/README.md`
-2. `docs/context-continuity/docs/NAVIGAN_SESSION_HANDOFF_2026-10-23_LATEST.md`
-3. The current section of `docs/context-continuity/docs/NAVIGAN_DAILY_CHECKPOINT.md`
-4. The current override in `docs/context-continuity/docs/NAVIGAN_MASTER_CONTEXT.md`
+## Mandatory recovery before development
 
-The daily starter prompt is `docs/context-continuity/docs/NAVIGAN_DAILY_START_PROMPT.md`.
+1. Identify repository, selected branch, HEAD and working-tree status. If the agent lacks access to the actual checkout, state that limitation. Never infer the user's WSL branch from a cloud checkout or default branch.
+2. Read `docs/context-continuity/CURRENT_STATE.md` and `docs/context-continuity/ACTIVE_TASK.md` on the selected branch. Use `docs/context-continuity/README.md` as the historical index. If either stable file is missing, report it and use the newest relevant README override as provisional evidence only.
+3. Read relevant branch-specific handoffs, sections of `docs/context-continuity/docs/NAVIGAN_DAILY_CHECKPOINT.md` and `docs/context-continuity/docs/NAVIGAN_MASTER_CONTEXT.md`. Do not load all historical material indiscriminately. Follow applicable nested instructions, including `frontend/AGENTS.md`.
+4. Compare relevant remote branches and commits read-only when state is stale, missing or contradictory. A newer document is not proof its code is merged or deployed. Do not switch branches, merge code or change authorized scope to resolve drift.
+5. Before editing, report selected branch/commit, context files and checkpoint dates, verified task, scope/exclusions, missing evidence and next action. If an essential fact is unknown or conflicts, stop the affected implementation and reconcile or request missing evidence. Do not invent a task.
 
-The latest dated handoff/current override supersedes historical status labels, blockers, release IDs and next-task lists. Historical files are evidence, not authorization to repeat cloud changes. Check the actual branch, working tree and current task before edits. Do not assume a recorded feature release is the current HEAD after later documentation commits.
+## Scope, safety and delivery
 
-Preserve user files and existing work. Do not reset, clean, delete files or create another worktree to resume this project. Follow the user's latest scope and applicable nested instructions (including `frontend/AGENTS.md` for frontend changes).
+- Inspect existing code and contracts; reuse APIs, services, components, schemas and templates. No unapproved alternative architecture, unrelated refactoring, bypass scripts or infrastructure changes.
+- Preserve user files and uncommitted work. Do not reset, clean, delete files or create another worktree to resume this project. Follow established branching/review practices; obtain authorization for branch changes, destructive operations, publishing, merging and production deployment as applicable.
+- Define acceptance criteria and affected files; implement incrementally, run applicable tests, review diffs, and report failures, skipped tests and limitations. A generated or tested change or prepared release is not proof of deployment.
+- Verify DEV/PROD separately when relevant; do not assume sync. Historical release commands are evidence, not authorization to repeat cloud operations. Never deploy or modify production resources without explicit approval. Preserve rollback and post-deployment checks.
+- For source access tasks, consult `docs/context-continuity/docs/NAVIGAN_SOURCE_ACCESS_UI_STATUS.md` and later relevant evidence. Respect historical holds or exclusions until superseded by verified decisions and user authorization.
 
-Current checkpoint: Migration Overview is the accepted visual reference. The broader migration workflow UI/UX redesign is explicitly on hold until the user asks to resume it. Recent product work was frontend-only; this context does not authorize backend, infrastructure, source/target or production changes.
+## Checkpoint maintenance
 
-After substantive work, update the current handoff/checkpoint/start prompt with verified release IDs, acceptance, checks, limitations and next actions. Preserve dated history. Never record credentials or presigned download URLs.
-
-Latest source access UI recovery point: read `docs/context-continuity/docs/NAVIGAN_SOURCE_ACCESS_UI_STATUS.md` before historical status labels when continuing the current production workflow test.
+After substantive work, update the stable state and active-task records with all changes since the previous verified checkpoint, source commits, evidence, acceptance, limitations, approvals and precise next action. Link to detailed dated handoffs and update existing daily checkpoint/start prompt as appropriate. Preserve historical records; treat superseded current-state labels as historical. Do not claim publication or rollout without evidence. Never record credentials, bearer tokens, presigned URLs or sensitive customer details in public documentation. Follow the agreed review and publication process for documentation updates.

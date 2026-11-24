@@ -1,3 +1,9 @@
+# Navigan continuity — recovery index
+
+Start with [CURRENT_STATE.md](CURRENT_STATE.md) and [ACTIVE_TASK.md](ACTIVE_TASK.md), following the root [AGENTS.md](../../AGENTS.md). Verify the selected branch and evidence before treating any checkpoint as current. The following dated sections are preserved historical records; their labels, release IDs and next steps are not automatically the current implementation or authorization. Resolve conflicting branch-specific evidence before edits.
+
+---
+
 ## Current override — 16 November 2026 Dashboard theme pilot
 
 Read `NAVIGAN_SESSION_HANDOFF_2026-11-16_LATEST.md` first (under `docs/` from the kit README). Branch remains `feature/upgrade-patching-ui-approved`. Login intro bypass and scope-selector alignment are global; IBM Plex Sans/white-sidebar/neutral-panel theme and left-aligned title are Dashboard-only for review. No deployment, main merge, DEV sync or backend changes. Refresh frontend dependencies for the new bundled font. Preserve 15-Nov history and Upgrade governance.
