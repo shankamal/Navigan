@@ -7,6 +7,20 @@ from navigan.shared.errors import ApiError
 
 
 PLACEHOLDER = re.compile(r"__[A-Z0-9_]+__")
+EBS_STORAGE_APPLICATION = "applications/25-ebs-storage.yaml"
+EBS_STORAGE_DIRECTORY = "storage-classes"
+
+
+def render_ebs_storage(repository_url, revision):
+    root = files(__package__).joinpath("system_repo_template")
+    replacements = {
+        "__SYSTEM_REPO_URL__": repository_url,
+        "__SYSTEM_REPO_REVISION__": revision,
+    }
+    rendered = {}
+    for path in (EBS_STORAGE_APPLICATION, EBS_STORAGE_DIRECTORY):
+        _render_tree(root.joinpath(path), path, replacements, rendered)
+    return rendered
 
 
 def connector_artifact(image):
@@ -61,11 +75,12 @@ def render_system_repository(
     root = files(__package__).joinpath("system_repo_template")
     rendered = {}
     for resource in root.iterdir():
-        if resource.name == "storage-classes" and not enable_ebs_csi:
+        if resource.name == EBS_STORAGE_DIRECTORY:
             continue
         _render_tree(resource, resource.name, replacements, rendered)
-    if not enable_ebs_csi:
-        rendered.pop("applications/25-ebs-storage.yaml", None)
+    rendered.pop(EBS_STORAGE_APPLICATION, None)
+    if enable_ebs_csi:
+        rendered.update(render_ebs_storage(repository_url, revision))
     return rendered
 
 

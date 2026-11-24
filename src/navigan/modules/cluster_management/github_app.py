@@ -1,9 +1,12 @@
+import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.request
 from base64 import b64encode, b64decode
+from pathlib import PurePosixPath
+from urllib.parse import quote
 
 import boto3
 import jwt
@@ -167,8 +170,6 @@ class GitHubApp:
 
     def read_repository_file(self, installation_id, organization, repository_name, path, *, branch="main"):
         """Read an existing file with a token restricted to the selected system repo."""
-        from urllib.parse import quote
-
         token = self.repository_token(installation_id, repository_name)["token"]
         safe_path = "/".join(quote(part, safe="") for part in path.split("/"))
         result = self._request(
@@ -210,7 +211,18 @@ class GitHubApp:
             reference = self._request(
                 "GET", f"{repository_path}/git/ref/heads/{branch}", token
             )
-        parent_sha = reference["object"]["sha"]
+        revision = self._create_commit(
+            repository_path, token, reference["object"]["sha"], files, message
+        )
+        self._request(
+            "PATCH",
+            f"{repository_path}/git/refs/heads/{branch}",
+            token,
+            {"sha": revision, "force": False},
+        )
+        return {"revision": revision, "branch": branch}
+
+    def _create_commit(self, repository_path, token, parent_sha, files, message):
         parent = self._request(
             "GET", f"{repository_path}/git/commits/{parent_sha}", token
         )
@@ -249,10 +261,94 @@ class GitHubApp:
                 "parents": [parent_sha],
             },
         )
-        self._request(
-            "PATCH",
-            f"{repository_path}/git/refs/heads/{branch}",
-            token,
-            {"sha": commit["sha"], "force": False},
+        return commit["sha"]
+
+    def prepare_storage_review(self, repository, files, *, application_path, storage_directory):
+        """Publish an additions-only change to a review branch in the selected repository."""
+        organization = repository["organization_login"]
+        name = repository["repository_name"]
+        repository_url = f"https://github.com/{organization}/{name}"
+        if repository["repository_url"].casefold() != repository_url.casefold():
+            raise ApiError(409, "SYSTEM_REPOSITORY_MISMATCH", "The approved system repository URL differs.")
+        base = repository["default_branch"]
+        review = "navigan/ebs-csi-storage"
+        conflict = ApiError(
+            409,
+            "EBS_CSI_GITOPS_CONFLICT",
+            "The system repository already has different storage manifests or review changes.",
         )
-        return {"revision": commit["sha"], "branch": branch}
+        if base == review:
+            raise conflict
+        token = self.repository_token(repository["installation_id"], name, write=True)["token"]
+        path = f"/repos/{quote(organization, safe='')}/{quote(name, safe='')}"
+        base_sha = self._request("GET", f"{path}/git/ref/heads/{quote(base, safe='/')}", token)["object"]["sha"]
+        base_commit = self._request("GET", f"{path}/git/commits/{base_sha}", token)
+        tree_sha = base_commit["tree"]["sha"]
+        snapshot = self._request("GET", f"{path}/git/trees/{tree_sha}?recursive=1", token)
+        if snapshot.get("truncated"):
+            raise ApiError(
+                409, "EBS_CSI_GITOPS_TREE_TRUNCATED",
+                "GitHub could not verify the complete storage manifest tree.",
+            )
+        existing = {entry["path"]: entry for entry in snapshot["tree"]}
+        expected = {}
+        for filename, content in files.items():
+            for directory in PurePosixPath(filename).parents:
+                entry = existing.get(directory.as_posix())
+                if entry and entry["mode"] != "040000":
+                    raise conflict
+            data = content.encode()
+            expected[filename] = hashlib.sha1(
+                f"blob {len(data)}\0".encode() + data, usedforsecurity=False
+            ).hexdigest()
+            entry = existing.get(filename)
+            if entry and (entry["mode"] != "100644" or entry["sha"] != expected[filename]):
+                raise conflict
+        missing = {filename: content for filename, content in files.items() if filename not in existing}
+        if not missing:
+            return {"status": "MANIFESTS_PRESENT", "baseBranch": base}
+        if application_path in missing and any(
+            filename.startswith(storage_directory + "/") and filename not in files
+            for filename in existing
+        ):
+            raise conflict
+
+        review_ref = f"{path}/git/ref/heads/{review}"
+        try:
+            review_sha = self._request("GET", review_ref, token)["object"]["sha"]
+        except ApiError as error:
+            if error.status != 404:
+                raise
+            review_sha = self._create_commit(path, token, base_sha, missing, "Add Navigan EBS storage")
+            try:
+                self._request("POST", f"{path}/git/refs", token, {
+                    "ref": f"refs/heads/{review}",
+                    "sha": review_sha,
+                })
+            except ApiError as race:
+                if race.status not in {409, 422}:
+                    raise
+                try:
+                    review_sha = self._request("GET", review_ref, token)["object"]["sha"]
+                except ApiError as lookup:
+                    if lookup.status == 404:
+                        raise race from None
+                    raise
+
+        compare = self._request("GET", f"{path}/compare/{base_sha}...{review_sha}", token)
+        changes = {entry["filename"]: entry for entry in compare.get("files", [])}
+        if (
+            compare.get("total_commits") != 1
+            or not missing.keys() <= changes.keys() <= expected.keys()
+            or any(
+                entry["status"] != "added" or entry["sha"] != expected[name]
+                for name, entry in changes.items()
+            )
+        ):
+            raise conflict
+        return {
+            "status": "REVIEW_READY",
+            "baseBranch": base,
+            "reviewBranch": review,
+            "reviewUrl": f"{repository_url}/compare/{quote(base, safe='')}...{quote(review, safe='/')}?expand=1",
+        }

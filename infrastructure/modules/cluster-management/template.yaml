@@ -832,6 +832,16 @@ Resources:
       AuthorizationType: JWT
       AuthorizerId: !Ref AuthorizerId
       AuthorizationScopes: [!Ref JwtScope]
+  PrepareStorageGitOpsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn: ClusterInvokePermission
+    Properties:
+      ApiId: !Ref ApiId
+      RouteKey: POST /api/v1/clusters/{clusterId}/storage-gitops
+      Target: !Join ['/', [integrations, !Ref ClusterIntegration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref AuthorizerId
+      AuthorizationScopes: [!Ref JwtScope]
   BeginGitHubAuthorizationRoute:
     Type: AWS::ApiGatewayV2::Route
     DependsOn: ClusterInvokePermission

@@ -70,12 +70,29 @@ run "approved_clusters_get_scoped_storage_iam" {
         for item in jsondecode(aws_iam_role_policy.ebs_csi_provisioning[0].policy).Statement : item.Resource
         if item.Sid == "PassApprovedStorageControllerRole"
       ]) == output.ebs_csi_controller_role_arn &&
-      one([
+      toset(one([
         for item in jsondecode(aws_iam_role_policy.ebs_csi_provisioning[0].policy).Statement : item.Condition.StringEquals["iam:PassedToService"]
         if item.Sid == "PassApprovedStorageControllerRole"
-      ]) == "eks.amazonaws.com"
+      ])) == toset(["eks.amazonaws.com", "pods.eks.amazonaws.com"])
     )
-    error_message = "The provisioner may pass only the dedicated controller role to EKS."
+    error_message = "The provisioner may pass only the dedicated controller role to EKS and EKS Pod Identity."
+  }
+
+  assert {
+    condition = (
+      one([
+        for item in jsondecode(aws_iam_role_policy.ebs_csi_provisioning[0].policy).Statement : item.Action
+        if item.Sid == "CreateStoragePodIdentityAssociationOnApprovedClusters"
+      ]) == "eks:CreatePodIdentityAssociation" &&
+      toset(one([
+        for item in jsondecode(aws_iam_role_policy.ebs_csi_provisioning[0].policy).Statement : item.Resource
+        if item.Sid == "CreateStoragePodIdentityAssociationOnApprovedClusters"
+        ])) == toset([
+        "arn:aws:eks:ap-south-1:123456789012:cluster/active-eks",
+        "arn:aws:eks:ap-south-1:123456789012:cluster/new-eks",
+      ])
+    )
+    error_message = "Pod Identity association creation must be scoped to exactly the approved clusters."
   }
 
   assert {

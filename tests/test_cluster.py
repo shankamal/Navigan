@@ -1109,6 +1109,54 @@ def test_storage_rejects_cross_region_approval_and_conflicting_work():
     provisioner.start.assert_not_called()
 
 
+def test_storage_gitops_review_uses_cluster_repository_and_is_idempotent():
+    cluster, repo, settings, provisioner, service = storage_enrollment_case()
+    cluster["configuration"]["ebsCsi"] = settings
+    repo.system_repository_access.return_value = {
+        "customer_id": cluster["customer_id"],
+        "repository_url": "https://github.com/example/customer-eks-system",
+        "default_branch": "production",
+    }
+    github = MagicMock()
+    github.prepare_storage_review.return_value = {
+        "status": "REVIEW_READY",
+        "reviewUrl": "https://github.com/example/customer-eks-system/compare/production...navigan/ebs-csi-storage",
+    }
+    identifier = cluster["cluster_id"]
+    result = service.prepare_storage_gitops(identifier, {"version": 1}, github)
+    repo.get.assert_called_with(identifier, lock=True)
+    repo.system_repository_access.assert_called_once_with(identifier)
+    assert result["workflow"]["ebsCsiGitOps"] == github.prepare_storage_review.return_value
+    assert result["version"] == 2
+    manifests = github.prepare_storage_review.call_args.args[1]
+    assert set(manifests) == {"applications/25-ebs-storage.yaml", "storage-classes/ebs-gp3.yaml"}
+    assert "targetRevision: production" in manifests["applications/25-ebs-storage.yaml"]
+    assert service.prepare_storage_gitops(identifier, {"version": 2}, github)["version"] == 2
+    repo.save.assert_called_once_with(cluster)
+    repo.record.assert_called_once()
+    provisioner.start.assert_not_called()
+
+
+@pytest.mark.parametrize(("case", "error"), [
+    ("stale-version", "CONCURRENT_UPDATE"),
+    ("unprovisioned", "EBS_CSI_GITOPS_UNAVAILABLE"),
+    ("another-customer", "SYSTEM_REPOSITORY_MISMATCH"),
+])
+def test_storage_gitops_rejects_an_unapproved_request_before_contacting_github(case, error):
+    cluster, repo, settings, _, service = storage_enrollment_case()
+    repo.system_repository_access.return_value = {"customer_id": "CUS-other"}
+    if case != "unprovisioned":
+        cluster["configuration"]["ebsCsi"] = settings
+    github = MagicMock()
+    with pytest.raises(ApiError) as caught:
+        service.prepare_storage_gitops(
+            cluster["cluster_id"], {"version": 2 if case == "stale-version" else 1}, github
+        )
+    assert caught.value.code == error
+    github.prepare_storage_review.assert_not_called()
+    repo.save.assert_not_called()
+
+
 @pytest.mark.parametrize("success", [True, False])
 def test_storage_completion_preserves_cluster_outputs_and_connector(monkeypatch, success):
     from contextlib import nullcontext

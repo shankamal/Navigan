@@ -78,6 +78,12 @@ resource "aws_iam_role_policy" "ebs_csi_provisioning" {
         Resource = concat(local.ebs_csi_cluster_arns, local.ebs_csi_association_arns)
       },
       {
+        Sid      = "CreateStoragePodIdentityAssociationOnApprovedClusters"
+        Effect   = "Allow"
+        Action   = "eks:CreatePodIdentityAssociation"
+        Resource = local.ebs_csi_cluster_arns
+      },
+      {
         Sid      = "MaintainStorageAddonsOnApprovedClusters"
         Effect   = "Allow"
         Action   = ["eks:UpdateAddon", "eks:DeleteAddon"]
@@ -100,7 +106,7 @@ resource "aws_iam_role_policy" "ebs_csi_provisioning" {
         Effect    = "Allow"
         Action    = "iam:PassRole"
         Resource  = aws_iam_role.ebs_csi_controller[0].arn
-        Condition = { StringEquals = { "iam:PassedToService" = "eks.amazonaws.com" } }
+        Condition = { StringEquals = { "iam:PassedToService" = ["eks.amazonaws.com", "pods.eks.amazonaws.com"] } }
       },
     ]
   })
