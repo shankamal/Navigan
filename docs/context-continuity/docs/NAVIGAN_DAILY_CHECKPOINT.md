@@ -1,3 +1,14 @@
+## 24 November 2026 — AI governance and product checkpoint reconciliation (current recovery entry)
+
+- PR #21 merged into main at 26c54546; PR #22 merged into active branch at 689be50. User terminal confirmed documentation-only fast-forward, four changed documentation files, no tracked changes and nine preserved untracked entries.
+- Root agent rules and stable CURRENT_STATE.md / ACTIVE_TASK.md provide recovery entry points. Historical kit remains intact.
+- User terminal verified local review tips: migration EKS target API 2f308e9, migration EKS target UI 544ceda, PROD migration target discovery b4ac7cc, connector inventory PROD c35262e, existing EKS storage enrollment 74fa70e. First four not visible in connected remote listing. No product branch pushed or merged by audit. Three-dot comparisons include inherited differences.
+- Earlier production migration API checksum verification and connector inventory rollout are reported project history, not fresh runtime evidence. No AWS actions or live checks during governance work. Running artifacts and DEV/PROD parity remain unknown.
+- Pending product task: recover/rebuild shared EBS StorageClass GitOps for existing managed EKS clusters through existing API-based design and templates, with diff/tests before publication and authorized Argo/PVC validation afterward. See ACTIVE_TASK.md. Keep customer-specific details private.
+- Next immediate action: review/merge checkpoint, synchronize checkout safely, validate context recovery in a fresh session. Existing scope and release gates remain. No product implementation or deployment authorized by this documentation change.
+
+---
+
 ## Follow-up — verified target versions, manual candidates and Falco evidence
 
 User approved publication of the pending buttons/navigation changes, then requested these fixes before publication. Publish the complete diff from origin/feature/upgrade-patching-ui-approved (b4efae4) through current HEAD, including all pending increments; do not publish just the newest commit.
