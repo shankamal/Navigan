@@ -1,3 +1,9 @@
+# Navigan continuity — recovery index
+
+Start with [CURRENT_STATE.md](CURRENT_STATE.md) and [ACTIVE_TASK.md](ACTIVE_TASK.md), following the root [AGENTS.md](../../AGENTS.md). Verify the selected branch and evidence before treating any checkpoint as current. The following dated sections are preserved historical records; their labels, release IDs and next steps are not automatically the current implementation or authorization. Resolve conflicting branch-specific evidence before edits.
+
+---
+
 ## Current override — 11 November 2026 end of session
 
 Use the final “consolidated end-of-session checkpoint” in docs/NAVIGAN_DAILY_CHECKPOINT.md and docs/NAVIGAN_SESSION_HANDOFF_2026-11-07_LATEST.md (relative to the continuity-kit root). It consolidates UI, roles, component scopes/paths, calendar, names, user-authorized PA self-approval and rollout evidence. Backend 1894355b is confirmed deployed; frontend :56 is prepared with execution output unconfirmed. User says acceptable for now, with remaining findings deferred to tomorrow. Collect those findings before more work; historical blockers and independent-review-only policy are superseded. Keep utility execution disabled and do not start upgrades.
