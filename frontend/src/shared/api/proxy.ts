@@ -119,6 +119,7 @@ export function isAllowedRoute(method: string, path: string[]): boolean {
         "start",
         "delete",
         "migrate-system-node-group",
+        "storage-gitops",
       ].includes(path[2])
     );
   }

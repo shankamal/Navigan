@@ -107,6 +107,17 @@ export const clusters = {
         )
       ).data,
     ),
+  prepareStorageGitOps: async (id: string, version: number) =>
+    parseResponse(
+      clusterSchema,
+      (
+        await apiClient.post(
+          `${base}/${id}/storage-gitops`,
+          { version },
+          { headers: writeHeaders({ version, key: crypto.randomUUID() }) },
+        )
+      ).data,
+    ),
   platformComponents: async (id: string) =>
     parseResponse(
       platformComponentInventorySchema,
