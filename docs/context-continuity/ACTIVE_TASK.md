@@ -1,21 +1,25 @@
 # Navigan — active task (stable recovery entry point)
 
-Status: context governance and checkpoint reconciliation; product implementation scope not established by this documentation audit. The checked-out branch was verified at the synchronization baseline; it is not necessarily the branch for the next product task.
+## Current activity
 
-## Authorized objective
+Finish context recovery validation in a fresh Navigan session after review and merge of this documentation checkpoint. No product implementation is authorized by this documentation change alone.
 
-Improve context recovery, prevent stale handoffs and avoid scope deviation. This documentation-only change is for review. Application code, infrastructure, releases, customer data and existing feature branches are outside scope.
+## Next product task — shared EBS StorageClass GitOps
 
-## Next action
+Recover or rebuild the shared EBS StorageClass GitOps workflow for existing Navigan-managed EKS clusters using the approved API-based architecture. The prior review bundle is reported unavailable. Reuse checked-in `navigan-ebs-gp3` and Argo CD templates and governed delivery patterns; do not substitute manual per-cluster installation for the product workflow.
 
-Review and merge the documentation-only synchronization after applicable approval. Fast-forward the user checkout only after verifying its current branch, clean tracked state and expected remote diff. Reconcile the latest relevant handoffs, local review branches and runtime evidence. Record the user's next approved product task, acceptance criteria, scope exclusions and verified baseline before implementation. Do not automatically resume October or November work solely because historical files call it current.
+The first validation target and private operational evidence are supplied in existing Navigan project discussion or private execution environment. Verify authorization and identity before runtime action. Earlier production migration API deployment was reported checksum-verified; do not repeat without new evidence and approval.
 
 ## Acceptance criteria
 
-- Root agent instructions do not depend on a hard-coded dated handoff.
-- Stable current-state and active-task entries exist; historical links remain available.
-- Unknown branch/runtime status stays explicitly unknown until verified.
-- New read-only session reports actual branch/commit, files read, checkpoint, conflicts, scope and next action before edits.
-- No application changes, further publication, merge or production deployment without applicable approval.
+- Recover context and inspect existing APIs, repository code, storage templates, GitOps ownership and relevant local review candidates.
+- Confirm authorized product base branch, scope and test plan; do not infer base from checkout alone.
+- Rebuild reusable candidate through existing API-governed workflow, preserving cloud/distribution abstraction and backward compatibility.
+- Run applicable unit, contract, integration and regression checks; report failed or unavailable tests.
+- Present diff and test evidence before publication. Obtain separate publishing, merge and deployment approvals.
+- After authorized rollout, verify Argo CD sync, intended StorageClass availability, test PVC binding and successful mount. Distinguish source/tests from live validation.
+- No unrelated changes, workload migration, production modifications or deployment without applicable authorization.
 
-At each verified milestone, replace the active task with the next approved task and record evidence, blockers and next action. Preserve historical details in existing dated handoffs.
+## Resume gate
+
+A fresh session must report branch/commit, documents read, verified checkpoint, unknowns, task, exclusions and next action. If local review branches or execution access are unavailable, report blocker and request only necessary evidence. Do not substitute another workflow. Update this file, CURRENT_STATE.md and relevant historical checkpoint after each verified milestone.

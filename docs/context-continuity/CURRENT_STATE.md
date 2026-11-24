@@ -1,30 +1,43 @@
 # Navigan — current state (stable recovery entry point)
 
-Status: RECONCILIATION REQUIRED. Documentation synchronization baseline verified 2026-11-24 (Asia/Kolkata). This record is not live deployment verification or authorization for product changes.
+Checkpoint: 2026-11-24 (Asia/Kolkata). Repository and local branch inventory reconciled; runtime evidence and some local-only code details remain outstanding.
 
-## Verified repository and checkout evidence
+## Verified repository and checkout
 
-- Repository: `shankamal/Navigan`.
-- User-confirmed WSL checkout branch: `feature/restore-white-ui-ebs-csi`, HEAD `eb6b1e8fdda876ef32df6ccd4a6f900e4f20deba` before this documentation change. Remote branch matched that HEAD at audit.
-- User-provided working-tree status showed no tracked changes and nine untracked entries. Preserve all existing work. Recheck the actual checkout before changes.
-- Approved platform-wide governance was merged to `main` in PR #21, commit `26c54546e5ffa7bcab3331e9b4f7d37077d1ec12`. This synchronization transfers only the four governance documents, not application changes from main.
-- The branch README has a 16 November override, and its daily starter and checkpoint contain additional follow-up entries. Older entries mention other branches and tasks; use them as evidence, not current authority.
-- User-provided branch listing also shows local review branches for migration target API/UI, production discovery and connector inventory. They were not visible in the connected remote branch listing. Their source differences, publication and deployment status require reconciliation; branch names alone do not prove implementation or rollout.
+- Repository: shankamal/Navigan.
+- User terminal confirmed WSL branch `feature/restore-white-ui-ebs-csi`, HEAD `689be50c3291d59c08a9ce3666a884344472270d` after PR #22 documentation-only fast-forward. Remote matched at verification. No tracked changes shown; nine untracked entries preserved. Recheck before edits.
+- Governance merged into main in PR #21 (26c54546), synchronized to active branch in PR #22 (689be50). No product or infrastructure changes.
+- Main's PR #20 merged governed EBS CSI enrollment at 6ce589b. Active branch has a distinct product history; do not merge main automatically.
+- Active branch kit includes 15/16 November handoffs and later follow-ups. This checkpoint supersedes historical resume instructions, not approved architecture or scope exclusions.
+
+## Local review branch evidence (user terminal)
+
+| Branch | Observed HEAD | Scope indicated by commit history |
+| --- | --- | --- |
+| review/migration-eks-target-api | 2f308e9 | EKS target evidence and compatibility |
+| review/migration-eks-target-ui | 544ceda | Assessment of existing and new EKS targets |
+| review/prod-migration-target-discovery | b4ac7cc | Code-only production target discovery release |
+| review/target-connector-inventory-prod | c35262e | Scoped connector inventory and GitOps ownership release |
+| review/existing-eks-storage-enrollment | 74fa70e | Governed EBS CSI enrollment |
+
+First four were not visible in the connected remote branch listing. Preserve local commits. Three-dot comparisons include inherited differences, not just changes in each tip. Publication, full code review and deployment are not inferred from branch names.
+
+## Product checkpoint
+
+- Frontend restoration source exists on active branch; running revision and final UI acceptance not verified here.
+- Governed EBS CSI enrollment merged into main; per-cluster state requires runtime evidence.
+- Production migration API rollout and checksum verification previously reported in project discussion; connector inventory rollout also reported. No new AWS checks in this task. Exact currently running artifacts and DEV/PROD parity are unknown.
+- Migration target UI is a local review candidate; publication and deployment unverified.
+- Pending user-directed task: recover or rebuild shared EBS StorageClass GitOps for existing Navigan-managed EKS clusters. Prior review bundle unavailable per discussion. Follow approved API-based design and checked-in templates. See ACTIVE_TASK.md.
+- The product implementation base branch must be confirmed independently of the current checkout. Do not replay historical releases.
 
 ## Recovery links
 
-- [Branch-specific historical kit index](README.md)
+- [Active task](ACTIVE_TASK.md)
+- [Historical kit index](README.md)
+- [Daily checkpoint](docs/NAVIGAN_DAILY_CHECKPOINT.md) — 24 November reconciliation entry
 - [16 November handoff](docs/NAVIGAN_SESSION_HANDOFF_2026-11-16_LATEST.md)
 - [15 November handoff](docs/NAVIGAN_SESSION_HANDOFF_2026-11-15_LATEST.md)
-- [Daily checkpoint and follow-up evidence](docs/NAVIGAN_DAILY_CHECKPOINT.md)
-- [Master context and operating contract](docs/NAVIGAN_MASTER_CONTEXT.md)
-- [Daily starter and follow-up evidence](docs/NAVIGAN_DAILY_START_PROMPT.md)
-- [Active task](ACTIVE_TASK.md)
+- [Master context](docs/NAVIGAN_MASTER_CONTEXT.md)
 
-## Current product state
-
-The checked-out branch is known at the audit baseline. Actual current product scope, most recent accepted UI baseline, deployed frontend/backend revisions, and DEV/PROD parity are not verified in this documentation synchronization. Inspect relevant local review branches and reconcile later user-approved milestones with Git and runtime evidence before replacing these unknowns. Do not restart historical work, replay deployment commands, or infer the current task from branch names.
-
-## Maintenance contract
-
-Maintain one concise state record on the authorized working branch: verified date, source branch/commit, evidence links, implementation/test/deployment status separately, decisions/exclusions, blockers and next action. Keep detailed history in the existing kit. Review differences when transferring context between branches; never imply that code or runtime changes were transferred with documentation. Update this record and ACTIVE_TASK.md together at verified milestones. Mark unverifiable facts UNKNOWN. Never publish secrets or sensitive customer information.
+Maintain this concise record and ACTIVE_TASK.md together after verified milestones. Preserve historical records. Distinguish source, tested, published and deployed state. Keep customer identifiers, private runtime evidence, credentials and secrets out of public documentation.
