@@ -616,9 +616,7 @@ class Service:
             raise ApiError(422, "EBS_CSI_NOT_APPROVED",
                            "Approve an environment revision with EBS CSI settings first.") from None
 
-    def prepare_storage_gitops(self, identifier, body, github_app=None):
-        self.principal.require("PLATFORM_ARCHITECT")
-        cluster = self.repo.get(identifier, lock=True)
+    def prepare_storage_gitops(self, cluster, body, github_app=None):
         if cluster["version"] != body["version"]:
             raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
         if (
@@ -631,7 +629,7 @@ class Service:
                 409, "EBS_CSI_GITOPS_UNAVAILABLE",
                 "Complete EBS CSI provisioning on this active managed cluster first.",
             )
-        repository = self.repo.system_repository_access(identifier)
+        repository = self.repo.system_repository_access(cluster["cluster_id"])
         if repository["customer_id"] != cluster["customer_id"]:
             raise ApiError(409, "SYSTEM_REPOSITORY_MISMATCH", "The system repository belongs to another customer.")
         manifests = render_ebs_storage(repository["repository_url"], repository["default_branch"])

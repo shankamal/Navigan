@@ -568,6 +568,11 @@ def execute(event, principal, correlation):
             )
             customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})
             return response(202, value, correlation)
+        if prepare_storage_gitops:
+            access.require("cluster.apply")
+            principal.require("PLATFORM_ARCHITECT")
+            storage_cluster = repo.get(identifier, lock=True)
+            access.require_customer(storage_cluster["customer_id"])
         operation = method + " " + path
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -654,8 +659,7 @@ def execute(event, principal, correlation):
             value = Service(repo, correlation).complete_github_authorization(identifier, body)
             status = 200
         elif prepare_storage_gitops:
-            access.require("cluster.apply")
-            value = Service(repo, correlation).prepare_storage_gitops(identifier, body)
+            value = Service(repo, correlation).prepare_storage_gitops(storage_cluster, body)
             status = 200
         elif node_group_action:
             value = Service(repo, correlation).change_node_group_request(identifier, parts[2], parts[3], body)
