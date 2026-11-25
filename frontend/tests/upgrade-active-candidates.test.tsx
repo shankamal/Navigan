@@ -156,9 +156,7 @@ describe("Upgrade Centre Active candidate inventory", () => {
     });
 
     await waitFor(() =>
-      expect(
-        within(table).getByText("candidate-cluster"),
-      ).toBeInTheDocument(),
+      expect(within(table).getByText("candidate-cluster")).toBeInTheDocument(),
     );
 
     expect(
@@ -169,8 +167,9 @@ describe("Upgrade Centre Active candidate inventory", () => {
       screen.getByRole("heading", { name: "Verified Upgrade Opportunities" }),
     ).toBeInTheDocument();
 
-    expect(
-      screen.getByRole("tab", { name: "Active" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Active" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

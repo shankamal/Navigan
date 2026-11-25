@@ -1390,7 +1390,6 @@
   }
 }
 
-
 /* ========================================================================
    Navigan capability header standard — approved Option 3.
    Global graphite stays in the application shell. Capability identity is a
@@ -1409,7 +1408,8 @@
   backdrop-filter: blur(8px);
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(
     .page-heading,
     .pd-heading,
@@ -1434,7 +1434,8 @@
   backdrop-filter: blur(8px);
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(.customer-page-header, .environment-portfolio-heading)
   .page-heading {
   position: static !important;
@@ -1447,7 +1448,8 @@
   backdrop-filter: none;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(
     .page-heading,
     .pd-heading,
@@ -1463,7 +1465,8 @@
   letter-spacing: -0.025em !important;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(
     .page-heading,
     .pd-heading,
@@ -1475,7 +1478,8 @@
   color: #5f6d7a !important;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(.page-heading, .pd-heading)
   .page-heading-copy {
   min-height: 0 !important;
@@ -1506,22 +1510,28 @@
   padding-left: 44px !important;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(.customer-page-header, .environment-portfolio-heading)
   .page-heading-copy {
   padding-left: 0 !important;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(.page-heading, .pd-heading, .upgrade-page-heading)
   .heading-actions,
-.app-shell[class] main#main-content .upgrade-page-heading .upgrade-heading-actions {
+.app-shell[class]
+  main#main-content
+  .upgrade-page-heading
+  .upgrade-heading-actions {
   align-items: center !important;
   justify-content: flex-end !important;
   gap: 8px !important;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(.page-heading, .pd-heading, .upgrade-page-heading)
   :is(.button-secondary, .button-ghost) {
   background: #fff !important;
@@ -1530,7 +1540,8 @@
   box-shadow: none !important;
 }
 
-.app-shell[class] main#main-content
+.app-shell[class]
+  main#main-content
   :is(.page-heading, .pd-heading, .upgrade-page-heading)
   :is(.button-secondary, .button-ghost):hover:not(:disabled) {
   background: #f5f7f9 !important;
@@ -1567,7 +1578,8 @@
     backdrop-filter: none;
   }
 
-  .app-shell[class] main#main-content
+  .app-shell[class]
+    main#main-content
     :is(
       .page-heading,
       .pd-heading,
@@ -1583,7 +1595,8 @@
     backdrop-filter: none;
   }
 
-  .app-shell[class] main#main-content
+  .app-shell[class]
+    main#main-content
     :is(.page-heading, .pd-heading, .upgrade-page-heading)
     :is(.heading-actions, .upgrade-heading-actions) {
     width: 100%;
@@ -1594,7 +1607,8 @@
 
 @media print {
   .app-shell[class] .content-column > .breadcrumb,
-  .app-shell[class] main#main-content
+  .app-shell[class]
+    main#main-content
     :is(
       .page-heading,
       .pd-heading,

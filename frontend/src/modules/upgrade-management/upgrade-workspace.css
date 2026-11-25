@@ -2601,7 +2601,6 @@
   }
 }
 
-
 /* Approved Upgrade & Patching redesign — Navigan theme only.
    White surfaces, graphite text, neutral greys and brand green. No pale-green fills. */
 .upgrade-heading-actions {
@@ -2731,7 +2730,10 @@
 }
 .upgrade-centre-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(135px, 0.45fr)) auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(
+      2,
+      minmax(135px, 0.45fr)
+    ) auto;
   gap: 8px;
   padding: 12px;
   border-bottom: 1px solid var(--upgrade-line);
@@ -2977,8 +2979,13 @@
   outline-offset: 2px;
 }
 @keyframes upgrade-stage-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
 }
 .upgrade-workflow-track li.active > span {
   animation: upgrade-stage-pulse 1.8s ease-in-out infinite;
@@ -3064,8 +3071,12 @@
   width: min(250px, 58%);
 }
 @keyframes upgrade-skeleton {
-  from { opacity: 0.55; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .upgrade-skeleton-line {
@@ -3154,7 +3165,6 @@
     grid-template-columns: 1fr;
   }
 }
-
 
 /* Upgrade Centre approved-detail alignment */
 .upgrade-centre-dashboard {
@@ -3348,7 +3358,6 @@
   }
 }
 
-
 /* Upgrade Centre layout contract — approved desktop composition.
    Keep list compact, give execution detail priority, and keep all workflow stages visible. */
 @container (min-width: 1081px) {
@@ -3391,17 +3400,29 @@
   }
 
   .upgrade-dashboard-table th:nth-child(1),
-  .upgrade-dashboard-table td:nth-child(1) { width: 25%; }
+  .upgrade-dashboard-table td:nth-child(1) {
+    width: 25%;
+  }
   .upgrade-dashboard-table th:nth-child(2),
-  .upgrade-dashboard-table td:nth-child(2) { width: 14%; }
+  .upgrade-dashboard-table td:nth-child(2) {
+    width: 14%;
+  }
   .upgrade-dashboard-table th:nth-child(3),
-  .upgrade-dashboard-table td:nth-child(3) { width: 16%; }
+  .upgrade-dashboard-table td:nth-child(3) {
+    width: 16%;
+  }
   .upgrade-dashboard-table th:nth-child(4),
-  .upgrade-dashboard-table td:nth-child(4) { width: 17%; }
+  .upgrade-dashboard-table td:nth-child(4) {
+    width: 17%;
+  }
   .upgrade-dashboard-table th:nth-child(5),
-  .upgrade-dashboard-table td:nth-child(5) { width: 16%; }
+  .upgrade-dashboard-table td:nth-child(5) {
+    width: 16%;
+  }
   .upgrade-dashboard-table th:nth-child(6),
-  .upgrade-dashboard-table td:nth-child(6) { width: 12%; }
+  .upgrade-dashboard-table td:nth-child(6) {
+    width: 12%;
+  }
 
   .upgrade-cluster-link,
   .upgrade-cluster-link strong,
@@ -3561,7 +3582,6 @@
   }
 }
 
-
 /* Upgrade Centre candidate inventory — Navigan theme.
    No pale-green fills: green is reserved for solid accents, borders, icons and progress. */
 .upgrade-candidate-note {
@@ -3690,7 +3710,6 @@
   }
 }
 
-
 /* Approved Upgrade Centre visual baseline — graphite/white/neutral with restrained Navigan green. */
 .upgrade-centre-approved {
   display: grid;
@@ -3709,11 +3728,11 @@
   display: grid;
   grid-template-columns:
     minmax(230px, 1.5fr)
-    minmax(120px, .8fr)
-    minmax(130px, .9fr)
-    minmax(110px, .75fr)
-    minmax(110px, .75fr)
-    minmax(120px, .8fr)
+    minmax(120px, 0.8fr)
+    minmax(130px, 0.9fr)
+    minmax(110px, 0.75fr)
+    minmax(110px, 0.75fr)
+    minmax(120px, 0.8fr)
     auto;
   gap: 8px;
   padding: 10px 12px;
@@ -3734,7 +3753,7 @@
 
 .upgrade-opportunity-heading {
   display: grid;
-  grid-template-columns: auto minmax(0,1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
@@ -3742,7 +3761,7 @@
   background: #fff;
 }
 .upgrade-opportunity-heading.compact {
-  grid-template-columns: minmax(0,1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 .upgrade-opportunity-heading-icon {
   display: grid;
@@ -3758,7 +3777,7 @@
   margin: 0;
   color: var(--upgrade-ink);
   font-size: 16px;
-  letter-spacing: -.015em;
+  letter-spacing: -0.015em;
 }
 .upgrade-opportunity-heading p {
   margin: 3px 0 0;
@@ -3811,25 +3830,61 @@
 .upgrade-plan-stage-table tbody tr:hover {
   background: #f7f8f9;
 }
-.upgrade-opportunity-table th:nth-child(1) { width: 17%; }
-.upgrade-opportunity-table th:nth-child(2) { width: 10%; }
-.upgrade-opportunity-table th:nth-child(3) { width: 11%; }
-.upgrade-opportunity-table th:nth-child(4) { width: 8%; }
-.upgrade-opportunity-table th:nth-child(5) { width: 11%; }
-.upgrade-opportunity-table th:nth-child(6) { width: 14%; }
-.upgrade-opportunity-table th:nth-child(7) { width: 13%; }
-.upgrade-opportunity-table th:nth-child(8) { width: 10%; }
-.upgrade-opportunity-table th:nth-child(9) { width: 9%; }
+.upgrade-opportunity-table th:nth-child(1) {
+  width: 17%;
+}
+.upgrade-opportunity-table th:nth-child(2) {
+  width: 10%;
+}
+.upgrade-opportunity-table th:nth-child(3) {
+  width: 11%;
+}
+.upgrade-opportunity-table th:nth-child(4) {
+  width: 8%;
+}
+.upgrade-opportunity-table th:nth-child(5) {
+  width: 11%;
+}
+.upgrade-opportunity-table th:nth-child(6) {
+  width: 14%;
+}
+.upgrade-opportunity-table th:nth-child(7) {
+  width: 13%;
+}
+.upgrade-opportunity-table th:nth-child(8) {
+  width: 10%;
+}
+.upgrade-opportunity-table th:nth-child(9) {
+  width: 9%;
+}
 
-.upgrade-plan-stage-table th:nth-child(1) { width: 17%; }
-.upgrade-plan-stage-table th:nth-child(2) { width: 10%; }
-.upgrade-plan-stage-table th:nth-child(3) { width: 11%; }
-.upgrade-plan-stage-table th:nth-child(4) { width: 8%; }
-.upgrade-plan-stage-table th:nth-child(5) { width: 11%; }
-.upgrade-plan-stage-table th:nth-child(6) { width: 12%; }
-.upgrade-plan-stage-table th:nth-child(7) { width: 11%; }
-.upgrade-plan-stage-table th:nth-child(8) { width: 11%; }
-.upgrade-plan-stage-table th:nth-child(9) { width: 9%; }
+.upgrade-plan-stage-table th:nth-child(1) {
+  width: 17%;
+}
+.upgrade-plan-stage-table th:nth-child(2) {
+  width: 10%;
+}
+.upgrade-plan-stage-table th:nth-child(3) {
+  width: 11%;
+}
+.upgrade-plan-stage-table th:nth-child(4) {
+  width: 8%;
+}
+.upgrade-plan-stage-table th:nth-child(5) {
+  width: 11%;
+}
+.upgrade-plan-stage-table th:nth-child(6) {
+  width: 12%;
+}
+.upgrade-plan-stage-table th:nth-child(7) {
+  width: 11%;
+}
+.upgrade-plan-stage-table th:nth-child(8) {
+  width: 11%;
+}
+.upgrade-plan-stage-table th:nth-child(9) {
+  width: 9%;
+}
 
 .upgrade-cluster-identity {
   display: flex;
@@ -3910,7 +3965,7 @@
 
 .upgrade-centre-insights {
   display: grid;
-  grid-template-columns: .95fr 1fr 1.35fr;
+  grid-template-columns: 0.95fr 1fr 1.35fr;
   gap: 12px;
 }
 .upgrade-insight-card {
@@ -3942,7 +3997,7 @@
 }
 .upgrade-readiness-summary {
   display: grid;
-  grid-template-columns: 92px minmax(0,1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
 }
@@ -3952,11 +4007,10 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background:
-    conic-gradient(
-      var(--navigan-brand) 0 var(--upgrade-ready-angle),
-      #e3e7ea var(--upgrade-ready-angle) 360deg
-    );
+  background: conic-gradient(
+    var(--navigan-brand) 0 var(--upgrade-ready-angle),
+    #e3e7ea var(--upgrade-ready-angle) 360deg
+  );
   position: relative;
 }
 .upgrade-readiness-ring::after {
@@ -4003,7 +4057,7 @@
 
 .upgrade-attention-summary {
   display: grid;
-  grid-template-columns: auto minmax(0,1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px 12px;
 }
@@ -4030,7 +4084,7 @@
 }
 .upgrade-activity-list li {
   display: grid;
-  grid-template-columns: auto minmax(0,1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 7px 0;
@@ -4116,7 +4170,8 @@
   font-weight: 600;
 }
 
-.upgrade-centre-approved + * {}
+.upgrade-centre-approved + * {
+}
 .upgrade-centre .upgrade-overview-strip > div {
   background: #fff !important;
 }
@@ -4129,9 +4184,14 @@
 
 @container (max-width: 1180px) {
   .upgrade-centre-approved .upgrade-centre-filters-approved {
-    grid-template-columns: minmax(220px,1fr) repeat(3,minmax(120px,.6fr)) auto;
+    grid-template-columns: minmax(220px, 1fr) repeat(
+        3,
+        minmax(120px, 0.6fr)
+      ) auto;
   }
-  .upgrade-centre-approved .upgrade-centre-filters-approved select:nth-of-type(n+4) {
+  .upgrade-centre-approved
+    .upgrade-centre-filters-approved
+    select:nth-of-type(n + 4) {
     display: none;
   }
   .upgrade-centre-insights {
@@ -4143,7 +4203,7 @@
 }
 @container (max-width: 780px) {
   .upgrade-opportunity-heading {
-    grid-template-columns: auto minmax(0,1fr);
+    grid-template-columns: auto minmax(0, 1fr);
   }
   .upgrade-last-checked {
     grid-column: 2;
@@ -4161,7 +4221,6 @@
     grid-column: auto;
   }
 }
-
 
 /* Upgrade Centre final layout guard: full-width operational workspace. */
 .upgrade-centre-dashboard.upgrade-centre-approved {
@@ -4185,18 +4244,20 @@
 .upgrade-centre-dashboard.upgrade-centre-approved .upgrade-opportunity-heading {
   order: 1;
 }
-.upgrade-centre-dashboard.upgrade-centre-approved .upgrade-centre-filters-approved {
+.upgrade-centre-dashboard.upgrade-centre-approved
+  .upgrade-centre-filters-approved {
   order: 2;
   width: 100%;
   grid-template-columns:
     minmax(220px, 1.5fr)
-    minmax(120px, .8fr)
-    minmax(130px, .9fr)
-    minmax(110px, .75fr)
-    minmax(110px, .75fr)
-    minmax(120px, .8fr);
+    minmax(120px, 0.8fr)
+    minmax(130px, 0.9fr)
+    minmax(110px, 0.75fr)
+    minmax(110px, 0.75fr)
+    minmax(120px, 0.8fr);
 }
-.upgrade-centre-dashboard.upgrade-centre-approved .upgrade-opportunity-table-wrap {
+.upgrade-centre-dashboard.upgrade-centre-approved
+  .upgrade-opportunity-table-wrap {
   order: 3;
   width: 100%;
   max-width: 100%;
@@ -4209,7 +4270,6 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
-
 
 /* Create Upgrade Plan v2 — governed workflow, aligned to Navigan theme. */
 .upgrade-scoped-planner-v2 {
@@ -4272,7 +4332,7 @@
 }
 .upgrade-planner-v2-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.75fr);
   gap: 12px;
   align-items: start;
 }
@@ -4324,7 +4384,7 @@
 }
 .upgrade-scope-options-v2 label {
   display: grid;
-  grid-template-columns: auto auto minmax(0,1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: start;
   gap: 8px;
   min-height: 76px;
@@ -4419,7 +4479,7 @@
 }
 .upgrade-component-choice {
   display: grid;
-  grid-template-columns: auto auto minmax(0,1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: start;
 }
 .upgrade-component-choice > span,
@@ -4440,7 +4500,7 @@
 }
 .upgrade-addon-choice {
   display: grid;
-  grid-template-columns: minmax(0,1fr) minmax(220px,.8fr);
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
   gap: 12px;
   align-items: center;
 }
@@ -4458,7 +4518,7 @@
 }
 .upgrade-planner-v2 .upgrade-window-fields {
   max-width: none;
-  grid-template-columns: minmax(0, 1.5fr) minmax(130px,.6fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(130px, 0.6fr);
 }
 .upgrade-change-reason textarea {
   min-height: 92px;
@@ -4501,7 +4561,7 @@
 }
 .upgrade-planner-review-list > div {
   display: grid;
-  grid-template-columns: minmax(110px,.8fr) minmax(0,1fr);
+  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1fr);
   gap: 10px;
   padding: 9px 14px;
 }
@@ -4578,7 +4638,6 @@
   }
 }
 
-
 /* Upgrade Centre refinement — improve scanability and protect the environment column. */
 .upgrade-kpi-label {
   display: flex !important;
@@ -4609,20 +4668,38 @@
   text-overflow: clip !important;
   white-space: nowrap !important;
 }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(1) { width: 16%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(2) { width: 10%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(3) { width: 13%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(4) { width: 9%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(5) { width: 11%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(6) { width: 13%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(7) { width: 13%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(8) { width: 9%; }
-.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(9) { width: 9%; }
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(1) {
+  width: 16%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(2) {
+  width: 10%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(3) {
+  width: 13%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(4) {
+  width: 9%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(5) {
+  width: 11%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(6) {
+  width: 13%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(7) {
+  width: 13%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(8) {
+  width: 9%;
+}
+.upgrade-centre-approved .upgrade-opportunity-table th:nth-child(9) {
+  width: 9%;
+}
 
 /* Create Plan loading shell — render the final page structure immediately while live options warm. */
 .upgrade-planner-loading-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.75fr);
   gap: 12px;
   align-items: start;
 }
@@ -4649,15 +4726,20 @@
   border-radius: 999px;
   background: #e9edf0;
 }
-.upgrade-skeleton-line.short { width: 34%; }
-.upgrade-skeleton-line.medium { width: 58%; }
-.upgrade-skeleton-line.long { width: 86%; }
+.upgrade-skeleton-line.short {
+  width: 34%;
+}
+.upgrade-skeleton-line.medium {
+  width: 58%;
+}
+.upgrade-skeleton-line.long {
+  width: 86%;
+}
 @container (max-width: 960px) {
   .upgrade-planner-loading-shell {
     grid-template-columns: 1fr;
   }
 }
-
 
 /* Final Create Upgrade Plan console — approved Navigan visual baseline.
    White/neutral surfaces only; green is reserved for status, selection controls and primary actions. */
@@ -4703,9 +4785,9 @@
   display: grid;
   grid-template-columns:
     minmax(220px, 1.3fr)
-    minmax(130px, .75fr)
-    minmax(145px, .85fr)
-    minmax(150px, .9fr)
+    minmax(130px, 0.75fr)
+    minmax(145px, 0.85fr)
+    minmax(150px, 0.9fr)
     minmax(180px, 1fr);
   align-items: stretch;
   border: 1px solid var(--upgrade-line);
@@ -4762,7 +4844,7 @@
 }
 .upgrade-plan-console-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(285px, .31fr);
+  grid-template-columns: minmax(0, 1fr) minmax(285px, 0.31fr);
   gap: 12px;
   align-items: start;
 }
@@ -4890,7 +4972,7 @@
 }
 .upgrade-plan-target-row {
   display: grid;
-  grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
   gap: 10px;
   align-items: end;
   margin-bottom: 10px;
@@ -4937,10 +5019,18 @@
   font-size: var(--navigan-font-label);
   vertical-align: middle;
 }
-.upgrade-plan-component-table th:nth-child(1) { width: 42%; }
-.upgrade-plan-component-table th:nth-child(2) { width: 18%; }
-.upgrade-plan-component-table th:nth-child(3) { width: 25%; }
-.upgrade-plan-component-table th:nth-child(4) { width: 15%; }
+.upgrade-plan-component-table th:nth-child(1) {
+  width: 42%;
+}
+.upgrade-plan-component-table th:nth-child(2) {
+  width: 18%;
+}
+.upgrade-plan-component-table th:nth-child(3) {
+  width: 25%;
+}
+.upgrade-plan-component-table th:nth-child(4) {
+  width: 15%;
+}
 .upgrade-plan-component-table select {
   width: 100%;
   min-height: 30px;
@@ -4973,7 +5063,10 @@
 }
 .upgrade-plan-maintenance-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 1fr) minmax(175px, .6fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 1fr) minmax(
+      175px,
+      0.6fr
+    );
   gap: 10px;
   align-items: end;
 }
@@ -4983,7 +5076,7 @@
 }
 .upgrade-plan-window-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(125px, .45fr);
+  grid-template-columns: minmax(180px, 1fr) minmax(125px, 0.45fr);
   gap: 7px;
 }
 .upgrade-plan-reason textarea {
@@ -5030,7 +5123,7 @@
 }
 .upgrade-plan-side-card dl > div {
   display: grid;
-  grid-template-columns: minmax(95px, .8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(95px, 0.8fr) minmax(0, 1.2fr);
   gap: 8px;
   padding: 7px 12px;
 }
@@ -5131,7 +5224,9 @@
   animation: upgrade-spin 1s linear infinite;
 }
 @keyframes upgrade-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @container (max-width: 1100px) {
   .upgrade-plan-console-layout {
@@ -5177,7 +5272,6 @@
   }
 }
 
-
 /* Create plan refinement — compact context strip and single back control. */
 .upgrade-plan-console-header {
   gap: 6px;
@@ -5204,10 +5298,10 @@
 .upgrade-plan-context {
   grid-template-columns:
     minmax(190px, 1.35fr)
-    minmax(115px, .8fr)
-    minmax(130px, .9fr)
-    minmax(135px, .9fr)
-    minmax(150px, .9fr);
+    minmax(115px, 0.8fr)
+    minmax(130px, 0.9fr)
+    minmax(135px, 0.9fr)
+    minmax(150px, 0.9fr);
   min-height: 48px;
 }
 .upgrade-plan-context > div {
@@ -5344,21 +5438,27 @@
   font-size: 10px;
   line-height: 1.3;
 }
-.upgrade-execution-stage-grid li[data-state="complete"] .upgrade-execution-stage-marker {
+.upgrade-execution-stage-grid
+  li[data-state="complete"]
+  .upgrade-execution-stage-marker {
   color: var(--navigan-action);
   border-color: var(--navigan-brand);
 }
 .upgrade-execution-stage-grid li[data-state="active"] {
   box-shadow: inset 0 0 0 1px var(--navigan-brand);
 }
-.upgrade-execution-stage-grid li[data-state="active"] .upgrade-execution-stage-marker {
+.upgrade-execution-stage-grid
+  li[data-state="active"]
+  .upgrade-execution-stage-marker {
   color: var(--navigan-action);
   border-color: var(--navigan-brand);
 }
 .upgrade-execution-stage-grid li[data-state="attention"] {
   background: #fffaf0;
 }
-.upgrade-execution-stage-grid li[data-state="attention"] .upgrade-execution-stage-marker {
+.upgrade-execution-stage-grid
+  li[data-state="attention"]
+  .upgrade-execution-stage-marker {
   color: #a15c00;
   border-color: #d6a74d;
 }
@@ -5367,7 +5467,9 @@
 }
 .upgrade-execution-stage-grid li[data-state="skipped"] strong,
 .upgrade-execution-stage-grid li[data-state="skipped"] small,
-.upgrade-execution-stage-grid li[data-state="skipped"] .upgrade-execution-stage-marker {
+.upgrade-execution-stage-grid
+  li[data-state="skipped"]
+  .upgrade-execution-stage-marker {
   color: #98a2ad;
 }
 @container (max-width: 900px) {
