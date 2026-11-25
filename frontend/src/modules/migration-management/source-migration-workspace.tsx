@@ -686,6 +686,9 @@ export function SourceMigrationWorkspace({
                     }}
                   >
                     <option value="UNDECIDED">Choose during planning</option>
+                    <option value="DATA_MIGRATION_HANDLED_SEPARATELY">
+                      Data migration handled separately
+                    </option>
                     <option value="BACKUP_RESTORE">Backup and restore</option>
                     <option value="REPLICATION">Replication</option>
                   </select>
@@ -982,7 +985,9 @@ export function SourceMigrationWorkspace({
             <li>Adapted deployment package and validation: pending</li>
             <li>
               Persistent data strategy:{" "}
-              {pvcs.length ? dataStrategy : "no selected PVCs"}
+              {pvcs.length
+                ? dataStrategy.replaceAll("_", " ").toLowerCase()
+                : "no selected PVCs"}
             </li>
           </ul>
           <p className={styles.warning}>

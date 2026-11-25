@@ -130,6 +130,21 @@ describe("migration scope readiness", () => {
       reviewed.issues.some((issue) => issue.type.startsWith("STORAGE_MAPPING")),
     ).toBe(false);
   });
+  it("records external data migration while requiring target PVC mapping", () => {
+    const result = evaluateScopeReadiness(
+      inventory,
+      selected,
+      "DATA_MIGRATION_HANDLED_SEPARATELY",
+      true,
+      0,
+      [{ namespace: "app", name: "data-api-0" }],
+      [],
+    );
+    expect(result.state).toBe("INCOMPLETE");
+    const issueTypes = result.issues.map((issue) => issue.type);
+    expect(issueTypes).toContain("STORAGE_MAPPING_REQUIRED");
+    expect(issueTypes).not.toContain("DATA_STRATEGY_REQUIRED");
+  });
   it("treats target capability issues as outstanding scope readiness checks", () => {
     const result = evaluateScopeReadiness(
       inventory,

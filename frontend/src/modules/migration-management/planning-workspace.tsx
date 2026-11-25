@@ -4585,6 +4585,9 @@ export function PlanningEditor({
                     <option value="UNDECIDED">
                       Decide later · requires review
                     </option>
+                    <option value="DATA_MIGRATION_HANDLED_SEPARATELY">
+                      Data migration handled separately
+                    </option>
                     <option value="BACKUP_RESTORE">Backup and restore</option>
                     <option value="REPLICATION">Replication</option>
                     <option value="NO_PERSISTENT_DATA">
@@ -5705,6 +5708,9 @@ export function PlanningEditor({
                             }
                           >
                             <option value="UNDECIDED">Select strategy</option>
+                            <option value="DATA_MIGRATION_HANDLED_SEPARATELY">
+                              Data migration handled separately
+                            </option>
                             <option value="BACKUP_RESTORE">
                               Backup &amp; restore
                             </option>
@@ -6487,13 +6493,19 @@ export function PlanningEditor({
                                     {(
                                       [
                                         "UNDECIDED",
+                                        "DATA_MIGRATION_HANDLED_SEPARATELY",
                                         "BACKUP_RESTORE",
                                         "REPLICATION",
                                         "NO_PERSISTENT_DATA",
                                       ] as const
                                     ).map((s) => (
                                       <option value={s} key={s}>
-                                        {s.replaceAll("_", " ").toLowerCase()}
+                                        {s ===
+                                        "DATA_MIGRATION_HANDLED_SEPARATELY"
+                                          ? "Data migration handled separately"
+                                          : s
+                                              .replaceAll("_", " ")
+                                              .toLowerCase()}
                                       </option>
                                     ))}
                                   </select>
