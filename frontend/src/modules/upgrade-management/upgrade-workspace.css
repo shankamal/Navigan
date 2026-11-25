@@ -2730,10 +2730,9 @@
 }
 .upgrade-centre-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(
-      2,
-      minmax(135px, 0.45fr)
-    ) auto;
+  grid-template-columns:
+    minmax(220px, 1fr) repeat(2, minmax(135px, 0.45fr))
+    auto;
   gap: 8px;
   padding: 12px;
   border-bottom: 1px solid var(--upgrade-line);
@@ -4184,10 +4183,9 @@
 
 @container (max-width: 1180px) {
   .upgrade-centre-approved .upgrade-centre-filters-approved {
-    grid-template-columns: minmax(220px, 1fr) repeat(
-        3,
-        minmax(120px, 0.6fr)
-      ) auto;
+    grid-template-columns:
+      minmax(220px, 1fr) repeat(3, minmax(120px, 0.6fr))
+      auto;
   }
   .upgrade-centre-approved
     .upgrade-centre-filters-approved
