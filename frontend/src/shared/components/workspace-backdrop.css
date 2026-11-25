@@ -31,7 +31,7 @@
   color: #86bc25;
 }
 @media (max-width: 640px) {
-  .app-shell[class] > header.topbar {
+  .app-shell[class] > header.topbar:not(.navigan-global-topbar) {
     flex-wrap: wrap;
     gap: 8px 12px;
   }
@@ -39,7 +39,9 @@
     gap: 12px;
     min-width: 0;
   }
-  .app-shell[class] > header.topbar .topbar-account {
+  .app-shell[class]
+    > header.topbar:not(.navigan-global-topbar)
+    .topbar-account {
     width: 100%;
     min-width: 0;
     justify-content: flex-end;
@@ -480,7 +482,9 @@
   }
 }
 @media (max-width: 640px) {
-  .app-shell[class] > header.topbar .platform-title {
+  .app-shell[class]
+    > header.topbar:not(.navigan-global-topbar)
+    .platform-title {
     display: block;
     flex: 1;
     min-width: 0;
