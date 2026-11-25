@@ -78,9 +78,19 @@ def test_enabled_ebs_storage_templates_are_non_default_and_encrypted():
         enable_ebs_csi=True,
     )
     application = yaml.safe_load(rendered["applications/25-ebs-storage.yaml"])
+    root = yaml.safe_load(rendered["bootstrap/root-application.yaml"])
+    project = yaml.safe_load(rendered["applications/00-project.yaml"])
     storage_class = yaml.safe_load(rendered["storage-classes/ebs-gp3.yaml"])
     assert application["spec"]["source"]["path"] == "storage-classes"
     assert application["spec"]["source"]["repoURL"] == "https://github.com/customer/another-system"
+    assert root["spec"]["source"]["path"] == "applications"
+    assert root["spec"]["source"]["directory"]["recurse"] is True
+    assert root["spec"]["source"]["repoURL"] == application["spec"]["source"]["repoURL"]
+    assert root["spec"]["source"]["targetRevision"] == application["spec"]["source"]["targetRevision"]
+    assert application["spec"]["project"] == project["metadata"]["name"]
+    assert application["spec"]["source"]["repoURL"] in project["spec"]["sourceRepos"]
+    assert application["spec"]["destination"] in project["spec"]["destinations"]
+    assert {"group": "*", "kind": "*"} in project["spec"]["clusterResourceWhitelist"]
     assert "prune" not in application["spec"]["syncPolicy"]["automated"]
     assert storage_class["kind"] == "StorageClass"
     assert storage_class["metadata"]["annotations"]["storageclass.kubernetes.io/is-default-class"] == "false"

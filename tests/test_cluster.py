@@ -1,3 +1,5 @@
+import json
+from contextlib import nullcontext
 from unittest.mock import MagicMock
 from pathlib import Path
 
@@ -5,6 +7,7 @@ import pytest
 
 from navigan.shared.auth import Principal
 from navigan.shared.errors import ApiError
+from navigan.modules.cluster_management import handler as cluster_handler
 from navigan.modules.cluster_management.service import Service
 from navigan.modules.cluster_management.repository import Repository, serialize
 from navigan.modules.cluster_management.handler import identity_subjects
@@ -1135,6 +1138,52 @@ def test_storage_gitops_review_uses_cluster_repository_and_is_idempotent():
     repo.save.assert_called_once_with(cluster)
     repo.record.assert_called_once()
     provisioner.start.assert_not_called()
+
+
+@pytest.mark.parametrize(("role", "expected_status"), [("PLATFORM_ARCHITECT", 200), ("CLOUD_ENGINEER", 403)])
+def test_storage_gitops_api_checks_role_and_stages_review_once(monkeypatch, role, expected_status):
+    cluster, repo, settings, _, _ = storage_enrollment_case()
+    cluster["configuration"]["ebsCsi"] = settings
+    repo.principal = Principal("actor", frozenset({role}), frozenset({cluster["customer_id"]}))
+    repo.system_repository_access.return_value = {
+        "customer_id": cluster["customer_id"],
+        "repository_url": "https://github.com/example/customer-eks-system",
+        "default_branch": "main",
+    }
+    access, idempotency, github = MagicMock(), MagicMock(), MagicMock()
+    idempotency.idempotency_get.return_value = None
+    review = {"status": "REVIEW_READY", "baseBranch": "main", "reviewBranch": "navigan/ebs-csi-storage"}
+    github.prepare_storage_review.return_value = review
+    monkeypatch.setattr(cluster_handler, "transaction", lambda: nullcontext(MagicMock()))
+    monkeypatch.setattr(cluster_handler, "Repository", lambda *_: repo)
+    monkeypatch.setattr(cluster_handler, "CustomerRepository", lambda *_: idempotency)
+    monkeypatch.setattr(cluster_handler, "AccessEvaluator", lambda _: MagicMock(evaluate=lambda _: access))
+    monkeypatch.setattr("navigan.modules.cluster_management.service.GitHubApp", lambda: github)
+    event = {
+        "rawPath": f"/api/v1/clusters/{cluster['cluster_id']}/storage-gitops",
+        "headers": {"Content-Type": "application/json", "Idempotency-Key": "storage-review", "If-Match": "1"},
+        "requestContext": {"http": {"method": "POST"}, "authorizer": {"jwt": {"claims": {
+            "sub": "actor", "roles": [role], "customer_ids": [cluster["customer_id"]],
+        }}}},
+        "body": "{}",
+    }
+
+    result = cluster_handler.lambda_handler(event, None)
+
+    assert result["statusCode"] == expected_status
+    access.require.assert_called_once_with("cluster.apply")
+    if expected_status == 403:
+        github.prepare_storage_review.assert_not_called()
+        idempotency.idempotency_put.assert_not_called()
+        return
+
+    assert result["headers"]["ETag"] == "2"
+    assert json.loads(result["body"])["workflow"]["ebsCsiGitOps"] == review
+    idempotency.idempotency_get.return_value = idempotency.idempotency_put.call_args.args[3]
+    replay = cluster_handler.lambda_handler(event, None)
+    assert replay["headers"]["Idempotency-Replayed"] == "true"
+    assert json.loads(replay["body"]) == json.loads(result["body"])
+    github.prepare_storage_review.assert_called_once()
 
 
 @pytest.mark.parametrize(("case", "error"), [
