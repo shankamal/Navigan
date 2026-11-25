@@ -71,11 +71,15 @@ def setup_planning(status="APPROVED"):
     return repo, service, identifier, body
 
 
-def test_planning_persists_without_changing_assessment_scope_or_approval():
+@pytest.mark.parametrize("strategy", ["UNDECIDED", "DATA_MIGRATION_HANDLED_SEPARATELY"])
+def test_planning_persists_without_changing_assessment_scope_or_approval(strategy):
     repo, service, identifier, body = setup_planning()
+    body["planningDraft"]["dataStrategy"] = strategy
+    body = UpdateMigration.model_validate(body).model_dump(mode="json", exclude_none=True)
     original = copy.deepcopy(repo.rows[identifier])
     report = copy.deepcopy(repo.get_assessment.return_value)
     result = service.update(identifier, body)
+    assert result["planningDraft"]["dataStrategy"] == strategy
     assert result["planningDraft"]["resources"][0]["name"] == "retailflow-api"
     assert result["planningDraft"]["remediations"][0]["status"] == "EVIDENCE_ATTACHED"
     assert result["version"] == 2

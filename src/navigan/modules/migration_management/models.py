@@ -425,7 +425,9 @@ class MigrationPlanningDraft(Model):
     resources: list[PlannedResource] = Field(default_factory=list, max_length=2000)
     remediations: list[RemediationDraft] = Field(default_factory=list, max_length=500)
     storageMappings: list[MigrationStorageMapping] = Field(default_factory=list, max_length=2000)
-    dataStrategy: Literal["UNDECIDED", "BACKUP_RESTORE", "REPLICATION", "NO_PERSISTENT_DATA"] = "UNDECIDED"
+    dataStrategy: Literal[
+        "UNDECIDED", "DATA_MIGRATION_HANDLED_SEPARATELY", "BACKUP_RESTORE", "REPLICATION", "NO_PERSISTENT_DATA"
+    ] = "UNDECIDED"
     notes: str = Field(default="", max_length=2000)
 
     @model_validator(mode="after")
