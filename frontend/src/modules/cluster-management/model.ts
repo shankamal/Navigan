@@ -641,6 +641,7 @@ export interface ClusterInput {
   nodeGroups: ClusterNodeGroupInput[];
   provisioningRoleArn: string;
   externalIdSecretArn: string;
+  enableEbsCsi?: boolean;
   tags?: Record<string, string>;
   description?: string;
   githubOrganization: string;

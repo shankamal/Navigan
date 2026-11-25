@@ -1131,6 +1131,12 @@ export function NewClusterPage() {
   const extensions = objectValue(baseline.extensions);
   const discovery = objectValue(extensions.discovery);
   const contract = objectValue(extensions.provisioningContract);
+  const approvedEbsCsi = objectValue(contract.ebsCsi);
+  const canEnableEbsCsi = [
+    approvedEbsCsi.addonVersion,
+    approvedEbsCsi.podIdentityAgentVersion,
+    approvedEbsCsi.controllerRoleArn,
+  ].every((setting) => typeof setting === "string" && setting.trim());
   const clusterSubnets = Array.isArray(network.clusterSubnets)
     ? network.clusterSubnets
     : [];
@@ -1262,6 +1268,7 @@ export function NewClusterPage() {
     try {
       const created = await clusters.create({
         ...value,
+        enableEbsCsi: canEnableEbsCsi && value.enableEbsCsi ? true : undefined,
         description: value.description?.trim() || undefined,
       });
       router.push("/clusters/" + created.clusterId);
@@ -1398,6 +1405,7 @@ export function NewClusterPage() {
                       ...current,
                       environmentId: "",
                       environmentApprovedVersion: 0,
+                      enableEbsCsi: false,
                       blueprintName: "",
                       kubernetesVersion: "",
                       nodeGroups: [defaultNodeGroup()],
@@ -1429,6 +1437,7 @@ export function NewClusterPage() {
                       ...current,
                       environmentId: event.target.value,
                       environmentApprovedVersion: env?.approvedVersion || 0,
+                      enableEbsCsi: false,
                       blueprintName: "",
                       kubernetesVersion: "",
                       nodeGroups: [defaultNodeGroup()],
@@ -1681,6 +1690,27 @@ export function NewClusterPage() {
                       }
                     />
                   </label>
+                  {canEnableEbsCsi && (
+                    <div className="cluster-baseline-card cluster-field-span">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(value.enableEbsCsi)}
+                          onChange={(event) =>
+                            setValue({
+                              ...value,
+                              enableEbsCsi: event.target.checked,
+                            })
+                          }
+                        />{" "}
+                        Enable EBS CSI storage
+                      </label>
+                      <p className="metadata">
+                        Install the approved EBS CSI add-on and add an encrypted
+                        gp3 StorageClass to the cluster’s system repository.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </section>
             </ClusterSetupSection>
@@ -3119,6 +3149,11 @@ export function ClusterRequestPage({ id }: { id: string }) {
   const storageStatus = textValue(storageEnrollment.status, "");
   const storageConfiguration = objectValue(storageEnrollment.configuration);
   const storagePlanReady = storageStatus === "PLAN_READY";
+  const storageProvisioned =
+    row.status === "ACTIVE" && Boolean(configuration.ebsCsi);
+  const storageGitOps = objectValue(workflow.ebsCsiGitOps);
+  const storageReviewUrl = textValue(storageGitOps.reviewUrl, "");
+  const storageManifestsPresent = storageGitOps.status === "MANIFESTS_PRESENT";
   const canManageStorage =
     canOperate && hasPermission(identity, "cluster.plan");
   const showStorageExecution = [
@@ -3527,6 +3562,18 @@ export function ClusterRequestPage({ id }: { id: string }) {
         storageAction,
       });
       setPlanConfirmed(false);
+      await query.refetch();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const prepareStorageGitOps = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await clusters.prepareStorageGitOps(id, row.version);
       await query.refetch();
     } catch (caught) {
       setError(caught);
@@ -5361,15 +5408,17 @@ export function ClusterRequestPage({ id }: { id: string }) {
           )}
           {row.platform === "EKS" &&
             (storageStatus ||
+              storageProvisioned ||
               (row.status === "ACTIVE" &&
                 canManageStorage &&
                 !configuration.ebsCsi)) && (
               <section className="panel panel-padding cluster-tab-panel cluster-tab-operations">
                 <h2>EBS CSI storage</h2>
-                {storageStatus === "COMPLETE" ? (
+                {storageStatus === "COMPLETE" || storageProvisioned ? (
                   <p className="muted">
-                    EKS reports both add-ons healthy. Verify the StorageClass
-                    and mount a test volume before migrating workloads.
+                    {storageManifestsPresent
+                      ? "Storage manifests are in the system repository. Verify Argo CD sync and mount a test volume before migrating workloads."
+                      : "Verify the GitOps StorageClass and mount a test volume before migrating workloads."}
                   </p>
                 ) : storagePlanReady ? (
                   <>
@@ -5424,7 +5473,33 @@ export function ClusterRequestPage({ id }: { id: string }) {
                     settings.
                   </p>
                 )}
+                {storageProvisioned && (
+                  <div className="cluster-actions">
+                    {storageReviewUrl && (
+                      <a
+                        href={storageReviewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open GitOps pull request
+                      </a>
+                    )}
+                    {canOperate && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={prepareStorageGitOps}
+                      >
+                        {storageReviewUrl || storageManifestsPresent
+                          ? "Check storage manifests"
+                          : "Prepare StorageClass review"}
+                      </Button>
+                    )}
+                  </div>
+                )}
                 {canManageStorage &&
+                  !storageProvisioned &&
                   !storageInFlight &&
                   storageStatus !== "COMPLETE" && (
                     <div className="cluster-actions">

@@ -24,6 +24,7 @@ from .models import (
     RevokeKubernetesAccess,
     ConnectorInstallationRequest,
     ConnectorUpgradeRequest,
+    StorageGitOpsRequest,
     CreateNodeGroupRequest,
     NodeGroupRequestAction,
     SystemNodeGroupMigration,
@@ -341,6 +342,7 @@ def execute(event, principal, correlation):
     complete_github_authorization = (
         method == "POST" and len(parts) == 3 and parts[1:] == ["github", "complete"]
     )
+    prepare_storage_gitops = method == "POST" and action == "storage-gitops"
     node_group_action = (
         method == "POST"
         and len(parts) == 4
@@ -399,6 +401,7 @@ def execute(event, principal, correlation):
         or migrate_system_node_group
         or begin_github_authorization
         or complete_github_authorization
+        or prepare_storage_gitops
         or node_group_action
         or create_upgrade_plan
         or upgrade_plan_action
@@ -435,6 +438,8 @@ def execute(event, principal, correlation):
             if begin_github_authorization
             else CompleteGitHubAuthorization
             if complete_github_authorization
+            else StorageGitOpsRequest
+            if prepare_storage_gitops
             else NodeGroupRequestAction
             if node_group_action
             else (CreateUtilityUpgradePlan if body.get("utilityCode") else CreateScopedUpgradePlan if body.get("upgradeScope") else CreateEksUpgradePlan)
@@ -563,6 +568,11 @@ def execute(event, principal, correlation):
             )
             customer_repo.idempotency_put(operation, key, fingerprint, {"status": 202, "body": value})
             return response(202, value, correlation)
+        if prepare_storage_gitops:
+            access.require("cluster.apply")
+            principal.require("PLATFORM_ARCHITECT")
+            storage_cluster = repo.get(identifier, lock=True)
+            access.require_customer(storage_cluster["customer_id"])
         operation = method + " " + path
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -647,6 +657,9 @@ def execute(event, principal, correlation):
         elif complete_github_authorization:
             access.require("cluster.approve")
             value = Service(repo, correlation).complete_github_authorization(identifier, body)
+            status = 200
+        elif prepare_storage_gitops:
+            value = Service(repo, correlation).prepare_storage_gitops(storage_cluster, body)
             status = 200
         elif node_group_action:
             value = Service(repo, correlation).change_node_group_request(identifier, parts[2], parts[3], body)

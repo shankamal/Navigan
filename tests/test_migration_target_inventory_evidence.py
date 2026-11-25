@@ -1,6 +1,11 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
+import pytest
+import yaml
+
 from navigan.modules.cluster_management import repository as cluster_repository
+from navigan.modules.cluster_management.system_repository import render_ebs_storage
 from navigan.modules.migration_management.api_evidence import evaluate_api_versions
 from navigan.modules.migration_management.service import Service
 from navigan.modules.migration_management.target_inventory_evidence import build_target_inventory_evidence
@@ -104,3 +109,55 @@ def test_target_assessment_saves_discovered_kinds_with_partial_coverage(monkeypa
     assert snapshot["discoveredApiResources"] == [{"apiVersion": "batch/v1", "kind": "CronJob"}]
     assert snapshot["capabilityEvidence"]["kubernetesApi"]["status"] == "PARTIAL"
     assert snapshot["coverageComplete"] is False
+
+
+@pytest.mark.parametrize(("class_present", "expected"), [(False, "PENDING_EVIDENCE"), (True, "PARTIAL")])
+def test_target_assessment_evaluates_shared_ebs_storage_from_connector_inventory(monkeypatch, class_present, expected):
+    repo, access, cluster = Mock(), Mock(), Mock()
+    monkeypatch.setattr(cluster_repository, "Repository", Mock(return_value=cluster))
+    files = render_ebs_storage("https://github.com/example/customer-eks-system", "main")
+    manifest = yaml.safe_load(files["storage-classes/ebs-gp3.yaml"])
+    storage_class = manifest["metadata"]["name"]
+    claim = {
+        "apiVersion": "v1", "kind": "PersistentVolumeClaim", "namespace": "apps", "name": "data",
+        "storageClassName": "gp2", "accessModes": ["ReadWriteOnce"], "requestedStorage": "1Gi",
+    }
+    repo.get.return_value = {
+        "customer_id": "CUS-fixture", "target_platform": "EKS",
+        "target_configuration": {"clusterId": "CLU-fixture", "clusterName": "target"},
+        "planning_draft": {
+            "resources": [{**claim, "treatment": "MIGRATE"}],
+            "storageMappings": [{"namespace": "apps", "sourceClaim": "data", "targetStorageClass": storage_class}],
+        },
+    }
+    repo.get_assessment.return_value = {"assessment": {"assessmentVersion": 1, "findings": []}}
+    repo.get_source_inventory.return_value = {"inventory": {"resources": [claim]}}
+    cluster.get.return_value = {"customer_id": "CUS-fixture", "cluster_name": "target", "status": "ACTIVE"}
+    inventory = [{"kind": "StorageClass", "name": "gp2"}, {"kind": "CSIDriver", "name": manifest["provisioner"]}]
+    if class_present:
+        inventory.append({
+            "kind": "StorageClass", "name": storage_class, "provisioner": manifest["provisioner"],
+            "volumeBindingMode": manifest["volumeBindingMode"], "reclaimPolicy": manifest["reclaimPolicy"],
+        })
+    now = datetime.now(timezone.utc)
+    cluster.runtime_inventory.return_value = {
+        "status": "READY", "resources": inventory,
+        "metrics": {"storageClassDiscoveryStatus": 1, "csiDriverDiscoveryStatus": 1},
+        "sourceRevision": 1, "connectorId": "KCC-fixture",
+        "observedAt": now.isoformat(), "expiresAt": (now + timedelta(minutes=10)).isoformat(),
+    }
+    service = Service(repo, access, "correlation")
+
+    service.analyze_target("MIG-fixture")
+    _, target, snapshot = repo.save_target_assessment.call_args.args
+    repo.get_target_assessment.return_value = {"assessment": {
+        "targetClusterId": target, "assessmentVersion": 1, "snapshot": snapshot,
+    }}
+    evidence = service.target_compatibility("MIG-fixture")["storageEvidence"]
+
+    assert (storage_class in snapshot["storageClasses"]) is class_present
+    assert snapshot["storageDiscovery"] == {"StorageClass": "AVAILABLE", "CSIDriver": "AVAILABLE"}
+    assert evidence["status"] == expected
+    claim_evidence, = evidence["claims"]
+    assert claim_evidence["targetStorageClass"] == "navigan-ebs-gp3"
+    assert claim_evidence["csiDriverObserved"] is class_present

@@ -12,6 +12,7 @@ from .models import EbsCsiConfiguration
 from .repository import serialize
 from .provisioning import Provisioner
 from .github_app import GitHubApp
+from .system_repository import EBS_STORAGE_APPLICATION, EBS_STORAGE_DIRECTORY, render_ebs_storage
 
 
 TRANSITIONS = {
@@ -614,6 +615,39 @@ class Service:
         except ValidationError:
             raise ApiError(422, "EBS_CSI_NOT_APPROVED",
                            "Approve an environment revision with EBS CSI settings first.") from None
+
+    def prepare_storage_gitops(self, cluster, body, github_app=None):
+        if cluster["version"] != body["version"]:
+            raise ApiError(409, "CONCURRENT_UPDATE", "Reload the latest cluster request.")
+        if (
+            cluster["platform"] != "EKS"
+            or cluster["status"] != "ACTIVE"
+            or not cluster.get("terraform_state_key")
+            or not cluster["configuration"].get("ebsCsi")
+        ):
+            raise ApiError(
+                409, "EBS_CSI_GITOPS_UNAVAILABLE",
+                "Complete EBS CSI provisioning on this active managed cluster first.",
+            )
+        repository = self.repo.system_repository_access(cluster["cluster_id"])
+        if repository["customer_id"] != cluster["customer_id"]:
+            raise ApiError(409, "SYSTEM_REPOSITORY_MISMATCH", "The system repository belongs to another customer.")
+        manifests = render_ebs_storage(repository["repository_url"], repository["default_branch"])
+        review = (github_app or GitHubApp()).prepare_storage_review(
+            repository,
+            manifests,
+            application_path=EBS_STORAGE_APPLICATION,
+            storage_directory=EBS_STORAGE_DIRECTORY,
+        )
+        if cluster["workflow"].get("ebsCsiGitOps") != review:
+            old = copy.deepcopy(cluster)
+            cluster["workflow"]["ebsCsiGitOps"] = review
+            cluster["version"] += 1
+            cluster["updated_by"] = self.principal.user_id
+            cluster["updated_at"] = datetime.now(timezone.utc)
+            self.repo.save(cluster)
+            self.repo.record(old, cluster, "ClusterEbsCsiGitOpsChecked", review, self.correlation)
+        return serialize(cluster)
 
     def change_storage_enrollment(self, cluster, body):
         self.principal.require("PLATFORM_ARCHITECT")

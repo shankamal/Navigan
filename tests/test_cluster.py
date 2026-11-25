@@ -1,10 +1,14 @@
+import json
+from contextlib import nullcontext
 from unittest.mock import MagicMock
 from pathlib import Path
 
 import pytest
 
+from navigan.shared.access import EffectiveAccess, Scope
 from navigan.shared.auth import Principal
 from navigan.shared.errors import ApiError
+from navigan.modules.cluster_management import handler as cluster_handler
 from navigan.modules.cluster_management.service import Service
 from navigan.modules.cluster_management.repository import Repository, serialize
 from navigan.modules.cluster_management.handler import identity_subjects
@@ -1107,6 +1111,112 @@ def test_storage_rejects_cross_region_approval_and_conflicting_work():
         service.change(cluster["cluster_id"], "plan", body)
     assert error.value.code == "CLUSTER_CHANGE_IN_PROGRESS"
     provisioner.start.assert_not_called()
+
+
+def test_storage_gitops_review_uses_cluster_repository_and_is_idempotent():
+    cluster, repo, settings, provisioner, service = storage_enrollment_case()
+    cluster["configuration"]["ebsCsi"] = settings
+    repo.system_repository_access.return_value = {
+        "customer_id": cluster["customer_id"],
+        "repository_url": "https://github.com/example/customer-eks-system",
+        "default_branch": "production",
+    }
+    github = MagicMock()
+    github.prepare_storage_review.return_value = {
+        "status": "REVIEW_READY",
+        "reviewUrl": "https://github.com/example/customer-eks-system/compare/production...navigan/ebs-csi-storage",
+    }
+    identifier = cluster["cluster_id"]
+    result = service.prepare_storage_gitops(cluster, {"version": 1}, github)
+    repo.system_repository_access.assert_called_once_with(identifier)
+    assert result["workflow"]["ebsCsiGitOps"] == github.prepare_storage_review.return_value
+    assert result["version"] == 2
+    manifests = github.prepare_storage_review.call_args.args[1]
+    assert set(manifests) == {"applications/25-ebs-storage.yaml", "storage-classes/ebs-gp3.yaml"}
+    assert "targetRevision: production" in manifests["applications/25-ebs-storage.yaml"]
+    assert service.prepare_storage_gitops(cluster, {"version": 2}, github)["version"] == 2
+    repo.save.assert_called_once_with(cluster)
+    repo.record.assert_called_once()
+    provisioner.start.assert_not_called()
+
+
+@pytest.mark.parametrize(("role", "allowed_customer", "expected_status"), [
+    ("PLATFORM_ARCHITECT", "CUS-test", 200),
+    ("CLOUD_ENGINEER", "CUS-test", 403),
+    ("PLATFORM_ARCHITECT", "CUS-other", 403),
+])
+def test_storage_gitops_api_checks_access_and_stages_review_once(monkeypatch, role, allowed_customer, expected_status):
+    cluster, repo, settings, _, _ = storage_enrollment_case()
+    cluster["configuration"]["ebsCsi"] = settings
+    repo.principal = Principal("actor", frozenset({role}), frozenset({cluster["customer_id"]}))
+    repo.system_repository_access.return_value = {
+        "customer_id": cluster["customer_id"],
+        "repository_url": "https://github.com/example/customer-eks-system",
+        "default_branch": "main",
+    }
+    access = EffectiveAccess("actor", "Actor", 1, frozenset({"cluster.apply"}), (Scope("CUSTOMER", allowed_customer),))
+    evaluator = MagicMock()
+    evaluator.evaluate.return_value = access
+    idempotency, github = MagicMock(), MagicMock()
+    idempotency.idempotency_get.return_value = None
+    review = {"status": "REVIEW_READY", "baseBranch": "main", "reviewBranch": "navigan/ebs-csi-storage"}
+    github.prepare_storage_review.return_value = review
+    monkeypatch.setattr(cluster_handler, "transaction", lambda: nullcontext(MagicMock()))
+    monkeypatch.setattr(cluster_handler, "Repository", lambda *_: repo)
+    monkeypatch.setattr(cluster_handler, "CustomerRepository", lambda *_: idempotency)
+    monkeypatch.setattr(cluster_handler, "AccessEvaluator", lambda _: evaluator)
+    monkeypatch.setattr("navigan.modules.cluster_management.service.GitHubApp", lambda: github)
+    event = {
+        "rawPath": f"/api/v1/clusters/{cluster['cluster_id']}/storage-gitops",
+        "headers": {"Content-Type": "application/json", "Idempotency-Key": "storage-review", "If-Match": "1"},
+        "requestContext": {"http": {"method": "POST"}, "authorizer": {"jwt": {"claims": {
+            "sub": "actor", "roles": [role], "customer_ids": [cluster["customer_id"]],
+        }}}},
+        "body": "{}",
+    }
+
+    result = cluster_handler.lambda_handler(event, None)
+
+    assert result["statusCode"] == expected_status
+    if expected_status == 403:
+        github.prepare_storage_review.assert_not_called()
+        idempotency.idempotency_get.assert_not_called()
+        idempotency.idempotency_put.assert_not_called()
+        return
+
+    repo.get.assert_called_once_with(cluster["cluster_id"], lock=True)
+    assert result["headers"]["ETag"] == "2"
+    assert json.loads(result["body"])["workflow"]["ebsCsiGitOps"] == review
+    idempotency.idempotency_get.return_value = idempotency.idempotency_put.call_args.args[3]
+    replay = cluster_handler.lambda_handler(event, None)
+    assert replay["headers"]["Idempotency-Replayed"] == "true"
+    assert json.loads(replay["body"]) == json.loads(result["body"])
+
+    evaluator.evaluate.return_value = EffectiveAccess("actor", "Actor", 2, frozenset(), access.scopes)
+    denied_replay = cluster_handler.lambda_handler(event, None)
+    assert denied_replay["statusCode"] == 403
+    assert "Idempotency-Replayed" not in denied_replay["headers"]
+    github.prepare_storage_review.assert_called_once()
+
+
+@pytest.mark.parametrize(("case", "error"), [
+    ("stale-version", "CONCURRENT_UPDATE"),
+    ("unprovisioned", "EBS_CSI_GITOPS_UNAVAILABLE"),
+    ("another-customer", "SYSTEM_REPOSITORY_MISMATCH"),
+])
+def test_storage_gitops_rejects_an_unapproved_request_before_contacting_github(case, error):
+    cluster, repo, settings, _, service = storage_enrollment_case()
+    repo.system_repository_access.return_value = {"customer_id": "CUS-other"}
+    if case != "unprovisioned":
+        cluster["configuration"]["ebsCsi"] = settings
+    github = MagicMock()
+    with pytest.raises(ApiError) as caught:
+        service.prepare_storage_gitops(
+            cluster, {"version": 2 if case == "stale-version" else 1}, github
+        )
+    assert caught.value.code == error
+    github.prepare_storage_review.assert_not_called()
+    repo.save.assert_not_called()
 
 
 @pytest.mark.parametrize("success", [True, False])

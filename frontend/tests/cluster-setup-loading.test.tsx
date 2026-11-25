@@ -166,7 +166,7 @@ describe("New cluster setup dependent loading", () => {
   });
 });
 
-async function completeSetup(withName = true) {
+async function completeSetup(withName = true, storageApproved = false) {
   vi.mocked(environments.version).mockResolvedValue({
     ...fixture.environment,
     configuration: {
@@ -174,6 +174,14 @@ async function completeSetup(withName = true) {
       extensions: {
         provisioningContract: {
           ...fixture.environment.configuration.extensions.provisioningContract,
+          ebsCsi: storageApproved
+            ? {
+                addonVersion: "v1.68.1-eksbuild.1",
+                podIdentityAgentVersion: "v1.4.1-eksbuild.3",
+                controllerRoleArn:
+                  "arn:aws:iam::123456789012:role/NaviganEbsCsiControllerRole",
+              }
+            : undefined,
           provisioningRoles: [
             { roleName: "Provisioner", roleArn: "arn:approved-role" },
           ],
@@ -249,6 +257,9 @@ describe("Cluster setup studio", () => {
   });
   it("saves the original pinned approved-version request and protected system pool", async () => {
     await completeSetup();
+    expect(
+      screen.queryByRole("checkbox", { name: "Enable EBS CSI storage" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Save setup request draft" }),
     );
@@ -279,6 +290,25 @@ describe("Cluster setup studio", () => {
     );
     await waitFor(() =>
       expect(navigation.push).toHaveBeenCalledWith("/clusters/CLU-created"),
+    );
+  });
+  it("submits EBS CSI only after an explicit opt-in on an approved baseline", async () => {
+    await completeSetup(true, true);
+    fireEvent.click(
+      screen.getByRole("link", { name: /Cluster configuration/ }),
+    );
+    const storage = screen.getByRole("checkbox", {
+      name: "Enable EBS CSI storage",
+    });
+    expect(storage).not.toBeChecked();
+    fireEvent.click(storage);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save setup request draft" }),
+    );
+    await waitFor(() =>
+      expect(clusters.create).toHaveBeenCalledWith(
+        expect.objectContaining({ enableEbsCsi: true }),
+      ),
     );
   });
   it("reveals a required field inside a collapsed section before native validation", async () => {

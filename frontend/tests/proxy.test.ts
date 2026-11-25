@@ -15,6 +15,17 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("Same-origin API proxy", () => {
+  it("forwards only the cluster-scoped POST for storage review", () => {
+    expect(
+      isAllowedRoute("POST", ["clusters", "CLU-live", "storage-gitops"]),
+    ).toBe(true);
+    expect(
+      isAllowedRoute("GET", ["clusters", "CLU-live", "storage-gitops"]),
+    ).toBe(false);
+    expect(
+      isAllowedRoute("POST", ["clusters", "wrong-id", "storage-gitops"]),
+    ).toBe(false);
+  });
   it("forwards only POST for the governed reschedule action", () => {
     const path = [
       "clusters",

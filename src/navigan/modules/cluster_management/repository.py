@@ -116,7 +116,7 @@ class Repository:
 
     def system_repository_access(self, cluster_id):
         row = self.db.execute(
-            "SELECT r.*,c.installation_id "
+            "SELECT r.*,c.installation_id,c.customer_id "
             "FROM cluster_management.cluster_system_repositories r "
             "JOIN cluster_management.github_app_connections c "
             "ON c.connection_id=r.connection_id "

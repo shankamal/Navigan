@@ -123,6 +123,10 @@ class Action(Model):
     storagePlanSha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
+class StorageGitOpsRequest(Model):
+    version: int = Field(gt=0)
+
+
 class SystemNodeGroupMigration(Model):
     version: int = Field(gt=0)
     targetNodeGroup: NodeGroup
