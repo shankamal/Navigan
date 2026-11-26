@@ -404,6 +404,10 @@ export interface MigrationPlanningDraft {
   remediations: RemediationDraft[];
   storageMappings?: MigrationStorageMapping[];
   dataStrategy:
-    "UNDECIDED" | "BACKUP_RESTORE" | "REPLICATION" | "NO_PERSISTENT_DATA";
+    | "UNDECIDED"
+    | "DATA_MIGRATION_HANDLED_SEPARATELY"
+    | "BACKUP_RESTORE"
+    | "REPLICATION"
+    | "NO_PERSISTENT_DATA";
   notes: string;
 }

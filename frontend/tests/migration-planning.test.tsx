@@ -152,36 +152,39 @@ describe("migration planning", () => {
     mock.targetCompatibility.mockResolvedValue({ resourceEvaluations: [] });
     mock.analyzeTarget.mockResolvedValue({ assessment: null });
   });
-  it("persists resource selection and dependency confirmation without altering assessment scope", async () => {
-    open();
-    openTechnicalResources();
-    fireEvent.click(
-      screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
-    );
-    fireEvent.click(
-      screen.getByLabelText("Include StatefulSet retailflow/postgres"),
-    );
-    fireEvent.click(screen.getByLabelText("Required dependency postgres"));
-    fireEvent.change(screen.getByLabelText("Data strategy"), {
-      target: { value: "BACKUP_RESTORE" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /3\s*Remediation/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() => expect(mock.update).toHaveBeenCalled());
-    const input = mock.update.mock.calls[0][1];
-    expect(input.version).toBe(7);
-    expect(input.scope).toBeUndefined();
-    expect(input.planningDraft.resources).toHaveLength(2);
-    expect(input.planningDraft.resources[1].dependency).toBe(true);
-    expect(input.planningDraft.dataStrategy).toBe("BACKUP_RESTORE");
-    expect(
-      (
-        await screen.findAllByText(
-          "Planning draft saved. No cluster changes were applied.",
-        )
-      )[0],
-    ).toBeVisible();
-  });
+  it.each(["BACKUP_RESTORE", "DATA_MIGRATION_HANDLED_SEPARATELY"])(
+    "persists resource selection and dependency confirmation with %s without altering assessment scope",
+    async (strategy) => {
+      open();
+      openTechnicalResources();
+      fireEvent.click(
+        screen.getByLabelText("Include Deployment retailflow/retailflow-api"),
+      );
+      fireEvent.click(
+        screen.getByLabelText("Include StatefulSet retailflow/postgres"),
+      );
+      fireEvent.click(screen.getByLabelText("Required dependency postgres"));
+      fireEvent.change(screen.getByLabelText("Data strategy"), {
+        target: { value: strategy },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /3\s*Remediation/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+      await waitFor(() => expect(mock.update).toHaveBeenCalled());
+      const input = mock.update.mock.calls[0][1];
+      expect(input.version).toBe(7);
+      expect(input.scope).toBeUndefined();
+      expect(input.planningDraft.resources).toHaveLength(2);
+      expect(input.planningDraft.resources[1].dependency).toBe(true);
+      expect(input.planningDraft.dataStrategy).toBe(strategy);
+      expect(
+        (
+          await screen.findAllByText(
+            "Planning draft saved. No cluster changes were applied.",
+          )
+        )[0],
+      ).toBeVisible();
+    },
+  );
   it("analyzes explicit namespace scope through the guided Source flow", async () => {
     open();
     expect(
