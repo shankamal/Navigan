@@ -4,10 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
-FROM node:22-bookworm-slim AS builder
-WORKDIR /app
+FROM dependencies AS builder
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 # Environment-specific browser settings are supplied to the running container.
 # The same image is promoted; /api/runtime-config exposes only a public allowlist.
