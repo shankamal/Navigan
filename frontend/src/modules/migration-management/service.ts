@@ -136,6 +136,7 @@ export interface TargetCompatibilityResponse {
   storageEvidence?: {
     status: "PARTIAL" | "PENDING_EVIDENCE";
     reason: string;
+    targetStorageClasses?: string[];
     claims: {
       apiVersion: string;
       kind: string;
