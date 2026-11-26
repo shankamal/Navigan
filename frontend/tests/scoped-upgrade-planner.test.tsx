@@ -159,9 +159,7 @@ describe("Scoped upgrade planner", () => {
     mount();
     await screen.findByRole("radio", { name: "Full Upgrade" });
     fireEvent.click(screen.getByRole("radio", { name: "Targeted Upgrade" }));
-    fireEvent.click(
-      screen.getByRole("radio", { name: "Managed Add-ons" }),
-    );
+    fireEvent.click(screen.getByRole("radio", { name: "Managed Add-ons" }));
     fireEvent.change(screen.getByRole("combobox", { name: /cni/ }), {
       target: { value: "v1.2.0" },
     });
@@ -188,9 +186,7 @@ describe("Scoped upgrade planner", () => {
       await screen.findByRole("combobox", { name: "Final Kubernetes target" }),
       { target: { value: "1.37" } },
     );
-    expect(
-      screen.getByText("1.34 → 1.35 → 1.36 → 1.37"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("1.34 → 1.35 → 1.36 → 1.37")).toBeInTheDocument();
     expect(
       screen.getByLabelText("Step 3 maintenance start"),
     ).toBeInTheDocument();

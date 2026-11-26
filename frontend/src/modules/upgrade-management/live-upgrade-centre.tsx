@@ -30,12 +30,7 @@ import { clusterAccount } from "./cluster-context";
 
 type CentreView = "plans" | "available";
 type Lifecycle =
-  | "active"
-  | "approval"
-  | "scheduled"
-  | "running"
-  | "attention"
-  | "upgraded";
+  "active" | "approval" | "scheduled" | "running" | "attention" | "upgraded";
 
 const lifecycleTabs: ReadonlyArray<{ id: Lifecycle; label: string }> = [
   { id: "active", label: "Active" },
@@ -67,8 +62,7 @@ function requiredUpgradeLabel(evidence: EksUpgradeReadiness): string {
   const controlPlane = Boolean(evidence.recommendedTarget?.version);
   const nodeGroups = evidence.nodeGroups.some(
     (node) =>
-      Boolean(node.version) &&
-      node.version !== evidence.controlPlane.version,
+      Boolean(node.version) && node.version !== evidence.controlPlane.version,
   );
   const addons = evidence.addons.some(
     (addon) =>
@@ -140,7 +134,8 @@ function lifecycleFor(plan: EksUpgradePlan, now: number): Lifecycle {
   )
     return "attention";
   if (plan.status === "SUBMITTED") return "approval";
-  if (plan.status === "EXECUTING" || plan.status === "SUCCEEDED") return "running";
+  if (plan.status === "EXECUTING" || plan.status === "SUCCEEDED")
+    return "running";
   if (["APPROVED", "SCHEDULED"].includes(plan.status)) return "scheduled";
   return "active";
 }
@@ -304,7 +299,9 @@ export function LiveUpgradeCentre({
   const [version, setVersion] = useState("all");
   const [readinessFilter, setReadinessFilter] = useState("all");
 
-  const activeClusters = data.fleet.filter((cluster) => cluster.status === "ACTIVE");
+  const activeClusters = data.fleet.filter(
+    (cluster) => cluster.status === "ACTIVE",
+  );
   const evidence = useQueries({
     queries: activeClusters.map((cluster) => ({
       queryKey: ["eks-upgrade-readiness", cluster.clusterId],
@@ -313,8 +310,7 @@ export function LiveUpgradeCentre({
       retry: false,
       refetchOnWindowFocus: false,
       enabled:
-        view === "available" ||
-        (view === "plans" && lifecycle === "active"),
+        view === "available" || (view === "plans" && lifecycle === "active"),
     })),
   });
 
@@ -389,7 +385,8 @@ export function LiveUpgradeCentre({
   const pendingReadinessRows = activeClusters
     .flatMap((cluster, index) => {
       const query = evidence[index];
-      if (!query || query.data || (!query.isPending && !query.isFetching)) return [];
+      if (!query || query.data || (!query.isPending && !query.isFetching))
+        return [];
       const configured =
         cluster.configuration?.kubernetesVersion ??
         cluster.outputs?.kubernetesVersion;
@@ -549,7 +546,6 @@ export function LiveUpgradeCentre({
     .filter(Number.isFinite)
     .sort((left, right) => right - left)[0];
 
-
   return (
     <div className="upgrade-centre upgrade-context-workbench">
       <section className="upgrade-overview-strip" aria-label="Upgrade overview">
@@ -616,7 +612,8 @@ export function LiveUpgradeCentre({
           <AlertTriangle size={18} aria-hidden="true" />
           <strong>
             {overdue.length} maintenance{" "}
-            {overdue.length === 1 ? "request needs" : "requests need"} a new time
+            {overdue.length === 1 ? "request needs" : "requests need"} a new
+            time
           </strong>
           <Button
             variant="secondary"
@@ -640,7 +637,9 @@ export function LiveUpgradeCentre({
               role="tab"
               aria-label={item.label}
               aria-selected={view === "plans" && lifecycle === item.id}
-              className={view === "plans" && lifecycle === item.id ? "active" : ""}
+              className={
+                view === "plans" && lifecycle === item.id ? "active" : ""
+              }
               onClick={() => {
                 setView("plans");
                 setLifecycle(item.id);
@@ -655,7 +654,10 @@ export function LiveUpgradeCentre({
 
       {view === "plans" ? (
         <div className="upgrade-centre-dashboard upgrade-centre-approved">
-          <section className="upgrade-centre-main" aria-label="Upgrade requests">
+          <section
+            className="upgrade-centre-main"
+            aria-label="Upgrade requests"
+          >
             <div className="upgrade-centre-filters upgrade-centre-filters-approved">
               <input
                 aria-label="Search upgrade plans"
@@ -731,7 +733,10 @@ export function LiveUpgradeCentre({
             {lifecycle === "active" ? (
               <>
                 <header className="upgrade-opportunity-heading">
-                  <div className="upgrade-opportunity-heading-icon" aria-hidden="true">
+                  <div
+                    className="upgrade-opportunity-heading-icon"
+                    aria-hidden="true"
+                  >
                     <Layers3 size={20} />
                   </div>
                   <div>
@@ -744,7 +749,8 @@ export function LiveUpgradeCentre({
                   {latestEvidenceAt && (
                     <span className="upgrade-last-checked">
                       <RefreshCw size={14} aria-hidden="true" />
-                      Last checked: {new Date(latestEvidenceAt).toLocaleString()}
+                      Last checked:{" "}
+                      {new Date(latestEvidenceAt).toLocaleString()}
                     </span>
                   )}
                 </header>
@@ -799,7 +805,9 @@ export function LiveUpgradeCentre({
                           <td className="upgrade-version-cell">
                             <strong>{row.currentVersion}</strong>
                             <span>→</span>
-                            <span className="upgrade-pending-value">Checking…</span>
+                            <span className="upgrade-pending-value">
+                              Checking…
+                            </span>
                           </td>
                           <td>
                             <span className="upgrade-pending-value">
@@ -862,7 +870,10 @@ export function LiveUpgradeCentre({
                                 </span>
                               </div>
                             </td>
-                            <td>{row.cluster.customerName ?? row.cluster.customerId}</td>
+                            <td>
+                              {row.cluster.customerName ??
+                                row.cluster.customerId}
+                            </td>
                             <td>
                               <span className="upgrade-environment-chip">
                                 {row.environment}
@@ -870,7 +881,9 @@ export function LiveUpgradeCentre({
                             </td>
                             <td>
                               <PlatformIdentity
-                                identity={containerIdentity(row.cluster.platform)}
+                                identity={containerIdentity(
+                                  row.cluster.platform,
+                                )}
                                 kind="platform"
                               />
                             </td>
@@ -889,7 +902,9 @@ export function LiveUpgradeCentre({
                               </span>
                             </td>
                             <td>
-                              {new Date(row.readiness.observedAt).toLocaleString()}
+                              {new Date(
+                                row.readiness.observedAt,
+                              ).toLocaleString()}
                             </td>
                             <td>
                               {row.plan ? (
@@ -947,7 +962,11 @@ export function LiveUpgradeCentre({
                   <div className="upgrade-centre-empty" role="status">
                     {evidence.some((query) => query.isFetching) ? (
                       <>
-                        <RefreshCw className="spin" size={22} aria-hidden="true" />
+                        <RefreshCw
+                          className="spin"
+                          size={22}
+                          aria-hidden="true"
+                        />
                         <div>
                           <strong>Checking managed cluster readiness</strong>
                           <span>
@@ -955,14 +974,15 @@ export function LiveUpgradeCentre({
                           </span>
                         </div>
                       </>
-                    ) : candidateRows.length && filteredCandidates.length === 0 ? (
+                    ) : candidateRows.length &&
+                      filteredCandidates.length === 0 ? (
                       <>
                         <CheckCircle2 size={28} aria-hidden="true" />
                         <div>
                           <strong>No opportunities match these filters</strong>
                           <span>
-                            Clear or adjust the filters to view the available upgrade
-                            opportunities.
+                            Clear or adjust the filters to view the available
+                            upgrade opportunities.
                           </span>
                         </div>
                       </>
@@ -970,10 +990,12 @@ export function LiveUpgradeCentre({
                       <>
                         <CheckCircle2 size={32} aria-hidden="true" />
                         <div>
-                          <strong>All managed clusters are currently up to date</strong>
+                          <strong>
+                            All managed clusters are currently up to date
+                          </strong>
                           <span>
-                            No verified upgrade opportunities were found based on
-                            the latest readiness evidence.
+                            No verified upgrade opportunities were found based
+                            on the latest readiness evidence.
                           </span>
                           <div className="upgrade-empty-actions">
                             <Button variant="secondary" onClick={data.refresh}>
@@ -995,7 +1017,12 @@ export function LiveUpgradeCentre({
               <>
                 <header className="upgrade-opportunity-heading compact">
                   <div>
-                    <h2>{lifecycleTabs.find((item) => item.id === lifecycle)?.label}</h2>
+                    <h2>
+                      {
+                        lifecycleTabs.find((item) => item.id === lifecycle)
+                          ?.label
+                      }
+                    </h2>
                     <p>
                       Current governed upgrade plans in this lifecycle stage.
                     </p>
@@ -1034,7 +1061,10 @@ export function LiveUpgradeCentre({
                                 </span>
                               </div>
                             </td>
-                            <td>{row.cluster.customerName ?? row.cluster.customerId}</td>
+                            <td>
+                              {row.cluster.customerName ??
+                                row.cluster.customerId}
+                            </td>
                             <td>
                               <span className="upgrade-environment-chip">
                                 {row.environment}
@@ -1042,7 +1072,9 @@ export function LiveUpgradeCentre({
                             </td>
                             <td>
                               <PlatformIdentity
-                                identity={containerIdentity(row.cluster.platform)}
+                                identity={containerIdentity(
+                                  row.cluster.platform,
+                                )}
                                 kind="platform"
                               />
                             </td>
@@ -1099,7 +1131,8 @@ export function LiveUpgradeCentre({
                           : "No upgrade plans in this stage"}
                       </strong>
                       <span>
-                        Plans will appear here when they enter this lifecycle stage.
+                        Plans will appear here when they enter this lifecycle
+                        stage.
                       </span>
                     </div>
                   </div>
@@ -1107,7 +1140,6 @@ export function LiveUpgradeCentre({
               </>
             )}
           </section>
-
         </div>
       ) : (
         <section
@@ -1165,13 +1197,17 @@ export function LiveUpgradeCentre({
                       ].includes(row.plan.status),
                   )?.plan;
                   const state = data.stateForCluster(cluster.clusterId);
-                  const blocked = planningBlockReason(data.identity, readiness, {
-                    readinessPending: query.isFetching,
-                    readinessError: query.isError,
-                    planPending: state.pending,
-                    planError: state.error,
-                    activePlan: existing,
-                  });
+                  const blocked = planningBlockReason(
+                    data.identity,
+                    readiness,
+                    {
+                      readinessPending: query.isFetching,
+                      readinessError: query.isError,
+                      planPending: state.pending,
+                      planError: state.error,
+                      activePlan: existing,
+                    },
+                  );
                   const opportunity = hasClusterUpgradeOpportunity(readiness);
 
                   return (
