@@ -880,7 +880,7 @@
     display: block;
   }
   .environment-workspace .environment-list-filters {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .environment-list-filters > .environment-view-switch,
   .environment-workspace .environment-filter-grid {

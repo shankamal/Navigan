@@ -46,6 +46,15 @@ try{
  await page.setViewportSize({width:390,height:844});await page.goto(base+'/environments');await page.getByRole('link',{name:'Open Production EKS',exact:true}).waitFor();
  await page.screenshot({path:'test-results/environments-mobile.png',fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+ const {width: mobileWidth} = page.viewportSize();
+ for (const [label, element] of [
+  ['Account control', page.getByRole('button',{name:/^Open account menu for/})],
+  ['Environment filters', page.locator('.environment-filter-grid')],
+ ]) {
+  const bounds = await element.boundingBox();
+  assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= mobileWidth,
+   label + ' must fit the mobile viewport.');
+ }
  assert.deepEqual(errors,[]);
  console.log('Environment list across four providers, AWS draft creation and mobile layout passed.');
 }catch(error){
