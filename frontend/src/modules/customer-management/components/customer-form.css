@@ -22,8 +22,6 @@
   font-size: var(--navigan-font-page-title);
   line-height: 1.25;
   margin: 0 0 4px;
-  grid-column: 1;
-  grid-row: 1;
   color: #202833;
 }
 .app-shell.app-shell
@@ -514,6 +512,10 @@ main#main-content
 .app-shell.app-shell main#main-content:has(.customer-create-workspace) {
   padding-bottom: 12px;
 }
+.customer-create-heading > h1 {
+  grid-column: 1;
+  grid-row: 1;
+}
 .customer-create-heading > .customer-back-link {
   grid-column: 2;
   grid-row: 1;
@@ -549,6 +551,13 @@ main#main-content
   }
 }
 @media (min-width: 1100px) and (max-height: 760px) {
+  .app-shell[class] .workspace-title-content > header.customer-create-heading {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 12px !important;
+    min-height: 0 !important;
+    padding-bottom: 8px !important;
+  }
   .app-shell.app-shell
     main#main-content
     .customer-create-workspace
