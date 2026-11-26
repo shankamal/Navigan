@@ -97,7 +97,7 @@ const inventory = {
     },
   ],
 };
-function open() {
+function open(sourceInventory = inventory) {
   return render(
     <QueryClientProvider
       client={
@@ -107,7 +107,7 @@ function open() {
       <SourceMigrationWorkspace
         migration={migration as never}
         assessment={assessment as never}
-        inventory={inventory as never}
+        inventory={sourceInventory as never}
       />
     </QueryClientProvider>,
   );
@@ -223,7 +223,7 @@ it("keeps evidence read-only without migration edit permission", () => {
   ).toBeDisabled();
 });
 
-it("checks only the saved scope against a customer target and keeps approval and execution gated", async () => {
+it("saves target mappings for selected PVCs before checking readiness and keeps approval gated", async () => {
   api.targets.mockResolvedValue({
     items: [
       {
@@ -251,7 +251,41 @@ it("checks only the saved scope against a customer target and keeps approval and
     decision: { path: "PENDING_EVIDENCE", reason: "Missing target coverage" },
     resourceEvaluations: [],
   });
-  open();
+  let current = migration;
+  api.update.mockImplementation(async (_id, body) => {
+    current = {
+      ...current,
+      version: body.version + 1,
+      planningDraft: body.planningDraft ?? current.planningDraft,
+      targetConfiguration: body.target ?? current.targetConfiguration,
+    };
+    return current;
+  });
+  const claim = {
+    apiVersion: "v1",
+    kind: "PersistentVolumeClaim",
+    namespace: "payments",
+    storageClassName: "source-standard",
+    requestedStorage: "5Gi",
+    accessModes: ["ReadWriteOnce"],
+  };
+  open({
+    ...inventory,
+    resources: [
+      ...inventory.resources.filter(
+        (resource) => resource.name !== "payment-api",
+      ),
+      {
+        ...workload("payment-api"),
+        dependencyReferences: [
+          ...workload("payment-api").dependencyReferences,
+          { kind: claim.kind, name: "data-payments" },
+        ],
+      },
+      { ...claim, name: "data-payments" },
+      { ...claim, name: "out-of-scope" },
+    ],
+  });
   fireEvent.click(
     within(screen.getByLabelText("Source namespaces")).getByRole("checkbox"),
   );
@@ -273,11 +307,43 @@ it("checks only the saved scope against a customer target and keeps approval and
     screen.queryByRole("option", { name: /other-target/ }),
   ).not.toBeInTheDocument();
   fireEvent.change(target, { target: { value: "CLU-db" } });
+  const mapping = screen.getByLabelText(
+    "Target StorageClass for payments/data-payments",
+  );
+  expect(mapping).toHaveValue("");
+  expect(
+    screen.queryByLabelText("Target StorageClass for payments/out-of-scope"),
+  ).not.toBeInTheDocument();
+  fireEvent.change(mapping, { target: { value: "target-balanced" } });
   fireEvent.click(
     screen.getByRole("button", { name: "Assess target compatibility" }),
   );
   await screen.findByRole("heading", { name: /Pending evidence/ });
   expect(api.update.mock.calls[1][1].target.clusterId).toBe("CLU-db");
+  expect(api.update.mock.calls[1][1]).not.toHaveProperty("planningDraft");
+  expect(api.update).toHaveBeenNthCalledWith(
+    3,
+    "MIG-db",
+    expect.objectContaining({
+      version: 8,
+      planningDraft: expect.objectContaining({
+        storageMappings: [
+          {
+            namespace: "payments",
+            sourceClaim: "data-payments",
+            targetStorageClass: "target-balanced",
+            targetCapacity: "5Gi",
+            targetAccessMode: "ReadWriteOnce",
+            status: "PROPOSED",
+          },
+        ],
+      }),
+    }),
+  );
+  expect(api.update.mock.calls[2][1]).not.toHaveProperty("target");
+  expect(api.update.mock.invocationCallOrder[2]).toBeLessThan(
+    api.analyzeTarget.mock.invocationCallOrder[0],
+  );
   expect(api.analyzeTarget).toHaveBeenCalledWith("MIG-db");
   fireEvent.click(
     screen.getByRole("button", { name: "Review scope & readiness" }),

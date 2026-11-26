@@ -26,6 +26,7 @@ import type {
   Migration,
   MigrationDeploymentSource,
   MigrationPlanningDraft,
+  MigrationStorageMapping,
   SourceInventory,
 } from "./model";
 import {
@@ -95,6 +96,9 @@ export function SourceMigrationWorkspace({
   const [targetId, setTargetId] = useState(
     String(migration.targetConfiguration.clusterId ?? ""),
   );
+  const [mappingEditsByTarget, setMappingEditsByTarget] = useState<
+    Partial<Record<string, MigrationStorageMapping[]>>
+  >({});
   const [compatibility, setCompatibility] =
     useState<TargetCompatibilityResponse | null>(null);
   const canEdit =
@@ -136,6 +140,12 @@ export function SourceMigrationWorkspace({
   const pvcs = scope.dependencies.filter(
     (r) => r.kind === "PersistentVolumeClaim",
   );
+  const mappableClaims = pvcs.filter(
+    (claim): claim is typeof claim & { namespace: string } =>
+      Boolean(claim.namespace),
+  );
+  const mappingEdits = mappingEditsByTarget[targetId];
+  const savedMappings = saved?.storageMappings ?? [];
   const savedScope =
     saved?.workflow === "SOURCE_FIRST" &&
     saved.inventoryDigest === inventory.inventoryDigest &&
@@ -192,10 +202,14 @@ export function SourceMigrationWorkspace({
       targetId === migration.targetConfiguration.clusterId,
     retry: false,
   });
-  const currentCompatibility =
+  const targetCompatibility =
     !dirty && targetId === migration.targetConfiguration.clusterId
       ? (compatibility ?? storedCompatibility.data ?? null)
       : null;
+  const currentCompatibility =
+    busy || mappingEdits ? null : targetCompatibility;
+  const observedStorageClasses =
+    targetCompatibility?.storageEvidence?.targetStorageClasses ?? [];
   const markDirty = () => {
     setDirty(true);
     setCompatibility(null);
@@ -275,7 +289,7 @@ export function SourceMigrationWorkspace({
     }
   }
   async function assessTarget() {
-    if (!savedScope || dirty || !targetId) return;
+    if (!saved || !savedScope || dirty || !targetId) return;
     const target = targets.data?.find((c) => c.clusterId === targetId);
     if (!target) {
       setError(
@@ -301,6 +315,29 @@ export function SourceMigrationWorkspace({
         },
       });
       setMigration(result);
+      if (mappingEdits) {
+        const mappings = [...mappingEdits, ...savedMappings];
+        const updatedDraft = await migrations.update(migration.migrationId, {
+          version: result.version,
+          changeReason: "Save target storage mappings for the selected PVCs",
+          planningDraft: {
+            ...saved,
+            storageMappings: mappableClaims.flatMap((claim) => {
+              const mapping = mappings.find(
+                (item) =>
+                  item.namespace === claim.namespace &&
+                  item.sourceClaim === claim.name,
+              );
+              return mapping ? [mapping] : [];
+            }),
+          },
+        });
+        setMigration(updatedDraft);
+        setMappingEditsByTarget((current) => ({
+          ...current,
+          [targetId]: undefined,
+        }));
+      }
       await migrations.analyzeTarget(migration.migrationId);
       setCompatibility(
         await migrations.targetCompatibility(migration.migrationId),
@@ -856,6 +893,77 @@ export function SourceMigrationWorkspace({
           )}
           {targets.data?.length === 0 && (
             <p>No active EKS targets are registered for this customer.</p>
+          )}
+          {targetId && mappableClaims.length > 0 && (
+            <>
+              <fieldset
+                className={styles.deployment}
+                disabled={busy || !canEdit || !savedScope || dirty}
+              >
+                <legend>Target storage mappings</legend>
+                {mappableClaims.map((claim) => {
+                  const sourceStorageClass =
+                    typeof claim.storageClassName === "string"
+                      ? claim.storageClassName
+                      : "Unknown";
+                  const matchesClaim = (item: MigrationStorageMapping) =>
+                    item.namespace === claim.namespace &&
+                    item.sourceClaim === claim.name;
+                  const mapping =
+                    mappingEdits?.find(matchesClaim) ??
+                    savedMappings.find(matchesClaim);
+                  return (
+                    <label className={styles.field} key={scopeKey(claim)}>
+                      <span>
+                        {claim.namespace}/{claim.name}
+                      </span>
+                      <small>Source class · {sourceStorageClass}</small>
+                      <input
+                        aria-label={`Target StorageClass for ${claim.namespace}/${claim.name}`}
+                        list="migration-target-storage-classes"
+                        maxLength={253}
+                        placeholder="Target StorageClass"
+                        value={mapping?.targetStorageClass ?? ""}
+                        onChange={(event) => {
+                          const updated: MigrationStorageMapping = {
+                            namespace: claim.namespace,
+                            sourceClaim: claim.name,
+                            targetCapacity:
+                              typeof claim.requestedStorage === "string"
+                                ? claim.requestedStorage
+                                : "",
+                            targetAccessMode:
+                              Array.isArray(claim.accessModes) &&
+                              typeof claim.accessModes[0] === "string"
+                                ? claim.accessModes[0]
+                                : "",
+                            ...mapping,
+                            targetStorageClass: event.target.value.trim(),
+                            status: "PROPOSED",
+                          };
+                          setMappingEditsByTarget((current) => ({
+                            ...current,
+                            [targetId]: [
+                              ...(current[targetId] ?? []).filter(
+                                (item) => !matchesClaim(item),
+                              ),
+                              updated,
+                            ],
+                          }));
+                          setNotice("");
+                        }}
+                      />
+                    </label>
+                  );
+                })}
+                <datalist id="migration-target-storage-classes">
+                  {observedStorageClasses.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </fieldset>
+              <p>Assess target compatibility saves the draft mappings.</p>
+            </>
           )}
           {storedCompatibility.isError && !compatibility && (
             <p role="alert" className={styles.error}>
