@@ -63,10 +63,13 @@ def require(condition, message):
     storage.require(condition, message)
 
 
-def verify_layout_ready(session):
+def verify_layout_ready(session, *, expected_collector_sha=None):
     spec=importlib.util.spec_from_file_location('workspace_layout_gate',ROOT/'scripts/deploy-workspace-workers-dev.py')
     workers=importlib.util.module_from_spec(spec);spec.loader.exec_module(workers)
-    workers.verify_layout_ready(session,PARENT)
+    workers.verify_layout_ready(
+        session, PARENT,
+        expected_collector_sha=expected_collector_sha
+    )
 
 
 def body(value):
@@ -93,7 +96,8 @@ def all_items(client, operation, key, **kwargs):
 
 def check_checkout():
     storage.check_checkout(migration_api=True)
-    paths = ["scripts/deploy-migration-api-prod.py", "src/navigan/modules/migration_management",
+    paths = ["scripts/deploy-migration-api-prod.py",
+             "scripts/deploy-workspace-workers-dev.py", "src/navigan/modules/migration_management",
              "src/navigan/modules/cluster_management/github_app.py"]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
     require(not dirty.strip(), "Review/commit local API release edits first; unrelated local files are preserved")
@@ -342,6 +346,49 @@ def stamp(stack):
     return str(stack.get("LastUpdatedTime") or stack["CreationTime"])
 
 
+
+# Reviewed API-only package pair; existing Layout v2 writers are unchanged.
+REVIEWED_LAYOUT2_PACKAGES = {('11rXWDebT24giCxSlqsxf4Hi2697/521247LXPLfJY8=', '8UmIGeO2ybCg45xXZ38rO4e0R9Cj259npFyz8mYQmaU='): '4ec834af9762a5725bdb8cdb73242c3af7d0e5757bb6152134ff3fefac5615fb'}
+
+
+def reviewed_collector_sha(plan, current):
+    env = current.get("Environment", {}).get("Variables", {})
+    if (env.get("MIGRATION_WORKSPACE_LAYOUT_VERSION") != "2"
+            or plan.get("workspaceLayoutVersion") != "2"):
+        return None
+    return REVIEWED_LAYOUT2_PACKAGES.get((
+        plan.get("originalCodeSha256"),
+        plan.get("newCodeSha256"),
+    ))
+
+
+def verify_reviewed_artifact(session, cfn, plan, root_changes):
+    nested = root_changes[0]["ResourceChange"]["ChangeSetId"]
+    child = cfn.describe_change_set(ChangeSetName=nested)
+    template = body(cfn.get_template(
+        StackName=child["StackId"], ChangeSetName=nested,
+        TemplateStage="Processed"
+    )["TemplateBody"])
+    properties = template["Resources"]["MigrationFunction"]["Properties"]
+    require(properties["Environment"]["Variables"].get(
+        "MIGRATION_WORKSPACE_LAYOUT_VERSION") == "2",
+        "Prepared workspace layout must remain v2")
+    code = properties["Code"]
+    require(code.get("S3Bucket") == plan["workspaceBucket"]
+            and code.get("S3ObjectVersion") not in (None, "", "null"),
+            "Expected immutable reviewed API artifact")
+    response = session.client("s3").get_object(
+        Bucket=code["S3Bucket"], Key=code["S3Key"],
+        VersionId=code["S3ObjectVersion"], ExpectedBucketOwner=ACCOUNT
+    )
+    digest = hashlib.sha256()
+    with response["Body"] as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    require(base64.b64encode(digest.digest()).decode() == plan["newCodeSha256"],
+            "Prepared API artifact differs from reviewed package")
+
+
 def execute(session, path):
     plan = json.loads(path.read_text())
     require(plan.get("format") == 1 and plan.get("account") == ACCOUNT and plan.get("region") == REGION, "Invalid PROD release plan")
@@ -353,9 +400,15 @@ def execute(session, path):
     current = session.client("lambda").get_function_configuration(FunctionName=plan["function"])
     require(current["FunctionArn"].startswith(f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{PARENT}-"), "Unexpected Lambda target")
     require(current["RevisionId"] == plan["revision"] and current["CodeSha256"] == plan["originalCodeSha256"], "Production API changed since preparation")
+    root_changes, _ = inspect_plan(cfn, plan["changeSet"])
     if plan.get('workspaceLayoutVersion') == '2':
-        verify_layout_ready(session)
-    inspect_plan(cfn, plan["changeSet"])
+        reviewed_sha = reviewed_collector_sha(plan, current)
+        if reviewed_sha:
+            check_checkout()
+            verify_reviewed_artifact(session, cfn, plan, root_changes)
+            verify_layout_ready(session, expected_collector_sha=reviewed_sha)
+        else:
+            verify_layout_ready(session)
     cfn.execute_change_set(ChangeSetName=plan["changeSet"])
     print("Waiting for scoped production migration API update", flush=True)
     cfn.get_waiter("stack_update_complete").wait(StackName=PARENT, WaiterConfig={"Delay": 10, "MaxAttempts": 180})

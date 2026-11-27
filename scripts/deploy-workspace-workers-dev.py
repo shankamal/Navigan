@@ -36,7 +36,7 @@ def collector_source_sha():
     return hashlib.sha256(b''.join(str(p.relative_to(ROOT)).encode()+b'\0'+p.read_bytes()+b'\0' for p in files)).hexdigest()
 
 
-def verify_layout_ready(session,parent):
+def verify_layout_ready(session,parent,*,expected_collector_sha=None):
     """Read-only gate: never enable new workspace paths before their writers."""
     def require(condition,message):
         if not condition:raise RuntimeError(message)
@@ -69,7 +69,12 @@ def verify_layout_ready(session,parent):
     task=ecs.describe_task_definition(taskDefinition=service['taskDefinition'])['taskDefinition']
     containers=[c for c in task['containerDefinitions'] if c['name']=='collector'];require(len(containers)==1,'Unexpected collector task')
     image=containers[0];variables={v['name']:v['value'] for v in image.get('environment',[])}
-    require('@sha256:' in image['image'] and variables.get('MIGRATION_COLLECTOR_SOURCE_SHA256')==collector_source_sha(),
+    if expected_collector_sha is not None:
+        require(parent == 'navigan-custmanagement-cfnstk'
+                and re.fullmatch(r'[a-f0-9]{64}', expected_collector_sha),
+                'Invalid reviewed PROD collector fingerprint')
+    expected_sha = expected_collector_sha or collector_source_sha()
+    require('@sha256:' in image['image'] and variables.get('MIGRATION_COLLECTOR_SOURCE_SHA256')==expected_sha,
             'Rebuild/deploy the image collector from this reviewed source before enabling workspace layout v2')
     require(all(variables.get(k)==env.get(k) for k in ('DB_NAME','DB_PROXY_HOST','DB_SECRET_ARN','MIGRATION_WORKSPACE_BUCKET')),'Image collector bindings differ from API')
     network=service.get('networkConfiguration',{}).get('awsvpcConfiguration',{})

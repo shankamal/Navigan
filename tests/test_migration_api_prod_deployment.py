@@ -376,3 +376,25 @@ def test_reviewed_migration_api_branch(
                 release.check_checkout()
             else:
                 release.storage.check_checkout()
+
+
+@pytest.mark.parametrize("current_layout,target_layout,known,allowed", [
+    ("2", "2", True, True),
+    ("1", "2", True, False),
+    ("2", "1", True, False),
+    ("2", "2", False, False),
+])
+def test_reviewed_existing_layout_release(
+        current_layout, target_layout, known, allowed):
+    pair, expected = next(iter(release.REVIEWED_LAYOUT2_PACKAGES.items()))
+    plan = {
+        "workspaceLayoutVersion": target_layout,
+        "originalCodeSha256": pair[0],
+        "newCodeSha256": pair[1] if known else "unknown",
+    }
+    current = {"Environment": {"Variables": {
+        "MIGRATION_WORKSPACE_LAYOUT_VERSION": current_layout
+    }}}
+    assert release.reviewed_collector_sha(plan, current) == (
+        expected if allowed else None
+    )
