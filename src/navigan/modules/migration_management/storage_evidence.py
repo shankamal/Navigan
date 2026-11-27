@@ -10,8 +10,10 @@ VOLUME_MODES = {"Filesystem", "Block"}
 
 
 def compare_storage_claims(source_resources, selected, storage_classes, *, fresh=False,
-                           class_details=None, csi_drivers=None, mappings=None):
+                           class_details=None, csi_drivers=None, mappings=None,
+                           data_strategy=None):
     """Never infer volume provisioning or data migration from matching names."""
+    data_separate = data_strategy == "DATA_MIGRATION_HANDLED_SEPARATELY"
     observed = set(storage_classes or [])
     details = {item["name"]: item for item in (class_details or [])
                if isinstance(item, dict) and isinstance(item.get("name"), str)}
@@ -57,7 +59,14 @@ def compare_storage_claims(source_resources, selected, storage_classes, *, fresh
         elif not driver_observed:
             status, reason = "PENDING_EVIDENCE", "Target StorageClass provisioner has no matching observed CSIDriver. Provisioning support is not established."
         else:
-            status, reason = "PARTIAL", "Source PVC requirements and target StorageClass/CSIDriver identity are observed; CSI health, access-mode support, quota, capacity, topology, snapshots and data movement remain unverified."
+            status = "PARTIAL"
+            reason = (
+                "Source PVC requirements and target StorageClass/CSIDriver identity are observed; "
+                "CSI health, access-mode support, quota, capacity, topology, provisioning and mounting remain unverified. "
+                "Persistent data migration is handled separately."
+                if data_separate else
+                "Source PVC requirements and target StorageClass/CSIDriver identity are observed; CSI health, access-mode support, quota, capacity, topology, snapshots and data movement remain unverified."
+            )
         results.append({
             "apiVersion": resource.get("apiVersion"), "kind": "PersistentVolumeClaim",
             "namespace": resource.get("namespace"), "name": resource.get("name"),

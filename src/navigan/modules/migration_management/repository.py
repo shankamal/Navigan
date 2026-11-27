@@ -392,17 +392,27 @@ class Repository:
 
     def get_target_assessment(self, identifier):
         migration = self.get(identifier)
-        row = self.db.execute(
-            "SELECT target_cluster_id, assessment_version, target_snapshot, "
-            "evidence_level, created_at "
-            "FROM migration_management.migration_target_assessments "
-            "WHERE migration_id=%s ORDER BY created_at DESC, id DESC LIMIT 1",
-            [identifier],
-        ).fetchone()
         target_id = (migration.get("target_configuration") or {}).get("clusterId")
-        # Evidence from an old target must never be presented for the new one.
+        if not target_id:
+            return {"migrationId": identifier, "assessment": None}
+        row = self.db.execute(
+            "SELECT a.* FROM ("
+            "SELECT target_cluster_id, assessment_version, target_snapshot, evidence_level, created_at "
+            "FROM migration_management.migration_target_assessments "
+            "WHERE migration_id=%s ORDER BY created_at DESC, id DESC LIMIT 1"
+            ") a "
+            "JOIN cluster_management.clusters k ON k.cluster_id=a.target_cluster_id "
+            "JOIN cluster_management.cluster_runtime_inventories r ON r.cluster_id=k.cluster_id "
+            "JOIN cluster_management.cluster_connectors c ON c.connector_id=r.connector_id "
+            "AND c.cluster_id=k.cluster_id "
+            "WHERE k.cluster_id=%s AND k.customer_id=%s AND k.platform='EKS' AND k.status='ACTIVE' "
+            "AND coalesce(k.workflow->>'ownershipStatus','') <> 'ARCHIVED' "
+            "AND c.status='ACTIVE' AND r.expires_at > now() "
+            "AND r.connector_id=a.target_snapshot->>'connectorId'",
+            [identifier, target_id, migration["customer_id"]],
+        ).fetchone()
         latest_source = self.get_assessment(identifier).get("assessment")
-        if (not row or row["target_cluster_id"] != target_id or not latest_source or
+        if (not row or not latest_source or
                 row["assessment_version"] != latest_source["assessmentVersion"]):
             return {"migrationId": identifier, "assessment": None}
         return {"migrationId": identifier, "assessment": {
@@ -427,7 +437,11 @@ class Repository:
             [identifier, cluster_id, assessment["assessmentVersion"], json_text(snapshot),
              snapshot["evidenceLevel"], self.principal.user_id],
         )
-        return self.get_target_assessment(identifier)
+        result = self.get_target_assessment(identifier)
+        if not result["assessment"]:
+            raise ApiError(409, "TARGET_INVENTORY_UNAVAILABLE",
+                           "Target inventory changed during analysis. Wait for a fresh connector report and reassess.")
+        return result
 
     def get_source_catalogue(self, identifier):
         migration = self.get(identifier)

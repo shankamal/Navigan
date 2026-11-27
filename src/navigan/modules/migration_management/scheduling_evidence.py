@@ -96,6 +96,19 @@ def workload_pod_requests(resource):
     affinity = pod.get("affinity")
     if isinstance(affinity, dict) and any(affinity.values()):
         return None
+    return regular_container_requests(resource)
+
+
+def regular_container_requests(resource):
+    """Report explicit regular-container requests, not effective pod demand.
+
+    Placement constraints do not erase observed requests. Init/sidecar
+    requests, overhead and pod-level budgets are not included in this sum.
+    Never use this observation alone to certify a constrained workload.
+    """
+    pod = resource.get("pod") if isinstance(resource, dict) else None
+    if not isinstance(pod, dict):
+        return None
     containers = pod.get("containers")
     if not isinstance(containers, list) or not containers:
         return None
