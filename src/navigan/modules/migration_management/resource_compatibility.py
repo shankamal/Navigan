@@ -4,10 +4,14 @@ These are observations and requirements, never automatic migration approval.
 """
 
 
-from .network_evidence import network_scope_evidence
+from .network_evidence import (
+    network_scope_evidence,
+    evaluate_target_network,
+)
+from .identity_evidence import evaluate_identity_dependencies
 
 def evaluate_selected_resources(resources, planned, source_findings, api, storage,
-                                scheduling, *, target_current=False, data_strategy=None):
+                                scheduling, *, target_current=False, data_strategy=None, target_snapshot=None):
     data_separate = data_strategy == "DATA_MIGRATION_HANDLED_SEPARATELY"
     by_key = {
         (r.get("apiVersion"), r.get("kind"), r.get("namespace"), r.get("name")): r
@@ -161,6 +165,18 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                 # Explicit default identity and zero direct pull references
                 # require no specialized named-reference check. This does not
                 # verify inherited credentials or target registry authorization.
+        if target_snapshot is not None:
+            network = evaluate_target_network(
+                resource, target_snapshot,
+                target_current=target_current,
+            )
+            if network is not None:
+                results.append(network)
+
+            results.extend(evaluate_identity_dependencies(
+                resource, resources, planned, target_snapshot,
+                target_current=target_current,
+            ))
         if kind in {"CustomResourceDefinition", "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"}:
             add("Controllers and dependencies", "PENDING_EVIDENCE",
                 "Target API extension or admission controller is not verified.",
