@@ -45,9 +45,22 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def check_checkout():
+def check_checkout(*, migration_api=False):
     branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-    require(branch in {BRANCH, "main", "fix/prod-migration-collection"}, "Use a reviewed release checkout")
+    allowed = {BRANCH, "main", "fix/prod-migration-collection"}
+    reviewed_branch = "feature/restore-white-ui-ebs-csi"
+    if migration_api:
+        allowed.add(reviewed_branch)
+    require(branch in allowed, "Use a reviewed release checkout")
+    if branch == reviewed_branch:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+        reviewed = subprocess.check_output(
+            ["git", "rev-parse", f"refs/remotes/origin/{reviewed_branch}"],
+            cwd=ROOT, text=True
+        ).strip()
+        require(head == reviewed, "Synchronize the reviewed Migration API release branch")
     paths = ["scripts/deploy-migration-storage-prod.py",
              "infrastructure/modules/migration-management/workspace-storage.yaml"]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
