@@ -187,6 +187,18 @@ def evaluate_node_tolerations(resource, nodes, *, inventory_complete=False):
                   for t in node["nodeTaints"]) for node in nodes):
         return {"status": "PENDING_EVIDENCE", "reason": "Target taint details are incomplete."}
     tolerations = pod["tolerations"]
+    # Sanitized inventory can omit Equal toleration values.
+    # Missing values must not be interpreted as explicit empty strings.
+    if any(
+        isinstance(t, dict)
+        and t.get("operator", "Equal") in ("Equal", None)
+        and "value" not in t
+        for t in tolerations
+    ):
+        return {
+            "status": "PENDING_EVIDENCE",
+            "reason": "Source toleration values were not fully captured."
+        }
     if any(
         not isinstance(t, dict)
         or t.get("operator", "Equal") not in {"Equal", "Exists"}
@@ -221,3 +233,154 @@ def evaluate_node_tolerations(resource, nodes, *, inventory_complete=False):
                 "candidateNodes": len(candidates)}
     return {"status": "REMEDIATION_REQUIRED",
             "reason": "No observed schedulable target node satisfies the source workload's hard-taint tolerations."}
+
+
+def observed_pod_request_floor(resource):
+    """Observed request floor, not full scheduler-effective Pod demand."""
+    regular = regular_container_requests(resource)
+    if regular is None:
+        return None
+
+    pod = resource["pod"]
+    init = pod.get("initContainers")
+
+    if not isinstance(init, list):
+        return None
+
+    cpu = cpu_millicores(regular["cpu"])
+    memory = memory_bytes(regular["memory"])
+
+    for container in init:
+        request = regular_container_requests({
+            "pod": {"containers": [container]}
+        })
+
+        if request is None:
+            return None
+
+        cpu = max(cpu, cpu_millicores(request["cpu"]))
+        memory = max(memory, memory_bytes(request["memory"]))
+
+    return {"cpu": f"{cpu}m", "memory": str(memory)}
+
+
+def evaluate_combined_placement(resource, nodes, *,
+                                inventory_complete=False):
+    """Compare observed requests and hard constraints on the same node."""
+    def pending(reason):
+        return {"status": "PENDING_EVIDENCE", "reason": reason}
+
+    if not inventory_complete or not isinstance(nodes, list) or not nodes:
+        return pending("Complete fresh target node evidence is required.")
+
+    pod = resource.get("pod") if isinstance(resource, dict) else None
+
+    if not isinstance(pod, dict):
+        return pending("Source PodSpec is unavailable.")
+
+    requests = observed_pod_request_floor(resource)
+
+    if requests is None:
+        return pending("Complete regular and init-container requests are required.")
+
+    selectors = pod.get("nodeSelector")
+    selector_keys = pod.get("nodeSelectorKeys")
+
+    if selectors is None and selector_keys == []:
+        selectors = {}
+
+    if not isinstance(selectors, dict):
+        return pending("Source node selector values were not captured.")
+
+    if isinstance(selector_keys, list) and set(selector_keys) != set(selectors):
+        return pending("Source node selector evidence is incomplete.")
+
+    normalized = {
+        **resource,
+        "pod": {**pod, "nodeSelector": selectors},
+    }
+
+    candidates = 0
+    unknown = 0
+
+    cpu_required = cpu_millicores(requests["cpu"])
+    memory_required = memory_bytes(requests["memory"])
+
+    for node in nodes:
+        if not isinstance(node, dict):
+            unknown += 1
+            continue
+
+        cpu = cpu_millicores(node.get("allocatableCpu"))
+        memory = memory_bytes(node.get("allocatableMemory"))
+        taints = node.get("nodeTaints")
+
+        if taints is None and type(node.get("taintCount")) is int and node["taintCount"] == 0:
+            taints = []
+
+        if (
+            cpu is None or memory is None
+            or not isinstance(node.get("unschedulable"), bool)
+            or not isinstance(taints, list)
+            or type(node.get("taintCount")) is not int
+            or len(taints) != node["taintCount"]
+        ):
+            unknown += 1
+            continue
+
+        normalized_node = {**node, "nodeTaints": taints}
+
+        selector = evaluate_node_selector(
+            normalized, [normalized_node],
+            inventory_complete=True
+        )
+
+        tolerance = evaluate_node_tolerations(
+            normalized, [normalized_node],
+            inventory_complete=True
+        )
+
+        if (
+            selector["status"] == "PENDING_EVIDENCE"
+            or tolerance["status"] == "PENDING_EVIDENCE"
+        ):
+            unknown += 1
+            continue
+
+        if (
+            not node["unschedulable"]
+            and cpu >= cpu_required
+            and memory >= memory_required
+            and selector["status"] == "PARTIAL"
+            and tolerance["status"] == "PARTIAL"
+        ):
+            candidates += 1
+
+    result = {
+        "status": "PENDING_EVIDENCE",
+        "candidateNodes": candidates,
+        "observedNodes": len(nodes),
+        "unverifiedNodes": unknown,
+        "observedRequestFloor": requests,
+    }
+
+    if unknown:
+        result["reason"] = (
+            "Some target node or source placement evidence is incomplete."
+        )
+    elif candidates:
+        result["status"] = "PARTIAL"
+        result["reason"] = (
+            f"{candidates} observed target node(s) satisfy the combined "
+            "request floor, node selectors and hard-taint constraints. "
+            "Effective Pod demand, free headroom, affinity, topology, "
+            "quota and admission remain unverified."
+        )
+    else:
+        result["reason"] = (
+            "No observed target node satisfies the combined request "
+            "floor, node selectors and hard-taint constraints. "
+            "Review placement requirements before proceeding."
+        )
+
+    return result

@@ -36,7 +36,7 @@ def test_missing_and_omitted_are_distinct():
     result = network_scope_evidence(source, plan(source, selected), [source, selected, omitted])
     assert result["status"] == "PENDING_EVIDENCE"
     assert "not observed in source inventory (1): absent" in result["reason"]
-    assert "not marked MIGRATE (1): not-selected" in result["reason"]
+    assert "not planned for migration or recreation (1): not-selected" in result["reason"]
     assert "Selected source Services (1): selected" in result["reason"]
 
 
@@ -52,7 +52,7 @@ def test_retired_service_does_not_satisfy_scope():
     source, service = workload(dependencyReferences=[ref("api")]), svc("api")
     result = network_scope_evidence(source, plan(source) + [{**service, "treatment": "RETIRE"}], [source, service])
     assert result["status"] == "PENDING_EVIDENCE"
-    assert "not marked MIGRATE" in result["reason"]
+    assert "not planned for migration or recreation" in result["reason"]
 
 
 @pytest.mark.parametrize("refs", [None, [], {}, [None], [{"kind":"Service"}], [{"kind":"Secret","name":"key"}]])
@@ -81,4 +81,78 @@ def test_ingress_scope_does_not_imply_target_routing():
     checks = {c["capability"]: c for c in report[0]["checks"]}
     assert checks["Network dependency scope"]["status"] == "PARTIAL"
     assert checks["Networking"]["status"] == "PENDING_EVIDENCE"
+    assert report[0]["status"] == "PENDING_EVIDENCE"
+
+
+@pytest.mark.parametrize("kind,field", [
+    ("Deployment", "dependencyReferences"),
+    ("StatefulSet", "dependencyReferences"),
+    ("Ingress", "backendServiceReferences"),
+])
+@pytest.mark.parametrize("treatment", ["MIGRATE", "RECREATE"])
+def test_service_treatment_is_included_in_saved_scope(
+        kind, field, treatment):
+
+    source = workload(kind, **{field: [ref("api")]})
+    service = svc("api")
+
+    planned = plan(source) + [
+        {**service, "treatment": treatment}
+    ]
+
+    result = network_scope_evidence(
+        source, planned, [source, service]
+    )
+
+    assert result["status"] == "PARTIAL"
+    assert "Selected source Services (1): api" in result["reason"]
+    assert "remain unverified" in result["reason"]
+
+
+@pytest.mark.parametrize("treatment", [
+    "RETIRE", "REVIEW", "REPLACE", None
+])
+def test_unresolved_service_treatment_remains_pending(treatment):
+
+    source = workload(dependencyReferences=[ref("api")])
+    service = svc("api")
+
+    planned = plan(source) + [
+        {**service, "treatment": treatment}
+    ]
+
+    result = network_scope_evidence(
+        source, planned, [source, service]
+    )
+
+    assert result["status"] == "PENDING_EVIDENCE"
+
+
+def test_recreated_service_does_not_certify_target_network():
+
+    source = workload(dependencyReferences=[ref("api")])
+    service = svc("api")
+
+    planned = plan(source) + [
+        {**service, "treatment": "RECREATE"}
+    ]
+
+    report = evaluate_selected_resources(
+        [source, service],
+        planned,
+        [], [], [], [],
+        target_current=True
+    )
+
+    checks = {
+        item["capability"]: item
+        for item in report[0]["checks"]
+    }
+
+    assert checks["Network dependency scope"]["status"] == "PARTIAL"
+
+    assert checks[
+        "Workload networking dependencies"
+    ]["status"] == "PENDING_EVIDENCE"
+
     assert report[0]["status"] == "PENDING_EVIDENCE"

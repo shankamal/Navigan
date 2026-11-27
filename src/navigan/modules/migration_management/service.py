@@ -366,6 +366,7 @@ class Service:
             "StorageClass/CSI inventory is incomplete or predates discovery support."
         )
 
+        from .network_evidence import build_network_inventory
         from .target_inventory_evidence import build_target_inventory_evidence
         target_collection = build_target_inventory_evidence(resources, metrics)
         discovered_api_versions = target_collection["discoveredApiVersions"]
@@ -375,6 +376,7 @@ class Service:
             "storageDiscovery": storage_discovery_states,
             "supplementaryDiscovery": supplementary_discovery,
             "supplementaryInventory": supplementary_inventory,
+            "networkInventory": build_network_inventory(resources),
             "storageClasses": storage_classes,
             "storageClassDetails": storage_class_details,
             "csiDrivers": csi_drivers,
@@ -614,6 +616,16 @@ class Service:
                 result["status"] = "REMEDIATION_REQUIRED"
                 result["reason"] = taints["reason"]
             result["taintTolerationEvidence"] = taints
+
+            from .scheduling_evidence import evaluate_combined_placement
+            combined = evaluate_combined_placement(
+                resource, nodes, inventory_complete=complete_nodes,
+            )
+            result["combinedPlacementEvidence"] = combined
+
+            if "candidateNodes" in combined:
+                result["reason"] += " " + combined["reason"]
+
             observations.append({
                 "apiVersion": resource.get("apiVersion"),
                 "kind": resource.get("kind"),
@@ -648,7 +660,54 @@ class Service:
             findings, api_observations, storage_observations, observations,
             target_current=target_current,
             data_strategy=draft.get("dataStrategy"),
+            target_snapshot=snapshot,
         )
+        # Source-first recommendations must agree with resource-level
+        # evidence. A complete inventory flag is not sufficient by itself.
+        if (draft.get("workflow") == "SOURCE_FIRST"
+                and path in {"DIRECT", "ASSISTED"}):
+
+            active = [
+                r for r in draft.get("resources", [])
+                if r.get("treatment") != "RETIRE"
+            ]
+
+            def resource_key(r):
+                return (
+                    r.get("apiVersion"), r.get("kind"),
+                    r.get("namespace"), r.get("name"),
+                )
+
+            evaluated = {
+                resource_key(row["resource"]): row
+                for row in resource_evaluations
+            }
+
+            allowed_statuses = (
+                {"COMPATIBLE"} if path == "DIRECT"
+                else {"COMPATIBLE", "REMEDIATION_REQUIRED"}
+            )
+
+            unresolved = [
+                r for r in active
+                if r.get("treatment") not in {"MIGRATE", "RECREATE"}
+                or evaluated.get(resource_key(r), {}).get(
+                    "targetStatus"
+                ) != "COMPATIBLE"
+                or evaluated.get(resource_key(r), {}).get(
+                    "status"
+                ) not in allowed_statuses
+            ]
+
+            if not active or unresolved:
+                path = "PENDING_EVIDENCE"
+                reason = (
+                    "Selected resource compatibility evidence is "
+                    "incomplete or requires unresolved target remediation. "
+                    "Review resource-level findings before selecting "
+                    "a migration path."
+                )
+
         from .assessment_report import build_workload_assessment_report
         workload_report = build_workload_assessment_report(
             draft, resource_evaluations, dependency_evidence,
