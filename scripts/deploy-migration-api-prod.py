@@ -348,7 +348,10 @@ def stamp(stack):
 
 
 # Reviewed API-only package pair; existing Layout v2 writers are unchanged.
-REVIEWED_LAYOUT2_PACKAGES = {('11rXWDebT24giCxSlqsxf4Hi2697/521247LXPLfJY8=', '8UmIGeO2ybCg45xXZ38rO4e0R9Cj259npFyz8mYQmaU='): '4ec834af9762a5725bdb8cdb73242c3af7d0e5757bb6152134ff3fefac5615fb'}
+REVIEWED_LAYOUT2_PACKAGES = {
+    ('11rXWDebT24giCxSlqsxf4Hi2697/521247LXPLfJY8=', '8UmIGeO2ybCg45xXZ38rO4e0R9Cj259npFyz8mYQmaU='): '4ec834af9762a5725bdb8cdb73242c3af7d0e5757bb6152134ff3fefac5615fb',
+    ('8UmIGeO2ybCg45xXZ38rO4e0R9Cj259npFyz8mYQmaU=', 'eTmci7aF1DX9LtVT4T1O4HIkuOpTTK3fDQEByEeVpBg='): '4ec834af9762a5725bdb8cdb73242c3af7d0e5757bb6152134ff3fefac5615fb',
+}
 
 
 def reviewed_collector_sha(plan, current):
