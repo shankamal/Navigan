@@ -338,3 +338,41 @@ def test_scope_inspection_rejects_actual_integration_change():
             return {"TemplateBody": template}
     with pytest.raises(RuntimeError, match="dependency definition changed"):
         release.inspect_plan(CFN(child=[resource("MigrationIntegration", "AWS::ApiGatewayV2::Integration")]), "root")
+
+
+@pytest.mark.parametrize("branch,api_only,same_revision,accepted", [
+    ("feature/restore-white-ui-ebs-csi", True, True, True),
+    ("feature/restore-white-ui-ebs-csi", True, False, False),
+    ("feature/restore-white-ui-ebs-csi", False, True, False),
+    ("unreviewed-branch", True, True, False),
+    ("main", False, True, True),
+])
+def test_reviewed_migration_api_branch(
+        monkeypatch, branch, api_only, same_revision, accepted):
+
+    def git_output(command, **kwargs):
+        if command[1:3] == ["branch", "--show-current"]:
+            return branch
+        if command[1:] == ["rev-parse", "HEAD"]:
+            return "reviewed-commit"
+        if command[1] == "rev-parse":
+            return "reviewed-commit" if same_revision else "other-commit"
+        if command[1] == "status":
+            return ""
+        pytest.fail(f"Unexpected command: {command}")
+
+    monkeypatch.setattr(
+        release.storage.subprocess, "check_output", git_output
+    )
+
+    if accepted:
+        if api_only:
+            release.check_checkout()
+        else:
+            release.storage.check_checkout()
+    else:
+        with pytest.raises(RuntimeError):
+            if api_only:
+                release.check_checkout()
+            else:
+                release.storage.check_checkout()

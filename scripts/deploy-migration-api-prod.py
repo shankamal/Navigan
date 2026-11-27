@@ -92,7 +92,7 @@ def all_items(client, operation, key, **kwargs):
 
 
 def check_checkout():
-    storage.check_checkout()
+    storage.check_checkout(migration_api=True)
     paths = ["scripts/deploy-migration-api-prod.py", "src/navigan/modules/migration_management",
              "src/navigan/modules/cluster_management/github_app.py"]
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *paths], cwd=ROOT, text=True)
