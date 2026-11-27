@@ -266,22 +266,34 @@ class Service:
         )
 
     def analyze_target(self, identifier):
-        """Capture existing Cluster Management connector inventory, read-only."""
+        """Persist a target assessment using current connector inventory."""
         self.access.require("migration.edit")
-        migration = self.repo.get(identifier)
-        configuration = migration.get("target_configuration") or {}
+        # Preserve the production lock for the explicit persisted assessment.
+        migration = self.repo.get(identifier, lock=True)
+        assessment = self.repo.get_assessment(identifier).get("assessment")
+        cluster_id = (migration.get("target_configuration") or {}).get("clusterId")
         if migration["target_platform"] != "EKS":
             raise ApiError(422, "TARGET_ADAPTER_UNAVAILABLE",
                            "Existing target inventory assessment currently supports EKS.")
-        cluster_id = configuration.get("clusterId")
-        assessment = self.repo.get_assessment(identifier).get("assessment")
         if not cluster_id or not assessment:
             raise ApiError(409, "TARGET_NOT_READY",
                            "A selected target and source assessment are required.")
+        snapshot = self._read_target_snapshot(migration, cluster_id)
+        return self.repo.save_target_assessment(identifier, cluster_id, snapshot)
+
+    def _read_target_snapshot(self, migration, cluster_id):
+        """Build the same evidence snapshot without changing persisted state."""
+        configuration = migration.get("target_configuration") or {}
+        if migration.get("target_platform") != "EKS":
+            raise ApiError(422, "TARGET_ADAPTER_UNAVAILABLE",
+                           "Existing target inventory assessment currently supports EKS.")
         from navigan.modules.cluster_management.repository import Repository as ClusterRepository
         cluster_repo = ClusterRepository(self.repo.db, self.principal)
         registered = cluster_repo.get(cluster_id)
-        if registered["customer_id"] != migration["customer_id"] or registered["cluster_name"] != configuration.get("clusterName"):
+        if (registered["customer_id"] != migration["customer_id"]
+                or registered["cluster_name"] != configuration.get("clusterName")
+                or registered["platform"] != "EKS"
+                or (registered.get("workflow") or {}).get("ownershipStatus") == "ARCHIVED"):
             raise ApiError(409, "TARGET_IDENTITY_MISMATCH",
                            "Target is not the registered cluster for this migration and customer.")
         if registered["status"] != "ACTIVE":
@@ -316,23 +328,6 @@ class Service:
         ]
 
         metrics = existing.get("metrics") or {}
-        discovered_api_versions = [
-            version for key, version in (
-                ("apiDiscoveryCoreV1", "v1"),
-                ("apiDiscoveryAppsV1", "apps/v1"),
-            ) if metrics.get(key) == 1
-        ]
-
-        # Kind-specific evidence comes only from successful read-only discovery.
-        discovered_api_resources = [
-            {"apiVersion": version, "kind": kind}
-            for group, version, kinds in (
-                ("coreV1", "v1", ("Pod", "Service", "PersistentVolumeClaim", "ConfigMap", "Secret", "ServiceAccount")),
-                ("appsV1", "apps/v1", ("Deployment", "StatefulSet", "DaemonSet")),
-            )
-            for kind in kinds
-            if metrics.get(f"apiKind_{group}_{kind}") == 1
-        ]
 
         storage_classes = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "StorageClass" and isinstance(item.get("name"), str)})
         csi_drivers = sorted({item["name"] for item in resources if isinstance(item, dict) and item.get("kind") == "CSIDriver" and isinstance(item.get("name"), str)})
@@ -373,6 +368,7 @@ class Service:
 
         from .target_inventory_evidence import build_target_inventory_evidence
         target_collection = build_target_inventory_evidence(resources, metrics)
+        discovered_api_versions = target_collection["discoveredApiVersions"]
         snapshot = {
             "collectionGaps": target_collection["collectionGaps"],
             "collectionLimitations": target_collection["collectionLimitations"],
@@ -383,13 +379,13 @@ class Service:
             "storageClassDetails": storage_class_details,
             "csiDrivers": csi_drivers,
             "discoveredApiVersions": discovered_api_versions,
-            "discoveredApiResources": discovered_api_resources,
+            "discoveredApiResources": target_collection["discoveredApiResources"],
             "nodeCapacity": node_capacity,
             "nodeCapacityCoverage": {"observedNodes": len(nodes), "nodesWithCapacity": len(node_capacity)},
             "resourceKinds": dict(sorted(resource_kinds.items())),
             "unclassifiedResourceCount": unclassified,
             "capabilityEvidence": {
-                "kubernetesApi": {"status": "PARTIAL" if discovered_api_versions else "NOT_VERIFIED", "observedApiVersions": discovered_api_versions, "reason": "Core API version discovery observed; source resource API compatibility, deprecations, CRDs and admission are not yet evaluated." if discovered_api_versions else "No supported target API versions were verified from connector discovery endpoints."},
+                "kubernetesApi": {"status": "PARTIAL" if discovered_api_versions else "NOT_VERIFIED", "observedApiVersions": discovered_api_versions, "reason": "Target API versions were observed. Resource-specific admission and authorization require additional evidence." if discovered_api_versions else "No supported target API versions were verified from connector discovery endpoints."},
                 "compute": {"status": "PARTIAL", "observedNodeCount": resource_kinds.get("Node", 0), "reason": "Node capacity observations are available for some nodes; pod requests, current utilization, quotas, affinity and taints are not yet compared." if node_capacity else "Node objects observed; allocatable resources, quota and scheduling constraints were not verified."} if resource_kinds.get("Node", 0) else {"status": "NOT_VERIFIED", "reason": "No usable node capacity evidence was provided."},
                 "storage": {"status": "PARTIAL" if storage_classes or csi_drivers else "NOT_VERIFIED", "observedStorageClassCount": len(storage_classes), "observedCSIDriverCount": len(csi_drivers), "reason": "StorageClass and CSI driver names observed; provisioning, access modes, topology, snapshots and PVC migration compatibility are not verified." if storage_classes or csi_drivers else storage_discovery_reason},
                 "networking": {"status": "PARTIAL", "observedServiceCount": resource_kinds.get("Service", 0), "reason": "Service objects observed; ingress, DNS, routing and network policy compatibility unverified."} if resource_kinds.get("Service", 0) else {"status": "NOT_VERIFIED", "reason": "Target routing and service capabilities are not verified."},
@@ -418,7 +414,47 @@ class Service:
                 "Workload identity and image pull authorization",
             ],
         }
-        return self.repo.save_target_assessment(identifier, cluster_id, snapshot)
+        return snapshot
+
+    def _refresh_expired_target_observation(self, migration, target):
+        """Re-evaluate incomplete connector observations without writing on GET.
+
+        Only an already-bound, incomplete inventory assessment is eligible.
+        Never replace a complete validation record with discovery-only evidence.
+        """
+        if not target or migration.get("target_platform") != "EKS":
+            return target
+        snapshot = target.get("snapshot") or {}
+        cluster_id = (migration.get("target_configuration") or {}).get("clusterId")
+        if (not cluster_id or target.get("targetClusterId") != cluster_id
+                or snapshot.get("naviganClusterId") != cluster_id
+                or target.get("evidenceLevel") != "CONNECTOR_RUNTIME_INVENTORY"
+                or snapshot.get("source") != "CLUSTER_MANAGEMENT_CONNECTOR"
+                or snapshot.get("coverageComplete") is not False):
+            return target
+        from .discovery_coverage import _freshness
+        if _freshness(snapshot.get("observedAt"),
+                      snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")) == "CURRENT":
+            return target
+        try:
+            candidate = self._read_target_snapshot(migration, cluster_id)
+        except ApiError as exc:
+            if exc.code in {"CLUSTER_NOT_FOUND", "TARGET_IDENTITY_MISMATCH",
+                            "TARGET_NOT_ACTIVE", "TARGET_INVENTORY_UNAVAILABLE",
+                            "TARGET_ADAPTER_UNAVAILABLE"}:
+                return target  # Keep the expired record; do not invent evidence.
+            raise
+        if (candidate.get("naviganClusterId") != cluster_id
+                or candidate.get("source") != "CLUSTER_MANAGEMENT_CONNECTOR"
+                or candidate.get("evidenceLevel") != "CONNECTOR_RUNTIME_INVENTORY"
+                or candidate.get("inventoryStatus") not in {"READY", "DEGRADED"}
+                or not candidate.get("connectorId")
+                or candidate.get("connectorId") != snapshot.get("connectorId")
+                or candidate.get("coverageComplete") is not False
+                or _freshness(candidate.get("observedAt"),
+                              candidate.get("inventoryExpiresAt") or candidate.get("expiresAt")) != "CURRENT"):
+            return target
+        return {**target, "snapshot": candidate}
 
     def target_compatibility(self, identifier):
         """Return the backend-authoritative migration-path decision.
@@ -467,6 +503,28 @@ class Service:
                         and not str(f.get("code", "")).startswith("TARGET_")
                         and (not f.get("resourceName") or
                              (f.get("resourceKind"), f.get("namespace"), f.get("resourceName")) in selected_findings)]
+        # Source scope and target identity have already been checked above.
+        # This observation is for compatibility evaluation only; GET never
+        # writes a target assessment or advances migration readiness.
+        refreshed = self._refresh_expired_target_observation(migration, target)
+        if refreshed is not target:
+            # The production repository gate checks active cluster/customer,
+            # active connector, current inventory and source-assessment binding.
+            # Recheck that binding after reading live inventory; do not let GET
+            # bypass the gate if the target or connector changes concurrently.
+            bound = self.repo.get_target_assessment(identifier).get("assessment")
+            if (not bound or bound.get("targetClusterId") != refreshed.get("targetClusterId")
+                    or bound.get("assessmentVersion") != refreshed.get("assessmentVersion")
+                    or (bound.get("snapshot") or {}).get("connectorId") != refreshed["snapshot"].get("connectorId")):
+                refreshed = None
+        target = refreshed
+        snapshot = (target or {}).get("snapshot") or {}
+        expires_raw = snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")
+        try:
+            expiry = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")) if isinstance(expires_raw, str) else None
+            target_current = expiry is not None and expiry.tzinfo is not None and expiry > datetime.now(timezone.utc)
+        except ValueError:
+            target_current = False
         blocked = any(
             finding.get("severity") == "BLOCKER"
             or finding.get("disposition") == "BLOCKER"
@@ -480,18 +538,10 @@ class Service:
             path = "PENDING_EVIDENCE"
             reason = "Run target analysis and collect target-bound evidence before selecting a migration path."
         else:
-            snapshot = target.get("snapshot") or {}
-            expires_raw = snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")
-            try:
-                expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")) if isinstance(expires_raw, str) else None
-                current = expires is not None and expires.tzinfo is not None and expires > datetime.now(timezone.utc)
-            except ValueError:
-                current = False
-            complete = current and bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or [])
-            if not current:
+            if not target_current:
                 path = "PENDING_EVIDENCE"
                 reason = "Target connector evidence has expired or has no trustworthy expiry timestamp."
-            elif not complete:
+            elif not snapshot.get("coverageComplete") or snapshot.get("unverified"):
                 path = "PENDING_EVIDENCE"
                 reason = "Target evidence is present but incomplete; required capabilities remain unverified."
             elif any(
@@ -505,7 +555,6 @@ class Service:
                 path = "DIRECT"
                 reason = "Current source and target evidence is complete and no blocking or remediation findings remain."
 
-        snapshot = (target or {}).get("snapshot") or {}
         # A source inventory identifies workloads, but does not necessarily
         # contain Kubernetes PodSpec resource requests. Keep those pending.
         from .scheduling_evidence import evaluate_node_capacity, workload_pod_requests, scheduling_constraints
@@ -521,13 +570,7 @@ class Service:
         nodes = snapshot.get("nodeCapacity") or []
         coverage = snapshot.get("nodeCapacityCoverage") or {}
         observed_nodes = coverage.get("observedNodes")
-        expires_raw = snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")
-        try:
-            evidence_expiry = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")) if isinstance(expires_raw, str) else None
-            fresh_nodes = evidence_expiry is not None and evidence_expiry.tzinfo is not None and evidence_expiry > datetime.now(timezone.utc)
-        except ValueError:
-            fresh_nodes = False
-        complete_nodes = fresh_nodes and bool(nodes) and observed_nodes == len(nodes)
+        complete_nodes = target_current and bool(nodes) and observed_nodes == len(nodes)
         for resource in source_resources:
             if not isinstance(resource, dict):
                 continue
@@ -535,8 +578,10 @@ class Service:
                         resource.get("namespace"), resource.get("name"))
             if identity not in selected or resource.get("kind") not in {"Deployment", "StatefulSet", "DaemonSet", "Pod", "Job", "CronJob"}:
                 continue
-            # Only consume explicit, already-observed aggregate requests.
-            # Do not infer pod requests from replicas, limits or node sizes.
+            # Separate observed regular-container requests from full pod placement.
+            # Do not infer effective pod requests from replicas, limits or node sizes.
+            from .scheduling_evidence import regular_container_requests
+            regular_requests = regular_container_requests(resource)
             requests = workload_pod_requests(resource) or {}
             constraints = scheduling_constraints(resource)
             result = evaluate_node_capacity(
@@ -545,8 +590,18 @@ class Service:
             )
             if constraints:
                 result["status"] = "PENDING_EVIDENCE"
-                result["reason"] = " ".join(constraints) + " " + result["reason"]
+                if regular_requests is not None:
+                    result["reason"] = " ".join(constraints) + (
+                        " Regular-container requests are observed; effective pod demand "
+                        "and placement remain unverified."
+                    )
+                else:
+                    result["reason"] = " ".join(constraints) + (
+                        " Regular-container CPU or memory requests are missing or invalid."
+                    )
                 result["missingEvidence"] = constraints
+            if regular_requests is not None:
+                result["regularContainerRequests"] = regular_requests
             from .scheduling_evidence import evaluate_node_selector
             selector = evaluate_node_selector(resource, nodes, inventory_complete=complete_nodes)
             if selector["status"] == "REMEDIATION_REQUIRED":
@@ -569,15 +624,16 @@ class Service:
         from .storage_evidence import compare_storage_claims
         storage_observations = compare_storage_claims(
             source_resources, selected, snapshot.get("storageClasses"),
-            fresh=fresh_nodes,
+            fresh=target_current,
             class_details=snapshot.get("storageClassDetails"),
             csi_drivers=snapshot.get("csiDrivers"),
             mappings=draft.get("storageMappings") or [],
+            data_strategy=draft.get("dataStrategy"),
         )
         from .api_evidence import evaluate_api_versions
         api_observations = evaluate_api_versions(
             source_resources, selected, snapshot.get("discoveredApiVersions"),
-            fresh=fresh_nodes,
+            fresh=target_current,
             observed_resources=snapshot.get("discoveredApiResources"),
         )
         from .dependency_evidence import discover_dependencies
@@ -590,7 +646,8 @@ class Service:
         resource_evaluations = evaluate_selected_resources(
             source_resources, draft.get("resources") or [],
             findings, api_observations, storage_observations, observations,
-            target_current=fresh_nodes,
+            target_current=target_current,
+            data_strategy=draft.get("dataStrategy"),
         )
         from .assessment_report import build_workload_assessment_report
         workload_report = build_workload_assessment_report(
@@ -611,6 +668,7 @@ class Service:
                 "reason": "API group/version discovery does not verify resource kinds, CRDs, admission or deprecated fields.",
             },
             "storageEvidence": {
+                "targetStorageClasses": (snapshot.get("storageClasses") or []) if target_current else [],
                 "status": "PARTIAL" if storage_observations and all(
                     item["status"] == "PARTIAL" for item in storage_observations
                 ) else "PENDING_EVIDENCE",
@@ -627,9 +685,7 @@ class Service:
             "targetClusterId": (target or {}).get("targetClusterId")
             or (migration.get("target_configuration") or {}).get("clusterId"),
             "evidenceLevel": (target or {}).get("evidenceLevel"),
-            "coverageComplete": (bool(snapshot.get("coverageComplete")) and not (snapshot.get("unverified") or []) and
-                                 bool(snapshot.get("inventoryExpiresAt") or snapshot.get("expiresAt")) and
-                                 path in {"DIRECT", "ASSISTED"}),
+            "coverageComplete": path in {"DIRECT", "ASSISTED"},
             "decision": {"path": path, "reason": reason},
         }
 
@@ -1017,6 +1073,9 @@ class Service:
                 or (registered.get("workflow") or {}).get("ownershipStatus") == "ARCHIVED"):
             raise ApiError(409, "TARGET_IDENTITY_MISMATCH", "Choose an active Navigan-managed cluster in this customer's approved environment.")
         row = copy.deepcopy(current)
+        previous_target = (current.get("target_configuration") or {}).get("clusterId")
+        if previous_target != target["clusterId"] and draft.get("storageMappings"):
+            row["planning_draft"]["storageMappings"] = []
         row["target_configuration"] = target
         row["target_platform"] = target["platform"]
         row["version"] += 1

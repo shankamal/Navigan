@@ -3,6 +3,12 @@
 No Kubernetes API calls, deployments, credentials, or mutations.
 """
 
+import re
+
+API_VERSION = re.compile(r"(?:[a-z0-9][a-z0-9.-]{0,252}/)?[a-z0-9][a-z0-9-]{0,62}")
+API_KIND = re.compile(r"[A-Za-z][A-Za-z0-9]{0,127}")
+
+
 def build_target_inventory_evidence(resources, metrics):
     resources = [r for r in (resources or []) if isinstance(r, dict)]
     metrics = metrics if isinstance(metrics, dict) else {}
@@ -23,13 +29,30 @@ def build_target_inventory_evidence(resources, metrics):
             ("apiDiscoveryCoreV1", "v1"), ("apiDiscoveryAppsV1", "apps/v1"))
         if metrics.get(metric) == 1
     ]
-    api_resources = [
-        {"apiVersion": version, "kind": kind}
+    legacy_pairs = [
+        (version, kind)
         for group, version, kinds in (
             ("coreV1", "v1", ("Pod", "Service", "PersistentVolumeClaim", "ConfigMap", "Secret", "ServiceAccount")),
             ("appsV1", "apps/v1", ("Deployment", "StatefulSet", "DaemonSet")),
         )
         for kind in kinds if metrics.get(f"apiKind_{group}_{kind}") == 1
+    ]
+    reported_versions = {
+        key.removeprefix("apiVersion:") for key, value in metrics.items()
+        if isinstance(key, str) and key.startswith("apiVersion:") and value == 1
+        and API_VERSION.fullmatch(key.removeprefix("apiVersion:"))
+    }
+    api_versions = list(dict.fromkeys([*api_versions, *sorted(reported_versions)]))
+    discovered_pairs = set()
+    for key, value in metrics.items():
+        if not isinstance(key, str) or not key.startswith("apiKind:") or value != 1:
+            continue
+        version, _, kind = key.removeprefix("apiKind:").partition(":")
+        if version in reported_versions and API_KIND.fullmatch(kind):
+            discovered_pairs.add((version, kind))
+    api_resources = [
+        {"apiVersion": version, "kind": kind}
+        for version, kind in dict.fromkeys([*legacy_pairs, *sorted(discovered_pairs)])
     ]
     states = lambda pairs: {
         kind: ("AVAILABLE" if metrics.get(metric) == 1 else

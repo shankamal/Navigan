@@ -4,8 +4,11 @@ These are observations and requirements, never automatic migration approval.
 """
 
 
+from .network_evidence import network_scope_evidence
+
 def evaluate_selected_resources(resources, planned, source_findings, api, storage,
-                                scheduling, *, target_current=False):
+                                scheduling, *, target_current=False, data_strategy=None):
+    data_separate = data_strategy == "DATA_MIGRATION_HANDLED_SEPARATELY"
     by_key = {
         (r.get("apiVersion"), r.get("kind"), r.get("namespace"), r.get("name")): r
         for r in resources if isinstance(r, dict)
@@ -67,6 +70,8 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
             observed = storage_by_key.get(key)
             add("Persistent storage", observed.get("status") if observed else "PENDING_EVIDENCE",
                 observed.get("reason") if observed else "StorageClass, CSI and volume migration compatibility have not been established.",
+                "Verify target StorageClass, CSI driver, access modes, capacity, topology, provisioning and mounting."
+                if data_separate else
                 "Verify target StorageClass, CSI driver, access modes, capacity, topology and data-transfer method.")
         if key[1] in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod"}:
             observed = scheduling_by_key.get(key)
@@ -75,6 +80,10 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                 "Verify source resource requests and target node headroom, selectors, taints, quotas and affinity.")
         # Apply evidence checks only where the Kubernetes kind requires them.
         kind = key[1]
+        network_scope = network_scope_evidence(resource, planned, resources)
+        if network_scope is not None:
+            add("Network dependency scope", network_scope["status"],
+                network_scope["reason"], network_scope["nextAction"])
         if kind in {"Service", "Ingress", "NetworkPolicy"}:
             add("Networking", "PENDING_EVIDENCE",
                 "Destination network routing or policy enforcement is not verified.",
@@ -89,12 +98,27 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
                 "Map source network dependencies to the target, then validate routing, policy and connectivity.")
             if not isinstance(pod, dict) or not isinstance(pod.get("volumes"), list):
                 add("Workload volume dependencies", "PENDING_EVIDENCE",
-                    "Pod volume references are not fully captured; persistent data dependencies cannot be ruled out.",
+                    "Pod volume references are not fully captured; persistent storage dependencies cannot be ruled out.",
+                    "Collect volume references and validate PVC, CSI and mount requirements."
+                    if data_separate else
                     "Collect volume references and validate PVC, CSI, mount, backup and data transfer mappings.")
             elif pod["volumes"]:
-                add("Workload volume dependencies", "PENDING_EVIDENCE",
-                    "Pod volumes are present, but target volume provisioning and data dependency mapping are unverified.",
-                    "Classify each volume and verify target provisioning, PVC and data migration requirements.")
+                volume_types = {v.get("type") if isinstance(v, dict) and isinstance(v.get("type"), str) else "unknown"
+                                for v in pod["volumes"]}
+                # Built-in nonpersistent volumes do not need dynamic CSI provisioning.
+                # Their manifest schema/admission and configuration references still need validation.
+                config_types = {"configMap", "secret", "projected"}
+                nonpersistent = config_types | {"emptyDir", "downwardAPI"}
+                if volume_types & config_types:
+                    add("Workload configuration volumes", "PENDING_EVIDENCE",
+                        "Configuration or projected volume references require target validation; these volumes do not themselves require CSI provisioning.",
+                        "Validate referenced configuration, secrets and projected identities in the target manifest and namespace.")
+                if volume_types - nonpersistent:
+                    add("Workload volume dependencies", "PENDING_EVIDENCE",
+                        "Persistent, external, node-local or unclassified volume types require target compatibility evidence.",
+                        "Classify each volume and verify target provisioning, PVC and mount requirements."
+                        if data_separate else
+                        "Classify each volume and verify target provisioning, PVC and data migration requirements.")
         if kind in {"ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding", "Secret"}:
             add("Identity and secrets", "PENDING_EVIDENCE",
                 "Target identity, RBAC rules or secret references are not verified.",
@@ -108,18 +132,35 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
             else:
                 identity = pod.get("serviceAccountName")
                 pull = pod.get("imagePullSecrets")
+                pull_count = pod.get("imagePullSecretCount")
+                # The sanitized connector reports a count, not the raw PodSpec
+                # list. Accept either representation, but never infer zero from
+                # absent, malformed or contradictory evidence.
+                count_valid = type(pull_count) is int and pull_count >= 0
+                list_valid = isinstance(pull, list)
+                pull_known = (
+                    (list_valid or count_valid)
+                    and (pull is None or list_valid)
+                    and ("imagePullSecretCount" not in pod or count_valid)
+                    and not (list_valid and count_valid and len(pull) != pull_count)
+                )
                 has_identity = isinstance(identity, str) and bool(identity) and identity != "default"
-                has_pull = isinstance(pull, list) and bool(pull)
+                has_pull = (list_valid and bool(pull)) or (count_valid and pull_count > 0)
                 if has_identity or has_pull:
                     add("Identity and secrets", "PENDING_EVIDENCE",
                         "Workload references a non-default service account or image-pull secrets; target authorization is unverified.",
                         "Verify the named service account, RBAC and registry secret references in the target namespace.")
-                elif identity is None or pull is None:
+                elif not pull_known:
                     add("Identity and secrets", "PENDING_EVIDENCE",
-                        "Source connector did not report complete identity and image-pull references.",
-                        "Collect service account and image-pull secret fields before assessing target access.")
-                # Only omit a specialized identity check when the sanitized
-                # source explicitly captures no non-default identity references.
+                        "Source connector did not report trustworthy image-pull reference evidence.",
+                        "Collect or reconcile the sanitized image-pull secret count and references before assessing target access.")
+                elif identity != "default":
+                    add("Identity and secrets", "PENDING_EVIDENCE",
+                        "No explicit image-pull secret references were observed, but the source service account is not confirmed.",
+                        "Verify the effective source and target service accounts, including inherited image-pull credentials.")
+                # Explicit default identity and zero direct pull references
+                # require no specialized named-reference check. This does not
+                # verify inherited credentials or target registry authorization.
         if kind in {"CustomResourceDefinition", "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"}:
             add("Controllers and dependencies", "PENDING_EVIDENCE",
                 "Target API extension or admission controller is not verified.",
@@ -127,6 +168,8 @@ def evaluate_selected_resources(resources, planned, source_findings, api, storag
         if kind == "StatefulSet":
             add("Stateful storage dependencies", "PENDING_EVIDENCE",
                 "Volume templates and persistence dependencies remain unverified.",
+                "Verify target PVC mappings, CSI provisioning and mounting."
+                if data_separate else
                 "Verify target PVC mappings, CSI provisioning and data migration strategy.")
         if not target_current:
             add("Evidence freshness", "PENDING_EVIDENCE",
